@@ -1,0 +1,35 @@
+🎨 Refinamento Fino de UI/UX: Planilha de Edição
+A tela melhorou significativamente, mas precisamos fazer o polimento final para garantir fluidez na leitura e evitar confusão visual no alinhamento dos campos. Aplique as seguintes correções:
+
+1. Correção Crítica de Alinhamento (Útil / FDS)
+Há um conflito de direção visual. Os cabeçalhos de subnível estão na horizontal, mas os inputs estão na vertical.
+
+A Solução: Se os inputs (caixas de texto) vão ficar um em cima do outro, os labels Útil e FDS devem acompanhar esse formato.
+
+Layout Sugerido da Célula: Coloque a label discretamente dentro ou ao lado de cada input na mesma célula, ou empilhe os textos no cabeçalho.
+
+Exemplo Visual do Input:
+[ Útil: R$ 90,00 ]
+[ FDS: R$ 110,00 ]
+
+2. Otimização de Espaço Horizontal (Merge de Colunas)
+A tabela está espremida. Precisamos fundir as colunas Colaborador, Função e Período em uma única coluna rica ("Card de Linha"):
+
+Estrutura da Coluna Única (Colaborador):
+ADAILTON FLORENCIO BARROS [FREELA]
+Cenotecnia local | 10/10/2026 a 12/10/2026
+
+Ação: Remova as colunas independentes de Função e Período do cabeçalho. Isso abrirá muito espaço para as colunas de valores respirarem.
+
+3. Exibição do Valor Monetário da Diária
+A coluna DIÁRIA atualmente só mostra a quantidade (ex: 1 útil e 1 fds), mas está omitindo o valor monetário da diária (R$/dia).
+
+Ajuste: É impossível conferir o subtotal se o multiplicador estiver oculto. Se os campos de digitação são referentes à quantidade, adicione o valor em Reais ao lado (ex: Qtd: 1 (R$ 800,00)). Se o campo for o valor, certifique-se de que a quantidade esteja visível.
+
+4. Limpeza Visual (Ghost Inputs)
+Remova as bordas escuras/fortes dos inputs de valores.
+
+Use Ghost Inputs (campos com fundo levemente cinza/transparente e sem bordas duras). A borda de foco (highlight) só deve aparecer quando o usuário clicar para digitar.
+
+5. Alinhamento Numérico
+Todos os valores da coluna SUBTOTAL devem estar alinhados estritamente à direita, para que as vírgulas e os centavos fiquem perfeitamente alinhados, facilitando a leitura contábil de cima a baixo.

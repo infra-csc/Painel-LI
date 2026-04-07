@@ -1958,17 +1958,16 @@ export default function BudgetPlannedPage() {
               {/* Tabela */}
               {(() => {
                 const allSameMob = false;
-                const colSpanTotal = 9;
+                const colSpanTotal = 7;
 
                 return (
                 <div ref={batchPopoverRef} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        {/* Linha 1 — nomes das colunas principais */}
-                        <tr>
-                          {/* Checkbox select-all — rowSpan 2 */}
-                          <th rowSpan={2} className="w-10 px-3 bg-slate-50/80 border-b border-slate-200" style={{verticalAlign:'middle'}}>
+                        <tr className="border-b border-slate-200">
+                          {/* Checkbox select-all */}
+                          <th className="w-10 px-3 py-2.5 bg-slate-50/80">
                             <Checkbox
                               checked={filteredBudgets.length > 0 && filteredBudgets.every(b => selectedRows.has(b.inclusion.id))}
                               onCheckedChange={v => {
@@ -1980,11 +1979,11 @@ export default function BudgetPlannedPage() {
                               className="w-3.5 h-3.5"
                             />
                           </th>
-                          {/* Função / Período — rowSpan 2 */}
-                          <th rowSpan={2} className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] min-w-[220px] bg-slate-50/80 border-b border-slate-200" style={{color:'#888', verticalAlign:'middle'}}>Função / Período</th>
+                          {/* Colaborador / Função / Período */}
+                          <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] min-w-[260px] bg-slate-50/80" style={{color:'#888'}}>Colaborador · Função · Período</th>
 
-                          {/* Diárias (qty) — rowSpan 2 */}
-                          <th rowSpan={2} className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-24 border-b border-slate-200" style={{background:'#F1F5F9', color:'#94A3B8', verticalAlign:'middle'}}>
+                          {/* Diárias (qty) — read-only */}
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28" style={{background:'#F1F5F9', color:'#94A3B8'}}>
                             <TooltipProvider delayDuration={200}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -2000,10 +1999,17 @@ export default function BudgetPlannedPage() {
                             </TooltipProvider>
                           </th>
 
-                          {/* DIÁRIA R$/DIA — colSpan 2, com batch edit */}
-                          <th colSpan={2} className="text-right px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.07em] relative" style={{background:'#EFF6FF', color:'#2563EB', borderLeft:'1px solid #DBEAFE'}}>
+                          {/* Diária R$/dia — batch edit */}
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-36 relative" style={{background:'#EFF6FF', color:'#2563EB'}}>
                             <div className="flex items-center justify-end gap-1">
-                              <span>Diária R$/dia</span>
+                              <div className="flex flex-col items-end leading-tight">
+                                <span>Diária R$/dia</span>
+                                <span className="text-[8px] font-semibold normal-case tracking-normal" style={{color:'#94A3B8'}}>
+                                  <span style={{color:'#2563EB'}}>Útil</span>
+                                  <span className="mx-1 opacity-40">|</span>
+                                  <span style={{color:'#F97316'}}>FDS</span>
+                                </span>
+                              </div>
                               <button
                                 onClick={() => setBatchPopover(batchPopover?.field === 'vdia' ? null : { field: 'vdia', value: '', onlyPending: true })}
                                 className={`text-[10px] transition-colors cursor-pointer ${batchApplied.has('vdia') ? 'text-[#3B4FE4]' : 'text-slate-300 hover:text-slate-500'}`}
@@ -2021,29 +2027,28 @@ export default function BudgetPlannedPage() {
                                   className="w-full h-8 border border-slate-200 rounded-md px-2 text-right text-[12px] font-mono outline-none focus:border-[#3B4FE4] focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)] mb-2"
                                 />
                                 <label className="flex items-center gap-1.5 text-[11px] text-slate-500 mb-3 cursor-pointer">
-                                  <Checkbox
-                                    checked={batchPopover.onlyPending}
-                                    onCheckedChange={v => setBatchPopover(p => p ? {...p, onlyPending: !!v} : p)}
-                                    className="w-3.5 h-3.5"
-                                  />
+                                  <Checkbox checked={batchPopover.onlyPending} onCheckedChange={v => setBatchPopover(p => p ? {...p, onlyPending: !!v} : p)} className="w-3.5 h-3.5" />
                                   Apenas Pendentes
                                 </label>
                                 <div className="flex gap-2">
                                   <button onClick={() => setBatchPopover(null)} className="flex-1 h-7 text-[11px] border border-slate-200 rounded-md text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</button>
-                                  <button
-                                    onClick={() => { applyBatchEdit('vdia', batchPopover.value, batchPopover.onlyPending); setBatchPopover(null); }}
-                                    className="flex-1 h-7 text-[11px] rounded-md text-white font-semibold transition-colors"
-                                    style={{background:'#3B4FE4'}}
-                                  >Aplicar</button>
+                                  <button onClick={() => { applyBatchEdit('vdia', batchPopover.value, batchPopover.onlyPending); setBatchPopover(null); }} className="flex-1 h-7 text-[11px] rounded-md text-white font-semibold" style={{background:'#3B4FE4'}}>Aplicar</button>
                                 </div>
                               </div>
                             )}
                           </th>
 
-                          {/* ALIM. R$/DIA — colSpan 2, com batch edit */}
-                          <th colSpan={2} className="text-right px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.07em] relative" style={{background:'#FFF7ED', color:'#C2410C', borderLeft:'1px solid #FED7AA'}}>
+                          {/* Alim. R$/dia — batch edit */}
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-36 relative" style={{background:'#FFF7ED', color:'#C2410C'}}>
                             <div className="flex items-center justify-end gap-1">
-                              <span>Alim. R$/dia</span>
+                              <div className="flex flex-col items-end leading-tight">
+                                <span>Alim. R$/dia</span>
+                                <span className="text-[8px] font-semibold normal-case tracking-normal" style={{color:'#94A3B8'}}>
+                                  <span style={{color:'#2563EB'}}>Útil</span>
+                                  <span className="mx-1 opacity-40">|</span>
+                                  <span style={{color:'#F97316'}}>FDS</span>
+                                </span>
+                              </div>
                               <button
                                 onClick={() => setBatchPopover(batchPopover?.field === 'alim' ? null : { field: 'alim', value: '', onlyPending: true })}
                                 className={`text-[10px] transition-colors cursor-pointer ${batchApplied.has('alim') ? 'text-[#3B4FE4]' : 'text-slate-300 hover:text-slate-500'}`}
@@ -2061,28 +2066,20 @@ export default function BudgetPlannedPage() {
                                   className="w-full h-8 border border-slate-200 rounded-md px-2 text-right text-[12px] font-mono outline-none focus:border-[#3B4FE4] focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)] mb-2"
                                 />
                                 <label className="flex items-center gap-1.5 text-[11px] text-slate-500 mb-3 cursor-pointer">
-                                  <Checkbox
-                                    checked={batchPopover.onlyPending}
-                                    onCheckedChange={v => setBatchPopover(p => p ? {...p, onlyPending: !!v} : p)}
-                                    className="w-3.5 h-3.5"
-                                  />
+                                  <Checkbox checked={batchPopover.onlyPending} onCheckedChange={v => setBatchPopover(p => p ? {...p, onlyPending: !!v} : p)} className="w-3.5 h-3.5" />
                                   Apenas Pendentes
                                 </label>
                                 <div className="flex gap-2">
                                   <button onClick={() => setBatchPopover(null)} className="flex-1 h-7 text-[11px] border border-slate-200 rounded-md text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</button>
-                                  <button
-                                    onClick={() => { applyBatchEdit('alim', batchPopover.value, batchPopover.onlyPending); setBatchPopover(null); }}
-                                    className="flex-1 h-7 text-[11px] rounded-md text-white font-semibold transition-colors"
-                                    style={{background:'#3B4FE4'}}
-                                  >Aplicar</button>
+                                  <button onClick={() => { applyBatchEdit('alim', batchPopover.value, batchPopover.onlyPending); setBatchPopover(null); }} className="flex-1 h-7 text-[11px] rounded-md text-white font-semibold" style={{background:'#3B4FE4'}}>Aplicar</button>
                                 </div>
                               </div>
                             )}
                           </th>
 
-                          {/* Mobilidade — rowSpan 2, batch edit */}
+                          {/* Mobilidade — batch edit */}
                           {!allSameMob && (
-                            <th rowSpan={2} className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative border-b border-slate-200" style={{background:'#F5F3FF', color:'#6D28D9', borderLeft:'1px solid #EDE9FE', verticalAlign:'middle'}}>
+                            <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{background:'#F5F3FF', color:'#6D28D9'}}>
                               <div className="flex items-center justify-end gap-1">
                                 <span>Mob. R$ total</span>
                                 <button
@@ -2102,36 +2099,18 @@ export default function BudgetPlannedPage() {
                                     className="w-full h-8 border border-slate-200 rounded-md px-2 text-right text-[12px] font-mono outline-none focus:border-[#3B4FE4] focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)] mb-2"
                                   />
                                   <label className="flex items-center gap-1.5 text-[11px] text-slate-500 mb-3 cursor-pointer">
-                                    <Checkbox
-                                      checked={batchPopover.onlyPending}
-                                      onCheckedChange={v => setBatchPopover(p => p ? {...p, onlyPending: !!v} : p)}
-                                      className="w-3.5 h-3.5"
-                                    />
+                                    <Checkbox checked={batchPopover.onlyPending} onCheckedChange={v => setBatchPopover(p => p ? {...p, onlyPending: !!v} : p)} className="w-3.5 h-3.5" />
                                     Apenas Pendentes
                                   </label>
                                   <div className="flex gap-2">
                                     <button onClick={() => setBatchPopover(null)} className="flex-1 h-7 text-[11px] border border-slate-200 rounded-md text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</button>
-                                    <button
-                                      onClick={() => { applyBatchEdit('mob', batchPopover.value, batchPopover.onlyPending); setBatchPopover(null); }}
-                                      className="flex-1 h-7 text-[11px] rounded-md text-white font-semibold transition-colors"
-                                      style={{background:'#3B4FE4'}}
-                                    >Aplicar</button>
+                                    <button onClick={() => { applyBatchEdit('mob', batchPopover.value, batchPopover.onlyPending); setBatchPopover(null); }} className="flex-1 h-7 text-[11px] rounded-md text-white font-semibold" style={{background:'#3B4FE4'}}>Aplicar</button>
                                   </div>
                                 </div>
                               )}
                             </th>
                           )}
-
-                          {/* Subtotal — rowSpan 2 */}
-                          <th rowSpan={2} className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 bg-blue-50/60 text-[#3B4FE4] border-b border-slate-200" style={{verticalAlign:'middle'}}>Subtotal</th>
-                        </tr>
-
-                        {/* Linha 2 — sub-colunas ÚTIL / FDS */}
-                        <tr className="border-b border-slate-200">
-                          <th className="text-right px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider" style={{color:'#2563EB', background:'#EFF6FF', borderLeft:'1px solid #DBEAFE'}}>Útil</th>
-                          <th className="text-right px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider" style={{color:'#F97316', background:'rgba(249,115,22,0.07)', borderLeft:'1px solid #FED7AA'}}>FDS</th>
-                          <th className="text-right px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider" style={{color:'#2563EB', background:'#FFF7ED', borderLeft:'1px solid #FED7AA'}}>Útil</th>
-                          <th className="text-right px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider" style={{color:'#F97316', background:'rgba(249,115,22,0.1)', borderLeft:'1px solid #FED7AA'}}>FDS</th>
+                          <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 bg-blue-50/60 text-[#3B4FE4]">Subtotal</th>
                         </tr>
 
                         {/* Banner de edição em lote */}
@@ -2143,11 +2122,7 @@ export default function BudgetPlannedPage() {
                                 {batchHistory && (
                                   <>
                                     <span style={{color:'#a5b4fc'}}>·</span>
-                                    <button
-                                      onClick={undoBatch}
-                                      className="cursor-pointer font-semibold px-2 py-0.5 rounded text-[10px] transition-colors hover:opacity-80"
-                                      style={{background:'#3B4FE4', color:'#fff'}}
-                                    >Desfazer</button>
+                                    <button onClick={undoBatch} className="cursor-pointer font-semibold px-2 py-0.5 rounded text-[10px] transition-colors hover:opacity-80" style={{background:'#3B4FE4', color:'#fff'}}>Desfazer</button>
                                   </>
                                 )}
                               </div>
@@ -2241,43 +2216,14 @@ export default function BudgetPlannedPage() {
                             }
                           };
 
-                          const headerRow = isNewCollab ? (
-                            <tr key={`hdr-${budget.inclusion.collaboratorId}-${rowIdx}`} style={{
-                              background: '#F1F5F9',
-                              borderTop: rowIdx > 0 ? '3px solid #CBD5E1' : undefined,
-                            }}>
-                              <td style={{width:40, paddingLeft:12, paddingTop:8, paddingBottom:8, verticalAlign:'middle'}}>
-                                <Checkbox
-                                  checked={selectedRows.has(budget.inclusion.collaboratorId + '_all') || filteredBudgets.filter(b => b.inclusion.collaboratorId === budget.inclusion.collaboratorId).every(b => selectedRows.has(b.inclusion.id))}
-                                  onCheckedChange={v => {
-                                    const groupBudgets = filteredBudgets.filter(b => b.inclusion.collaboratorId === budget.inclusion.collaboratorId);
-                                    setSelectedRows(prev => {
-                                      const next = new Set(prev);
-                                      groupBudgets.forEach(b => v ? next.add(b.inclusion.id) : next.delete(b.inclusion.id));
-                                      return next;
-                                    });
-                                  }}
-                                  className="w-3.5 h-3.5"
-                                />
-                              </td>
-                              <td colSpan={colSpanTotal - 1} style={{paddingLeft:8, paddingTop:8, paddingBottom:8}}>
-                                <div className="flex items-center gap-2">
-                                  <span style={{fontSize:13, fontWeight:700, color:'#1a1a2e'}}>{toTitleCase(name)}</span>
-                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide"
-                                    style={isCasaTypeHdr ? {background:'#DBEAFE', color:'#1D4ED8'} : {background:'#FEE2E2', color:'#B91C1C'}}>
-                                    {isCasaTypeHdr ? 'Casa' : 'Freela'}
-                                  </span>
-                                </div>
-                              </td>
-                            </tr>
-                          ) : null;
+                          const headerRow = null;
 
                           const dataRow = (
                             <tr
                               key={budget.inclusion.id}
                               style={{
-                                height: '52px',
                                 background: isSent ? '#FAFAFA' : undefined,
+                                borderTop: isNewCollab && rowIdx > 0 ? '3px solid #E2E8F0' : undefined,
                               }}
                               className={`group transition-colors ${isSent ? '' : isNotAttended ? 'opacity-40' : 'hover:bg-blue-50/20'} ${hasOvr && !isSent ? 'bg-amber-50/20' : ''}`}
                             >
@@ -2291,12 +2237,29 @@ export default function BudgetPlannedPage() {
                                 />
                               </td>
 
-                              {/* Função + período */}
-                              <td className="pl-5 pr-3" style={{minWidth:'200px'}}>
+                              {/* Colaborador + Função + Período — coluna rica */}
+                              <td className="pl-4 pr-3 py-2" style={{minWidth:'260px', verticalAlign:'middle'}}>
+                                {isNewCollab && (
+                                  <div className="flex items-center gap-1.5 mb-0.5">
+                                    <span style={{fontSize:11, fontWeight:700, color:'#1a1a2e', letterSpacing:'0.01em'}}>{toTitleCase(name)}</span>
+                                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide"
+                                      style={isCasaTypeHdr ? {background:'#DBEAFE', color:'#1D4ED8'} : {background:'#FEE2E2', color:'#B91C1C'}}>
+                                      {isCasaTypeHdr ? 'Casa' : 'Freela'}
+                                    </span>
+                                  </div>
+                                )}
                                 <div className="flex items-center gap-1.5 flex-wrap leading-tight">
                                   <span className={`text-[12px] font-semibold ${isNotAttended ? 'line-through text-slate-400' : ''}`} style={{color: isNotAttended ? undefined : '#374151'}}>
                                     {funcName}
                                   </span>
+                                  {budget.inclusion.startDate && budget.inclusion.endDate && (
+                                    <span className="text-[10px]" style={{color:'#B0B7C3'}}>
+                                      · {new Date(budget.inclusion.startDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}
+                                      {budget.inclusion.startDate !== budget.inclusion.endDate && (
+                                        <> → {new Date(budget.inclusion.endDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}</>
+                                      )}
+                                    </span>
+                                  )}
                                   {matchingActual?.rhAdjusted && (
                                     <TooltipProvider delayDuration={200}>
                                       <Tooltip>
@@ -2317,26 +2280,29 @@ export default function BudgetPlannedPage() {
                                     </span>
                                   ) : null}
                                 </div>
-                                {budget.inclusion.startDate && budget.inclusion.endDate && (
-                                  <div className="text-[10px] mt-0.5" style={{color:'#B0B7C3'}}>
-                                    {new Date(budget.inclusion.startDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}
-                                    {budget.inclusion.startDate !== budget.inclusion.endDate && (
-                                      <> → {new Date(budget.inclusion.endDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}</>
-                                    )}
-                                  </div>
-                                )}
                               </td>
 
                               {/* Diárias qty — somente leitura */}
-                              <td className="px-3 text-right" style={{background:'#F8FAFC'}}>
+                              <td className="px-3 py-2 text-right" style={{background:'#F8FAFC'}}>
                                 <TooltipProvider delayDuration={200}>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <div className="flex items-center justify-end gap-1 cursor-not-allowed select-none">
-                                        <Lock style={{width:9, height:9, color:'#CBD5E1', flexShrink:0}} />
-                                        <span className="text-[13px] tabular-nums" style={{color:'#94A3B8'}}>
-                                          {budget.qtdDiarias} {budget.qtdDiarias === 1 ? 'dia' : 'dias'}
-                                        </span>
+                                      <div className="flex flex-col items-end gap-0.5 cursor-not-allowed select-none">
+                                        <div className="flex items-center gap-1">
+                                          <Lock style={{width:8, height:8, color:'#CBD5E1', flexShrink:0}} />
+                                          {budget.weekdays > 0 && (
+                                            <span className="text-[11px] tabular-nums" style={{color:'#94A3B8'}}>
+                                              <span className="text-[9px] font-semibold" style={{color:'#2563EB'}}>útil</span> {budget.weekdays} · <span className="text-[9px] font-mono" style={{color:'#64748B'}}>R$ {(budget.valorDiariaUtil / 100).toFixed(2).replace('.', ',')}</span>
+                                            </span>
+                                          )}
+                                        </div>
+                                        {budget.weekends > 0 && (
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-[11px] tabular-nums" style={{color:'#94A3B8'}}>
+                                              <span className="text-[9px] font-semibold" style={{color:'#F97316'}}>fds</span> {budget.weekends} · <span className="text-[9px] font-mono" style={{color:'#64748B'}}>R$ {(budget.valorDiariaFds / 100).toFixed(2).replace('.', ',')}</span>
+                                            </span>
+                                          </div>
+                                        )}
                                       </div>
                                     </TooltipTrigger>
                                     <TooltipContent side="top" className="text-xs max-w-[200px] text-center">
@@ -2346,9 +2312,11 @@ export default function BudgetPlannedPage() {
                                 </TooltipProvider>
                               </td>
 
-                              {/* Diária Útil — coluna própria */}
-                              <td className="px-3 py-2 text-right" style={{background:'rgba(37,99,235,0.03)', borderLeft:'1px solid #DBEAFE', minWidth:'100px'}}>
-                                <div className="flex items-center justify-end gap-1">
+                              {/* Diária R$/dia — Útil + FDS empilhados com labels inline */}
+                              <td className="px-3 py-2" style={{background:'#EFF6FF', minWidth:'130px', verticalAlign:'middle'}}>
+                                {/* Útil */}
+                                <div className="flex items-center gap-1 mb-1">
+                                  <span className="text-[9px] font-bold w-6 text-right shrink-0" style={{color:'#2563EB'}}>Útil</span>
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -2360,7 +2328,7 @@ export default function BudgetPlannedPage() {
                                           onChange={e => setbuf('vdia', e.target.value)}
                                           onBlur={commitBlur('valorDia', 'vdia')}
                                           onFocus={e => e.target.select()}
-                                          className={`${inputBase} w-full max-w-[90px] ${!disabled && vdiaEdited ? 'font-bold' : ''}`}
+                                          className={`${inputBase} flex-1 min-w-0 ${!disabled && vdiaEdited ? 'font-bold' : ''}`}
                                           style={!disabled && vdiaEdited ? {color:'#2563EB', borderColor:'#93C5FD'} : !disabled ? {color:'#1e40af'} : {}}
                                         />
                                       </TooltipTrigger>
@@ -2387,11 +2355,9 @@ export default function BudgetPlannedPage() {
                                     );
                                   })()}
                                 </div>
-                              </td>
-
-                              {/* Diária FDS — coluna própria */}
-                              <td className="px-3 py-2 text-right" style={{background:'rgba(249,115,22,0.05)', borderLeft:'1px solid #FED7AA', minWidth:'100px'}}>
-                                <div className="flex items-center justify-end gap-1">
+                                {/* FDS */}
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[9px] font-bold w-6 text-right shrink-0" style={{color:'#F97316'}}>FDS</span>
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -2403,7 +2369,7 @@ export default function BudgetPlannedPage() {
                                           onChange={e => setbuf('vdiaFds', e.target.value)}
                                           onBlur={(e) => { handleSheetEdit(budget, 'valorDiaFds', e.target.value); clearbuf('vdiaFds'); }}
                                           onFocus={e => e.target.select()}
-                                          className={`${inputBase} w-full max-w-[90px] ${!disabled && vdiaFdsEdited ? 'font-bold' : ''}`}
+                                          className={`${inputBase} flex-1 min-w-0 ${!disabled && vdiaFdsEdited ? 'font-bold' : ''}`}
                                           style={!disabled && vdiaFdsEdited ? {color:'#F97316', borderColor:'#FED7AA'} : !disabled ? {color:'#C2410C'} : {}}
                                         />
                                       </TooltipTrigger>
@@ -2432,9 +2398,11 @@ export default function BudgetPlannedPage() {
                                 </div>
                               </td>
 
-                              {/* Alim. Útil — coluna própria */}
-                              <td className="px-3 py-2 text-right" style={{background:'rgba(37,99,235,0.02)', borderLeft:'1px solid #FED7AA', minWidth:'100px'}}>
-                                <div className="flex items-center justify-end gap-1">
+                              {/* Alim. R$/dia — Útil + FDS empilhados com labels inline */}
+                              <td className="px-3 py-2" style={{background:'#FFF7ED', minWidth:'130px', verticalAlign:'middle'}}>
+                                {/* Útil */}
+                                <div className="flex items-center gap-1 mb-1">
+                                  <span className="text-[9px] font-bold w-6 text-right shrink-0" style={{color:'#2563EB'}}>Útil</span>
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -2446,7 +2414,7 @@ export default function BudgetPlannedPage() {
                                           onChange={e => setbuf('alimUtil', e.target.value)}
                                           onBlur={commitBlur('alimentacaoUtil', 'alimUtil')}
                                           onFocus={e => e.target.select()}
-                                          className={`${inputBase} w-full max-w-[90px] ${!disabled && budget.weekdays > 0 && alimUtilEdited ? 'font-bold' : ''}`}
+                                          className={`${inputBase} flex-1 min-w-0 ${!disabled && budget.weekdays > 0 && alimUtilEdited ? 'font-bold' : ''}`}
                                           style={!disabled && budget.weekdays > 0 && alimUtilEdited ? {color:'#2563EB', borderColor:'#93C5FD'} : !disabled && budget.weekdays > 0 ? {color:'#1e3a8a'} : {color:'#CBD5E1'}}
                                         />
                                       </TooltipTrigger>
@@ -2475,11 +2443,9 @@ export default function BudgetPlannedPage() {
                                     );
                                   })()}
                                 </div>
-                              </td>
-
-                              {/* Alim. FDS — coluna própria */}
-                              <td className="px-3 py-2 text-right" style={{background:'rgba(249,115,22,0.05)', borderLeft:'1px solid #FED7AA', minWidth:'100px'}}>
-                                <div className="flex items-center justify-end gap-1">
+                                {/* FDS */}
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[9px] font-bold w-6 text-right shrink-0" style={{color:'#F97316'}}>FDS</span>
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -2491,7 +2457,7 @@ export default function BudgetPlannedPage() {
                                           onChange={e => setbuf('alimFds', e.target.value)}
                                           onBlur={commitBlur('alimentacaoFds', 'alimFds')}
                                           onFocus={e => e.target.select()}
-                                          className={`${inputBase} w-full max-w-[90px] ${!disabled && budget.weekends > 0 && alimFdsEdited ? 'font-bold' : ''}`}
+                                          className={`${inputBase} flex-1 min-w-0 ${!disabled && budget.weekends > 0 && alimFdsEdited ? 'font-bold' : ''}`}
                                           style={!disabled && budget.weekends > 0 && alimFdsEdited ? {color:'#F97316', borderColor:'#FDBA74'} : !disabled && budget.weekends > 0 ? {color:'#92400e'} : {color:'#CBD5E1'}}
                                         />
                                       </TooltipTrigger>
