@@ -46,7 +46,7 @@ const ROLE_CFG: Record<string, { label: string; cls: string }> = {
   function_area: { label: "Área de Função",cls: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" },
   rh:            { label: "RH",            cls: "bg-orange-50 text-orange-700 ring-1 ring-orange-200" },
   purchasing:    { label: "Compras",       cls: "bg-amber-50 text-amber-700 ring-1 ring-amber-200" },
-  financial:     { label: "Financeiro",    cls: "bg-teal-50 text-teal-700 ring-1 ring-teal-200" },
+  financial:     { label: "RH",            cls: "bg-teal-50 text-teal-700 ring-1 ring-teal-200" },
 };
 
 function RoleBadge({ role }: { role: string }) {

@@ -168,8 +168,8 @@ export const ROLE_NAMES: Record<UserRole, string> = {
   admin: 'Administrador',
   production: 'Logística Interna',
   function_area: 'Área Responsável por Funções',
-  purchasing: 'Área de Compras/Viagens',
-  financial: 'Financeiro'
+  purchasing: 'Área de Compras/Viagem',
+  financial: 'RH'
 };
 
 /**

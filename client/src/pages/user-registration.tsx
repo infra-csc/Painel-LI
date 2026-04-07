@@ -47,7 +47,7 @@ const ROLES = [
   { value: "production",    label: "Logística Interna",  desc: "Escalações e eventos",     icon: "local_shipping",        color: "#0033CC", bg: "#EEF2FF" },
   { value: "function_area", label: "Área de Função",     desc: "Responsável por funções",  icon: "work",                  color: "#EA580C", bg: "#FFF7ED" },
   { value: "purchasing",    label: "Compras / Viagem",   desc: "Passagens e hospedagem",   icon: "shopping_cart",         color: "#0891B2", bg: "#ECFEFF" },
-  { value: "financial",     label: "Financeiro",         desc: "Prestações de contas",     icon: "account_balance_wallet",color: "#059669", bg: "#ECFDF5" },
+  { value: "financial",     label: "RH",                 desc: "Prestações de contas",     icon: "account_balance_wallet",color: "#059669", bg: "#ECFDF5" },
 ];
 
 const BLUE = "#0033CC";

@@ -55,12 +55,12 @@ function Router() {
           <Switch>
             <Route path="/" component={Dashboard} />
             <Route path="/events">
-              <ProtectedRoute permission="canAccessAdminUsers">
+              <ProtectedRoute permission="canAccessCadastros">
                 <Events />
               </ProtectedRoute>
             </Route>
             <Route path="/functions">
-              <ProtectedRoute permission="canAccessScreen0">
+              <ProtectedRoute permission="canAccessCadastros">
                 <Functions />
               </ProtectedRoute>
             </Route>
@@ -95,7 +95,7 @@ function Router() {
               </ProtectedRoute>
             </Route>
             <Route path="/user-registration">
-              <ProtectedRoute permission="canAccessScreen0">
+              <ProtectedRoute permission="canAccessCadastros">
                 <UserRegistration />
               </ProtectedRoute>
             </Route>
@@ -110,12 +110,12 @@ function Router() {
               </ProtectedRoute>
             </Route>
             <Route path="/budget-planned">
-              <ProtectedRoute permission="canAccessScreen0">
+              <ProtectedRoute permission="canAccessFinanceiro">
                 <BudgetPlanned />
               </ProtectedRoute>
             </Route>
             <Route path="/budget-actual">
-              <ProtectedRoute permission="canAccessScreen0">
+              <ProtectedRoute permission="canAccessFinanceiro">
                 <BudgetActual />
               </ProtectedRoute>
             </Route>
@@ -130,12 +130,12 @@ function Router() {
               </ProtectedRoute>
             </Route>
             <Route path="/system-settings">
-              <ProtectedRoute permission="canAccessAdminUsers">
+              <ProtectedRoute permission="canAccessFinanceiro">
                 <SystemSettings />
               </ProtectedRoute>
             </Route>
             <Route path="/invoices">
-              <ProtectedRoute permission="canAccessScreen0">
+              <ProtectedRoute permission="canAccessFinanceiro">
                 <InvoicesPage />
               </ProtectedRoute>
             </Route>

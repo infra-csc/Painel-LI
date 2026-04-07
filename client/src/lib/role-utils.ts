@@ -3,29 +3,32 @@ import type { User } from "@shared/schema";
 export type UserRole = "admin" | "production" | "function_area" | "purchasing" | "financial";
 
 export interface RolePermissions {
-  canAccessScreen0: boolean;  // user registration + functions - admin only
+  canAccessCadastros: boolean;   // events, user-registration, functions
+  canAccessScreen0: boolean;     // legacy — budget-planned, budget-actual, invoices (now = canAccessFinanceiro)
   canEditScreen0: boolean;
-  canAccessScreen1: boolean;  // team inclusion
-  canEditScreen1: boolean;    // team inclusion editing
-  canAccessScreen2: boolean;  // scaling
+  canAccessScreen1: boolean;     // team inclusion
+  canEditScreen1: boolean;
+  canAccessScreen2: boolean;     // scaling
   canSelectCollaborators: boolean;
-  canAccessScreen3: boolean;  // tickets
+  canAccessScreen3: boolean;     // tickets + accommodations
   canRegisterTickets: boolean;
   canAccessScreen4: boolean;
   canEditScreen4: boolean;
-  canAccessScreen5: boolean;
+  canAccessScreen5: boolean;     // comparativo + rh-control
   canApproveFinancial: boolean;
-  canAccessScreen6: boolean; // consultation - admin only
-  canAccessAdminUsers: boolean; // admin users management - admin only
-  canAccessCollaborators: boolean; // collaborator management
-  canEditCollaborators: boolean; // edit collaborators
-  canAccessCalendar: boolean; // calendar view - all roles
+  canAccessFinanceiro: boolean;  // planejado, realizado, notas fiscais, valores padrão
+  canAccessScreen6: boolean;     // consulta geral — admin only
+  canAccessAdminUsers: boolean;  // admin-users management — admin only
+  canAccessCollaborators: boolean;
+  canEditCollaborators: boolean;
+  canAccessCalendar: boolean;
 }
 
 export function getRolePermissions(role: UserRole): RolePermissions {
   switch (role) {
     case "admin":
       return {
+        canAccessCadastros: true,
         canAccessScreen0: true,
         canEditScreen0: true,
         canAccessScreen1: true,
@@ -38,34 +41,40 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditScreen4: true,
         canAccessScreen5: true,
         canApproveFinancial: true,
+        canAccessFinanceiro: true,
         canAccessScreen6: true,
         canAccessAdminUsers: true,
         canAccessCollaborators: true,
         canEditCollaborators: true,
         canAccessCalendar: true,
       };
+
     case "production":
       return {
+        canAccessCadastros: false,
         canAccessScreen0: false,
         canEditScreen0: false,
-        canAccessScreen1: true,   // team inclusion - access
-        canEditScreen1: true,     // team inclusion - can edit
-        canAccessScreen2: true,   // scaling - view access
+        canAccessScreen1: true,
+        canEditScreen1: true,
+        canAccessScreen2: true,
         canSelectCollaborators: false,
-        canAccessScreen3: true,   // tickets - view access
+        canAccessScreen3: true,
         canRegisterTickets: false,
         canAccessScreen4: true,
         canEditScreen4: true,
         canAccessScreen5: false,
         canApproveFinancial: false,
+        canAccessFinanceiro: false,
         canAccessScreen6: false,
         canAccessAdminUsers: false,
         canAccessCollaborators: true,
         canEditCollaborators: true,
         canAccessCalendar: true,
       };
+
     case "function_area":
       return {
+        canAccessCadastros: false,
         canAccessScreen0: false,
         canEditScreen0: false,
         canAccessScreen1: false,
@@ -78,19 +87,22 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditScreen4: false,
         canAccessScreen5: false,
         canApproveFinancial: false,
+        canAccessFinanceiro: false,
         canAccessScreen6: false,
         canAccessAdminUsers: false,
         canAccessCollaborators: true,
         canEditCollaborators: true,
         canAccessCalendar: true,
       };
+
     case "purchasing":
       return {
+        canAccessCadastros: true,
         canAccessScreen0: false,
         canEditScreen0: false,
-        canAccessScreen1: false,
-        canEditScreen1: false,
-        canAccessScreen2: true,  // scaling - view access
+        canAccessScreen1: true,
+        canEditScreen1: true,
+        canAccessScreen2: true,
         canSelectCollaborators: false,
         canAccessScreen3: true,
         canRegisterTickets: true,
@@ -98,34 +110,40 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditScreen4: false,
         canAccessScreen5: false,
         canApproveFinancial: false,
+        canAccessFinanceiro: false,
         canAccessScreen6: false,
         canAccessAdminUsers: false,
-        canAccessCollaborators: false,
-        canEditCollaborators: false,
+        canAccessCollaborators: true,
+        canEditCollaborators: true,
         canAccessCalendar: true,
       };
+
     case "financial":
       return {
-        canAccessScreen0: false,
-        canEditScreen0: false,
-        canAccessScreen1: false,
+        canAccessCadastros: true,
+        canAccessScreen0: true,
+        canEditScreen0: true,
+        canAccessScreen1: true,
         canEditScreen1: false,
-        canAccessScreen2: false,
+        canAccessScreen2: true,
         canSelectCollaborators: false,
-        canAccessScreen3: false,
+        canAccessScreen3: true,
         canRegisterTickets: false,
-        canAccessScreen4: false,
-        canEditScreen4: false,
+        canAccessScreen4: true,
+        canEditScreen4: true,
         canAccessScreen5: true,
         canApproveFinancial: true,
+        canAccessFinanceiro: true,
         canAccessScreen6: false,
         canAccessAdminUsers: false,
-        canAccessCollaborators: false,
-        canEditCollaborators: false,
+        canAccessCollaborators: true,
+        canEditCollaborators: true,
         canAccessCalendar: true,
       };
+
     default:
       return {
+        canAccessCadastros: false,
         canAccessScreen0: false,
         canEditScreen0: false,
         canAccessScreen1: false,
@@ -138,6 +156,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditScreen4: false,
         canAccessScreen5: false,
         canApproveFinancial: false,
+        canAccessFinanceiro: false,
         canAccessScreen6: false,
         canAccessAdminUsers: false,
         canAccessCollaborators: false,
@@ -159,7 +178,7 @@ export function getRoleLabel(role: UserRole): string {
     case "production": return "Logística Interna";
     case "function_area": return "Área responsável por funções";
     case "purchasing": return "Área de Compras/Viagem";
-    case "financial": return "Área Financeira";
+    case "financial": return "RH";
     default: return "Usuário";
   }
 }
