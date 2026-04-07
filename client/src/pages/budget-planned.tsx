@@ -2186,7 +2186,7 @@ export default function BudgetPlannedPage() {
                           const inputBase = `h-7 text-right font-mono tabular-nums text-[12px] rounded px-2 outline-none transition-all
                             ${disabled
                               ? 'bg-transparent text-slate-300 cursor-not-allowed'
-                              : 'bg-[#F4F5F7] border border-transparent text-slate-700 hover:bg-[#EAECEF] focus:bg-white focus:border-[#2563EB] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.12)]'}`;
+                              : 'bg-transparent border border-transparent text-slate-700 focus:bg-white focus:border-[#2563EB] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.12)]'}`;
 
                           const restoreField = (field: 'valorDia'|'valorDiaFds'|'alimentacao'|'alimentacaoUtil'|'alimentacaoFds'|'mobilidade') => {
                             if (!ovr) return;
@@ -2267,12 +2267,13 @@ export default function BudgetPlannedPage() {
                                         </span>
                                       </div>
                                     )}
+                                    {/* Linha 2: Função | Período */}
                                     <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span className={`text-[12px] ${isNotAttended ? 'line-through text-slate-400' : 'text-slate-500'}`}>
+                                      <span className={`text-[11px] ${isNotAttended ? 'line-through text-slate-400' : 'text-slate-500'}`}>
                                         {funcName}
                                       </span>
                                       {budget.inclusion.scheduleStartDate && (
-                                        <span className="text-[11px] text-slate-400">
+                                        <span className="text-[11px]" style={{color:'#9CA3AF'}}>
                                           · {new Date(budget.inclusion.scheduleStartDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}
                                           {budget.inclusion.scheduleEndDate && budget.inclusion.scheduleStartDate !== budget.inclusion.scheduleEndDate && (
                                             <> → {new Date(budget.inclusion.scheduleEndDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}</>
@@ -2289,12 +2290,15 @@ export default function BudgetPlannedPage() {
                                           </Tooltip>
                                         </TooltipProvider>
                                       )}
+                                    </div>
+                                    {/* Linha 3: Status discreto */}
+                                    <div className="mt-0.5">
                                       {isSent ? (
-                                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0" style={{background:'#DCFCE7', color:'#16A34A'}}>
-                                          <Check className="w-2.5 h-2.5" />Enviado
+                                        <span className="inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-px rounded-full" style={{background:'#DCFCE7', color:'#16A34A'}}>
+                                          <Check className="w-2 h-2" />Enviado
                                         </span>
                                       ) : !isNotAttended ? (
-                                        <span className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0" style={{background:'#FEF3C7', color:'#B45309'}}>
+                                        <span className="inline-flex items-center text-[9px] font-semibold px-1.5 py-px rounded-full" style={{background:'#FEF3C7', color:'#92400E'}}>
                                           Pendente
                                         </span>
                                       ) : null}
@@ -2325,7 +2329,7 @@ export default function BudgetPlannedPage() {
                               {/* Diária R$/dia — Útil + FDS empilhados */}
                               <td className="px-4 py-3" style={{minWidth:'120px', verticalAlign:'middle'}}>
                                 {/* Útil */}
-                                <div className="flex items-center justify-end gap-1 mb-2">
+                                <div className="flex items-center justify-end gap-1 mb-1.5 rounded-md px-1 -mx-1" style={{background:'rgba(37,99,235,0.05)'}}>
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -2409,7 +2413,7 @@ export default function BudgetPlannedPage() {
                               {/* Alim. R$/dia — Útil + FDS empilhados */}
                               <td className="px-4 py-3" style={{minWidth:'120px', verticalAlign:'middle'}}>
                                 {/* Útil */}
-                                <div className="flex items-center justify-end gap-1 mb-2">
+                                <div className="flex items-center justify-end gap-1 mb-1.5 rounded-md px-1 -mx-1" style={{background:'rgba(37,99,235,0.05)'}}>
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -2552,7 +2556,8 @@ export default function BudgetPlannedPage() {
                               <td className="px-4 py-3 text-right bg-blue-50/20" style={{position:'relative', verticalAlign:'middle'}}>
                                 <button
                                   onClick={() => setSubtotalOpenId(subtotalOpenId === sid ? null : sid)}
-                                  className={`text-[13px] font-mono font-semibold tabular-nums transition-colors ${isNotAttended ? 'text-slate-300 line-through cursor-default' : 'text-slate-900 hover:text-[#2563EB] cursor-pointer'}`}
+                                  className={`text-[14px] font-mono font-bold tabular-nums transition-colors ${isNotAttended ? 'text-slate-300 line-through cursor-default' : 'cursor-pointer hover:opacity-80'}`}
+                                  style={isNotAttended ? {} : {color:'#0033CC'}}
                                   disabled={isNotAttended}
                                 >
                                   {formatCurrency(budget.totalFinal)}
