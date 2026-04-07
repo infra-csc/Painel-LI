@@ -783,11 +783,15 @@ export default function BudgetPlannedPage() {
     const existingOvr = budgetOverrides[budget.inclusion.id];
 
     // Calcula o valor atual padrão (sem override) para comparar
+    // Alimentação e Mobilidade: o input agora é por dia, então comparamos em centavos/dia
     const foodDefault = budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds;
+    const dias = Math.max(1, budget.qtdDiarias);
+    const foodDefaultPerDay = Math.round(foodDefault / dias);
+    const mobDefaultPerDay = Math.round(budget.mobilidade / dias);
     const isUnchanged =
       (field === 'valorDia'    && valCents === budget.valorDiariaUtil) ||
-      (field === 'alimentacao' && valCents === foodDefault) ||
-      (field === 'mobilidade'  && valCents === budget.mobilidade) ||
+      (field === 'alimentacao' && valCents === foodDefaultPerDay) ||
+      (field === 'mobilidade'  && valCents === mobDefaultPerDay) ||
       (field === 'qtdDiarias'  && val === budget.qtdDiarias);
 
     if (isUnchanged) {
@@ -826,21 +830,25 @@ export default function BudgetPlannedPage() {
     if (field === 'qtdDiarias') { updated.qtdDiarias = val; }
     else if (field === 'valorDia') { updated.valorDiariaUtil = valCents; updated.valorDiariaFds = valCents; }
     else if (field === 'alimentacao') {
+      // valCents é por dia → converter para total do período
+      const totalCents = valCents * dias;
       const existingTotal = budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds;
       if (existingTotal === 0) {
-        const q = Math.round(valCents / 4);
-        updated.almocoSemana = q; updated.jantarSemana = q; updated.almocoFds = q; updated.jantarFds = valCents - q * 3;
+        const q = Math.round(totalCents / 4);
+        updated.almocoSemana = q; updated.jantarSemana = q; updated.almocoFds = q; updated.jantarFds = totalCents - q * 3;
       } else {
-        const f = valCents / existingTotal;
+        const f = totalCents / existingTotal;
         updated.almocoSemana = Math.round(budget.almocoSemana * f);
         updated.jantarSemana = Math.round(budget.jantarSemana * f);
         updated.almocoFds = Math.round(budget.almocoFds * f);
         updated.jantarFds = Math.round(budget.jantarFds * f);
       }
     } else if (field === 'mobilidade') {
-      updated.mobilidade = valCents;
-      updated.mobilidadeIda = Math.round(valCents / 2);
-      updated.mobilidadeVolta = valCents - Math.round(valCents / 2);
+      // valCents é por dia → converter para total do período
+      const totalCents = valCents * dias;
+      updated.mobilidade = totalCents;
+      updated.mobilidadeIda = Math.round(totalCents / 2);
+      updated.mobilidadeVolta = totalCents - Math.round(totalCents / 2);
     }
     setBudgetOverrides(prev => ({ ...prev, [budget.inclusion.id]: updated }));
   };
@@ -1823,7 +1831,7 @@ export default function BudgetPlannedPage() {
                           {/* Alimentação — batch edit */}
                           <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{background:'#FFF7ED', color:'#C2410C'}}>
                             <div className="flex items-center justify-end gap-1">
-                              <span>Alimentação</span>
+                              <span>Alim. R$/dia</span>
                               <button
                                 onClick={() => setBatchPopover(batchPopover?.field === 'alim' ? null : { field: 'alim', value: '', onlyPending: true })}
                                 className={`text-[10px] transition-colors cursor-pointer ${batchApplied.has('alim') ? 'text-[#3B4FE4]' : 'text-slate-300 hover:text-slate-500'}`}
@@ -1832,7 +1840,7 @@ export default function BudgetPlannedPage() {
                             </div>
                             {batchPopover?.field === 'alim' && (
                               <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-xl border border-slate-200 shadow-xl p-3 w-56 text-left" style={{minWidth:'220px'}}>
-                                <div className="text-[11px] font-semibold text-slate-600 mb-2">Aplicar Alimentação para todos</div>
+                                <div className="text-[11px] font-semibold text-slate-600 mb-2">Alim. R$/dia — aplicar para todos</div>
                                 <input
                                   type="text" inputMode="decimal" placeholder="0,00"
                                   value={batchPopover.value}
@@ -1864,7 +1872,7 @@ export default function BudgetPlannedPage() {
                           {!allSameMob && (
                             <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{background:'#F5F3FF', color:'#6D28D9'}}>
                               <div className="flex items-center justify-end gap-1">
-                                <span>Mobilidade</span>
+                                <span>Mob. R$/dia</span>
                                 <button
                                   onClick={() => setBatchPopover(batchPopover?.field === 'mob' ? null : { field: 'mob', value: '', onlyPending: true })}
                                   className={`text-[10px] transition-colors cursor-pointer ${batchApplied.has('mob') ? 'text-[#3B4FE4]' : 'text-slate-300 hover:text-slate-500'}`}
@@ -1873,7 +1881,7 @@ export default function BudgetPlannedPage() {
                               </div>
                               {batchPopover?.field === 'mob' && (
                                 <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-xl border border-slate-200 shadow-xl p-3 w-56 text-left" style={{minWidth:'220px'}}>
-                                  <div className="text-[11px] font-semibold text-slate-600 mb-2">Aplicar Mobilidade para todos</div>
+                                  <div className="text-[11px] font-semibold text-slate-600 mb-2">Mob. R$/dia — aplicar para todos</div>
                                   <input
                                     type="text" inputMode="decimal" placeholder="0,00"
                                     value={batchPopover.value}
@@ -1938,6 +1946,8 @@ export default function BudgetPlannedPage() {
                           const name = getCollaboratorName(budget.inclusion.collaboratorId);
                           const funcName = getFunctionName(budget.inclusion.functionId);
                           const foodTotal = (budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds) / 100;
+                          const foodPerDay = foodTotal / Math.max(1, budget.qtdDiarias);
+                          const mobPerDay = budget.mobilidade / Math.max(1, budget.qtdDiarias) / 100;
                           const disabled = isSent || isNotAttended;
                           const matchingActual = existingActuals?.find((a: any) =>
                             a.collaboratorId === budget.inclusion.collaboratorId &&
@@ -1965,9 +1975,11 @@ export default function BudgetPlannedPage() {
                           // Default values for tooltips
                           const fv = budget.functionValue;
                           const defaultVDia = fv?.dailyValue ?? (systemSettings?.default_daily_value ?? 5000);
-                          const defaultAlim = ((fv?.weekdayLunch ?? systemSettings?.default_weekday_lunch ?? 3500) + (fv?.weekdayDinner ?? systemSettings?.default_weekday_dinner ?? 4000)) * budget.weekdays
+                          const defaultAlimTotal = ((fv?.weekdayLunch ?? systemSettings?.default_weekday_lunch ?? 3500) + (fv?.weekdayDinner ?? systemSettings?.default_weekday_dinner ?? 4000)) * budget.weekdays
                                             + ((fv?.weekendLunch ?? systemSettings?.default_weekend_lunch ?? 4000) + (fv?.weekendDinner ?? systemSettings?.default_weekend_dinner ?? 4500)) * budget.weekends;
-                          const defaultMob = fv?.mobility ?? (systemSettings?.default_mobility ?? 2500);
+                          const defaultAlim = Math.round(defaultAlimTotal / Math.max(1, budget.qtdDiarias));
+                          const defaultMobTotal = fv?.mobility ?? (systemSettings?.default_mobility ?? 2500);
+                          const defaultMob = Math.round(defaultMobTotal / Math.max(1, budget.qtdDiarias));
 
                           // Tipo: Casa ou Freela
                           const isCasaType = budget.collaborator?.type === 'casa' || budget.collaborator?.type === 'local';
@@ -2131,7 +2143,7 @@ export default function BudgetPlannedPage() {
                                           type="text" inputMode="decimal"
                                           tabIndex={rowIdx * 3 + 3}
                                           disabled={disabled}
-                                          value={buf('alim', foodTotal.toFixed(2))}
+                                          value={buf('alim', foodPerDay.toFixed(2))}
                                           onChange={e => setbuf('alim', e.target.value)}
                                           onBlur={commitBlur('alimentacao', 'alim')}
                                           onFocus={e => e.target.select()}
@@ -2141,8 +2153,8 @@ export default function BudgetPlannedPage() {
                                       {!disabled && (
                                         <TooltipContent side="top" className="text-xs">
                                           {alimEdited
-                                            ? `Editado manualmente · padrão era R$ ${(defaultAlim / 100).toFixed(2).replace('.', ',')}`
-                                            : `Valor padrão da função ${funcName}`}
+                                            ? `Editado · padrão era R$ ${(defaultAlim / 100).toFixed(2).replace('.', ',')} /dia`
+                                            : `R$ ${(defaultAlim / 100).toFixed(2).replace('.', ',')} /dia (padrão da função)`}
                                         </TooltipContent>
                                       )}
                                     </Tooltip>
@@ -2184,7 +2196,7 @@ export default function BudgetPlannedPage() {
                                             type="text" inputMode="decimal"
                                             tabIndex={rowIdx * 3 + 4}
                                             disabled={disabled}
-                                            value={buf('mob', (budget.mobilidade / 100).toFixed(2))}
+                                            value={buf('mob', mobPerDay.toFixed(2))}
                                             onChange={e => setbuf('mob', e.target.value)}
                                             onBlur={commitBlur('mobilidade', 'mob')}
                                             onFocus={e => e.target.select()}
@@ -2194,8 +2206,8 @@ export default function BudgetPlannedPage() {
                                         {!disabled && (
                                           <TooltipContent side="top" className="text-xs">
                                             {mobEdited
-                                              ? `Editado manualmente · padrão era R$ ${(defaultMob / 100).toFixed(2).replace('.', ',')}`
-                                              : `Valor padrão da função ${funcName}`}
+                                              ? `Editado · padrão era R$ ${(defaultMob / 100).toFixed(2).replace('.', ',')} /dia`
+                                              : `R$ ${(defaultMob / 100).toFixed(2).replace('.', ',')} /dia (padrão da função)`}
                                           </TooltipContent>
                                         )}
                                       </Tooltip>
