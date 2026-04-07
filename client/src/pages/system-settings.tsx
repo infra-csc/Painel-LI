@@ -583,14 +583,14 @@ export default function SystemSettingsPage() {
                 {activeTab === 'casa' ? (<>
                   <FormField control={form.control} name="default_daily_value_weekday" render={({ field }) => (
                     <FormItem>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Dia Útil</p>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#2563EB', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Dia Útil</p>
                       <FormControl><CurrencyInput field={field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />
                   <FormField control={form.control} name="default_daily_value_weekend" render={({ field }) => (
                     <FormItem>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Fim de Semana</p>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#F97316', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Fim de Semana</p>
                       <FormControl><CurrencyInput field={field} /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -598,14 +598,14 @@ export default function SystemSettingsPage() {
                 </>) : (<>
                   <FormField control={form.control} name="default_daily_value_weekday_freela" render={({ field }) => (
                     <FormItem>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Dia Útil</p>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#2563EB', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Dia Útil</p>
                       <FormControl><CurrencyInput field={field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />
                   <FormField control={form.control} name="default_daily_value_weekend_freela" render={({ field }) => (
                     <FormItem>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Fim de Semana</p>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#F97316', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Fim de Semana</p>
                       <FormControl><CurrencyInput field={field} /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -688,7 +688,7 @@ export default function SystemSettingsPage() {
               </div>
               <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div>
-                  <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Dias Úteis</p>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: '#2563EB', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Dias Úteis</p>
                   <div className="grid grid-cols-2 gap-3">
                     {activeTab === 'casa' ? (<>
                       <FormField control={form.control} name="default_weekday_lunch" render={({ field }) => (
@@ -724,7 +724,7 @@ export default function SystemSettingsPage() {
                   </div>
                 </div>
                 <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: 14 }}>
-                  <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Fim de Semana</p>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: '#F97316', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Fim de Semana</p>
                   <div className="grid grid-cols-2 gap-3">
                     {activeTab === 'casa' ? (<>
                       <FormField control={form.control} name="default_weekend_lunch" render={({ field }) => (
@@ -827,8 +827,8 @@ export default function SystemSettingsPage() {
                   <>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '8px 20px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Função</span>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Dia Útil</span>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Fim de Semana</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-right" style={{color:'#2563EB'}}>Dia Útil</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-right" style={{color:'#F97316'}}>Fim de Semana</span>
                     </div>
                     <div className="divide-y divide-slate-100">
                       {visibleFns.map((fn) => {
