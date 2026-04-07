@@ -1958,16 +1958,17 @@ export default function BudgetPlannedPage() {
               {/* Tabela */}
               {(() => {
                 const allSameMob = false;
-                const colSpanTotal = 7;
+                const colSpanTotal = 9;
 
                 return (
                 <div ref={batchPopoverRef} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-slate-200">
-                          {/* Checkbox select-all */}
-                          <th className="w-10 px-3 py-2.5 bg-slate-50/80">
+                        {/* Linha 1 — nomes das colunas principais */}
+                        <tr>
+                          {/* Checkbox select-all — rowSpan 2 */}
+                          <th rowSpan={2} className="w-10 px-3 bg-slate-50/80 border-b border-slate-200" style={{verticalAlign:'middle'}}>
                             <Checkbox
                               checked={filteredBudgets.length > 0 && filteredBudgets.every(b => selectedRows.has(b.inclusion.id))}
                               onCheckedChange={v => {
@@ -1979,10 +1980,11 @@ export default function BudgetPlannedPage() {
                               className="w-3.5 h-3.5"
                             />
                           </th>
-                          <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] min-w-[220px] bg-slate-50/80" style={{color:'#888'}}>Função / Período</th>
+                          {/* Função / Período — rowSpan 2 */}
+                          <th rowSpan={2} className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] min-w-[220px] bg-slate-50/80 border-b border-slate-200" style={{color:'#888', verticalAlign:'middle'}}>Função / Período</th>
 
-                          {/* Diárias — read-only, lock icon */}
-                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-24" style={{background:'#F1F5F9', color:'#94A3B8'}}>
+                          {/* Diárias (qty) — rowSpan 2 */}
+                          <th rowSpan={2} className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-24 border-b border-slate-200" style={{background:'#F1F5F9', color:'#94A3B8', verticalAlign:'middle'}}>
                             <TooltipProvider delayDuration={200}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1998,17 +2000,10 @@ export default function BudgetPlannedPage() {
                             </TooltipProvider>
                           </th>
 
-                          {/* R$/dia — batch edit */}
-                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-40 relative" style={{background:'#EFF6FF', color:'#2563EB'}}>
+                          {/* DIÁRIA R$/DIA — colSpan 2, com batch edit */}
+                          <th colSpan={2} className="text-right px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.07em] relative" style={{background:'#EFF6FF', color:'#2563EB', borderLeft:'1px solid #DBEAFE'}}>
                             <div className="flex items-center justify-end gap-1">
-                              <div className="flex flex-col items-end">
-                                <span>Diária (R$/dia)</span>
-                                <span className="text-[8px] font-semibold normal-case tracking-normal" style={{color:'#64748B'}}>
-                                  <span style={{color:'#2563EB'}}>Útil</span>
-                                  <span className="mx-1 text-slate-300">|</span>
-                                  <span style={{color:'#F97316'}}>FDS</span>
-                                </span>
-                              </div>
+                              <span>Diária R$/dia</span>
                               <button
                                 onClick={() => setBatchPopover(batchPopover?.field === 'vdia' ? null : { field: 'vdia', value: '', onlyPending: true })}
                                 className={`text-[10px] transition-colors cursor-pointer ${batchApplied.has('vdia') ? 'text-[#3B4FE4]' : 'text-slate-300 hover:text-slate-500'}`}
@@ -2045,8 +2040,8 @@ export default function BudgetPlannedPage() {
                             )}
                           </th>
 
-                          {/* Alimentação — batch edit */}
-                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{background:'#FFF7ED', color:'#C2410C'}}>
+                          {/* ALIM. R$/DIA — colSpan 2, com batch edit */}
+                          <th colSpan={2} className="text-right px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.07em] relative" style={{background:'#FFF7ED', color:'#C2410C', borderLeft:'1px solid #FED7AA'}}>
                             <div className="flex items-center justify-end gap-1">
                               <span>Alim. R$/dia</span>
                               <button
@@ -2085,9 +2080,9 @@ export default function BudgetPlannedPage() {
                             )}
                           </th>
 
-                          {/* Mobilidade — batch edit */}
+                          {/* Mobilidade — rowSpan 2, batch edit */}
                           {!allSameMob && (
-                            <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{background:'#F5F3FF', color:'#6D28D9'}}>
+                            <th rowSpan={2} className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative border-b border-slate-200" style={{background:'#F5F3FF', color:'#6D28D9', borderLeft:'1px solid #EDE9FE', verticalAlign:'middle'}}>
                               <div className="flex items-center justify-end gap-1">
                                 <span>Mob. R$ total</span>
                                 <button
@@ -2127,7 +2122,16 @@ export default function BudgetPlannedPage() {
                             </th>
                           )}
 
-                          <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 bg-blue-50/60 text-[#3B4FE4]">Subtotal</th>
+                          {/* Subtotal — rowSpan 2 */}
+                          <th rowSpan={2} className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 bg-blue-50/60 text-[#3B4FE4] border-b border-slate-200" style={{verticalAlign:'middle'}}>Subtotal</th>
+                        </tr>
+
+                        {/* Linha 2 — sub-colunas ÚTIL / FDS */}
+                        <tr className="border-b border-slate-200">
+                          <th className="text-right px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider" style={{color:'#2563EB', background:'#EFF6FF', borderLeft:'1px solid #DBEAFE'}}>Útil</th>
+                          <th className="text-right px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider" style={{color:'#F97316', background:'rgba(249,115,22,0.07)', borderLeft:'1px solid #FED7AA'}}>FDS</th>
+                          <th className="text-right px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider" style={{color:'#2563EB', background:'#FFF7ED', borderLeft:'1px solid #FED7AA'}}>Útil</th>
+                          <th className="text-right px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider" style={{color:'#F97316', background:'rgba(249,115,22,0.1)', borderLeft:'1px solid #FED7AA'}}>FDS</th>
                         </tr>
 
                         {/* Banner de edição em lote */}
@@ -2342,179 +2346,179 @@ export default function BudgetPlannedPage() {
                                 </TooltipProvider>
                               </td>
 
-                              {/* Valor/dia — Útil + FDS separados */}
-                              <td className="px-3 py-1" style={{minWidth:'160px'}}>
-                                <div className="flex flex-col gap-1">
-                                  {/* Dia Útil */}
-                                  <div className="flex items-center justify-end gap-1">
-                                    <TooltipProvider delayDuration={150}>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <input
-                                            type="text" inputMode="decimal"
-                                            tabIndex={rowIdx * 4 + 2}
-                                            disabled={disabled}
-                                            value={buf('vdia', (budget.valorDiariaUtil / 100).toFixed(2))}
-                                            onChange={e => setbuf('vdia', e.target.value)}
-                                            onBlur={commitBlur('valorDia', 'vdia')}
-                                            onFocus={e => e.target.select()}
-                                            className={`${inputBase} w-[82px] ${!disabled && vdiaEdited ? 'font-bold' : ''}`}
-                                            style={!disabled && vdiaEdited ? {color:'#2563EB', borderColor:'#93C5FD'} : !disabled ? {color:'#1e40af'} : {}}
-                                          />
-                                        </TooltipTrigger>
-                                        {!disabled && (
-                                          <TooltipContent side="top" className="text-xs">
-                                            {vdiaEdited ? `Editado · padrão: R$ ${(defaultVDia / 100).toFixed(2).replace('.', ',')}` : `Padrão da função ${funcName} (dia útil)`}
-                                          </TooltipContent>
-                                        )}
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                    {vdiaEdited && !disabled && (() => {
-                                      const fbKey = `${sid}:vdia`;
-                                      const restored = restoredFeedback === fbKey;
-                                      return (
-                                        <TooltipProvider delayDuration={restored ? 0 : 150}>
-                                          <Tooltip open={restored ? true : undefined}>
-                                            <TooltipTrigger asChild>
-                                              <button onClick={() => { restoreField('valorDia'); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
-                                                className={`text-[10px] shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#2563EB]'}`}>↩</button>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão'}</TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      );
-                                    })()}
-                                  </div>
-                                  {/* Fim de Semana */}
-                                  <div className="flex items-center justify-end gap-1" style={{background:'rgba(249,115,22,0.05)', borderRadius:4, marginRight:-4, paddingRight:4}}>
-                                    <TooltipProvider delayDuration={150}>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <input
-                                            type="text" inputMode="decimal"
-                                            tabIndex={rowIdx * 4 + 3}
-                                            disabled={disabled}
-                                            value={buf('vdiaFds', (budget.valorDiariaFds / 100).toFixed(2))}
-                                            onChange={e => setbuf('vdiaFds', e.target.value)}
-                                            onBlur={(e) => { handleSheetEdit(budget, 'valorDiaFds', e.target.value); clearbuf('vdiaFds'); }}
-                                            onFocus={e => e.target.select()}
-                                            className={`${inputBase} w-[82px] ${!disabled && vdiaFdsEdited ? 'font-bold' : ''}`}
-                                            style={!disabled && vdiaFdsEdited ? {color:'#F97316', borderColor:'#FED7AA'} : !disabled ? {color:'#C2410C'} : {}}
-                                          />
-                                        </TooltipTrigger>
-                                        {!disabled && (
-                                          <TooltipContent side="top" className="text-xs">
-                                            {vdiaFdsEdited ? `Editado · padrão: R$ ${(defaultVDiaFds / 100).toFixed(2).replace('.', ',')}` : `Padrão da função ${funcName} (fim de semana)`}
-                                          </TooltipContent>
-                                        )}
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                    {vdiaFdsEdited && !disabled && (() => {
-                                      const fbKey = `${sid}:vdiaFds`;
-                                      const restored = restoredFeedback === fbKey;
-                                      return (
-                                        <TooltipProvider delayDuration={restored ? 0 : 150}>
-                                          <Tooltip open={restored ? true : undefined}>
-                                            <TooltipTrigger asChild>
-                                              <button onClick={() => { restoreField('valorDiaFds'); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
-                                                className={`text-[10px] shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#F97316]'}`}>↩</button>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão'}</TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      );
-                                    })()}
-                                  </div>
+                              {/* Diária Útil — coluna própria */}
+                              <td className="px-3 py-2 text-right" style={{background:'rgba(37,99,235,0.03)', borderLeft:'1px solid #DBEAFE', minWidth:'100px'}}>
+                                <div className="flex items-center justify-end gap-1">
+                                  <TooltipProvider delayDuration={150}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <input
+                                          type="text" inputMode="decimal"
+                                          tabIndex={rowIdx * 4 + 2}
+                                          disabled={disabled}
+                                          value={buf('vdia', (budget.valorDiariaUtil / 100).toFixed(2))}
+                                          onChange={e => setbuf('vdia', e.target.value)}
+                                          onBlur={commitBlur('valorDia', 'vdia')}
+                                          onFocus={e => e.target.select()}
+                                          className={`${inputBase} w-full max-w-[90px] ${!disabled && vdiaEdited ? 'font-bold' : ''}`}
+                                          style={!disabled && vdiaEdited ? {color:'#2563EB', borderColor:'#93C5FD'} : !disabled ? {color:'#1e40af'} : {}}
+                                        />
+                                      </TooltipTrigger>
+                                      {!disabled && (
+                                        <TooltipContent side="top" className="text-xs">
+                                          {vdiaEdited ? `Editado · padrão: R$ ${(defaultVDia / 100).toFixed(2).replace('.', ',')}` : `Padrão da função ${funcName} (dia útil)`}
+                                        </TooltipContent>
+                                      )}
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                  {vdiaEdited && !disabled && (() => {
+                                    const fbKey = `${sid}:vdia`;
+                                    const restored = restoredFeedback === fbKey;
+                                    return (
+                                      <TooltipProvider delayDuration={restored ? 0 : 150}>
+                                        <Tooltip open={restored ? true : undefined}>
+                                          <TooltipTrigger asChild>
+                                            <button onClick={() => { restoreField('valorDia'); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
+                                              className={`text-[10px] shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#2563EB]'}`}>↩</button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão'}</TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    );
+                                  })()}
                                 </div>
                               </td>
 
-                              {/* Alimentação — Útil/FDS separados */}
-                              <td className="px-3 py-1" style={{minWidth:'160px'}}>
-                                <div className="flex flex-col gap-1">
-                                  {/* Dia Útil — sempre visível; disabled se não há dias úteis */}
-                                  <div className="flex items-center justify-end gap-1">
-                                    <TooltipProvider delayDuration={150}>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <input
-                                            type="text" inputMode="decimal"
-                                            tabIndex={rowIdx * 4 + 4}
-                                            disabled={disabled || budget.weekdays === 0}
-                                            value={budget.weekdays === 0 ? '—' : buf('alimUtil', ((budget.almocoSemana + budget.jantarSemana) / Math.max(1, budget.weekdays) / 100).toFixed(2))}
-                                            onChange={e => setbuf('alimUtil', e.target.value)}
-                                            onBlur={commitBlur('alimentacaoUtil', 'alimUtil')}
-                                            onFocus={e => e.target.select()}
-                                            className={`${inputBase} w-[82px] ${!disabled && budget.weekdays > 0 && alimUtilEdited ? 'font-bold' : ''}`}
-                                            style={!disabled && budget.weekdays > 0 && alimUtilEdited ? {color:'#2563EB', borderColor:'#93C5FD'} : !disabled && budget.weekdays > 0 ? {color:'#1e3a8a'} : {color:'#CBD5E1'}}
-                                          />
-                                        </TooltipTrigger>
-                                        {!disabled && budget.weekdays > 0 && (
-                                          <TooltipContent side="top" className="text-xs">
-                                            {alimUtilEdited
-                                              ? `Editado · padrão: R$ ${((budget.unitAlmocoSemana + budget.unitJantarSemana) / 100).toFixed(2).replace('.', ',')} /dia útil`
-                                              : `Almoço + Jantar por dia útil`}
-                                          </TooltipContent>
-                                        )}
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                    {alimUtilEdited && !disabled && budget.weekdays > 0 && (() => {
-                                      const fbKey = `${sid}:alimUtil`;
-                                      const restored = restoredFeedback === fbKey;
-                                      return (
-                                        <TooltipProvider delayDuration={restored ? 0 : 150}>
-                                          <Tooltip open={restored ? true : undefined}>
-                                            <TooltipTrigger asChild>
-                                              <button onClick={() => { restoreField('alimentacaoUtil'); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
-                                                className={`text-[10px] shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#2563EB]'}`}>↩</button>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão'}</TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      );
-                                    })()}
-                                  </div>
-                                  {/* Fim de Semana — sempre visível; disabled se não há fins de semana */}
-                                  <div className="flex items-center justify-end gap-1" style={{background:'rgba(249,115,22,0.05)', borderRadius:4, marginRight:-4, paddingRight:4}}>
-                                    <TooltipProvider delayDuration={150}>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <input
-                                            type="text" inputMode="decimal"
-                                            tabIndex={rowIdx * 4 + 5}
-                                            disabled={disabled || budget.weekends === 0}
-                                            value={budget.weekends === 0 ? '—' : buf('alimFds', ((budget.almocoFds + budget.jantarFds) / Math.max(1, budget.weekends) / 100).toFixed(2))}
-                                            onChange={e => setbuf('alimFds', e.target.value)}
-                                            onBlur={commitBlur('alimentacaoFds', 'alimFds')}
-                                            onFocus={e => e.target.select()}
-                                            className={`${inputBase} w-[82px] ${!disabled && budget.weekends > 0 && alimFdsEdited ? 'font-bold' : ''}`}
-                                            style={!disabled && budget.weekends > 0 && alimFdsEdited ? {color:'#F97316', borderColor:'#FDBA74'} : !disabled && budget.weekends > 0 ? {color:'#92400e'} : {color:'#CBD5E1'}}
-                                          />
-                                        </TooltipTrigger>
-                                          {!disabled && budget.weekends > 0 && (
-                                            <TooltipContent side="top" className="text-xs">
-                                              {alimFdsEdited
-                                                ? `Editado · padrão: R$ ${((budget.unitAlmocoFds + budget.unitJantarFds) / 100).toFixed(2).replace('.', ',')} /dia FDS`
-                                                : `Almoço + Jantar por dia de fim de semana`}
-                                            </TooltipContent>
-                                          )}
+                              {/* Diária FDS — coluna própria */}
+                              <td className="px-3 py-2 text-right" style={{background:'rgba(249,115,22,0.05)', borderLeft:'1px solid #FED7AA', minWidth:'100px'}}>
+                                <div className="flex items-center justify-end gap-1">
+                                  <TooltipProvider delayDuration={150}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <input
+                                          type="text" inputMode="decimal"
+                                          tabIndex={rowIdx * 4 + 3}
+                                          disabled={disabled}
+                                          value={buf('vdiaFds', (budget.valorDiariaFds / 100).toFixed(2))}
+                                          onChange={e => setbuf('vdiaFds', e.target.value)}
+                                          onBlur={(e) => { handleSheetEdit(budget, 'valorDiaFds', e.target.value); clearbuf('vdiaFds'); }}
+                                          onFocus={e => e.target.select()}
+                                          className={`${inputBase} w-full max-w-[90px] ${!disabled && vdiaFdsEdited ? 'font-bold' : ''}`}
+                                          style={!disabled && vdiaFdsEdited ? {color:'#F97316', borderColor:'#FED7AA'} : !disabled ? {color:'#C2410C'} : {}}
+                                        />
+                                      </TooltipTrigger>
+                                      {!disabled && (
+                                        <TooltipContent side="top" className="text-xs">
+                                          {vdiaFdsEdited ? `Editado · padrão: R$ ${(defaultVDiaFds / 100).toFixed(2).replace('.', ',')}` : `Padrão da função ${funcName} (fim de semana)`}
+                                        </TooltipContent>
+                                      )}
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                  {vdiaFdsEdited && !disabled && (() => {
+                                    const fbKey = `${sid}:vdiaFds`;
+                                    const restored = restoredFeedback === fbKey;
+                                    return (
+                                      <TooltipProvider delayDuration={restored ? 0 : 150}>
+                                        <Tooltip open={restored ? true : undefined}>
+                                          <TooltipTrigger asChild>
+                                            <button onClick={() => { restoreField('valorDiaFds'); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
+                                              className={`text-[10px] shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#F97316]'}`}>↩</button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão'}</TooltipContent>
                                         </Tooltip>
                                       </TooltipProvider>
-                                      {alimFdsEdited && !disabled && budget.weekends > 0 && (() => {
-                                        const fbKey = `${sid}:alimFds`;
-                                        const restored = restoredFeedback === fbKey;
-                                        return (
-                                          <TooltipProvider delayDuration={restored ? 0 : 150}>
-                                            <Tooltip open={restored ? true : undefined}>
-                                              <TooltipTrigger asChild>
-                                                <button onClick={() => { restoreField('alimentacaoFds'); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
-                                                  className={`text-[10px] shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#F97316]'}`}>↩</button>
-                                              </TooltipTrigger>
-                                              <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão'}</TooltipContent>
-                                            </Tooltip>
-                                          </TooltipProvider>
-                                        );
-                                      })()}
-                                  </div>
+                                    );
+                                  })()}
+                                </div>
+                              </td>
+
+                              {/* Alim. Útil — coluna própria */}
+                              <td className="px-3 py-2 text-right" style={{background:'rgba(37,99,235,0.02)', borderLeft:'1px solid #FED7AA', minWidth:'100px'}}>
+                                <div className="flex items-center justify-end gap-1">
+                                  <TooltipProvider delayDuration={150}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <input
+                                          type="text" inputMode="decimal"
+                                          tabIndex={rowIdx * 4 + 4}
+                                          disabled={disabled || budget.weekdays === 0}
+                                          value={budget.weekdays === 0 ? '—' : buf('alimUtil', ((budget.almocoSemana + budget.jantarSemana) / Math.max(1, budget.weekdays) / 100).toFixed(2))}
+                                          onChange={e => setbuf('alimUtil', e.target.value)}
+                                          onBlur={commitBlur('alimentacaoUtil', 'alimUtil')}
+                                          onFocus={e => e.target.select()}
+                                          className={`${inputBase} w-full max-w-[90px] ${!disabled && budget.weekdays > 0 && alimUtilEdited ? 'font-bold' : ''}`}
+                                          style={!disabled && budget.weekdays > 0 && alimUtilEdited ? {color:'#2563EB', borderColor:'#93C5FD'} : !disabled && budget.weekdays > 0 ? {color:'#1e3a8a'} : {color:'#CBD5E1'}}
+                                        />
+                                      </TooltipTrigger>
+                                      {!disabled && budget.weekdays > 0 && (
+                                        <TooltipContent side="top" className="text-xs">
+                                          {alimUtilEdited
+                                            ? `Editado · padrão: R$ ${((budget.unitAlmocoSemana + budget.unitJantarSemana) / 100).toFixed(2).replace('.', ',')} /dia útil`
+                                            : `Almoço + Jantar por dia útil`}
+                                        </TooltipContent>
+                                      )}
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                  {alimUtilEdited && !disabled && budget.weekdays > 0 && (() => {
+                                    const fbKey = `${sid}:alimUtil`;
+                                    const restored = restoredFeedback === fbKey;
+                                    return (
+                                      <TooltipProvider delayDuration={restored ? 0 : 150}>
+                                        <Tooltip open={restored ? true : undefined}>
+                                          <TooltipTrigger asChild>
+                                            <button onClick={() => { restoreField('alimentacaoUtil'); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
+                                              className={`text-[10px] shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#2563EB]'}`}>↩</button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão'}</TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    );
+                                  })()}
+                                </div>
+                              </td>
+
+                              {/* Alim. FDS — coluna própria */}
+                              <td className="px-3 py-2 text-right" style={{background:'rgba(249,115,22,0.05)', borderLeft:'1px solid #FED7AA', minWidth:'100px'}}>
+                                <div className="flex items-center justify-end gap-1">
+                                  <TooltipProvider delayDuration={150}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <input
+                                          type="text" inputMode="decimal"
+                                          tabIndex={rowIdx * 4 + 5}
+                                          disabled={disabled || budget.weekends === 0}
+                                          value={budget.weekends === 0 ? '—' : buf('alimFds', ((budget.almocoFds + budget.jantarFds) / Math.max(1, budget.weekends) / 100).toFixed(2))}
+                                          onChange={e => setbuf('alimFds', e.target.value)}
+                                          onBlur={commitBlur('alimentacaoFds', 'alimFds')}
+                                          onFocus={e => e.target.select()}
+                                          className={`${inputBase} w-full max-w-[90px] ${!disabled && budget.weekends > 0 && alimFdsEdited ? 'font-bold' : ''}`}
+                                          style={!disabled && budget.weekends > 0 && alimFdsEdited ? {color:'#F97316', borderColor:'#FDBA74'} : !disabled && budget.weekends > 0 ? {color:'#92400e'} : {color:'#CBD5E1'}}
+                                        />
+                                      </TooltipTrigger>
+                                      {!disabled && budget.weekends > 0 && (
+                                        <TooltipContent side="top" className="text-xs">
+                                          {alimFdsEdited
+                                            ? `Editado · padrão: R$ ${((budget.unitAlmocoFds + budget.unitJantarFds) / 100).toFixed(2).replace('.', ',')} /dia FDS`
+                                            : `Almoço + Jantar por dia de fim de semana`}
+                                        </TooltipContent>
+                                      )}
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                  {alimFdsEdited && !disabled && budget.weekends > 0 && (() => {
+                                    const fbKey = `${sid}:alimFds`;
+                                    const restored = restoredFeedback === fbKey;
+                                    return (
+                                      <TooltipProvider delayDuration={restored ? 0 : 150}>
+                                        <Tooltip open={restored ? true : undefined}>
+                                          <TooltipTrigger asChild>
+                                            <button onClick={() => { restoreField('alimentacaoFds'); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
+                                              className={`text-[10px] shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#F97316]'}`}>↩</button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão'}</TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    );
+                                  })()}
                                 </div>
                               </td>
 
