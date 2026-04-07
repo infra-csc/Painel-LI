@@ -298,7 +298,22 @@ export default function SystemSettingsPage() {
         await saveFunctionValuesMutation.mutateAsync();
         queryClient.invalidateQueries({ queryKey: ["/api/function-values"] });
       }
-      toast({ title: "Valores padrão salvos", description: "Os novos valores serão aplicados em orçamentos de novos eventos." });
+      // Apply new defaults to all pending (not-yet-sent) budget_planned records
+      let updatedCount = 0;
+      try {
+        const applyRes = await apiRequest("POST", "/api/budget-planned/apply-defaults", {});
+        const applyData = await applyRes.json();
+        updatedCount = applyData.updated ?? 0;
+        if (updatedCount > 0) {
+          queryClient.invalidateQueries({ queryKey: ["/api/budget-planned"] });
+        }
+      } catch { /* non-critical */ }
+      toast({
+        title: "Valores padrão salvos",
+        description: updatedCount > 0
+          ? `${updatedCount} planejamento${updatedCount > 1 ? 's' : ''} pendente${updatedCount > 1 ? 's' : ''} atualizado${updatedCount > 1 ? 's' : ''} com os novos valores.`
+          : "Os novos valores serão aplicados em orçamentos de novos eventos.",
+      });
     } catch {
       toast({ title: "Erro ao salvar", variant: "destructive" });
     }

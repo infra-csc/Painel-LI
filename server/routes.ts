@@ -2010,6 +2010,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Budget Planned — Apply system defaults to all pending (not-yet-sent) records
+  app.post("/api/budget-planned/apply-defaults", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    const user = await storage.getUser(req.session.userId);
+    if (!user || (user.role !== "admin" && user.role !== "financial"))
+      return res.status(403).json({ message: "Acesso negado" });
+
+    try {
+      const [allPlanned, allActual, allInclusions, allFunctionValues, rawSettings] = await Promise.all([
+        storage.getAllBudgetPlanned(),
+        storage.getAllBudgetActual(),
+        storage.getTeamInclusions(),
+        storage.getAllFunctionValues(),
+        storage.getSystemSettings(),
+      ]);
+
+      const cfg: Record<string, number> = {};
+      for (const s of rawSettings) cfg[s.key] = parseInt(s.value);
+
+      const D = {
+        dailyWd:  cfg.default_daily_value_weekday  ?? cfg.default_daily_value ?? 5000,
+        dailyWe:  cfg.default_daily_value_weekend   ?? cfg.default_daily_value ?? 5000,
+        mobIda:   cfg.default_mobility_ida   ?? Math.ceil((cfg.default_mobility ?? 2500) / 2),
+        mobVolta: cfg.default_mobility_volta  ?? Math.floor((cfg.default_mobility ?? 2500) / 2),
+        almSem:   cfg.default_weekday_lunch   ?? 3500,
+        janSem:   cfg.default_weekday_dinner  ?? 4000,
+        almFds:   cfg.default_weekend_lunch   ?? 4000,
+        janFds:   cfg.default_weekend_dinner  ?? 4500,
+      };
+
+      // Build set of (eventId|collaboratorId|functionId) that already have a budget_actual
+      const sentKeys = new Set<string>();
+      for (const a of allActual) sentKeys.add(`${a.eventId}|${a.collaboratorId}|${a.functionId}`);
+
+      function countDays(start: string | null, end: string | null, fallback: number) {
+        if (start && end) {
+          const s = new Date(start + 'T12:00:00'), e = new Date(end + 'T12:00:00');
+          let wd = 0, we = 0;
+          const cur = new Date(s);
+          while (cur <= e) { const d = cur.getDay(); (d === 0 || d === 6) ? we++ : wd++; cur.setDate(cur.getDate() + 1); }
+          return { weekdays: wd, weekends: we };
+        }
+        return { weekdays: fallback, weekends: 0 };
+      }
+
+      let updatedCount = 0;
+      for (const planned of allPlanned) {
+        if (sentKeys.has(`${planned.eventId}|${planned.collaboratorId}|${planned.functionId}`)) continue;
+
+        const inc = allInclusions.find(i =>
+          i.eventId === planned.eventId &&
+          i.collaboratorId === planned.collaboratorId &&
+          i.functionId === planned.functionId
+        );
+        const { weekdays, weekends } = countDays(
+          inc?.scheduleStartDate ?? null,
+          inc?.scheduleEndDate ?? null,
+          planned.dailyQuantity
+        );
+
+        const fv = allFunctionValues.find(f => f.functionId === planned.functionId);
+        const dailyWd = fv?.dailyValue || D.dailyWd;
+        const dailyWe = fv?.dailyValue || D.dailyWe;
+        const mobIda   = (fv as any)?.mobilityIda   ?? D.mobIda;
+        const mobVolta  = (fv as any)?.mobilityVolta  ?? D.mobVolta;
+        const mob       = mobIda + mobVolta;
+        const almSem    = fv?.weekdayLunch  || D.almSem;
+        const janSem    = fv?.weekdayDinner || D.janSem;
+        const almFds    = fv?.weekendLunch  || D.almFds;
+        const janFds    = fv?.weekendDinner || D.janFds;
+
+        const wdLunch   = almSem * weekdays;
+        const wdDinner  = janSem * weekdays;
+        const weLunch   = almFds * weekends;
+        const weDinner  = janFds * weekends;
+        const costAssistance = mob + wdLunch + wdDinner + weLunch + weDinner;
+        const subtotalDiarias = dailyWd * weekdays + dailyWe * weekends;
+        const totalValue = subtotalDiarias + costAssistance;
+
+        await storage.updateBudgetPlanned(planned.id, {
+          dailyValue: dailyWd,
+          weekdayLunch: wdLunch,
+          weekdayDinner: wdDinner,
+          weekendLunch: weLunch,
+          weekendDinner: weDinner,
+          mobilityIda: mobIda,
+          mobilityVolta: mobVolta,
+          mobility: mob,
+          costAssistance,
+          totalValue,
+        });
+        updatedCount++;
+      }
+
+      res.json({ updated: updatedCount });
+    } catch (error) {
+      console.error("Error applying defaults to planned:", error);
+      res.status(500).json({ message: "Erro ao atualizar planejamentos" });
+    }
+  });
+
   // Budget Planned (Planejado)
   app.get("/api/budget-planned", async (req, res) => {
     try {
