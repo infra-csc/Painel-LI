@@ -7,6 +7,9 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from "@/components/ui/select";
+import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
@@ -92,6 +95,7 @@ function MetricCard({
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function AdminUsers() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [roleFilter, setRoleFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [resetPwdUser, setResetPwdUser] = useState<User | null>(null);
@@ -169,8 +173,12 @@ export default function AdminUsers() {
   const filtered = useMemo(() => {
     return users
       .filter(u => {
-        if (statusFilter === "inactive") return u.status === "rejected" || u.isActive === false;
-        if (statusFilter !== "all" && u.status !== statusFilter) return false;
+        if (statusFilter === "inactive") {
+          if (!(u.status === "rejected" || u.isActive === false)) return false;
+        } else if (statusFilter !== "all" && u.status !== statusFilter) {
+          return false;
+        }
+        if (roleFilter !== "all" && u.role !== roleFilter) return false;
         if (searchQuery) {
           const q = searchQuery.toLowerCase();
           return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
@@ -182,12 +190,14 @@ export default function AdminUsers() {
         if (a.status !== "pending" && b.status === "pending") return 1;
         return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
       });
-  }, [users, statusFilter, searchQuery]);
+  }, [users, statusFilter, roleFilter, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const setFilter = (val: string) => { setStatusFilter(val); setPage(1); };
+  const setRole   = (val: string) => { setRoleFilter(val); setPage(1); };
+  const clearAll  = () => { setSearchQuery(""); setFilter("all"); setRole("all"); };
 
   if (isLoading) {
     return (
@@ -227,9 +237,9 @@ export default function AdminUsers() {
           <MetricCard label="Inativos" value={inactiveCount} valueColor="text-slate-400" active={statusFilter === "inactive"} onClick={() => setFilter("inactive")} />
         </div>
 
-        {/* ── Search ── */}
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1 max-w-sm">
+        {/* ── Search + Filters ── */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <Input
               placeholder="Buscar por nome ou e-mail..."
@@ -244,8 +254,24 @@ export default function AdminUsers() {
               </button>
             )}
           </div>
-          {(searchQuery || statusFilter !== "all") && (
-            <button onClick={() => { setSearchQuery(""); setFilter("all"); }}
+
+          {/* Role filter */}
+          <Select value={roleFilter} onValueChange={setRole}>
+            <SelectTrigger className="h-9 w-[175px] text-xs border-gray-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20">
+              <SelectValue placeholder="Todas as funções" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as funções</SelectItem>
+              <SelectItem value="admin">Administrador</SelectItem>
+              <SelectItem value="production">Logística Interna</SelectItem>
+              <SelectItem value="function_area">Área de Função</SelectItem>
+              <SelectItem value="purchasing">Compras / Viagem</SelectItem>
+              <SelectItem value="financial">RH</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {(searchQuery || statusFilter !== "all" || roleFilter !== "all") && (
+            <button onClick={clearAll}
               className="flex items-center gap-1 h-9 px-3 text-xs text-slate-500 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
               <X className="w-3 h-3" /> Limpar
             </button>
