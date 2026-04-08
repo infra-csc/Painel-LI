@@ -1289,13 +1289,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Função não encontrada" });
       }
 
-      // Authorization check: Admin or function manager can modify
+      // Authorization check: Admin, production, purchasing or function manager can modify
       const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
+      const isProductionOrPurchasing = user.role === 'production' || user.role === 'purchasing';
       const isFunctionManager = await storage.isUserFunctionManager(currentInclusion.functionId, userId);
       const isLegacyResponsible = func.userId === userId; // Compatibilidade com o campo antigo
       
-      if (!isAdmin && !isFunctionManager && !isLegacyResponsible) {
-        return res.status(403).json({ message: "Sem permissão para modificar esta escalação. Apenas responsáveis pela função podem confirmar escalações." });
+      if (!isAdmin && !isProductionOrPurchasing && !isFunctionManager && !isLegacyResponsible) {
+        return res.status(403).json({ message: "Sem permissão para modificar esta escalação." });
       }
 
       console.log("🔧 PATCH team-inclusion:", id, req.body);
