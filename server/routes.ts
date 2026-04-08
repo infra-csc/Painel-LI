@@ -343,10 +343,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
 
-      // Only admins can create users via this route
+      // Admins, financial (RH) and purchasing (Compras) can create users
       const isAdmin = currentUser.role === 'administrador' || currentUser.role === 'admin' || currentUser.role === 'administrator';
-      if (!isAdmin) {
-        return res.status(403).json({ message: "Sem permissão para criar usuários. Apenas administradores podem acessar esta funcionalidade." });
+      const canManageUsers = isAdmin || currentUser.role === 'financial' || currentUser.role === 'purchasing';
+      if (!canManageUsers) {
+        return res.status(403).json({ message: "Sem permissão para criar usuários." });
       }
 
       const userData = insertUserSchema.parse(req.body);
@@ -406,10 +407,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
 
-      // Only admins can list all users
+      // Admins, financial (RH) and purchasing (Compras) can list users
       const isAdmin = currentUser.role === 'administrador' || currentUser.role === 'admin' || currentUser.role === 'administrator';
-      if (!isAdmin) {
-        return res.status(403).json({ message: "Sem permissão para listar usuários. Apenas administradores podem acessar esta funcionalidade." });
+      const canManageUsers = isAdmin || currentUser.role === 'financial' || currentUser.role === 'purchasing';
+      if (!canManageUsers) {
+        return res.status(403).json({ message: "Sem permissão para listar usuários." });
       }
 
       const users = await storage.getUsers();
@@ -443,20 +445,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Usuário não encontrado" });
       }
 
-      // Authorization: only admins can edit other users, and only admins can change role/status
+      // Authorization: admins, financial (RH) and purchasing (Compras) can edit other users
       const isAdmin = currentUser.role === 'administrador' || currentUser.role === 'admin' || currentUser.role === 'administrator';
+      const canManageUsers = isAdmin || currentUser.role === 'financial' || currentUser.role === 'purchasing';
       const isSelfUpdate = currentUserId === id;
 
-      // Non-admin users can only edit their own profile
-      if (!isAdmin && !isSelfUpdate) {
+      // Only user managers can edit other users' profiles
+      if (!canManageUsers && !isSelfUpdate) {
         return res.status(403).json({ message: "Sem permissão para editar este usuário" });
       }
 
-      // Sensitive fields that only admins can modify
+      // Sensitive fields: only managers can change role/status
       const sensitiveFields = ['role', 'status'];
       const hasSensitiveChanges = sensitiveFields.some(field => updateData[field] !== undefined);
       
-      if (hasSensitiveChanges && !isAdmin) {
+      if (hasSensitiveChanges && !canManageUsers) {
         return res.status(403).json({ message: "Sem permissão para alterar role ou status. Apenas administradores podem modificar esses campos." });
       }
       
@@ -499,9 +502,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         filteredData.password = hashedNewPassword;
       }
       
-      // Additional validation for admin-only fields
-      if (!isAdmin && (filteredData.role !== undefined || filteredData.status !== undefined)) {
-        return res.status(403).json({ message: "Sem permissão para alterar role ou status. Apenas administradores podem modificar esses campos." });
+      // Additional validation: only user managers can change role/status
+      if (!canManageUsers && (filteredData.role !== undefined || filteredData.status !== undefined)) {
+        return res.status(403).json({ message: "Sem permissão para alterar role ou status." });
       }
 
       // Only true admins can assign the 'admin' role
@@ -550,10 +553,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
 
-      // Only admins can approve/reject users
+      // Admins, financial (RH) and purchasing (Compras) can approve/reject users
       const isAdmin = currentUser.role === 'administrador' || currentUser.role === 'admin' || currentUser.role === 'administrator';
-      if (!isAdmin) {
-        return res.status(403).json({ message: "Sem permissão para aprovar usuários. Apenas administradores podem acessar esta funcionalidade." });
+      const canManageUsers = isAdmin || currentUser.role === 'financial' || currentUser.role === 'purchasing';
+      if (!canManageUsers) {
+        return res.status(403).json({ message: "Sem permissão para aprovar usuários." });
       }
 
       const { id } = req.params;
