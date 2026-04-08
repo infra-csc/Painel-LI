@@ -14,11 +14,11 @@ export type AccessLevel = 'none' | 'view' | 'edit';
 const PERMISSIONS: Record<string, Record<UserRole, AccessLevel>> = {
   // Inclusão de Equipe
   team_inclusion: {
-    admin: 'edit',      // Administrador: acesso total
-    production: 'edit', // Logística Interna: acesso total
+    admin: 'edit',         // Administrador: acesso total
+    production: 'edit',    // Logística Interna: acesso total
     function_area: 'none', // Área Responsável por Funções: sem acesso
-    purchasing: 'none', // Área de Compras/Viagens: sem acesso
-    financial: 'none'   // Financial: sem acesso
+    purchasing: 'edit',    // Área de Compras/Viagens: acesso total
+    financial: 'view'      // RH: apenas visualização
   },
   
   // Escalação
