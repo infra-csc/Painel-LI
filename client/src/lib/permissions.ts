@@ -26,7 +26,7 @@ const PERMISSIONS: Record<string, Record<UserRole, AccessLevel>> = {
     admin: 'edit',      // Administrador: acesso total
     production: 'view', // Logística Interna: apenas visualização
     function_area: 'edit', // Área Responsável por Funções: acesso total
-    purchasing: 'view', // Área de Compras/Viagens: apenas visualização
+    purchasing: 'edit', // Área de Compras/Viagens: acesso total
     financial: 'view'   // Financial: apenas visualização
   },
   
@@ -44,7 +44,7 @@ const PERMISSIONS: Record<string, Record<UserRole, AccessLevel>> = {
     admin: 'edit',      // Administrador: acesso total
     production: 'view', // Logística Interna: visualização
     function_area: 'view', // Área Responsável por Funções: visualização
-    purchasing: 'view', // Área de Compras/Viagens: visualização
+    purchasing: 'edit', // Área de Compras/Viagens: acesso total
     financial: 'view'   // Financial: visualização
   },
   
@@ -53,7 +53,7 @@ const PERMISSIONS: Record<string, Record<UserRole, AccessLevel>> = {
     admin: 'edit',      // Administrador: acesso total
     production: 'edit', // Logística Interna: acesso total
     function_area: 'edit', // Área Responsável por Funções: acesso total (cadastro habilitado)
-    purchasing: 'view', // Área de Compras/Viagens: visualização
+    purchasing: 'edit', // Área de Compras/Viagens: acesso total
     financial: 'view'   // Financial: visualização
   },
   

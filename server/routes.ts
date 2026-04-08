@@ -599,7 +599,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const admin = await storage.getUser(adminId);
       const isAdmin = admin && (admin.role === 'administrador' || admin.role === 'admin' || admin.role === 'administrator');
-      if (!isAdmin) return res.status(403).json({ message: "Acesso negado" });
+      const isPurchasing = admin && admin.role === 'purchasing';
+      if (!isAdmin && !isPurchasing) return res.status(403).json({ message: "Acesso negado" });
 
       const userId = req.params.id;
       const user = await storage.getUser(userId);
@@ -638,7 +639,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const admin = await storage.getUser(adminId);
       const isAdmin = admin && (admin.role === 'administrador' || admin.role === 'admin' || admin.role === 'administrator');
-      if (!isAdmin) return res.status(403).json({ message: "Acesso negado" });
+      const isPurchasingAdmin = admin && admin.role === 'purchasing';
+      if (!isAdmin && !isPurchasingAdmin) return res.status(403).json({ message: "Acesso negado" });
 
       const userId = req.params.id;
       const user = await storage.getUser(userId);
@@ -758,9 +760,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(401).json({ message: "Usuário não encontrado" });
         }
 
-        // Only admins can edit events
-        if (currentUser.role !== 'admin') {
-          return res.status(403).json({ message: "Apenas administradores podem editar eventos" });
+        // Only admins and purchasing can edit events
+        const canEditEvent = ['admin', 'administrador', 'administrator', 'purchasing'].includes(currentUser.role);
+        if (!canEditEvent) {
+          return res.status(403).json({ message: "Sem permissão para editar eventos" });
         }
       }
 
@@ -803,9 +806,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(401).json({ message: "Usuário não encontrado" });
         }
 
-        // Only admins can delete events
-        if (currentUser.role !== 'admin') {
-          return res.status(403).json({ message: "Apenas administradores podem excluir eventos" });
+        // Only admins and purchasing can delete events
+        const canDeleteEvent = ['admin', 'administrador', 'administrator', 'purchasing'].includes(currentUser.role);
+        if (!canDeleteEvent) {
+          return res.status(403).json({ message: "Sem permissão para excluir eventos" });
         }
       }
 
@@ -916,11 +920,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
 
-      // Authorization check: Admin or function manager can add users
+      // Authorization check: Admin, purchasing or function manager can add users
       const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
+      const isPurchasing = user.role === 'purchasing';
       const isFunctionManager = await storage.isUserFunctionManager(id, userId);
       
-      if (!isAdmin && !isFunctionManager) {
+      if (!isAdmin && !isPurchasing && !isFunctionManager) {
         return res.status(403).json({ message: "Sem permissão para adicionar usuários a esta função" });
       }
 
@@ -950,11 +955,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
 
-      // Authorization check: Admin or function manager can remove users
+      // Authorization check: Admin, purchasing or function manager can remove users
       const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
+      const isPurchasing = user.role === 'purchasing';
       const isFunctionManager = await storage.isUserFunctionManager(functionId, userId);
       
-      if (!isAdmin && !isFunctionManager) {
+      if (!isAdmin && !isPurchasing && !isFunctionManager) {
         return res.status(403).json({ message: "Sem permissão para remover usuários desta função" });
       }
 
@@ -990,11 +996,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
 
-      // Authorization check: Only admins can add managers
+      // Authorization check: Admins and purchasing can add managers
       const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
+      const isPurchasing = user.role === 'purchasing';
       
-      if (!isAdmin) {
-        return res.status(403).json({ message: "Apenas administradores podem adicionar responsáveis às funções" });
+      if (!isAdmin && !isPurchasing) {
+        return res.status(403).json({ message: "Sem permissão para adicionar responsáveis às funções" });
       }
 
       const { userId: targetUserId } = req.body;
@@ -1023,11 +1030,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
 
-      // Authorization check: Only admins can remove managers
+      // Authorization check: Admins and purchasing can remove managers
       const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
+      const isPurchasing = user.role === 'purchasing';
       
-      if (!isAdmin) {
-        return res.status(403).json({ message: "Apenas administradores podem remover responsáveis das funções" });
+      if (!isAdmin && !isPurchasing) {
+        return res.status(403).json({ message: "Sem permissão para remover responsáveis das funções" });
       }
 
       await storage.removeManagerFromFunction(functionId, targetUserId);
