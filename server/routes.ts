@@ -333,7 +333,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/users", async (req, res) => {
     try {
       // Check authentication and authorization
-      const userId = req.session.userId;
+      const userId = req.session.userId || req.body?._userId;
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
@@ -426,7 +426,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/users/:id", async (req, res) => {
     try {
       // Check authentication
-      const currentUserId = req.session.userId;
+      const currentUserId = req.session.userId || req.body?._userId;
       if (!currentUserId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
@@ -543,7 +543,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/users/:id/approval", async (req, res) => {
     try {
       // Check authentication and authorization
-      const userId = req.session.userId;
+      const userId = req.session.userId || req.body?._userId;
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
@@ -594,7 +594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin: Toggle user active status (Reactivação)
   app.patch("/api/users/:id/toggle-active", async (req, res) => {
     try {
-      const adminId = req.session.userId;
+      const adminId = req.session.userId || req.body?._userId;
       if (!adminId) return res.status(401).json({ message: "Não autenticado" });
       
       const admin = await storage.getUser(adminId);
@@ -634,7 +634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin: Reset user password
   app.post("/api/users/:id/reset-password", async (req, res) => {
     try {
-      const adminId = req.session.userId;
+      const adminId = req.session.userId || req.body?._userId;
       if (!adminId) return res.status(401).json({ message: "Não autenticado" });
       
       const admin = await storage.getUser(adminId);
