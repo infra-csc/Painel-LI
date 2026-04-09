@@ -110,12 +110,12 @@ export default function UserRegistration() {
     },
   });
 
-  if (!hasPermission(user, 'canAccessScreen0')) {
+  if (!hasPermission(user, 'canAccessAdminUsers')) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
         <div style={{ textAlign: "center", padding: 40 }}>
           <span className="material-symbols-outlined" style={{ fontSize: 40, color: "#EF4444" }}>gpp_bad</span>
-          <p style={{ marginTop: 12, fontSize: 14, color: "#64748B" }}>Apenas administradores podem acessar esta página.</p>
+          <p style={{ marginTop: 12, fontSize: 14, color: "#64748B" }}>Você não tem permissão para acessar esta página.</p>
         </div>
       </div>
     );
