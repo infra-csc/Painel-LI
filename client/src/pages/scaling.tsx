@@ -298,8 +298,8 @@ export default function Scaling() {
   const canManageFunction = (functionId: string) => {
     if (!user) return false;
     
-    // Admins can manage all functions
-    if (user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator') return true;
+    // Admins and purchasing can manage all functions
+    if (user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator' || user.role === 'purchasing') return true;
     
     // Check if user is a manager of this specific function
     return allFunctionManagers?.some(manager => manager.functionId === functionId && manager.userId === user.id) ?? false;
@@ -318,8 +318,8 @@ export default function Scaling() {
   const canEditCollaborator = (inclusion: TeamInclusion) => {
     if (!user) return false;
     
-    // Check if user is admin or function_area or manages the function
-    const hasRole = user.role === 'admin' || user.role === 'administrator' || user.role === 'administrador' || user.role === 'function_area';
+    // Check if user is admin, purchasing, function_area or manages the function
+    const hasRole = user.role === 'admin' || user.role === 'administrator' || user.role === 'administrador' || user.role === 'function_area' || user.role === 'purchasing';
     const isManager = canManageFunction(inclusion.functionId);
     if (!hasRole && !isManager) return false;
     
