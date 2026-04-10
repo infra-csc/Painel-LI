@@ -89,18 +89,6 @@ function SortBtn({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; so
     : <ChevronDown size={10} className="ml-1 inline" style={{ color: BLUE }} />;
 }
 
-// ─── NavBtn ───────────────────────────────────────────────────────────────────
-function NavBtn({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button onClick={onClick} style={{
-      width: 30, height: 30, borderRadius: 7, border: "1px solid #E2E8F0",
-      background: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-      color: "#64748B", transition: "all 0.15s",
-    }} className="hover:border-[#0033CC] hover:text-[#0033CC] hover:bg-blue-50 transition-all">
-      {children}
-    </button>
-  );
-}
 
 // ─── EventChip ────────────────────────────────────────────────────────────────
 function EventChip({ ev, onClick }: { ev: Event; onClick: () => void }) {
@@ -129,27 +117,33 @@ function CalendarView({ events, onEdit, currentDate, setCurrentDate }: {
   const today      = new Date();
 
   return (
-    <div style={{ background: "white", borderRadius: 12, border: "1px solid #F1F5F9", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+    <div style={{ background: "white", borderRadius: 16, overflow: "hidden", boxShadow: "0 20px 40px rgba(20,27,43,0.05)" }}>
       {/* Nav */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: "1px solid #F1F5F9", background: "#FAFBFF" }}>
-        <NavBtn onClick={() => setCurrentDate(subMonths(currentDate, 1))}><ChevronLeft size={14} /></NavBtn>
-        <span style={{ flex: 1, textAlign: "center", fontSize: 14, fontWeight: 700, color: "#0F172A", textTransform: "capitalize" }}>
-          {format(currentDate, "MMMM yyyy", { locale: ptBR })}
-        </span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 28px", borderBottom: "1px solid #E9EDFF" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: "#141b2b", margin: 0, letterSpacing: "-0.3px", textTransform: "capitalize", fontFamily: "Manrope, sans-serif" }}>
+            {format(currentDate, "MMMM yyyy", { locale: ptBR })}
+          </h2>
+          <div style={{ display: "flex", gap: 2 }}>
+            <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#141b2b" }}
+              className="hover:bg-[#e9edff] transition-colors"><ChevronLeft size={16} /></button>
+            <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#141b2b" }}
+              className="hover:bg-[#e9edff] transition-colors"><ChevronRight size={16} /></button>
+          </div>
+        </div>
         <button onClick={() => setCurrentDate(new Date())} style={{
-          height: 28, padding: "0 12px", borderRadius: 6, border: "1px solid #E2E8F0",
-          background: "white", cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#64748B", fontFamily: "inherit",
-        }} className="hover:border-[#0033CC] hover:text-[#0033CC] transition-colors">Hoje</button>
-        <NavBtn onClick={() => setCurrentDate(addMonths(currentDate, 1))}><ChevronRight size={14} /></NavBtn>
+          height: 32, padding: "0 16px", borderRadius: 8, border: "1px solid #c3c6d7",
+          background: "white", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#141b2b", fontFamily: "inherit",
+        }} className="hover:bg-[#f1f3ff] hover:border-[#004ac6] hover:text-[#004ac6] transition-colors">Hoje</button>
       </div>
 
       {/* Weekday headers */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: "1px solid #F1F5F9" }}>
-        {WEEK_SHORT.map((d, i) => (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: "1px solid #E9EDFF", background: "rgba(241,243,255,0.3)" }}>
+        {WEEK_SHORT.map((d) => (
           <div key={d} style={{
-            padding: "8px 0", textAlign: "center",
-            fontSize: 10, fontWeight: 700, color: i === 0 ? "#F87171" : "#94A3B8",
-            textTransform: "uppercase", letterSpacing: "0.07em",
+            padding: "10px 0", textAlign: "center",
+            fontSize: 10, fontWeight: 700, color: "#94A3B8",
+            textTransform: "uppercase", letterSpacing: "0.08em",
           }}>{d}</div>
         ))}
       </div>
@@ -159,30 +153,37 @@ function CalendarView({ events, onEdit, currentDate, setCurrentDate }: {
         {days.map((day, i) => {
           const inMonth  = isSameMonth(day, currentDate);
           const isToday  = isSameDay(day, today);
-          const isSun    = day.getDay() === 0;
           const chips    = eventsOnDay(events, day);
-          const MAX      = 2;
+          const MAX      = 3;
           return (
             <div key={i} style={{
-              minHeight: 88, padding: "6px 5px",
-              borderRight: (i + 1) % 7 !== 0 ? "1px solid #F8FAFC" : "none",
-              borderBottom: i < days.length - 7 ? "1px solid #F8FAFC" : "none",
-              background: isToday ? "#F0F4FF" : "white",
-              opacity: inMonth ? 1 : 0.3,
-            }}>
-              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
+              minHeight: 120, padding: 8,
+              borderRight: (i + 1) % 7 !== 0 ? "1px solid #E9EDFF" : "none",
+              borderBottom: i < days.length - 7 ? "1px solid #E9EDFF" : "none",
+              background: isToday ? "rgba(219,225,255,0.25)" : !inMonth ? "rgba(241,243,255,0.1)" : "white",
+              opacity: inMonth ? 1 : 0.45,
+              transition: "background 0.15s",
+            }} className={inMonth ? "hover:bg-[#f1f3ff]/30" : ""}>
+              {isToday ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{
+                    width: 24, height: 24, borderRadius: "50%", flexShrink: 0,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 12, fontWeight: 700, color: "white", background: "#004ac6",
+                  }}>{format(day, "d")}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "#004ac6", textTransform: "uppercase", letterSpacing: "0.08em" }}>Hoje</span>
+                </div>
+              ) : (
                 <span style={{
-                  width: 22, height: 22, borderRadius: "50%",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 11, fontWeight: isToday ? 700 : 400,
-                  color: isToday ? "white" : isSun && inMonth ? "#F87171" : inMonth ? "#374151" : "#CBD5E1",
-                  background: isToday ? BLUE : "transparent",
+                  fontSize: 12, fontWeight: 500,
+                  color: inMonth ? "#64748B" : "#CBD5E1",
+                  display: "block", marginBottom: 6,
                 }}>{format(day, "d")}</span>
-              </div>
+              )}
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 {chips.slice(0, MAX).map(ev => <EventChip key={ev.id} ev={ev} onClick={() => onEdit(ev)} />)}
                 {chips.length > MAX && (
-                  <span style={{ fontSize: 9, color: "#94A3B8", fontWeight: 600, paddingLeft: 5 }}>+{chips.length - MAX} mais</span>
+                  <span style={{ fontSize: 9, color: "#94A3B8", fontWeight: 700, paddingLeft: 4 }}>+ {chips.length - MAX} mais</span>
                 )}
               </div>
             </div>
@@ -207,45 +208,52 @@ function WeekView({ events, onEdit, currentDate, setCurrentDate }: {
     : `${format(weekStart, "d MMM", { locale: ptBR })} – ${format(weekEnd, "d MMM yyyy", { locale: ptBR })}`;
 
   return (
-    <div style={{ background: "white", borderRadius: 12, border: "1px solid #F1F5F9", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+    <div style={{ background: "white", borderRadius: 16, overflow: "hidden", boxShadow: "0 20px 40px rgba(20,27,43,0.05)" }}>
       {/* Nav */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: "1px solid #F1F5F9", background: "#FAFBFF" }}>
-        <NavBtn onClick={() => setCurrentDate(subWeeks(currentDate, 1))}><ChevronLeft size={14} /></NavBtn>
-        <span style={{ flex: 1, textAlign: "center", fontSize: 13, fontWeight: 700, color: "#0F172A", textTransform: "capitalize" }}>{rangeLabel}</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 28px", borderBottom: "1px solid #E9EDFF" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 800, color: "#141b2b", margin: 0, letterSpacing: "-0.3px", textTransform: "capitalize", fontFamily: "Manrope, sans-serif" }}>
+            {rangeLabel}
+          </h2>
+          <div style={{ display: "flex", gap: 2 }}>
+            <button onClick={() => setCurrentDate(subWeeks(currentDate, 1))} style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#141b2b" }}
+              className="hover:bg-[#e9edff] transition-colors"><ChevronLeft size={16} /></button>
+            <button onClick={() => setCurrentDate(addWeeks(currentDate, 1))} style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#141b2b" }}
+              className="hover:bg-[#e9edff] transition-colors"><ChevronRight size={16} /></button>
+          </div>
+        </div>
         <button onClick={() => setCurrentDate(new Date())} style={{
-          height: 28, padding: "0 12px", borderRadius: 6, border: "1px solid #E2E8F0",
-          background: "white", cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#64748B", fontFamily: "inherit",
-        }} className="hover:border-[#0033CC] hover:text-[#0033CC] transition-colors">Hoje</button>
-        <NavBtn onClick={() => setCurrentDate(addWeeks(currentDate, 1))}><ChevronRight size={14} /></NavBtn>
+          height: 32, padding: "0 16px", borderRadius: 8, border: "1px solid #c3c6d7",
+          background: "white", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#141b2b", fontFamily: "inherit",
+        }} className="hover:bg-[#f1f3ff] hover:border-[#004ac6] hover:text-[#004ac6] transition-colors">Hoje</button>
       </div>
 
       {/* Columns */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
         {days.map((day, i) => {
           const isToday = isSameDay(day, today);
-          const isSun   = i === 0;
           const chips   = eventsOnDay(events, day);
           return (
-            <div key={i} style={{ borderRight: i < 6 ? "1px solid #F1F5F9" : "none", minHeight: 160 }}>
+            <div key={i} style={{ borderRight: i < 6 ? "1px solid #E9EDFF" : "none", minHeight: 180 }}>
               {/* Column header */}
               <div style={{
-                padding: "10px 6px", textAlign: "center",
-                borderBottom: "1px solid #F1F5F9",
-                background: isToday ? "#F0F4FF" : "#FAFBFF",
+                padding: "12px 8px", textAlign: "center",
+                borderBottom: "1px solid #E9EDFF",
+                background: isToday ? "rgba(219,225,255,0.25)" : "rgba(241,243,255,0.3)",
               }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: isToday ? BLUE : isSun ? "#F87171" : "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: isToday ? "#004ac6" : "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
                   {WEEK_SHORT[i]}
                 </div>
                 <div style={{
-                  width: 30, height: 30, borderRadius: "50%", margin: "0 auto",
+                  width: 32, height: 32, borderRadius: "50%", margin: "0 auto",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  background: isToday ? BLUE : "transparent",
+                  background: isToday ? "#004ac6" : "transparent",
                   fontSize: 14, fontWeight: 700,
-                  color: isToday ? "white" : isSun ? "#F87171" : "#374151",
+                  color: isToday ? "white" : "#374151",
                 }}>{format(day, "d")}</div>
               </div>
               {/* Chips */}
-              <div style={{ padding: "8px 5px", display: "flex", flexDirection: "column", gap: 3 }}>
+              <div style={{ padding: "8px 6px", display: "flex", flexDirection: "column", gap: 3 }}>
                 {chips.length === 0 && <div style={{ height: 32 }} />}
                 {chips.map(ev => <EventChip key={ev.id} ev={ev} onClick={() => onEdit(ev)} />)}
               </div>
