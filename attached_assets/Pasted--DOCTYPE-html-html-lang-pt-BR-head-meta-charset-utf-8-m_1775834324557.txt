@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cadastro de Usuários | Logistics Command</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-background": "#141b2b",
+                    "on-error": "#ffffff",
+                    "inverse-surface": "#293040",
+                    "surface-container-low": "#f1f3ff",
+                    "surface-variant": "#dce2f7",
+                    "on-surface": "#141b2b",
+                    "secondary-fixed": "#d3e4fe",
+                    "tertiary": "#943700",
+                    "secondary": "#505f76",
+                    "primary-container": "#2563eb",
+                    "primary": "#004ac6",
+                    "outline-variant": "#c3c6d7",
+                    "surface-container-high": "#e1e8fd",
+                    "tertiary-fixed": "#ffdbcd",
+                    "on-primary-fixed-variant": "#003ea8",
+                    "surface": "#f9f9ff",
+                    "error-container": "#ffdad6",
+                    "on-tertiary-fixed": "#360f00",
+                    "inverse-on-surface": "#edf0ff",
+                    "surface-container": "#e9edff",
+                    "on-secondary": "#ffffff",
+                    "tertiary-fixed-dim": "#ffb596",
+                    "secondary-fixed-dim": "#b7c8e1",
+                    "on-tertiary": "#ffffff",
+                    "outline": "#737686",
+                    "on-tertiary-fixed-variant": "#7d2d00",
+                    "on-surface-variant": "#434655",
+                    "inverse-primary": "#b4c5ff",
+                    "primary-fixed-dim": "#b4c5ff",
+                    "surface-tint": "#0053db",
+                    "surface-bright": "#f9f9ff",
+                    "error": "#ba1a1a",
+                    "tertiary-container": "#bc4800",
+                    "on-tertiary-container": "#ffede6",
+                    "on-secondary-container": "#54647a",
+                    "surface-container-highest": "#dce2f7",
+                    "background": "#f9f9ff",
+                    "surface-container-lowest": "#ffffff",
+                    "primary-fixed": "#dbe1ff",
+                    "on-primary-container": "#eeefff",
+                    "secondary-container": "#d0e1fb",
+                    "surface-dim": "#d3daef",
+                    "on-secondary-fixed": "#0b1c30",
+                    "on-primary-fixed": "#00174b",
+                    "on-primary": "#ffffff",
+                    "on-error-container": "#93000a",
+                    "on-secondary-fixed-variant": "#38485d"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Manrope"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #f9f9ff; }
+        .font-headline { font-family: 'Manrope', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="text-on-surface antialiased">
+<!-- TopNavBar (Shared Component) -->
+<header class="fixed top-0 w-full z-50 bg-white/85 dark:bg-slate-950/85 backdrop-blur-xl shadow-sm dark:shadow-none">
+<nav class="flex justify-between items-center w-full px-6 py-3 max-w-full">
+<div class="flex items-center gap-8">
+<span class="text-xl font-black text-blue-700 dark:text-blue-500 tracking-tighter font-headline">Logistics Command</span>
+<div class="hidden md:flex gap-6">
+<a class="text-slate-600 dark:text-slate-400 font-medium hover:text-blue-600 transition-colors" href="#">Fleet</a>
+<a class="text-slate-600 dark:text-slate-400 font-medium hover:text-blue-600 transition-colors" href="#">Operations</a>
+<a class="text-slate-600 dark:text-slate-400 font-medium hover:text-blue-600 transition-colors" href="#">Analytics</a>
+<a class="text-slate-600 dark:text-slate-400 font-medium hover:text-blue-600 transition-colors" href="#">Network</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-slate-500 hover:bg-blue-50/50 rounded-lg transition-all scale-95 active:scale-90">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-slate-500 hover:bg-blue-50/50 rounded-lg transition-all scale-95 active:scale-90">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<img alt="User profile" class="w-8 h-8 rounded-full border border-blue-100" data-alt="professional headshot of a logistics manager in a blue suit with a friendly confident expression" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCxfnKgQyeTNeLvX6v6xxLAL5KNVuoKCSmbwDzkK4-ERffSeucvGl6XwaKo0lVg9GWRUHwnBw_mIFc53KOP3e6_PHjizxET55e79LE_hk5dd9sEGc-X5ehUyoXREee3RnX2aipFoC_tlQWspfpZF0NccUlpAU1wxXa4v30mX3Qa4RaF2WMfQqQqX9jwpplLvfW6fSckN5q-JhP3cFYnpklx40Y4fGDZz4jF7orbGLRdn8xMiCEZKI8l_EW5xNw7IdF9aKmukYUedAmC"/>
+</div>
+</nav>
+</header>
+<main class="mt-20 flex justify-center px-6 py-10">
+<div class="w-full max-w-[920px] flex flex-col gap-6">
+<!-- Page Header -->
+<div class="flex items-center justify-between border-b border-surface-container pb-4">
+<div class="flex items-center gap-4">
+<div class="w-[36px] h-[36px] bg-[#004ac6] flex items-center justify-center rounded-lg shadow-sm">
+<span class="material-symbols-outlined text-white text-[20px]">person_add</span>
+</div>
+<div>
+<h1 class="text-[18px] font-bold text-[#0F172A] font-headline tracking-tight">Cadastro de Usuários</h1>
+<p class="text-[12px] text-[#94A3B8] font-medium">Crie uma nova conta de acesso ao sistema</p>
+</div>
+</div>
+<div class="flex items-center gap-2 bg-[#FEF3C7] text-[#92400E] px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">lock</span>
+                    Acesso restrito
+                </div>
+</div>
+<!-- Two-Column Layout -->
+<div class="flex flex-col md:flex-row gap-4">
+<!-- Main Form Card -->
+<div class="flex-1 bg-surface-container-lowest rounded-[12px] border border-[#E8ECF8] shadow-sm overflow-hidden">
+<form class="flex flex-col">
+<!-- Section 1: Dados Pessoais -->
+<div class="p-6 border-b border-surface-container/50">
+<div class="flex items-center gap-2 mb-6 text-[#94A3B8]">
+<span class="material-symbols-outlined text-[18px]">person</span>
+<span class="text-[11px] font-bold tracking-[0.1em] text-secondary">DADOS PESSOAIS</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-1.5">
+<label class="block text-[12px] font-semibold text-on-surface-variant ml-1">Nome completo *</label>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">person</span>
+<input class="w-full pl-10 pr-4 py-2.5 bg-surface-container-low border-transparent rounded-lg focus:ring-2 focus:ring-primary-fixed focus:bg-white transition-all text-sm" placeholder="Ex: Ana Silva" type="text"/>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="block text-[12px] font-semibold text-on-surface-variant ml-1">E-mail corporativo *</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-green-600 text-[18px]">mail</span>
+<input class="w-full pl-10 pr-4 py-2.5 bg-surface-container-low border-green-500/30 rounded-lg focus:ring-2 focus:ring-primary-fixed focus:bg-white transition-all text-sm border" placeholder="ana.silva@kinetic.com" type="email"/>
+</div>
+</div>
+<div class="space-y-1.5 md:col-span-2">
+<label class="block text-[12px] font-semibold text-on-surface-variant ml-1">Senha de acesso *</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">lock</span>
+<input class="w-full pl-10 pr-10 py-2.5 bg-surface-container-low border-transparent rounded-lg focus:ring-2 focus:ring-primary-fixed focus:bg-white transition-all text-sm" placeholder="••••••••" type="password"/>
+<button class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+</div>
+<div class="flex gap-1 mt-2 px-1">
+<div class="h-1 flex-1 bg-primary rounded-full"></div>
+<div class="h-1 flex-1 bg-primary rounded-full"></div>
+<div class="h-1 flex-1 bg-primary rounded-full"></div>
+<div class="h-1 flex-1 bg-surface-container-high rounded-full"></div>
+<div class="h-1 flex-1 bg-surface-container-high rounded-full"></div>
+</div>
+<p class="text-[10px] text-primary font-medium mt-1 ml-1">Senha forte: Utilize letras, números e símbolos.</p>
+</div>
+</div>
+</div>
+<!-- Section 2: Perfil de Acesso -->
+<div class="p-6 border-b border-surface-container/50">
+<div class="flex items-center gap-2 mb-6 text-[#94A3B8]">
+<span class="material-symbols-outlined text-[18px]">shield</span>
+<span class="text-[11px] font-bold tracking-[0.1em] text-secondary">PERFIL DE ACESSO</span>
+</div>
+<div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
+<!-- Admin Card -->
+<label class="cursor-pointer group">
+<input class="hidden peer" name="profile" type="radio"/>
+<div class="p-4 rounded-xl bg-surface-container-low border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary-fixed/30 transition-all flex flex-col items-center text-center relative">
+<span class="material-symbols-outlined text-primary mb-2 text-2xl" style="font-variation-settings: 'FILL' 1;">admin_panel_settings</span>
+<span class="text-xs font-bold text-on-surface">Administrador</span>
+<span class="material-symbols-outlined absolute top-2 right-2 text-primary opacity-0 peer-checked:opacity-100 text-base">check_circle</span>
+</div>
+</label>
+<!-- Logistica Card -->
+<label class="cursor-pointer group">
+<input checked="" class="hidden peer" name="profile" type="radio"/>
+<div class="p-4 rounded-xl bg-surface-container-low border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary-fixed/30 transition-all flex flex-col items-center text-center relative">
+<span class="material-symbols-outlined text-primary mb-2 text-2xl" style="font-variation-settings: 'FILL' 1;">local_shipping</span>
+<span class="text-xs font-bold text-on-surface">Logística Interna</span>
+<span class="material-symbols-outlined absolute top-2 right-2 text-primary opacity-0 peer-checked:opacity-100 text-base">check_circle</span>
+</div>
+</label>
+<!-- Area Card -->
+<label class="cursor-pointer group">
+<input class="hidden peer" name="profile" type="radio"/>
+<div class="p-4 rounded-xl bg-surface-container-low border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary-fixed/30 transition-all flex flex-col items-center text-center relative">
+<span class="material-symbols-outlined text-primary mb-2 text-2xl" style="font-variation-settings: 'FILL' 1;">lan</span>
+<span class="text-xs font-bold text-on-surface">Área de Função</span>
+<span class="material-symbols-outlined absolute top-2 right-2 text-primary opacity-0 peer-checked:opacity-100 text-base">check_circle</span>
+</div>
+</label>
+<!-- Compras Card -->
+<label class="cursor-pointer group">
+<input class="hidden peer" name="profile" type="radio"/>
+<div class="p-4 rounded-xl bg-surface-container-low border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary-fixed/30 transition-all flex flex-col items-center text-center relative">
+<span class="material-symbols-outlined text-primary mb-2 text-2xl" style="font-variation-settings: 'FILL' 1;">shopping_cart</span>
+<span class="text-xs font-bold text-on-surface">Compras/Viagem</span>
+<span class="material-symbols-outlined absolute top-2 right-2 text-primary opacity-0 peer-checked:opacity-100 text-base">check_circle</span>
+</div>
+</label>
+<!-- RH Card -->
+<label class="cursor-pointer group">
+<input class="hidden peer" name="profile" type="radio"/>
+<div class="p-4 rounded-xl bg-surface-container-low border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary-fixed/30 transition-all flex flex-col items-center text-center relative">
+<span class="material-symbols-outlined text-primary mb-2 text-2xl" style="font-variation-settings: 'FILL' 1;">groups</span>
+<span class="text-xs font-bold text-on-surface">RH</span>
+<span class="material-symbols-outlined absolute top-2 right-2 text-primary opacity-0 peer-checked:opacity-100 text-base">check_circle</span>
+</div>
+</label>
+</div>
+</div>
+<!-- Section 3: Área Específica -->
+<div class="p-6">
+<div class="flex items-center gap-2 mb-4 text-[#94A3B8]">
+<span class="material-symbols-outlined text-[18px]">location_on</span>
+<span class="text-[11px] font-bold tracking-[0.1em] text-secondary">ÁREA ESPECÍFICA</span>
+</div>
+<textarea class="w-full bg-surface-container-low border-[#E2E8F0] rounded-lg p-3 text-sm focus:ring-primary focus:border-primary transition-all" placeholder="Descreva o setor ou filial de atuação do colaborador..." rows="2"></textarea>
+</div>
+<!-- Footer -->
+<div class="bg-[#FAFBFF] px-6 py-4 flex justify-end gap-3">
+<button class="px-5 py-2 text-sm font-semibold text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-all active:scale-95" type="reset">
+                                Limpar
+                            </button>
+<button class="flex items-center gap-2 px-5 py-2 text-sm font-bold text-white bg-primary rounded-lg hover:shadow-lg hover:brightness-110 transition-all active:scale-95 shadow-sm" type="submit">
+<span class="material-symbols-outlined text-[18px]">person_add</span>
+                                Criar Usuário
+                            </button>
+</div>
+</form>
+</div>
+<!-- Sidebar -->
+<aside class="w-full md:w-[280px] space-y-4">
+<!-- Card 1: Pré-visualização -->
+<div class="bg-white rounded-xl border border-[#E8ECF8] shadow-sm p-5">
+<h3 class="text-[11px] font-bold text-[#94A3B8] tracking-widest mb-4 uppercase">Pré-visualização</h3>
+<div class="flex flex-col items-center">
+<div class="w-20 h-20 bg-primary-fixed flex items-center justify-center rounded-full text-primary font-bold text-2xl mb-3 shadow-inner">
+                                AS
+                            </div>
+<h4 class="text-sm font-bold text-on-surface text-center">Ana Silva</h4>
+<p class="text-xs text-on-surface-variant text-center mb-4">ana.silva@kinetic.com</p>
+<span class="px-3 py-1 bg-secondary-container text-on-secondary-container text-[10px] font-bold rounded-full uppercase">Logística Interna</span>
+</div>
+</div>
+<!-- Card 2: Checklist -->
+<div class="bg-white rounded-xl border border-[#E8ECF8] shadow-sm p-5">
+<h3 class="text-[11px] font-bold text-[#94A3B8] tracking-widest mb-4 uppercase">Status do Cadastro</h3>
+<ul class="space-y-3">
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-green-500 text-[18px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="text-[12px] font-medium text-slate-700">Nome identificado</span>
+</li>
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-green-500 text-[18px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="text-[12px] font-medium text-slate-700">E-mail corporativo válido</span>
+</li>
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-green-500 text-[18px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="text-[12px] font-medium text-slate-700">Senha segura configurada</span>
+</li>
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-[18px]">radio_button_checked</span>
+<span class="text-[12px] font-medium text-slate-700">Perfil selecionado</span>
+</li>
+</ul>
+</div>
+<!-- Security Note -->
+<div class="flex items-center justify-center gap-2 p-2 opacity-60">
+<span class="material-symbols-outlined text-sm">enhanced_encryption</span>
+<span class="text-[10px] font-medium uppercase tracking-tighter">Dados criptografados e protegidos</span>
+</div>
+</aside>
+</div>
+</div>
+</main>
+<!-- Footer (Shared Component) -->
+<footer class="w-full py-8 border-t-0 bg-slate-50 dark:bg-slate-950 flex flex-col md:flex-row justify-between items-center px-10 gap-4 mt-auto">
+<p class="text-xs font-medium Inter tracking-wide text-slate-500">© 2024 Kinetic Monolith Logistics. All rights reserved.</p>
+<div class="flex gap-6">
+<a class="text-xs font-medium Inter tracking-wide text-slate-500 hover:text-blue-700 transition-colors" href="#">Privacy Policy</a>
+<a class="text-xs font-medium Inter tracking-wide text-slate-500 hover:text-blue-700 transition-colors" href="#">Terms of Service</a>
+<a class="text-xs font-medium Inter tracking-wide text-slate-500 hover:text-blue-700 transition-colors" href="#">API Status</a>
+<a class="text-xs font-medium Inter tracking-wide text-slate-500 hover:text-blue-700 transition-colors" href="#">Support</a>
+</div>
+</footer>
+</body></html>
