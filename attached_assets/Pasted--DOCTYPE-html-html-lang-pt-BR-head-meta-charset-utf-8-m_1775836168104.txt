@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Nexus Logistics - Personnel Roles</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface": "#141b2b",
+                        "surface": "#f9f9ff",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-fixed": "#ffdbcd",
+                        "on-tertiary-fixed": "#360f00",
+                        "on-surface-variant": "#434655",
+                        "surface-container-highest": "#dce2f7",
+                        "on-background": "#141b2b",
+                        "on-primary-container": "#eeefff",
+                        "tertiary-fixed-dim": "#ffb596",
+                        "surface-container": "#e9edff",
+                        "inverse-on-surface": "#edf0ff",
+                        "primary-container": "#2563eb",
+                        "on-primary-fixed": "#00174b",
+                        "secondary-container": "#d0e1fb",
+                        "primary": "#004ac6",
+                        "error": "#ba1a1a",
+                        "surface-container-low": "#f1f3ff",
+                        "primary-fixed-dim": "#b4c5ff",
+                        "on-secondary-fixed": "#0b1c30",
+                        "inverse-primary": "#b4c5ff",
+                        "surface-tint": "#0053db",
+                        "background": "#f9f9ff",
+                        "surface-dim": "#d3daef",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "tertiary-container": "#bc4800",
+                        "secondary": "#505f76",
+                        "on-tertiary-container": "#ffede6",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "inverse-surface": "#293040",
+                        "on-error": "#ffffff",
+                        "surface-container-high": "#e1e8fd",
+                        "on-secondary": "#ffffff",
+                        "surface-bright": "#f9f9ff",
+                        "on-error-container": "#93000a",
+                        "secondary-fixed": "#d3e4fe",
+                        "on-tertiary-fixed-variant": "#7d2d00",
+                        "outline-variant": "#c3c6d7",
+                        "on-secondary-container": "#54647a",
+                        "outline": "#737686",
+                        "surface-variant": "#dce2f7",
+                        "primary-fixed": "#dbe1ff",
+                        "error-container": "#ffdad6",
+                        "on-primary": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "tertiary": "#943700"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, .font-headline { font-family: 'Manrope', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface">
+<!-- Sidebar Navigation (From JSON SideNavBar) -->
+<aside class="fixed left-0 top-0 h-full flex flex-col p-4 bg-slate-50 dark:bg-slate-950 h-screen w-64 border-r-0 z-50">
+<div class="mb-8 px-4">
+<h1 class="text-lg font-bold text-blue-700 dark:text-blue-500 tracking-tighter">Nexus Logistics</h1>
+<p class="text-[10px] text-slate-500 font-medium uppercase tracking-widest">Command Center v1.0</p>
+</div>
+<nav class="flex-1 space-y-2">
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-medium text-sm">Command Center</span>
+</a>
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">local_shipping</span>
+<span class="font-medium text-sm">Fleet Registry</span>
+</a>
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">alt_route</span>
+<span class="font-medium text-sm">Route Planning</span>
+</a>
+<!-- Active Tab: Personnel Roles (Maps to current page intent) -->
+<a class="flex items-center gap-3 bg-white dark:bg-slate-900 shadow-sm rounded-lg text-blue-700 dark:text-blue-400 font-semibold px-4 py-3" href="#">
+<span class="material-symbols-outlined">badge</span>
+<span class="font-medium text-sm">Personnel Roles</span>
+</a>
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">history</span>
+<span class="font-medium text-sm">Audit Trails</span>
+</a>
+</nav>
+<div class="mt-auto border-t border-slate-100 pt-4">
+<button class="flex items-center gap-3 text-slate-500 dark:text-slate-400 px-4 py-3 w-full hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-medium text-sm">Sign Out</span>
+</button>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-64 p-8 min-h-screen">
+<!-- Page Header -->
+<header class="flex items-center justify-between mb-10">
+<div class="flex items-center gap-5">
+<div class="w-10 h-10 bg-[#0033CC] flex items-center justify-center rounded-lg shadow-lg">
+<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">label</span>
+</div>
+<div>
+<div class="flex items-center gap-3">
+<h2 class="text-3xl font-headline font-bold text-on-surface tracking-tight">Funções</h2>
+<span class="bg-blue-50 text-primary px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">12 funções</span>
+</div>
+<p class="text-on-surface-variant text-sm font-medium mt-1">Gerencie as funções e atribua responsáveis</p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="flex items-center gap-2 bg-[#0033CC] text-white px-6 py-2.5 rounded-lg font-semibold text-sm shadow-md hover:bg-blue-800 transition-all active:scale-95">
+<span class="material-symbols-outlined text-[20px]">add</span>
+                    Nova Função
+                </button>
+</div>
+</header>
+<!-- Main Content Card -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-[0_20px_40px_rgba(20,27,43,0.03)] overflow-hidden">
+<!-- Filter Bar -->
+<div class="p-6 border-b border-surface-container flex flex-col md:flex-row md:items-center justify-between gap-4">
+<div class="relative max-w-md w-full">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+<input class="w-full bg-surface-container-low border-none rounded-lg pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-fixed transition-shadow placeholder:text-outline" placeholder="Buscar por função ou responsável..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2.5 text-on-surface-variant hover:bg-surface-container rounded-lg transition-colors">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+<button class="p-2.5 text-on-surface-variant hover:bg-surface-container rounded-lg transition-colors">
+<span class="material-symbols-outlined">download</span>
+</button>
+</div>
+</div>
+<!-- Roles Table -->
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low/50">
+<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">#</th>
+<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Nome da Função</th>
+<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Responsáveis</th>
+<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container">
+<!-- Row 1 -->
+<tr class="group hover:bg-surface-container-low/30 transition-colors">
+<td class="px-6 py-5 text-sm text-on-surface-variant font-medium">01</td>
+<td class="px-6 py-5">
+<span class="font-headline font-semibold text-on-surface text-[15px]">Gerente de Operações</span>
+<p class="text-xs text-on-surface-variant mt-0.5">Supervisão total da malha logística</p>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center">
+<div class="flex -space-x-2 mr-3">
+<div class="w-7 h-7 rounded-full bg-blue-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-blue-700" title="André Silva">AS</div>
+<div class="w-7 h-7 rounded-full bg-purple-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-purple-700" title="Beatriz Costa">BC</div>
+<div class="w-7 h-7 rounded-full bg-green-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-green-700" title="Carlos Lima">CL</div>
+<div class="w-7 h-7 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-slate-700">+2</div>
+</div>
+<button class="w-7 h-7 rounded-full border border-dashed border-outline-variant flex items-center justify-center hover:border-primary hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-sm">add</span>
+</button>
+</div>
+</td>
+<td class="px-6 py-5 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="flex items-center justify-end gap-1">
+<button class="p-2 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[20px]">edit</span></button>
+<button class="p-2 text-on-surface-variant hover:text-error transition-colors"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="group hover:bg-surface-container-low/30 transition-colors">
+<td class="px-6 py-5 text-sm text-on-surface-variant font-medium">02</td>
+<td class="px-6 py-5">
+<span class="font-headline font-semibold text-on-surface text-[15px]">Coordenador de Frota</span>
+<p class="text-xs text-on-surface-variant mt-0.5">Gestão de veículos e manutenção</p>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center">
+<div class="flex -space-x-2 mr-3">
+<div class="w-7 h-7 rounded-full bg-orange-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-orange-700" title="Daniela Meira">DM</div>
+<div class="w-7 h-7 rounded-full bg-pink-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-pink-700" title="Eduardo Rocha">ER</div>
+</div>
+<button class="w-7 h-7 rounded-full border border-dashed border-outline-variant flex items-center justify-center hover:border-primary hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-sm">add</span>
+</button>
+</div>
+</td>
+<td class="px-6 py-5 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="flex items-center justify-end gap-1">
+<button class="p-2 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[20px]">edit</span></button>
+<button class="p-2 text-on-surface-variant hover:text-error transition-colors"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="group hover:bg-surface-container-low/30 transition-colors">
+<td class="px-6 py-5 text-sm text-on-surface-variant font-medium">03</td>
+<td class="px-6 py-5">
+<span class="font-headline font-semibold text-on-surface text-[15px]">Analista de Logística</span>
+<p class="text-xs text-on-surface-variant mt-0.5">Otimização de rotas e custos</p>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center">
+<div class="flex -space-x-2 mr-3">
+<div class="w-7 h-7 rounded-full bg-teal-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-teal-700" title="Felipe Alves">FA</div>
+</div>
+<button class="w-7 h-7 rounded-full border border-dashed border-outline-variant flex items-center justify-center hover:border-primary hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-sm">add</span>
+</button>
+</div>
+</td>
+<td class="px-6 py-5 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="flex items-center justify-end gap-1">
+<button class="p-2 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[20px]">edit</span></button>
+<button class="p-2 text-on-surface-variant hover:text-error transition-colors"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+</div>
+</td>
+</tr>
+<!-- Empty Filter State (Hidden by default) -->
+<tr class="hidden">
+<td class="px-6 py-20" colspan="4">
+<div class="flex flex-col items-center justify-center text-center">
+<div class="w-16 h-16 bg-surface-container-low rounded-full flex items-center justify-center mb-4">
+<span class="material-symbols-outlined text-outline text-3xl">label_off</span>
+</div>
+<h4 class="text-lg font-headline font-bold text-on-surface">Nenhuma função encontrada</h4>
+<p class="text-on-surface-variant text-sm mt-1 max-w-xs">Ajuste sua busca ou limpe os filtros para ver todos os resultados.</p>
+<button class="mt-6 text-primary font-bold text-sm hover:underline">Limpar filtro</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Footer Pagination -->
+<div class="p-6 bg-surface-container-low/30 border-t border-surface-container flex items-center justify-between">
+<p class="text-xs text-on-surface-variant font-medium">Mostrando 3 de 12 funções</p>
+<div class="flex items-center gap-2">
+<button class="p-2 rounded hover:bg-surface-container transition-colors disabled:opacity-30" disabled="">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</button>
+<button class="p-2 rounded bg-primary text-white transition-colors text-xs font-bold w-8 h-8 flex items-center justify-center">1</button>
+<button class="p-2 rounded hover:bg-surface-container transition-colors text-xs font-bold w-8 h-8 flex items-center justify-center">2</button>
+<button class="p-2 rounded hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+<!-- Modal Overlay (Backdrop) -->
+<div class="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+<!-- Modal: Criar / Editar Função (Example Open) -->
+<div class="bg-surface-container-lowest rounded-xl shadow-2xl w-full max-w-[420px] overflow-hidden">
+<div class="p-6 border-b border-surface-container flex items-center justify-between">
+<h3 class="text-xl font-headline font-bold text-on-surface">Nova Função</h3>
+<button class="text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<div class="p-6 space-y-5">
+<div>
+<label class="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Nome da Função</label>
+<input class="w-full bg-surface-container-low border-none rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-fixed" placeholder="Ex: Supervisor de Pátio" type="text"/>
+</div>
+<div>
+<label class="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Descrição (Opcional)</label>
+<textarea class="w-full bg-surface-container-low border-none rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-fixed" placeholder="Descreva as responsabilidades desta função..." rows="3"></textarea>
+</div>
+</div>
+<div class="p-6 bg-surface-container-low/50 flex gap-3 justify-end">
+<button class="px-5 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-container rounded-lg transition-colors">Cancelar</button>
+<button class="px-5 py-2 text-sm font-semibold text-white bg-[#0033CC] rounded-lg shadow-md hover:bg-blue-800 transition-all">Salvar Função</button>
+</div>
+</div>
+<!-- Floating Popover/ManagersPopover (Example for André Silva) - Positioned relative for demo -->
+<div class="absolute top-[350px] left-[650px] bg-white rounded-lg shadow-xl border border-surface-container w-64 z-[70] hidden">
+<div class="p-3 border-b border-surface-container flex items-center justify-between">
+<span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Responsáveis</span>
+<button class="text-[18px] material-symbols-outlined text-outline">close</button>
+</div>
+<div class="max-h-48 overflow-y-auto">
+<div class="p-3 flex items-center justify-between group/manager">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-700">AS</div>
+<div>
+<p class="text-sm font-semibold text-on-surface leading-none">André Silva</p>
+<p class="text-[10px] text-on-surface-variant">ID: 4429</p>
+</div>
+</div>
+<button class="text-error opacity-0 group-hover/manager:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-[18px]">person_remove</span>
+</button>
+</div>
+<!-- ... more items -->
+</div>
+<div class="p-2 bg-surface-container-low">
+<button class="w-full py-2 text-xs font-bold text-primary flex items-center justify-center gap-1 hover:bg-white rounded transition-colors">
+<span class="material-symbols-outlined text-[16px]">add</span>
+                    Adicionar Responsável
+                </button>
+</div>
+</div>
+</div>
+</body></html>
