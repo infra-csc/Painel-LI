@@ -7,17 +7,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  Check, X, Eye, UserPlus, Upload, FileText, Edit, Users,
-  ChevronLeft, ChevronRight, Search, UserCheck, AlertCircle,
-  Briefcase, Home, LayoutList, Loader2
+  Check, X, Eye, UserPlus, Upload, FileText,
+  ChevronLeft, ChevronRight, Users, Loader2
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import CollaboratorModal from "@/components/modals/collaborator-modal";
 import BulkUploadModal from "@/components/modals/bulk-upload-modal";
 import type { Collaborator } from "@shared/schema";
-
-const BLUE = "#0033CC";
 
 // ─── Avatar helpers ────────────────────────────────────────────────────────
 const AVATAR_COLORS = [
@@ -46,20 +43,19 @@ function toTitleCase(str: string) {
   return str.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
 
-// ─── Config ────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 25;
 
-const STATUS_CFG: Record<string, { label: string; dotCls: string; badgeCls: string }> = {
-  pendente:  { label: "Pendente",  dotCls: "bg-amber-400",   badgeCls: "bg-amber-50 text-amber-700 border border-amber-200" },
-  aprovado:  { label: "Aprovado",  dotCls: "bg-emerald-500", badgeCls: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
-  rejeitado: { label: "Rejeitado", dotCls: "bg-red-500",     badgeCls: "bg-red-50 text-red-700 border border-red-200" },
-  inativo:   { label: "Inativo",   dotCls: "bg-slate-400",   badgeCls: "bg-slate-100 text-slate-500 border border-slate-200" },
+const STATUS_CFG: Record<string, { label: string; dot: string; text: string }> = {
+  pendente:  { label: "Pendente",  dot: "bg-amber-400",   text: "text-amber-600" },
+  aprovado:  { label: "Aprovado",  dot: "bg-emerald-500", text: "text-emerald-600" },
+  rejeitado: { label: "Rejeitado", dot: "bg-red-500",     text: "text-red-600" },
+  inativo:   { label: "Inativo",   dot: "bg-slate-400",   text: "text-slate-500" },
 };
 
 const TYPE_CFG: Record<string, { label: string; cls: string }> = {
-  freela: { label: "Freela", cls: "bg-blue-50 text-blue-600 border border-blue-200" },
-  casa:   { label: "Casa",   cls: "bg-slate-50 text-slate-600 border border-slate-200" },
-  local:  { label: "Local",  cls: "bg-violet-50 text-violet-600 border border-violet-200" },
+  freela: { label: "Freela", cls: "bg-blue-50 text-blue-600" },
+  casa:   { label: "Casa",   cls: "bg-violet-50 text-violet-600" },
+  local:  { label: "Local",  cls: "bg-slate-100 text-slate-600" },
 };
 
 function formatDocument(doc: string, type: string) {
@@ -71,27 +67,6 @@ function formatDate(dateStr: string) {
   return `${d}/${m}/${y}`;
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CFG[status] ?? STATUS_CFG.pendente;
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${cfg.badgeCls}`}>
-      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dotCls}`} />
-      {cfg.label}
-    </span>
-  );
-}
-
-// ─── Detail row helper ─────────────────────────────────────────────────────
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-      <p className="text-sm text-slate-700 font-medium">{value}</p>
-    </div>
-  );
-}
-
-// ─── Component ─────────────────────────────────────────────────────────────
 export default function CollaboratorManagement() {
   const [filters, setFilters] = useState({ status: "all", type: "all", search: "" });
   const [page, setPage] = useState(1);
@@ -139,7 +114,6 @@ export default function CollaboratorManagement() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
   const setFilter = (key: string, val: string) => { setFilters(p => ({ ...p, [key]: val })); setPage(1); };
   const clearFilters = () => { setFilters({ status: "all", type: "all", search: "" }); setPage(1); };
   const hasFilters = filters.status !== "all" || filters.type !== "all" || filters.search;
@@ -166,19 +140,19 @@ export default function CollaboratorManagement() {
 
   if (isLoading) {
     return (
-      <div className="space-y-5">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-[10px] bg-slate-200 animate-pulse" />
-          <div className="space-y-1.5">
-            <div className="h-5 w-48 bg-slate-200 rounded animate-pulse" />
-            <div className="h-3 w-64 bg-slate-100 rounded animate-pulse" />
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 11, background: "#E2E8F0" }} className="animate-pulse" />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ width: 192, height: 20, background: "#E2E8F0", borderRadius: 6 }} className="animate-pulse" />
+            <div style={{ width: 256, height: 12, background: "#F1F5F9", borderRadius: 4 }} className="animate-pulse" />
           </div>
         </div>
-        <div className="grid grid-cols-5 gap-4">
-          {[...Array(5)].map((_, i) => <div key={i} className="h-24 bg-white rounded-xl border border-slate-200 animate-pulse" />)}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 16 }}>
+          {[...Array(5)].map((_, i) => <div key={i} style={{ height: 96, background: "white", borderRadius: 16, border: "1px solid #E5E7EB" }} className="animate-pulse" />)}
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-8 animate-pulse space-y-4">
-          {[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-slate-50 rounded-xl" />)}
+        <div style={{ background: "white", borderRadius: 20, border: "1px solid #E5E7EB", padding: 32, display: "flex", flexDirection: "column", gap: 16 }} className="animate-pulse">
+          {[...Array(6)].map((_, i) => <div key={i} style={{ height: 48, background: "#F8FAFC", borderRadius: 12 }} />)}
         </div>
       </div>
     );
@@ -186,92 +160,76 @@ export default function CollaboratorManagement() {
 
   return (
     <TooltipProvider>
-      <div className="space-y-5">
+      <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
 
         {/* ── Page Header ── */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-[10px] flex items-center justify-center shrink-0"
-              style={{ background: BLUE, boxShadow: `0 4px 14px ${BLUE}50` }}
-            >
-              <span className="material-symbols-outlined text-white" style={{ fontSize: 20, fontVariationSettings: "'FILL' 1" }}>group</span>
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 32, color: "#004ac6", fontVariationSettings: "'FILL' 1" }}>group</span>
+              <h1 style={{ fontSize: 28, fontWeight: 800, color: "#141b2b", margin: 0, letterSpacing: "-0.5px", fontFamily: "Manrope, sans-serif" }}>Colaboradores</h1>
             </div>
-            <div>
-              <h1 className="text-[18px] font-bold text-slate-900 leading-tight">Colaboradores</h1>
-              <p className="text-xs text-slate-400 mt-0.5">Gerencie prestadores, motoristas e colaboradores internos</p>
-            </div>
+            <p style={{ fontSize: 14, color: "#64748B", margin: 0, fontWeight: 500 }}>Gerencie prestadores, motoristas e colaboradores internos</p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => setBulkUploadModal(true)}
-              className="h-9 px-3.5 flex items-center gap-1.5 text-xs font-medium text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-lg transition-colors bg-white"
-            >
-              <Upload className="w-3.5 h-3.5" /> Importar
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+            <button onClick={() => setBulkUploadModal(true)}
+              style={{ height: 44, padding: "0 20px", display: "flex", alignItems: "center", gap: 8, border: "1px solid #c3c6d7", borderRadius: 12, background: "white", fontSize: 14, fontWeight: 600, color: "#475569", cursor: "pointer", fontFamily: "inherit" }}
+              className="hover:bg-slate-50 transition-colors">
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>upload</span>
+              Importar
             </button>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="h-9 px-4 flex items-center gap-1.5 text-white text-xs font-semibold rounded-lg transition-all"
-              style={{ background: BLUE, boxShadow: `0 2px 8px ${BLUE}35` }}
-            >
-              <UserPlus className="w-3.5 h-3.5" /> Novo Colaborador
+            <button onClick={() => setShowAddModal(true)}
+              style={{ height: 44, padding: "0 20px", display: "flex", alignItems: "center", gap: 8, borderRadius: 12, background: "linear-gradient(135deg, #2563eb, #004ac6)", color: "white", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 16px rgba(0,74,198,0.25)" }}
+              className="hover:opacity-90 active:scale-95 transition-all">
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
+              Novo Colaborador
             </button>
           </div>
         </div>
 
-        {/* ── Stat cards ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {/* ── Stat Cards ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 16 }}>
           {[
-            { label: "Total",      value: totalCount,    stripe: "bg-slate-700",   icon: "people",       iconBg: "bg-slate-100", iconTx: "text-slate-600", valTx: "#374151" },
-            { label: "Aprovados",  value: approvedCount, stripe: "bg-emerald-500", icon: "verified_user", iconBg: "bg-emerald-50", iconTx: "text-emerald-600", valTx: "#059669" },
-            { label: "Pendentes",  value: pendingCount,  stripe: "bg-amber-400",   icon: "pending",      iconBg: "bg-amber-50",  iconTx: "text-amber-500", valTx: "#D97706" },
-            { label: "Freelancers", value: freelaCount,  stripe: "bg-blue-500",    icon: "badge",        iconBg: "bg-blue-50",   iconTx: "text-blue-500",  valTx: "#3B82F6" },
-            { label: "Casa",       value: casaCount,     stripe: "bg-violet-500",  icon: "home",         iconBg: "bg-violet-50", iconTx: "text-violet-600", valTx: "#7C3AED" },
+            { label: "Total",      value: totalCount,    border: "#94A3B8", icon: "people",        iconBg: "#f1f5f9", iconTxt: "#475569" },
+            { label: "Aprovados",  value: approvedCount, border: "#34D399", icon: "verified_user",  iconBg: "#ECFDF5", iconTxt: "#059669" },
+            { label: "Pendentes",  value: pendingCount,  border: "#FBBF24", icon: "pending",        iconBg: "#FFFBEB", iconTxt: "#D97706" },
+            { label: "Freelancers",value: freelaCount,   border: "#60A5FA", icon: "badge",          iconBg: "#EFF6FF", iconTxt: "#2563EB" },
+            { label: "Casa",       value: casaCount,     border: "#A78BFA", icon: "home",           iconBg: "#F5F3FF", iconTxt: "#7C3AED" },
           ].map(card => (
-            <div key={card.label} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className={`h-1 w-full ${card.stripe}`} />
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${card.iconBg} ${card.iconTx}`}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 16, fontVariationSettings: "'FILL' 1" }}>{card.icon}</span>
-                  </div>
-                </div>
-                <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-0.5">{card.label}</p>
-                <p className="text-[26px] font-bold leading-none" style={{ color: card.valTx }}>{card.value}</p>
+            <div key={card.label} style={{ background: "white", borderRadius: 16, borderLeft: `4px solid ${card.border}`, boxShadow: "0 1px 4px rgba(20,27,43,0.06)", padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 22, color: card.iconTxt, background: card.iconBg, padding: 8, borderRadius: 10, fontVariationSettings: "'FILL' 1" }}>{card.icon}</span>
+                <span style={{ fontSize: 10, fontWeight: 800, color: card.iconTxt, textTransform: "uppercase", letterSpacing: "0.1em" }}>{card.label}</span>
               </div>
+              <div style={{ fontSize: 26, fontWeight: 900, color: "#141b2b", lineHeight: 1, fontFamily: "Manrope, sans-serif" }}>{card.value}</div>
             </div>
           ))}
         </div>
 
         {/* ── Main card ── */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div style={{ background: "white", borderRadius: 20, border: "1px solid #E2E8F0", boxShadow: "0 20px 40px rgba(20,27,43,0.05)", overflow: "hidden" }}>
 
           {/* Filter bar */}
-          <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2.5 bg-[#FAFBFF]">
-            {/* Search */}
-            <div className="relative flex-1 min-w-[180px] max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Buscar por nome ou documento..."
-                value={filters.search}
+          <div style={{ padding: "16px 20px", background: "rgba(248,250,252,0.5)", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+            <div style={{ position: "relative", width: "100%", maxWidth: 300 }}>
+              <span className="material-symbols-outlined" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 20, color: "#94A3B8", pointerEvents: "none" }}>search</span>
+              <input type="text" placeholder="Buscar colaborador..." value={filters.search}
                 onChange={e => setFilter("search", e.target.value)}
-                className="w-full h-8 pl-9 pr-8 bg-white border border-gray-200 rounded-lg text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
-              />
+                style={{ width: "100%", height: 44, paddingLeft: 44, paddingRight: filters.search ? 36 : 14, border: "none", borderRadius: 12, background: "white", fontSize: 14, color: "#374151", fontFamily: "inherit", boxSizing: "border-box", boxShadow: "0 1px 3px rgba(20,27,43,0.08)", outline: "none" }}
+                className="focus:ring-2 focus:ring-blue-600/20" />
               {filters.search && (
-                <button onClick={() => setFilter("search", "")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                  <X className="w-3 h-3" />
-                </button>
+                <button onClick={() => setFilter("search", "")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94A3B8", display: "flex" }}
+                  className="hover:text-slate-600"><X className="w-3.5 h-3.5" /></button>
               )}
             </div>
 
-            {/* Status filter */}
             <Select value={filters.status} onValueChange={v => setFilter("status", v)}>
-              <SelectTrigger className="h-8 w-[145px] text-xs border-gray-200 rounded-lg bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20">
-                <SelectValue placeholder="Status" />
+              <SelectTrigger style={{ height: 44, minWidth: 150, border: "none", borderRadius: 12, background: "white", boxShadow: "0 1px 3px rgba(20,27,43,0.08)", fontSize: 14, fontWeight: 500 }}
+                className="focus:ring-2 focus:ring-blue-600/20">
+                <SelectValue placeholder="Status: Todos" />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
-                <SelectItem value="all">Todos os Status</SelectItem>
+                <SelectItem value="all">Status: Todos</SelectItem>
                 <SelectItem value="pendente">Pendente</SelectItem>
                 <SelectItem value="aprovado">Aprovado</SelectItem>
                 <SelectItem value="rejeitado">Rejeitado</SelectItem>
@@ -279,13 +237,13 @@ export default function CollaboratorManagement() {
               </SelectContent>
             </Select>
 
-            {/* Type filter */}
             <Select value={filters.type} onValueChange={v => setFilter("type", v)}>
-              <SelectTrigger className="h-8 w-[145px] text-xs border-gray-200 rounded-lg bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20">
-                <SelectValue placeholder="Tipo" />
+              <SelectTrigger style={{ height: 44, minWidth: 150, border: "none", borderRadius: 12, background: "white", boxShadow: "0 1px 3px rgba(20,27,43,0.08)", fontSize: 14, fontWeight: 500 }}
+                className="focus:ring-2 focus:ring-blue-600/20">
+                <SelectValue placeholder="Tipo: Todos" />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
-                <SelectItem value="all">Todos os Tipos</SelectItem>
+                <SelectItem value="all">Tipo: Todos</SelectItem>
                 <SelectItem value="casa">Casa</SelectItem>
                 <SelectItem value="freela">Freela</SelectItem>
                 <SelectItem value="local">Local</SelectItem>
@@ -293,138 +251,135 @@ export default function CollaboratorManagement() {
             </Select>
 
             {hasFilters && (
-              <button
-                onClick={clearFilters}
-                className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-slate-500 border border-dashed border-slate-300 rounded-lg hover:bg-slate-50 hover:border-slate-400 transition-colors"
-              >
-                <X className="w-3 h-3" /> Limpar
+              <button onClick={clearFilters}
+                style={{ height: 44, padding: "0 16px", display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 700, color: "#64748B", background: "none", border: "none", cursor: "pointer", marginLeft: "auto", fontFamily: "inherit" }}
+                className="hover:text-[#004ac6] transition-colors">
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
+                Limpar
               </button>
             )}
-
             {hasFilters && (
-              <span className="text-[11px] text-slate-400 ml-1">
-                {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
-              </span>
+              <span style={{ fontSize: 12, color: "#94A3B8" }}>{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</span>
             )}
           </div>
 
           {/* Table */}
           {filtered.length === 0 ? (
-            <div className="py-20 text-center">
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center">
-                  <Users className="w-6 h-6 text-slate-400" />
+            <div style={{ padding: "80px 24px", textAlign: "center" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Users className="w-6 h-6" style={{ color: "#94A3B8" }} />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-600">Nenhum colaborador encontrado</p>
-                  <p className="text-xs text-slate-400 mt-1">Tente ajustar os filtros ou cadastre um novo colaborador.</p>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: "#475569", margin: 0 }}>Nenhum colaborador encontrado</p>
+                  <p style={{ fontSize: 12, color: "#94A3B8", margin: "4px 0 0" }}>Tente ajustar os filtros ou cadastre um novo colaborador.</p>
                 </div>
                 {hasFilters && (
-                  <button onClick={clearFilters} className="text-xs text-blue-500 hover:text-blue-700 font-medium">
-                    Limpar filtros
-                  </button>
+                  <button onClick={clearFilters} style={{ fontSize: 12, fontWeight: 500, color: "#2563EB", background: "none", border: "none", cursor: "pointer" }}
+                    className="hover:text-blue-700">Limpar filtros</button>
                 )}
               </div>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
                 <thead>
-                  <tr style={{ borderBottom: "2px solid #E2E8F0", background: "#F8FAFC" }}>
-                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Colaborador</th>
-                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Documento</th>
-                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Tipo</th>
-                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Cidade</th>
-                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Status</th>
-                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase text-right">Ações</th>
+                  <tr style={{ background: "#F8FAFC", borderTop: "1px solid #F1F5F9", borderBottom: "1px solid #F1F5F9" }}>
+                    {["Colaborador","Documento","Tipo","Cidade","Status","Ações"].map((h, i) => (
+                      <th key={h} style={{ padding: "14px 24px", fontSize: 11, fontWeight: 900, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", textAlign: i === 5 ? "right" : "left" }}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody style={{ borderTop: "none" }}>
                   {paginated.map(c => {
+                    const st = STATUS_CFG[c.status] ?? STATUS_CFG.pendente;
                     const isPending = c.status === "pendente";
+                    const isInactive = c.status === "inativo";
                     const typeCfg = TYPE_CFG[c.type] ?? TYPE_CFG.local;
                     const displayName = toTitleCase(c.fullName);
                     const [bgCls, textCls] = avatarClasses(c.fullName);
-
                     return (
-                      <tr
-                        key={c.id}
-                        className={`group transition-colors ${isPending ? "hover:bg-amber-50/30" : "hover:bg-blue-50/30"}`}
-                      >
-                        {/* Colaborador */}
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${bgCls} ${textCls}`}>
+                      <tr key={c.id} className="group transition-colors hover:bg-slate-50/50"
+                        style={{ borderBottom: "1px solid #F1F5F9", opacity: isInactive ? 0.6 : 1 }}>
+
+                        <td style={{ padding: "16px 24px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${bgCls} ${textCls}`}>
                               {initials(c.fullName)}
                             </div>
                             <div>
-                              <p className="text-sm font-semibold text-slate-800 leading-tight">{displayName}</p>
-                              {c.phone && <p className="text-[11px] text-slate-400 mt-0.5">{c.phone}</p>}
+                              <p style={{ fontSize: 14, fontWeight: 700, color: "#141b2b", margin: 0, lineHeight: 1.3 }}>{displayName}</p>
+                              {c.phone && <p style={{ fontSize: 12, color: "#64748B", margin: "2px 0 0" }}>{c.phone}</p>}
                             </div>
                           </div>
                         </td>
 
-                        {/* Documento */}
-                        <td className="px-5 py-3.5">
-                          <div className="font-mono text-[11px] text-slate-500 space-y-0.5">
-                            <div>{formatDocument(c.officialDocument, c.documentType)}</div>
-                            {c.secondaryDocument && <div className="text-slate-400">RG {c.secondaryDocument}</div>}
+                        <td style={{ padding: "16px 24px" }}>
+                          <div style={{ fontSize: 12, fontWeight: 500, color: "#475569" }}>CPF: {formatDocument(c.officialDocument, c.documentType)}</div>
+                          {c.secondaryDocument && <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 2 }}>RG: {c.secondaryDocument}</div>}
+                        </td>
+
+                        <td style={{ padding: "16px 24px" }}>
+                          <span className={`text-xs font-bold py-1 px-2 rounded-lg ${typeCfg.cls}`}>{typeCfg.label}</span>
+                        </td>
+
+                        <td style={{ padding: "16px 24px", fontSize: 12, fontWeight: 500, color: "#475569" }}>{c.city || "—"}</td>
+
+                        <td style={{ padding: "16px 24px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }} className={`text-xs font-bold ${st.text}`}>
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${st.dot}`} />
+                            {st.label}
                           </div>
                         </td>
 
-                        {/* Tipo */}
-                        <td className="px-5 py-3.5">
-                          <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${typeCfg.cls}`}>
-                            {typeCfg.label}
-                          </span>
-                        </td>
-
-                        {/* Cidade */}
-                        <td className="px-5 py-3.5 text-sm text-slate-500">{c.city || "—"}</td>
-
-                        {/* Status */}
-                        <td className="px-5 py-3.5">
-                          <StatusBadge status={c.status} />
-                        </td>
-
-                        {/* Ações */}
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <td style={{ padding: "16px 24px" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity">
                             {isPending && (
                               <>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <button onClick={() => handleApprove(c)} disabled={updateMutation.isPending} className="w-7 h-7 rounded-md flex items-center justify-center text-emerald-500 hover:bg-emerald-50 disabled:opacity-40 transition-colors">
-                                      <Check className="w-3.5 h-3.5" />
+                                    <button onClick={() => handleApprove(c)} disabled={updateMutation.isPending}
+                                      style={{ padding: 8, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#059669" }}
+                                      className="hover:bg-emerald-50 disabled:opacity-40 transition-colors">
+                                      <span className="material-symbols-outlined" style={{ fontSize: 22 }}>check_circle</span>
                                     </button>
                                   </TooltipTrigger>
                                   <TooltipContent>Aprovar</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <button onClick={() => handleReject(c)} disabled={updateMutation.isPending} className="w-7 h-7 rounded-md flex items-center justify-center text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors">
-                                      <X className="w-3.5 h-3.5" />
+                                    <button onClick={() => handleReject(c)} disabled={updateMutation.isPending}
+                                      style={{ padding: 8, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#ba1a1a" }}
+                                      className="hover:bg-red-50 disabled:opacity-40 transition-colors">
+                                      <span className="material-symbols-outlined" style={{ fontSize: 22 }}>cancel</span>
                                     </button>
                                   </TooltipTrigger>
                                   <TooltipContent>Rejeitar</TooltipContent>
                                 </Tooltip>
                               </>
                             )}
+                            {!isPending && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button onClick={() => handleEdit(c)}
+                                    style={{ padding: 8, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#94A3B8" }}
+                                    className="hover:bg-slate-100 transition-colors">
+                                    <span className="material-symbols-outlined" style={{ fontSize: 22 }}>edit</span>
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent>Editar</TooltipContent>
+                              </Tooltip>
+                            )}
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <button onClick={() => handleView(c)} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                                  <Eye className="w-3.5 h-3.5" />
+                                <button onClick={() => handleView(c)}
+                                  style={{ padding: 8, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#94A3B8" }}
+                                  className="hover:bg-slate-100 transition-colors">
+                                  <span className="material-symbols-outlined" style={{ fontSize: 22 }}>visibility</span>
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent>Ver detalhes</TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button onClick={() => handleEdit(c)} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                                  <Edit className="w-3.5 h-3.5" />
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent>Editar</TooltipContent>
                             </Tooltip>
                           </div>
                         </td>
@@ -438,46 +393,32 @@ export default function CollaboratorManagement() {
 
           {/* Pagination Footer */}
           {filtered.length > 0 && (
-            <div className="px-5 py-2.5 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
-              <p className="text-[11px] text-slate-400 font-medium">
+            <div style={{ padding: "20px 24px", borderTop: "1px solid #F1F5F9", background: "rgba(248,250,252,0.5)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <p style={{ fontSize: 14, color: "#64748B", fontWeight: 500, margin: 0 }}>
                 Mostrando{" "}
-                <span className="text-slate-600 font-semibold">{Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)}</span>
+                <span style={{ color: "#141b2b", fontWeight: 700 }}>{Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)}</span>
                 {" "}de{" "}
-                <span className="text-slate-600 font-semibold">{filtered.length}</span> colaboradores
+                <span style={{ color: "#141b2b", fontWeight: 700 }}>{filtered.length}</span>
               </p>
               {totalPages > 1 && (
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" />
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                    style={{ padding: 8, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#94A3B8" }}
+                    className="hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-colors">
+                    <span className="material-symbols-outlined" style={{ fontSize: 20 }}>chevron_left</span>
                   </button>
-                  <div className="flex items-center gap-0.5">
-                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                      const p = i + 1;
-                      return (
-                        <button
-                          key={p}
-                          onClick={() => setPage(p)}
-                          className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-semibold transition-colors ${
-                            page === p ? "text-white" : "text-slate-500 hover:bg-slate-100"
-                          }`}
-                          style={page === p ? { background: BLUE } : undefined}
-                        >
-                          {p}
-                        </button>
-                      );
-                    })}
-                    {totalPages > 5 && <span className="px-1 text-slate-400 text-xs">…</span>}
-                  </div>
-                  <button
-                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
-                  >
-                    <ChevronRight className="w-3.5 h-3.5" />
+                  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map(p => (
+                    <button key={p} onClick={() => setPage(p)}
+                      style={{ width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 14, fontWeight: 700, background: page === p ? "#004ac6" : "transparent", color: page === p ? "white" : "#475569" }}
+                      className={page !== p ? "hover:bg-slate-200 transition-colors" : ""}>
+                      {p}
+                    </button>
+                  ))}
+                  {totalPages > 5 && <span style={{ fontSize: 12, color: "#94A3B8", padding: "0 4px" }}>…</span>}
+                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                    style={{ padding: 8, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#94A3B8" }}
+                    className="hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-colors">
+                    <span className="material-symbols-outlined" style={{ fontSize: 20 }}>chevron_right</span>
                   </button>
                 </div>
               )}
@@ -487,181 +428,246 @@ export default function CollaboratorManagement() {
 
         {/* ── Details Modal ── */}
         <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
-          <DialogContent className="max-w-xl rounded-2xl p-0 gap-0 border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden">
+          <DialogContent className="max-w-3xl rounded-[24px] p-0 gap-0 border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden max-h-[90vh] flex flex-col">
             {/* Header */}
-            <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
-              {selectedCollaborator && (() => {
-                const [bg, tx] = avatarClasses(selectedCollaborator.fullName);
-                return (
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${bg} ${tx}`}>
-                    {initials(selectedCollaborator.fullName)}
-                  </div>
-                );
-              })()}
-              <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-bold text-slate-800">Detalhes do Colaborador</h3>
-                {selectedCollaborator && (
-                  <p className="text-[11px] text-slate-400 mt-0.5 truncate">{toTitleCase(selectedCollaborator.fullName)}</p>
-                )}
+            <div style={{ padding: "24px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between", background: "white", flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <div style={{ width: 56, height: 56, borderRadius: 16, background: "#FFFBEB", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 30, color: "#D97706" }}>person_search</span>
+                </div>
+                <div>
+                  <h2 style={{ fontSize: 20, fontWeight: 800, color: "#141b2b", margin: 0, fontFamily: "Manrope, sans-serif" }}>Detalhes do Colaborador</h2>
+                  <p style={{ fontSize: 14, color: "#64748B", margin: "3px 0 0", fontWeight: 500 }}>
+                    {selectedCollaborator ? toTitleCase(selectedCollaborator.fullName) : ""}
+                  </p>
+                </div>
               </div>
-              {selectedCollaborator && (
-                <StatusBadge status={selectedCollaborator.status} />
-              )}
-              <button onClick={() => setShowDetailsModal(false)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors">
-                <X className="w-3.5 h-3.5" />
+              <button onClick={() => setShowDetailsModal(false)}
+                style={{ padding: 8, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", color: "#94A3B8" }}
+                className="hover:bg-slate-100 transition-colors">
+                <span className="material-symbols-outlined" style={{ fontSize: 22 }}>close</span>
               </button>
             </div>
 
+            {/* Body */}
             {selectedCollaborator && (
-              <div className="px-5 py-5 space-y-5">
-                <div className="grid grid-cols-2 gap-4">
-                  <DetailRow label="Nome Completo" value={toTitleCase(selectedCollaborator.fullName)} />
-                  <DetailRow label="Tipo de Vínculo" value={toTitleCase(selectedCollaborator.type)} />
-                  <DetailRow label="Data de Nascimento" value={selectedCollaborator.birthDate ? formatDate(selectedCollaborator.birthDate) : "—"} />
-                  <DetailRow label="Cidade" value={selectedCollaborator.city || "—"} />
-                  <DetailRow label="Telefone" value={selectedCollaborator.phone || "—"} />
-                </div>
+              <div style={{ flex: 1, overflowY: "auto", padding: 32 }} className="no-scrollbar">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 32 }}>
+                  {/* Left: Profile */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                    <div style={{ textAlign: "center" }}>
+                      {(() => {
+                        const [bg, tx] = avatarClasses(selectedCollaborator.fullName);
+                        return (
+                          <div className={`w-24 h-24 rounded-3xl mx-auto flex items-center justify-center text-2xl font-bold ${bg} ${tx}`}
+                            style={{ margin: "0 auto 16px", boxShadow: "0 0 0 4px #FFFBEB" }}>
+                            {initials(selectedCollaborator.fullName)}
+                          </div>
+                        );
+                      })()}
+                      <h3 style={{ fontSize: 16, fontWeight: 700, color: "#141b2b", margin: "0 0 8px", fontFamily: "Manrope, sans-serif" }}>{toTitleCase(selectedCollaborator.fullName)}</h3>
+                      {(() => {
+                        const st = STATUS_CFG[selectedCollaborator.status] ?? STATUS_CFG.pendente;
+                        return (
+                          <span className={`text-xs font-bold px-3 py-1 rounded-full ${st.text}`}
+                            style={{ background: selectedCollaborator.status === "pendente" ? "#FFFBEB" : selectedCollaborator.status === "aprovado" ? "#ECFDF5" : selectedCollaborator.status === "rejeitado" ? "#FEF2F2" : "#F8FAFC" }}>
+                            {st.label}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    <div style={{ paddingTop: 16, borderTop: "1px solid #F1F5F9", display: "flex", flexDirection: "column", gap: 16 }}>
+                      <div>
+                        <label style={{ fontSize: 10, fontWeight: 900, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 4 }}>Tipo de Vínculo</label>
+                        <p style={{ fontSize: 14, fontWeight: 500, margin: 0, color: "#141b2b" }}>{toTitleCase(selectedCollaborator.type)}</p>
+                      </div>
+                      {selectedCollaborator.phone && (
+                        <div>
+                          <label style={{ fontSize: 10, fontWeight: 900, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 4 }}>Telefone</label>
+                          <p style={{ fontSize: 14, fontWeight: 500, margin: 0, color: "#141b2b" }}>{selectedCollaborator.phone}</p>
+                        </div>
+                      )}
+                      {selectedCollaborator.city && (
+                        <div>
+                          <label style={{ fontSize: 10, fontWeight: 900, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 4 }}>Localização</label>
+                          <p style={{ fontSize: 14, fontWeight: 500, margin: 0, color: "#141b2b" }}>{selectedCollaborator.city}</p>
+                        </div>
+                      )}
+                      {selectedCollaborator.birthDate && (
+                        <div>
+                          <label style={{ fontSize: 10, fontWeight: 900, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 4 }}>Nascimento</label>
+                          <p style={{ fontSize: 14, fontWeight: 500, margin: 0, color: "#141b2b" }}>{formatDate(selectedCollaborator.birthDate)}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
-                <div className="border-t border-gray-100 pt-4">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Documentos</p>
-                  <div className="font-mono text-xs space-y-1 bg-slate-50 rounded-lg px-3 py-2.5 border border-gray-100">
-                    <div><span className="text-slate-400">CPF </span><span className="text-slate-700 font-medium">{formatDocument(selectedCollaborator.officialDocument, selectedCollaborator.documentType)}</span></div>
-                    {selectedCollaborator.secondaryDocument && (
-                      <div><span className="text-slate-400">RG  </span><span className="text-slate-700 font-medium">{selectedCollaborator.secondaryDocument}</span></div>
+                  {/* Right: Documents & Notes */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+                    {/* Documentos */}
+                    <div>
+                      <h4 style={{ fontSize: 13, fontWeight: 900, color: "#141b2b", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 16px", display: "flex", alignItems: "center", gap: 8 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>description</span>
+                        Documentos
+                      </h4>
+                      <div style={{ background: "#F8FAFC", borderRadius: 12, padding: "12px 16px", border: "1px solid #E9EDFF", fontFamily: "monospace", display: "flex", flexDirection: "column", gap: 8 }}>
+                        <div style={{ fontSize: 13 }}>
+                          <span style={{ color: "#94A3B8" }}>CPF  </span>
+                          <span style={{ color: "#374151", fontWeight: 600 }}>{formatDocument(selectedCollaborator.officialDocument, selectedCollaborator.documentType)}</span>
+                        </div>
+                        {selectedCollaborator.secondaryDocument && (
+                          <div style={{ fontSize: 13 }}>
+                            <span style={{ color: "#94A3B8" }}>RG   </span>
+                            <span style={{ color: "#374151", fontWeight: 600 }}>{selectedCollaborator.secondaryDocument}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Anexo */}
+                    {selectedCollaborator.documentAttachmentId && (
+                      <div>
+                        <h4 style={{ fontSize: 13, fontWeight: 900, color: "#141b2b", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 16px", display: "flex", alignItems: "center", gap: 8 }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>attach_file</span>
+                          Documento Anexado
+                        </h4>
+                        <div style={{ padding: "16px", background: "#F8FAFC", borderRadius: 12, display: "flex", alignItems: "center", gap: 14, border: "1px solid #E2E8F0" }}
+                          className="hover:bg-white hover:ring-1 hover:ring-blue-100 transition-all group">
+                          <div style={{ width: 40, height: 40, borderRadius: 8, background: "white", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 22, color: "#2563EB" }}>picture_as_pdf</span>
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 12, fontWeight: 700, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>CPF/RG — {toTitleCase(selectedCollaborator.fullName)}</p>
+                            <p style={{ fontSize: 10, color: "#94A3B8", margin: "2px 0 0" }}>Documento do colaborador</p>
+                          </div>
+                          <button onClick={() => window.open(`/api/attachments/${selectedCollaborator.documentAttachmentId}/view`, "_blank")}
+                            style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", fontSize: 12, color: "#2563EB", border: "1px solid #BFDBFE", borderRadius: 8, background: "white", cursor: "pointer" }}
+                            className="hover:bg-blue-50 transition-colors">
+                            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>visibility</span> Ver
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Observações */}
+                    {selectedCollaborator.approvalNotes && (
+                      <div style={{ padding: 20, background: "#EFF6FF", borderRadius: 16, border: "1px solid #BFDBFE" }}>
+                        <h4 style={{ fontSize: 13, fontWeight: 700, color: "#1e40af", margin: "0 0 10px", display: "flex", alignItems: "center", gap: 6 }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>info</span>
+                          Observações
+                        </h4>
+                        <p style={{ fontSize: 13, color: "#1d4ed8", margin: 0, fontWeight: 500, lineHeight: 1.6 }}>{selectedCollaborator.approvalNotes}</p>
+                      </div>
                     )}
                   </div>
                 </div>
-
-                {selectedCollaborator.documentAttachmentId && (
-                  <div className="border-t border-gray-100 pt-4">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Documento Anexado</p>
-                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-slate-50 border border-gray-200">
-                      <FileText className="w-4 h-4 text-blue-500 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-slate-700 truncate">CPF/RG — {toTitleCase(selectedCollaborator.fullName)}</p>
-                        <p className="text-[10px] text-slate-400">Documento do colaborador</p>
-                      </div>
-                      <button
-                        onClick={() => window.open(`/api/attachments/${selectedCollaborator.documentAttachmentId}/view`, "_blank")}
-                        className="flex items-center gap-1 px-2.5 py-1 text-xs text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
-                      >
-                        <Eye className="w-3 h-3" /> Ver
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {selectedCollaborator.approvalNotes && (
-                  <div className="border-t border-gray-100 pt-4">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Observações</p>
-                    <p className="text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2 border border-gray-100">{selectedCollaborator.approvalNotes}</p>
-                  </div>
-                )}
-
-                {selectedCollaborator.status === "pendente" && (
-                  <div className="flex gap-2 justify-end pt-2 border-t border-gray-100">
-                    <button onClick={() => { setShowDetailsModal(false); handleReject(selectedCollaborator); }} className="flex items-center gap-1.5 h-9 px-4 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">
-                      <X className="w-3.5 h-3.5" /> Rejeitar
-                    </button>
-                    <button onClick={() => { setShowDetailsModal(false); handleApprove(selectedCollaborator); }} className="flex items-center gap-1.5 h-9 px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors shadow-sm shadow-emerald-200">
-                      <Check className="w-3.5 h-3.5" /> Aprovar
-                    </button>
-                  </div>
-                )}
               </div>
             )}
+
+            {/* Footer */}
+            <div style={{ padding: "20px 24px", background: "#F8FAFC", borderTop: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexShrink: 0 }}>
+              <button onClick={() => setShowDetailsModal(false)}
+                style={{ height: 44, padding: "0 24px", fontSize: 14, fontWeight: 700, color: "#64748B", background: "transparent", border: "none", borderRadius: 12, cursor: "pointer", fontFamily: "inherit" }}
+                className="hover:bg-slate-200 transition-colors">
+                Fechar
+              </button>
+              {selectedCollaborator?.status === "pendente" && (
+                <>
+                  <button onClick={() => { setShowDetailsModal(false); handleReject(selectedCollaborator!); }}
+                    style={{ height: 44, padding: "0 24px", fontSize: 14, fontWeight: 700, color: "#ba1a1a", background: "transparent", border: "1px solid #ba1a1a", borderRadius: 12, cursor: "pointer", fontFamily: "inherit" }}
+                    className="hover:bg-red-50 transition-colors">
+                    Rejeitar Cadastro
+                  </button>
+                  <button onClick={() => { setShowDetailsModal(false); handleApprove(selectedCollaborator!); }}
+                    style={{ height: 44, padding: "0 32px", fontSize: 14, fontWeight: 700, color: "white", background: "#004ac6", border: "none", borderRadius: 12, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 14px rgba(0,74,198,0.3)" }}
+                    className="hover:bg-blue-700 transition-colors">
+                    Aprovar Colaborador
+                  </button>
+                </>
+              )}
+            </div>
           </DialogContent>
         </Dialog>
 
         {/* ── Approval Modal ── */}
         <Dialog open={showApprovalModal} onOpenChange={setShowApprovalModal}>
           <DialogContent className="max-w-md rounded-2xl p-0 gap-0 border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden">
-            {/* Header */}
-            <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
-              <div
-                className="w-9 h-9 rounded-[9px] flex items-center justify-center shrink-0"
-                style={{
-                  background: approvalAction === "approve" ? "#059669" : "#DC2626",
-                  boxShadow: approvalAction === "approve" ? "0 4px 12px #05966940" : "0 4px 12px #DC262640",
-                }}
-              >
+            <div style={{ padding: "20px 24px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: approvalAction === "approve" ? "#059669" : "#DC2626", boxShadow: approvalAction === "approve" ? "0 4px 12px rgba(5,150,105,0.3)" : "0 4px 12px rgba(220,38,38,0.3)" }}>
                 {approvalAction === "approve"
-                  ? <Check className="w-4 h-4 text-white" strokeWidth={3} />
-                  : <X className="w-4 h-4 text-white" strokeWidth={3} />
-                }
+                  ? <Check className="w-5 h-5 text-white" strokeWidth={3} />
+                  : <X className="w-5 h-5 text-white" strokeWidth={3} />}
               </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-bold text-slate-800">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 800, color: "#141b2b", margin: 0, fontFamily: "Manrope, sans-serif" }}>
                   {approvalAction === "approve" ? "Aprovar Colaborador" : "Rejeitar Colaborador"}
                 </h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p style={{ fontSize: 12, color: "#94A3B8", margin: "3px 0 0" }}>
                   {approvalAction === "approve" ? "Revise os dados antes de confirmar" : "Informe o motivo da rejeição"}
                 </p>
               </div>
-              <button onClick={() => setShowApprovalModal(false)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors">
-                <X className="w-3.5 h-3.5" />
+              <button onClick={() => setShowApprovalModal(false)}
+                style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", color: "#94A3B8", display: "flex", alignItems: "center", justifyContent: "center" }}
+                className="hover:bg-slate-100 transition-colors">
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {selectedCollaborator && (
-              <div className="px-5 py-5 space-y-4">
+              <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
                 {(() => {
                   const [bg, tx] = avatarClasses(selectedCollaborator.fullName);
                   return (
-                    <div className="flex items-center gap-3 px-3 py-2.5 bg-slate-50 rounded-lg border border-gray-200">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${bg} ${tx}`}>
-                        {initials(selectedCollaborator.fullName)}
-                      </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "#F8FAFC", borderRadius: 10, border: "1px solid #E2E8F0" }}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${bg} ${tx}`}>{initials(selectedCollaborator.fullName)}</div>
                       <div>
-                        <p className="text-xs font-semibold text-slate-700">{toTitleCase(selectedCollaborator.fullName)}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">{formatDocument(selectedCollaborator.officialDocument, selectedCollaborator.documentType)}</p>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", margin: 0 }}>{toTitleCase(selectedCollaborator.fullName)}</p>
+                        <p style={{ fontSize: 11, color: "#94A3B8", margin: 0, fontFamily: "monospace" }}>{formatDocument(selectedCollaborator.officialDocument, selectedCollaborator.documentType)}</p>
                       </div>
                     </div>
                   );
                 })()}
 
                 {approvalAction === "approve" && (
-                  <div className="space-y-3">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Documentos</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em", margin: 0 }}>Documentos</p>
                     <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1.5">CPF <span className="text-red-400 normal-case tracking-normal">*</span></label>
+                      <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>CPF <span style={{ color: "#EF4444" }}>*</span></label>
                       <input value={editCpf} onChange={e => setEditCpf(e.target.value)} placeholder="000.000.000-00"
-                        className="w-full h-9 px-3 font-mono text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
+                        style={{ width: "100%", height: 40, padding: "0 12px", fontFamily: "monospace", fontSize: 14, border: "1px solid #E5E7EB", borderRadius: 10, outline: "none", boxSizing: "border-box" }}
+                        className="focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1.5">RG <span className="text-slate-400 font-normal normal-case tracking-normal">(opcional)</span></label>
+                      <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>RG <span style={{ fontSize: 11, color: "#94A3B8", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(opcional)</span></label>
                       <input value={editRg} onChange={e => setEditRg(e.target.value)} placeholder="00.000.000-0"
-                        className="w-full h-9 px-3 font-mono text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
+                        style={{ width: "100%", height: 40, padding: "0 12px", fontFamily: "monospace", fontSize: 14, border: "1px solid #E5E7EB", borderRadius: 10, outline: "none", boxSizing: "border-box" }}
+                        className="focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
                     </div>
                   </div>
                 )}
 
                 <div>
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1.5">
-                    Observações <span className="text-slate-400 font-normal normal-case tracking-normal">{approvalAction === "approve" ? "(opcional)" : "(recomendado)"}</span>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                    Observações <span style={{ fontSize: 11, color: "#94A3B8", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>{approvalAction === "approve" ? "(opcional)" : "(recomendado)"}</span>
                   </label>
                   <Textarea value={approvalNotes} onChange={e => setApprovalNotes(e.target.value)}
                     placeholder={approvalAction === "approve" ? "Comentários sobre a aprovação..." : "Motivo da rejeição..."}
-                    rows={3} className="text-sm border-gray-200 rounded-lg resize-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
+                    rows={3} className="text-sm border-gray-200 rounded-xl resize-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
                 </div>
 
-                <div className="flex gap-2 pt-1">
+                <div style={{ display: "flex", gap: 10, paddingTop: 4 }}>
                   <button onClick={() => setShowApprovalModal(false)} disabled={updateMutation.isPending}
-                    className="flex-1 h-9 text-xs font-medium text-slate-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                    style={{ flex: 1, height: 42, fontSize: 14, fontWeight: 600, color: "#64748B", background: "transparent", border: "1px solid #E5E7EB", borderRadius: 10, cursor: "pointer", fontFamily: "inherit" }}
+                    className="hover:bg-gray-50 transition-colors">
                     Cancelar
                   </button>
                   <button onClick={handleConfirm} disabled={updateMutation.isPending}
-                    className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-semibold text-white rounded-lg transition-colors shadow-sm disabled:opacity-60"
-                    style={{
-                      background: approvalAction === "approve" ? "#059669" : "#DC2626",
-                      boxShadow: approvalAction === "approve" ? "0 2px 8px #05966940" : "0 2px 8px #DC262640",
-                    }}
-                  >
+                    style={{ flex: 1, height: 42, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 14, fontWeight: 700, color: "white", background: approvalAction === "approve" ? "#059669" : "#DC2626", border: "none", borderRadius: 10, cursor: "pointer", fontFamily: "inherit", boxShadow: approvalAction === "approve" ? "0 2px 8px rgba(5,150,105,0.3)" : "0 2px 8px rgba(220,38,38,0.3)", opacity: updateMutation.isPending ? 0.7 : 1 }}>
                     {updateMutation.isPending
-                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
                       : approvalAction === "approve"
-                        ? <><Check className="w-3.5 h-3.5" strokeWidth={3} /> Confirmar Aprovação</>
-                        : <><X className="w-3.5 h-3.5" strokeWidth={3} /> Confirmar Rejeição</>
+                        ? <><Check className="w-4 h-4" strokeWidth={3} /> Confirmar Aprovação</>
+                        : <><X className="w-4 h-4" strokeWidth={3} /> Confirmar Rejeição</>
                     }
                   </button>
                 </div>
