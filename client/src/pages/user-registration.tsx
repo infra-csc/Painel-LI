@@ -129,10 +129,10 @@ export default function UserRegistration() {
   });
 
   return (
-    <div style={{ padding: "24px", maxWidth: 920, margin: "0 auto" }}>
+    <div style={{ padding: "16px 24px", maxWidth: 920, margin: "0 auto" }}>
 
       {/* Page header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #e9edff", paddingBottom: 16, marginBottom: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #e9edff", paddingBottom: 12, marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <div style={{ width: 36, height: 36, borderRadius: 8, background: PRIMARY, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 1px 3px rgba(0,74,198,0.25)" }}>
             <span className="material-symbols-outlined" style={{ fontSize: 20, color: "white", fontVariationSettings: "'FILL' 1" }}>person_add</span>
@@ -149,20 +149,20 @@ export default function UserRegistration() {
       </div>
 
       {/* Two-column layout */}
-      <div style={{ display: "flex", gap: 16, alignItems: "start", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "start", flexWrap: "wrap" }}>
 
         {/* ── Form card ── */}
         <form onSubmit={handleSubmit(d => mutation.mutate(d))} style={{ flex: 1, minWidth: 0 }}>
           <div style={{ background: "white", borderRadius: 12, border: "1px solid #E8ECF8", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden" }}>
 
             {/* Section 1: Dados Pessoais */}
-            <div style={{ padding: "24px", borderBottom: "1px solid rgba(233,237,255,0.5)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24, color: "#94A3B8" }}>
+            <div style={{ padding: "14px 20px", borderBottom: "1px solid rgba(233,237,255,0.5)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, color: "#94A3B8" }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 18 }}>person</span>
                 <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#505f76", textTransform: "uppercase" }}>Dados Pessoais</span>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
                 {/* Nome */}
                 <div>
                   <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#434655", marginBottom: 6, marginLeft: 2 }}>
@@ -248,13 +248,13 @@ export default function UserRegistration() {
             </div>
 
             {/* Section 2: Perfil de Acesso */}
-            <div style={{ padding: "24px", borderBottom: "1px solid rgba(233,237,255,0.5)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24 }}>
+            <div style={{ padding: "14px 20px", borderBottom: "1px solid rgba(233,237,255,0.5)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#94A3B8" }}>shield</span>
                 <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#505f76", textTransform: "uppercase" }}>Perfil de Acesso</span>
                 {errors.role && <span style={{ marginLeft: "auto", fontSize: 10, color: "#EF4444", fontWeight: 600 }}>{errors.role.message}</span>}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
                 {ROLES.filter(r => r.value !== "admin" || user?.role === "admin").map(role => {
                   const isSelected = roleVal === role.value;
                   return (
@@ -262,16 +262,16 @@ export default function UserRegistration() {
                       onClick={() => setValue("role", role.value as FormData["role"], { shouldValidate: true })}
                       style={{
                         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                        textAlign: "center", gap: 8, padding: "16px 12px", borderRadius: 12, cursor: "pointer",
+                        textAlign: "center", gap: 4, padding: "10px 8px", borderRadius: 10, cursor: "pointer",
                         border: `2px solid ${isSelected ? PRIMARY : "transparent"}`,
                         background: isSelected ? "#dbe1ff4d" : "#f1f3ff",
                         transition: "all 0.15s", position: "relative",
                       }}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: 24, color: PRIMARY, fontVariationSettings: "'FILL' 1" }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 20, color: PRIMARY, fontVariationSettings: "'FILL' 1" }}>
                         {role.icon}
                       </span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "#141b2b", lineHeight: 1.3 }}>{role.label}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#141b2b", lineHeight: 1.3 }}>{role.label}</span>
                       {isSelected && (
                         <span className="material-symbols-outlined" style={{ position: "absolute", top: 8, right: 8, fontSize: 14, color: PRIMARY, fontVariationSettings: "'FILL' 1" }}>check_circle</span>
                       )}
@@ -282,8 +282,8 @@ export default function UserRegistration() {
             </div>
 
             {/* Section 3: Área Específica */}
-            <div style={{ padding: "24px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+            <div style={{ padding: "14px 20px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#94A3B8" }}>location_on</span>
                 <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#505f76", textTransform: "uppercase" }}>Área Específica</span>
                 <span style={{ marginLeft: "auto", fontSize: 10, color: "#CBD5E1" }}>{areaVal.length}/80 · opcional</span>
@@ -292,7 +292,7 @@ export default function UserRegistration() {
                 placeholder="Descreva o setor ou filial de atuação do colaborador..."
                 data-testid="input-area"
                 maxLength={80}
-                rows={2}
+                rows={1}
                 style={{
                   width: "100%", fontSize: 13, padding: "10px 12px", borderRadius: 8,
                   border: "1.5px solid #E2E8F0", background: "#f1f3ff", outline: "none",
@@ -306,9 +306,9 @@ export default function UserRegistration() {
             </div>
 
             {/* Footer */}
-            <div style={{ padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, background: "#FAFBFF", borderTop: "1px solid rgba(233,237,255,0.5)" }}>
+            <div style={{ padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, background: "#FAFBFF", borderTop: "1px solid rgba(233,237,255,0.5)" }}>
               <button type="button" onClick={() => reset()} data-testid="button-clear"
-                style={{ height: 38, padding: "0 20px", borderRadius: 8, fontSize: 13, fontWeight: 600, border: "1px solid #E2E8F0", background: "white", color: "#64748B", cursor: "pointer", fontFamily: "inherit", transition: "background 0.15s" }}
+                style={{ height: 34, padding: "0 16px", borderRadius: 8, fontSize: 12, fontWeight: 600, border: "1px solid #E2E8F0", background: "white", color: "#64748B", cursor: "pointer", fontFamily: "inherit", transition: "background 0.15s" }}
                 onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
                 onMouseLeave={e => e.currentTarget.style.background = "white"}
               >
@@ -316,7 +316,7 @@ export default function UserRegistration() {
               </button>
               <button type="submit" disabled={mutation.isPending} data-testid="button-submit"
                 style={{
-                  height: 38, padding: "0 20px", borderRadius: 8, fontSize: 13, fontWeight: 700,
+                  height: 34, padding: "0 16px", borderRadius: 8, fontSize: 12, fontWeight: 700,
                   border: "none", background: PRIMARY, color: "white", fontFamily: "inherit",
                   cursor: mutation.isPending ? "not-allowed" : "pointer",
                   opacity: mutation.isPending ? 0.75 : 1,
@@ -341,28 +341,28 @@ export default function UserRegistration() {
         </form>
 
         {/* ── Sidebar ── */}
-        <aside style={{ width: 280, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
+        <aside style={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", gap: 10 }}>
 
           {/* Preview card */}
-          <div style={{ background: "white", borderRadius: 12, border: "1px solid #E8ECF8", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", padding: 20 }}>
-            <h3 style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 16, margin: "0 0 16px" }}>Pré-visualização</h3>
+          <div style={{ background: "white", borderRadius: 12, border: "1px solid #E8ECF8", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", padding: "14px 16px" }}>
+            <h3 style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 12px" }}>Pré-visualização</h3>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
               <div style={{
-                width: 72, height: 72, borderRadius: "50%", flexShrink: 0,
+                width: 56, height: 56, borderRadius: "50%", flexShrink: 0,
                 background: nameVal ? PRIMARY_FIXED : "#E9EDFF",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                color: PRIMARY, fontSize: 22, fontWeight: 700, marginBottom: 12,
+                color: PRIMARY, fontSize: 18, fontWeight: 700, marginBottom: 8,
                 boxShadow: "inset 0 2px 4px rgba(0,74,198,0.1)",
                 transition: "background 0.2s",
               }}>
                 {nameVal
                   ? initials(nameVal)
-                  : <span className="material-symbols-outlined" style={{ fontSize: 28, color: "#C3C6D7" }}>person</span>}
+                  : <span className="material-symbols-outlined" style={{ fontSize: 22, color: "#C3C6D7" }}>person</span>}
               </div>
               <p style={{ fontSize: 13, fontWeight: 700, color: nameVal ? "#141b2b" : "#C3C6D7", margin: "0 0 2px", textAlign: "center" }}>
                 {nameVal || "Nome do usuário"}
               </p>
-              <p style={{ fontSize: 11, color: emailVal && isEmailValid ? "#434655" : "#C3C6D7", margin: "0 0 14px", textAlign: "center", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <p style={{ fontSize: 11, color: emailVal && isEmailValid ? "#434655" : "#C3C6D7", margin: "0 0 10px", textAlign: "center", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {emailVal && isEmailValid ? emailVal : "email@empresa.com"}
               </p>
               {selectedRole ? (
@@ -378,9 +378,9 @@ export default function UserRegistration() {
           </div>
 
           {/* Checklist card */}
-          <div style={{ background: "white", borderRadius: 12, border: "1px solid #E8ECF8", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", padding: 20 }}>
-            <h3 style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 16px" }}>Status do Cadastro</h3>
-            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ background: "white", borderRadius: 12, border: "1px solid #E8ECF8", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", padding: "14px 16px" }}>
+            <h3 style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 12px" }}>Status do Cadastro</h3>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
               {[
                 { label: "Nome identificado",       ok: nameVal.length >= 2 },
                 { label: "E-mail corporativo válido", ok: isEmailValid },
