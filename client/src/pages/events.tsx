@@ -586,26 +586,39 @@ export default function Events() {
         {!isLoading && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
             {([
-              { label: "Total",        value: stats.total,       icon: "view_list",        color: "#3B82F6" },
-              { label: "Planejados",   value: stats.planejado,   icon: "calendar_today",   color: "#8B5CF6" },
-              { label: "Em andamento", value: stats.emAndamento, icon: "event_available",  color: "#F97316" },
-              { label: "Concluídos",   value: stats.concluido,   icon: "event_busy",       color: "#22C55E" },
-            ] as { label: string; value: number; icon: string; color: string }[]).map(c => (
-              <div key={c.label} style={{
-                background: "white", borderRadius: 12, overflow: "hidden",
-                boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-                borderTop: `3px solid ${c.color}`,
-                padding: "16px 20px",
-                display: "flex", justifyContent: "space-between", alignItems: "flex-start",
-                transition: "transform 0.2s, box-shadow 0.2s",
-              }} className="hover:-translate-y-0.5 hover:shadow-md cursor-default">
-                <div>
-                  <p style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>{c.label}</p>
-                  <p style={{ fontSize: 26, fontWeight: 800, color: c.color, margin: 0, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{c.value}</p>
-                </div>
-                <span className="material-symbols-outlined" style={{ fontSize: 32, color: `${c.color}33`, fontVariationSettings: "'FILL' 1" }}>{c.icon}</span>
-              </div>
-            ))}
+              { label: "Total",        value: stats.total,       icon: "view_list",        color: "#3B82F6", filter: "active"       },
+              { label: "Planejados",   value: stats.planejado,   icon: "calendar_today",   color: "#8B5CF6", filter: "planejado"    },
+              { label: "Em andamento", value: stats.emAndamento, icon: "event_available",  color: "#F97316", filter: "em andamento" },
+              { label: "Concluídos",   value: stats.concluido,   icon: "event_busy",       color: "#22C55E", filter: "concluído"    },
+            ] as { label: string; value: number; icon: string; color: string; filter: string }[]).map(c => {
+              const isActive = statusFilter === c.filter;
+              return (
+                <button key={c.label} onClick={() => {
+                  setStatusFilter(c.filter);
+                  setDefaultSort(false);
+                }} style={{
+                  background: isActive ? `${c.color}0D` : "white",
+                  borderRadius: 12, overflow: "hidden",
+                  boxShadow: isActive ? `0 0 0 2px ${c.color}40, 0 4px 12px ${c.color}18` : "0 1px 4px rgba(0,0,0,0.06)",
+                  borderTop: `3px solid ${c.color}`,
+                  padding: "16px 20px",
+                  display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+                  transition: "all 0.18s",
+                  cursor: "pointer", fontFamily: "inherit",
+                  border: `none`,
+                  borderTopWidth: 3, borderTopStyle: "solid", borderTopColor: c.color,
+                  outline: isActive ? `2px solid ${c.color}50` : "none",
+                  outlineOffset: -2,
+                  width: "100%", textAlign: "left",
+                }} className={`hover:-translate-y-0.5 ${isActive ? "" : "hover:shadow-md"}`}>
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: isActive ? c.color : "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px", transition: "color 0.18s" }}>{c.label}</p>
+                    <p style={{ fontSize: 26, fontWeight: 800, color: c.color, margin: 0, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{c.value}</p>
+                  </div>
+                  <span className="material-symbols-outlined" style={{ fontSize: 32, color: isActive ? `${c.color}99` : `${c.color}33`, fontVariationSettings: "'FILL' 1", transition: "color 0.18s" }}>{c.icon}</span>
+                </button>
+              );
+            })}
           </div>
         )}
 
