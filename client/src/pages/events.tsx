@@ -5,8 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
   Plus, Edit, Trash2, X, ChevronUp, ChevronDown, ChevronsUpDown,
-  RotateCcw, Search, LayoutList, CalendarClock, CalendarCheck, CalendarX,
-  CalendarDays, AlignJustify, ChevronLeft, ChevronRight,
+  RotateCcw, Search, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import EventModal from "@/components/modals/event-modal";
 import ConfirmModal from "@/components/common/confirm-modal";
@@ -21,11 +20,11 @@ import { ptBR } from "date-fns/locale";
 // ─── constants ────────────────────────────────────────────────────────────────
 const BLUE = "#0033CC";
 
-const STATUS: Record<string, { label: string; dot: string; bg: string; text: string; bar: string }> = {
-  planejado:      { label: "Planejado",    dot: "#3B82F6", bg: "#EFF6FF", text: "#1D4ED8", bar: "#3B82F6" },
-  "em andamento": { label: "Em andamento", dot: "#F97316", bg: "#FFF7ED", text: "#C2410C", bar: "#F97316" },
-  concluído:      { label: "Concluído",    dot: "#22C55E", bg: "#F0FDF4", text: "#15803D", bar: "#22C55E" },
-  excluído:       { label: "Excluído",     dot: "#94A3B8", bg: "#F8FAFC", text: "#64748B", bar: "#CBD5E1" },
+const STATUS: Record<string, { label: string; dot: string; bg: string; text: string; bar: string; border: string }> = {
+  planejado:      { label: "Planejado",    dot: "#8B5CF6", bg: "#F5F3FF", text: "#6D28D9", bar: "#8B5CF6", border: "#DDD6FE" },
+  "em andamento": { label: "Em andamento", dot: "#F97316", bg: "#FFF7ED", text: "#C2410C", bar: "#F97316", border: "#FED7AA" },
+  concluído:      { label: "Concluído",    dot: "#22C55E", bg: "#F0FDF4", text: "#15803D", bar: "#22C55E", border: "#BBF7D0" },
+  excluído:       { label: "Excluído",     dot: "#94A3B8", bg: "#F8FAFC", text: "#64748B", bar: "#CBD5E1", border: "#E2E8F0" },
 };
 
 const MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -66,14 +65,17 @@ type ViewMode = "table" | "list" | "week" | "calendar";
 // ─── StatusBadge ──────────────────────────────────────────────────────────────
 function StatusBadge({ ds }: { ds: string }) {
   const sc = STATUS[ds] ?? STATUS["planejado"];
+  const isPulsing = ds === "em andamento";
   return (
     <span style={{
-      display: "inline-flex", alignItems: "center", gap: 5,
-      padding: "3px 9px", borderRadius: 20,
+      display: "inline-flex", alignItems: "center", gap: 6,
+      padding: "3px 10px", borderRadius: 20,
       background: sc.bg, color: sc.text,
-      fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
+      border: `1px solid ${sc.border}`,
+      fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
     }}>
-      <span style={{ width: 5, height: 5, borderRadius: "50%", background: sc.dot, flexShrink: 0 }} />
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: sc.dot, flexShrink: 0 }}
+        className={isPulsing ? "animate-pulse" : ""} />
       {sc.label}
     </span>
   );
@@ -413,7 +415,8 @@ function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, s
                       : <span style={{ fontSize: 12, color: "#E2E8F0" }}>—</span>}
                   </td>
                   <td style={{ padding: "12px 14px" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1 }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                       <ActionBtns event={ev} onEdit={onEdit} onDelete={onDelete} onRestore={onRestore} />
                     </div>
                   </td>
@@ -547,12 +550,10 @@ export default function Events() {
   const clearFilters = () => { setSearch(""); setStatusFilter("default"); setMonthFilter("all"); setYearFilter("all"); setSortKey("eventNumber"); setSortDir("desc"); setDefaultSort(true); };
 
   const VIEWS = [
-    { key: "table"    as ViewMode, icon: <AlignJustify size={14} />,   title: "Tabela"  },
-    { key: "list"     as ViewMode, icon: <LayoutList size={14} />,     title: "Lista"   },
-    { key: "week"     as ViewMode, icon: <CalendarDays size={14} />,   title: "Semana"  },
-    { key: "calendar" as ViewMode, icon: (
-        <span className="material-symbols-outlined" style={{ fontSize: 14, fontVariationSettings: "'FILL' 1" }}>calendar_month</span>
-      ), title: "Mês" },
+    { key: "table"    as ViewMode, icon: <span className="material-symbols-outlined" style={{ fontSize: 16 }}>format_align_justify</span>, title: "Tabela"  },
+    { key: "list"     as ViewMode, icon: <span className="material-symbols-outlined" style={{ fontSize: 16 }}>view_list</span>,            title: "Lista"   },
+    { key: "week"     as ViewMode, icon: <span className="material-symbols-outlined" style={{ fontSize: 16 }}>calendar_view_week</span>,   title: "Semana"  },
+    { key: "calendar" as ViewMode, icon: <span className="material-symbols-outlined" style={{ fontSize: 16 }}>calendar_month</span>,       title: "Mês"     },
   ];
 
   const activeEvents = (events ?? []).filter(e => e.status !== "excluído");
@@ -585,31 +586,26 @@ export default function Events() {
         {!isLoading && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
             {([
-              { label: "Total",        value: stats.total,       icon: LayoutList,    color: "#3B82F6" },
-              { label: "Planejados",   value: stats.planejado,   icon: CalendarClock, color: "#8B5CF6" },
-              { label: "Em andamento", value: stats.emAndamento, icon: CalendarCheck, color: "#F97316" },
-              { label: "Concluídos",   value: stats.concluido,   icon: CalendarX,     color: "#22C55E" },
-            ] as { label: string; value: number; icon: React.ElementType; color: string }[]).map(c => {
-              const Icon = c.icon;
-              return (
-                <div key={c.label} style={{
-                  background: "white", borderRadius: 12, overflow: "hidden",
-                  boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)",
-                  transition: "transform 0.2s, box-shadow 0.2s",
-                }} className="hover:-translate-y-0.5 hover:shadow-md cursor-default">
-                  <div style={{ height: 3, background: c.color }} />
-                  <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px" }}>
-                    <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: `${c.color}15`, flexShrink: 0 }}>
-                      <Icon style={{ width: 20, height: 20, color: c.color }} />
-                    </div>
-                    <div>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 3px" }}>{c.label}</p>
-                      <p style={{ fontSize: 26, fontWeight: 800, color: c.color, margin: 0, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{c.value}</p>
-                    </div>
-                  </div>
+              { label: "Total",        value: stats.total,       icon: "view_list",        color: "#3B82F6" },
+              { label: "Planejados",   value: stats.planejado,   icon: "calendar_today",   color: "#8B5CF6" },
+              { label: "Em andamento", value: stats.emAndamento, icon: "event_available",  color: "#F97316" },
+              { label: "Concluídos",   value: stats.concluido,   icon: "event_busy",       color: "#22C55E" },
+            ] as { label: string; value: number; icon: string; color: string }[]).map(c => (
+              <div key={c.label} style={{
+                background: "white", borderRadius: 12, overflow: "hidden",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+                borderTop: `3px solid ${c.color}`,
+                padding: "16px 20px",
+                display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+                transition: "transform 0.2s, box-shadow 0.2s",
+              }} className="hover:-translate-y-0.5 hover:shadow-md cursor-default">
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>{c.label}</p>
+                  <p style={{ fontSize: 26, fontWeight: 800, color: c.color, margin: 0, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{c.value}</p>
                 </div>
-              );
-            })}
+                <span className="material-symbols-outlined" style={{ fontSize: 32, color: `${c.color}33`, fontVariationSettings: "'FILL' 1" }}>{c.icon}</span>
+              </div>
+            ))}
           </div>
         )}
 
