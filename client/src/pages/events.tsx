@@ -644,9 +644,10 @@ export default function Events() {
 
             {hasFilters && (
               <button onClick={clearFilters} data-testid="button-clear-filters"
-                style={{ height: 32, padding: "0 10px", border: "1px solid #E2E8F0", borderRadius: 7, background: "#FAFBFF", color: "#94A3B8", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}
-                className="hover:border-red-200 hover:text-red-400 transition-colors">
-                <X size={11} /> Limpar
+                style={{ height: 32, padding: "0 10px", border: "none", borderRadius: 7, background: "transparent", color: "#004ac6", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}
+                className="hover:text-blue-800 transition-colors">
+                <span className="material-symbols-outlined" style={{ fontSize: 15 }}>filter_alt_off</span>
+                Limpar Filtros
               </button>
             )}
 
