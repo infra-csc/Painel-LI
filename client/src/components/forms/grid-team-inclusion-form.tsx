@@ -127,7 +127,7 @@ export default function GridTeamInclusionForm() {
             const value = row.dailyRates[focusedCell.date] || 0;
             copyValue(value);
           }
-        } else if (e.key === 'v' && focusedCell && copiedValue !== null) {
+        } else if (e.key === 'v' && focusedCell && copiedValue !== null && !showPasteModal) {
           e.preventDefault();
           pasteValue(focusedCell.functionId, focusedCell.date);
         }
@@ -656,6 +656,10 @@ export default function GridTeamInclusionForm() {
     return "";
   };
 
+  // Normaliza string para comparação: remove acentos, lowercase, trim
+  const normalizeStr = (s: string) =>
+    s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
   // Copy-Paste do Excel
   const handlePasteFromExcel = () => {
     if (!pastedData.trim()) {
@@ -668,49 +672,54 @@ export default function GridTeamInclusionForm() {
     }
 
     try {
-      const lines = pastedData.trim().split('\n');
+      // Fix #1: suportar line endings Windows (\r\n) e Unix (\n)
+      const lines = pastedData.trim().split(/\r?\n/);
       const newRows: FunctionRow[] = [];
+      const skippedNames: string[] = [];
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
 
         const columns = line.split('\t');
-        
-        if (columns.length < 4) continue; // Precisa ter pelo menos função, data ida, horário chegada, data retorno
 
-        const functionName = columns[0]?.trim();
-        const dataVooIda = parseShortDate(columns[1]?.trim() || "");
-        const horarioChegadaSugerido = columns[2]?.trim() || "";
-        const dataVooRetorno = parseShortDate(columns[3]?.trim() || "");
-        const horarioPartidaSugerido = columns[4]?.trim() || "";
-        const needsTicketStr = columns[5]?.trim().toLowerCase() || "";
-        const needsAccommodationStr = columns[6]?.trim().toLowerCase() || "";
+        // Requer ao menos o nome da função
+        if (columns.length < 1 || !columns[0]?.trim()) continue;
 
-        // Encontrar função no sistema
-        const matchedFunction = functions?.find(f => 
-          f.name.toLowerCase() === functionName?.toLowerCase()
+        const functionName = columns[0].trim();
+
+        // Fix #2: comparação normalizada (acentos + case)
+        const matchedFunction = functions?.find(f =>
+          normalizeStr(f.name) === normalizeStr(functionName)
         );
 
         if (!matchedFunction) {
-          console.warn(`Função não encontrada: ${functionName}`);
+          // Fix #3: acumular nomes não encontrados para mostrar ao usuário
+          skippedNames.push(functionName);
           continue;
         }
 
+        const dataVooIda             = parseShortDate(columns[1]?.trim() || "");
+        const horarioChegadaSugerido = columns[2]?.trim() || "";
+        const dataVooRetorno         = parseShortDate(columns[3]?.trim() || "");
+        const horarioPartidaSugerido = columns[4]?.trim() || "";
+        const needsTicketStr         = columns[5]?.trim().toLowerCase() || "";
+        const needsAccommodationStr  = columns[6]?.trim().toLowerCase() || "";
+
         // Interpretar checkboxes
-        const needsTicket = ['sim', 's', '1', 'x', 'true'].includes(needsTicketStr);
+        const needsTicket       = ['sim', 's', '1', 'x', 'true'].includes(needsTicketStr);
         const needsAccommodation = ['sim', 's', '1', 'x', 'true'].includes(needsAccommodationStr);
 
         // Criar diárias vazias para as datas existentes
         const dailyRates: { [date: string]: number } = {};
-        dates.forEach(date => {
-          dailyRates[date] = 0; // Começar vazio
-        });
+        dates.forEach(date => { dailyRates[date] = 0; });
 
-        // Processar diárias se houver colunas adicionais
+        // Processar diárias nas colunas a partir do índice 7
         for (let j = 7; j < columns.length && j - 7 < dates.length; j++) {
-          const value = parseInt(columns[j]?.trim() || "0");
-          dailyRates[dates[j - 7]] = isNaN(value) ? 0 : value;
+          const raw   = parseInt(columns[j]?.trim() || "0");
+          // Fix #4: clamp para o range válido do Select (0–8)
+          const value = isNaN(raw) ? 0 : Math.max(0, Math.min(8, raw));
+          dailyRates[dates[j - 7]] = value;
         }
 
         const uniqueId = `${matchedFunction.id}-${Date.now()}-${i}`;
@@ -727,66 +736,60 @@ export default function GridTeamInclusionForm() {
           dailyRates,
           isCustom: false,
           selected: false,
-          fromExcelPaste: true, // Flag para identificar que veio do Excel
-          originalFunctionId: matchedFunction.id, // Guardar ID original da função
+          fromExcelPaste: true,
+          originalFunctionId: matchedFunction.id,
         });
       }
 
       if (newRows.length > 0) {
-        // Em vez de apenas adicionar, substituir linhas existentes da mesma função
         setFunctionRows(prev => {
           const updatedRows = [...prev];
-          
+
           newRows.forEach(newRow => {
-            // Procurar se já existe uma linha para esta função
             const existingIndex = updatedRows.findIndex(existingRow => {
-              // Extrair o ID original da função existente
               let existingFunctionId = (existingRow as any).originalFunctionId;
               if (!existingFunctionId) {
-                // Tentar extrair do functionId
                 if (existingRow.functionId.includes('-')) {
                   const parts = existingRow.functionId.split('-');
                   for (let i = 1; i <= parts.length; i++) {
                     const testId = parts.slice(0, i).join('-');
                     const foundFunction = functions?.find(f => f.id === testId);
-                    if (foundFunction) {
-                      existingFunctionId = testId;
-                      break;
-                    }
+                    if (foundFunction) { existingFunctionId = testId; break; }
                   }
                 } else {
                   existingFunctionId = existingRow.functionId;
                 }
               }
-              
-              // Comparar com o ID da nova linha
               return existingFunctionId === (newRow as any).originalFunctionId;
             });
-            
+
             if (existingIndex >= 0) {
-              // Substituir a linha existente
               updatedRows[existingIndex] = newRow;
             } else {
-              // Adicionar nova linha
               updatedRows.push(newRow);
             }
           });
-          
+
           return updatedRows;
         });
-        
+
+        // Fix #3: mostrar quais funções foram puladas
+        const skippedMsg = skippedNames.length > 0
+          ? ` • Não encontradas: ${skippedNames.join(', ')}.`
+          : '';
+
         toast({
-          title: "Dados colados com sucesso",
-          description: `${newRows.length} linha(s) processada(s). Linhas duplicadas foram substituídas.`,
+          title: "Dados colados",
+          description: `${newRows.length} linha(s) aplicada(s).${skippedMsg}`,
+          variant: skippedNames.length > 0 ? "destructive" : "default",
         });
         setShowPasteModal(false);
         setPastedData("");
       } else {
-        toast({
-          title: "Nenhum dado válido",
-          description: "Verifique o formato dos dados colados.",
-          variant: "destructive",
-        });
+        const msg = skippedNames.length > 0
+          ? `Nenhuma função reconhecida: ${skippedNames.join(', ')}. Verifique os nomes.`
+          : "Verifique o formato dos dados colados.";
+        toast({ title: "Nenhum dado válido", description: msg, variant: "destructive" });
       }
     } catch (error) {
       toast({
