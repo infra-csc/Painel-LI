@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { formatDiarias } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -247,6 +247,19 @@ export default function GridTeamInclusionForm() {
     queryKey: ["/api/collaborators"],
   });
 
+  // O(1) lookup map: functionId → Function
+  const functionMap = useMemo(() => {
+    const m = new Map<string, Function>();
+    functions?.forEach(f => m.set(f.id, f));
+    return m;
+  }, [functions]);
+
+  // Sorted once per change in functions list
+  const sortedFunctions = useMemo(
+    () => sortFunctionsByOrder([...(functions || [])]),
+    [functions]
+  );
+
   const createTeamInclusionMutation = useMutation({
     mutationFn: async (data: any) => {
       const response = await apiRequest("POST", "/api/team-inclusions", data);
@@ -319,7 +332,7 @@ export default function GridTeamInclusionForm() {
       setTemplateLoaded(false);
     } else {
       // Grade nova - começar com campos VAZIOS
-      rows = sortFunctionsByOrder([...(functions || [])]).map(func => {
+      rows = sortedFunctions.map(func => {
         const dailyRates: { [date: string]: number } = {};
         
         datesList.forEach(date => {
@@ -348,13 +361,13 @@ export default function GridTeamInclusionForm() {
     setShowGrid(true);
   };
 
-  const updateDailyRate = (functionId: string, date: string, value: number) => {
+  const updateDailyRate = useCallback((functionId: string, date: string, value: number) => {
     setFunctionRows(prev => prev.map(row => 
       row.functionId === functionId 
         ? { ...row, dailyRates: { ...row.dailyRates, [date]: value } }
         : row
     ));
-  };
+  }, []);
 
   const updateTravelInfo = (functionId: string, field: string, value: string) => {
     setFunctionRows(prev => prev.map(row => 
@@ -688,10 +701,9 @@ export default function GridTeamInclusionForm() {
 
         const functionName = columns[0].trim();
 
-        // Fix #2: comparação normalizada (acentos + case)
-        const matchedFunction = functions?.find(f =>
-          normalizeStr(f.name) === normalizeStr(functionName)
-        );
+        // Fix #2: comparação normalizada (acentos + case) usando array de funções
+        const normName = normalizeStr(functionName);
+        const matchedFunction = functions?.find(f => normalizeStr(f.name) === normName);
 
         if (!matchedFunction) {
           // Fix #3: acumular nomes não encontrados para mostrar ao usuário
@@ -816,7 +828,8 @@ export default function GridTeamInclusionForm() {
     return { date: `${day}/${month}`, dayName: DAY_NAMES[d.getDay()], isWeekend: d.getDay() === 0 || d.getDay() === 6 };
   };
 
-  const processGrid = (): ProcessedRange[] => {
+  // Memoized: only recalculates when rows, dates or functions change
+  const processedRanges = useMemo((): ProcessedRange[] => {
     const ranges: ProcessedRange[] = [];
 
     functionRows.forEach(row => {
@@ -830,16 +843,13 @@ export default function GridTeamInclusionForm() {
       // Usar originalFunctionId se existir (função carregada de template) ou extrair do ID
       let originalFunctionId = (row as any).originalFunctionId || row.functionId;
       
-      // Se não tem originalFunctionId, tentar extrair do ID único
+      // Se não tem originalFunctionId, usar functionMap (O(1)) para resolver
       if (!originalFunctionId || originalFunctionId === row.functionId) {
         if (row.functionId.includes('-')) {
           const parts = row.functionId.split('-');
-          
-          // Testar diferentes combinações até encontrar uma que existe
           for (let i = 1; i <= parts.length; i++) {
             const testId = parts.slice(0, i).join('-');
-            const foundFunction = functions?.find(f => f.id === testId);
-            if (foundFunction) {
+            if (functionMap.has(testId)) {
               originalFunctionId = testId;
               break;
             }
@@ -895,7 +905,9 @@ export default function GridTeamInclusionForm() {
     });
 
     return ranges;
-  };
+  }, [functionRows, dates, functionMap]);
+
+  const processGrid = () => processedRanges;
 
   const calculateDailyRates = (startDate: string, endDate: string): number => {
     const start = new Date(startDate);
@@ -1433,7 +1445,7 @@ export default function GridTeamInclusionForm() {
 
                 {/* Preview dos resultados */}
                 {(() => {
-                  const records = processGrid();
+                  const records = processedRanges;
                   return (
                     <div className="rounded-xl border border-slate-200 overflow-hidden">
                       <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200">
@@ -1449,8 +1461,8 @@ export default function GridTeamInclusionForm() {
                           records.map((range, index) => {
                             const functionRow = functionRows.find(r => r.functionId === range.functionId);
                             const functionName = functionRow?.functionName ||
-                              functions?.find(f => f.id === range.functionId)?.name ||
-                              functions?.find(f => f.id === range.functionId.split('-')[0])?.name ||
+                              functionMap.get(range.functionId)?.name ||
+                              functionMap.get(range.functionId.split('-')[0])?.name ||
                               'Função não encontrada';
                             return (
                               <div key={index} className={`flex items-center justify-between px-4 py-2 text-sm ${index % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'}`}>
@@ -1506,13 +1518,13 @@ export default function GridTeamInclusionForm() {
                   <button
                     type="button"
                     onClick={handleSubmit}
-                    disabled={isProcessing || processGrid().length === 0}
+                    disabled={isProcessing || processedRanges.length === 0}
                     className="w-full h-11 flex items-center justify-center gap-2 text-white text-sm font-semibold rounded-lg transition-all hover:opacity-90 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0"
                     style={{ background: "#0033CC", boxShadow: "0 3px 12px #0033CC40" }}
                     data-testid="button-save-grid"
                   >
                     <Save className="w-4 h-4" />
-                    {isProcessing ? "Criando Escalações..." : `Criar ${processGrid().length} Escalação(ões)`}
+                    {isProcessing ? "Criando Escalações..." : `Criar ${processedRanges.length} Escalação(ões)`}
                   </button>
                 </div>
               </div>
@@ -1532,9 +1544,9 @@ export default function GridTeamInclusionForm() {
               Escolha uma função das disponíveis no sistema:
             </p>
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {sortFunctionsByOrder([...(functions || [])]).map(func => (
+              {sortedFunctions.map(func => (
                 <Button
-                  key={`${func.id}-${Date.now()}-${Math.random()}`}
+                  key={func.id}
                   variant="outline"
                   className="w-full justify-start"
                   onClick={() => addSystemFunction(func.id)}
@@ -1588,7 +1600,7 @@ export default function GridTeamInclusionForm() {
                   <SelectValue placeholder="Selecione uma função" />
                 </SelectTrigger>
                 <SelectContent>
-                  {sortFunctionsByOrder([...(functions || [])]).map((func) => (
+                  {sortedFunctions.map((func) => (
                     <SelectItem key={func.id} value={func.id}>
                       {func.name}
                     </SelectItem>
