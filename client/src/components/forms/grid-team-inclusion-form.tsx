@@ -1373,19 +1373,33 @@ export default function GridTeamInclusionForm() {
                               const val = row.dailyRates[date] || 0;
                               return (
                                 <td key={date} className={`px-1 py-2 border-r border-slate-100 text-center ${isWeekend ? 'bg-orange-50/30' : ''}`}>
-                                  <button
-                                    type="button"
-                                    title={val > 0 ? `${val} pessoa(s) — clique para alterar` : 'Clique para adicionar'}
-                                    onClick={() => updateDailyRate(row.functionId, date, (val + 1) % 9)}
-                                    onContextMenu={e => { e.preventDefault(); updateDailyRate(row.functionId, date, Math.max(0, val - 1)); }}
-                                    className={`h-7 w-11 rounded-lg text-xs font-bold transition-colors border ${
-                                      val > 0
-                                        ? 'bg-[#0033CC]/10 text-[#0033CC] border-[#0033CC]/30 hover:bg-[#0033CC]/20'
-                                        : 'bg-white text-slate-300 border-slate-200 hover:border-slate-300 hover:text-slate-400'
-                                    }`}
+                                  <Select
+                                    value={val.toString()}
+                                    onValueChange={(v) => updateDailyRate(row.functionId, date, parseInt(v))}
                                   >
-                                    {val > 0 ? val : '–'}
-                                  </button>
+                                    <SelectTrigger
+                                      className={`!h-7 w-12 !px-1.5 rounded-lg text-xs font-semibold transition-colors py-0 ${
+                                        val > 0
+                                          ? 'bg-[#0033CC]/10 text-[#0033CC] border border-[#0033CC]/30'
+                                          : 'bg-white text-slate-300 border border-slate-200'
+                                      }`}
+                                    >
+                                      <SelectValue>
+                                        <span className="tabular-nums">{val > 0 ? val : '–'}</span>
+                                      </SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="0">–</SelectItem>
+                                      <SelectItem value="1">1</SelectItem>
+                                      <SelectItem value="2">2</SelectItem>
+                                      <SelectItem value="3">3</SelectItem>
+                                      <SelectItem value="4">4</SelectItem>
+                                      <SelectItem value="5">5</SelectItem>
+                                      <SelectItem value="6">6</SelectItem>
+                                      <SelectItem value="7">7</SelectItem>
+                                      <SelectItem value="8">8</SelectItem>
+                                    </SelectContent>
+                                  </Select>
                                 </td>
                               );
                             })}
