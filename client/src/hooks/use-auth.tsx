@@ -114,14 +114,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
-    setUser(null);
-    localStorage.removeItem("auth-user");
-
     const portalReturn = localStorage.getItem("portal-return-url");
+
+    localStorage.removeItem("auth-user");
+    localStorage.removeItem("portal-return-url");
+
     if (portalReturn) {
-      localStorage.removeItem("portal-return-url");
+      // Redirecionar imediatamente — sem mostrar tela de login
       window.location.href = portalReturn;
+      return;
     }
+
+    setUser(null);
   };
 
   return (
