@@ -151,6 +151,58 @@ const upload = multer({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+
+  // ── SSO Endpoint ──────────────────────────────────────────────────────────
+  // O portal externo gera um JWT curto (ex: 5 min) e redireciona para:
+  //   https://logistica.app/?portal_sso=<JWT>
+  // O cliente detecta o parâmetro e chama GET /api/auth/sso?token=<JWT>.
+  // Este endpoint valida o JWT, encontra o usuário, cria a sessão e retorna o user.
+  // Segredo compartilhado: variável de ambiente SSO_SECRET (ou SESSION_SECRET como fallback).
+  app.get("/api/auth/sso", async (req, res) => {
+    try {
+      const { token } = req.query;
+      if (!token || typeof token !== "string") {
+        return res.status(400).json({ message: "Token SSO ausente" });
+      }
+
+      const { jwtVerify } = await import("jose");
+      const rawSecret = process.env.SSO_SECRET || process.env.SESSION_SECRET || "dev-session-secret-change-in-production";
+      const secretKey = new TextEncoder().encode(rawSecret);
+
+      let payload: Record<string, unknown>;
+      try {
+        const { payload: p } = await jwtVerify(token, secretKey);
+        payload = p as Record<string, unknown>;
+      } catch {
+        return res.status(401).json({ message: "Token SSO inválido ou expirado" });
+      }
+
+      const email = payload.email as string | undefined;
+      if (!email) {
+        return res.status(400).json({ message: "Token SSO não contém email" });
+      }
+
+      const user = await storage.getUserByEmail(email);
+      if (!user || user.status !== "approved") {
+        return res.status(401).json({ message: "Usuário não encontrado ou não aprovado" });
+      }
+
+      // Criar sessão
+      req.session.userId = user.id;
+      req.session.user = { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined };
+
+      await new Promise<void>((resolve, reject) =>
+        req.session.save((err) => (err ? reject(err) : resolve()))
+      );
+
+      const safeUser = { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined };
+      return res.json({ user: safeUser });
+    } catch (error) {
+      console.error("[SSO] Erro:", error);
+      return res.status(500).json({ message: "Erro interno no SSO" });
+    }
+  });
+
   // Authentication routes
   app.post("/api/auth/login", async (req, res) => {
     try {
