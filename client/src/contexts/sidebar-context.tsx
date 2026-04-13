@@ -13,10 +13,7 @@ interface SidebarContextType {
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    const saved = localStorage.getItem("sidebar-collapsed");
-    return saved === "true";
-  });
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const [isCompact, setIsCompact] = useState(() => {
     const saved = localStorage.getItem("sidebar-compact");
@@ -24,10 +21,6 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   });
 
   const [isFocusMode, setIsFocusMode] = useState(false);
-
-  useEffect(() => {
-    localStorage.setItem("sidebar-collapsed", String(isCollapsed));
-  }, [isCollapsed]);
 
   useEffect(() => {
     localStorage.setItem("sidebar-compact", String(isCompact));
