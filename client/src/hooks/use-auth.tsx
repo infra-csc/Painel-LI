@@ -26,18 +26,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for saved session
-    const savedUser = localStorage.getItem("auth-user");
-    if (savedUser) {
-      try {
-        const parsedUser = JSON.parse(savedUser);
-        setUser(parsedUser);
-      } catch (error) {
-        // Invalid JSON, clear it
-        localStorage.removeItem("auth-user");
+    const initAuth = async () => {
+      // 1. Verificar SSO token na URL (?portal_sso=<JWT>)
+      const params = new URLSearchParams(window.location.search);
+      const ssoToken = params.get("portal_sso");
+
+      if (ssoToken) {
+        // Limpar o token da URL imediatamente (sem reload)
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, "", cleanUrl);
+
+        try {
+          const response = await fetch(`/api/auth/sso?token=${encodeURIComponent(ssoToken)}`);
+          if (response.ok) {
+            const { user } = await response.json();
+            setUser(user);
+            localStorage.setItem("auth-user", JSON.stringify(user));
+            setIsLoading(false);
+            return; // Sessão SSO criada — pronto
+          } else {
+            console.warn("[SSO] Token inválido, redirecionando para login");
+          }
+        } catch (err) {
+          console.error("[SSO] Erro ao validar token:", err);
+        }
+        // SSO falhou — cai no fluxo normal abaixo
       }
-    }
-    setIsLoading(false);
+
+      // 2. Verificar sessão salva no localStorage
+      const savedUser = localStorage.getItem("auth-user");
+      if (savedUser) {
+        try {
+          const parsedUser = JSON.parse(savedUser);
+          setUser(parsedUser);
+        } catch {
+          localStorage.removeItem("auth-user");
+        }
+      }
+      setIsLoading(false);
+    };
+
+    initAuth();
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
