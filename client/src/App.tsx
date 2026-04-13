@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -7,7 +7,6 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { SidebarProvider } from "@/contexts/sidebar-context";
 import { ThemeProvider } from "@/contexts/theme-context";
 import MainLayout from "@/components/layout/main-layout";
-import Dashboard from "@/pages/dashboard";
 import Events from "@/pages/events";
 import Functions from "@/pages/functions";
 import TeamInclusion from "@/pages/team-inclusion";
@@ -31,6 +30,35 @@ import CalendarPage from "@/pages/calendar";
 import NotFound from "@/pages/not-found";
 import ProtectedRoute from "@/components/layout/protected-route";
 import { useAuth } from "@/hooks/use-auth";
+import { hasPermission } from "@/lib/role-utils";
+import type { RolePermissions } from "@/lib/role-utils";
+
+// Primeira página acessível na ordem do sidebar
+const ORDERED_ROUTES: { path: string; permission: keyof RolePermissions }[] = [
+  { path: "/user-registration", permission: "canAccessCadastros"     },
+  { path: "/events",            permission: "canAccessCadastros"     },
+  { path: "/calendar",          permission: "canAccessCalendar"      },
+  { path: "/functions",         permission: "canAccessCadastros"     },
+  { path: "/collaborators",     permission: "canAccessCollaborators" },
+  { path: "/team-inclusion",    permission: "canAccessScreen1"       },
+  { path: "/scaling",           permission: "canAccessScreen2"       },
+  { path: "/tickets",           permission: "canAccessScreen3"       },
+  { path: "/accommodations",    permission: "canAccessScreen3"       },
+  { path: "/budget-planned",    permission: "canAccessFinanceiro"    },
+  { path: "/budget-actual",     permission: "canAccessFinanceiro"    },
+  { path: "/budget-comparison", permission: "canAccessScreen5"       },
+  { path: "/rh-control",        permission: "canAccessScreen5"       },
+  { path: "/invoices",          permission: "canAccessFinanceiro"    },
+  { path: "/system-settings",   permission: "canAccessFinanceiro"    },
+  { path: "/consultation",      permission: "canAccessScreen6"       },
+  { path: "/admin-users",       permission: "canAccessAdminUsers"    },
+];
+
+function HomeRedirect() {
+  const { user } = useAuth();
+  const first = ORDERED_ROUTES.find(r => hasPermission(user, r.permission));
+  return <Redirect to={first ? first.path : "/auth"} />;
+}
 
 function Router() {
   const { user, isLoading } = useAuth();
@@ -53,7 +81,7 @@ function Router() {
       {user ? (
         <MainLayout>
           <Switch>
-            <Route path="/" component={Dashboard} />
+            <Route path="/" component={HomeRedirect} />
             <Route path="/events">
               <ProtectedRoute permission="canAccessCadastros">
                 <Events />
