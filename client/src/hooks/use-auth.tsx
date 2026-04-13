@@ -32,9 +32,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const ssoToken = params.get("portal_sso");
 
       if (ssoToken) {
-        // Limpar o token da URL imediatamente (sem reload)
-        const cleanUrl = window.location.pathname;
-        window.history.replaceState({}, "", cleanUrl);
+        // Capturar portal_return antes de limpar a URL
+        const portalReturn = params.get("portal_return");
+        if (portalReturn) {
+          localStorage.setItem("portal-return-url", portalReturn);
+        }
+
+        // Limpar os parâmetros da URL imediatamente (sem reload)
+        window.history.replaceState({}, "", window.location.pathname);
 
         try {
           const response = await fetch(`/api/auth/sso?token=${encodeURIComponent(ssoToken)}`);
@@ -111,6 +116,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem("auth-user");
+
+    const portalReturn = localStorage.getItem("portal-return-url");
+    if (portalReturn) {
+      localStorage.removeItem("portal-return-url");
+      window.location.href = portalReturn;
+    }
   };
 
   return (
