@@ -1238,7 +1238,7 @@ export default function GridTeamInclusionForm() {
                   </CollapsibleContent>
                 </Collapsible>
                 <div className="rounded-xl border border-slate-200 overflow-hidden">
-                  <div className="overflow-x-auto max-h-96">
+                  <div className="overflow-x-auto max-h-[550px]">
                     <table className="w-full text-sm">
                       <thead className="bg-slate-50 sticky top-0">
                         <tr>
@@ -1249,7 +1249,7 @@ export default function GridTeamInclusionForm() {
                               aria-label="Selecionar todas"
                             />
                           </th>
-                          <th className="px-3 py-2 text-left border-r border-slate-200 text-[11px] uppercase tracking-widest text-slate-400 font-semibold min-w-32 sticky left-10 bg-slate-50 z-10">Função</th>
+                          <th className="px-3 py-2 text-left border-r border-slate-200 text-[11px] uppercase tracking-widest text-slate-400 font-semibold min-w-32 sticky left-12 bg-slate-50 z-10">Função</th>
                           <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-20">
                             <div className="flex items-center justify-center gap-1">
                               <Ticket className="w-3 h-3" />
@@ -1300,7 +1300,7 @@ export default function GridTeamInclusionForm() {
                                 className="accent-blue-500"
                               />
                             </td>
-                            <td className="px-3 py-2 border-r border-slate-200 font-semibold text-slate-800 bg-slate-50 sticky left-10 z-10 whitespace-nowrap">
+                            <td className="px-3 py-2 border-r border-slate-200 font-semibold text-slate-800 bg-slate-50 sticky left-12 z-10 whitespace-nowrap">
                               {row.functionName}
                             </td>
                             <td className="px-2 py-2 border-r border-slate-100 text-center">
@@ -1375,7 +1375,7 @@ export default function GridTeamInclusionForm() {
                                         } ${focusedCell?.functionId === row.functionId && focusedCell?.date === date ? 'ring-2 ring-blue-300 border-blue-400' : ''}`}
                                         onFocus={() => setFocusedCell({functionId: row.functionId, date})}
                                       >
-                                        <SelectValue />
+                                        <SelectValue>{val > 0 ? val.toString() : "-"}</SelectValue>
                                       </SelectTrigger>
                                       <SelectContent>
                                         <SelectItem value="0">-</SelectItem>
