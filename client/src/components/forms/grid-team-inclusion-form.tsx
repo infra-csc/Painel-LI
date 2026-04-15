@@ -1378,7 +1378,7 @@ export default function GridTeamInclusionForm() {
                                     onValueChange={(v) => updateDailyRate(row.functionId, date, parseInt(v))}
                                   >
                                     <SelectTrigger
-                                      className={`!h-7 w-12 !px-1.5 rounded-lg text-xs font-semibold transition-colors py-0 ${
+                                      className={`!h-7 !px-1.5 rounded-lg text-xs font-semibold transition-colors py-0 ${val >= 10 ? 'w-14' : 'w-12'} ${
                                         val > 0
                                           ? 'bg-[#0033CC]/10 text-[#0033CC] border border-[#0033CC]/30'
                                           : 'bg-white text-slate-300 border border-slate-200'
