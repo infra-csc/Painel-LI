@@ -268,20 +268,10 @@ export default function BudgetPlannedPage() {
     onError: () => toast({ title: "Erro ao marcar como não participou", variant: "destructive" }),
   });
 
-  const { data: allTeamInclusions } = useQuery<TeamInclusion[]>({
-    queryKey: ["/api/team-inclusions"],
-    queryFn: async () => {
-      const res = await fetch("/api/team-inclusions", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch team inclusions");
-      return res.json();
-    },
+  // Busca diretamente os eventos que têm escalação — sem carregar todas as escalações
+  const { data: eventsWithInclusions } = useQuery<Event[]>({
+    queryKey: ["/api/events-with-inclusions"],
   });
-
-  const eventsWithInclusions = useMemo(() => {
-    if (!events || !allTeamInclusions) return undefined;
-    const eventIdsWithInclusions = new Set(allTeamInclusions.map(ti => ti.eventId));
-    return events.filter(e => eventIdsWithInclusions.has(e.id));
-  }, [events, allTeamInclusions]);
 
   const { data: teamInclusions, isLoading: isLoadingInclusions } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions", selectedEventId],

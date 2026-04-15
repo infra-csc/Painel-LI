@@ -104,23 +104,9 @@ export default function Scaling() {
     queryKey: ["/api/functions"],
   });
 
-  // Query para buscar managers de todas as funções
+  // Query para buscar managers de todas as funções — uma única requisição
   const { data: allFunctionManagers } = useQuery<{ functionId: string; userId: string }[]>({
-    queryKey: ["/api/function-managers"],
-    queryFn: async () => {
-      if (!functions) return [];
-      const managersPromises = functions.map(async (func) => {
-        const response = await fetch(`/api/functions/${func.id}/managers`);
-        const managers = await response.json();
-        return managers.map((manager: any) => ({
-          functionId: func.id,
-          userId: manager.userId
-        }));
-      });
-      const managersArrays = await Promise.all(managersPromises);
-      return managersArrays.flat();
-    },
-    enabled: !!functions,
+    queryKey: ["/api/function-managers/all"],
   });
 
   // Filtrar teamInclusions baseado nas permissões de visualização
@@ -147,9 +133,6 @@ export default function Scaling() {
 
   const { data: accommodations } = useQuery<Accommodation[]>({
     queryKey: ["/api/accommodations"],
-    staleTime: 0, // Sempre considerar dados como desatualizados
-    gcTime: 0, // Não manter cache
-    refetchOnWindowFocus: true, // Atualizar quando a janela recebe foco
   });
 
 
@@ -157,14 +140,15 @@ export default function Scaling() {
     queryKey: ["/api/tickets"],
   });
 
-  // Query para buscar todos os comentários para a exportação
-  const { data: allComments } = useQuery<Comment[]>({
+  // Query lazy — só busca quando o usuário clica em Exportar
+  const { data: allComments, refetch: refetchAllComments } = useQuery<Comment[]>({
     queryKey: ["/api/all-comments"],
     queryFn: async () => {
       const response = await fetch('/api/all-comments');
       if (!response.ok) return [];
       return response.json();
     },
+    enabled: false,
   });
 
   // Definir selectedTicket no nível do componente
@@ -486,7 +470,7 @@ export default function Scaling() {
     }).format(value);
   };
 
-  const handleExportToExcel = () => {
+  const handleExportToExcel = async () => {
     if (!scalingInclusions || scalingInclusions.length === 0) {
       toast({
         title: "Erro",
@@ -509,6 +493,9 @@ export default function Scaling() {
       return;
     }
 
+    // Buscar comentários sob demanda (lazy) só agora que o usuário clicou em exportar
+    const { data: freshComments } = await refetchAllComments();
+
     const exportData = activeInclusions.map(inclusion => {
       const event = events?.find(e => e.id === inclusion.eventId);
       const func = functions?.find(f => f.id === inclusion.functionId);
@@ -525,7 +512,7 @@ export default function Scaling() {
       const totalValue = dailyValueInReais * (inclusion.dailyRates || 0);
 
       // Buscar comentários desta inclusão
-      const inclusionComments = allComments?.filter(c => c.teamInclusionId === inclusion.id) || [];
+      const inclusionComments = freshComments?.filter(c => c.teamInclusionId === inclusion.id) || [];
       const commentsText = inclusionComments.length > 0
         ? inclusionComments.map(c => {
             const commentUser = users?.find(u => u.id === c.userId);

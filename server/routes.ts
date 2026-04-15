@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import { storage } from "./storage";
 import { db } from "./db";
-import { budgetNotes } from "@shared/schema";
+import { budgetNotes, functionManagers as functionManagersTable } from "@shared/schema";
 import { eq, and, inArray, desc, sql as drizzleSql } from "drizzle-orm";
 import { 
   insertEventSchema,
@@ -1024,6 +1024,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Function Managers routes
+  // Retorna todos os function managers em uma única query (evita N+1 no frontend)
+  app.get("/api/function-managers/all", async (req, res) => {
+    try {
+      const all = await db.select().from(functionManagersTable);
+      res.json(all);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar responsáveis" });
+    }
+  });
+
   app.get("/api/functions/:id/managers", async (req, res) => {
     try {
       const { id } = req.params;
