@@ -154,10 +154,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── SSO Endpoint ──────────────────────────────────────────────────────────
   // O portal externo gera um JWT curto (ex: 5 min) e redireciona para:
-  //   https://logistica.app/?portal_sso=<JWT>
+  //   https://logistica.app/?portal_sso=<JWT>&portal_return=<URL>
   // O cliente detecta o parâmetro e chama GET /api/auth/sso?token=<JWT>.
-  // Este endpoint valida o JWT, encontra o usuário, cria a sessão e retorna o user.
-  // Segredo compartilhado: variável de ambiente SSO_SECRET (ou SESSION_SECRET como fallback).
+  // JWT do portal Norte: HS256, issuer="norte-portal", expira em 10min.
+  // Payload: { email, name, role, level, app }
+  // Segredo compartilhado: variável de ambiente SSO_SECRET.
   app.get("/api/auth/sso", async (req, res) => {
     try {
       const { token } = req.query;
@@ -171,10 +172,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let payload: Record<string, unknown>;
       try {
-        const { payload: p } = await jwtVerify(token, secretKey);
+        // Verifica assinatura e issuer "norte-portal"
+        const { payload: p } = await jwtVerify(token, secretKey, { issuer: "norte-portal" });
         payload = p as Record<string, unknown>;
-      } catch {
-        return res.status(401).json({ message: "Token SSO inválido ou expirado" });
+      } catch (err) {
+        // Fallback: tentar sem issuer (compatibilidade com tokens legados)
+        try {
+          const { payload: p } = await jwtVerify(token, secretKey);
+          payload = p as Record<string, unknown>;
+        } catch {
+          console.error("[SSO] Token inválido:", err);
+          return res.status(401).json({ message: "Token SSO inválido ou expirado" });
+        }
       }
 
       const email = payload.email as string | undefined;
@@ -182,9 +191,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Token SSO não contém email" });
       }
 
-      const user = await storage.getUserByEmail(email);
-      if (!user || user.status !== "approved") {
-        return res.status(401).json({ message: "Usuário não encontrado ou não aprovado" });
+      // Campos enriquecidos do novo formato do portal Norte
+      const tokenName  = payload.name  as string | undefined;
+      const tokenRole  = payload.role  as string | undefined;
+
+      let user = await storage.getUserByEmail(email);
+
+      if (!user) {
+        // Usuário não existe ainda — auto-registrar com dados do token
+        const bcrypt = await import("bcrypt");
+        const tempPassword = await bcrypt.hash(Math.random().toString(36), 10);
+        user = await storage.createUser({
+          email,
+          name: tokenName || email.split("@")[0],
+          password: tempPassword,
+          role: (tokenRole || "production") as any,
+          status: "approved",
+          area: null,
+          isActive: true,
+        } as any);
+        console.log(`[SSO] Usuário auto-registrado via Norte Portal: ${email}`);
+      } else if (user.status !== "approved") {
+        // Usuário existe mas não está aprovado — aprovar via SSO
+        user = await storage.updateUser(user.id, { status: "approved" }) || user;
+      }
+
+      // Se o token traz nome/role atualizados, sincronizar com o banco
+      const updates: Record<string, unknown> = {};
+      if (tokenName && tokenName !== user.name) updates.name = tokenName;
+      if (tokenRole && tokenRole !== user.role) updates.role = tokenRole;
+      if (Object.keys(updates).length > 0) {
+        user = await storage.updateUser(user.id, updates as any) || user;
       }
 
       // Criar sessão

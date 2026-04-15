@@ -1,0 +1,65 @@
+
+Preciso implementar SSO (Single Sign-On) vindo do portal NORTE. O portal envia usuários via URL com parâmetros portal_sso (token JWT) e portal_return (URL de retorno).
+
+Formato da URL: https://logistica-interna.replit.app/?portal_sso=<TOKEN>&portal_return=<URL>
+
+O token JWT:
+
+Algoritmo: HS256
+Secret: variável de ambiente SSO_SECRET (precisa ser adicionada nos Secrets)
+Issuer: "norte-portal"
+Expira em 10 minutos
+Payload: { email, name, role, level, app }
+O que implementar:
+
+Adicionar Secret SSO_SECRET nos Secrets do Replit (vou fornecer o valor)
+
+Instalar jose: npm install jose
+
+Adicionar middleware SSO ANTES de qualquer middleware de autenticação/Azure AD:
+
+import { jwtVerify } from "jose";
+app.use(async (req, res, next) => {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const ssoToken = url.searchParams.get('portal_sso');
+  const portalReturn = url.searchParams.get('portal_return');
+  
+  if (!ssoToken) return next();
+  
+  try {
+    const secret = new TextEncoder().encode(process.env.SSO_SECRET);
+    const { payload } = await jwtVerify(ssoToken, secret, { issuer: "norte-portal" });
+    
+    // Buscar o usuário no banco pelo email
+    // payload.email = email Microsoft do usuário (ex: pedro.santos@nortemkt.com)
+    
+    // Criar sessão com os dados do token:
+    req.session.user = {
+      email: payload.email,
+      name: payload.name,
+      role: payload.role,
+      level: payload.level,
+      ssoAuth: true,
+    };
+    
+    if (portalReturn) req.session.portalReturnUrl = portalReturn;
+    
+    // Setar cookie para o frontend não redirecionar pro Azure AD:
+    res.cookie('sso_user', JSON.stringify({ email: payload.email, name: payload.name, role: payload.role }), { 
+      httpOnly: false, maxAge: 86400000, sameSite: 'lax' 
+    });
+    
+    return res.redirect('/');
+  } catch (err) {
+    console.error("[SSO] Token inválido:", err);
+    return next();
+  }
+});
+
+No frontend React, antes de iniciar o MSAL/Azure AD, verificar se o cookie sso_user existe — se existir, usar esses dados como usuário logado sem passar pelo Azure AD.
+
+No logout, se portalReturnUrl existe na sessão, redirecionar para essa URL.
+
+Importante: o middleware SSO DEVE estar ANTES do middleware de autenticação do Azure AD, senão o Azure intercepta primeiro.
+
+E o SSO_SECRET do Logística precisa ser o mesmo valor do SESSION_SECRET daqui do portal. Republique o portal agora para aplicar a correção dos cards:
