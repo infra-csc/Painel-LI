@@ -122,10 +122,16 @@ app.use(async (req, res, next) => {
       user = await storage.updateUser(user.id, { status: "approved" }) || user;
     }
 
-    // Sincronizar nome do token (mas NÃO o role — o role do banco prevalece para usuários existentes)
-    // Isso evita que o portal sobrescreva permissões configuradas manualmente
+    // Sincronizar nome do token.
+    // Role: preserva o role do banco SE for um role interno válido.
+    //       Se o role do banco for inválido (ex: veio em português do portal), corrige agora.
+    const validRoles = ["admin", "production", "function_area", "purchasing", "financial"];
     const updates: Record<string, unknown> = {};
     if (tokenName && tokenName !== user.name) updates.name = tokenName;
+    if (!validRoles.includes(user.role)) {
+      updates.role = tokenRole; // tokenRole já está normalizado (ex: "Administrador" → "admin")
+      console.log(`[SSO Middleware] Corrigindo role inválido "${user.role}" → "${tokenRole}" para ${email}`);
+    }
     if (Object.keys(updates).length > 0) {
       user = await storage.updateUser(user.id, updates as any) || user;
     }

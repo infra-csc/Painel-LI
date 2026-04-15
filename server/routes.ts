@@ -231,9 +231,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user = await storage.updateUser(user.id, { status: "approved" }) || user;
       }
 
-      // Sincronizar nome do token (mas NÃO o role para usuários existentes)
+      // Sincronizar nome do token.
+      // Role: preserva o role do banco SE for válido. Corrige roles inválidos (ex: vindos em português do portal).
+      const validRoles = ["admin", "production", "function_area", "purchasing", "financial"];
       const updates: Record<string, unknown> = {};
       if (tokenName && tokenName !== user.name) updates.name = tokenName;
+      if (!validRoles.includes(user.role)) {
+        updates.role = tokenRole;
+        console.log(`[SSO] Corrigindo role inválido "${user.role}" → "${tokenRole}" para ${email}`);
+      }
       if (Object.keys(updates).length > 0) {
         user = await storage.updateUser(user.id, updates as any) || user;
       }
@@ -263,6 +269,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Retorna o usuário da sessão ativa (usado pelo React ao inicializar)
   app.get("/api/auth/me", async (req, res) => {
     try {
+      // Nunca deixar cache — sempre buscar dados frescos do banco
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+
       const userId = req.session.userId;
       if (!userId) return res.status(401).json({ message: "Não autenticado" });
       const user = await storage.getUser(userId);
