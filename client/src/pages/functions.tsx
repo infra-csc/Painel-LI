@@ -152,15 +152,16 @@ function FunctionManagersCell({ functionId, functionName }: { functionId: string
       )}
 
       {managers.length > 0 && (
-        <div className="flex items-center">
-          {visible.map((fm, i) => {
-            const u = users?.find(uid => uid.id === fm.userId);
-            const displayName = u?.name || u?.email || "Usuário";
-            const [bg, txt] = avatarColor(fm.userId);
-            return (
-              <Tooltip key={fm.id}>
-                <TooltipTrigger asChild>
-                  <div className={`group relative w-7 h-7 rounded-full border-2 border-white flex items-center justify-center shrink-0 cursor-default ${bg}`}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex items-center cursor-pointer"
+              onClick={e => { e.stopPropagation(); setPopover({ x: e.clientX, y: e.clientY }); }}>
+              {visible.map((fm, i) => {
+                const u = users?.find(uid => uid.id === fm.userId);
+                const displayName = u?.name || u?.email || "Usuário";
+                const [bg, txt] = avatarColor(fm.userId);
+                return (
+                  <div key={fm.id} className={`group relative w-7 h-7 rounded-full border-2 border-white flex items-center justify-center shrink-0 ${bg}`}
                     style={{ marginLeft: i === 0 ? 0 : -8, zIndex: visible.length - i }}>
                     <span className={`text-[10px] font-bold ${txt}`}>{initials(displayName)}</span>
                     <button
@@ -171,25 +172,21 @@ function FunctionManagersCell({ functionId, functionName }: { functionId: string
                       <X className="w-2 h-2" />
                     </button>
                   </div>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-xs">{displayName}</TooltipContent>
-              </Tooltip>
-            );
-          })}
+                );
+              })}
 
-          {overflow > 0 && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button className="relative w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 border-2 border-white text-[9px] font-bold text-slate-500 flex items-center justify-center shrink-0 cursor-pointer transition-colors"
-                  style={{ marginLeft: -8, zIndex: 0 }}
-                  onClick={e => { e.stopPropagation(); setPopover({ x: e.clientX, y: e.clientY }); }}>
+              {overflow > 0 && (
+                <div className="relative w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 border-2 border-white text-[9px] font-bold text-slate-500 flex items-center justify-center shrink-0 transition-colors"
+                  style={{ marginLeft: -8, zIndex: 0 }}>
                   +{overflow}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">Ver todos os responsáveis</TooltipContent>
-            </Tooltip>
-          )}
-        </div>
+                </div>
+              )}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            Ver todos os {managers.length} responsáveis
+          </TooltipContent>
+        </Tooltip>
       )}
 
       {popover && (
