@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import { storage } from "./storage";
 import { db } from "./db";
-import { budgetNotes, functionManagers as functionManagersTable } from "@shared/schema";
+import { budgetNotes, functionManagers as functionManagersTable, budgetPlanned as budgetPlannedTable, events as eventsTable } from "@shared/schema";
 import { eq, and, inArray, desc, sql as drizzleSql } from "drizzle-orm";
 import { 
   insertEventSchema,
@@ -2140,7 +2140,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return { weekdays: fallback, weekends: 0 };
       }
 
-      let updatedCount = 0;
+      // Calcular todos os updates necessários primeiro, depois executar em paralelo
+      const updates: Promise<any>[] = [];
       for (const planned of allPlanned) {
         if (sentKeys.has(`${planned.eventId}|${planned.collaboratorId}|${planned.functionId}`)) continue;
 
@@ -2156,10 +2157,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
 
         const fv = allFunctionValues.find(f => f.functionId === planned.functionId);
-        // Daily rate: keep function-specific if set; otherwise use system default
         const dailyWd = fv?.dailyValue || D.dailyWd;
         const dailyWe = fv?.dailyValue || D.dailyWe;
-        // Mobility & food: always use system defaults (user is updating global values)
         const mobIda   = D.mobIda;
         const mobVolta  = D.mobVolta;
         const mob       = mobIda + mobVolta;
@@ -2176,7 +2175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const subtotalDiarias = dailyWd * weekdays + dailyWe * weekends;
         const totalValue = subtotalDiarias + costAssistance;
 
-        await storage.updateBudgetPlanned(planned.id, {
+        updates.push(storage.updateBudgetPlanned(planned.id, {
           dailyValue: dailyWd,
           weekdayLunch: wdLunch,
           weekdayDinner: wdDinner,
@@ -2187,14 +2186,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           mobility: mob,
           costAssistance,
           totalValue,
-        });
-        updatedCount++;
+        }));
       }
 
-      res.json({ updated: updatedCount });
+      await Promise.all(updates);
+      res.json({ updated: updates.length });
     } catch (error) {
       console.error("Error applying defaults to planned:", error);
       res.status(500).json({ message: "Erro ao atualizar planejamentos" });
+    }
+  });
+
+  // Retorna apenas os eventos que têm ao menos um budget_planned — evita carregar todos os registros no cliente
+  app.get("/api/events-with-planned", async (req, res) => {
+    try {
+      const rows = await db.selectDistinct({ eventId: budgetPlannedTable.eventId }).from(budgetPlannedTable);
+      const ids = rows.map(r => r.eventId).filter(Boolean) as string[];
+      if (ids.length === 0) return res.json([]);
+      const evts = await db.select().from(eventsTable).where(inArray(eventsTable.id, ids));
+      res.json(evts);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar eventos com planejamento" });
     }
   });
 

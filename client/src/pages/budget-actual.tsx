@@ -125,15 +125,10 @@ export default function BudgetActualPage() {
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
   const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
 
-  const { data: allBudgetPlanned } = useQuery<BudgetPlanned[]>({
-    queryKey: ["/api/budget-planned"],
+  // Busca diretamente os eventos que têm planejamento — sem carregar todos os registros
+  const { data: eventsWithPlanned } = useQuery<Event[]>({
+    queryKey: ["/api/events-with-planned"],
   });
-
-  const eventsWithPlanned = useMemo(() => {
-    if (!events || !allBudgetPlanned) return undefined;
-    const eventIdsWithPlanned = new Set(allBudgetPlanned.map(bp => bp.eventId));
-    return events.filter(e => eventIdsWithPlanned.has(e.id));
-  }, [events, allBudgetPlanned]);
 
   const { data: budgetActual, isLoading } = useQuery<BudgetActual[]>({
     queryKey: ["/api/budget-actual", selectedEventId],
