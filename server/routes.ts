@@ -1062,11 +1062,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
 
-      // Authorization check: Admins and purchasing can add managers
+      // Authorization check: Admins, purchasing and production can add managers
       const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
       const isPurchasing = user.role === 'purchasing';
+      const isProduction = user.role === 'production';
       
-      if (!isAdmin && !isPurchasing) {
+      if (!isAdmin && !isPurchasing && !isProduction) {
         return res.status(403).json({ message: "Sem permissão para adicionar responsáveis às funções" });
       }
 
@@ -1096,11 +1097,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
 
-      // Authorization check: Admins and purchasing can remove managers
+      // Authorization check: Admins, purchasing and production can remove managers
       const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
       const isPurchasing = user.role === 'purchasing';
+      const isProduction = user.role === 'production';
       
-      if (!isAdmin && !isPurchasing) {
+      if (!isAdmin && !isPurchasing && !isProduction) {
         return res.status(403).json({ message: "Sem permissão para remover responsáveis das funções" });
       }
 
