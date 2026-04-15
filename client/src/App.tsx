@@ -30,8 +30,8 @@ import CalendarPage from "@/pages/calendar";
 import NotFound from "@/pages/not-found";
 import ProtectedRoute from "@/components/layout/protected-route";
 import { useAuth } from "@/hooks/use-auth";
-import { hasPermission } from "@/lib/role-utils";
-import type { RolePermissions } from "@/lib/role-utils";
+import { hasPermission, getRoleLabel } from "@/lib/role-utils";
+import type { RolePermissions, UserRole } from "@/lib/role-utils";
 
 // Primeira página acessível na ordem do sidebar
 const ORDERED_ROUTES: { path: string; permission: keyof RolePermissions }[] = [
@@ -55,9 +55,10 @@ const ORDERED_ROUTES: { path: string; permission: keyof RolePermissions }[] = [
 ];
 
 function HomeRedirect() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const first = ORDERED_ROUTES.find(r => hasPermission(user, r.permission));
   if (!first) {
+    const roleLabel = getRoleLabel((user?.role || "production") as UserRole);
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center px-4">
         <div className="text-4xl">🔒</div>
@@ -67,8 +68,14 @@ function HomeRedirect() {
           Entre em contato com o administrador do sistema.
         </p>
         <p className="text-sm text-gray-400">
-          {user?.name} ({user?.email}) — role: {user?.role}
+          {user?.name} ({user?.email}) — {roleLabel}
         </p>
+        <button
+          onClick={logout}
+          className="mt-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Sair
+        </button>
       </div>
     );
   }

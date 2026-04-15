@@ -192,8 +192,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Campos enriquecidos do novo formato do portal Norte
-      const tokenName  = payload.name  as string | undefined;
-      const tokenRole  = payload.role  as string | undefined;
+      const tokenName    = payload.name  as string | undefined;
+      const tokenRoleRaw = payload.role  as string | undefined;
+
+      // Mapear role do portal Norte (pode vir em português) para os roles internos
+      const normalizePortalRole = (r?: string): string => {
+        if (!r) return "production";
+        const lower = r.toLowerCase().trim();
+        if (lower === "admin" || lower.includes("administrador") || lower.includes("administrator")) return "admin";
+        if (lower === "financial" || lower.includes("financeiro") || lower.includes("rh") || lower.includes("recursos humanos")) return "financial";
+        if (lower === "purchasing" || lower.includes("compras") || lower.includes("viagem")) return "purchasing";
+        if (lower === "function_area" || lower.includes("função") || lower.includes("funcao") || lower.includes("function")) return "function_area";
+        if (lower === "production" || lower.includes("produç") || lower.includes("logist")) return "production";
+        const valid = ["admin", "production", "function_area", "purchasing", "financial"];
+        if (valid.includes(lower)) return lower;
+        return "production";
+      };
+      const tokenRole = normalizePortalRole(tokenRoleRaw);
 
       let user = await storage.getUserByEmail(email);
 
@@ -205,7 +220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           email,
           name: tokenName || email.split("@")[0],
           password: tempPassword,
-          role: (tokenRole || "production") as any,
+          role: tokenRole as any,
           status: "approved",
           area: null,
           isActive: true,

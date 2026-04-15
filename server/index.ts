@@ -81,7 +81,23 @@ app.use(async (req, res, next) => {
     if (!email) return next();
 
     const tokenName = payload.name as string | undefined;
-    const tokenRole = payload.role as string | undefined;
+    const tokenRoleRaw = payload.role as string | undefined;
+
+    // Mapear role do portal Norte (pode vir em português) para os roles internos
+    const normalizePortalRole = (r?: string): string => {
+      if (!r) return "production";
+      const lower = r.toLowerCase().trim();
+      if (lower === "admin" || lower.includes("administrador") || lower.includes("administrator")) return "admin";
+      if (lower === "financial" || lower.includes("financeiro") || lower.includes("rh") || lower.includes("recursos humanos")) return "financial";
+      if (lower === "purchasing" || lower.includes("compras") || lower.includes("viagem")) return "purchasing";
+      if (lower === "function_area" || lower.includes("função") || lower.includes("funcao") || lower.includes("function")) return "function_area";
+      if (lower === "production" || lower.includes("produç") || lower.includes("logist")) return "production";
+      // Se o role é exatamente um dos internos, usar diretamente
+      const valid = ["admin", "production", "function_area", "purchasing", "financial"];
+      if (valid.includes(lower)) return lower;
+      return "production"; // default seguro
+    };
+    const tokenRole = normalizePortalRole(tokenRoleRaw);
 
     // Importar storage dinamicamente para evitar dependência circular
     const { storage } = await import("./storage");
@@ -96,7 +112,7 @@ app.use(async (req, res, next) => {
         email,
         name: tokenName || email.split("@")[0],
         password: tempPassword,
-        role: (tokenRole || "production") as any,
+        role: tokenRole as any,
         status: "approved",
         area: null,
         isActive: true,
