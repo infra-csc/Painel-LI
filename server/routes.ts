@@ -459,9 +459,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
 
-      // Admins, financial (RH) and purchasing (Compras) can list users
+      // Admins, financial (RH), purchasing (Compras) and production (Logística) can list users
       const isAdmin = currentUser.role === 'administrador' || currentUser.role === 'admin' || currentUser.role === 'administrator';
-      const canManageUsers = isAdmin || currentUser.role === 'financial' || currentUser.role === 'purchasing';
+      const canManageUsers = isAdmin || currentUser.role === 'financial' || currentUser.role === 'purchasing' || currentUser.role === 'production';
       if (!canManageUsers) {
         return res.status(403).json({ message: "Sem permissão para listar usuários." });
       }
