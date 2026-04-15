@@ -729,8 +729,8 @@ export default function GridTeamInclusionForm() {
         // Processar diárias nas colunas a partir do índice 7
         for (let j = 7; j < columns.length && j - 7 < dates.length; j++) {
           const raw   = parseInt(columns[j]?.trim() || "0");
-          // Fix #4: clamp para o range válido do Select (0–8)
-          const value = isNaN(raw) ? 0 : Math.max(0, Math.min(8, raw));
+          // Fix #4: clamp para o range válido do Select (0–15)
+          const value = isNaN(raw) ? 0 : Math.max(0, Math.min(15, raw));
           dailyRates[dates[j - 7]] = value;
         }
 
@@ -1398,6 +1398,13 @@ export default function GridTeamInclusionForm() {
                                       <SelectItem value="6">6</SelectItem>
                                       <SelectItem value="7">7</SelectItem>
                                       <SelectItem value="8">8</SelectItem>
+                                      <SelectItem value="9">9</SelectItem>
+                                      <SelectItem value="10">10</SelectItem>
+                                      <SelectItem value="11">11</SelectItem>
+                                      <SelectItem value="12">12</SelectItem>
+                                      <SelectItem value="13">13</SelectItem>
+                                      <SelectItem value="14">14</SelectItem>
+                                      <SelectItem value="15">15</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </td>
