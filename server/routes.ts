@@ -216,10 +216,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user = await storage.updateUser(user.id, { status: "approved" }) || user;
       }
 
-      // Se o token traz nome/role atualizados, sincronizar com o banco
+      // Sincronizar nome do token (mas NÃO o role para usuários existentes)
       const updates: Record<string, unknown> = {};
       if (tokenName && tokenName !== user.name) updates.name = tokenName;
-      if (tokenRole && tokenRole !== user.role) updates.role = tokenRole;
       if (Object.keys(updates).length > 0) {
         user = await storage.updateUser(user.id, updates as any) || user;
       }

@@ -106,10 +106,10 @@ app.use(async (req, res, next) => {
       user = await storage.updateUser(user.id, { status: "approved" }) || user;
     }
 
-    // Sincronizar nome/role do token
+    // Sincronizar nome do token (mas NÃO o role — o role do banco prevalece para usuários existentes)
+    // Isso evita que o portal sobrescreva permissões configuradas manualmente
     const updates: Record<string, unknown> = {};
     if (tokenName && tokenName !== user.name) updates.name = tokenName;
-    if (tokenRole && tokenRole !== user.role) updates.role = tokenRole;
     if (Object.keys(updates).length > 0) {
       user = await storage.updateUser(user.id, updates as any) || user;
     }
