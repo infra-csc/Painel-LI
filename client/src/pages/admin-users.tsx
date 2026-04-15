@@ -111,7 +111,8 @@ export default function AdminUsers() {
   const isAdmin = user?.role === "admin" || user?.role === "administrador" || user?.role === "administrator";
   const isRh    = user?.role === "financial";
   const isPurchasing = user?.role === "purchasing";
-  if (!user || (!isAdmin && !isRh && !isPurchasing)) {
+  const isProduction = user?.role === "production";
+  if (!user || (!isAdmin && !isRh && !isPurchasing && !isProduction)) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
