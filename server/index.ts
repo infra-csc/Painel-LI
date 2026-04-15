@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import compression from "compression";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
@@ -19,6 +20,9 @@ const app = express();
 
 // Trust proxy - required for Replit
 app.set('trust proxy', 1);
+
+// Gzip compression — reduz tamanho das respostas JSON em ~70-80%
+app.use(compression());
 
 // Configure session middleware with PostgreSQL store
 app.use(session({
