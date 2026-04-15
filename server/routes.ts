@@ -240,6 +240,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Encerra a sessão do servidor
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy(() => {});
+    res.json({ success: true });
+  });
+
+  // Retorna o usuário da sessão ativa (usado pelo React ao inicializar)
+  app.get("/api/auth/me", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+      const user = await storage.getUser(userId);
+      if (!user) {
+        req.session.destroy(() => {});
+        return res.status(401).json({ message: "Sessão inválida" });
+      }
+      const safeUser = { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined };
+      const portalReturnUrl = (req.session as any).portalReturnUrl || null;
+      return res.json({ user: safeUser, portalReturnUrl });
+    } catch (error) {
+      return res.status(500).json({ message: "Erro interno" });
+    }
+  });
+
   // Authentication routes
   app.post("/api/auth/login", async (req, res) => {
     try {

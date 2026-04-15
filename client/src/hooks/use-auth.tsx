@@ -27,47 +27,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const initAuth = async () => {
-      // 1. Verificar SSO token na URL (?portal_sso=<JWT>)
+      // 1. Se há token SSO na URL (fallback client-side para casos onde o
+      //    middleware do servidor não interceptou, ex: chamadas diretas via JS)
       const params = new URLSearchParams(window.location.search);
       const ssoToken = params.get("portal_sso");
 
       if (ssoToken) {
-        // Capturar portal_return antes de limpar a URL
         const portalReturn = params.get("portal_return");
-        if (portalReturn) {
-          localStorage.setItem("portal-return-url", portalReturn);
-        }
-
-        // Limpar os parâmetros da URL imediatamente (sem reload)
+        if (portalReturn) localStorage.setItem("portal-return-url", portalReturn);
         window.history.replaceState({}, "", window.location.pathname);
 
         try {
-          const response = await fetch(`/api/auth/sso?token=${encodeURIComponent(ssoToken)}`);
-          if (response.ok) {
-            const { user } = await response.json();
-            setUser(user);
-            localStorage.setItem("auth-user", JSON.stringify(user));
+          const res = await fetch(`/api/auth/sso?token=${encodeURIComponent(ssoToken)}`);
+          if (res.ok) {
+            const { user: ssoUser } = await res.json();
+            setUser(ssoUser);
+            localStorage.setItem("auth-user", JSON.stringify(ssoUser));
             setIsLoading(false);
-            return; // Sessão SSO criada — pronto
-          } else {
-            console.warn("[SSO] Token inválido, redirecionando para login");
+            return;
           }
-        } catch (err) {
-          console.error("[SSO] Erro ao validar token:", err);
+        } catch {
+          // SSO falhou — continua para verificar sessão ativa
         }
-        // SSO falhou — cai no fluxo normal abaixo
       }
 
-      // 2. Verificar sessão salva no localStorage
-      const savedUser = localStorage.getItem("auth-user");
-      if (savedUser) {
-        try {
-          const parsedUser = JSON.parse(savedUser);
-          setUser(parsedUser);
-        } catch {
-          localStorage.removeItem("auth-user");
+      // 2. Verificar sessão ativa no servidor
+      //    O middleware SSO server-side já cria a sessão e redireciona para /
+      //    sem o token na URL — então aqui simplesmente verificamos se há sessão
+      try {
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+        if (res.ok) {
+          const { user: sessionUser, portalReturnUrl } = await res.json();
+          setUser(sessionUser);
+          localStorage.setItem("auth-user", JSON.stringify(sessionUser));
+          if (portalReturnUrl) localStorage.setItem("portal-return-url", portalReturnUrl);
+          setIsLoading(false);
+          return;
         }
+      } catch {
+        // Sem sessão ativa
       }
+
+      // 3. Nenhuma sessão válida — limpar cache local e ir para login
+      localStorage.removeItem("auth-user");
       setIsLoading(false);
     };
 
@@ -76,67 +78,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const response = await fetch("/api/auth/login", {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-
-      if (response.ok) {
-        const { user } = await response.json();
+      if (res.ok) {
+        const { user } = await res.json();
         setUser(user);
         localStorage.setItem("auth-user", JSON.stringify(user));
         return true;
       }
       return false;
-    } catch (error) {
+    } catch {
       return false;
     }
   };
 
   const register = async (userData: RegisterData): Promise<{ success: boolean; message?: string }> => {
     try {
-      const response = await fetch("/api/auth/register", {
+      const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(userData),
       });
-
-      if (response.ok) {
-        return { success: true };
-      } else {
-        const error = await response.json();
-        return { success: false, message: error.message || "Erro ao criar conta" };
-      }
-    } catch (error) {
+      if (res.ok) return { success: true };
+      const error = await res.json();
+      return { success: false, message: error.message || "Erro ao criar conta" };
+    } catch {
       return { success: false, message: "Erro interno do servidor" };
     }
   };
 
   const logout = () => {
     const portalReturn = localStorage.getItem("portal-return-url");
-
     localStorage.removeItem("auth-user");
     localStorage.removeItem("portal-return-url");
 
+    // Encerrar sessão no servidor (fire-and-forget)
+    fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
+
     if (portalReturn) {
-      // Redirecionar imediatamente — sem mostrar tela de login
       window.location.href = portalReturn;
       return;
     }
-
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      login, 
-      register, 
+    <AuthContext.Provider value={{
+      user,
+      login,
+      register,
       logout,
-      setUser, 
-      isLoading, 
-      isAuthenticated: !!user 
+      setUser,
+      isLoading,
+      isAuthenticated: !!user,
     }}>
       {children}
     </AuthContext.Provider>

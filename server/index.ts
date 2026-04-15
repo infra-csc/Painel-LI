@@ -46,6 +46,93 @@ app.use(session({
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// ── SSO Middleware (server-side) ──────────────────────────────────────────
+// Intercepta ?portal_sso=<JWT> ANTES de qualquer renderização do React.
+// Valida o token, cria a sessão e redireciona para / com URL limpa.
+// Deve ficar ANTES das rotas da aplicação.
+app.use(async (req, res, next) => {
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const ssoToken = url.searchParams.get('portal_sso');
+    const portalReturn = url.searchParams.get('portal_return');
+
+    if (!ssoToken) return next();
+
+    const { jwtVerify } = await import("jose");
+    const rawSecret = process.env.SSO_SECRET || process.env.SESSION_SECRET || 'dev-session-secret-change-in-production';
+    const secretKey = new TextEncoder().encode(rawSecret);
+
+    let payload: Record<string, unknown>;
+    try {
+      const { payload: p } = await jwtVerify(ssoToken, secretKey, { issuer: "norte-portal" });
+      payload = p as Record<string, unknown>;
+    } catch {
+      // Fallback sem issuer (tokens legados)
+      try {
+        const { payload: p } = await jwtVerify(ssoToken, secretKey);
+        payload = p as Record<string, unknown>;
+      } catch (err) {
+        console.error("[SSO Middleware] Token inválido:", err);
+        return next(); // token inválido — deixa o app decidir o que fazer
+      }
+    }
+
+    const email = payload.email as string | undefined;
+    if (!email) return next();
+
+    const tokenName = payload.name as string | undefined;
+    const tokenRole = payload.role as string | undefined;
+
+    // Importar storage dinamicamente para evitar dependência circular
+    const { storage } = await import("./storage");
+
+    let user = await storage.getUserByEmail(email);
+
+    if (!user) {
+      // Auto-registrar com dados do token
+      const bcrypt = await import("bcrypt");
+      const tempPassword = await bcrypt.hash(Math.random().toString(36), 10);
+      user = await storage.createUser({
+        email,
+        name: tokenName || email.split("@")[0],
+        password: tempPassword,
+        role: (tokenRole || "production") as any,
+        status: "approved",
+        area: null,
+        isActive: true,
+      } as any);
+      console.log(`[SSO Middleware] Usuário auto-registrado: ${email}`);
+    } else if (user.status !== "approved") {
+      user = await storage.updateUser(user.id, { status: "approved" }) || user;
+    }
+
+    // Sincronizar nome/role do token
+    const updates: Record<string, unknown> = {};
+    if (tokenName && tokenName !== user.name) updates.name = tokenName;
+    if (tokenRole && tokenRole !== user.role) updates.role = tokenRole;
+    if (Object.keys(updates).length > 0) {
+      user = await storage.updateUser(user.id, updates as any) || user;
+    }
+
+    // Criar sessão
+    req.session.userId = user.id;
+    req.session.user = { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined };
+    if (portalReturn) (req.session as any).portalReturnUrl = portalReturn;
+
+    await new Promise<void>((resolve, reject) =>
+      req.session.save((err) => (err ? reject(err) : resolve()))
+    );
+
+    console.log(`[SSO Middleware] Sessão criada para: ${email}`);
+
+    // Redireciona para / sem parâmetros SSO (URL limpa)
+    return res.redirect('/');
+  } catch (err) {
+    console.error("[SSO Middleware] Erro inesperado:", err);
+    return next();
+  }
+});
+
 // Debug middleware to log session info
 app.use((req, res, next) => {
   if (req.path.startsWith('/api')) {
