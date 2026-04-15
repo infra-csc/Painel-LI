@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/hooks/use-auth";
-import { useLocation } from "wouter";
+import { useLocation, Redirect } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 import norteLogo from "@assets/image_1770316785096.png";
@@ -32,17 +32,24 @@ export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  if (user) {
-    setLocation("/");
-    return null;
-  }
-
   // ── Login form ───────────────────────────────────────────────────────────────
 
   const loginForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
+
+  // ── Forgot-password form ─────────────────────────────────────────────────────
+
+  const forgotForm = useForm<ForgotForm>({
+    resolver: zodResolver(forgotSchema),
+    defaultValues: { email: "" },
+  });
+
+  // Se já está logado, redirecionar para home (usando Redirect declarativo, não setLocation durante render)
+  if (user) {
+    return <Redirect to="/" />;
+  }
 
   const handleLogin = async (data: LoginForm) => {
     setIsLoading(true);
@@ -60,13 +67,6 @@ export default function AuthPage() {
       setIsLoading(false);
     }
   };
-
-  // ── Forgot-password form ─────────────────────────────────────────────────────
-
-  const forgotForm = useForm<ForgotForm>({
-    resolver: zodResolver(forgotSchema),
-    defaultValues: { email: "" },
-  });
 
   const handleForgotPassword = async (data: ForgotForm) => {
     setIsLoading(true);

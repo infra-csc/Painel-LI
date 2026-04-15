@@ -57,7 +57,22 @@ const ORDERED_ROUTES: { path: string; permission: keyof RolePermissions }[] = [
 function HomeRedirect() {
   const { user } = useAuth();
   const first = ORDERED_ROUTES.find(r => hasPermission(user, r.permission));
-  return <Redirect to={first ? first.path : "/auth"} />;
+  if (!first) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center px-4">
+        <div className="text-4xl">🔒</div>
+        <h2 className="text-xl font-semibold text-gray-800">Sem acesso</h2>
+        <p className="text-gray-500 max-w-sm">
+          Sua conta ainda não possui permissão para acessar nenhuma página.
+          Entre em contato com o administrador do sistema.
+        </p>
+        <p className="text-sm text-gray-400">
+          {user?.name} ({user?.email}) — role: {user?.role}
+        </p>
+      </div>
+    );
+  }
+  return <Redirect to={first.path} />;
 }
 
 function Router() {
