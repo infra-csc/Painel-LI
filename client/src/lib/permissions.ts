@@ -41,11 +41,11 @@ const PERMISSIONS: Record<string, Record<UserRole, AccessLevel>> = {
   
   // Funções (admin sempre pode gerenciar)
   functions: {
-    admin: 'edit',      // Administrador: acesso total
-    production: 'view', // Logística Interna: visualização
+    admin: 'edit',         // Administrador: acesso total
+    production: 'edit',    // Logística Interna: acesso total
     function_area: 'view', // Área Responsável por Funções: visualização
-    purchasing: 'edit', // Área de Compras/Viagens: acesso total
-    financial: 'view'   // Financial: visualização
+    purchasing: 'edit',    // Área de Compras/Viagens: acesso total
+    financial: 'view'      // Financial: visualização
   },
   
   // Colaboradores

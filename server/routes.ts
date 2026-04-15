@@ -605,9 +605,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
 
-      // Admins, financial (RH) and purchasing (Compras) can approve/reject users
+      // Admins, financial (RH), purchasing (Compras) and production (Logística) can approve/reject users
       const isAdmin = currentUser.role === 'administrador' || currentUser.role === 'admin' || currentUser.role === 'administrator';
-      const canManageUsers = isAdmin || currentUser.role === 'financial' || currentUser.role === 'purchasing';
+      const canManageUsers = isAdmin || currentUser.role === 'financial' || currentUser.role === 'purchasing' || currentUser.role === 'production';
       if (!canManageUsers) {
         return res.status(403).json({ message: "Sem permissão para aprovar usuários." });
       }
@@ -652,7 +652,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const admin = await storage.getUser(adminId);
       const isAdmin = admin && (admin.role === 'administrador' || admin.role === 'admin' || admin.role === 'administrator');
       const isPurchasing = admin && admin.role === 'purchasing';
-      if (!isAdmin && !isPurchasing) return res.status(403).json({ message: "Acesso negado" });
+      const isProduction = admin && admin.role === 'production';
+      if (!isAdmin && !isPurchasing && !isProduction) return res.status(403).json({ message: "Acesso negado" });
 
       const userId = req.params.id;
       const user = await storage.getUser(userId);
@@ -692,7 +693,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const admin = await storage.getUser(adminId);
       const isAdmin = admin && (admin.role === 'administrador' || admin.role === 'admin' || admin.role === 'administrator');
       const isPurchasingAdmin = admin && admin.role === 'purchasing';
-      if (!isAdmin && !isPurchasingAdmin) return res.status(403).json({ message: "Acesso negado" });
+      const isProductionAdmin = admin && admin.role === 'production';
+      if (!isAdmin && !isPurchasingAdmin && !isProductionAdmin) return res.status(403).json({ message: "Acesso negado" });
 
       const userId = req.params.id;
       const user = await storage.getUser(userId);
@@ -972,12 +974,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
 
-      // Authorization check: Admin, purchasing or function manager can add users
+      // Authorization check: Admin, purchasing, production or function manager can add users
       const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
       const isPurchasing = user.role === 'purchasing';
+      const isProduction = user.role === 'production';
       const isFunctionManager = await storage.isUserFunctionManager(id, userId);
       
-      if (!isAdmin && !isPurchasing && !isFunctionManager) {
+      if (!isAdmin && !isPurchasing && !isProduction && !isFunctionManager) {
         return res.status(403).json({ message: "Sem permissão para adicionar usuários a esta função" });
       }
 
@@ -1007,12 +1010,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
 
-      // Authorization check: Admin, purchasing or function manager can remove users
+      // Authorization check: Admin, purchasing, production or function manager can remove users
       const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
       const isPurchasing = user.role === 'purchasing';
+      const isProduction = user.role === 'production';
       const isFunctionManager = await storage.isUserFunctionManager(functionId, userId);
       
-      if (!isAdmin && !isPurchasing && !isFunctionManager) {
+      if (!isAdmin && !isPurchasing && !isProduction && !isFunctionManager) {
         return res.status(403).json({ message: "Sem permissão para remover usuários desta função" });
       }
 

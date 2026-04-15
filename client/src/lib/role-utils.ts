@@ -51,13 +51,13 @@ export function getRolePermissions(role: UserRole): RolePermissions {
 
     case "production":
       return {
-        canAccessCadastros: false,
+        canAccessCadastros: true,
         canAccessScreen0: false,
         canEditScreen0: false,
         canAccessScreen1: true,
         canEditScreen1: true,
         canAccessScreen2: true,
-        canSelectCollaborators: false,
+        canSelectCollaborators: true,
         canAccessScreen3: true,
         canRegisterTickets: false,
         canAccessScreen4: true,
@@ -66,7 +66,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canApproveFinancial: false,
         canAccessFinanceiro: false,
         canAccessScreen6: false,
-        canAccessAdminUsers: false,
+        canAccessAdminUsers: true,
         canAccessCollaborators: true,
         canEditCollaborators: true,
         canAccessCalendar: true,
