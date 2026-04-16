@@ -7,12 +7,10 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
-import { Eye, EyeOff } from "lucide-react";
 
 const schema = z.object({
   name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
   email: z.string().email("Digite um e-mail válido"),
-  password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
   role: z.enum(["admin", "production", "function_area", "purchasing", "financial"], {
     required_error: "Selecione um perfil de acesso",
   }),
@@ -20,19 +18,6 @@ const schema = z.object({
 });
 
 type FormData = z.infer<typeof schema>;
-
-function getPasswordStrength(pw: string) {
-  if (!pw) return { score: 0, label: "", color: "#E2E8F0" };
-  let s = 0;
-  if (pw.length >= 6) s++;
-  if (pw.length >= 10) s++;
-  if (/[A-Z]/.test(pw)) s++;
-  if (/[0-9]/.test(pw)) s++;
-  if (/[^A-Za-z0-9]/.test(pw)) s++;
-  if (s <= 1) return { score: s, label: "Fraca", color: "#EF4444" };
-  if (s <= 3) return { score: s, label: "Média", color: "#F59E0B" };
-  return { score: s, label: "Forte", color: "#22C55E" };
-}
 
 function initials(name: string) {
   const p = name.trim().split(/\s+/);
@@ -74,22 +59,19 @@ const FieldError = ({ msg }: { msg?: string }) =>
 export default function UserRegistration() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", email: "", password: "", area: "" },
+    defaultValues: { name: "", email: "", area: "" },
   });
 
-  const nameVal     = watch("name") || "";
-  const emailVal    = watch("email") || "";
-  const passwordVal = watch("password") || "";
-  const roleVal     = watch("role");
-  const areaVal     = watch("area") || "";
+  const nameVal  = watch("name") || "";
+  const emailVal = watch("email") || "";
+  const roleVal  = watch("role");
+  const areaVal  = watch("area") || "";
 
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal);
-  const pwStrength   = getPasswordStrength(passwordVal);
   const selectedRole = ROLES.find(r => r.value === roleVal);
 
   const mutation = useMutation({
@@ -102,7 +84,7 @@ export default function UserRegistration() {
       return r.json();
     },
     onSuccess: () => {
-      toast({ title: "Usuário criado", description: "Conta criada com sucesso." });
+      toast({ title: "Usuário criado", description: "Conta criada com sucesso. O acesso será feito pelo Portal Norte." });
       reset();
     },
     onError: (e: Error) => {
@@ -139,13 +121,21 @@ export default function UserRegistration() {
           </div>
           <div>
             <h1 style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", margin: 0, lineHeight: 1.2, letterSpacing: "-0.02em" }}>Cadastro de Usuários</h1>
-            <p style={{ fontSize: 12, color: "#94A3B8", margin: 0, fontWeight: 500 }}>Crie uma nova conta de acesso ao sistema</p>
+            <p style={{ fontSize: 12, color: "#94A3B8", margin: 0, fontWeight: 500 }}>O acesso ao sistema é feito exclusivamente pelo Portal Norte (Microsoft)</p>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px", background: "#FEF3C7", borderRadius: 9999, fontSize: 11, fontWeight: 700, color: "#92400E", textTransform: "uppercase", letterSpacing: "0.05em" }}>
           <span className="material-symbols-outlined" style={{ fontSize: 14, fontVariationSettings: "'FILL' 1" }}>lock</span>
           Acesso restrito
         </div>
+      </div>
+
+      {/* Microsoft SSO notice */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 14, background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 10 }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 20, color: "#2563EB", flexShrink: 0 }}>info</span>
+        <p style={{ fontSize: 12, color: "#1E40AF", margin: 0, lineHeight: 1.5 }}>
+          <strong>Login via Microsoft:</strong> Não é necessário senha. O usuário cadastrado aqui acessa o sistema pelo Portal Norte usando a conta Microsoft corporativa.
+        </p>
       </div>
 
       {/* Two-column layout */}
@@ -162,7 +152,7 @@ export default function UserRegistration() {
                 <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#505f76", textTransform: "uppercase" }}>Dados Pessoais</span>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 {/* Nome */}
                 <div>
                   <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#434655", marginBottom: 6, marginLeft: 2 }}>
@@ -206,44 +196,6 @@ export default function UserRegistration() {
                   </div>
                   <FieldError msg={errors.email?.message} />
                 </div>
-              </div>
-
-              {/* Senha - full width */}
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#434655", marginBottom: 6, marginLeft: 2 }}>
-                  Senha de acesso <span style={{ color: "#EF4444" }}>*</span>
-                </label>
-                <div style={{ position: "relative" }}>
-                  <span className="material-symbols-outlined" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 18, color: "#94A3B8" }}>lock</span>
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    data-testid="input-password"
-                    style={{ ...inputStyle("password", !!errors.password), paddingRight: 40 }}
-                    {...register("password")}
-                    onFocus={() => setFocusedField("password")}
-                    onBlur={() => setFocusedField(null)}
-                  />
-                  <button type="button" onClick={() => setShowPassword(v => !v)} tabIndex={-1}
-                    style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94A3B8", display: "flex", padding: 0 }}>
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                {passwordVal && (
-                  <div style={{ marginTop: 8, paddingLeft: 4, paddingRight: 4 }}>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      {[1, 2, 3, 4, 5].map(i => (
-                        <div key={i} style={{ height: 4, flex: 1, borderRadius: 9999, background: i <= pwStrength.score ? pwStrength.color : "#E1E8FD", transition: "background 0.2s" }} />
-                      ))}
-                    </div>
-                    <p style={{ fontSize: 10, fontWeight: 600, color: pwStrength.color, marginTop: 4, marginLeft: 2 }}>
-                      {pwStrength.label === "Fraca" ? "Senha fraca: adicione letras maiúsculas e números." :
-                       pwStrength.label === "Média" ? "Senha média: adicione símbolos para mais segurança." :
-                       "Senha forte: utilize letras, números e símbolos."}
-                    </p>
-                  </div>
-                )}
-                <FieldError msg={errors.password?.message} />
               </div>
             </div>
 
@@ -382,10 +334,9 @@ export default function UserRegistration() {
             <h3 style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 12px" }}>Status do Cadastro</h3>
             <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
               {[
-                { label: "Nome identificado",       ok: nameVal.length >= 2 },
+                { label: "Nome identificado",         ok: nameVal.length >= 2 },
                 { label: "E-mail corporativo válido", ok: isEmailValid },
-                { label: "Senha segura configurada", ok: passwordVal.length >= 6 },
-                { label: "Perfil selecionado",       ok: !!roleVal },
+                { label: "Perfil selecionado",        ok: !!roleVal },
               ].map((item, i) => (
                 <li key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 18, fontVariationSettings: "'FILL' 1", color: item.ok ? "#22C55E" : "#E1E8FD", transition: "color 0.2s", flexShrink: 0 }}>
@@ -397,10 +348,10 @@ export default function UserRegistration() {
             </ul>
           </div>
 
-          {/* Security note */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 12px", opacity: 0.6 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>enhanced_encryption</span>
-            <span style={{ fontSize: 10, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", color: "#434655" }}>Dados criptografados e protegidos</span>
+          {/* Microsoft SSO note */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 12px", background: "#EFF6FF", borderRadius: 8, border: "1px solid #BFDBFE" }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 14, color: "#2563EB" }}>verified_user</span>
+            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.04em", color: "#1D4ED8" }}>Acesso via Microsoft 365</span>
           </div>
         </aside>
       </div>

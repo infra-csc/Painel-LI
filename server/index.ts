@@ -105,9 +105,19 @@ app.use(async (req, res, next) => {
     let user = await storage.getUserByEmail(email);
 
     if (!user) {
-      // Usuário não cadastrado no sistema — acesso negado
-      console.warn(`[SSO Middleware] Acesso negado — e-mail não cadastrado: ${email}`);
-      return res.redirect('/auth?sso_error=not_registered');
+      // Usuário não encontrado — auto-criar a partir do token do Portal Norte
+      console.log(`[SSO Middleware] Auto-criando usuário: ${email} (role: ${tokenRole})`);
+      const bcrypt = await import("bcrypt");
+      const randomPw = await bcrypt.hash(Math.random().toString(36) + Date.now(), 10);
+      user = await storage.createUser({
+        email,
+        name: tokenName || email,
+        password: randomPw,
+        role: tokenRole,
+        status: "approved",
+        isActive: true,
+        area: null,
+      } as any);
     }
 
     if (user.status !== "approved" || user.isActive === false) {

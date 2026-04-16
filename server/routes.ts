@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
+import { z } from "zod";
 import { storage } from "./storage";
 import { db } from "./db";
 import { budgetNotes, functionManagers as functionManagersTable, budgetPlanned as budgetPlannedTable, events as eventsTable } from "@shared/schema";
@@ -612,7 +613,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Sem permissão para criar usuários." });
       }
 
-      const userData = insertUserSchema.parse(req.body);
+      // Senha é opcional nessa rota — login é via Microsoft/SSO
+      const adminCreateSchema = insertUserSchema.extend({ password: z.string().optional() });
+      const userData = adminCreateSchema.parse(req.body);
 
       // Only true admins can create admin users
       if (userData.role === 'admin' && !isAdmin) {
@@ -625,9 +628,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "E-mail já cadastrado" });
       }
 
-      // Hash password
+      // Hash password — gera uma senha aleatória se não for fornecida (login via Microsoft/SSO)
       const saltRounds = 10;
-      const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
+      const rawPassword = userData.password || (Math.random().toString(36) + Date.now().toString(36));
+      const hashedPassword = await bcrypt.hash(rawPassword, saltRounds);
       
       // Internal user registration should create approved users directly
       const userWithHashedPassword = {
