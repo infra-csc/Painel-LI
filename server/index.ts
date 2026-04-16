@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import compression from "compression";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import { jwtVerify } from "jose";
 import { pool } from "./db";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -58,7 +59,6 @@ app.use(async (req, res, next) => {
 
     if (!ssoToken) return next();
 
-    const { jwtVerify } = await import("jose");
     const rawSecret = process.env.SSO_SECRET || process.env.SESSION_SECRET || 'dev-session-secret-change-in-production';
     const secretKey = new TextEncoder().encode(rawSecret);
 
