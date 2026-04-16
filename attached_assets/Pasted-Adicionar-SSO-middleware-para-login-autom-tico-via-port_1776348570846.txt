@@ -1,0 +1,68 @@
+Adicionar SSO middleware para login automático via portal NORTE.
+
+Quando o portal envia um usuário, ele abre a URL: https://logistica-interna.replit.app/?portal_sso=TOKEN&portal_return=URL
+
+O token é JWT HS256 assinado com o secret SESSION_SECRET deste portal. Você precisa adicionar o mesmo valor como SSO_SECRET nos Secrets da Logística.
+
+O que implementar:
+
+Adicionar nos Secrets: SSO_SECRET (vou te fornecer o valor)
+
+Instalar: pnpm add jose
+
+Adicionar este middleware ANTES de qualquer middleware de autenticação, no arquivo principal do servidor (ex: server.ts ou index.ts):
+
+import { jwtVerify } from "jose";
+// SSO middleware — DEVE estar ANTES do middleware de autenticação
+app.use(async (req, res, next) => {
+  const portalSSO = req.query.portal_sso as string | undefined;
+  const portalReturn = req.query.portal_return as string | undefined;
+  if (!portalSSO) return next();
+  try {
+    const secret = new TextEncoder().encode(process.env.SSO_SECRET);
+    const { payload } = await jwtVerify(portalSSO, secret, { issuer: "norte-portal" });
+    // Buscar usuário no banco pelo email
+    const user = await db.query(
+      `SELECT id, email, name, role, area, status, is_active, must_change_password, created_at
+       FROM users WHERE LOWER(email) = LOWER($1) AND is_active = true LIMIT 1`,
+      [payload.email]
+    );
+    if (!user.rows.length) {
+      console.warn("[SSO] Usuário não encontrado:", payload.email);
+      return next();
+    }
+    const u = user.rows[0];
+    // Criar sessão autenticada (mesmo formato que o login normal)
+    req.session.userId = u.id;
+    req.session.user = {
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      role: u.role,
+      area: u.area,
+      status: u.status,
+      isActive: u.is_active,
+      mustChangePassword: false,
+      createdAt: u.created_at,
+    };
+    if (portalReturn) {
+      req.session.portalReturnUrl = portalReturn;
+    }
+    // Salvar sessão e redirecionar para a página principal
+    req.session.save(() => {
+      res.redirect("/");
+    });
+  } catch (err) {
+    console.error("[SSO] Token inválido:", err);
+    return next();
+  }
+});
+
+No logout, se req.session.portalReturnUrl existir, redirecionar para essa URL em vez da tela de login.
+Importante: O token JWT tem estas propriedades:
+
+Algoritmo: HS256
+Issuer: "norte-portal"
+Expira em 10 minutos
+Payload: { email, name, role, level, app }
+Basicamente, é só esse middleware antes da autenticação. Quando o portal envia o token, a Logística valida, cria a sessão e o usuário entra direto sem ver a tela de login.
