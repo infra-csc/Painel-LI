@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation, Redirect } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertTriangle } from "lucide-react";
 import norteLogo from "@assets/image_1770316785096.png";
 
 // ── Schemas ────────────────────────────────────────────────────────────────────
@@ -31,6 +31,15 @@ export default function AuthPage() {
   const [activeTab, setActiveTab] = useState<"login" | "recover">("login");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [ssoError, setSsoError] = useState<"not_registered" | "not_approved" | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get("sso_error");
+    if (err === "not_registered" || err === "not_approved") {
+      setSsoError(err);
+    }
+  }, []);
 
   // ── Login form ───────────────────────────────────────────────────────────────
 
@@ -131,6 +140,23 @@ export default function AuthPage() {
             Logística Interna
           </h1>
         </div>
+
+        {/* ── Erro SSO ── */}
+        {ssoError && (
+          <div className="flex items-start gap-3 p-3 mb-5 rounded-xl" style={{ background: "#fef2f2", border: "1px solid #fecaca" }}>
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "#dc2626" }} />
+            <div>
+              <p className="text-sm font-semibold" style={{ color: "#991b1b" }}>
+                {ssoError === "not_registered" ? "Acesso não autorizado" : "Conta inativa"}
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: "#b91c1c" }}>
+                {ssoError === "not_registered"
+                  ? "Seu e-mail não está cadastrado no sistema. Solicite acesso ao administrador."
+                  : "Sua conta está inativa. Entre em contato com o administrador."}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── Tabs ── */}
         <div className="flex gap-1 p-1 mb-6" style={{ background: "#f1f5f9", borderRadius: 10 }}>

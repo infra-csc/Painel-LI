@@ -105,21 +105,15 @@ app.use(async (req, res, next) => {
     let user = await storage.getUserByEmail(email);
 
     if (!user) {
-      // Auto-registrar com dados do token
-      const bcrypt = await import("bcrypt");
-      const tempPassword = await bcrypt.hash(Math.random().toString(36), 10);
-      user = await storage.createUser({
-        email,
-        name: tokenName || email.split("@")[0],
-        password: tempPassword,
-        role: tokenRole as any,
-        status: "approved",
-        area: null,
-        isActive: true,
-      } as any);
-      console.log(`[SSO Middleware] Usuário auto-registrado: ${email}`);
-    } else if (user.status !== "approved") {
-      user = await storage.updateUser(user.id, { status: "approved" }) || user;
+      // Usuário não cadastrado no sistema — acesso negado
+      console.warn(`[SSO Middleware] Acesso negado — e-mail não cadastrado: ${email}`);
+      return res.redirect('/auth?sso_error=not_registered');
+    }
+
+    if (user.status !== "approved" || user.isActive === false) {
+      // Usuário inativo ou não aprovado — acesso negado
+      console.warn(`[SSO Middleware] Acesso negado — usuário inativo/não aprovado: ${email}`);
+      return res.redirect('/auth?sso_error=not_approved');
     }
 
     // Sincronizar nome do token.
