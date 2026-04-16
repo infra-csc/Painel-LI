@@ -2,7 +2,7 @@ import GridTeamInclusionForm from "@/components/forms/grid-team-inclusion-form";
 import TeamInclusionTable from "@/components/tables/team-inclusion-table";
 import { useAuth } from "@/hooks/use-auth";
 import { canView, canEdit } from "@/lib/permissions";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, Calendar, MapPin, Loader2 } from "lucide-react";
 import {
@@ -24,7 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -41,8 +41,23 @@ type EventFormData = z.infer<typeof eventSchema>;
 export default function TeamInclusion() {
   const { user } = useAuth();
   const [showEventModal, setShowEventModal] = useState(false);
+  const [tableReady, setTableReady] = useState(false);
   const { toast } = useToast();
+
+  // Adia a montagem da tabela pesada para a página aparecer imediatamente
+  useEffect(() => {
+    const id = setTimeout(() => setTableReady(true), 80);
+    return () => clearTimeout(id);
+  }, []);
+
   const queryClient = useQueryClient();
+
+  // Prefetch antecipado das queries mais pesadas para que já estejam em voo
+  // quando os componentes filhos montarem (não bloqueia a renderização)
+  useQuery({ queryKey: ["/api/team-inclusions"], staleTime: Infinity });
+  useQuery({ queryKey: ["/api/events"], staleTime: Infinity });
+  useQuery({ queryKey: ["/api/collaborators"], staleTime: Infinity });
+  useQuery({ queryKey: ["/api/functions"], staleTime: Infinity });
 
   const form = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
@@ -140,7 +155,14 @@ export default function TeamInclusion() {
 
       <div className="space-y-6">
         <GridTeamInclusionForm />
-        <TeamInclusionTable />
+        {tableReady ? (
+          <TeamInclusionTable />
+        ) : (
+          <div className="rounded-xl border border-slate-100 bg-white p-6 flex items-center gap-3 text-slate-400 text-sm">
+            <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+            Carregando lista de inclusões...
+          </div>
+        )}
       </div>
 
       {/* Modal para criar evento */}
