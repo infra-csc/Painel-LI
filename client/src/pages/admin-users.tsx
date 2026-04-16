@@ -336,14 +336,6 @@ export default function AdminUsers() {
                                 <span className="font-semibold text-slate-800 text-sm leading-tight" data-testid={`text-user-name-${u.id}`}>
                                   {u.name}
                                 </span>
-                                {u.mustChangePassword && (
-                                  <Tooltip>
-                                    <TooltipTrigger>
-                                      <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
-                                    </TooltipTrigger>
-                                    <TooltipContent>Deve trocar a senha no próximo login</TooltipContent>
-                                  </Tooltip>
-                                )}
                               </div>
                               {u.area && <p className="text-[11px] text-slate-400 mt-0.5">{u.area}</p>}
                             </div>
