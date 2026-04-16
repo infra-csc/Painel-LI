@@ -152,6 +152,130 @@ const upload = multer({
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
+  // ── Portal Norte — API de Gestão de Usuários ──────────────────────────────
+  // Endpoints chamados server-to-server pelo Portal Norte para gerenciar usuários.
+  // Autenticação: Authorization: Bearer <SSO_SECRET>
+  // CORS: permite qualquer origem (chamadas server-to-server)
+
+  const validatePortalSecret = (req: any, res: any): boolean => {
+    const authHeader = req.headers["authorization"] as string | undefined;
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    const secret = process.env.SSO_SECRET;
+    if (!secret || !token || token !== secret) {
+      res.status(401).json({ message: "Não autorizado" });
+      return false;
+    }
+    return true;
+  };
+
+  const normalizeRolePortal = (r?: string): string => {
+    if (!r) return "production";
+    const lower = r.toLowerCase().trim();
+    if (lower === "admin" || lower.includes("administrador")) return "admin";
+    if (lower === "financial" || lower.includes("financeiro") || lower.includes("rh")) return "financial";
+    if (lower === "purchasing" || lower.includes("compras") || lower.includes("viagem")) return "purchasing";
+    if (lower === "function_area" || lower.includes("função") || lower.includes("funcao") || lower.includes("function")) return "function_area";
+    if (lower === "production" || lower.includes("produç") || lower.includes("logist")) return "production";
+    const valid = ["admin", "production", "function_area", "purchasing", "financial"];
+    if (valid.includes(lower)) return lower;
+    return "production";
+  };
+
+  // GET /api/portal/users — listar todos os usuários
+  app.get("/api/portal/users", async (req, res) => {
+    if (!validatePortalSecret(req, res)) return;
+    try {
+      const allUsers = await storage.getUsers();
+      const safe = allUsers.map(u => ({
+        id: u.id, email: u.email, name: u.name, role: u.role,
+        area: u.area, status: u.status, isActive: u.isActive, createdAt: u.createdAt,
+      }));
+      return res.json(safe);
+    } catch (err) {
+      console.error("[Portal API] Erro ao listar usuários:", err);
+      return res.status(500).json({ message: "Erro interno" });
+    }
+  });
+
+  // POST /api/portal/users — criar usuário
+  app.post("/api/portal/users", async (req, res) => {
+    if (!validatePortalSecret(req, res)) return;
+    try {
+      const { email, name, role, area } = req.body;
+      if (!email || !name) return res.status(400).json({ message: "email e name são obrigatórios" });
+
+      const existing = await storage.getUserByEmail(email);
+      if (existing) return res.status(409).json({ message: "Usuário já existe", user: { id: existing.id, email: existing.email } });
+
+      const bcrypt = await import("bcrypt");
+      const tempPassword = await bcrypt.hash(Math.random().toString(36) + Date.now(), 10);
+
+      const user = await storage.createUser({
+        email: email.toLowerCase().trim(),
+        name,
+        password: tempPassword,
+        role: normalizeRolePortal(role) as any,
+        status: "approved",
+        area: area || null,
+        isActive: true,
+      } as any);
+
+      console.log(`[Portal API] Usuário criado: ${email}`);
+      return res.status(201).json({
+        id: user.id, email: user.email, name: user.name, role: user.role,
+        area: user.area, status: user.status, isActive: user.isActive,
+      });
+    } catch (err) {
+      console.error("[Portal API] Erro ao criar usuário:", err);
+      return res.status(500).json({ message: "Erro interno" });
+    }
+  });
+
+  // PATCH /api/portal/users/:email — atualizar usuário por email
+  app.patch("/api/portal/users/:email", async (req, res) => {
+    if (!validatePortalSecret(req, res)) return;
+    try {
+      const email = decodeURIComponent(req.params.email);
+      const user = await storage.getUserByEmail(email);
+      if (!user) return res.status(404).json({ message: "Usuário não encontrado" });
+
+      const { name, role, area, isActive, status } = req.body;
+      const updates: Record<string, any> = {};
+      if (name !== undefined) updates.name = name;
+      if (role !== undefined) updates.role = normalizeRolePortal(role);
+      if (area !== undefined) updates.area = area;
+      if (isActive !== undefined) updates.isActive = Boolean(isActive);
+      if (status !== undefined) updates.status = status;
+
+      const updated = await storage.updateUser(user.id, updates);
+      console.log(`[Portal API] Usuário atualizado: ${email}`);
+      return res.json({
+        id: updated!.id, email: updated!.email, name: updated!.name,
+        role: updated!.role, area: updated!.area, status: updated!.status, isActive: updated!.isActive,
+      });
+    } catch (err) {
+      console.error("[Portal API] Erro ao atualizar usuário:", err);
+      return res.status(500).json({ message: "Erro interno" });
+    }
+  });
+
+  // DELETE /api/portal/users/:email — desativar usuário por email
+  app.delete("/api/portal/users/:email", async (req, res) => {
+    if (!validatePortalSecret(req, res)) return;
+    try {
+      const email = decodeURIComponent(req.params.email);
+      const user = await storage.getUserByEmail(email);
+      if (!user) return res.status(404).json({ message: "Usuário não encontrado" });
+
+      await storage.updateUser(user.id, { isActive: false, status: "rejected" } as any);
+      console.log(`[Portal API] Usuário desativado: ${email}`);
+      return res.json({ message: "Usuário desativado com sucesso" });
+    } catch (err) {
+      console.error("[Portal API] Erro ao desativar usuário:", err);
+      return res.status(500).json({ message: "Erro interno" });
+    }
+  });
+
   // ── SSO Endpoint ──────────────────────────────────────────────────────────
   // O portal externo gera um JWT curto (ex: 5 min) e redireciona para:
   //   https://logistica.app/?portal_sso=<JWT>&portal_return=<URL>
