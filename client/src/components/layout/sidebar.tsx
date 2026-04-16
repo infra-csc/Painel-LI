@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { Menu, X } from "lucide-react";
-import logoImg from "@assets/image_1773859034680.png";
+import logoImg from "@assets/image_1776349526988.png";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 import { useState } from "react";

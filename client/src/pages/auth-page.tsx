@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useLocation, Redirect } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertTriangle } from "lucide-react";
-import norteLogo from "@assets/image_1770316785096.png";
+import norteLogo from "@assets/image_1776349526988.png";
 
 // ── Schemas ────────────────────────────────────────────────────────────────────
 
