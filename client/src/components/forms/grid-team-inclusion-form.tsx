@@ -755,34 +755,36 @@ export default function GridTeamInclusionForm() {
 
       if (newRows.length > 0) {
         setFunctionRows(prev => {
-          const updatedRows = [...prev];
-
-          newRows.forEach(newRow => {
-            const existingIndex = updatedRows.findIndex(existingRow => {
-              let existingFunctionId = (existingRow as any).originalFunctionId;
-              if (!existingFunctionId) {
-                if (existingRow.functionId.includes('-')) {
-                  const parts = existingRow.functionId.split('-');
-                  for (let i = 1; i <= parts.length; i++) {
-                    const testId = parts.slice(0, i).join('-');
-                    const foundFunction = functions?.find(f => f.id === testId);
-                    if (foundFunction) { existingFunctionId = testId; break; }
-                  }
-                } else {
-                  existingFunctionId = existingRow.functionId;
-                }
+          const getOriginalId = (row: FunctionRow): string => {
+            if ((row as any).originalFunctionId) return (row as any).originalFunctionId;
+            if (row.functionId.includes('-')) {
+              const parts = row.functionId.split('-');
+              for (let i = 1; i <= parts.length; i++) {
+                const testId = parts.slice(0, i).join('-');
+                if (functions?.find(f => f.id === testId)) return testId;
               }
-              return existingFunctionId === (newRow as any).originalFunctionId;
-            });
-
-            if (existingIndex >= 0) {
-              updatedRows[existingIndex] = newRow;
-            } else {
-              updatedRows.push(newRow);
             }
-          });
+            return row.functionId;
+          };
 
-          return updatedRows;
+          // IDs das funções que vieram no paste (em ordem do Excel)
+          const pastedOriginalIds = newRows.map(r => (r as any).originalFunctionId as string);
+
+          // Mapa de originalId → row atualizada pelo paste
+          const pastedMap = new Map<string, FunctionRow>();
+          newRows.forEach(r => pastedMap.set((r as any).originalFunctionId, r));
+
+          // Linhas que NÃO vieram no paste (mantém ao final)
+          const remaining = prev.filter(r => !pastedOriginalIds.includes(getOriginalId(r)));
+
+          // Montar lista final: ordem do Excel primeiro, depois o restante
+          const result: FunctionRow[] = [];
+          pastedOriginalIds.forEach(origId => {
+            result.push(pastedMap.get(origId)!);
+          });
+          result.push(...remaining);
+
+          return result;
         });
 
         // Fix #3: mostrar quais funções foram puladas
@@ -1264,7 +1266,7 @@ export default function GridTeamInclusionForm() {
                               aria-label="Selecionar todas"
                             />
                           </th>
-                          <th className="px-3 py-2 text-left border-r border-slate-200 text-[11px] uppercase tracking-widest text-slate-400 font-semibold min-w-32 sticky left-12 bg-slate-50 z-10">Função</th>
+                          <th className="px-3 py-2 text-left border-r border-slate-200 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-[180px] max-w-[180px] sticky left-12 bg-slate-50 z-10">Função</th>
                           <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-20">
                             <div className="flex items-center justify-center gap-1">
                               <Ticket className="w-3 h-3" />
@@ -1294,18 +1296,7 @@ export default function GridTeamInclusionForm() {
                         </tr>
                       </thead>
                       <tbody>
-                        {[...functionRows].sort((a, b) => {
-                          const aIndex = FUNCTION_ORDER.indexOf(a.functionName.toLowerCase());
-                          const bIndex = FUNCTION_ORDER.indexOf(b.functionName.toLowerCase());
-                          
-                          if (aIndex === -1 && bIndex === -1) {
-                            return a.functionName.localeCompare(b.functionName);
-                          }
-                          if (aIndex === -1) return 1;
-                          if (bIndex === -1) return -1;
-                          
-                          return aIndex - bIndex;
-                        }).map((row, rowIdx) => (
+                        {functionRows.map((row, rowIdx) => (
                           <tr key={row.functionId} className={`border-b border-slate-100 hover:bg-blue-50/40 transition-colors ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>
                             <td className="px-2 py-2 border-r border-slate-100 text-center">
                               <Checkbox
@@ -1315,8 +1306,8 @@ export default function GridTeamInclusionForm() {
                                 className="accent-blue-500"
                               />
                             </td>
-                            <td className="px-3 py-2 border-r border-slate-200 font-semibold text-slate-800 bg-slate-50 sticky left-12 z-10 whitespace-nowrap">
-                              {row.functionName}
+                            <td className="px-3 py-2 border-r border-slate-200 font-semibold text-slate-800 bg-slate-50 sticky left-12 z-10 max-w-[180px]">
+                              <span className="block truncate" title={row.functionName}>{row.functionName}</span>
                             </td>
                             <td className="px-2 py-2 border-r border-slate-100 text-center">
                               <Checkbox
