@@ -691,6 +691,7 @@ export default function TeamInclusionTable() {
                           <>
                             {isReadOnly(inclusion) ? (
                               // Para cancelados ou comprados, só mostrar botão de excluir se permitido
+                              // Compras e Produção podem cancelar mesmo após compra de passagem/hospedagem
                               <>
                                 {canDeleteInclusion(inclusion) && (
                                   <Button
@@ -702,6 +703,18 @@ export default function TeamInclusionTable() {
                                     title="Excluir registro"
                                   >
                                     <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                {canCancelEscalation(inclusion) && (user?.role === 'purchasing' || user?.role === 'production' || user?.role === 'admin') && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleCancelEscalation(inclusion.id)}
+                                    className="text-orange-600 hover:text-orange-900 h-8 w-8 p-0 shrink-0"
+                                    data-testid={`button-cancel-${inclusion.id}`}
+                                    title="Cancelar Escalação"
+                                  >
+                                    <Ban className="w-4 h-4" />
                                   </Button>
                                 )}
                               </>
