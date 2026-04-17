@@ -32,11 +32,11 @@ const PERMISSIONS: Record<string, Record<UserRole, AccessLevel>> = {
   
   // Compra de Passagem
   tickets: {
-    admin: 'edit',      // Administrador: acesso total
-    production: 'view', // Logística Interna: apenas visualização (inclui cards)
+    admin: 'edit',         // Administrador: acesso total
+    production: 'edit',    // Logística Interna: acesso total
     function_area: 'view', // Área Responsável por Funções: apenas visualização (inclui cards)
-    purchasing: 'edit', // Área de Compras/Viagens: acesso total
-    financial: 'view'   // Financial: apenas visualização
+    purchasing: 'edit',    // Área de Compras/Viagens: acesso total
+    financial: 'view'      // Financial: apenas visualização
   },
   
   // Funções (admin sempre pode gerenciar)
@@ -59,11 +59,11 @@ const PERMISSIONS: Record<string, Record<UserRole, AccessLevel>> = {
   
   // Hospedagem
   accommodations: {
-    admin: 'edit',      // Administrador: acesso total
-    production: 'view', // Logística Interna: apenas visualização (inclui cards)
+    admin: 'edit',         // Administrador: acesso total
+    production: 'edit',    // Logística Interna: acesso total
     function_area: 'view', // Área Responsável por Funções: apenas visualização (inclui cards)
-    purchasing: 'edit', // Área de Compras/Viagens: acesso total
-    financial: 'view'   // Financial: apenas visualização
+    purchasing: 'edit',    // Área de Compras/Viagens: acesso total
+    financial: 'view'      // Financial: apenas visualização
   }
 };
 
