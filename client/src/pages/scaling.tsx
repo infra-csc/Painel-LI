@@ -123,6 +123,8 @@ export default function Scaling() {
     if (user?.role === 'function_area') return true;
     // Usuários "Compras" (purchasing) veem todas as inclusões
     if (user?.role === 'purchasing') return true;
+    // Usuários "RH/Financeiro" (financial) veem todas as inclusões
+    if (user?.role === 'financial') return true;
     // Outros usuários veem apenas suas funções atribuídas como managers
     return userFunctionIds.includes(ti.functionId);
   }) || [];
