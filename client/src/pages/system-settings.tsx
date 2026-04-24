@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
-import { isAdmin } from "@/lib/permissions";
+import { isRhOrAdmin } from "@/lib/permissions";
 import type { Function as FunctionType, FunctionValue, PaymentCompany } from "@shared/schema";
 import { CnpjInput, validateCnpj } from "@/components/ui/cnpj-input";
 
@@ -436,7 +436,7 @@ export default function SystemSettingsPage() {
     setEditingFunctionId(null);
   }
 
-  if (!isAdmin(user)) {
+  if (!isRhOrAdmin(user)) {
     return (
       <div className="p-6">
         <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-center">
@@ -444,7 +444,7 @@ export default function SystemSettingsPage() {
             <ShieldAlert className="w-8 h-8 text-red-500" />
           </div>
           <h2 className="text-xl font-semibold text-gray-900">Acesso restrito</h2>
-          <p className="text-gray-500 max-w-xs">Apenas administradores podem acessar os valores padrão do sistema.</p>
+          <p className="text-gray-500 max-w-xs">Apenas administradores e RH podem acessar os valores padrão do sistema.</p>
         </div>
       </div>
     );
