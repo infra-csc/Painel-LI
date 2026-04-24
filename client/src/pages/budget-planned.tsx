@@ -106,6 +106,7 @@ export default function BudgetPlannedPage() {
   const [notAttendedModal, setNotAttendedModal] = useState<{ id?: string; budget?: any; name: string; functionName: string } | null>(null);
   const [notAttendedReason, setNotAttendedReason] = useState("");
   const [activeTab, setActiveTab] = useState<'overview' | 'sheet'>('overview');
+  const [isApplyingDefaults, setIsApplyingDefaults] = useState(false);
   const [modalTab, setModalTab] = useState<'custos' | 'observacoes' | 'historico'>('custos');
   const [modalViewMode, setModalViewMode] = useState(false);
   const [sheetInputValues, setSheetInputValues] = useState<Record<string, string>>({});
@@ -817,6 +818,26 @@ export default function BudgetPlannedPage() {
 
   const pendingCount = calculatedBudgets.filter(b => !sentToActual.has(b.inclusion.id) && !notAttendedKeys.has(`${b.inclusion.collaboratorId}|${b.inclusion.functionId}`)).length;
 
+  const handleApplyDefaults = async () => {
+    setIsApplyingDefaults(true);
+    try {
+      const res = await apiRequest("POST", "/api/budget-planned/apply-defaults", {});
+      const data = await res.json();
+      const count = data.updated ?? 0;
+      qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
+      toast({
+        title: count > 0 ? `${count} planejamento${count !== 1 ? 's' : ''} atualizado${count !== 1 ? 's' : ''}` : "Nenhum planejamento pendente",
+        description: count > 0
+          ? "Valores padrão aplicados aos orçamentos ainda não enviados."
+          : "Todos os orçamentos já foram enviados ou não há registros pendentes.",
+      });
+    } catch {
+      toast({ title: "Erro ao aplicar valores", variant: "destructive" });
+    } finally {
+      setIsApplyingDefaults(false);
+    }
+  };
+
   // Handler para edição inline na planilha
   const handleSheetEdit = (budget: CalculatedBudget, field: 'qtdDiarias' | 'valorDia' | 'valorDiaFds' | 'alimentacao' | 'alimentacaoUtil' | 'alimentacaoFds' | 'mobilidade', rawValue: string) => {
     const val = parseFloat(rawValue) || 0;
@@ -1029,17 +1050,40 @@ export default function BudgetPlannedPage() {
             <p className="text-xs text-gray-400">Cálculo automático das escalações confirmadas</p>
           </div>
         </div>
-        {selectedEventId && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-            <EventSearchSelect value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} />
-            {selectedEvent?.startDate && (
-              <span style={{ fontSize: 11, color: '#94A3B8', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Calendar className="w-3 h-3" style={{ color: '#94A3B8' }} />
-                {formatEventDate(selectedEvent.startDate)}
-              </span>
-            )}
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          {isRhOrAdmin(user) && (
+            <button
+              onClick={handleApplyDefaults}
+              disabled={isApplyingDefaults}
+              title="Aplica os valores padrão configurados em Sistema a todos os orçamentos ainda não enviados"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 13px', borderRadius: 9, fontSize: 12, fontWeight: 600,
+                border: '1.5px solid #D1D5DB', background: '#fff',
+                color: isApplyingDefaults ? '#9CA3AF' : '#374151',
+                cursor: isApplyingDefaults ? 'not-allowed' : 'pointer',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.06)', whiteSpace: 'nowrap',
+                transition: 'all .15s',
+              }}
+              onMouseEnter={e => { if (!isApplyingDefaults) { (e.currentTarget as HTMLElement).style.borderColor = '#3B4FE4'; (e.currentTarget as HTMLElement).style.color = '#3B4FE4'; } }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#D1D5DB'; (e.currentTarget as HTMLElement).style.color = isApplyingDefaults ? '#9CA3AF' : '#374151'; }}
+            >
+              <RefreshCw style={{ width: 13, height: 13, animation: isApplyingDefaults ? 'spin 1s linear infinite' : 'none' }} />
+              {isApplyingDefaults ? 'Atualizando...' : 'Atualizar padrões'}
+            </button>
+          )}
+          {selectedEventId && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+              <EventSearchSelect value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} />
+              {selectedEvent?.startDate && (
+                <span style={{ fontSize: 11, color: '#94A3B8', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Calendar className="w-3 h-3" style={{ color: '#94A3B8' }} />
+                  {formatEventDate(selectedEvent.startDate)}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Tela 1: Seleção de evento ── */}
