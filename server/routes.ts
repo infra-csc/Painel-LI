@@ -2317,23 +2317,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Budget Planned — Apply system defaults to all pending (not-yet-sent) records
   app.post("/api/budget-planned/apply-defaults", async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
-    const user = await storage.getUser(req.session.userId);
+    const userId = req.session?.userId || req.body?._userId;
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+    const user = await storage.getUser(userId);
     if (!user || (user.role !== "admin" && user.role !== "financial"))
       return res.status(403).json({ message: "Acesso negado" });
 
     try {
-      const [allPlanned, allActual, allInclusions, allFunctionValues, rawSettings] = await Promise.all([
+      const [allPlanned, allActual, allInclusions, allFunctionValues, rawSettings, allCollaborators] = await Promise.all([
         storage.getAllBudgetPlanned(),
         storage.getAllBudgetActual(),
         storage.getTeamInclusions(),
         storage.getAllFunctionValues(),
         storage.getSystemSettings(),
+        storage.getCollaborators(),
       ]);
 
       const cfg: Record<string, number> = {};
       for (const s of rawSettings) cfg[s.key] = parseInt(s.value);
 
+      // Casa defaults
       const D = {
         dailyWd:  cfg.default_daily_value_weekday  ?? cfg.default_daily_value ?? 5000,
         dailyWe:  cfg.default_daily_value_weekend   ?? cfg.default_daily_value ?? 5000,
@@ -2343,6 +2346,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         janSem:   cfg.default_weekday_dinner  ?? 4000,
         almFds:   cfg.default_weekend_lunch   ?? 4000,
         janFds:   cfg.default_weekend_dinner  ?? 4500,
+        // Freela-specific defaults
+        dailyWdFreela: cfg.default_daily_value_weekday_freela ?? cfg.default_daily_value_weekday ?? cfg.default_daily_value ?? 5000,
+        dailyWeFreela: cfg.default_daily_value_weekend_freela ?? cfg.default_daily_value_weekend ?? cfg.default_daily_value ?? 5000,
+        mobIdaFreela:  cfg.default_mobility_ida_freela  ?? cfg.default_mobility_ida  ?? Math.ceil((cfg.default_mobility ?? 2500) / 2),
+        mobVoltaFreela: cfg.default_mobility_volta_freela ?? cfg.default_mobility_volta ?? Math.floor((cfg.default_mobility ?? 2500) / 2),
+        almSemFreela:  cfg.default_weekday_lunch_freela ?? cfg.default_weekday_lunch ?? 3500,
+        janSemFreela:  cfg.default_weekday_dinner_freela ?? cfg.default_weekday_dinner ?? 4000,
+        almFdsFreela:  cfg.default_weekend_lunch_freela ?? cfg.default_weekend_lunch ?? 4000,
+        janFdsFreela:  cfg.default_weekend_dinner_freela ?? cfg.default_weekend_dinner ?? 4500,
       };
 
       // Build set of (eventId|collaboratorId|functionId) that already have a budget_actual
@@ -2376,16 +2388,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           planned.dailyQuantity
         );
 
+        const collaborator = allCollaborators.find(c => c.id === planned.collaboratorId);
+        const isFreela = !collaborator || collaborator.type === 'freela';
+
         const fv = allFunctionValues.find(f => f.functionId === planned.functionId);
-        const dailyWd = fv?.dailyValue || D.dailyWd;
-        const dailyWe = fv?.dailyValue || D.dailyWe;
-        const mobIda   = D.mobIda;
-        const mobVolta  = D.mobVolta;
+        const dailyWd = isFreela
+          ? (fv?.dailyValueFreela || D.dailyWdFreela)
+          : (fv?.dailyValue || D.dailyWd);
+        const dailyWe = isFreela
+          ? (fv?.dailyValueFreelaWeekend || fv?.dailyValueFreela || D.dailyWeFreela)
+          : (fv?.dailyValueWeekend || fv?.dailyValue || D.dailyWe);
+        const mobIda   = isFreela ? D.mobIdaFreela   : D.mobIda;
+        const mobVolta  = isFreela ? D.mobVoltaFreela  : D.mobVolta;
         const mob       = mobIda + mobVolta;
-        const almSem    = D.almSem;
-        const janSem    = D.janSem;
-        const almFds    = D.almFds;
-        const janFds    = D.janFds;
+        const almSem    = isFreela ? D.almSemFreela    : D.almSem;
+        const janSem    = isFreela ? D.janSemFreela    : D.janSem;
+        const almFds    = isFreela ? D.almFdsFreela    : D.almFds;
+        const janFds    = isFreela ? D.janFdsFreela    : D.janFds;
 
         const wdLunch   = almSem * weekdays;
         const wdDinner  = janSem * weekdays;
