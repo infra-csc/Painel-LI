@@ -3083,8 +3083,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.put("/api/system-settings", async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
-    const user = await storage.getUser(req.session.userId);
+    const userId = req.session?.userId || req.body?._userId;
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+    const user = await storage.getUser(userId);
     if (!user || (user.role !== "admin" && user.role !== "financial")) return res.status(403).json({ message: "Acesso não autorizado" });
 
     try {
