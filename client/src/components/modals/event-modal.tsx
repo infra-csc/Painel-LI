@@ -68,7 +68,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
   const form = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
     mode: "onBlur",
-    defaultValues: { name: "", location: "", startDate: "", endDate: "", status: "planejado", observations: "", paymentCompanyName: "", paymentCompanyCnpj: "" },
+    defaultValues: { name: "", location: "", startDate: "", endDate: "", status: "planejado", observations: "", paymentCompanyName: "TATICA MARKETING ESPORTIVO LTDA", paymentCompanyCnpj: "06.103.531/0001-96" },
   });
 
   const cName = form.watch("paymentCompanyName") ?? "";
@@ -90,7 +90,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
       });
       setObsLen(obs.length);
     } else {
-      form.reset({ name: "", location: "", startDate: "", endDate: "", status: "planejado", observations: "", paymentCompanyName: "", paymentCompanyCnpj: "" });
+      form.reset({ name: "", location: "", startDate: "", endDate: "", status: "planejado", observations: "", paymentCompanyName: "TATICA MARKETING ESPORTIVO LTDA", paymentCompanyCnpj: "06.103.531/0001-96" });
       setObsLen(0);
     }
   }, [event]);
