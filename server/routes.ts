@@ -1117,6 +1117,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Retorna quais tipos de colaborador (casa/freela) cada função possui em escalações
+  app.get("/api/function-collaborator-types", async (req, res) => {
+    try {
+      const rows = await db.execute(drizzleSql`
+        SELECT ti.function_id, array_agg(DISTINCT c.type) as types
+        FROM team_inclusions ti
+        JOIN collaborators c ON c.id = ti.collaborator_id
+        WHERE c.type IS NOT NULL
+        GROUP BY ti.function_id
+      `);
+      const result: Record<string, string[]> = {};
+      for (const row of rows.rows as any[]) {
+        result[row.function_id] = row.types ?? [];
+      }
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar tipos por função" });
+    }
+  });
+
   // Get functions for current user
   app.get("/api/functions/my-functions", async (req, res) => {
     try {

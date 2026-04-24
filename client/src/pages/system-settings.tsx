@@ -160,6 +160,14 @@ export default function SystemSettingsPage() {
     },
   });
 
+  const { data: fnCollaboratorTypes = {} } = useQuery<Record<string, string[]>>({
+    queryKey: ["/api/function-collaborator-types"],
+    queryFn: async () => {
+      const res = await fetch("/api/function-collaborator-types", { credentials: "include" });
+      return res.json();
+    },
+  });
+
   const { data: allFunctionValues = [] } = useQuery<FunctionValue[]>({
     queryKey: ["/api/function-values"],
     queryFn: async () => {
@@ -823,9 +831,17 @@ export default function SystemSettingsPage() {
 
           {/* ── Tabela: Diária por Função ── */}
           {(() => {
+            const isCasaType = (types: string[]) => types.some(t => t === 'casa' || t === 'local');
+            const isFreelaType = (types: string[]) => types.some(t => t === 'freela');
+
             const coordinator = allFunctions.find(fn => fn.responsibleArea === '__system__');
             const regularFns = allFunctions
               .filter(fn => fn.responsibleArea !== '__system__')
+              .filter(fn => {
+                const types = fnCollaboratorTypes[fn.id] ?? [];
+                if (types.length === 0) return true; // sem dados ainda → mostrar em ambas as abas
+                return activeTab === 'casa' ? isCasaType(types) : isFreelaType(types);
+              })
               .filter(fn => fn.name.toLowerCase().includes(functionSearch.toLowerCase()))
               .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
             const visibleFns = coordinator && !functionSearch
