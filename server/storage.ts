@@ -24,7 +24,7 @@ import {
   type Invoice, type InsertInvoice,
   type PaymentCompany, type InsertPaymentCompany
 } from "@shared/schema";
-import { eq, and, sql, isNull, ne } from "drizzle-orm";
+import { eq, and, sql, isNull, ne, exists } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -858,14 +858,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getEventsWithInclusions(): Promise<Event[]> {
-    // Buscar eventos que têm inclusões de equipe usando JOIN (excluídos nunca aparecem)
-    const eventsWithTeamInclusions = await db
-      .selectDistinct()
+    // Buscar eventos que têm inclusões usando EXISTS (sem duplicatas por JOIN)
+    return await db
+      .select()
       .from(events)
-      .innerJoin(teamInclusions, eq(events.id, teamInclusions.eventId))
-      .where(ne(events.status, "excluído"));
-    
-    return eventsWithTeamInclusions.map(row => (row as any).events ?? row) as Event[];
+      .where(
+        and(
+          ne(events.status, "excluído"),
+          exists(
+            db.select({ id: teamInclusions.id })
+              .from(teamInclusions)
+              .where(eq(teamInclusions.eventId, events.id))
+          )
+        )
+      );
   }
 
   async createEvent(eventData: InsertEvent): Promise<Event> {
