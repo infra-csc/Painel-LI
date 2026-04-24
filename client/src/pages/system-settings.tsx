@@ -166,6 +166,7 @@ export default function SystemSettingsPage() {
       const res = await fetch("/api/function-collaborator-types", { credentials: "include" });
       return res.json();
     },
+    staleTime: 0,
   });
 
   const { data: allFunctionValues = [] } = useQuery<FunctionValue[]>({
