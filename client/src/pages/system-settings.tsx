@@ -361,18 +361,34 @@ export default function SystemSettingsPage() {
   const handleApplyDefaults = async () => {
     setIsApplyingDefaults(true);
     try {
+      // 1. Salvar valores do formulário se houver alterações
+      if (hasAnyChanges) {
+        const values = form.getValues();
+        const isValid = await form.trigger();
+        if (!isValid) {
+          toast({ title: "Corrija os valores antes de aplicar", variant: "destructive" });
+          setIsApplyingDefaults(false);
+          return;
+        }
+        await saveMutation.mutateAsync(values);
+        if (dirtyFunctionCount > 0) {
+          await saveFunctionValuesMutation.mutateAsync();
+          queryClient.invalidateQueries({ queryKey: ["/api/function-values"] });
+        }
+      }
+      // 2. Aplicar padrões a todos os orçamentos pendentes
       const res = await apiRequest("POST", "/api/budget-planned/apply-defaults", {});
       const data = await res.json();
       const count = data.updated ?? 0;
       queryClient.invalidateQueries({ queryKey: ["/api/budget-planned"] });
       toast({
-        title: count > 0 ? `${count} planejamento${count !== 1 ? 's' : ''} atualizado${count !== 1 ? 's' : ''}` : "Nenhum planejamento pendente",
+        title: count > 0 ? `${count} planejamento${count !== 1 ? 's' : ''} atualizado${count !== 1 ? 's' : ''}` : "Valores salvos",
         description: count > 0
-          ? "Os valores padrão foram aplicados aos orçamentos ainda não enviados."
-          : "Todos os orçamentos já foram enviados ou não há registros pendentes.",
+          ? "Valores salvos e aplicados aos orçamentos pendentes."
+          : hasAnyChanges ? "Valores salvos. Nenhum orçamento pendente encontrado." : "Nenhum orçamento pendente encontrado.",
       });
     } catch {
-      toast({ title: "Erro ao aplicar valores", variant: "destructive" });
+      toast({ title: "Erro ao salvar ou aplicar valores", variant: "destructive" });
     } finally {
       setIsApplyingDefaults(false);
     }
@@ -625,10 +641,10 @@ export default function SystemSettingsPage() {
             }}
             onMouseEnter={e => { if (!isApplyingDefaults) { (e.currentTarget as HTMLElement).style.borderColor = '#3B4FE4'; (e.currentTarget as HTMLElement).style.color = '#3B4FE4'; } }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#D1D5DB'; (e.currentTarget as HTMLElement).style.color = isApplyingDefaults ? '#9CA3AF' : '#374151'; }}
-            title="Aplica os valores padrão atuais a todos os orçamentos planejados ainda não enviados"
+            title={hasAnyChanges ? "Salva os novos valores e aplica a todos os orçamentos ainda não enviados" : "Aplica os valores padrão atuais a todos os orçamentos planejados ainda não enviados"}
           >
             <RefreshCw style={{ width: 14, height: 14, animation: isApplyingDefaults ? 'spin 1s linear infinite' : 'none' }} />
-            {isApplyingDefaults ? 'Atualizando...' : 'Atualizar Planejado'}
+            {isApplyingDefaults ? 'Salvando...' : hasAnyChanges ? 'Salvar e Aplicar' : 'Atualizar Planejado'}
           </button>
         </div>
       </div>
