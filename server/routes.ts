@@ -369,9 +369,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user = await storage.updateUser(user.id, updates as any) || user;
       }
 
-      // Criar sessão
+      // Criar sessão (marcada como autenticada via SSO)
       req.session.userId = user.id;
       req.session.user = { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined };
+      (req.session as any).ssoAuthenticated = true;
 
       await new Promise<void>((resolve, reject) =>
         req.session.save((err) => (err ? reject(err) : resolve()))
@@ -401,6 +402,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userId = req.session.userId;
       if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+      // Exige autenticação via SSO — sessões de login direto (sem flag) são rejeitadas
+      if (!(req.session as any).ssoAuthenticated) {
+        req.session.destroy(() => {});
+        return res.status(401).json({ message: "Não autenticado", requirePortal: true });
+      }
+
       const user = await storage.getUser(userId);
       if (!user) {
         req.session.destroy(() => {});
