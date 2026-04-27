@@ -140,9 +140,10 @@ app.use(async (req, res, next) => {
       user = await storage.updateUser(user.id, updates as any) || user;
     }
 
-    // Criar sessão
+    // Criar sessão (marcada como autenticada via SSO)
     req.session.userId = user.id;
     req.session.user = { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined };
+    (req.session as any).ssoAuthenticated = true;
     if (portalReturn) (req.session as any).portalReturnUrl = portalReturn;
 
     await new Promise<void>((resolve, reject) =>
