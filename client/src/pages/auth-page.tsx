@@ -95,7 +95,7 @@ export default function AuthPage() {
             </p>
           </div>
           <a
-            href="https://portal.norte.com.br"
+            href="https://norte-app-hub.replit.app/"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-lg transition-all duration-150"
