@@ -404,7 +404,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!userId) return res.status(401).json({ message: "Não autenticado" });
 
       // Exige autenticação via SSO — sessões de login direto (sem flag) são rejeitadas
-      if (!(req.session as any).ssoAuthenticated) {
+      // Em desenvolvimento, o check é ignorado para facilitar testes locais
+      const isDev = process.env.NODE_ENV !== 'production';
+      if (!isDev && !(req.session as any).ssoAuthenticated) {
         req.session.destroy(() => {});
         return res.status(401).json({ message: "Não autenticado", requirePortal: true });
       }

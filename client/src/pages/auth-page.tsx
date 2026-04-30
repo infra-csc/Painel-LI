@@ -1,12 +1,31 @@
 import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useAuth } from "@/hooks/use-auth";
-import { Redirect } from "wouter";
-import { AlertTriangle, ExternalLink, Shield } from "lucide-react";
+import { useLocation, Redirect } from "wouter";
+import { AlertTriangle, ExternalLink, Shield, Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 import norteLogo from "@assets/image_1776349526988.png";
 
+const isDev = import.meta.env.DEV;
+
+const loginSchema = z.object({
+  email: z.string().email("E-mail inválido"),
+  password: z.string().min(1, "Senha é obrigatória"),
+});
+type LoginForm = z.infer<typeof loginSchema>;
+
 export default function AuthPage() {
-  const { user } = useAuth();
+  const [, setLocation] = useLocation();
+  const { user, login } = useAuth();
   const [ssoError, setSsoError] = useState<"not_registered" | "not_approved" | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const loginForm = useForm<LoginForm>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: "", password: "" },
+  });
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -16,9 +35,23 @@ export default function AuthPage() {
     }
   }, []);
 
-  if (user) {
-    return <Redirect to="/" />;
-  }
+  if (user) return <Redirect to="/" />;
+
+  const handleLogin = async (data: LoginForm) => {
+    setIsLoading(true);
+    try {
+      const success = await login(data.email, data.password);
+      if (success) {
+        setLocation("/");
+      } else {
+        loginForm.setError("password", { message: "Credenciais inválidas. Verifique e-mail e senha." });
+      }
+    } catch {
+      loginForm.setError("password", { message: "Erro interno do servidor." });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div
@@ -42,17 +75,10 @@ export default function AuthPage() {
               src={norteLogo}
               alt="Norte"
               className="object-contain object-left"
-              style={{
-                maxWidth: 160,
-                maxHeight: 54,
-                clipPath: "inset(0 0 25% 0)",
-              }}
+              style={{ maxWidth: 160, maxHeight: 54, clipPath: "inset(0 0 25% 0)" }}
             />
           </div>
-          <h1
-            className="mt-3 font-bold text-gray-900"
-            style={{ fontSize: 24, letterSpacing: "-0.02em" }}
-          >
+          <h1 className="mt-3 font-bold text-gray-900" style={{ fontSize: 24, letterSpacing: "-0.02em" }}>
             Logística Interna
           </h1>
           <p className="text-sm text-gray-400 mt-1">Sistema de gestão de eventos</p>
@@ -75,37 +101,100 @@ export default function AuthPage() {
           </div>
         )}
 
-        {/* Portal access notice */}
-        <div
-          className="flex flex-col items-center text-center gap-4 py-6 px-4 rounded-2xl"
-          style={{ background: "#f0f6ff", border: "1.5px solid #bfdbfe" }}
-        >
+        {isDev ? (
+          /* ── Modo Dev: formulário de login direto ── */
+          <>
+            <div className="flex items-center gap-2 mb-5 px-3 py-2 rounded-lg" style={{ background: "#fefce8", border: "1px solid #fde68a" }}>
+              <span className="text-xs font-semibold" style={{ color: "#92400e" }}>⚙ Modo desenvolvimento — login direto habilitado</span>
+            </div>
+            <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4" noValidate>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700" htmlFor="login-email">E-mail</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 pointer-events-none" />
+                  <input
+                    id="login-email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="seu@email.com"
+                    {...loginForm.register("email")}
+                    className="w-full pl-9 pr-4 py-2.5 text-sm border rounded-lg outline-none transition-colors"
+                    style={{ borderColor: loginForm.formState.errors.email ? "#ef4444" : "#e2e8f0", background: "#f8fafc" }}
+                    onFocus={(e) => (e.currentTarget.style.borderColor = "#6366f1")}
+                    onBlur={(e) => (e.currentTarget.style.borderColor = loginForm.formState.errors.email ? "#ef4444" : "#e2e8f0")}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700" htmlFor="login-password">Senha</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 pointer-events-none" />
+                  <input
+                    id="login-password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    {...loginForm.register("password")}
+                    className="w-full pl-9 pr-10 py-2.5 text-sm border rounded-lg outline-none transition-colors"
+                    style={{ borderColor: loginForm.formState.errors.password ? "#ef4444" : "#e2e8f0", background: "#f8fafc" }}
+                    onFocus={(e) => (e.currentTarget.style.borderColor = "#6366f1")}
+                    onBlur={(e) => (e.currentTarget.style.borderColor = loginForm.formState.errors.password ? "#ef4444" : "#e2e8f0")}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {loginForm.formState.errors.password?.message && (
+                  <p className="text-xs text-red-500">{loginForm.formState.errors.password.message}</p>
+                )}
+              </div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-white rounded-lg transition-all duration-150 mt-2"
+                style={{ background: isLoading ? "#93c5fd" : "#2563eb", cursor: isLoading ? "not-allowed" : "pointer" }}
+                onMouseEnter={(e) => { if (!isLoading) (e.currentTarget as HTMLElement).style.background = "#1d4ed8"; }}
+                onMouseLeave={(e) => { if (!isLoading) (e.currentTarget as HTMLElement).style.background = "#2563eb"; }}
+              >
+                {isLoading ? "Entrando..." : <> Entrar <ArrowRight className="w-4 h-4" /></>}
+              </button>
+            </form>
+          </>
+        ) : (
+          /* ── Produção: acesso exclusivo pelo portal ── */
           <div
-            className="flex items-center justify-center w-12 h-12 rounded-full"
-            style={{ background: "#2563eb" }}
+            className="flex flex-col items-center text-center gap-4 py-6 px-4 rounded-2xl"
+            style={{ background: "#f0f6ff", border: "1.5px solid #bfdbfe" }}
           >
-            <Shield className="w-6 h-6 text-white" />
+            <div className="flex items-center justify-center w-12 h-12 rounded-full" style={{ background: "#2563eb" }}>
+              <Shield className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-800" style={{ fontSize: 15 }}>
+                Acesso exclusivo pelo Portal
+              </p>
+              <p className="text-sm text-gray-500 mt-1 leading-relaxed">
+                O acesso a este sistema é feito apenas pelo Portal Norte. Use o link abaixo para entrar.
+              </p>
+            </div>
+            <a
+              href="https://norte-app-hub.replit.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-lg transition-all duration-150"
+              style={{ background: "#2563eb", textDecoration: "none" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#1d4ed8"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "#2563eb"; }}
+            >
+              Acessar o Portal Norte <ExternalLink className="w-4 h-4" />
+            </a>
           </div>
-          <div>
-            <p className="font-semibold text-gray-800" style={{ fontSize: 15 }}>
-              Acesso exclusivo pelo Portal
-            </p>
-            <p className="text-sm text-gray-500 mt-1 leading-relaxed">
-              O acesso a este sistema é feito apenas pelo Portal Norte. Use o link abaixo para entrar.
-            </p>
-          </div>
-          <a
-            href="https://norte-app-hub.replit.app/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-lg transition-all duration-150"
-            style={{ background: "#2563eb", textDecoration: "none" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#1d4ed8"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "#2563eb"; }}
-          >
-            Acessar o Portal Norte <ExternalLink className="w-4 h-4" />
-          </a>
-        </div>
+        )}
 
         {/* Footer */}
         <div className="mt-8 pt-6 border-t border-gray-100 text-center space-y-1.5">
