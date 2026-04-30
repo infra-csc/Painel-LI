@@ -1,5 +1,7 @@
 // Central rules for interaction with records based on their status
-export function isReadOnly(inclusion: { status?: string }): boolean {
+export function isReadOnly(inclusion: { status?: string }, user?: { role?: string } | null): boolean {
+  // Purchasing and admin can always edit, even after saving/purchasing
+  if (user?.role === 'purchasing' || user?.role === 'admin') return false;
   // Cannot edit after purchase (passagem_comprada, hospedagem_comprada, hospedagem_passagem_comprada) or if cancelled
   const purchasedStatuses = ['passagem_comprada', 'hospedagem_comprada', 'hospedagem_passagem_comprada', 'cancelado'];
   return purchasedStatuses.includes(inclusion.status || '');
