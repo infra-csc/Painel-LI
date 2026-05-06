@@ -723,8 +723,8 @@ export default function Events() {
 
       <EventModal open={isModalOpen} onClose={closeModal} event={editingEvent} />
       <ConfirmModal
-        isOpen={confirmState.open}
-        onClose={() => setConfirmState(p => ({ ...p, open: false }))}
+        open={confirmState.open}
+        onCancel={() => setConfirmState(p => ({ ...p, open: false }))}
         title={confirmState.title} message={confirmState.message}
         confirmLabel={confirmState.confirmLabel} variant={confirmState.variant}
         onConfirm={confirmState.onConfirm}
