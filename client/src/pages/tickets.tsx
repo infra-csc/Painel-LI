@@ -2931,20 +2931,32 @@ export default function Tickets() {
                               <Button
                                 onClick={async () => {
                                   const isVanModal = data.transportType === 'van';
+                                  const isRodoModal = data.transportType === 'rodoviario';
 
-                                  // Validar campos obrigatórios
-                                  const baseFields = isVanModal
-                                    ? ['purchaseOrderNumber']
-                                    : ['value', 'departureAirport', 'destinationAirport', 'purchaseOrderNumber', 'actualDepartureDate', 'actualDepartureTime'];
-                                  const requiredFieldsModal = (!isVanModal && !data.isOneWay) ? [...baseFields, 'actualReturnDate', 'actualReturnTime'] : baseFields;
+                                  // Validar campos obrigatórios por tipo de transporte
+                                  let baseFields: string[];
+                                  if (isVanModal) {
+                                    baseFields = ['purchaseOrderNumber'];
+                                  } else if (isRodoModal) {
+                                    // Rodoviária: apenas terminais e datas obrigatórios (valor e bilhete são opcionais)
+                                    baseFields = ['departureAirport', 'actualDepartureDate', 'actualDepartureTime'];
+                                  } else {
+                                    // Aéreo: todos os campos obrigatórios
+                                    baseFields = ['value', 'departureAirport', 'destinationAirport', 'purchaseOrderNumber', 'actualDepartureDate', 'actualDepartureTime'];
+                                  }
+                                  const requiredFieldsModal = (!isVanModal && !data.isOneWay)
+                                    ? [...baseFields, 'actualReturnDate', 'actualReturnTime']
+                                    : baseFields;
                                   
-                                  const missingModalFields = requiredFieldsModal.filter(field => !data[field] || data[field] === '');
+                                  const missingModalFields = requiredFieldsModal.filter(field => !data[field as keyof typeof data] || data[field as keyof typeof data] === '');
                                   if (missingModalFields.length > 0) {
                                     toast({
                                       title: "Erro",
                                       description: isVanModal
                                         ? "Preencha o campo Nome da Empresa"
-                                        : `Preencha todos os campos obrigatórios (${data.transportType === 'rodoviario' ? 'Rodoviária' : 'Aeroporto'} Ida/Volta, datas e horários)`,
+                                        : isRodoModal
+                                        ? "Preencha os campos obrigatórios: Rodoviária Origem (ida), datas e horários"
+                                        : "Preencha todos os campos obrigatórios (Aeroporto Ida/Volta, valor, LOC, datas e horários)",
                                       variant: "destructive",
                                     });
                                     return;
