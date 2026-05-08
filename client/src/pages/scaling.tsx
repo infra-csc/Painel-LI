@@ -1622,7 +1622,8 @@ export default function Scaling() {
                         {/* Col 2: Colaborador */}
                         <div className="space-y-4">
                           <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4">
-                            <div className="flex items-center gap-1.5 mb-2">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-1.5">
                               <span className={lbl} style={{marginBottom:0}}>Colaborador <span className="text-red-400">*</span></span>
                               {(() => {
                                 const ticketPurchased = selectedInclusion.needsTicket
@@ -1656,6 +1657,23 @@ export default function Scaling() {
                                       )}
                                     </div>
                                   </div>
+                                );
+                              })()}
+                              </div>
+                              {/* Badge tipo do colaborador — lado direito do header */}
+                              {(() => {
+                                const collab = collaborators?.find(c => c.id === (modalData.collaboratorId || selectedInclusion.collaboratorId));
+                                if (!collab) return null;
+                                const typeMap: Record<string, { label: string; cls: string }> = {
+                                  casa:   { label: 'Casa',   cls: 'bg-blue-50 text-blue-700 border-blue-100' },
+                                  freela: { label: 'Freela', cls: 'bg-violet-50 text-violet-700 border-violet-100' },
+                                  local:  { label: 'Local',  cls: 'bg-orange-50 text-orange-700 border-orange-100' },
+                                };
+                                const t = typeMap[collab.type] ?? { label: collab.type ?? '—', cls: 'bg-slate-100 text-slate-600 border-slate-200' };
+                                return (
+                                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border shrink-0 ${t.cls}`}>
+                                    {t.label}
+                                  </span>
                                 );
                               })()}
                             </div>
@@ -1706,9 +1724,6 @@ export default function Scaling() {
                                   <div className="text-[13px] font-bold text-slate-800 leading-tight truncate">{collab.name || '—'}</div>
                                   <div className="text-[11px] text-slate-400 mt-0.5">Colaborador cadastrado</div>
                                 </div>
-                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border shrink-0 ${t.cls}`}>
-                                  {t.label}
-                                </span>
                               </div>
                             );
                           })()}
