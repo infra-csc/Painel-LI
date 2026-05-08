@@ -1907,42 +1907,13 @@ export default function Scaling() {
                           </div>
 
                           {selectedTicket.transportType === 'van' ? (
-                            /* ── Van ── */
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
-                                <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 mb-1">🚐 Informações da Van</div>
-                                {selectedTicket.departureCityOrigin && (
-                                  <div><div className="text-[10px] text-slate-400 uppercase tracking-wider">Local de Saída</div><div className="text-sm font-medium text-slate-700">{selectedTicket.departureCityOrigin}</div></div>
-                                )}
-                                {selectedTicket.departureCityDestination && (
-                                  <div><div className="text-[10px] text-slate-400 uppercase tracking-wider">Local de Destino</div><div className="text-sm font-medium text-slate-700">{selectedTicket.departureCityDestination}</div></div>
-                                )}
-                                {selectedTicket.actualDepartureDate && (
-                                  <div><div className="text-[10px] text-slate-400 uppercase tracking-wider">Data de Saída</div><div className="text-sm font-medium text-slate-700">{formatDate(selectedTicket.actualDepartureDate)}</div></div>
-                                )}
-                                {selectedTicket.actualDepartureTime && (
-                                  <div><div className="text-[10px] text-slate-400 uppercase tracking-wider">Horário de Saída</div><div className="text-sm font-bold text-slate-700">{selectedTicket.actualDepartureTime}</div></div>
-                                )}
-                                {selectedTicket.returnCityOrigin && (
-                                  <div><div className="text-[10px] text-slate-400 uppercase tracking-wider">Local de Retorno Origem</div><div className="text-sm font-medium text-slate-700">{selectedTicket.returnCityOrigin}</div></div>
-                                )}
-                                {selectedTicket.returnCityDestination && (
-                                  <div><div className="text-[10px] text-slate-400 uppercase tracking-wider">Local de Retorno Destino</div><div className="text-sm font-medium text-slate-700">{selectedTicket.returnCityDestination}</div></div>
-                                )}
-                                {selectedTicket.actualReturnDate && (
-                                  <div><div className="text-[10px] text-slate-400 uppercase tracking-wider">Data de Retorno</div><div className="text-sm font-medium text-slate-700">{formatDate(selectedTicket.actualReturnDate)}</div></div>
-                                )}
-                                {selectedTicket.actualReturnTime && (
-                                  <div><div className="text-[10px] text-slate-400 uppercase tracking-wider">Horário de Retorno</div><div className="text-sm font-bold text-slate-700">{selectedTicket.actualReturnTime}</div></div>
-                                )}
+                            /* ── Van: só observações se preenchidas ── */
+                            selectedTicket.ticketObservations ? (
+                              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                                <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 mb-2">Observações</div>
+                                <div className="text-sm text-slate-700 whitespace-pre-line">{selectedTicket.ticketObservations}</div>
                               </div>
-                              {selectedTicket.ticketObservations && (
-                                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-                                  <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 mb-2">Observações</div>
-                                  <div className="text-sm text-slate-700 whitespace-pre-line">{selectedTicket.ticketObservations}</div>
-                                </div>
-                              )}
-                            </div>
+                            ) : null
                           ) : (
                             /* ── Aéreo / Rodoviário: IDA + VOLTA ── */
                             <div className="grid grid-cols-2 gap-4">
