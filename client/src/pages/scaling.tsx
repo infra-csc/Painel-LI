@@ -1602,25 +1602,36 @@ export default function Scaling() {
                           <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4">
                             <div className="flex items-center gap-1.5 mb-2">
                               <span className={lbl} style={{marginBottom:0}}>Colaborador <span className="text-red-400">*</span></span>
-                              {!canEditCollaborator(selectedInclusion) && (() => {
+                              {(() => {
                                 const ticketPurchased = selectedInclusion.needsTicket
                                   ? tickets?.some(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null) : false;
                                 const accommodationReserved = selectedInclusion.needsAccommodation
                                   ? accommodations?.some(a => a.teamInclusionId === selectedInclusion.id) : false;
-                                const reason = ticketPurchased && accommodationReserved
+                                const blocked = !canEditCollaborator(selectedInclusion);
+                                const blockReason = ticketPurchased && accommodationReserved
                                   ? "passagem comprada e hospedagem reservada"
                                   : ticketPurchased ? "passagem já comprada"
                                   : accommodationReserved ? "hospedagem já reservada"
                                   : null;
-                                const tooltipText = reason
-                                  ? `Troca de colaborador bloqueada — ${reason}.\n\nA substituição só é possível enquanto não houver passagem comprada nem hospedagem reservada vinculada a esta escalação.`
-                                  : "Você não tem permissão para alterar o colaborador nesta escalação.";
                                 return (
                                   <div className="relative group inline-flex items-center">
                                     <HelpCircle className="w-3.5 h-3.5 text-slate-400 hover:text-[#2563EB] cursor-help transition-colors" />
-                                    <div className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 z-50 w-64 bg-slate-800 text-white text-[11px] leading-relaxed rounded-xl px-3 py-2.5 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-pre-line">
-                                      {tooltipText}
-                                      <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800" />
+                                    <div className="pointer-events-none absolute left-0 top-6 z-[9999] w-72 bg-slate-800 text-white rounded-xl px-4 py-3 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <div className="absolute left-3 -top-1.5 border-[6px] border-transparent border-b-slate-800" />
+                                      <div className="text-[12px] font-bold text-white mb-1.5">Troca de colaborador</div>
+                                      <div className="text-[11px] text-slate-300 leading-relaxed">
+                                        A alteração é liberada enquanto não houver passagem comprada ou hospedagem reservada vinculada a esta escalação.
+                                      </div>
+                                      {blocked && blockReason && (
+                                        <div className="mt-2 pt-2 border-t border-slate-600 text-[11px] text-amber-300 font-medium">
+                                          Bloqueio atual: {blockReason}.
+                                        </div>
+                                      )}
+                                      {blocked && !blockReason && (
+                                        <div className="mt-2 pt-2 border-t border-slate-600 text-[11px] text-amber-300 font-medium">
+                                          Você não tem permissão para alterar nesta escalação.
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 );
