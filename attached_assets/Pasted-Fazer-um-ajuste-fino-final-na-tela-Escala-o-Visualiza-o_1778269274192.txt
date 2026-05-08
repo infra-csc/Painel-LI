@@ -1,0 +1,84 @@
+Fazer um ajuste fino final na tela “Escalação - Visualização” para deixar com aparência mais premium e fechar o layout em nível 10/10.
+
+Não refazer a tela inteira.
+Não mudar lógica.
+Não mudar paleta.
+Não alterar filtros ou regras.
+Apenas refinar visualmente os cards de resumo e pequenos detalhes da tabela.
+
+1. Cards “Sem Passagem” e “Com Transporte”
+
+Os cards melhoraram, mas ainda estão com muito espaço vazio e o conteúdo parece um pouco solto.
+
+Ajustar os cards para ficarem mais profissionais:
+
+- Alinhar melhor o conteúdo interno
+- Deixar ícone, título, badge numérico e subtítulo em uma composição mais clara
+- Evitar que o conteúdo fique perdido no centro do card
+- Usar uma estrutura mais parecida com:
+  - ícone à esquerda
+  - título e badge na mesma linha
+  - subtítulo logo abaixo
+  - check de selecionado no canto superior direito
+
+2. Estado ativo e inativo dos cards
+
+Melhorar a diferença visual entre card selecionado e card não selecionado.
+
+Card selecionado:
+- borda colorida mais evidente
+- leve fundo na cor correspondente
+- check no canto superior direito
+
+Card não selecionado:
+- borda neutra
+- fundo branco ou cinza muito claro
+- sem linha colorida forte no topo
+- sem parecer ativo
+
+Importante:
+Se “Sem Passagem” estiver selecionado, apenas ele deve parecer ativo.
+Se “Com Transporte” estiver selecionado, apenas ele deve parecer ativo.
+
+Hoje o card inativo ainda parece ter destaque demais.
+
+3. Melhorar tabela com acabamento final
+
+Fazer pequenos refinamentos na tabela:
+
+- Dar um pouco mais de destaque ao ícone de visualizar, sem exagerar
+- Melhorar hover da linha
+- Deixar o chip do evento mais elegante e alinhado
+- Melhorar espaçamento entre função e evento
+- Melhorar alinhamento dos badges de status
+- Manter a tabela limpa e compacta
+
+4. Coluna Status
+
+Na coluna Status, melhorar a leitura dos badges.
+
+Quando houver status da escalação e transporte, deixar visualmente claro:
+- Escalação: Escalado / Pendente / Cancelado
+- Transporte: Van / Aéreo / Rodoviário / Hotel, quando existir
+
+Evitar que os badges fiquem parecendo soltos ou desalinhados.
+
+5. Acabamento geral
+
+Ajustar:
+- espaçamentos
+- alinhamentos
+- proporção dos cards
+- consistência dos ícones
+- hierarquia visual
+
+Objetivo:
+A tela deve parecer mais madura, corporativa e finalizada, sem mudar a estrutura atual.
+
+Critérios de aceite:
+- Os cards ficam mais equilibrados e menos vazios
+- Fica muito claro qual card está selecionado
+- O card inativo não parece ativo
+- A tabela ganha acabamento visual sem ficar pesada
+- A tela mantém a paleta atual
+- O resultado final fica com aparência 10/10

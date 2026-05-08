@@ -1451,10 +1451,10 @@ export default function Scaling() {
       <Dialog open={showModal} onOpenChange={setShowModal} modal={!showSuccessModal}>
         <DialogContent className="!max-w-[1180px] w-[95vw] max-h-[88vh] !flex !flex-col p-0 gap-0 overflow-hidden">
           {/* ── Header ── */}
-          <div className="px-6 pt-5 pb-4 border-b border-slate-100 shrink-0 flex items-center gap-3 pr-12">
+          <div className="px-6 pt-5 pb-4 border-b border-slate-100 shrink-0 flex items-center gap-4 pr-14" style={{ background: 'linear-gradient(to right, #f8faff 0%, #ffffff 60%)' }}>
             <div
-              className="w-10 h-10 rounded-[10px] flex items-center justify-center text-white shrink-0"
-              style={{ background: '#2563EB', boxShadow: '0 4px 12px #2563EB40' }}
+              className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0"
+              style={{ background: 'linear-gradient(135deg, #3b7ef8 0%, #1d4ed8 100%)', boxShadow: '0 4px 16px #2563EB30' }}
             >
               <Users style={{ width: 20, height: 20 }} />
             </div>
@@ -1463,20 +1463,22 @@ export default function Scaling() {
                 Detalhes da Escalação
               </DialogTitle>
               <div className="text-[12px] text-slate-400 mt-0.5 truncate">
-                #{selectedInclusion?.inclusionNumber || 'N/A'} · {selectedInclusion ? getCollaboratorName(selectedInclusion.collaboratorId) : ''}
+                <span className="font-mono font-bold text-slate-500">#{selectedInclusion?.inclusionNumber || 'N/A'}</span>
+                <span className="mx-1.5 text-slate-300">·</span>
+                {selectedInclusion ? getCollaboratorName(selectedInclusion.collaboratorId) : ''}
               </div>
             </div>
             {selectedInclusion && (
               selectedInclusion.status === 'cancelado' ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-500 text-[11px] font-bold rounded-full shrink-0">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-500 text-[11px] font-bold rounded-full shrink-0 border border-slate-200">
                   <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Cancelado
                 </span>
               ) : isEscalated(selectedInclusion) ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 text-green-700 text-[11px] font-bold rounded-full shrink-0">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 text-[11px] font-bold rounded-full shrink-0 border border-green-200">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Escalado
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 text-orange-600 text-[11px] font-bold rounded-full shrink-0">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-600 text-[11px] font-bold rounded-full shrink-0 border border-orange-200">
                   <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />Pendente
                 </span>
               )
@@ -1588,18 +1590,32 @@ export default function Scaling() {
                                 </span>
                               )}
                             </div>
-                            <div className="flex flex-wrap gap-1.5 pt-1">
-                              {selectedInclusion.needsTicket && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-full border border-blue-100">
-                                  <Plane style={{ width: 9, height: 9 }} />Passagem
-                                </span>
-                              )}
-                              {selectedInclusion.needsAccommodation && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-600 text-[10px] font-bold rounded-full border border-purple-100">
-                                  🏨 Hospedagem
-                                </span>
-                              )}
-                            </div>
+                            {(selectedInclusion.needsTicket || selectedInclusion.needsAccommodation) && (
+                              <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
+                                {selectedInclusion.needsTicket && (
+                                  selectedTicket ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-lg border border-blue-100">
+                                      <Plane style={{ width: 9, height: 9 }} />Passagem registrada
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-600 text-[10px] font-bold rounded-lg border border-amber-200">
+                                      <Plane style={{ width: 9, height: 9 }} />Passagem pendente
+                                    </span>
+                                  )
+                                )}
+                                {selectedInclusion.needsAccommodation && (
+                                  accommodation ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 text-[10px] font-bold rounded-lg border border-purple-100">
+                                      🏨 Hospedagem registrada
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-600 text-[10px] font-bold rounded-lg border border-amber-200">
+                                      🏨 Hospedagem pendente
+                                    </span>
+                                  )
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -1669,26 +1685,39 @@ export default function Scaling() {
                                 )}
                               </div>
                             )}
-                            {/* Tipo do colaborador */}
-                            {(() => {
-                              const collab = collaborators?.find(c => c.id === (modalData.collaboratorId || selectedInclusion.collaboratorId));
-                              if (!collab) return null;
-                              const typeMap: Record<string, { label: string; cls: string }> = {
-                                casa:   { label: 'Casa',   cls: 'bg-blue-50 text-blue-700 border-blue-100' },
-                                freela: { label: 'Freela', cls: 'bg-violet-50 text-violet-700 border-violet-100' },
-                                local:  { label: 'Local',  cls: 'bg-orange-50 text-orange-700 border-orange-100' },
-                              };
-                              const t = typeMap[collab.type] ?? { label: collab.type, cls: 'bg-slate-100 text-slate-600 border-slate-200' };
-                              return (
-                                <div className="mt-2.5">
-                                  <div className={lbl}>Tipo</div>
+                          </div>
+                          {/* Card: Dados do colaborador */}
+                          {(() => {
+                            const collab = collaborators?.find(c => c.id === (modalData.collaboratorId || selectedInclusion.collaboratorId));
+                            if (!collab) return null;
+                            const typeMap: Record<string, { label: string; cls: string }> = {
+                              casa:   { label: 'Casa',   cls: 'bg-blue-50 text-blue-700 border-blue-100' },
+                              freela: { label: 'Freela', cls: 'bg-violet-50 text-violet-700 border-violet-100' },
+                              local:  { label: 'Local',  cls: 'bg-orange-50 text-orange-700 border-orange-100' },
+                            };
+                            const t = typeMap[collab.type] ?? { label: collab.type, cls: 'bg-slate-100 text-slate-600 border-slate-200' };
+                            const nameParts = collab.name.trim().split(/\s+/);
+                            const initials = nameParts.length === 1 ? nameParts[0].slice(0, 2).toUpperCase() : (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+                            return (
+                              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                                <div className={lbl + " mb-3"}>Dados do colaborador</div>
+                                <div className="flex items-center gap-3 mb-3.5">
+                                  <div className="w-10 h-10 rounded-xl bg-[#2563EB] text-white flex items-center justify-center text-[13px] font-black shrink-0" style={{ boxShadow: '0 2px 8px #2563EB30' }}>{initials}</div>
+                                  <div>
+                                    <div className="text-[13px] font-bold text-slate-800 leading-tight">{collab.name}</div>
+                                    <div className="text-[11px] text-slate-400 mt-0.5">Colaborador cadastrado</div>
+                                  </div>
+                                </div>
+                                <div className="pt-3 border-t border-slate-100">
+                                  <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-1.5">Tipo do colaborador</div>
                                   <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border ${t.cls}`}>
                                     {t.label}
                                   </span>
+                                  <div className="text-[10px] text-slate-400 italic mt-2.5">Informação vinda do cadastro do colaborador.</div>
                                 </div>
-                              );
-                            })()}
-                          </div>
+                              </div>
+                            );
+                          })()}
                         </div>
 
                         {/* Col 3: Período de Trabalho */}
@@ -1813,20 +1842,21 @@ export default function Scaling() {
                     {/* ══ ABA: PASSAGEM ══ */}
                     <TabsContent value="passagem" className="m-0 p-6">
                       {!selectedInclusion.needsTicket ? (
-                        <div className="flex flex-col items-center justify-center py-16 text-center">
-                          <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
-                            <Plane className="w-6 h-6 text-slate-300" />
+                        <div className="flex flex-col items-center justify-center py-10 text-center">
+                          <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center mb-3">
+                            <Plane className="w-5 h-5 text-slate-300" />
                           </div>
-                          <div className="text-sm font-medium text-slate-400">Esta escalação não requer passagem.</div>
+                          <div className="text-[13px] font-semibold text-slate-500 mb-1">Sem passagem necessária</div>
+                          <div className="text-[11px] text-slate-400">Esta escalação não requer passagem aérea, rodoviária ou van.</div>
                         </div>
                       ) : !selectedTicket ? (
                         <div className="space-y-4">
-                          <div className="flex flex-col items-center justify-center py-10 text-center">
-                            <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center mb-4">
-                              <Plane className="w-6 h-6 text-amber-300" />
+                          <div className="flex flex-col items-center justify-center py-8 text-center">
+                            <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-dashed border-amber-200 flex items-center justify-center mb-3">
+                              <Plane className="w-5 h-5 text-amber-300" />
                             </div>
-                            <div className="text-sm font-semibold text-slate-600 mb-1">Nenhuma passagem registrada</div>
-                            <div className="text-xs text-slate-400">para esta escalação</div>
+                            <div className="text-[13px] font-semibold text-slate-600 mb-1">Nenhuma passagem registrada</div>
+                            <div className="text-[11px] text-slate-400">Aguardando registro de passagem para esta escalação.</div>
                           </div>
                           {/* Datas Sugeridas */}
                           <div className="border border-blue-200 rounded-2xl overflow-hidden">
@@ -1863,24 +1893,30 @@ export default function Scaling() {
                       ) : (
                         <div className="space-y-4">
                           {/* Resumo Superior */}
-                          <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4">
-                            <div className="flex flex-wrap items-center gap-6">
+                          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                            <div className="border-b border-slate-100 px-4 py-3 flex items-center gap-3" style={{ background: 'linear-gradient(to right, #f0f7ff, #ffffff)' }}>
+                              <span className="text-xl">
+                                {selectedTicket.transportType === 'van' ? '🚐' : selectedTicket.transportType === 'rodoviario' ? '🚌' : '✈️'}
+                              </span>
                               <div>
-                                <div className={lbl}>Tipo</div>
-                                <div className="text-[13px] font-semibold text-slate-700">
-                                  {selectedTicket.transportType === 'van' ? '🚐 Van' : selectedTicket.transportType === 'rodoviario' ? '🚌 Rodoviária' : '✈️ Aéreo'}
+                                <div className="text-[12px] font-black text-[#2563EB] uppercase tracking-[0.12em]">
+                                  {selectedTicket.transportType === 'van' ? 'Van' : selectedTicket.transportType === 'rodoviario' ? 'Transporte Rodoviário' : 'Passagem Aérea'}
                                 </div>
+                                {selectedTicket.purchaseDate && (
+                                  <div className="text-[11px] text-slate-400 mt-0.5">Comprada em {formatDate(selectedTicket.purchaseDate)}</div>
+                                )}
                               </div>
                               {selectedTicket.purchaseDate && (
-                                <div>
-                                  <div className={lbl}>Data da Compra</div>
-                                  <div className="text-[13px] font-semibold text-slate-700">{formatDate(selectedTicket.purchaseDate)}</div>
-                                </div>
+                                <span className="ml-auto inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 text-[10px] font-bold rounded-full border border-green-200">
+                                  ✓ Comprada
+                                </span>
                               )}
+                            </div>
+                            <div className="px-4 py-3 flex flex-wrap gap-6">
                               {selectedTicket.purchaseOrderNumber && (
                                 <div>
                                   <div className={lbl}>{selectedTicket.transportType === 'van' ? 'Empresa / OC' : 'Ordem de Compra'}</div>
-                                  <div className="text-[13px] font-semibold text-slate-700">{selectedTicket.purchaseOrderNumber}</div>
+                                  <div className="text-[13px] font-bold text-slate-700 font-mono">{selectedTicket.purchaseOrderNumber}</div>
                                 </div>
                               )}
                               {selectedTicket.cardLastFourDigits && (
@@ -2073,63 +2109,66 @@ export default function Scaling() {
                     {/* ══ ABA: HOSPEDAGEM ══ */}
                     <TabsContent value="hospedagem" className="m-0 p-6">
                       {!selectedInclusion.needsAccommodation ? (
-                        <div className="flex flex-col items-center justify-center py-16 text-center">
-                          <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4 text-2xl">🏨</div>
-                          <div className="text-sm font-medium text-slate-400">Esta escalação não requer hospedagem.</div>
+                        <div className="flex flex-col items-center justify-center py-10 text-center">
+                          <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center mb-3 text-xl">🏨</div>
+                          <div className="text-[13px] font-semibold text-slate-500 mb-1">Sem hospedagem necessária</div>
+                          <div className="text-[11px] text-slate-400">Esta escalação não requer reserva de hotel.</div>
                         </div>
                       ) : !accommodation ? (
-                        <div className="flex flex-col items-center justify-center py-16 text-center">
-                          <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center mb-4 text-2xl">🏨</div>
-                          <div className="text-sm font-semibold text-slate-600 mb-1">Nenhuma hospedagem registrada</div>
-                          <div className="text-xs text-slate-400">para esta escalação</div>
+                        <div className="flex flex-col items-center justify-center py-10 text-center">
+                          <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-dashed border-amber-200 flex items-center justify-center mb-3 text-xl">🏨</div>
+                          <div className="text-[13px] font-semibold text-slate-600 mb-1">Nenhuma hospedagem registrada</div>
+                          <div className="text-[11px] text-slate-400">Aguardando registro de hospedagem para esta escalação.</div>
                         </div>
                       ) : (
                         <div className="space-y-4">
-                          <div className="bg-green-50 border border-green-100 rounded-2xl p-5">
-                            <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                            <div className="border-b border-green-100 px-4 py-3 flex items-center gap-3" style={{ background: 'linear-gradient(to right, #f0fdf4, #ffffff)' }}>
+                              <span className="text-xl">🏨</span>
                               <div>
-                                <div className={lbl}>Hotel</div>
-                                <div className="text-[15px] font-bold text-slate-800">{accommodation.hotelName || 'Não informado'}</div>
-                              </div>
-                              {accommodation.hotelLocation && (
-                                <div>
-                                  <div className={lbl}>Localização</div>
-                                  <div className={val}>{accommodation.hotelLocation}</div>
-                                </div>
-                              )}
-                              <div>
-                                <div className={lbl}>Check-in</div>
-                                <div className={val}>
-                                  {accommodation.checkInDate ? formatDateWithWeekday(accommodation.checkInDate) : 'Não informado'}
-                                  {accommodation.checkInTime && ` às ${accommodation.checkInTime}`}
-                                </div>
-                              </div>
-                              <div>
-                                <div className={lbl}>Check-out</div>
-                                <div className={val}>
-                                  {accommodation.checkOutDate ? formatDateWithWeekday(accommodation.checkOutDate) : 'Não informado'}
-                                  {accommodation.checkOutTime && ` às ${accommodation.checkOutTime}`}
-                                </div>
+                                <div className="text-[12px] font-black text-green-700 uppercase tracking-[0.12em]">Hospedagem Reservada</div>
+                                <div className="text-[13px] font-bold text-slate-800 mt-0.5">{accommodation.hotelName || 'Hotel não informado'}</div>
                               </div>
                               {accommodation.reservationNumber && (
-                                <div>
-                                  <div className={lbl}>Reserva / LOC</div>
-                                  <div className="text-[13px] font-bold text-slate-700 font-mono">{accommodation.reservationNumber}</div>
-                                </div>
+                                <span className="ml-auto text-[11px] font-bold text-slate-500 font-mono bg-slate-100 px-2.5 py-1 rounded-full">LOC: {accommodation.reservationNumber}</span>
                               )}
-                              {accommodation.dailyRate && (
+                            </div>
+                            <div className="p-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                {accommodation.hotelLocation && (
+                                  <div>
+                                    <div className={lbl}>Localização</div>
+                                    <div className={val}>{accommodation.hotelLocation}</div>
+                                  </div>
+                                )}
                                 <div>
-                                  <div className={lbl}>Valor da Diária</div>
-                                  <div className={val}>R$ {(accommodation.dailyRate / 100).toFixed(2)}</div>
+                                  <div className={lbl}>Check-in</div>
+                                  <div className={val}>
+                                    {accommodation.checkInDate ? formatDateWithWeekday(accommodation.checkInDate) : 'Não informado'}
+                                    {accommodation.checkInTime && ` às ${accommodation.checkInTime}`}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className={lbl}>Check-out</div>
+                                  <div className={val}>
+                                    {accommodation.checkOutDate ? formatDateWithWeekday(accommodation.checkOutDate) : 'Não informado'}
+                                    {accommodation.checkOutTime && ` às ${accommodation.checkOutTime}`}
+                                  </div>
+                                </div>
+                                {accommodation.dailyRate && (
+                                  <div>
+                                    <div className={lbl}>Valor da Diária</div>
+                                    <div className={val}>R$ {(accommodation.dailyRate / 100).toFixed(2)}</div>
+                                  </div>
+                                )}
+                              </div>
+                              {accommodation.accommodationObservations && (
+                                <div className="mt-4 pt-4 border-t border-slate-100">
+                                  <div className={lbl}>Observações</div>
+                                  <div className="text-sm text-slate-700 mt-0.5 whitespace-pre-line">{accommodation.accommodationObservations}</div>
                                 </div>
                               )}
                             </div>
-                            {accommodation.accommodationObservations && (
-                              <div className="mt-4 pt-4 border-t border-green-100">
-                                <div className={lbl}>Observações</div>
-                                <div className="text-sm text-slate-700 mt-0.5 whitespace-pre-line">{accommodation.accommodationObservations}</div>
-                              </div>
-                            )}
                           </div>
                           {/* Anexos */}
                           <div>
@@ -2157,42 +2196,53 @@ export default function Scaling() {
                           {comments && comments.length > 0 ? (
                             <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                               {comments.map((comment) => (
-                                <div key={comment.id} className="bg-slate-50 border border-slate-100 p-3 rounded-xl">
-                                  <div className="flex justify-between items-start mb-1.5">
-                                    <div className="text-sm font-semibold text-slate-700">{getUserName(comment.userId)}</div>
+                                <div key={comment.id} className="bg-white border border-slate-200 p-3 rounded-xl shadow-sm">
+                                  <div className="flex justify-between items-center mb-1.5">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-5 h-5 rounded-full bg-[#2563EB] text-white flex items-center justify-center text-[9px] font-black shrink-0">
+                                        {getUserName(comment.userId).charAt(0).toUpperCase()}
+                                      </div>
+                                      <div className="text-[12px] font-bold text-slate-700">{getUserName(comment.userId)}</div>
+                                    </div>
                                     <div className="text-[10px] text-slate-400 shrink-0 ml-2">{formatDateTime(comment.createdAt)}</div>
                                   </div>
-                                  <div className="text-sm text-slate-600">{comment.content}</div>
-                                  <div className="text-[10px] text-slate-400 mt-1">{getPhaseLabel(comment.phase)}</div>
+                                  <div className="text-[12px] text-slate-600 leading-relaxed">{comment.content}</div>
+                                  {comment.phase && (
+                                    <div className="mt-1.5 pt-1.5 border-t border-slate-50">
+                                      <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[9px] font-bold text-slate-500">{getPhaseLabel(comment.phase)}</span>
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-sm text-center py-8">
-                              Nenhum comentário registrado.
+                            <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center py-8">
+                              <MessageSquare className="w-6 h-6 text-slate-200 mx-auto mb-2" />
+                              <div className="text-[12px] text-slate-400">Nenhum comentário registrado.</div>
                             </div>
                           )}
 
                           {/* Adicionar comentário */}
-                          <div className="pt-1">
-                            <div className="flex gap-2">
-                              <Textarea
-                                rows={2}
-                                placeholder="Adicionar comentário..."
-                                value={newComment}
-                                onChange={(e) => setNewComment(e.target.value)}
-                                className="flex-1 border border-slate-200 rounded-xl bg-white text-sm p-3 resize-none min-h-[64px]"
-                                data-testid="textarea-comment-inline"
-                                disabled={!selectedInclusion || isReadOnly(selectedInclusion) || !canConfirmEscalation(selectedInclusion)}
-                              />
+                          <div className="pt-1 space-y-2">
+                            <Textarea
+                              rows={2}
+                              placeholder="Escreva um comentário..."
+                              value={newComment}
+                              onChange={(e) => setNewComment(e.target.value)}
+                              className="w-full border border-slate-200 rounded-xl bg-white text-[13px] p-3 resize-none min-h-[70px] focus:ring-2 focus:ring-blue-100 focus:border-[#2563EB] transition-all"
+                              data-testid="textarea-comment-inline"
+                              disabled={!selectedInclusion || isReadOnly(selectedInclusion) || !canConfirmEscalation(selectedInclusion)}
+                            />
+                            <div className="flex justify-end">
                               <Button
                                 onClick={handleAddComment}
                                 disabled={addCommentMutation.isPending || !newComment.trim() || !selectedInclusion || isReadOnly(selectedInclusion)}
                                 style={{ background: '#2563EB' }}
-                                className="text-white rounded-xl px-4 text-sm font-semibold hover:opacity-90 self-end"
+                                className="flex items-center gap-2 text-white rounded-xl px-5 py-2 h-9 text-sm font-bold hover:opacity-90"
                                 data-testid="button-add-comment-inline"
                               >
-                                {addCommentMutation.isPending ? "..." : "Enviar"}
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                {addCommentMutation.isPending ? "Enviando..." : "Enviar"}
                               </Button>
                             </div>
                           </div>
@@ -2208,12 +2258,13 @@ export default function Scaling() {
                             )}
                           </div>
                           {!inclusionLogs || inclusionLogs.length === 0 ? (
-                            <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-sm text-center py-8">
-                              Nenhum histórico encontrado.
+                            <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center py-8">
+                              <History className="w-6 h-6 text-slate-200 mx-auto mb-2" />
+                              <div className="text-[12px] text-slate-400">Nenhum histórico encontrado.</div>
                             </div>
                           ) : (
                             <div>
-                              <div className="border-l-2 border-slate-100 ml-3 pl-4 space-y-3 max-h-72 overflow-y-auto">
+                              <div className="border-l-2 border-slate-100 ml-3 pl-4 space-y-2 max-h-72 overflow-y-auto">
                                 {inclusionLogs
                                   .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
                                   .slice(0, showAllLogs ? undefined : 5)
@@ -2230,14 +2281,14 @@ export default function Scaling() {
                                     };
                                     return (
                                       <div key={log.id} className="flex gap-3">
-                                        <div className="w-2.5 h-2.5 bg-[#2563EB] rounded-full -ml-[1.3rem] mt-1.5 flex-shrink-0 ring-4 ring-white" />
-                                        <div className="flex-1 min-w-0">
+                                        <div className="w-2.5 h-2.5 bg-[#2563EB] rounded-full -ml-[1.3rem] mt-2.5 flex-shrink-0 ring-4 ring-white" />
+                                        <div className="flex-1 min-w-0 bg-white border border-slate-100 rounded-xl px-3 py-2 shadow-sm">
                                           <div className="flex items-start justify-between gap-2">
-                                            <div className="text-[12px] font-semibold text-slate-700">{actionLabels[log.action] || log.action}</div>
-                                            <div className="text-[10px] text-slate-400 ml-auto whitespace-nowrap flex-shrink-0">{log.createdAt && formatDateTime(log.createdAt)}</div>
+                                            <div className="text-[11px] font-bold text-slate-700">{actionLabels[log.action] || log.action}</div>
+                                            <div className="text-[10px] text-slate-400 whitespace-nowrap flex-shrink-0">{log.createdAt && formatDateTime(log.createdAt)}</div>
                                           </div>
                                           {log.details && <div className="text-[11px] text-slate-500 mt-0.5">{log.details}</div>}
-                                          <div className="text-[10px] font-medium mt-0.5" style={{ color: '#2563EB' }}>por {log.userName}</div>
+                                          <div className="text-[10px] font-semibold mt-1" style={{ color: '#2563EB' }}>↳ {log.userName}</div>
                                         </div>
                                       </div>
                                     );
