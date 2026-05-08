@@ -405,7 +405,7 @@ export const insertTicketSchema = createInsertSchema(tickets).omit({
   createdAt: true,
   updatedAt: true,
 }).extend({
-  transportType: z.enum(["aereo", "rodoviario"]).optional()
+  transportType: z.enum(["aereo", "rodoviario", "van"]).optional()
 });
 
 export const insertAccommodationSchema = createInsertSchema(accommodations).omit({

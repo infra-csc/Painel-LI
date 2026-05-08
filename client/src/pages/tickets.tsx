@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plane, Bus, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit, CheckCircle, Clock, Ticket as TicketIcon, CreditCard, Paperclip, NotebookPen, ClipboardCheck } from "lucide-react";
+import { Plane, Bus, Truck, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit, CheckCircle, Clock, Ticket as TicketIcon, CreditCard, Paperclip, NotebookPen, ClipboardCheck } from "lucide-react";
 import EventCombobox from "@/components/ui/event-combobox";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
 import FunctionMultiSelect from "@/components/ui/function-multi-select";
@@ -492,8 +492,8 @@ export default function Tickets() {
     // Validar campos obrigatórios
     const baseRequiredFields = [
       { field: 'value', label: 'Valor da Passagem' },
-      { field: 'departureAirport', label: quickData.transportType === 'rodoviario' ? 'Rodoviária Ida' : 'Aeroporto Ida' },
-      { field: 'destinationAirport', label: quickData.transportType === 'rodoviario' ? 'Rodoviária Volta' : 'Aeroporto Volta' },
+      { field: 'departureAirport', label: quickData.transportType === 'rodoviario' ? 'Rodoviária Ida' : quickData.transportType === 'van' ? 'Local de Saída' : 'Aeroporto Ida' },
+      { field: 'destinationAirport', label: quickData.transportType === 'rodoviario' ? 'Rodoviária Volta' : quickData.transportType === 'van' ? 'Local de Chegada' : 'Aeroporto Volta' },
       { field: 'purchaseOrderNumber', label: 'LOC' },
       { field: 'actualDepartureDate', label: 'Data de Ida' },
       { field: 'actualDepartureTime', label: 'Horário de Ida' }
@@ -708,6 +708,7 @@ export default function Tickets() {
                     {[
                       { value: 'aereo', label: 'Aérea', Icon: Plane },
                       { value: 'rodoviario', label: 'Rodoviária', Icon: Bus },
+                      { value: 'van', label: 'Van', Icon: Truck },
                     ].map(opt => {
                       const active = (ticketData["quick"]?.transportType || 'aereo') === opt.value;
                       return (
@@ -801,9 +802,9 @@ export default function Tickets() {
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">
-                          {ticketData["quick"]?.transportType === "rodoviario" ? "Número do Bilhete *" : "LOC / Reserva *"}
+                          {ticketData["quick"]?.transportType === "rodoviario" ? "Número do Bilhete *" : ticketData["quick"]?.transportType === "van" ? "Número da Van *" : "LOC / Reserva *"}
                         </Label>
-                        <Input placeholder={ticketData["quick"]?.transportType === "rodoviario" ? "Ex: 012345678" : "Ex: AX782Q"}
+                        <Input placeholder={ticketData["quick"]?.transportType === "rodoviario" ? "Ex: 012345678" : ticketData["quick"]?.transportType === "van" ? "Ex: VAN-001" : "Ex: AX782Q"}
                           value={ticketData["quick"]?.purchaseOrderNumber || ""}
                           onChange={(e) => handleTicketDataChange("quick", "purchaseOrderNumber", e.target.value)}
                           className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs font-mono"
@@ -836,21 +837,24 @@ export default function Tickets() {
 
                     {/* Trecho de Ida / Embarque */}
                     {(() => {
-                      const isRodo = ticketData["quick"]?.transportType === "rodoviario";
+                      const qType = ticketData["quick"]?.transportType;
+                      const isRodo = qType === "rodoviario";
+                      const isVan = qType === "van";
+                      const isGround = isRodo || isVan;
                       return (
                         <section className="rounded-xl overflow-hidden border border-slate-200">
                           <div className="flex items-center gap-2 px-3 py-2.5 bg-[#EEF2FF] border-b border-blue-100">
                             <div className="w-5 h-5 rounded-md bg-[#0033CC] flex items-center justify-center shrink-0">
-                              {isRodo ? <Bus className="w-3 h-3 text-white" /> : <Plane className="w-3 h-3 text-white" />}
+                              {isVan ? <Truck className="w-3 h-3 text-white" /> : isRodo ? <Bus className="w-3 h-3 text-white" /> : <Plane className="w-3 h-3 text-white" />}
                             </div>
                             <h4 className="text-[11px] font-black uppercase tracking-widest text-[#0033CC]">
-                              {isRodo ? "Embarque" : "Trecho de Ida"}
+                              {isVan ? "Trajeto da Van" : isRodo ? "Embarque" : "Trecho de Ida"}
                             </h4>
                           </div>
                           <div className="p-3 bg-white space-y-2">
-                            {isRodo ? (
+                            {(isRodo || isVan) ? (
                               <>
-                                {/* Rodoviário: Cidade Origem */}
+                                {/* Rodoviário/Van: Cidade Origem */}
                                 <div className="space-y-1.5">
                                   <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Cidade de Origem *</Label>
                                   <Input placeholder="Ex: São Paulo"
@@ -1014,21 +1018,23 @@ export default function Tickets() {
                       pointerEvents: ticketData["quick"]?.isOneWay ? 'none' : 'auto',
                     }}>
                       {(() => {
-                        const isRodo = ticketData["quick"]?.transportType === "rodoviario";
+                        const qTypeVolta = ticketData["quick"]?.transportType;
+                        const isRodo = qTypeVolta === "rodoviario";
+                        const isVan = qTypeVolta === "van";
                         return (
                           <section className="rounded-xl overflow-hidden border border-slate-200">
                             <div className="flex items-center gap-2 px-3 py-2.5 bg-[#FFF7ED] border-b border-orange-100">
                               <div className="w-5 h-5 rounded-md bg-[#F97316] flex items-center justify-center shrink-0">
-                                {isRodo ? <Bus className="w-3 h-3 text-white" /> : <Plane className="w-3 h-3 text-white rotate-180" />}
+                                {isVan ? <Truck className="w-3 h-3 text-white" /> : isRodo ? <Bus className="w-3 h-3 text-white" /> : <Plane className="w-3 h-3 text-white rotate-180" />}
                               </div>
                               <h4 className="text-[11px] font-black uppercase tracking-widest text-[#F97316]">
-                                {isRodo ? "Desembarque" : "Trecho de Volta"}
+                                {isVan ? "Volta da Van" : isRodo ? "Desembarque" : "Trecho de Volta"}
                               </h4>
                             </div>
                             <div className="p-3 bg-white space-y-2">
-                              {isRodo ? (
+                              {(isRodo || isVan) ? (
                                 <>
-                                  {/* Rodoviário: Cidade Origem */}
+                                  {/* Rodoviário/Van: Cidade Origem */}
                                   <div className="space-y-1.5">
                                     <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Cidade de Origem *</Label>
                                     <Input placeholder="Ex: Rio de Janeiro"
@@ -1271,7 +1277,7 @@ export default function Tickets() {
                             {dot(idaStatus)}
                             <div className="flex-1 min-w-0">
                               <p className={`text-[11px] font-semibold ${textColor(idaStatus)}`}>
-                                {q?.transportType === "rodoviario" ? "Trecho de embarque" : "Trecho de ida"}
+                                {q?.transportType === "rodoviario" ? "Trecho de embarque" : q?.transportType === "van" ? "Trajeto da van" : "Trecho de ida"}
                               </p>
                               <p className="text-[10px] text-slate-400">
                                 {idaStatus === 'done' ? 'Origem, destino e data OK' : idaStatus === 'partial' ? 'Informações incompletas' : 'Nenhum campo preenchido'}
@@ -2127,6 +2133,7 @@ export default function Tickets() {
                                   <SelectContent>
                                     <SelectItem value="aereo">✈️ Aérea</SelectItem>
                                     <SelectItem value="rodoviario">🚌 Rodoviária</SelectItem>
+                                    <SelectItem value="van">🚐 Van</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </div>
@@ -2209,7 +2216,7 @@ export default function Tickets() {
                           {/* Informações de Viagem - Agrupadas por Trecho */}
                           <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border-l-4 border-blue-500">
                             <h4 className="font-medium mb-4 text-blue-800 dark:text-blue-200 flex items-center gap-2">
-                              {data.transportType === "rodoviario" ? "🚌" : "✈️"} Informações de Viagem
+                              {data.transportType === "van" ? "🚐" : data.transportType === "rodoviario" ? "🚌" : "✈️"} Informações de Viagem
                             </h4>
                             
                             {/* Agrupamento por Trecho - Ida e Volta */}
@@ -2217,7 +2224,7 @@ export default function Tickets() {
                               {/* Trecho de IDA */}
                               <div className="bg-white dark:bg-blue-900/30 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
                                 <h5 className="font-medium text-blue-700 dark:text-blue-300 mb-4 flex items-center gap-2">
-                                  {data.transportType === "rodoviario" ? "🚌" : "🛫"} IDA
+                                  {data.transportType === "van" ? "🚐" : data.transportType === "rodoviario" ? "🚌" : "🛫"} IDA
                                 </h5>
                                 <div className="space-y-3">
                                   {/* Cidades */}
@@ -2252,11 +2259,11 @@ export default function Tickets() {
                                   {/* Aeroportos/Rodoviárias */}
                                   <div>
                                     <Label htmlFor={`departureAirport-${selectedInclusion.id}`} className="text-sm font-medium">
-                                      {data.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"} *
+                                      {data.transportType === "van" ? "Local de Saída" : data.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"} *
                                     </Label>
                                     <Input
                                       id={`departureAirport-${selectedInclusion.id}`}
-                                      placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: GRU, CGH, BSB"}
+                                      placeholder={data.transportType === "van" ? "Ex: Endereço de saída" : data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: GRU, CGH, BSB"}
                                       value={data.departureAirport || ""}
                                       onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureAirport", e.target.value)}
                                       className="mt-1"
@@ -2266,11 +2273,11 @@ export default function Tickets() {
                                   </div>
                                   <div>
                                     <Label htmlFor={`destinationAirport-${selectedInclusion.id}`} className="text-sm font-medium">
-                                      {data.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"} *
+                                      {data.transportType === "van" ? "Local de Chegada" : data.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"} *
                                     </Label>
                                     <Input
                                       id={`destinationAirport-${selectedInclusion.id}`}
-                                      placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: SDU, GIG, RJ"}
+                                      placeholder={data.transportType === "van" ? "Ex: Endereço de chegada" : data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: SDU, GIG, RJ"}
                                       value={data.destinationAirport || ""}
                                       onChange={(e) => handleTicketDataChange(selectedInclusion.id, "destinationAirport", e.target.value)}
                                       className="mt-1"
@@ -2314,7 +2321,7 @@ export default function Tickets() {
                               {!data.isOneWay && (
                                 <div className="bg-white dark:bg-blue-900/30 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
                                   <h5 className="font-medium text-blue-700 dark:text-blue-300 mb-4 flex items-center gap-2">
-                                    {data.transportType === "rodoviario" ? "🚌" : "🛬"} VOLTA
+                                    {data.transportType === "van" ? "🚐" : data.transportType === "rodoviario" ? "🚌" : "🛬"} VOLTA
                                   </h5>
                                   <div className="space-y-3">
                                     {/* Cidades */}
@@ -2349,11 +2356,11 @@ export default function Tickets() {
                                     {/* Aeroportos/Rodoviárias */}
                                     <div>
                                       <Label htmlFor={`returnOriginAirport-${selectedInclusion.id}`} className="text-sm font-medium">
-                                        {data.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"} *
+                                        {data.transportType === "van" ? "Local de Saída (Volta)" : data.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"} *
                                       </Label>
                                       <Input
                                         id={`returnOriginAirport-${selectedInclusion.id}`}
-                                        placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: SDU, GIG, GRU"}
+                                        placeholder={data.transportType === "van" ? "Ex: Endereço de saída" : data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: SDU, GIG, GRU"}
                                         value={data.returnOriginAirport || ""}
                                         onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnOriginAirport", e.target.value)}
                                         className="mt-1"
@@ -2363,11 +2370,11 @@ export default function Tickets() {
                                     </div>
                                     <div>
                                       <Label htmlFor={`returnDestinationAirport-${selectedInclusion.id}`} className="text-sm font-medium">
-                                        {data.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"} *
+                                        {data.transportType === "van" ? "Local de Chegada (Volta)" : data.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"} *
                                       </Label>
                                       <Input
                                         id={`returnDestinationAirport-${selectedInclusion.id}`}
-                                        placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: GRU, CGH, BSB"}
+                                        placeholder={data.transportType === "van" ? "Ex: Endereço de chegada" : data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: GRU, CGH, BSB"}
                                         value={data.returnDestinationAirport || ""}
                                         onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnDestinationAirport", e.target.value)}
                                         className="mt-1"
@@ -2618,7 +2625,7 @@ export default function Tickets() {
                                   
                                   const missingModalFields = requiredFieldsModal.filter(field => !data[field] || data[field] === '');
                                   if (missingModalFields.length > 0) {
-                                    const transportLabel = data.transportType === 'rodoviario' ? 'Rodoviária' : 'Aeroporto';
+                                    const transportLabel = data.transportType === 'van' ? 'Local (Van)' : data.transportType === 'rodoviario' ? 'Rodoviária' : 'Aeroporto';
                                     toast({
                                       title: "Erro",
                                       description: `Preencha todos os campos obrigatórios (${transportLabel} Ida/Volta, datas e horários)`,
