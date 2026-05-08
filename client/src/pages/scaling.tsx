@@ -455,13 +455,13 @@ export default function Scaling() {
       queryClient.refetchQueries({ queryKey: ["/api/team-inclusions"] });
       // Show success modal instead of toast
       const msg = pendingScalingAction.current === 'confirm' ? "Escalação confirmada com sucesso!" : "Alterações salvas com sucesso!";
-      const inc = selectedInclusion;
+      const collabId = updatedInclusion.collaboratorId || modalData.collaboratorId || selectedInclusion?.collaboratorId;
       setSuccessInfo({
         message: msg,
-        inclusionNumber: inc?.inclusionNumber ?? null,
-        eventName: events?.find(e => e.id === inc?.eventId)?.name ?? "—",
-        collaboratorName: inc?.collaboratorId ? getCollaboratorName(inc.collaboratorId) : "—",
-        functionName: inc?.functionId ? getFunctionName(inc.functionId) : "—",
+        inclusionNumber: updatedInclusion.inclusionNumber ?? selectedInclusion?.inclusionNumber ?? null,
+        eventName: events?.find(e => e.id === (updatedInclusion.eventId || selectedInclusion?.eventId))?.name ?? "—",
+        collaboratorName: collabId ? getCollaboratorName(collabId) : "—",
+        functionName: updatedInclusion.functionId ? getFunctionName(updatedInclusion.functionId) : (selectedInclusion?.functionId ? getFunctionName(selectedInclusion.functionId) : "—"),
       });
       setShowModal(false);
       setShowSuccessModal(true);
