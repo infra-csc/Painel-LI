@@ -1,25 +1,22 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo } from "react";
 import { fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Hotel, Save, Eye, ChevronDown, ChevronRight, MessageCircle, Edit, Calendar, Clock } from "lucide-react";
+import { Hotel, Save, Eye, ChevronDown, ChevronRight, MessageCircle, Edit } from "lucide-react";
 import StatusBadge from "@/components/common/status-badge";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import EventCombobox from "@/components/ui/event-combobox";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
 import FunctionMultiSelect from "@/components/ui/function-multi-select";
 import CommentsModal from "@/components/modals/comments-modal";
-import AttachmentUpload from "@/components/ui/attachment-upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -30,59 +27,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { cn } from "@/lib/utils";
-import type { TeamInclusion, Event, Function, Collaborator, Accommodation, Comment, insertAccommodationSchema } from "@shared/schema";
-
-// Chips de anexos clicáveis para o modal pós-compra
-function AttachmentChips({ attachmentIds }: { attachmentIds: string[] }) {
-  const [meta, setMeta] = useState<Record<string, { name: string; downloadUrl: string }>>({});
-  const fetchedRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    attachmentIds.forEach(async (id) => {
-      if (fetchedRef.current.has(id)) return;
-      fetchedRef.current.add(id);
-      try {
-        const res = await fetch(`/api/attachments/${id}`);
-        if (res.ok) {
-          const data = await res.json();
-          const rawName: string = data.name || `Anexo_${id.slice(-8)}`;
-          const displayName = rawName.includes('/') ? rawName.split('/').pop() || rawName : rawName;
-          setMeta(prev => ({ ...prev, [id]: { name: displayName, downloadUrl: data.downloadUrl || '#' } }));
-        }
-      } catch {
-        setMeta(prev => ({ ...prev, [id]: { name: `Anexo_${id.slice(-8)}`, downloadUrl: '#' } }));
-      }
-    });
-  }, [attachmentIds]);
-
-  return (
-    <div>
-      <div style={{fontSize:13,fontWeight:600,color:'#3B5BDB',marginBottom:10}}>📎 Anexos da Hospedagem</div>
-      {attachmentIds.length === 0 ? (
-        <div style={{textAlign:'center',color:'#94A3B8',fontSize:13,padding:'16px 0'}}>Nenhum anexo registrado</div>
-      ) : (
-        <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
-          {attachmentIds.map(id => (
-            <a
-              key={id}
-              href={meta[id]?.downloadUrl || '#'}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{display:'flex',alignItems:'center',gap:8,background:'#EEF2FF',border:'1px solid #C7D2FE',borderRadius:8,padding:'8px 12px',cursor:'pointer',textDecoration:'none',color:'#1E293B',fontSize:13,transition:'background 0.15s'}}
-              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = '#E0E7FF'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = '#EEF2FF'; }}
-            >
-              <span>📄</span>
-              <span>{meta[id]?.name || id.slice(-8)}</span>
-              <span style={{color:'#6366F1'}}>🔗</span>
-            </a>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+import type { TeamInclusion, Event, Function, Collaborator, Accommodation, Comment } from "@shared/schema";
 
 // Helper: Mostrar "Escalado" apenas quando não precisa passagem nem hospedagem
 const getDisplayStatus = (inclusion: TeamInclusion) => {
@@ -94,27 +39,12 @@ const getDisplayStatus = (inclusion: TeamInclusion) => {
   return inclusion.status;
 };
 
-// Schema de validação estendido
+// Schema de validação — somente campos necessários
 const accommodationFormSchema = z.object({
   teamInclusionId: z.string(),
   hotelName: z.string().min(1, "Nome do hotel é obrigatório"),
-  hotelLocation: z.string().min(1, "Localização do hotel é obrigatória"),
-  checkInDate: z.date({
-    required_error: "Data de check-in é obrigatória",
-  }),
-  checkInTime: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, "Formato de hora inválido (HH:MM)"),
-  checkOutDate: z.date({
-    required_error: "Data de check-out é obrigatória",
-  }),
-  checkOutTime: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, "Formato de hora inválido (HH:MM)"),
-  dailyRate: z.number().min(0.01, "Diária deve ser maior que zero").optional(),
-  reservationNumber: z.string().optional(),
+  hotelLocation: z.string().min(1, "Localização é obrigatória"),
   accommodationObservations: z.string().optional(),
-}).refine(data => {
-  return data.checkInDate < data.checkOutDate;
-}, {
-  message: "Data de check-out deve ser posterior à data de check-in",
-  path: ["checkOutDate"],
 });
 
 type AccommodationFormData = z.infer<typeof accommodationFormSchema>;
@@ -143,8 +73,6 @@ export default function Accommodations() {
   const [accommodationData, setAccommodationData] = useState<Record<string, any>>({});
   const [selectedInclusionsForBatch, setSelectedInclusionsForBatch] = useState<string[]>([]);
   
-  // Estado para gerenciar anexos no modal - movido para o componente pai para evitar reset
-  const [modalAttachmentIds, setModalAttachmentIds] = useState<string[]>([]);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -210,10 +138,6 @@ export default function Accommodations() {
   const handleViewAccommodationDetails = (inclusion: TeamInclusion) => {
     if (inclusion.status === 'cancelado') return;
     
-    // Limpar anexos apenas quando muda de inclusão
-    if (selectedInclusion?.id !== inclusion.id) {
-      setModalAttachmentIds([]);
-    }
     
     setSelectedInclusion(inclusion);
     setShowModal(true);
@@ -234,12 +158,6 @@ export default function Accommodations() {
       teamInclusionId: selectedInclusion?.id || '',
       hotelName: accommodation?.hotelName || '',
       hotelLocation: accommodation?.hotelLocation || '',
-      checkInDate: accommodation?.checkInDate ? new Date(accommodation.checkInDate) : undefined,
-      checkInTime: accommodation?.checkInTime || '',
-      checkOutDate: accommodation?.checkOutDate ? new Date(accommodation.checkOutDate) : undefined,
-      checkOutTime: accommodation?.checkOutTime || '',
-      dailyRate: accommodation?.dailyRate ? accommodation.dailyRate / 100 : undefined, // Converter de centavos
-      reservationNumber: accommodation?.reservationNumber || '',
       accommodationObservations: accommodation?.accommodationObservations || '',
     };
 
@@ -247,48 +165,20 @@ export default function Accommodations() {
       resolver: zodResolver(accommodationFormSchema),
       defaultValues,
     });
-    
 
     const onSubmit = async (data: AccommodationFormData) => {
       if (!selectedInclusion) return;
-      
       try {
-        const submitData = {
-          ...data,
-          dailyRate: data.dailyRate ? Math.round(data.dailyRate * 100) : undefined, // Converter para centavos
-          checkInDate: format(data.checkInDate, 'yyyy-MM-dd'),
-          checkOutDate: format(data.checkOutDate, 'yyyy-MM-dd'),
-          attachmentIds: modalAttachmentIds && modalAttachmentIds.length > 0 ? modalAttachmentIds : null,
-        };
-        
         if (accommodation) {
-          // Se existe registro de accommodation (mesmo vazio), atualiza
-          await updateAccommodationMutation.mutateAsync({
-            id: accommodation.id,
-            data: submitData,
-          });
+          await updateAccommodationMutation.mutateAsync({ id: accommodation.id, data });
         } else {
-          // Se não existe registro, cria novo
-          await createAccommodationMutation.mutateAsync(submitData);
+          await createAccommodationMutation.mutateAsync(data);
         }
-        
         setShowModal(false);
         form.reset();
       } catch (error) {
         console.error('Erro ao salvar hospedagem:', error);
       }
-    };
-    
-    const [formSections, setFormSections] = useState({
-      basic: true,
-      dates: true,
-    });
-    
-    const toggleFormSection = (section: 'basic' | 'dates') => {
-      setFormSections(prev => ({
-        ...prev,
-        [section]: !prev[section]
-      }));
     };
     
     if (!selectedInclusion) return null;
@@ -374,78 +264,17 @@ export default function Accommodations() {
           {isPostPurchase ? (
             /* ───── Read-only post-purchase view ───── */
             <div style={{display:'flex',flexDirection:'column',gap:16}}>
-              {/* Green locked banner */}
               <div style={{background:'#D1FAE5',borderLeft:'4px solid #10B981',padding:'12px 16px',borderRadius:'0 8px 8px 0'}}>
-                <span style={{color:'#065F46',fontWeight:600,fontSize:14}}>✓ Hospedagem registrada — edição bloqueada</span>
+                <span style={{color:'#065F46',fontWeight:600,fontSize:14}}>✓ Hospedagem confirmada — edição bloqueada</span>
               </div>
-
               {accommodation && (
                 <>
-                  {/* Hotel summary */}
                   <div style={{background:'#F0FDF4',border:'1px solid #A7F3D0',borderRadius:12,padding:'16px 20px'}}>
                     <div style={{fontSize:18,fontWeight:700,color:'#1E293B'}}>{accommodation.hotelName}</div>
                     {accommodation.hotelLocation && (
                       <div style={{fontSize:13,color:'#64748B',marginTop:4}}>{accommodation.hotelLocation}</div>
                     )}
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginTop:16,paddingTop:16,borderTop:'1px solid #A7F3D0'}}>
-                      <div>
-                        <div style={{fontSize:11,color:'#64748B',marginBottom:4}}>Diária (R$)</div>
-                        <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>
-                          {accommodation.dailyRate != null && accommodation.dailyRate > 0
-                            ? `R$ ${(accommodation.dailyRate / 100).toFixed(2).replace('.', ',')}`
-                            : <span style={{background:'#F1F5F9',color:'#94A3B8',borderRadius:20,padding:'2px 10px',fontSize:12}}>Não informado</span>}
-                        </div>
-                      </div>
-                      <div>
-                        <div style={{fontSize:11,color:'#64748B',marginBottom:4}}>Reserva/LOC</div>
-                        <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>
-                          {accommodation.reservationNumber
-                            ? accommodation.reservationNumber
-                            : <span style={{background:'#F1F5F9',color:'#94A3B8',borderRadius:20,padding:'2px 10px',fontSize:12}}>Não informado</span>}
-                        </div>
-                      </div>
-                    </div>
                   </div>
-
-                  {/* CHECK-IN + CHECK-OUT static */}
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,alignItems:'stretch'}}>
-                    <div style={{display:'flex',flexDirection:'column',border:'1px solid #C7D2FE',borderLeft:'3px solid #3B5BDB',background:'#EEF2FF',borderRadius:10,padding:16}}>
-                      <div style={{fontSize:13,fontWeight:700,color:'#3B5BDB',marginBottom:12}}>🗓 CHECK-IN</div>
-                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-                        <div>
-                          <div style={{fontSize:12,fontWeight:500,color:'#64748B',marginBottom:4}}>Data</div>
-                          <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>
-                            {accommodation.checkInDate ? formatDate(accommodation.checkInDate) : <span style={{background:'#F1F5F9',color:'#94A3B8',borderRadius:20,padding:'2px 10px',fontSize:12}}>Não informado</span>}
-                          </div>
-                        </div>
-                        <div>
-                          <div style={{fontSize:12,fontWeight:500,color:'#64748B',marginBottom:4}}>Horário</div>
-                          <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>
-                            {accommodation.checkInTime || <span style={{background:'#F1F5F9',color:'#94A3B8',borderRadius:20,padding:'2px 10px',fontSize:12}}>Não informado</span>}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{display:'flex',flexDirection:'column',border:'1px solid #FED7AA',borderLeft:'3px solid #F59E0B',background:'#FFF7ED',borderRadius:10,padding:16}}>
-                      <div style={{fontSize:13,fontWeight:700,color:'#F59E0B',marginBottom:12}}>🗓 CHECK-OUT</div>
-                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-                        <div>
-                          <div style={{fontSize:12,fontWeight:500,color:'#64748B',marginBottom:4}}>Data</div>
-                          <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>
-                            {accommodation.checkOutDate ? formatDate(accommodation.checkOutDate) : <span style={{background:'#F1F5F9',color:'#94A3B8',borderRadius:20,padding:'2px 10px',fontSize:12}}>Não informado</span>}
-                          </div>
-                        </div>
-                        <div>
-                          <div style={{fontSize:12,fontWeight:500,color:'#64748B',marginBottom:4}}>Horário</div>
-                          <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>
-                            {accommodation.checkOutTime || <span style={{background:'#F1F5F9',color:'#94A3B8',borderRadius:20,padding:'2px 10px',fontSize:12}}>Não informado</span>}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Observações static */}
                   {accommodation.accommodationObservations && (
                     <div>
                       <div style={{fontSize:11,fontWeight:600,color:'#94A3B8',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Observações</div>
@@ -454,16 +283,10 @@ export default function Accommodations() {
                       </div>
                     </div>
                   )}
-
-                  {/* Anexos read-only — chips clicáveis */}
-                  <AttachmentChips attachmentIds={accommodation.attachmentIds || []} />
                 </>
               )}
-
-              {/* Footer — Fechar only */}
               <div style={{borderTop:'1px solid #E2E8F0',paddingTop:16,display:'flex',justifyContent:'flex-end'}}>
-                <Button variant="outline" onClick={() => setShowModal(false)}
-                  style={{borderColor:'#E2E8F0',color:'#64748B'}}>
+                <Button variant="outline" onClick={() => setShowModal(false)} style={{borderColor:'#E2E8F0',color:'#64748B'}}>
                   Fechar
                 </Button>
               </div>
@@ -471,192 +294,43 @@ export default function Accommodations() {
           ) : (
             /* ───── Editable form ───── */
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} style={{display:'flex',flexDirection:'column',gap:20}}>
-
-                {/* Seção: Informações Básicas */}
-                <div style={{border:'1px solid #E2E8F0',borderRadius:12,overflow:'hidden'}}>
-                  <div
-                    style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',cursor:'pointer',background:'#FFFBEB',borderLeft:'4px solid #F59E0B',borderRadius:formSections.basic ? '8px 8px 0 0' : '8px'}}
-                    onClick={() => toggleFormSection('basic')}
-                  >
-                    <span style={{fontSize:15}}>🏨</span>
-                    <span style={{fontWeight:700,fontSize:14,color:'#1E293B',flex:1}}>Informações Básicas</span>
-                    <ChevronDown style={{width:16,height:16,color:'#94A3B8',transform:formSections.basic ? 'rotate(0deg)' : 'rotate(-90deg)',transition:'transform 0.2s'}} />
-                  </div>
-
-                  {formSections.basic && (
-                    <div style={{padding:16,display:'flex',flexDirection:'column',gap:14}}>
-                      {/* Row 1: Hotel Name | Hotel Location */}
-                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-                        <FormField control={form.control} name="hotelName" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel style={{fontSize:11,color:'#94A3B8',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Nome do Hotel *</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Ex: Hotel Copacabana Palace" data-testid="input-hotel-name"
-                                disabled={!canEditRecord} {...field}
-                                style={{borderRadius:8,height:42,borderColor:'#E2E8F0'}} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                        <FormField control={form.control} name="hotelLocation" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel style={{fontSize:11,color:'#94A3B8',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Localização do Hotel *</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Ex: Copacabana, Rio de Janeiro" data-testid="input-hotel-location"
-                                disabled={!canEditRecord} {...field}
-                                style={{borderRadius:8,height:42,borderColor:'#E2E8F0'}} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                      </div>
-
-                      {/* Row 2: Reserva | Diária */}
-                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-                        <FormField control={form.control} name="reservationNumber" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel style={{fontSize:11,color:'#94A3B8',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Número da Reserva</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Ex: RES123456" data-testid="input-reservation"
-                                disabled={!canEditRecord} {...field}
-                                style={{borderRadius:8,height:42,borderColor:'#E2E8F0'}} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                        <FormField control={form.control} name="dailyRate" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel style={{fontSize:11,color:'#94A3B8',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Diária (R$)</FormLabel>
-                            <FormControl>
-                              <div style={{display:'flex',alignItems:'center',border:'1px solid #E2E8F0',borderRadius:8,height:42,overflow:'hidden',background: canEditRecord ? '#fff' : '#F8FAFC'}}>
-                                <span style={{paddingLeft:12,paddingRight:12,color:'#64748B',fontSize:14,fontWeight:500,borderRight:'1px solid #E2E8F0',height:'100%',display:'flex',alignItems:'center',background:'#F8FAFC',flexShrink:0,whiteSpace:'nowrap'}}>R$</span>
-                                <input
-                                  type="number" step="0.01" min="0" placeholder="0,00"
-                                  data-testid="input-daily-rate"
-                                  disabled={!canEditRecord}
-                                  value={field.value || ''}
-                                  onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
-                                  style={{flex:1,border:'none',outline:'none',paddingLeft:8,paddingRight:12,fontSize:14,color:'#1E293B',background:'transparent',minWidth:0,height:'100%'}}
-                                />
-                              </div>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                      </div>
-
-                      {/* Observações */}
-                      <FormField control={form.control} name="accommodationObservations" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel style={{fontSize:11,color:'#94A3B8',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Observações</FormLabel>
-                          <FormControl>
-                            <Textarea placeholder="Observações adicionais sobre a hospedagem..."
-                              data-testid="textarea-observations" disabled={!canEditRecord} {...field}
-                              style={{borderRadius:8,minHeight:80,borderColor:'#E2E8F0'}} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                    </div>
-                  )}
-                </div>
-
-                {/* Seção: Datas e Horários — CHECK-IN + CHECK-OUT side by side */}
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,alignItems:'stretch'}}>
-                  {/* CHECK-IN */}
-                  <div style={{display:'flex',flexDirection:'column',border:'1px solid #C7D2FE',borderLeft:'3px solid #3B5BDB',background:'#EEF2FF',borderRadius:10,padding:16}}>
-                    <div style={{fontSize:13,fontWeight:700,color:'#3B5BDB',marginBottom:12}}>🗓 CHECK-IN</div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,alignItems:'end'}}>
-                      <FormField control={form.control} name="checkInDate" render={({ field }) => (
-                        <FormItem className="flex flex-col" style={{margin:0}}>
-                          <FormLabel style={{fontSize:12,color:'#64748B',fontWeight:500,marginBottom:4}}>Data *</FormLabel>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button variant="outline" className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")}
-                                  disabled={!canEditRecord} data-testid="input-checkin-date"
-                                  style={{borderRadius:8,height:42,borderColor:'#CBD5E1',background:'#fff',fontSize:13,width:'100%',boxSizing:'border-box'}}>
-                                  {field.value ? format(field.value, "dd/MM/yyyy", { locale: ptBR }) : <span>dd/mm/aaaa</span>}
-                                  <Calendar className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                              <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange}
-                                disabled={(date) => date < new Date("1900-01-01")} initialFocus />
-                            </PopoverContent>
-                          </Popover>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                      <FormField control={form.control} name="checkInTime" render={({ field }) => (
-                        <FormItem className="flex flex-col" style={{margin:0}}>
-                          <FormLabel style={{fontSize:12,color:'#64748B',fontWeight:500,marginBottom:4}}>Horário *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="--:--" data-testid="input-checkin-time"
-                              disabled={!canEditRecord} {...field}
-                              style={{borderRadius:8,height:42,borderColor:'#CBD5E1',background:'#fff',fontSize:13,width:'100%',padding:'0 12px',boxSizing:'border-box'}} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                    </div>
-                  </div>
-
-                  {/* CHECK-OUT */}
-                  <div style={{display:'flex',flexDirection:'column',border:'1px solid #FED7AA',borderLeft:'3px solid #F59E0B',background:'#FFF7ED',borderRadius:10,padding:16}}>
-                    <div style={{fontSize:13,fontWeight:700,color:'#F59E0B',marginBottom:12}}>🗓 CHECK-OUT</div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,alignItems:'end'}}>
-                      <FormField control={form.control} name="checkOutDate" render={({ field }) => (
-                        <FormItem className="flex flex-col" style={{margin:0}}>
-                          <FormLabel style={{fontSize:12,color:'#64748B',fontWeight:500,marginBottom:4}}>Data *</FormLabel>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button variant="outline" className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")}
-                                  disabled={!canEditRecord} data-testid="input-checkout-date"
-                                  style={{borderRadius:8,height:42,borderColor:'#CBD5E1',background:'#fff',fontSize:13,width:'100%',boxSizing:'border-box'}}>
-                                  {field.value ? format(field.value, "dd/MM/yyyy", { locale: ptBR }) : <span>dd/mm/aaaa</span>}
-                                  <Calendar className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                              <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange}
-                                disabled={(date) => date < new Date("1900-01-01")} initialFocus />
-                            </PopoverContent>
-                          </Popover>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                      <FormField control={form.control} name="checkOutTime" render={({ field }) => (
-                        <FormItem className="flex flex-col" style={{margin:0}}>
-                          <FormLabel style={{fontSize:12,color:'#64748B',fontWeight:500,marginBottom:4}}>Horário *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="--:--" data-testid="input-checkout-time"
-                              disabled={!canEditRecord} {...field}
-                              style={{borderRadius:8,height:42,borderColor:'#CBD5E1',background:'#fff',fontSize:13,width:'100%',padding:'0 12px',boxSizing:'border-box'}} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Anexos */}
-                <div>
-                  <div style={{fontSize:11,fontWeight:600,color:'#94A3B8',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>
-                    📎 Anexos da Hospedagem
-                  </div>
-                  <AttachmentUpload
-                    attachmentIds={modalAttachmentIds}
-                    onAttachmentsChange={(newIds) => setModalAttachmentIds(newIds)}
-                    disabled={!canEditRecord}
-                  />
-                </div>
-
+              <form onSubmit={form.handleSubmit(onSubmit)} style={{display:'flex',flexDirection:'column',gap:16}}>
+                {/* Nome do Hotel */}
+                <FormField control={form.control} name="hotelName" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel style={{fontSize:11,color:'#94A3B8',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Nome do Hotel *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ex: Hotel Copacabana Palace" data-testid="input-hotel-name"
+                        disabled={!canEditRecord} {...field}
+                        style={{borderRadius:8,height:42,borderColor:'#E2E8F0'}} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                {/* Localização */}
+                <FormField control={form.control} name="hotelLocation" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel style={{fontSize:11,color:'#94A3B8',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Localização *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ex: Copacabana, Rio de Janeiro" data-testid="input-hotel-location"
+                        disabled={!canEditRecord} {...field}
+                        style={{borderRadius:8,height:42,borderColor:'#E2E8F0'}} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                {/* Observações */}
+                <FormField control={form.control} name="accommodationObservations" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel style={{fontSize:11,color:'#94A3B8',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Observações</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Informações adicionais sobre a hospedagem..."
+                        data-testid="textarea-observations" disabled={!canEditRecord} {...field}
+                        style={{borderRadius:8,minHeight:80,borderColor:'#E2E8F0'}} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
                 {/* Footer */}
                 <div style={{borderTop:'1px solid #E2E8F0',paddingTop:16,display:'flex',justifyContent:'flex-end',gap:8}}>
                   <Button type="button" variant="outline"
@@ -666,26 +340,15 @@ export default function Accommodations() {
                     Cancelar
                   </Button>
                   {canEditRecord && (
-                    <>
-                      <Button type="submit" variant="outline"
-                        disabled={createAccommodationMutation.isPending || updateAccommodationMutation.isPending}
-                        data-testid="button-save"
-                        style={{background:'#64748B',color:'#fff',border:'none'}}>
-                        {(createAccommodationMutation.isPending || updateAccommodationMutation.isPending) && (
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                        )}
-                        Salvar
-                      </Button>
-                      <Button type="submit"
-                        disabled={createAccommodationMutation.isPending || updateAccommodationMutation.isPending}
-                        data-testid="button-register"
-                        style={{background:'#3B5BDB',color:'#fff',border:'none'}}>
-                        {(createAccommodationMutation.isPending || updateAccommodationMutation.isPending) && (
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                        )}
-                        🏨 Registrar Hospedagem
-                      </Button>
-                    </>
+                    <Button type="submit"
+                      disabled={createAccommodationMutation.isPending || updateAccommodationMutation.isPending}
+                      data-testid="button-register"
+                      style={{background:'#059672',color:'#fff',border:'none',minWidth:160}}>
+                      {(createAccommodationMutation.isPending || updateAccommodationMutation.isPending)
+                        ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                        : null}
+                      🏨 Confirmar Hospedagem
+                    </Button>
                   )}
                 </div>
               </form>
@@ -708,35 +371,10 @@ export default function Accommodations() {
     const quickData = accommodationData["quick"];
     if (!quickData || selectedInclusionsForBatch.length === 0) return;
 
-    // Validar campos obrigatórios
-    const requiredFields = [
-      { field: 'hotelName', label: 'Nome do Hotel' },
-      { field: 'hotelLocation', label: 'Localização' },
-      { field: 'dailyRate', label: 'Valor da Diária' },
-      { field: 'checkInDate', label: 'Data de Check-in' },
-      { field: 'checkOutDate', label: 'Data de Check-out' }
-    ];
-    
-    const missingFields = requiredFields.filter(({ field }) => {
-      let value = quickData[field];
-      return !value || value === '';
-    });
-    
-    if (missingFields.length > 0) {
+    if (!quickData.hotelName || !quickData.hotelLocation) {
       toast({
         title: "Erro",
-        description: `Preencha os campos obrigatórios: ${missingFields.map(f => f.label).join(', ')}`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Validar se valor da diária é numérico
-    const dailyRateValue = parseFloat(quickData.dailyRate);
-    if (isNaN(dailyRateValue) || dailyRateValue <= 0) {
-      toast({
-        title: "Erro",
-        description: "O valor da diária deve ser um número válido maior que zero",
+        description: "Preencha os campos obrigatórios: Nome do Hotel e Localização",
         variant: "destructive",
       });
       return;
@@ -750,28 +388,18 @@ export default function Accommodations() {
         const inclusion = filteredData.find(inc => inc.id === inclusionId);
         if (!inclusion) continue;
 
-        // Verificar se não tem accommodation já
         if (accommodationMap.get(inclusion.id)) {
           errors.push(`Hospedagem #${inclusion.inclusionNumber} já foi processada`);
           continue;
         }
 
         try {
-          // Criar accommodation com os dados comuns completos
           await createAccommodationMutation.mutateAsync({
             teamInclusionId: inclusion.id,
             hotelName: quickData.hotelName,
             hotelLocation: quickData.hotelLocation,
-            checkInDate: quickData.checkInDate,
-            checkInTime: quickData.checkInTime || '14:00',
-            checkOutDate: quickData.checkOutDate,
-            checkOutTime: quickData.checkOutTime || '12:00',
-            dailyRate: Math.round(parseFloat(quickData.dailyRate) * 100),
-            reservationNumber: quickData.reservationNumber || null,
             accommodationObservations: quickData.accommodationObservations || null,
-            attachmentIds: quickData.attachmentIds && quickData.attachmentIds.length > 0 ? quickData.attachmentIds : null
           });
-
           successCount++;
         } catch (error) {
           errors.push(`Erro na hospedagem #${inclusion.inclusionNumber}`);
@@ -779,12 +407,10 @@ export default function Accommodations() {
       }
 
       if (successCount > 0) {
-        const hasAttachments = quickData.attachmentIds && quickData.attachmentIds.length > 0;
         toast({
           title: "Sucesso",
-          description: `${successCount} hospedagem(ns) registrada(s) com os mesmos dados${hasAttachments ? ' e anexos' : ''}!`,
+          description: `${successCount} hospedagem(ns) registrada(s) com sucesso!`,
         });
-        // Limpar seleções após sucesso
         setSelectedInclusionsForBatch([]);
       }
 
@@ -1178,49 +804,28 @@ export default function Accommodations() {
                   </div>
                   <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Dados do Hotel</h4>
                 </div>
-                <div className="p-4 bg-white grid grid-cols-3 gap-x-4 gap-y-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Nome do Hotel *</Label>
-                    <Input
-                      placeholder="Hotel Copacabana"
-                      value={accommodationData["quick"]?.hotelName || ""}
-                      onChange={(e) => handleAccommodationDataChange("quick", "hotelName", e.target.value)}
-                      className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
-                      data-testid="input-quick-hotel-name"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Localização *</Label>
-                    <Input
-                      placeholder="Rio de Janeiro, RJ"
-                      value={accommodationData["quick"]?.hotelLocation || ""}
-                      onChange={(e) => handleAccommodationDataChange("quick", "hotelLocation", e.target.value)}
-                      className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
-                      data-testid="input-quick-hotel-location"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Valor da Diária *</Label>
-                    <div className="flex h-[38px] rounded-xl overflow-hidden border border-slate-200 focus-within:ring-2 focus-within:ring-[#0033CC]/20">
-                      <span className="flex items-center px-3 bg-slate-50 text-slate-500 font-semibold text-sm border-r border-slate-200 shrink-0">R$</span>
-                      <input
-                        type="number" step="0.01" placeholder="0,00"
-                        value={accommodationData["quick"]?.dailyRate || ""}
-                        onChange={(e) => handleAccommodationDataChange("quick", "dailyRate", e.target.value)}
-                        className="flex-1 px-3 text-sm font-bold bg-white border-0 outline-none w-full"
-                        data-testid="input-quick-daily-rate"
+                <div className="p-4 bg-white space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Nome do Hotel *</Label>
+                      <Input
+                        placeholder="Hotel Copacabana"
+                        value={accommodationData["quick"]?.hotelName || ""}
+                        onChange={(e) => handleAccommodationDataChange("quick", "hotelName", e.target.value)}
+                        className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
+                        data-testid="input-quick-hotel-name"
                       />
                     </div>
-                  </div>
-                  <div className="space-y-1.5 col-span-2">
-                    <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Reserva / LOC <span className="text-slate-300 normal-case">(opcional)</span></Label>
-                    <Input
-                      placeholder="Número da reserva"
-                      value={accommodationData["quick"]?.reservationNumber || ""}
-                      onChange={(e) => handleAccommodationDataChange("quick", "reservationNumber", e.target.value)}
-                      className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
-                      data-testid="input-quick-reservation-number"
-                    />
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Localização *</Label>
+                      <Input
+                        placeholder="Rio de Janeiro, RJ"
+                        value={accommodationData["quick"]?.hotelLocation || ""}
+                        onChange={(e) => handleAccommodationDataChange("quick", "hotelLocation", e.target.value)}
+                        className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
+                        data-testid="input-quick-hotel-location"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Observações <span className="text-slate-300 normal-case">(opcional)</span></Label>
@@ -1229,115 +834,22 @@ export default function Accommodations() {
                       value={accommodationData["quick"]?.accommodationObservations || ""}
                       onChange={(e) => handleAccommodationDataChange("quick", "accommodationObservations", e.target.value)}
                       className="text-sm resize-none bg-slate-50 border-slate-200 rounded-xl"
-                      style={{height:62}}
+                      style={{height:72}}
                       data-testid="textarea-quick-accommodation-observations"
                     />
                   </div>
                 </div>
               </section>
-
-              {/* Cards de data: Check-in | Check-out */}
-              <div className="grid grid-cols-2 gap-3">
-                {/* Check-in */}
-                <section className="rounded-xl overflow-hidden border border-slate-200">
-                  <div className="flex items-center gap-2 px-3 py-2.5 bg-[#EEF2FF] border-b border-blue-100">
-                    <div className="w-5 h-5 rounded-md bg-[#0033CC] flex items-center justify-center shrink-0">
-                      <Calendar className="w-3 h-3 text-white" />
-                    </div>
-                    <h4 className="text-[11px] font-black uppercase tracking-widest text-[#0033CC]">Check-in</h4>
-                  </div>
-                  <div className="p-4 bg-white grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Data *</Label>
-                      <Input
-                        type="date"
-                        value={accommodationData["quick"]?.checkInDate || ""}
-                        onChange={(e) => handleAccommodationDataChange("quick", "checkInDate", e.target.value)}
-                        className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
-                        data-testid="input-quick-checkin-date"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Horário</Label>
-                      <Input
-                        type="time"
-                        value={accommodationData["quick"]?.checkInTime || "14:00"}
-                        onChange={(e) => handleAccommodationDataChange("quick", "checkInTime", e.target.value)}
-                        className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
-                        data-testid="input-quick-checkin-time"
-                      />
-                    </div>
-                  </div>
-                </section>
-
-                {/* Check-out */}
-                <section className="rounded-xl overflow-hidden border border-slate-200">
-                  <div className="flex items-center gap-2 px-3 py-2.5 bg-[#FFF7ED] border-b border-orange-100">
-                    <div className="w-5 h-5 rounded-md bg-[#F97316] flex items-center justify-center shrink-0">
-                      <Clock className="w-3 h-3 text-white" />
-                    </div>
-                    <h4 className="text-[11px] font-black uppercase tracking-widest text-[#F97316]">Check-out</h4>
-                  </div>
-                  <div className="p-4 bg-white grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Data *</Label>
-                      <Input
-                        type="date"
-                        value={accommodationData["quick"]?.checkOutDate || ""}
-                        onChange={(e) => handleAccommodationDataChange("quick", "checkOutDate", e.target.value)}
-                        className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
-                        data-testid="input-quick-checkout-date"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Horário</Label>
-                      <Input
-                        type="time"
-                        value={accommodationData["quick"]?.checkOutTime || "12:00"}
-                        onChange={(e) => handleAccommodationDataChange("quick", "checkOutTime", e.target.value)}
-                        className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
-                        data-testid="input-quick-checkout-time"
-                      />
-                    </div>
-                  </div>
-                </section>
-              </div>
             </div>
 
             {/* Coluna direita (4 cols) */}
             <div className="col-span-12 lg:col-span-4 space-y-3">
 
-              {/* Anexos */}
-              <section className="rounded-xl border border-slate-200 overflow-hidden bg-white">
-                <div className="flex items-center gap-2 px-3 py-2.5 bg-slate-50 border-b border-slate-100">
-                  <div className="w-5 h-5 rounded-md bg-[#0033CC] flex items-center justify-center shrink-0">
-                    <span className="material-symbols-outlined text-white" style={{fontSize:12}}>attachment</span>
-                  </div>
-                  <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Anexos</h4>
-                </div>
-                <div className="p-3">
-                  <AttachmentUpload
-                    attachmentIds={accommodationData["quick"]?.attachmentIds || []}
-                    onAttachmentsChange={(attachmentIds) =>
-                      handleAccommodationDataChange("quick", "attachmentIds", attachmentIds)
-                    }
-                    disabled={!canEditScreen(user, 'accommodations')}
-                  />
-                </div>
-              </section>
-
               {/* Status da operação */}
               {(() => {
                 const q = accommodationData["quick"];
-                const hasHotel = !!(q?.hotelName);
-                const hasDates = !!(q?.checkInDate && q?.checkOutDate);
-                const attachCount = q?.attachmentIds?.length || 0;
-                const selectionCount = selectedInclusionsForBatch.length;
-
-                const hotelStatus = hasHotel && !!(q?.hotelLocation) && !!(q?.dailyRate) ? 'done' : hasHotel ? 'partial' : 'empty';
-                const dateStatus = hasDates ? 'done' : !!(q?.checkInDate || q?.checkOutDate) ? 'partial' : 'empty';
-                const attachStatus = attachCount > 0 ? 'done' : 'empty';
-                const selectionStatus = selectionCount > 0 ? 'done' : 'empty';
+                const hotelStatus = !!(q?.hotelName) && !!(q?.hotelLocation) ? 'done' : !!(q?.hotelName || q?.hotelLocation) ? 'partial' : 'empty';
+                const selectionStatus = selectedInclusionsForBatch.length > 0 ? 'done' : 'empty';
 
                 const dot = (status: 'done'|'partial'|'empty') => {
                   const map = { done: 'bg-green-500', partial: 'bg-yellow-400', empty: 'bg-red-400' };
@@ -1360,28 +872,14 @@ export default function Accommodations() {
                         {dot(hotelStatus)}
                         <div className="flex-1 min-w-0">
                           <p className={`text-[12px] font-semibold ${textColor(hotelStatus)}`}>Dados do hotel</p>
-                          <p className="text-[11px] text-slate-400">{hotelStatus === 'done' ? 'Nome, local e diária OK' : hotelStatus === 'partial' ? 'Dados incompletos' : 'Nenhum campo preenchido'}</p>
-                        </div>
-                      </li>
-                      <li className="flex items-center gap-2.5">
-                        {dot(dateStatus)}
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-[12px] font-semibold ${textColor(dateStatus)}`}>Datas de estadia</p>
-                          <p className="text-[11px] text-slate-400">{dateStatus === 'done' ? 'Check-in e check-out definidos' : dateStatus === 'partial' ? 'Uma data faltando' : 'Datas não preenchidas'}</p>
-                        </div>
-                      </li>
-                      <li className="flex items-center gap-2.5">
-                        {dot(attachStatus)}
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-[12px] font-semibold ${textColor(attachStatus)}`}>Arquivos anexados</p>
-                          <p className="text-[11px] text-slate-400">{attachCount > 0 ? `${attachCount} arquivo(s)` : 'Nenhum (opcional)'}</p>
+                          <p className="text-[11px] text-slate-400">{hotelStatus === 'done' ? 'Nome e localização OK' : hotelStatus === 'partial' ? 'Dados incompletos' : 'Nenhum campo preenchido'}</p>
                         </div>
                       </li>
                       <li className="flex items-center gap-2.5">
                         {dot(selectionStatus)}
                         <div className="flex-1 min-w-0">
                           <p className={`text-[12px] font-semibold ${textColor(selectionStatus)}`}>Hospedagens selecionadas</p>
-                          <p className="text-[11px] text-slate-400">{selectionCount > 0 ? `${selectionCount} na fila` : 'Selecione na tabela'}</p>
+                          <p className="text-[11px] text-slate-400">{selectedInclusionsForBatch.length > 0 ? `${selectedInclusionsForBatch.length} na fila` : 'Selecione na tabela'}</p>
                         </div>
                       </li>
                     </ul>
@@ -1403,7 +901,7 @@ export default function Accommodations() {
               </div>
               {(() => {
                 const q = accommodationData["quick"];
-                const ready = selectedInclusionsForBatch.length > 0 && !!(q?.hotelName) && !!(q?.checkInDate) && !!(q?.checkOutDate);
+                const ready = selectedInclusionsForBatch.length > 0 && !!(q?.hotelName) && !!(q?.hotelLocation);
                 const partial = !ready && (selectedInclusionsForBatch.length > 0 || !!(q?.hotelName));
                 if (ready) return (
                   <span className="flex items-center gap-1.5 px-4 py-1.5 bg-green-100 text-green-700 rounded-full text-[11px] font-bold uppercase tracking-wide">

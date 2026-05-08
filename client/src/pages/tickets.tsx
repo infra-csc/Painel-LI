@@ -565,7 +565,7 @@ export default function Tickets() {
           // Atualizar team inclusion status - passagem agora é independente de hospedagem
           const needsAccommodation = inclusion.needsAccommodation;
           const accommodation = accommodations?.find(acc => acc.teamInclusionId === inclusion.id);
-          const accommodationPurchased = accommodation && (accommodation.reservationNumber || accommodation.hotelName);
+          const accommodationPurchased = accommodation && accommodation.hotelName;
           
           let newStatus = "passagem_comprada";
           let newPhase = "passagem";
@@ -2773,7 +2773,7 @@ export default function Tickets() {
                                       // Atualizar team inclusion status - passagem agora é independente de hospedagem
                                       const needsAccommodation = selectedInclusion.needsAccommodation;
                                       const accommodation = accommodations?.find(acc => acc.teamInclusionId === selectedInclusion.id);
-                                      const accommodationPurchased = accommodation && (accommodation.reservationNumber || accommodation.hotelName);
+                                      const accommodationPurchased = accommodation && accommodation.hotelName;
                                       
                                       let newStatus = "passagem_comprada";
                                       let newPhase = "passagem";

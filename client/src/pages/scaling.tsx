@@ -322,9 +322,7 @@ export default function Scaling() {
     
     // 2. Se NÃO precisa de passagem MAS precisa de hospedagem E hospedagem foi reservada → bloqueia
     if (inclusion.needsTicket === false && inclusion.needsAccommodation === true) {
-      const accommodationPurchased = accommodations?.some(a => 
-        a.teamInclusionId === inclusion.id && a.reservationNumber !== null && a.reservationNumber !== ''
-      );
+      const accommodationPurchased = accommodations?.some(a => a.teamInclusionId === inclusion.id);
       if (accommodationPurchased) return false;
       // Hospedagem não reservada ou não há info de reserva → permite editar
       return true;
@@ -1511,7 +1509,7 @@ export default function Scaling() {
                     </div>
                     {(() => {
                       const ticketPurchased = tickets?.some(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null);
-                      const accommodationPurchased = accommodations?.some(a => a.teamInclusionId === selectedInclusion.id && a.reservationNumber !== null && a.reservationNumber !== '');
+                      const accommodationPurchased = accommodations?.some(a => a.teamInclusionId === selectedInclusion.id);
                       
                       // Se precisa de passagem e foi comprada
                       if (selectedInclusion.needsTicket && ticketPurchased) {
@@ -1889,13 +1887,6 @@ export default function Scaling() {
                           </div>
                         )}
                         
-                        {/* Número da reserva */}
-                        {accommodation.reservationNumber && (
-                          <div>
-                            <div className="text-[10px] uppercase tracking-wider text-slate-400">Nº da Reserva</div>
-                            <div className="text-sm font-semibold text-slate-700 mt-0.5">{accommodation.reservationNumber}</div>
-                          </div>
-                        )}
                       </div>
                       
                       {/* Observações */}
