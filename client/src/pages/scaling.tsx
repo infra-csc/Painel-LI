@@ -1695,9 +1695,10 @@ export default function Scaling() {
                               freela: { label: 'Freela', cls: 'bg-violet-50 text-violet-700 border-violet-100' },
                               local:  { label: 'Local',  cls: 'bg-orange-50 text-orange-700 border-orange-100' },
                             };
-                            const t = typeMap[collab.type] ?? { label: collab.type, cls: 'bg-slate-100 text-slate-600 border-slate-200' };
-                            const nameParts = collab.name.trim().split(/\s+/);
-                            const initials = nameParts.length === 1 ? nameParts[0].slice(0, 2).toUpperCase() : (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+                            const t = typeMap[collab.type] ?? { label: collab.type ?? '—', cls: 'bg-slate-100 text-slate-600 border-slate-200' };
+                            const collabName = collab.name || '';
+                            const nameParts = collabName.trim().split(/\s+/).filter(Boolean);
+                            const initials = nameParts.length === 0 ? '?' : nameParts.length === 1 ? nameParts[0].slice(0, 2).toUpperCase() : (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
                             return (
                               <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
                                 <div className={lbl + " mb-3"}>Dados do colaborador</div>
