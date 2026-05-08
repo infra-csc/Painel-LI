@@ -1,0 +1,184 @@
+O último ajuste não atendeu ao objetivo.
+
+O modal de Registro de Passagem ainda está parecendo um formulário longo, vertical e com scroll. Eu pedi para ele ficar visualmente parecido com o modal “Detalhes da Escalação”, mas isso não aconteceu.
+
+Preciso que você corrija o layout com foco real em deixar o modal de Registro de Passagem no mesmo padrão visual do modal de Escalação.
+
+IMPORTANTE
+- Não mudar a lógica de negócio
+- Não remover campos
+- Não alterar validações
+- Não alterar o comportamento de Aérea, Rodoviária, Van, Apenas ida, anexos ou comentários
+- Manter a paleta atual
+- A mudança é principalmente de layout, organização visual e experiência
+
+PROBLEMA ATUAL
+O modal ainda está:
+- muito vertical
+- com scroll longo
+- com seções grandes demais
+- com cara de formulário bruto
+- diferente do modal de escalação
+- com cards ocupando largura total sem necessidade
+- com muitas áreas empilhadas
+- com footer aparecendo enquanto o conteúdo rola por trás
+
+O que eu quero é um modal mais parecido com o “Detalhes da Escalação”:
+- mais horizontal
+- mais limpo
+- organizado por abas
+- com cards compactos
+- sem blocos coloridos exagerados
+- com menos scroll
+- com aparência premium/corporativa
+
+NOVA ESTRUTURA OBRIGATÓRIA
+
+Transformar o modal de Registro de Passagem em um modal com abas, assim como o modal de Escalação.
+
+Criar abas no topo do corpo do modal:
+
+1. Resumo
+2. Dados da Passagem
+3. Complementos
+
+A aba “Resumo” deve abrir por padrão.
+
+HEADER
+O header deve seguir o padrão do modal de Escalação:
+- ícone azul à esquerda
+- título: “Passagem #292 — teste yan”
+- subtítulo com evento e/ou colaborador
+- badge de status “Pendente”
+- botão X no canto superior direito
+- menos altura desnecessária
+- visual limpo e alinhado
+
+ABA 1 — RESUMO
+Essa aba deve mostrar apenas informações de contexto, em cards compactos.
+
+Mostrar:
+- Colaborador
+- Função
+- Documento
+- Data de nascimento
+- Sugestão de ida
+- Sugestão de volta
+- Período de trabalho
+
+Organização:
+- usar cards parecidos com o modal de Escalação
+- informações gerais em grid de 2 colunas
+- sugestões de viagem em dois cards lado a lado: Ida e Volta
+- período de trabalho em card compacto
+- sem campos editáveis nessa aba
+- sem parecer formulário
+
+Essa aba deve servir para o usuário entender rapidamente para quem ele está registrando a passagem.
+
+ABA 2 — DADOS DA PASSAGEM
+Essa aba deve conter o formulário principal.
+
+No topo da aba, criar um card compacto chamado “Configuração da passagem” com:
+- Tipo de transporte
+- Switch “Apenas ida”
+
+Esse card deve ser horizontal, limpo e parecido com os cards do modal de Escalação.
+
+Abaixo, mostrar “Informações da compra” em card compacto:
+- LOC
+- Data da compra
+
+Depois, mostrar “Informações de viagem”.
+
+Para Aérea e Rodoviária:
+- mostrar Ida e Volta lado a lado quando “Apenas ida” estiver desativado
+- mostrar somente Ida quando “Apenas ida” estiver ativado
+- quando mostrar somente Ida, o card de Ida deve ocupar melhor o espaço, sem deixar vazio da Volta
+- os cards de Ida e Volta devem parecer cards do modal de Escalação, não blocos grandes de formulário antigo
+
+Para Van:
+- mostrar um card compacto “Dados da Van”
+- campos da van bem organizados
+- sem ocupar altura exagerada
+
+IMPORTANTE VISUAL:
+- remover fundos muito coloridos das seções
+- remover barras laterais coloridas fortes
+- usar fundo branco ou cinza muito claro
+- usar cor apenas em ícones, badges, títulos ou detalhes sutis
+- não deixar cada seção com uma cor diferente
+- seguir o visual limpo do modal de Escalação
+
+ABA 3 — COMPLEMENTOS
+Essa aba deve conter:
+- Informações adicionais
+- Últimos 4 dígitos do cartão
+- Observações
+- Anexos
+- Comentários
+
+Organizar em duas colunas no desktop:
+
+Coluna esquerda:
+- Últimos 4 dígitos do cartão
+- Observações
+
+Coluna direita:
+- Anexos
+- Comentários
+
+A área de upload deve ser mais compacta e bonita.
+Comentários não devem ocupar tanto espaço na aba principal.
+
+RODAPÉ
+O rodapé deve seguir padrão mais limpo:
+- botão “Cancelar”
+- botão “Salvar”
+- botão principal “Registrar Passagem”
+
+O rodapé pode ficar fixo, mas não deve parecer que está cobrindo o conteúdo.
+O conteúdo da aba deve ter padding inferior suficiente para não ficar escondido atrás do rodapé.
+
+SCROLL
+Reduzir o scroll ao máximo.
+
+No desktop:
+- modal mais largo
+- conteúdo dividido em abas
+- cards compactos
+- não empilhar tudo em uma página só
+- cada aba deve caber melhor na tela
+- evitar rolagem longa dentro do modal
+
+O modal atual ainda tem scroll demais porque todas as seções ficam em uma única página. Isso precisa ser corrigido com abas.
+
+O QUE NÃO QUERO
+- Não quero apenas arredondar os campos
+- Não quero apenas mudar cores
+- Não quero manter tudo empilhado em uma página longa
+- Não quero blocos enormes coloridos
+- Não quero o visual atual com cara de formulário antigo
+- Não quero que fique diferente do modal de Escalação
+
+REFERÊNCIA DIRETA
+Use o modal “Detalhes da Escalação” como referência real para:
+- abas
+- cards
+- espaçamento
+- bordas suaves
+- hierarchy visual
+- labels pequenos
+- valores/campos bem alinhados
+- sensação de painel organizado
+
+CRITÉRIOS DE ACEITE
+- O modal de Registro de Passagem agora parece visualmente da mesma família do modal de Escalação
+- O conteúdo foi dividido em abas
+- A aba Resumo não tem campos editáveis, apenas contexto
+- A aba Dados da Passagem concentra os campos principais
+- A aba Complementos concentra anexos, observações e comentários
+- O modal ficou menos vertical e com menos scroll
+- As seções não têm mais blocos coloridos pesados
+- O layout ficou mais limpo, corporativo e premium
+- A lógica de preenchimento e validação continuou funcionando
