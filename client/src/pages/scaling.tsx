@@ -2106,33 +2106,32 @@ export default function Scaling() {
             </div>
           )}
 
-          {/* Modal de sucesso — overlay central */}
-          {showSuccessModal && (
-            <div className="fixed inset-0 z-[200] flex items-center justify-center" style={{background:'rgba(0,0,0,0.45)'}}>
-              <div className="bg-white rounded-2xl shadow-2xl flex flex-col items-center px-10 py-8 max-w-xs w-full mx-4" style={{boxShadow:'0 8px 40px rgba(0,0,0,0.18)'}}>
-                <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{background:'#DCFCE7'}}>
-                  <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-                    <circle cx="18" cy="18" r="18" fill="#16A34A" fillOpacity="0.12"/>
-                    <path d="M10 18.5L15.5 24L26 13" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-                <h3 className="text-lg font-bold text-slate-800 mb-1">Sucesso</h3>
-                <p className="text-sm text-slate-500 text-center mb-6">{successMessage}</p>
-                <button
-                  onClick={() => {
-                    setShowSuccessModal(false);
-                    setShowModal(false);
-                  }}
-                  className="w-full py-2.5 rounded-xl font-semibold text-white text-sm"
-                  style={{background:'#2563EB'}}
-                >
-                  OK
-                </button>
-              </div>
-            </div>
-          )}
         </DialogContent>
       </Dialog>
+
+      {/* Modal de sucesso — portal no body para escapar do transform do Dialog */}
+      {showSuccessModal && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{background:'rgba(0,0,0,0.45)'}}>
+          <div className="bg-white rounded-2xl shadow-2xl flex flex-col items-center px-10 py-8 max-w-xs w-full mx-4" style={{boxShadow:'0 8px 40px rgba(0,0,0,0.18)'}}>
+            <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{background:'#DCFCE7'}}>
+              <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                <circle cx="18" cy="18" r="18" fill="#16A34A" fillOpacity="0.12"/>
+                <path d="M10 18.5L15.5 24L26 13" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 mb-1">Sucesso</h3>
+            <p className="text-sm text-slate-500 text-center mb-6">{successMessage}</p>
+            <button
+              onClick={() => { setShowSuccessModal(false); setShowModal(false); }}
+              className="w-full py-2.5 rounded-xl font-semibold text-white text-sm"
+              style={{background:'#2563EB'}}
+            >
+              OK
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Lightbox de imagens — renderizado via Portal fora do Dialog para evitar focus trap */}
       {lightbox && createPortal(

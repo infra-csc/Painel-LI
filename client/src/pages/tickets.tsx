@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plane, Bus, Truck, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit, CheckCircle, Clock, Ticket as TicketIcon, CreditCard, Paperclip, NotebookPen, ClipboardCheck } from "lucide-react";
@@ -3023,9 +3024,9 @@ export default function Tickets() {
               </div>
             )}
 
-            {/* Modal de sucesso — overlay central sobre o modal principal */}
-            {showSuccessModal && (
-              <div className="fixed inset-0 z-[200] flex items-center justify-center" style={{background:'rgba(0,0,0,0.45)'}}>
+            {/* Modal de sucesso — portal no body para escapar do transform do Dialog */}
+            {showSuccessModal && createPortal(
+              <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{background:'rgba(0,0,0,0.45)'}}>
                 <div className="bg-white rounded-2xl shadow-2xl flex flex-col items-center px-10 py-8 max-w-xs w-full mx-4" style={{boxShadow:'0 8px 40px rgba(0,0,0,0.18)'}}>
                   <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{background:'#DCFCE7'}}>
                     <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
@@ -3054,7 +3055,8 @@ export default function Tickets() {
                     OK
                   </button>
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
           </DialogContent>
         </Dialog>
