@@ -1506,7 +1506,7 @@ export default function Scaling() {
                             : null}
                       </TabsTrigger>
                       <TabsTrigger value="comentarios" className={tabTrigger}>
-                        Comentários
+                        Comentários e Histórico
                         {comments && comments.length > 0 && (
                           <span className="ml-1.5 bg-[#2563EB] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{comments.length}</span>
                         )}
