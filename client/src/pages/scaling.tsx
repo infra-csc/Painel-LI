@@ -49,7 +49,7 @@ export default function Scaling() {
   const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const [successInfo, setSuccessInfo] = useState<{message:string;inclusionNumber:number|null;eventName:string;collaboratorName:string;functionName:string}|null>(null);
   const pendingScalingAction = useRef<'save'|'confirm'>('save');
   const [modalData, setModalData] = useState({
     collaboratorId: "",
@@ -441,7 +441,16 @@ export default function Scaling() {
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
       queryClient.refetchQueries({ queryKey: ["/api/team-inclusions"] });
       // Show success modal instead of toast
-      setSuccessMessage(pendingScalingAction.current === 'confirm' ? "Escalação confirmada com sucesso!" : "Alterações salvas com sucesso!");
+      const msg = pendingScalingAction.current === 'confirm' ? "Escalação confirmada com sucesso!" : "Alterações salvas com sucesso!";
+      const inc = selectedInclusion;
+      setSuccessInfo({
+        message: msg,
+        inclusionNumber: inc?.inclusionNumber ?? null,
+        eventName: events?.find(e => e.id === inc?.eventId)?.name ?? "—",
+        collaboratorName: inc?.collaboratorId ? getCollaboratorName(inc.collaboratorId) : "—",
+        functionName: inc?.functionId ? getFunctionName(inc.functionId) : "—",
+      });
+      setShowModal(false);
       setShowSuccessModal(true);
     },
     onError: () => {
@@ -2112,17 +2121,35 @@ export default function Scaling() {
       {/* Modal de sucesso — portal no body para escapar do transform do Dialog */}
       {showSuccessModal && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{background:'rgba(0,0,0,0.45)'}}>
-          <div className="bg-white rounded-2xl shadow-2xl flex flex-col items-center px-10 py-8 max-w-xs w-full mx-4" style={{boxShadow:'0 8px 40px rgba(0,0,0,0.18)'}}>
-            <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{background:'#DCFCE7'}}>
-              <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+          <div className="bg-white rounded-2xl shadow-2xl flex flex-col items-center px-8 py-7 max-w-sm w-full mx-4" style={{boxShadow:'0 8px 40px rgba(0,0,0,0.18)'}}>
+            <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{background:'#DCFCE7'}}>
+              <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
                 <circle cx="18" cy="18" r="18" fill="#16A34A" fillOpacity="0.12"/>
                 <path d="M10 18.5L15.5 24L26 13" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </div>
             <h3 className="text-lg font-bold text-slate-800 mb-1">Sucesso</h3>
-            <p className="text-sm text-slate-500 text-center mb-6">{successMessage}</p>
+            <p className="text-sm text-slate-500 text-center mb-4">{successInfo?.message}</p>
+            <div className="w-full border-t border-slate-100 mb-4"/>
+            <div className="w-full space-y-2 mb-5">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400 font-medium">Evento</span>
+                <span className="text-slate-700 font-semibold text-right max-w-[180px] truncate">{successInfo?.eventName}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400 font-medium">Colaborador</span>
+                <span className="text-slate-700 font-semibold text-right max-w-[180px] truncate">
+                  {successInfo?.collaboratorName}
+                  {successInfo?.inclusionNumber != null && <span className="ml-1 text-slate-400 font-normal">#{successInfo.inclusionNumber}</span>}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400 font-medium">Função</span>
+                <span className="text-slate-700 font-semibold text-right max-w-[180px] truncate">{successInfo?.functionName}</span>
+              </div>
+            </div>
             <button
-              onClick={() => { setShowSuccessModal(false); setShowModal(false); }}
+              onClick={() => { setShowSuccessModal(false); setSuccessInfo(null); }}
               className="w-full py-2.5 rounded-xl font-semibold text-white text-sm"
               style={{background:'#2563EB'}}
             >
