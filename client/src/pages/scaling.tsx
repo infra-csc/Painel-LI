@@ -64,6 +64,10 @@ export default function Scaling() {
   // Estado para novo comentário inline
   const [newComment, setNewComment] = useState("");
 
+  // Estados para o modal redesenhado
+  const [modalActiveTab, setModalActiveTab] = useState("resumo");
+  const [showAllLogs, setShowAllLogs] = useState(false);
+
   // Estado para lightbox de imagens
   const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null);
 
@@ -915,6 +919,8 @@ export default function Scaling() {
   // Pre-fetch metadata for all attachment IDs when modal opens
   useEffect(() => {
     if (!showModal || !selectedInclusion) return;
+    setModalActiveTab("resumo");
+    setShowAllLogs(false);
     const acc = accommodations?.find(a => a.teamInclusionId === selectedInclusion.id);
     const ticket = tickets?.find(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null);
     const ids = [
@@ -1435,685 +1441,778 @@ export default function Scaling() {
             );
           })()}
 
-      {/* Modal de Detalhes da Escalação */}
+      {/* Modal de Detalhes da Escalação — redesenhado com abas */}
       <Dialog open={showModal} onOpenChange={setShowModal} modal={!showSuccessModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 p-0 gap-0">
-          <DialogHeader className="bg-white -mx-0 px-6 pt-6 pb-4 border-b border-slate-100 mb-0 sticky top-0 z-10">
-            <DialogTitle className="flex items-center gap-3">
-              <div
-                className="w-9 h-9 rounded-[9px] bg-[#0033CC] flex items-center justify-center text-white shrink-0"
-                style={{ boxShadow: "0 4px 12px #0033CC40" }}
-              >
-                <Users className="w-4.5 h-4.5" style={{ width: 18, height: 18 }} />
-              </div>
-              <div>
-                <div className="text-[17px] font-bold text-slate-900 leading-tight">Detalhes da Escalação</div>
-                <div className="text-[12px] font-medium text-slate-400 mt-0.5">
-                  #{selectedInclusion?.inclusionNumber || 'N/A'} · {selectedInclusion ? getEventName(selectedInclusion.eventId) : ''}
-                </div>
-              </div>
-            </DialogTitle>
-          </DialogHeader>
-          
-          {selectedInclusion && (
-            <div className="space-y-5 px-6 py-5">
-              {/* Informações Básicas */}
-              <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4">
-                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                  <div>
-                    <div className="text-[10px] uppercase tracking-[0.12em] text-slate-400 font-black mb-1">Evento</div>
-                    <div className="text-[13px] font-semibold text-[#0033CC]">
-                      {getEventName(selectedInclusion.eventId)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] uppercase tracking-[0.12em] text-slate-400 font-black mb-1">ID</div>
-                    <div className="text-[13px] font-bold text-slate-700 font-mono">
-                      #{selectedInclusion.inclusionNumber || 'N/A'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] uppercase tracking-[0.12em] text-slate-400 font-black mb-1">Função</div>
-                    <div className="text-[13px] font-semibold text-slate-700">
-                      {getFunctionName(selectedInclusion.functionId)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] uppercase tracking-[0.12em] text-slate-400 font-black mb-1">Status</div>
-                    {selectedInclusion.status === 'cancelado' ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-500 text-[11px] font-bold rounded-full">
-                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Cancelado
-                      </span>
-                    ) : isEscalated(selectedInclusion) ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 text-green-700 text-[11px] font-bold rounded-full">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Escalado
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 text-orange-600 text-[11px] font-bold rounded-full">
-                        <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />Pendente
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Seleção de Colaborador */}
-              <div>
-                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wide mb-1.5">
-                  Colaborador <span className="text-red-400">*</span>
-                </label>
-                {!canEditCollaborator(selectedInclusion) ? (
-                  // Colaborador fixo quando não pode editar (passagem/hospedagem comprada ou sem permissão)
-                  <div className="mt-2 border border-slate-200 rounded-xl bg-slate-50 px-3 py-2.5 w-full">
-                    <div className="text-sm font-medium text-slate-700">
-                      {getCollaboratorName(modalData.collaboratorId)}
-                    </div>
-                    {(() => {
-                      const ticketPurchased = selectedInclusion.needsTicket
-                        ? tickets?.some(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null)
-                        : false;
-                      const accommodationReserved = selectedInclusion.needsAccommodation
-                        ? accommodations?.some(a => a.teamInclusionId === selectedInclusion.id)
-                        : false;
-
-                      if (ticketPurchased && accommodationReserved) {
-                        return (
-                          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs text-amber-700 flex items-center gap-1 mt-1">
-                            ⚠️ Não é possível alterar - passagem comprada e hospedagem reservada
-                          </div>
-                        );
-                      }
-                      if (ticketPurchased) {
-                        return (
-                          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs text-amber-700 flex items-center gap-1 mt-1">
-                            ⚠️ Não é possível alterar - passagem já comprada
-                          </div>
-                        );
-                      }
-                      if (accommodationReserved) {
-                        return (
-                          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs text-amber-700 flex items-center gap-1 mt-1">
-                            ⚠️ Não é possível alterar - hospedagem já reservada
-                          </div>
-                        );
-                      }
-                      // Sem permissão de role
-                      return (
-                        <div className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                          ⚠️ Você não tem permissão para alterar o colaborador
-                        </div>
-                      );
-                    })()}
-                  </div>
-                ) : (
-                  // CollaboratorCombobox para buscar colaborador quando ainda não escalado OU pode editar
-                  <div className="mt-2">
-                    <CollaboratorCombobox
-                      collaborators={collaborators}
-                      value={modalData.collaboratorId}
-                      onValueChange={(value) => setModalData(prev => ({...prev, collaboratorId: value}))}
-                      placeholder="Selecione um colaborador"
-                      testId="select-collaborator-escalation"
-                    />
-                    {isEscalationConfirmed(selectedInclusion) && canEditCollaborator(selectedInclusion) && (
-                      <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                        {selectedInclusion.needsTicket 
-                          ? "ℹ️ Você pode alterar o colaborador até a passagem ser comprada"
-                          : selectedInclusion.needsAccommodation
-                            ? "ℹ️ Você pode alterar o colaborador até a hospedagem ser reservada"
-                            : "ℹ️ Você pode alterar o colaborador (escalação confirmada)"
-                        }
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Período de Trabalho com Calendário Visual */}
-              <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                {/* Header */}
-                <div className="bg-[#0033CC]/5 border-b border-slate-200 px-4 py-2.5 flex items-center gap-2">
-                  <CalendarDays className="w-4 h-4 text-[#0033CC]" />
-                  <span className="text-[11px] font-black text-[#0033CC] uppercase tracking-[0.12em]">Período de Trabalho</span>
-                </div>
-                <div className="p-4">
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400 mb-1">Início</div>
-                      <div className="text-[13px] font-semibold text-slate-700">
-                        {formatDateWithWeekday(selectedInclusion.scheduleStartDate)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400 mb-1">Término</div>
-                      <div className="text-[13px] font-semibold text-slate-700">
-                        {formatDateWithWeekday(selectedInclusion.scheduleEndDate)}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Calendário Visual Mini */}
-                  {selectedInclusion.scheduleStartDate && selectedInclusion.scheduleEndDate && (() => {
-                    const startDate = parseISO(selectedInclusion.scheduleStartDate);
-                    const endDate = parseISO(selectedInclusion.scheduleEndDate);
-                    const allDays = eachDayOfInterval({ start: startDate, end: endDate });
-                    const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
-                    
-                    return (
-                      <div>
-                        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400 mb-2">
-                          {allDays.length} {allDays.length === 1 ? 'dia' : 'dias'} no período
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {allDays.map((day, index) => {
-                            const weekend = isWeekend(day);
-                            const weekday = format(day, 'EEE', { locale: ptBR });
-                            
-                            return (
-                              <div 
-                                key={index}
-                                className={`flex flex-col items-center justify-center rounded-xl border text-center px-2.5 py-2 min-w-[46px] ${
-                                  weekend
-                                    ? 'bg-orange-50 border-orange-200'
-                                    : 'bg-white border-slate-200'
-                                }`}
-                              >
-                                <div className={`text-[9px] uppercase font-bold ${weekend ? 'text-orange-400' : 'text-slate-400'}`}>
-                                  {weekday}
-                                </div>
-                                <div className={`text-[16px] font-bold leading-tight ${weekend ? 'text-orange-600' : 'text-slate-700'}`}>
-                                  {format(day, 'dd', { locale: ptBR })}
-                                </div>
-                                <div className={`text-[9px] ${weekend ? 'text-orange-300' : 'text-slate-300'}`}>
-                                  {format(day, 'MMM', { locale: ptBR })}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-
-
-
-
-
-              {/* Informações de Passagem - só para inclusões que necessitam de passagem */}
-              {selectedInclusion?.needsTicket && (
-                <section className="space-y-4">
-                  {selectedTicket ? (
-                    <>
-                      {/* Título da seção quando passagem comprada */}
-                      <h3 className="text-lg font-semibold text-green-700 mb-4 flex items-center gap-2">
-                        {selectedTicket.transportType === 'van' ? '🚐 Van Registrada' : selectedTicket.transportType === 'rodoviario' ? '🚌 Rodoviária Comprada' : '✈️ Passagem Aérea Comprada'}
-                      </h3>
-
-                      {/* Informações Gerais da Compra */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                        {selectedTicket.transportType !== 'van' && selectedTicket.purchaseDate && (
-                          <div>
-                            <Label className="text-xs text-green-600 font-medium">📅 Data da Compra</Label>
-                            <p className="font-medium">{formatDate(selectedTicket.purchaseDate)}</p>
-                          </div>
-                        )}
-                        {selectedTicket.purchaseOrderNumber && (
-                          <div>
-                            <Label className="text-xs text-green-600 font-medium">
-                              {selectedTicket.transportType === 'van' ? '🏢 Nome da Empresa' : '📋 Ordem de Compra'}
-                            </Label>
-                            <p className="font-medium">{selectedTicket.purchaseOrderNumber}</p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Conteúdo específico por tipo */}
-                      {selectedTicket.transportType === 'van' ? (
-                        /* Van: mostra só observações */
-                        selectedTicket.ticketObservations ? (
-                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                            <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Observação</div>
-                            <div className="text-sm text-slate-700">{selectedTicket.ticketObservations}</div>
-                          </div>
-                        ) : (
-                          <div className="text-sm text-slate-400 italic">Nenhuma observação registrada.</div>
-                        )
-                      ) : (
-                        /* Aéreo / Rodoviário: grid IDA + VOLTA */
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                          {/* Trecho de IDA */}
-                          <div className="bg-white border border-slate-200 rounded-xl p-4 flex-1">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-blue-600 mb-3 flex items-center gap-2">
-                              {selectedTicket.transportType === 'rodoviario' ? '🚌' : '🛫'} IDA
-                            </h4>
-                            <div className="space-y-2">
-                              <div>
-                                <div className="text-xs text-slate-400 uppercase tracking-wider">
-                                  {selectedTicket.transportType === 'rodoviario' ? 'Cidade de Origem' : 'Origem'}
-                                </div>
-                                <div className="text-sm font-medium text-slate-700">{selectedTicket.departureAirport || "-"}</div>
-                              </div>
-                              <div>
-                                <div className="text-xs text-slate-400 uppercase tracking-wider">
-                                  {selectedTicket.transportType === 'rodoviario' ? 'Cidade de Destino' : 'Destino'}
-                                </div>
-                                <div className="text-sm font-medium text-slate-700">{selectedTicket.destinationAirport || "-"}</div>
-                              </div>
-                              <div>
-                                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Data</div>
-                                <div className="text-sm font-medium text-blue-600 mb-2">
-                                  {selectedTicket.actualDepartureDate ? formatDate(selectedTicket.actualDepartureDate) : "-"}
-                                </div>
-                                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Horário</div>
-                                {selectedTicket.actualDepartureTime ? (
-                                  <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2">
-                                    <span className="text-lg font-bold text-green-700">{selectedTicket.actualDepartureTime}</span>
-                                  </div>
-                                ) : (
-                                  <div className="bg-slate-50 border-l-4 border-slate-200 rounded-lg px-3 py-2">
-                                    <span className="text-lg font-bold text-slate-300">--:--</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Trecho de VOLTA */}
-                          <div className="bg-white border border-slate-200 rounded-xl p-4 flex-1">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-blue-600 mb-3 flex items-center gap-2">
-                              {selectedTicket.transportType === 'rodoviario' ? '🚌' : '🛬'} VOLTA
-                            </h4>
-                            <div className="space-y-2">
-                              <div>
-                                <div className="text-xs text-slate-400 uppercase tracking-wider">
-                                  {selectedTicket.transportType === 'rodoviario' ? 'Cidade de Origem' : 'Origem'}
-                                </div>
-                                <div className="text-sm font-medium text-slate-700">{selectedTicket.destinationAirport || "-"}</div>
-                              </div>
-                              <div>
-                                <div className="text-xs text-slate-400 uppercase tracking-wider">
-                                  {selectedTicket.transportType === 'rodoviario' ? 'Cidade de Destino' : 'Destino'}
-                                </div>
-                                <div className="text-sm font-medium text-slate-700">{selectedTicket.departureAirport || "-"}</div>
-                              </div>
-                              <div>
-                                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Data</div>
-                                <div className="text-sm font-medium text-blue-600 mb-2">
-                                  {selectedTicket.actualReturnDate ? formatDate(selectedTicket.actualReturnDate) : "-"}
-                                </div>
-                                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Horário</div>
-                                {selectedTicket.actualReturnTime ? (
-                                  <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2">
-                                    <span className="text-lg font-bold text-green-700">{selectedTicket.actualReturnTime}</span>
-                                  </div>
-                                ) : (
-                                  <div className="bg-slate-50 border-l-4 border-slate-200 rounded-lg px-3 py-2">
-                                    <span className="text-lg font-bold text-slate-300">--:--</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {/* Status: Passagem Não Comprada */}
-                      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
-                        <span className="text-amber-500 text-lg">⚠️</span>
-                        <div className="text-sm font-medium text-amber-700">Passagem ainda não foi comprada</div>
-                      </div>
-                    </>
-                  )}
-
-                  {/* Datas de Viagem Sugeridas - só se ainda não comprou a passagem */}
-                  {!selectedTicket && (
-                    <div className="border border-blue-200 rounded-xl overflow-hidden">
-                      <div className="bg-blue-50 border-b border-blue-200 px-4 py-2.5 flex items-center gap-2">
-                        <Plane className="w-3.5 h-3.5 text-blue-500" />
-                        <span className="text-[11px] font-black text-blue-600 uppercase tracking-[0.12em]">Datas Sugeridas</span>
-                        <span className="text-[10px] text-blue-400 font-normal ml-1">· da inclusão de equipe</span>
-                      </div>
-                      <div className="p-4">
-                        {(() => {
-                          const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined, selectedInclusion);
-                          return (
-                            <div className="grid grid-cols-2 gap-3">
-                              {/* IDA */}
-                              <div className="bg-white border border-blue-100 rounded-xl p-3">
-                                <div className="text-[10px] font-black uppercase tracking-[0.12em] text-blue-400 mb-2 flex items-center gap-1">
-                                  🛫 IDA
-                                </div>
-                                <div className="space-y-2">
-                                  <div>
-                                    <div className="text-[10px] text-slate-400">Data</div>
-                                    <div className="text-[12px] font-semibold text-slate-700">{formatSuggestionDate(travelInfo.ida)}</div>
-                                  </div>
-                                  <div>
-                                    <div className="text-[10px] text-slate-400">Horário sugerido</div>
-                                    <div className="text-[12px] font-semibold text-slate-700">{travelInfo.chegada !== 'N/A' && travelInfo.chegada !== 'Não definido' ? travelInfo.chegada : '—'}</div>
-                                  </div>
-                                </div>
-                              </div>
-                              {/* VOLTA */}
-                              <div className="bg-white border border-blue-100 rounded-xl p-3">
-                                <div className="text-[10px] font-black uppercase tracking-[0.12em] text-blue-400 mb-2 flex items-center gap-1">
-                                  🛬 VOLTA
-                                </div>
-                                <div className="space-y-2">
-                                  <div>
-                                    <div className="text-[10px] text-slate-400">Data</div>
-                                    <div className="text-[12px] font-semibold text-slate-700">{formatSuggestionDate(travelInfo.retorno)}</div>
-                                  </div>
-                                  <div>
-                                    <div className="text-[10px] text-slate-400">Horário sugerido</div>
-                                    <div className="text-[12px] font-semibold text-slate-700">{travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' ? travelInfo.horario : '—'}</div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  )}
-                </section>
-              )}
-
-              {/* Seção de Anexos da Passagem */}
-              {selectedTicket?.attachmentIds && selectedTicket.attachmentIds.length > 0 && (
-                <div className="border-t pt-4">
-                  <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-2">📎 Anexos da Passagem</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {selectedTicket.attachmentIds.map((attachmentId, index) => {
-                      const fallback = `Anexo ${index + 1} da Passagem`;
-                      return (
-                        <div
-                          key={attachmentId}
-                          className="bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer transition-all"
-                          onClick={() => openAttachment(attachmentId, fallback)}
-                        >
-                          <div className="bg-blue-100 text-blue-600 rounded-lg w-7 h-7 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                            {index + 1}
-                          </div>
-                          <span className="flex-1 text-sm text-slate-400">Clique para visualizar</span>
-                          <Eye className="w-4 h-4 text-blue-400 flex-shrink-0" />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Seção de Hospedagem */}
-              {(() => {
-                const accommodation = getAccommodation(selectedInclusion.id);
-                if (!accommodation) return null;
-                return (
-                  <div className="border-t pt-4">
-                    <h3 className="text-base font-semibold text-slate-800 mb-3">🏨 Dados da Hospedagem</h3>
-                    <div className="bg-green-50 border border-green-100 rounded-2xl p-4 mb-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Hotel */}
-                        <div>
-                          <div className="text-[10px] uppercase tracking-wider text-slate-400">Hotel</div>
-                          <div className="text-sm font-semibold text-slate-700 mt-0.5">{accommodation.hotelName || 'Não informado'}</div>
-                        </div>
-                        
-                        {/* Localização */}
-                        {accommodation.hotelLocation && (
-                          <div>
-                            <div className="text-[10px] uppercase tracking-wider text-slate-400">Localização</div>
-                            <div className="text-sm font-semibold text-slate-700 mt-0.5">{accommodation.hotelLocation}</div>
-                          </div>
-                        )}
-                        
-                        {/* Check-in */}
-                        <div>
-                          <div className="text-[10px] uppercase tracking-wider text-slate-400">Check-in</div>
-                          <div className="text-sm font-semibold text-slate-700 mt-0.5">
-                            {accommodation.checkInDate ? formatDateWithWeekday(accommodation.checkInDate) : 'Não informado'}
-                            {accommodation.checkInTime && ` às ${accommodation.checkInTime}`}
-                          </div>
-                        </div>
-                        
-                        {/* Check-out */}
-                        <div>
-                          <div className="text-[10px] uppercase tracking-wider text-slate-400">Check-out</div>
-                          <div className="text-sm font-semibold text-slate-700 mt-0.5">
-                            {accommodation.checkOutDate ? formatDateWithWeekday(accommodation.checkOutDate) : 'Não informado'}
-                            {accommodation.checkOutTime && ` às ${accommodation.checkOutTime}`}
-                          </div>
-                        </div>
-                        
-                        {/* Valor da diária */}
-                        {accommodation.dailyRate && (
-                          <div>
-                            <div className="text-[10px] uppercase tracking-wider text-slate-400">Valor da Diária</div>
-                            <div className="text-sm font-semibold text-slate-700 mt-0.5">R$ {(accommodation.dailyRate / 100).toFixed(2)}</div>
-                          </div>
-                        )}
-                        
-                      </div>
-                      
-                      {/* Observações */}
-                      {accommodation.accommodationObservations && (
-                        <div className="mt-4 pt-4 border-t border-green-100">
-                          <div className="text-[10px] uppercase tracking-wider text-slate-400">Observações</div>
-                          <div className="text-sm font-semibold text-slate-700 mt-0.5">{accommodation.accommodationObservations}</div>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Anexos da Hospedagem */}
-                    {accommodation.attachmentIds && accommodation.attachmentIds.length > 0 && (
-                      <div className="mt-4">
-                        <h4 className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-2">📎 Anexos da Hospedagem</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {accommodation.attachmentIds.map((attachmentId, index) => {
-                            const fallback = `Anexo ${index + 1} da Hospedagem`;
-                            return (
-                            <div
-                              key={attachmentId}
-                              className="bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer transition-all"
-                              onClick={() => openAttachment(attachmentId, fallback)}
-                            >
-                              <div className="bg-blue-100 text-blue-600 rounded-lg w-7 h-7 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                                {index + 1}
-                              </div>
-                              <span className="flex-1 text-sm text-slate-400">Clique para visualizar</span>
-                              <Eye className="w-4 h-4 text-blue-400 flex-shrink-0" />
-                            </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Seção de Comentários */}
-              <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-slate-500" />
-                  <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Comentários</span>
-                  {comments && comments.length > 0 && (
-                    <span className="ml-auto bg-[#0033CC] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{comments.length}</span>
-                  )}
-                </div>
-                <div className="p-4">
-                
-                {/* Lista de comentários existentes */}
-                {comments && comments.length > 0 ? (
-                  <div className="space-y-3 max-h-60 overflow-y-auto mb-4">
-                    {comments.map((comment) => (
-                      <div key={comment.id} className="bg-slate-50 border border-slate-100 p-3 rounded-xl">
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="text-sm font-medium text-slate-700">
-                            {getUserName(comment.userId)}
-                          </div>
-                          <div className="text-xs text-slate-400">
-                            {formatDateTime(comment.createdAt)}
-                          </div>
-                        </div>
-                        <div className="text-sm text-slate-700 mb-2">
-                          {comment.content}
-                        </div>
-                        <div className="text-xs text-slate-400">
-                          {getPhaseLabel(comment.phase)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-sm text-center py-8 mb-4">
-                    Nenhum comentário registrado para esta inclusão.
-                  </div>
-                )}
-
-                {/* Formulário para adicionar novo comentário */}
-                <div className="border-t border-slate-100 pt-3">
-                  <div className="flex space-x-3">
-                    <Textarea 
-                      rows={2}
-                      placeholder="Adicionar comentário..."
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      className="flex-1 border border-slate-200 rounded-xl bg-white text-sm p-3 resize-none focus:ring-2 focus:ring-blue-200 min-h-[72px]"
-                      data-testid="textarea-comment-inline"
-                      disabled={!selectedInclusion || isReadOnly(selectedInclusion) || !canConfirmEscalation(selectedInclusion)}
-                    />
-                    <Button 
-                      onClick={handleAddComment}
-                      disabled={addCommentMutation.isPending || !newComment.trim() || !selectedInclusion || isReadOnly(selectedInclusion)}
-                      style={{ background: "#0033CC", boxShadow: "0 3px 10px #0033CC40" }}
-                      className="text-white rounded-xl px-5 py-2 text-sm font-semibold hover:opacity-90 transition-opacity shrink-0"
-                      data-testid="button-add-comment-inline"
-                    >
-                      {addCommentMutation.isPending ? "Enviando..." : "Enviar"}
-                    </Button>
-                  </div>
-                </div>
-                </div>
-              </div>
-
-              {/* Seção de Histórico de Alterações */}
-              {inclusionLogs && inclusionLogs.length > 0 && (
-                <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                  <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex items-center gap-2">
-                    <History className="w-4 h-4 text-slate-400" />
-                    <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Histórico de Alterações</span>
-                    <span className="ml-auto text-[10px] text-slate-400">{inclusionLogs.length} {inclusionLogs.length === 1 ? 'entrada' : 'entradas'}</span>
-                  </div>
-                  <div className="p-4">
-                  
-                  <div className="border-l-2 border-slate-100 ml-3 pl-4 space-y-4 max-h-80 overflow-y-auto">
-                    {inclusionLogs
-                      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-                      .map((log, index) => {
-                        const actionLabels: Record<string, string> = {
-                          'status_changed': '🔄 Status Alterado',
-                          'collaborator_changed': '👤 Colaborador Alterado',
-                          'dates_changed': '📅 Período Alterado',
-                          'travel_dates_changed': '✈️ Datas de Viagem Alteradas',
-                          'observations_changed': '📝 Observações Atualizadas',
-                          'created': '✨ Criado',
-                          'confirmed': '✅ Confirmado',
-                          'reopened': '🔓 Reaberto',
-                        };
-                        
-                        return (
-                          <div key={log.id} className="flex gap-3">
-                            <div className="w-3 h-3 bg-blue-500 rounded-full -ml-[1.4rem] mt-1 flex-shrink-0 ring-4 ring-white"></div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="text-sm font-semibold text-slate-700">
-                                  {actionLabels[log.action] || log.action}
-                                </div>
-                                <div className="text-xs text-slate-400 ml-auto whitespace-nowrap flex-shrink-0">
-                                  {log.createdAt && formatDateTime(log.createdAt)}
-                                </div>
-                              </div>
-                              <div className="text-xs text-slate-500 mt-0.5">
-                                {log.details}
-                              </div>
-                              <div className="text-xs text-blue-500 font-medium mt-0.5">
-                                por {log.userName}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Botões */}
-              <div className="flex gap-3 justify-end pt-4 border-t border-slate-100 mt-2">
-                <Button variant="outline" onClick={() => setShowModal(false)} className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl px-5 py-2 text-sm font-medium">
-                  Cancelar
-                </Button>
-                {selectedInclusion && !isReadOnly(selectedInclusion) && (
-                  <>
-                    {/* Botão Salvar - disponível para quem pode editar colaborador OU confirmar escalação */}
-                    {(canEditCollaborator(selectedInclusion) || !isEscalated(selectedInclusion)) && (
-                      <Button 
-                        variant="secondary"
-                        onClick={handleSave}
-                        disabled={(() => {
-                          if (!selectedInclusion) return true;
-                          if (updateTeamInclusionMutation.isPending) return true;
-                          if (selectedInclusion.status === 'cancelado') return true;
-                          // Se já foi escalado, só pode salvar se pode editar colaborador
-                          if (isEscalated(selectedInclusion)) {
-                            return !canEditCollaborator(selectedInclusion);
-                          }
-                          // Se não foi escalado, precisa ser responsável pela função
-                          if (!canConfirmEscalation(selectedInclusion)) return true;
-                          return false;
-                        })()}
-                        className="flex items-center gap-2 border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl px-5 py-2 text-sm font-medium"
-                      >
-                        <Save className="w-4 h-4" />
-                        {updateTeamInclusionMutation.isPending ? "Salvando..." : "Salvar Alterações"}
-                      </Button>
-                    )}
-                    
-                    {/* Botão Confirmar Escalação - só antes de escalar */}
-                    {!isEscalated(selectedInclusion) && (
-                      <Button 
-                        onClick={handleConfirmEscalation}
-                        disabled={(() => {
-                          if (!selectedInclusion) return true;
-                          if (updateTeamInclusionMutation.isPending) return true;
-                          if (selectedInclusion.status === 'cancelado') return true;
-                          if (!canConfirmEscalation(selectedInclusion)) return true;
-                          return false;
-                        })()}
-                        style={{ background: "#0033CC", boxShadow: "0 4px 14px #0033CC50" }}
-                        className="flex items-center gap-2 text-white rounded-xl px-6 py-2 h-10 text-sm font-bold hover:opacity-90 transition-opacity"
-                      >
-                        <Check className="w-4 h-4" />
-                        {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
-                      </Button>
-                    )}
-                  </>
-                )}
-                
-                {/* Mensagem informativa quando usuário não tem permissão */}
-                {selectedInclusion && !isEscalated(selectedInclusion) && !isReadOnly(selectedInclusion) && !canConfirmEscalation(selectedInclusion) && (
-                  <div className="text-sm text-muted-foreground bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-3 text-center">
-                    ⚠️ Apenas o responsável pela função pode confirmar escalações
-                  </div>
-                )}
+        <DialogContent className="!max-w-[1180px] w-[95vw] max-h-[88vh] !flex !flex-col p-0 gap-0 overflow-hidden">
+          {/* ── Header ── */}
+          <div className="px-6 pt-5 pb-4 border-b border-slate-100 shrink-0 flex items-center gap-3 pr-12">
+            <div
+              className="w-10 h-10 rounded-[10px] flex items-center justify-center text-white shrink-0"
+              style={{ background: '#2563EB', boxShadow: '0 4px 12px #2563EB40' }}
+            >
+              <Users style={{ width: 20, height: 20 }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <DialogTitle className="text-[17px] font-bold text-slate-900 leading-tight m-0 p-0">
+                Detalhes da Escalação
+              </DialogTitle>
+              <div className="text-[12px] text-slate-400 mt-0.5 truncate">
+                #{selectedInclusion?.inclusionNumber || 'N/A'} · {selectedInclusion ? getCollaboratorName(selectedInclusion.collaboratorId) : ''}
               </div>
             </div>
-          )}
+            {selectedInclusion && (
+              selectedInclusion.status === 'cancelado' ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-500 text-[11px] font-bold rounded-full shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Cancelado
+                </span>
+              ) : isEscalated(selectedInclusion) ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 text-green-700 text-[11px] font-bold rounded-full shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Escalado
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 text-orange-600 text-[11px] font-bold rounded-full shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />Pendente
+                </span>
+              )
+            )}
+          </div>
+
+          {selectedInclusion && (() => {
+            const accommodation = getAccommodation(selectedInclusion.id);
+            const tabTrigger = "relative rounded-none border-b-2 border-transparent data-[state=active]:border-[#2563EB] data-[state=active]:text-[#2563EB] text-slate-500 bg-transparent data-[state=active]:bg-transparent px-4 pb-3 pt-2 text-sm font-medium shadow-none hover:text-slate-700 transition-colors";
+            const lbl = "text-[10px] uppercase tracking-[0.12em] text-slate-400 font-black mb-1";
+            const val = "text-[13px] font-semibold text-slate-700";
+            return (
+              <>
+                {/* ── Abas ── */}
+                <Tabs value={modalActiveTab} onValueChange={setModalActiveTab} className="flex-1 flex flex-col overflow-hidden min-h-0">
+                  <div className="px-6 border-b border-slate-100 shrink-0">
+                    <TabsList className="bg-transparent p-0 h-auto gap-0 rounded-none -mb-px">
+                      <TabsTrigger value="resumo" className={tabTrigger}>Resumo</TabsTrigger>
+                      <TabsTrigger value="passagem" className={tabTrigger}>
+                        Passagem
+                        {selectedTicket
+                          ? <span className="ml-1.5 bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">✓</span>
+                          : selectedInclusion.needsTicket
+                            ? <span className="ml-1.5 bg-amber-100 text-amber-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">!</span>
+                            : null}
+                      </TabsTrigger>
+                      <TabsTrigger value="hospedagem" className={tabTrigger}>
+                        Hospedagem
+                        {accommodation
+                          ? <span className="ml-1.5 bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">✓</span>
+                          : selectedInclusion.needsAccommodation
+                            ? <span className="ml-1.5 bg-amber-100 text-amber-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">!</span>
+                            : null}
+                      </TabsTrigger>
+                      <TabsTrigger value="comentarios" className={tabTrigger}>
+                        Comentários
+                        {comments && comments.length > 0 && (
+                          <span className="ml-1.5 bg-[#2563EB] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{comments.length}</span>
+                        )}
+                      </TabsTrigger>
+                    </TabsList>
+                  </div>
+
+                  {/* Área de conteúdo das abas */}
+                  <div className="flex-1 overflow-y-auto min-h-0">
+
+                    {/* ══ ABA: RESUMO ══ */}
+                    <TabsContent value="resumo" className="m-0 p-6">
+                      <div className="grid grid-cols-3 gap-5">
+
+                        {/* Col 1: Informações Básicas */}
+                        <div className="space-y-4">
+                          <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4 space-y-3">
+                            <div>
+                              <div className={lbl}>Evento</div>
+                              <div className="text-[13px] font-semibold text-[#2563EB] leading-snug">{getEventName(selectedInclusion.eventId)}</div>
+                            </div>
+                            <div>
+                              <div className={lbl}>ID</div>
+                              <div className="text-[13px] font-bold text-slate-700 font-mono">#{selectedInclusion.inclusionNumber || 'N/A'}</div>
+                            </div>
+                            <div>
+                              <div className={lbl}>Função</div>
+                              <div className={val}>{getFunctionName(selectedInclusion.functionId)}</div>
+                            </div>
+                            <div>
+                              <div className={lbl}>Status</div>
+                              {selectedInclusion.status === 'cancelado' ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-500 text-[11px] font-bold rounded-full">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Cancelado
+                                </span>
+                              ) : isEscalated(selectedInclusion) ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 text-green-700 text-[11px] font-bold rounded-full">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Escalado
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 text-orange-600 text-[11px] font-bold rounded-full">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />Pendente
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                              {selectedInclusion.needsTicket && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-full border border-blue-100">
+                                  <Plane style={{ width: 9, height: 9 }} />Passagem
+                                </span>
+                              )}
+                              {selectedInclusion.needsAccommodation && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-600 text-[10px] font-bold rounded-full border border-purple-100">
+                                  🏨 Hospedagem
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Col 2: Colaborador */}
+                        <div className="space-y-4">
+                          <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4">
+                            <div className={lbl + " mb-2"}>Colaborador <span className="text-red-400">*</span></div>
+                            {!canEditCollaborator(selectedInclusion) ? (
+                              <div>
+                                <div className="border border-slate-200 rounded-xl bg-white px-3 py-2.5">
+                                  <div className="text-sm font-medium text-slate-700">{getCollaboratorName(modalData.collaboratorId)}</div>
+                                </div>
+                                {(() => {
+                                  const ticketPurchased = selectedInclusion.needsTicket
+                                    ? tickets?.some(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null) : false;
+                                  const accommodationReserved = selectedInclusion.needsAccommodation
+                                    ? accommodations?.some(a => a.teamInclusionId === selectedInclusion.id) : false;
+                                  const msg = ticketPurchased && accommodationReserved
+                                    ? "Não é possível alterar — passagem comprada e hospedagem reservada"
+                                    : ticketPurchased ? "Não é possível alterar — passagem já comprada"
+                                    : accommodationReserved ? "Não é possível alterar — hospedagem já reservada"
+                                    : "Você não tem permissão para alterar o colaborador";
+                                  return (
+                                    <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-700 flex items-start gap-1.5">
+                                      ⚠️ {msg}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            ) : (
+                              <div>
+                                <CollaboratorCombobox
+                                  collaborators={collaborators}
+                                  value={modalData.collaboratorId}
+                                  onValueChange={(value) => setModalData(prev => ({ ...prev, collaboratorId: value }))}
+                                  placeholder="Selecione um colaborador"
+                                  testId="select-collaborator-escalation"
+                                />
+                                {isEscalationConfirmed(selectedInclusion) && canEditCollaborator(selectedInclusion) && (
+                                  <div className="text-xs text-blue-600 mt-1.5">
+                                    {selectedInclusion.needsTicket
+                                      ? "ℹ️ Você pode alterar até a passagem ser comprada"
+                                      : selectedInclusion.needsAccommodation
+                                        ? "ℹ️ Você pode alterar até a hospedagem ser reservada"
+                                        : "ℹ️ Você pode alterar o colaborador (escalação confirmada)"}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Col 3: Período de Trabalho */}
+                        <div>
+                          <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                            <div className="bg-[#2563EB]/5 border-b border-slate-200 px-4 py-2.5 flex items-center gap-2">
+                              <CalendarDays className="w-4 h-4 text-[#2563EB]" />
+                              <span className="text-[11px] font-black text-[#2563EB] uppercase tracking-[0.12em]">Período de Trabalho</span>
+                            </div>
+                            <div className="p-4">
+                              <div className="grid grid-cols-2 gap-3 mb-4">
+                                <div>
+                                  <div className={lbl}>Início</div>
+                                  <div className={val}>{formatDateWithWeekday(selectedInclusion.scheduleStartDate)}</div>
+                                </div>
+                                <div>
+                                  <div className={lbl}>Término</div>
+                                  <div className={val}>{formatDateWithWeekday(selectedInclusion.scheduleEndDate)}</div>
+                                </div>
+                              </div>
+                              {selectedInclusion.scheduleStartDate && selectedInclusion.scheduleEndDate && (() => {
+                                const startDate = parseISO(selectedInclusion.scheduleStartDate);
+                                const endDate = parseISO(selectedInclusion.scheduleEndDate);
+                                const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+                                const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
+                                return (
+                                  <div>
+                                    <div className={lbl + " mb-2"}>{allDays.length} {allDays.length === 1 ? 'dia' : 'dias'} no período</div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {allDays.map((day, index) => {
+                                        const weekend = isWeekend(day);
+                                        return (
+                                          <div key={index} className={`flex flex-col items-center rounded-xl border text-center px-2 py-1.5 min-w-[40px] ${weekend ? 'bg-orange-50 border-orange-200' : 'bg-white border-slate-200'}`}>
+                                            <div className={`text-[9px] uppercase font-bold ${weekend ? 'text-orange-400' : 'text-slate-400'}`}>
+                                              {format(day, 'EEE', { locale: ptBR })}
+                                            </div>
+                                            <div className={`text-[15px] font-bold leading-tight ${weekend ? 'text-orange-600' : 'text-slate-700'}`}>
+                                              {format(day, 'dd', { locale: ptBR })}
+                                            </div>
+                                            <div className={`text-[8px] ${weekend ? 'text-orange-300' : 'text-slate-300'}`}>
+                                              {format(day, 'MMM', { locale: ptBR })}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        </div>
+
+                      </div>
+                    </TabsContent>
+
+                    {/* ══ ABA: PASSAGEM ══ */}
+                    <TabsContent value="passagem" className="m-0 p-6">
+                      {!selectedInclusion.needsTicket ? (
+                        <div className="flex flex-col items-center justify-center py-16 text-center">
+                          <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+                            <Plane className="w-6 h-6 text-slate-300" />
+                          </div>
+                          <div className="text-sm font-medium text-slate-400">Esta escalação não requer passagem.</div>
+                        </div>
+                      ) : !selectedTicket ? (
+                        <div className="space-y-4">
+                          <div className="flex flex-col items-center justify-center py-10 text-center">
+                            <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center mb-4">
+                              <Plane className="w-6 h-6 text-amber-300" />
+                            </div>
+                            <div className="text-sm font-semibold text-slate-600 mb-1">Nenhuma passagem registrada</div>
+                            <div className="text-xs text-slate-400">para esta escalação</div>
+                          </div>
+                          {/* Datas Sugeridas */}
+                          <div className="border border-blue-200 rounded-2xl overflow-hidden">
+                            <div className="bg-blue-50 border-b border-blue-200 px-4 py-2.5 flex items-center gap-2">
+                              <Plane className="w-3.5 h-3.5 text-blue-500" />
+                              <span className="text-[11px] font-black text-blue-600 uppercase tracking-[0.12em]">Datas Sugeridas</span>
+                              <span className="text-[10px] text-blue-400 font-normal ml-1">· da inclusão de equipe</span>
+                            </div>
+                            <div className="p-4">
+                              {(() => {
+                                const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined, selectedInclusion);
+                                return (
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="bg-white border border-blue-100 rounded-xl p-3">
+                                      <div className="text-[10px] font-black uppercase tracking-[0.12em] text-blue-400 mb-2">🛫 IDA</div>
+                                      <div className="space-y-1.5">
+                                        <div><div className="text-[10px] text-slate-400">Data</div><div className="text-[12px] font-semibold text-slate-700">{formatSuggestionDate(travelInfo.ida)}</div></div>
+                                        <div><div className="text-[10px] text-slate-400">Horário sugerido</div><div className="text-[12px] font-semibold text-slate-700">{travelInfo.chegada !== 'N/A' && travelInfo.chegada !== 'Não definido' ? travelInfo.chegada : '—'}</div></div>
+                                      </div>
+                                    </div>
+                                    <div className="bg-white border border-blue-100 rounded-xl p-3">
+                                      <div className="text-[10px] font-black uppercase tracking-[0.12em] text-blue-400 mb-2">🛬 VOLTA</div>
+                                      <div className="space-y-1.5">
+                                        <div><div className="text-[10px] text-slate-400">Data</div><div className="text-[12px] font-semibold text-slate-700">{formatSuggestionDate(travelInfo.retorno)}</div></div>
+                                        <div><div className="text-[10px] text-slate-400">Horário sugerido</div><div className="text-[12px] font-semibold text-slate-700">{travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' ? travelInfo.horario : '—'}</div></div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {/* Resumo Superior */}
+                          <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4">
+                            <div className="flex flex-wrap items-center gap-6">
+                              <div>
+                                <div className={lbl}>Tipo</div>
+                                <div className="text-[13px] font-semibold text-slate-700">
+                                  {selectedTicket.transportType === 'van' ? '🚐 Van' : selectedTicket.transportType === 'rodoviario' ? '🚌 Rodoviária' : '✈️ Aéreo'}
+                                </div>
+                              </div>
+                              {selectedTicket.purchaseDate && (
+                                <div>
+                                  <div className={lbl}>Data da Compra</div>
+                                  <div className="text-[13px] font-semibold text-slate-700">{formatDate(selectedTicket.purchaseDate)}</div>
+                                </div>
+                              )}
+                              {selectedTicket.purchaseOrderNumber && (
+                                <div>
+                                  <div className={lbl}>{selectedTicket.transportType === 'van' ? 'Empresa / OC' : 'Ordem de Compra'}</div>
+                                  <div className="text-[13px] font-semibold text-slate-700">{selectedTicket.purchaseOrderNumber}</div>
+                                </div>
+                              )}
+                              {selectedTicket.cardLastFourDigits && (
+                                <div>
+                                  <div className={lbl}>Cartão</div>
+                                  <div className="text-[13px] font-semibold text-slate-700 font-mono">****{selectedTicket.cardLastFourDigits}</div>
+                                </div>
+                              )}
+                              {selectedTicket.value && (
+                                <div>
+                                  <div className={lbl}>Valor</div>
+                                  <div className="text-[13px] font-semibold text-slate-700">{formatCurrency(selectedTicket.value / 100)}</div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {selectedTicket.transportType === 'van' ? (
+                            /* ── Van ── */
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+                                <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 mb-1">🚐 Informações da Van</div>
+                                {selectedTicket.departureCityOrigin && (
+                                  <div><div className="text-[10px] text-slate-400 uppercase tracking-wider">Local de Saída</div><div className="text-sm font-medium text-slate-700">{selectedTicket.departureCityOrigin}</div></div>
+                                )}
+                                {selectedTicket.departureCityDestination && (
+                                  <div><div className="text-[10px] text-slate-400 uppercase tracking-wider">Local de Destino</div><div className="text-sm font-medium text-slate-700">{selectedTicket.departureCityDestination}</div></div>
+                                )}
+                                {selectedTicket.actualDepartureDate && (
+                                  <div><div className="text-[10px] text-slate-400 uppercase tracking-wider">Data de Saída</div><div className="text-sm font-medium text-slate-700">{formatDate(selectedTicket.actualDepartureDate)}</div></div>
+                                )}
+                                {selectedTicket.actualDepartureTime && (
+                                  <div><div className="text-[10px] text-slate-400 uppercase tracking-wider">Horário de Saída</div><div className="text-sm font-bold text-slate-700">{selectedTicket.actualDepartureTime}</div></div>
+                                )}
+                                {selectedTicket.returnCityOrigin && (
+                                  <div><div className="text-[10px] text-slate-400 uppercase tracking-wider">Local de Retorno Origem</div><div className="text-sm font-medium text-slate-700">{selectedTicket.returnCityOrigin}</div></div>
+                                )}
+                                {selectedTicket.returnCityDestination && (
+                                  <div><div className="text-[10px] text-slate-400 uppercase tracking-wider">Local de Retorno Destino</div><div className="text-sm font-medium text-slate-700">{selectedTicket.returnCityDestination}</div></div>
+                                )}
+                                {selectedTicket.actualReturnDate && (
+                                  <div><div className="text-[10px] text-slate-400 uppercase tracking-wider">Data de Retorno</div><div className="text-sm font-medium text-slate-700">{formatDate(selectedTicket.actualReturnDate)}</div></div>
+                                )}
+                                {selectedTicket.actualReturnTime && (
+                                  <div><div className="text-[10px] text-slate-400 uppercase tracking-wider">Horário de Retorno</div><div className="text-sm font-bold text-slate-700">{selectedTicket.actualReturnTime}</div></div>
+                                )}
+                              </div>
+                              {selectedTicket.ticketObservations && (
+                                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                                  <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 mb-2">Observações</div>
+                                  <div className="text-sm text-slate-700 whitespace-pre-line">{selectedTicket.ticketObservations}</div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            /* ── Aéreo / Rodoviário: IDA + VOLTA ── */
+                            <div className="grid grid-cols-2 gap-4">
+                              {/* IDA */}
+                              <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                                <div className="text-[11px] font-black uppercase tracking-[0.12em] mb-3 flex items-center gap-1.5" style={{ color: '#2563EB' }}>
+                                  {selectedTicket.transportType === 'rodoviario' ? '🚌' : '🛫'} IDA
+                                </div>
+                                <div className="space-y-2.5">
+                                  {selectedTicket.transportType === 'rodoviario' && selectedTicket.departureAirport && (
+                                    <div>
+                                      <div className="text-[10px] text-slate-400 uppercase tracking-wider">Rodoviária de Origem</div>
+                                      <div className="text-sm font-medium text-slate-700">{selectedTicket.departureAirport}</div>
+                                    </div>
+                                  )}
+                                  {selectedTicket.departureCityOrigin && (
+                                    <div>
+                                      <div className="text-[10px] text-slate-400 uppercase tracking-wider">Cidade de Origem</div>
+                                      <div className="text-sm font-medium text-slate-700">{selectedTicket.departureCityOrigin}</div>
+                                    </div>
+                                  )}
+                                  {selectedTicket.transportType === 'aereo' && selectedTicket.departureAirport && (
+                                    <div>
+                                      <div className="text-[10px] text-slate-400 uppercase tracking-wider">Aeroporto de Origem</div>
+                                      <div className="text-sm font-medium text-slate-700">{selectedTicket.departureAirport}</div>
+                                    </div>
+                                  )}
+                                  {selectedTicket.transportType === 'rodoviario' && selectedTicket.destinationAirport && (
+                                    <div>
+                                      <div className="text-[10px] text-slate-400 uppercase tracking-wider">Rodoviária de Destino</div>
+                                      <div className="text-sm font-medium text-slate-700">{selectedTicket.destinationAirport}</div>
+                                    </div>
+                                  )}
+                                  {selectedTicket.departureCityDestination && (
+                                    <div>
+                                      <div className="text-[10px] text-slate-400 uppercase tracking-wider">Cidade de Destino</div>
+                                      <div className="text-sm font-medium text-slate-700">{selectedTicket.departureCityDestination}</div>
+                                    </div>
+                                  )}
+                                  {selectedTicket.transportType === 'aereo' && selectedTicket.destinationAirport && (
+                                    <div>
+                                      <div className="text-[10px] text-slate-400 uppercase tracking-wider">Aeroporto de Destino</div>
+                                      <div className="text-sm font-medium text-slate-700">{selectedTicket.destinationAirport}</div>
+                                    </div>
+                                  )}
+                                  {selectedTicket.actualDepartureDate && (
+                                    <div>
+                                      <div className="text-[10px] text-slate-400 uppercase tracking-wider">Data</div>
+                                      <div className="text-sm font-semibold text-[#2563EB]">{formatDate(selectedTicket.actualDepartureDate)}</div>
+                                    </div>
+                                  )}
+                                  {selectedTicket.actualDepartureTime ? (
+                                    <div>
+                                      <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Horário</div>
+                                      <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2">
+                                        <span className="text-lg font-bold text-green-700">{selectedTicket.actualDepartureTime}</span>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Horário</div>
+                                      <div className="bg-slate-50 border-l-4 border-slate-200 rounded-lg px-3 py-2">
+                                        <span className="text-lg font-bold text-slate-300">--:--</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* VOLTA */}
+                              {(selectedTicket.actualReturnDate || selectedTicket.actualReturnTime || selectedTicket.returnCityOrigin || selectedTicket.returnCityDestination) ? (
+                                <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                                  <div className="text-[11px] font-black uppercase tracking-[0.12em] mb-3 flex items-center gap-1.5" style={{ color: '#2563EB' }}>
+                                    {selectedTicket.transportType === 'rodoviario' ? '🚌' : '🛬'} VOLTA
+                                  </div>
+                                  <div className="space-y-2.5">
+                                    {selectedTicket.returnCityOrigin && (
+                                      <div>
+                                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">Cidade de Origem</div>
+                                        <div className="text-sm font-medium text-slate-700">{selectedTicket.returnCityOrigin}</div>
+                                      </div>
+                                    )}
+                                    {selectedTicket.returnCityDestination && (
+                                      <div>
+                                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">Cidade de Destino</div>
+                                        <div className="text-sm font-medium text-slate-700">{selectedTicket.returnCityDestination}</div>
+                                      </div>
+                                    )}
+                                    {selectedTicket.actualReturnDate && (
+                                      <div>
+                                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">Data</div>
+                                        <div className="text-sm font-semibold text-[#2563EB]">{formatDate(selectedTicket.actualReturnDate)}</div>
+                                      </div>
+                                    )}
+                                    {selectedTicket.actualReturnTime ? (
+                                      <div>
+                                        <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Horário</div>
+                                        <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2">
+                                          <span className="text-lg font-bold text-green-700">{selectedTicket.actualReturnTime}</span>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div>
+                                        <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Horário</div>
+                                        <div className="bg-slate-50 border-l-4 border-slate-200 rounded-lg px-3 py-2">
+                                          <span className="text-lg font-bold text-slate-300">--:--</span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-4 flex items-center justify-center">
+                                  <div className="text-center">
+                                    <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400 mb-1">
+                                      {selectedTicket.transportType === 'rodoviario' ? '🚌' : '🛬'} VOLTA
+                                    </div>
+                                    <div className="text-xs text-slate-300">Sem informações de volta</div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Observações (só para não-van) */}
+                          {selectedTicket.ticketObservations && selectedTicket.transportType !== 'van' && (
+                            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                              <div className={lbl + " mb-1"}>Observações</div>
+                              <div className="text-sm text-slate-700 whitespace-pre-line">{selectedTicket.ticketObservations}</div>
+                            </div>
+                          )}
+
+                          {/* Anexos da Passagem */}
+                          {selectedTicket.attachmentIds && selectedTicket.attachmentIds.length > 0 && (
+                            <div>
+                              <div className={lbl + " mb-2"}>📎 Anexos</div>
+                              <div className="grid grid-cols-2 gap-3">
+                                {selectedTicket.attachmentIds.map((attachmentId, index) => (
+                                  <div
+                                    key={attachmentId}
+                                    className="bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer transition-all"
+                                    onClick={() => openAttachment(attachmentId, `Anexo ${index + 1} da Passagem`)}
+                                  >
+                                    <div className="bg-blue-100 text-blue-600 rounded-lg w-7 h-7 flex items-center justify-center text-xs font-bold flex-shrink-0">{index + 1}</div>
+                                    <span className="flex-1 text-sm text-slate-400">Clique para visualizar</span>
+                                    <Eye className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    {/* ══ ABA: HOSPEDAGEM ══ */}
+                    <TabsContent value="hospedagem" className="m-0 p-6">
+                      {!selectedInclusion.needsAccommodation ? (
+                        <div className="flex flex-col items-center justify-center py-16 text-center">
+                          <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4 text-2xl">🏨</div>
+                          <div className="text-sm font-medium text-slate-400">Esta escalação não requer hospedagem.</div>
+                        </div>
+                      ) : !accommodation ? (
+                        <div className="flex flex-col items-center justify-center py-16 text-center">
+                          <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center mb-4 text-2xl">🏨</div>
+                          <div className="text-sm font-semibold text-slate-600 mb-1">Nenhuma hospedagem registrada</div>
+                          <div className="text-xs text-slate-400">para esta escalação</div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="bg-green-50 border border-green-100 rounded-2xl p-5">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <div className={lbl}>Hotel</div>
+                                <div className="text-[15px] font-bold text-slate-800">{accommodation.hotelName || 'Não informado'}</div>
+                              </div>
+                              {accommodation.hotelLocation && (
+                                <div>
+                                  <div className={lbl}>Localização</div>
+                                  <div className={val}>{accommodation.hotelLocation}</div>
+                                </div>
+                              )}
+                              <div>
+                                <div className={lbl}>Check-in</div>
+                                <div className={val}>
+                                  {accommodation.checkInDate ? formatDateWithWeekday(accommodation.checkInDate) : 'Não informado'}
+                                  {accommodation.checkInTime && ` às ${accommodation.checkInTime}`}
+                                </div>
+                              </div>
+                              <div>
+                                <div className={lbl}>Check-out</div>
+                                <div className={val}>
+                                  {accommodation.checkOutDate ? formatDateWithWeekday(accommodation.checkOutDate) : 'Não informado'}
+                                  {accommodation.checkOutTime && ` às ${accommodation.checkOutTime}`}
+                                </div>
+                              </div>
+                              {accommodation.reservationNumber && (
+                                <div>
+                                  <div className={lbl}>Reserva / LOC</div>
+                                  <div className="text-[13px] font-bold text-slate-700 font-mono">{accommodation.reservationNumber}</div>
+                                </div>
+                              )}
+                              {accommodation.dailyRate && (
+                                <div>
+                                  <div className={lbl}>Valor da Diária</div>
+                                  <div className={val}>R$ {(accommodation.dailyRate / 100).toFixed(2)}</div>
+                                </div>
+                              )}
+                            </div>
+                            {accommodation.accommodationObservations && (
+                              <div className="mt-4 pt-4 border-t border-green-100">
+                                <div className={lbl}>Observações</div>
+                                <div className="text-sm text-slate-700 mt-0.5 whitespace-pre-line">{accommodation.accommodationObservations}</div>
+                              </div>
+                            )}
+                          </div>
+                          {/* Anexos */}
+                          {accommodation.attachmentIds && accommodation.attachmentIds.length > 0 && (
+                            <div>
+                              <div className={lbl + " mb-2"}>📎 Anexos</div>
+                              <div className="grid grid-cols-2 gap-3">
+                                {accommodation.attachmentIds.map((attachmentId, index) => (
+                                  <div
+                                    key={attachmentId}
+                                    className="bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer transition-all"
+                                    onClick={() => openAttachment(attachmentId, `Anexo ${index + 1} da Hospedagem`)}
+                                  >
+                                    <div className="bg-blue-100 text-blue-600 rounded-lg w-7 h-7 flex items-center justify-center text-xs font-bold flex-shrink-0">{index + 1}</div>
+                                    <span className="flex-1 text-sm text-slate-400">Clique para visualizar</span>
+                                    <Eye className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    {/* ══ ABA: COMENTÁRIOS E HISTÓRICO ══ */}
+                    <TabsContent value="comentarios" className="m-0 p-6">
+                      <div className="grid grid-cols-2 gap-6">
+
+                        {/* Coluna Esquerda: Comentários */}
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2 mb-1">
+                            <MessageSquare className="w-4 h-4 text-slate-400" />
+                            <span className="text-[12px] font-black text-slate-600 uppercase tracking-[0.1em]">Comentários</span>
+                            {comments && comments.length > 0 && (
+                              <span className="bg-[#2563EB] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{comments.length}</span>
+                            )}
+                          </div>
+
+                          {comments && comments.length > 0 ? (
+                            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                              {comments.map((comment) => (
+                                <div key={comment.id} className="bg-slate-50 border border-slate-100 p-3 rounded-xl">
+                                  <div className="flex justify-between items-start mb-1.5">
+                                    <div className="text-sm font-semibold text-slate-700">{getUserName(comment.userId)}</div>
+                                    <div className="text-[10px] text-slate-400 shrink-0 ml-2">{formatDateTime(comment.createdAt)}</div>
+                                  </div>
+                                  <div className="text-sm text-slate-600">{comment.content}</div>
+                                  <div className="text-[10px] text-slate-400 mt-1">{getPhaseLabel(comment.phase)}</div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-sm text-center py-8">
+                              Nenhum comentário registrado.
+                            </div>
+                          )}
+
+                          {/* Adicionar comentário */}
+                          <div className="pt-1">
+                            <div className="flex gap-2">
+                              <Textarea
+                                rows={2}
+                                placeholder="Adicionar comentário..."
+                                value={newComment}
+                                onChange={(e) => setNewComment(e.target.value)}
+                                className="flex-1 border border-slate-200 rounded-xl bg-white text-sm p-3 resize-none min-h-[64px]"
+                                data-testid="textarea-comment-inline"
+                                disabled={!selectedInclusion || isReadOnly(selectedInclusion) || !canConfirmEscalation(selectedInclusion)}
+                              />
+                              <Button
+                                onClick={handleAddComment}
+                                disabled={addCommentMutation.isPending || !newComment.trim() || !selectedInclusion || isReadOnly(selectedInclusion)}
+                                style={{ background: '#2563EB' }}
+                                className="text-white rounded-xl px-4 text-sm font-semibold hover:opacity-90 self-end"
+                                data-testid="button-add-comment-inline"
+                              >
+                                {addCommentMutation.isPending ? "..." : "Enviar"}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Coluna Direita: Histórico */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-3">
+                            <History className="w-4 h-4 text-slate-400" />
+                            <span className="text-[12px] font-black text-slate-600 uppercase tracking-[0.1em]">Histórico</span>
+                            {inclusionLogs && inclusionLogs.length > 0 && (
+                              <span className="text-[10px] text-slate-400">{inclusionLogs.length} entr.</span>
+                            )}
+                          </div>
+                          {!inclusionLogs || inclusionLogs.length === 0 ? (
+                            <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-sm text-center py-8">
+                              Nenhum histórico encontrado.
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="border-l-2 border-slate-100 ml-3 pl-4 space-y-3 max-h-72 overflow-y-auto">
+                                {inclusionLogs
+                                  .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+                                  .slice(0, showAllLogs ? undefined : 5)
+                                  .map((log) => {
+                                    const actionLabels: Record<string, string> = {
+                                      'status_changed': '🔄 Status Alterado',
+                                      'collaborator_changed': '👤 Colaborador Alterado',
+                                      'dates_changed': '📅 Período Alterado',
+                                      'travel_dates_changed': '✈️ Datas de Viagem',
+                                      'observations_changed': '📝 Observações',
+                                      'created': '✨ Criado',
+                                      'confirmed': '✅ Confirmado',
+                                      'reopened': '🔓 Reaberto',
+                                    };
+                                    return (
+                                      <div key={log.id} className="flex gap-3">
+                                        <div className="w-2.5 h-2.5 bg-[#2563EB] rounded-full -ml-[1.3rem] mt-1.5 flex-shrink-0 ring-4 ring-white" />
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-start justify-between gap-2">
+                                            <div className="text-[12px] font-semibold text-slate-700">{actionLabels[log.action] || log.action}</div>
+                                            <div className="text-[10px] text-slate-400 ml-auto whitespace-nowrap flex-shrink-0">{log.createdAt && formatDateTime(log.createdAt)}</div>
+                                          </div>
+                                          {log.details && <div className="text-[11px] text-slate-500 mt-0.5">{log.details}</div>}
+                                          <div className="text-[10px] font-medium mt-0.5" style={{ color: '#2563EB' }}>por {log.userName}</div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                              {!showAllLogs && inclusionLogs.length > 5 && (
+                                <button
+                                  onClick={() => setShowAllLogs(true)}
+                                  className="text-xs font-medium mt-2 ml-7 hover:underline"
+                                  style={{ color: '#2563EB' }}
+                                >
+                                  Ver todos ({inclusionLogs.length - 5} mais)
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                      </div>
+                    </TabsContent>
+
+                  </div>
+                </Tabs>
+
+                {/* ── Footer ── */}
+                <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0 bg-white">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowModal(false)}
+                    className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl px-5 py-2 text-sm font-medium"
+                  >
+                    Fechar
+                  </Button>
+                  {!isReadOnly(selectedInclusion) && (
+                    <>
+                      {(canEditCollaborator(selectedInclusion) || !isEscalated(selectedInclusion)) && (
+                        <Button
+                          variant="secondary"
+                          onClick={handleSave}
+                          disabled={(() => {
+                            if (!selectedInclusion) return true;
+                            if (updateTeamInclusionMutation.isPending) return true;
+                            if (selectedInclusion.status === 'cancelado') return true;
+                            if (isEscalated(selectedInclusion)) return !canEditCollaborator(selectedInclusion);
+                            if (!canConfirmEscalation(selectedInclusion)) return true;
+                            return false;
+                          })()}
+                          className="flex items-center gap-2 border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl px-5 py-2 text-sm font-medium"
+                        >
+                          <Save className="w-4 h-4" />
+                          {updateTeamInclusionMutation.isPending ? "Salvando..." : "Salvar Alterações"}
+                        </Button>
+                      )}
+                      {!isEscalated(selectedInclusion) && (
+                        <Button
+                          onClick={handleConfirmEscalation}
+                          disabled={(() => {
+                            if (!selectedInclusion) return true;
+                            if (updateTeamInclusionMutation.isPending) return true;
+                            if (selectedInclusion.status === 'cancelado') return true;
+                            if (!canConfirmEscalation(selectedInclusion)) return true;
+                            return false;
+                          })()}
+                          style={{ background: '#2563EB', boxShadow: '0 4px 14px #2563EB50' }}
+                          className="flex items-center gap-2 text-white rounded-xl px-6 py-2 h-10 text-sm font-bold hover:opacity-90 transition-opacity"
+                        >
+                          <Check className="w-4 h-4" />
+                          {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
+                        </Button>
+                      )}
+                    </>
+                  )}
+                  {!isEscalated(selectedInclusion) && !isReadOnly(selectedInclusion) && !canConfirmEscalation(selectedInclusion) && (
+                    <div className="text-sm text-muted-foreground bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-center">
+                      ⚠️ Apenas o responsável pela função pode confirmar escalações
+                    </div>
+                  )}
+                </div>
+              </>
+            );
+          })()}
 
         </DialogContent>
       </Dialog>
