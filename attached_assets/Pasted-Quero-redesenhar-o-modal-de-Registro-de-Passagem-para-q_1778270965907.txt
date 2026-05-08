@@ -1,0 +1,220 @@
+Quero redesenhar o modal de “Registro de Passagem” para que ele fique visualmente alinhado ao modal de “Detalhes da Escalação”.
+
+OBJETIVO
+O modal de registro de passagem deve manter toda a lógica atual e todos os campos existentes, mas com um visual mais limpo, corporativo e organizado, seguindo a mesma linguagem visual do modal de escalação.
+
+IMPORTANTE
+- Não mudar regras de negócio
+- Não remover campos
+- Não alterar validações
+- Não mudar a lógica de Aérea, Rodoviária, Van, ida, volta e “Apenas ida”
+- Não mudar a paleta do sistema
+- Apenas melhorar layout, organização visual, hierarquia e experiência de uso
+
+PROBLEMA ATUAL
+Hoje o modal de registro de passagem está muito “formulário bruto”, com muitos blocos coloridos, muito longo e com menos refinamento visual que o modal de escalação.
+Quero que ele fique mais elegante, mais limpo e mais consistente com o padrão do modal de escalação.
+
+REFERÊNCIA VISUAL
+Usar como referência o modal de “Detalhes da Escalação”, principalmente em:
+- Header mais limpo
+- Cards com borda suave
+- Melhor distribuição do conteúdo
+- Menos poluição visual
+- Mais cara de sistema premium/corporativo
+- Melhor hierarquia entre label, valor e campo
+- Menos sensação de blocos soltos
+
+ESTRUTURA DESEJADA
+
+1. HEADER DO MODAL
+Melhorar o topo do modal para ficar mais parecido com o modal de escalação.
+
+Quero:
+- Ícone do módulo à esquerda
+- Título: “Passagem #292 — Pedro Teste 3” (ou equivalente dinâmico)
+- Badge de status ao lado/abaixo do título, como “Pendente”
+- Layout mais refinado e bem alinhado
+- Botão X no canto superior direito
+- Menos altura desnecessária
+- Mais cara de cabeçalho premium
+
+2. RESUMO INICIAL MAIS ORGANIZADO
+As informações iniciais devem aparecer em cards mais limpos, semelhantes ao resumo do modal de escalação.
+
+Criar uma área de resumo no topo com cards compactos para:
+- Colaborador
+- Função
+- Documento
+- Data de nascimento
+- Sugestões de viagem (ida e volta)
+- Período de trabalho
+
+Essas informações devem ficar em cards claros, com:
+- labels menores e discretos
+- valores mais destacados
+- melhor alinhamento
+- borda suave
+- leve sombra ou contraste sutil
+- aparência mais premium
+
+IMPORTANTE:
+A seção “Sugestões de viagem” deve continuar existindo, mas com visual mais limpo e menos carregado.
+A ida e a volta podem ficar em 2 mini cards lado a lado, bem parecidos com o padrão visual do modal de escalação.
+
+3. PERÍODO DE TRABALHO
+O bloco “Período de Trabalho” deve ter aparência semelhante aos cards do modal de escalação.
+
+Melhorar:
+- título da seção
+- alinhamento
+- apresentação de data início e data fim
+- aparência mais limpa
+- menos cara de accordion solto
+- se mantiver accordion, deixar ele muito mais elegante
+
+4. FORMULÁRIO PRINCIPAL MAIS LIMPO
+A área do formulário deve manter a lógica atual, mas o layout deve ficar mais refinado.
+
+Hoje existem seções como:
+- Tipo de Transporte
+- Informações da Compra
+- Informações de Viagem
+- Informações Adicionais
+- Anexos
+- Comentários
+
+Quero manter essas seções, mas com outro tratamento visual.
+
+AJUSTE VISUAL DAS SEÇÕES:
+- Remover sensação de blocos muito coloridos e pesados
+- Usar cards com fundo branco ou fundo muito suave
+- Manter cor apenas como acento visual no título, ícone ou borda lateral discreta
+- Padronizar todas as seções na mesma linguagem visual
+- Menos “caixas gritantes”
+- Mais sofisticação e consistência
+
+5. TIPO DE TRANSPORTE
+A seção “Tipo de Transporte” deve ficar mais elegante.
+
+Melhorar:
+- organização entre o select de tipo e o switch “Apenas ida”
+- alinhamento entre os dois
+- deixar a relação visual mais clara
+- transformar isso em uma linha de configuração mais premium
+- dar sensação de bloco importante, mas sem exagero visual
+
+6. CAMPOS DINÂMICOS POR TIPO
+Quando o usuário selecionar:
+- Aérea
+- Rodoviária
+- Van
+
+o modal deve continuar mostrando os campos correspondentes, mas com layout mais organizado.
+
+Quero:
+- melhor distribuição dos campos
+- grids mais consistentes
+- mais respiro entre inputs
+- labels bem posicionados
+- placeholders padronizados
+- melhor organização entre ida e volta
+
+Para Aérea e Rodoviária:
+- manter ida e volta em 2 cards lado a lado
+- cada card com título claro
+- borda suave
+- melhor espaçamento interno
+- visual consistente com o resto do modal
+
+Para Van:
+- deixar o card de dados da van mais bonito e menos “seco”
+- melhor hierarquia entre nome da empresa e observação
+
+7. INFORMAÇÕES DA COMPRA
+A seção “Informações da Compra” deve ficar visualmente mais parecida com o restante do modal.
+
+Melhorar:
+- card mais limpo
+- alinhar melhor LOC e Data da Compra
+- mesma altura entre os campos
+- mais consistência visual com o restante da tela
+
+8. INFORMAÇÕES ADICIONAIS
+A seção “Informações Adicionais” precisa parecer mais integrada ao modal.
+
+Melhorar:
+- título da seção
+- espaçamento dos campos
+- visual do campo “Últimos 4 dígitos do cartão”
+- visual da textarea de observações
+- menos sensação de bloco jogado ao final
+
+9. ANEXOS
+Melhorar bastante a área de anexos.
+
+Hoje o campo “Adicionar arquivo” está muito simples.
+
+Quero:
+- área de upload mais bonita
+- visual de dropzone mais elegante
+- ícone melhor posicionado
+- texto de apoio mais claro
+- aparência mais profissional
+- se houver arquivo anexado, mostrar card/lista bonita com nome do arquivo, tipo, ação de visualizar/remover se aplicável
+
+10. COMENTÁRIOS
+A área de comentários também deve ficar mais refinada.
+
+Melhorar:
+- cabeçalho da seção
+- botão “Ver/Adicionar Comentários”
+- empty state “Nenhum comentário registrado...” com melhor visual
+- melhor alinhamento
+- mais consistência com o modal de escalação
+
+11. RODAPÉ
+O rodapé do modal deve ficar mais profissional.
+
+Melhorar:
+- alinhamento dos botões
+- hierarquia entre “Cancelar”, “Salvar” e “Registrar Passagem”
+- melhor espaçamento
+- botão principal mais claro visualmente
+- manter a lógica existente, mas com acabamento melhor
+
+Se fizer sentido:
+- deixar rodapé sticky
+- manter sempre visível no final da navegação do modal
+
+12. PADRÃO VISUAL ESPERADO
+Quero que o modal de registro de passagem fique:
+- parecido com o modal de escalação
+- mais limpo
+- mais organizado
+- mais sofisticado
+- mais corporativo
+- mais consistente com o design system do app
+- com menos poluição visual
+- com melhor hierarquia visual
+- com cards mais bonitos
+- com melhor uso de espaço
+
+13. O QUE NÃO QUERO
+- Não quero refazer a lógica
+- Não quero perder campos
+- Não quero mudar o comportamento do formulário
+- Não quero um layout muito escuro
+- Não quero excesso de cores fortes nas seções
+- Não quero blocos com cara de formulário antigo
+
+CRITÉRIOS DE ACEITE
+- O modal ficou visualmente alinhado ao modal de escalação
+- O header ficou mais bonito e organizado
+- As informações iniciais ficaram mais bem distribuídas
+- As seções do formulário ficaram mais limpas e padronizadas
+- Aérea, Rodoviária e Van continuam funcionando corretamente
+- Ida e volta continuam claras e organizadas
+- Anexos e comentários ficaram mais profissionais
+- O rodapé ficou mais polido
+- O modal parece mais maduro, premium e 10/10

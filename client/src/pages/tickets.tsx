@@ -1855,619 +1855,487 @@ export default function Tickets() {
           </div>
         </div>
 
-        {/* Modal de Detalhes da Passagem */}
+        {/* ═══════════════════════════════════════════════════════════
+            MODAL DE DETALHES DA PASSAGEM — DESIGN PREMIUM
+        ═══════════════════════════════════════════════════════════ */}
         <Dialog open={showModal} onOpenChange={setShowModal} modal={!showSuccessModal}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 p-0 gap-0">
-            {selectedInclusion && (
-              <div>
-                <DialogHeader className="bg-white px-6 pt-5 pb-4 border-b border-slate-100 sticky top-0 z-10">
-                  <DialogTitle className="flex items-center gap-3">
-                    <div
-                      className="w-9 h-9 rounded-[9px] bg-[#0033CC] flex items-center justify-center text-white shrink-0"
-                      style={{ boxShadow: "0 4px 12px #0033CC40" }}
-                    >
-                      <Plane className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-[15px] font-bold text-slate-900 leading-tight truncate">
-                        Passagem #{selectedInclusion.inclusionNumber} — {getEventName(selectedInclusion.eventId)}
+            {selectedInclusion && (() => {
+              const lbl = "text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-0.5";
+              const secHead = "text-[11px] font-black uppercase tracking-[0.12em] text-slate-500";
+              const ticket = getTicket(selectedInclusion.id);
+              const data = ticketData[selectedInclusion.id] || {};
+              const collaborator = getCollaborator(selectedInclusion.collaboratorId || undefined);
+              const roMode = isReadOnly(selectedInclusion, user);
+              const canEditTicket = canEditScreen(user, 'tickets');
+              return (
+                <div>
+                  {/* ─── HEADER ─── */}
+                  <div className="bg-white px-6 pt-5 pb-4 border-b border-slate-100 sticky top-0 z-10">
+                    <div className="flex items-start gap-3">
+                      <div
+                        className="w-10 h-10 rounded-[10px] bg-[#0033CC] flex items-center justify-center text-white shrink-0 mt-0.5"
+                        style={{boxShadow:'0 4px 14px #0033CC35'}}
+                      >
+                        <Plane className="w-[18px] h-[18px]" />
                       </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        {isReadOnly(selectedInclusion, user) ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold border border-amber-200">
-                            Somente Leitura
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="text-[15px] font-bold text-slate-900 leading-tight">
+                            Passagem #{selectedInclusion.inclusionNumber}
                           </span>
-                        ) : getTicket(selectedInclusion.id) ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[11px] font-bold border border-green-200">
-                            <CheckCircle className="w-3 h-3" /> Passagem Comprada
+                          <span className="text-slate-300 text-sm">—</span>
+                          <span className="text-[14px] font-semibold text-slate-700 truncate">
+                            {getCollaboratorName(selectedInclusion.collaboratorId || undefined)}
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 text-[11px] font-bold border border-orange-200">
-                            <Clock className="w-3 h-3" /> Pendente
-                          </span>
-                        )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className="text-[12px] text-slate-400">{getEventName(selectedInclusion.eventId)}</span>
+                          <span className="text-slate-200">·</span>
+                          {roMode ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold border border-amber-200">Somente Leitura</span>
+                          ) : ticket && editingTicketId !== selectedInclusion.id ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-200"><CheckCircle className="w-3 h-3" /> Passagem Comprada</span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 text-[11px] font-bold border border-orange-200"><Clock className="w-3 h-3" /> Pendente</span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </DialogTitle>
-                </DialogHeader>
-
-                <div className="space-y-6 px-6 py-5">
-                  {/* Informações Gerais */}
-                  <div className="border border-slate-200 rounded-xl overflow-hidden">
-                    <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                      <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Informações Gerais</span>
-                    </div>
-                    <div className="p-4 grid grid-cols-2 gap-4">
-                      <div>
-                        <label style={{display:'block',fontSize:11,textTransform:'uppercase',color:'#94A3B8',letterSpacing:'0.05em',marginBottom:4}}>Colaborador</label>
-                        <p style={{fontSize:15,fontWeight:600,color:'#1E293B'}}>{getCollaboratorName(selectedInclusion.collaboratorId || undefined)}</p>
-                      </div>
-                      <div>
-                        <label style={{display:'block',fontSize:11,textTransform:'uppercase',color:'#94A3B8',letterSpacing:'0.05em',marginBottom:4}}>Função</label>
-                        <p style={{fontSize:15,fontWeight:600,color:'#1E293B'}}>{getFunctionName(selectedInclusion.functionId)}</p>
-                      </div>
-                      {(() => {
-                        const collaborator = getCollaborator(selectedInclusion.collaboratorId || undefined);
-                        if (!collaborator) return null;
-                        return (
-                          <>
-                            <div>
-                              <label style={{display:'block',fontSize:11,textTransform:'uppercase',color:'#94A3B8',letterSpacing:'0.05em',marginBottom:4}}>Documento</label>
-                              <p style={{fontSize:15,fontWeight:600,color:'#1E293B'}}>
-                                {collaborator.documentType?.toUpperCase() || 'N/A'}: {collaborator.officialDocument || 'N/A'}
-                              </p>
-                            </div>
-                            <div>
-                              <label style={{display:'block',fontSize:11,textTransform:'uppercase',color:'#94A3B8',letterSpacing:'0.05em',marginBottom:4}}>Data de Nascimento</label>
-                              <p style={{fontSize:15,fontWeight:600,color:'#1E293B'}}>
-                                {collaborator.birthDate ? formatDate(collaborator.birthDate) : 'N/A'}
-                              </p>
-                            </div>
-                          </>
-                        );
-                      })()}
                     </div>
                   </div>
 
-                  {/* Sugestões de Viagem - SEMPRE VISÍVEL */}
-                  <div className="border border-slate-200 rounded-xl overflow-hidden">
-                    <div className="bg-indigo-50 border-b border-indigo-100 px-4 py-2.5 flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
-                      <span className="text-[11px] font-bold uppercase tracking-widest text-indigo-600">Sugestões de Viagem</span>
-                      <span className="text-[10px] text-indigo-400 font-normal">(da inclusão de equipe)</span>
+                  {/* ─── BODY ─── */}
+                  <div className="px-6 py-5 space-y-4">
+
+                    {/* Informações Gerais */}
+                    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                      <div className="px-4 py-2.5 border-b border-slate-100">
+                        <span className={secHead}>Informações Gerais</span>
+                      </div>
+                      <div className="p-4 grid grid-cols-2 gap-4">
+                        <div>
+                          <div className={lbl}>Colaborador</div>
+                          <div className="text-[13px] font-semibold text-slate-800">{getCollaboratorName(selectedInclusion.collaboratorId || undefined)}</div>
+                        </div>
+                        <div>
+                          <div className={lbl}>Função</div>
+                          <div className="text-[13px] font-semibold text-slate-800">{getFunctionName(selectedInclusion.functionId)}</div>
+                        </div>
+                        {collaborator && (<>
+                          <div>
+                            <div className={lbl}>Documento</div>
+                            <div className="text-[13px] font-semibold text-slate-800 font-mono">{collaborator.documentType?.toUpperCase() || 'N/A'}: {collaborator.officialDocument || 'N/A'}</div>
+                          </div>
+                          <div>
+                            <div className={lbl}>Data de Nascimento</div>
+                            <div className="text-[13px] font-semibold text-slate-800">{collaborator.birthDate ? formatDate(collaborator.birthDate) : 'N/A'}</div>
+                          </div>
+                        </>)}
+                      </div>
                     </div>
-                    <div className="p-4">
+
+                    {/* Sugestões de Viagem */}
                     {(() => {
                       const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined, selectedInclusion);
                       const notInformed = (v: string) => v === 'N/A' || v === 'Não definido' || v === 'Não informado';
-                      const emptyBadge = <span style={{display:'inline-flex',padding:'2px 10px',borderRadius:999,background:'#F1F5F9',color:'#94A3B8',fontSize:12,fontWeight:500}}>Não informado</span>;
+                      const emptyBadge = <span className="inline-flex px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-400 text-[11px] font-medium">Não informado</span>;
                       return (
-                        <div className="grid grid-cols-2 gap-4">
-                          {/* IDA */}
-                          <div style={{borderLeft:'3px solid #3B5BDB',background:'#EEF2FF',borderRadius:8,padding:12}}>
-                            <div style={{fontSize:12,fontWeight:700,color:'#3B5BDB',marginBottom:8}}>🛫 IDA</div>
-                            <div className="space-y-2">
-                              <div>
-                                <span style={{fontSize:11,color:'#64748B',display:'block'}}>Data</span>
-                                {notInformed(travelInfo.ida) ? emptyBadge : <span style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{formatSuggestionDate(travelInfo.ida)}</span>}
-                              </div>
-                              <div>
-                                <span style={{fontSize:11,color:'#64748B',display:'block'}}>Horário</span>
-                                {notInformed(travelInfo.chegada) ? emptyBadge : <span style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{travelInfo.chegada}</span>}
+                        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                          <div className="px-4 py-2.5 border-b border-slate-100 flex items-center gap-2">
+                            <span className={secHead}>Sugestões de Viagem</span>
+                            <span className="text-[10px] text-slate-400">(da inclusão de equipe)</span>
+                          </div>
+                          <div className="p-4 grid grid-cols-2 gap-3">
+                            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                              <div className="text-[11px] font-black uppercase tracking-[0.1em] mb-2.5" style={{color:'#2563EB'}}>🛫 IDA</div>
+                              <div className="space-y-2">
+                                <div><div className={lbl}>Data</div>{notInformed(travelInfo.ida) ? emptyBadge : <span className="text-[13px] font-semibold text-slate-700">{formatSuggestionDate(travelInfo.ida)}</span>}</div>
+                                <div><div className={lbl}>Horário</div>{notInformed(travelInfo.chegada) ? emptyBadge : <span className="text-[13px] font-semibold text-slate-700">{travelInfo.chegada}</span>}</div>
                               </div>
                             </div>
-                          </div>
-                          {/* VOLTA */}
-                          <div style={{borderLeft:'3px solid #F59E0B',background:'#FFF7ED',borderRadius:8,padding:12}}>
-                            <div style={{fontSize:12,fontWeight:700,color:'#B45309',marginBottom:8}}>🛬 VOLTA</div>
-                            <div className="space-y-2">
-                              <div>
-                                <span style={{fontSize:11,color:'#64748B',display:'block'}}>Data</span>
-                                {notInformed(travelInfo.retorno) ? emptyBadge : <span style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{formatSuggestionDate(travelInfo.retorno)}</span>}
-                              </div>
-                              <div>
-                                <span style={{fontSize:11,color:'#64748B',display:'block'}}>Horário</span>
-                                {notInformed(travelInfo.horario) ? emptyBadge : <span style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{travelInfo.horario}</span>}
+                            <div className="bg-white border border-slate-200 rounded-xl p-3.5">
+                              <div className="text-[11px] font-black uppercase tracking-[0.1em] mb-2.5" style={{color:'#B45309'}}>🛬 VOLTA</div>
+                              <div className="space-y-2">
+                                <div><div className={lbl}>Data</div>{notInformed(travelInfo.retorno) ? emptyBadge : <span className="text-[13px] font-semibold text-slate-700">{formatSuggestionDate(travelInfo.retorno)}</span>}</div>
+                                <div><div className={lbl}>Horário</div>{notInformed(travelInfo.horario) ? emptyBadge : <span className="text-[13px] font-semibold text-slate-700">{travelInfo.horario}</span>}</div>
                               </div>
                             </div>
                           </div>
                         </div>
                       );
                     })()}
-                    </div>
-                  </div>
 
-                  {(() => {
-                    const ticket = getTicket(selectedInclusion.id);
-                    const data = ticketData[selectedInclusion.id] || {};
-                    
-                    return ticket && editingTicketId !== selectedInclusion.id ? (
-                      /* Passagem já processada */
+                    {/* ══ VIEW MODE ou FORM MODE ══ */}
+                    {ticket && editingTicketId !== selectedInclusion.id ? (
+
+                      /* ─── PASSAGEM JÁ COMPRADA: VIEW ─── */
                       <div className="space-y-4">
-                        {/* Cabeçalho da Passagem Comprada */}
-                        <div className="border border-slate-200 rounded-xl overflow-hidden">
-                          <div className="bg-emerald-50 border-b border-emerald-100 px-4 py-2.5 flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                            <span className="text-[11px] font-bold uppercase tracking-widest text-emerald-700">Passagem Comprada</span>
+
+                        {/* Detalhes da compra */}
+                        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                          <div className="px-4 py-2.5 border-b border-slate-100">
+                            <span className={secHead}>Detalhes da Passagem</span>
                           </div>
                           <div className="p-4">
-                          
-                          {/* Informações Gerais da Compra */}
-                          {ticket.transportType === 'van' ? (
-                            <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-slate-100 rounded-lg">
-                              <Truck className="w-4 h-4 text-slate-500" />
-                              <span className="text-sm font-semibold text-slate-700">Van / Transporte Terrestre</span>
-                            </div>
-                          ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                              <div>
-                                <Label className="text-xs text-green-600 font-medium">📅 Data da Compra</Label>
-                                <p className="font-medium">{ticket.purchaseDate ? formatDate(ticket.purchaseDate) : "-"}</p>
-                              </div>
-                              {ticket.purchaseOrderNumber && (
+                            {ticket.transportType === 'van' ? (
+                              <div className="space-y-3">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Truck className="w-4 h-4 text-slate-400" />
+                                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Van / Transporte Terrestre</span>
+                                </div>
                                 <div>
-                                  <Label className="text-xs text-green-600 font-medium">
-                                    {ticket.transportType === 'rodoviario' ? '🎫 Bilhete' : '📋 LOC'}
-                                  </Label>
-                                  <p className="font-medium">{ticket.purchaseOrderNumber}</p>
+                                  <div className={lbl}>Empresa / Identificação</div>
+                                  <div className="text-[13px] font-bold text-slate-800">{ticket.purchaseOrderNumber || "-"}</div>
                                 </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Detalhes — adaptados por tipo de transporte */}
-                          {ticket.transportType === 'van' ? (
-                            /* VAN: apenas empresa e observações */
-                            <div className="bg-slate-50 rounded-lg border border-slate-200 p-4 space-y-3">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Truck className="w-4 h-4 text-slate-500" />
-                                <span className="text-sm font-semibold text-slate-700">Dados da Van</span>
+                                {ticket.ticketObservations && (
+                                  <div>
+                                    <div className={lbl}>Observações</div>
+                                    <div className="text-sm text-slate-700 whitespace-pre-wrap">{ticket.ticketObservations}</div>
+                                  </div>
+                                )}
                               </div>
-                              <div>
-                                <Label className="text-xs text-slate-500 font-medium uppercase tracking-wide">Empresa / Identificação</Label>
-                                <p className="font-semibold text-slate-800 mt-0.5">{ticket.purchaseOrderNumber || "-"}</p>
-                              </div>
-                              {ticket.ticketObservations && (
+                            ) : (
+                              <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                  <Label className="text-xs text-slate-500 font-medium uppercase tracking-wide">Observações</Label>
-                                  <p className="text-sm text-slate-700 mt-0.5 whitespace-pre-wrap">{ticket.ticketObservations}</p>
+                                  <div className={lbl}>Data da Compra</div>
+                                  <div className="text-[13px] font-semibold text-slate-800">{ticket.purchaseDate ? formatDate(ticket.purchaseDate) : "-"}</div>
                                 </div>
-                              )}
-                            </div>
-                          ) : ticket.transportType === 'rodoviario' ? (
-                            /* RODOVIÁRIO: cidades, terminais, datas */
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                              {/* IDA */}
-                              <div className="bg-white p-4 rounded-lg border border-green-200">
-                                <h4 className="font-medium text-green-700 mb-3 flex items-center gap-2">
-                                  <Bus className="w-4 h-4" /> EMBARQUE
-                                </h4>
-                                <div className="space-y-2 text-sm">
-                                  {ticket.departureCityOrigin && (
-                                    <div>
-                                      <Label className="text-xs text-slate-500">Cidade Origem</Label>
-                                      <p className="font-medium">{ticket.departureCityOrigin}</p>
-                                    </div>
-                                  )}
-                                  {ticket.departureAirport && (
-                                    <div>
-                                      <Label className="text-xs text-slate-500">Terminal / Rodoviária</Label>
-                                      <p className="font-medium">{ticket.departureAirport}</p>
-                                    </div>
-                                  )}
-                                  {ticket.departureCityDestination && (
-                                    <div>
-                                      <Label className="text-xs text-slate-500">Cidade Destino</Label>
-                                      <p className="font-medium">{ticket.departureCityDestination}</p>
-                                    </div>
-                                  )}
-                                  {ticket.destinationAirport && (
-                                    <div>
-                                      <Label className="text-xs text-slate-500">Terminal Destino</Label>
-                                      <p className="font-medium">{ticket.destinationAirport}</p>
-                                    </div>
-                                  )}
-                                  {ticket.actualDepartureDate && (
-                                    <div>
-                                      <Label className="text-xs text-slate-500">Data</Label>
-                                      <p className="font-medium text-blue-600">{formatDate(ticket.actualDepartureDate)}</p>
-                                    </div>
-                                  )}
-                                  {ticket.actualDepartureTime && (
-                                    <div>
-                                      <Label className="text-xs text-slate-500">Horário</Label>
-                                      <div className="bg-green-100 px-3 py-2 rounded-md border-l-4 border-green-500 mt-0.5">
-                                        <span className="text-lg font-bold text-green-800">{ticket.actualDepartureTime}</span>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              {/* VOLTA */}
-                              {(ticket.actualReturnDate || ticket.returnCityOrigin) && (
-                                <div className="bg-white p-4 rounded-lg border border-orange-200">
-                                  <h4 className="font-medium text-orange-600 mb-3 flex items-center gap-2">
-                                    <Bus className="w-4 h-4" /> DESEMBARQUE
-                                  </h4>
-                                  <div className="space-y-2 text-sm">
-                                    {ticket.returnCityOrigin && (
-                                      <div>
-                                        <Label className="text-xs text-slate-500">Cidade Origem</Label>
-                                        <p className="font-medium">{ticket.returnCityOrigin}</p>
-                                      </div>
-                                    )}
-                                    {ticket.returnOriginAirport && (
-                                      <div>
-                                        <Label className="text-xs text-slate-500">Terminal / Rodoviária</Label>
-                                        <p className="font-medium">{ticket.returnOriginAirport}</p>
-                                      </div>
-                                    )}
-                                    {ticket.returnCityDestination && (
-                                      <div>
-                                        <Label className="text-xs text-slate-500">Cidade Destino</Label>
-                                        <p className="font-medium">{ticket.returnCityDestination}</p>
-                                      </div>
-                                    )}
-                                    {ticket.returnDestinationAirport && (
-                                      <div>
-                                        <Label className="text-xs text-slate-500">Terminal Destino</Label>
-                                        <p className="font-medium">{ticket.returnDestinationAirport}</p>
-                                      </div>
-                                    )}
-                                    {ticket.actualReturnDate && (
-                                      <div>
-                                        <Label className="text-xs text-slate-500">Data</Label>
-                                        <p className="font-medium text-blue-600">{formatDate(ticket.actualReturnDate)}</p>
-                                      </div>
-                                    )}
-                                    {ticket.actualReturnTime && (
-                                      <div>
-                                        <Label className="text-xs text-slate-500">Horário</Label>
-                                        <div className="bg-orange-100 px-3 py-2 rounded-md border-l-4 border-orange-400 mt-0.5">
-                                          <span className="text-lg font-bold text-orange-700">{ticket.actualReturnTime}</span>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            /* AÉREO: aeroportos, datas */
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                              {/* Trecho de IDA */}
-                              <div className="bg-white p-4 rounded-lg border border-green-200">
-                                <h4 className="font-medium text-green-700 mb-3 flex items-center gap-2">
-                                  🛫 IDA
-                                </h4>
-                                <div className="space-y-2">
+                                {ticket.purchaseOrderNumber && (
                                   <div>
-                                    <Label className="text-xs text-muted-foreground">Aeroporto Origem</Label>
-                                    <p className="font-medium uppercase">{ticket.departureAirport || "-"}</p>
+                                    <div className={lbl}>{ticket.transportType === 'rodoviario' ? 'Bilhete' : 'LOC'}</div>
+                                    <div className="text-[13px] font-bold text-slate-800 font-mono">{ticket.purchaseOrderNumber}</div>
                                   </div>
+                                )}
+                                {ticket.cardLastFourDigits && (
                                   <div>
-                                    <Label className="text-xs text-muted-foreground">Aeroporto Destino</Label>
-                                    <p className="font-medium uppercase">{ticket.destinationAirport || "-"}</p>
+                                    <div className={lbl}>Cartão Utilizado</div>
+                                    <div className="text-[13px] font-bold text-slate-700 font-mono">****{ticket.cardLastFourDigits}</div>
                                   </div>
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground">Data</Label>
-                                    <p className="font-medium text-blue-600 mb-2">
-                                      {ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : "-"}
-                                    </p>
-                                    <Label className="text-xs text-muted-foreground">Horário</Label>
-                                    <div className="bg-green-100 px-3 py-2 rounded-md border-l-4 border-green-500">
-                                      <span className="text-lg font-bold text-green-800">
-                                        {ticket.actualDepartureTime || "--:--"}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                              {/* Trecho de VOLTA */}
-                              {(ticket.actualReturnDate || ticket.actualReturnTime) && (
-                                <div className="bg-white p-4 rounded-lg border border-green-200">
-                                  <h4 className="font-medium text-green-700 mb-3 flex items-center gap-2">
-                                    🛬 VOLTA
-                                  </h4>
-                                  <div className="space-y-2">
-                                    <div>
-                                      <Label className="text-xs text-muted-foreground">Aeroporto Origem</Label>
-                                      <p className="font-medium uppercase">{ticket.destinationAirport || "-"}</p>
-                                    </div>
-                                    <div>
-                                      <Label className="text-xs text-muted-foreground">Aeroporto Destino</Label>
-                                      <p className="font-medium uppercase">{ticket.departureAirport || "-"}</p>
-                                    </div>
-                                    <div>
-                                      <Label className="text-xs text-muted-foreground">Data</Label>
-                                      <p className="font-medium text-blue-600 mb-2">
-                                        {ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : "-"}
-                                      </p>
-                                      <Label className="text-xs text-muted-foreground">Horário</Label>
-                                      <div className="bg-green-100 px-3 py-2 rounded-md border-l-4 border-green-500">
-                                        <span className="text-lg font-bold text-green-800">
-                                          {ticket.actualReturnTime || "--:--"}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Informações Adicionais */}
-                          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {ticket.cardLastFourDigits && (
-                              <div>
-                                <Label className="text-xs text-green-600 dark:text-green-300 font-medium">💳 Cartão Utilizado</Label>
-                                <p className="font-medium font-mono">****{ticket.cardLastFourDigits}</p>
+                                )}
                               </div>
                             )}
-                            
+                          </div>
+                        </div>
+
+                        {/* IDA + VOLTA view */}
+                        {ticket.transportType !== 'van' && (
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                              <div className="text-[11px] font-black uppercase tracking-[0.12em] mb-3 flex items-center gap-1.5" style={{color:'#2563EB'}}>
+                                {ticket.transportType === 'rodoviario' ? '🚌' : '🛫'} IDA
+                              </div>
+                              <div className="space-y-2.5">
+                                {ticket.departureCityOrigin && <div><div className={lbl}>Cidade Origem</div><div className="text-sm font-medium text-slate-700">{ticket.departureCityOrigin}</div></div>}
+                                {ticket.departureAirport && <div><div className={lbl}>{ticket.transportType === 'rodoviario' ? 'Rodoviária Origem' : 'Aeroporto Origem'}</div><div className="text-[13px] font-bold text-slate-700 uppercase font-mono">{ticket.departureAirport}</div></div>}
+                                {ticket.departureCityDestination && <div><div className={lbl}>Cidade Destino</div><div className="text-sm font-medium text-slate-700">{ticket.departureCityDestination}</div></div>}
+                                {ticket.destinationAirport && <div><div className={lbl}>{ticket.transportType === 'rodoviario' ? 'Rodoviária Destino' : 'Aeroporto Destino'}</div><div className="text-[13px] font-bold text-slate-700 uppercase font-mono">{ticket.destinationAirport}</div></div>}
+                                {ticket.actualDepartureDate && <div><div className={lbl}>Data</div><div className="text-[13px] font-semibold text-slate-700">{formatDate(ticket.actualDepartureDate)}</div></div>}
+                                {ticket.actualDepartureTime && (
+                                  <div>
+                                    <div className={lbl}>Horário</div>
+                                    <div className="inline-flex items-center px-3 py-1 rounded-lg bg-blue-50 border border-blue-200">
+                                      <span className="text-[15px] font-bold text-blue-700">{ticket.actualDepartureTime}</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            {(ticket.actualReturnDate || ticket.returnCityOrigin) && (
+                              <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                                <div className="text-[11px] font-black uppercase tracking-[0.12em] mb-3 flex items-center gap-1.5" style={{color:'#B45309'}}>
+                                  {ticket.transportType === 'rodoviario' ? '🚌' : '🛬'} VOLTA
+                                </div>
+                                <div className="space-y-2.5">
+                                  {ticket.returnCityOrigin && <div><div className={lbl}>Cidade Origem</div><div className="text-sm font-medium text-slate-700">{ticket.returnCityOrigin}</div></div>}
+                                  {ticket.returnOriginAirport && <div><div className={lbl}>{ticket.transportType === 'rodoviario' ? 'Rodoviária Origem' : 'Aeroporto Origem'}</div><div className="text-[13px] font-bold text-slate-700 uppercase font-mono">{ticket.returnOriginAirport}</div></div>}
+                                  {ticket.returnCityDestination && <div><div className={lbl}>Cidade Destino</div><div className="text-sm font-medium text-slate-700">{ticket.returnCityDestination}</div></div>}
+                                  {ticket.returnDestinationAirport && <div><div className={lbl}>{ticket.transportType === 'rodoviario' ? 'Rodoviária Destino' : 'Aeroporto Destino'}</div><div className="text-[13px] font-bold text-slate-700 uppercase font-mono">{ticket.returnDestinationAirport}</div></div>}
+                                  {ticket.actualReturnDate && <div><div className={lbl}>Data</div><div className="text-[13px] font-semibold text-slate-700">{formatDate(ticket.actualReturnDate)}</div></div>}
+                                  {ticket.actualReturnTime && (
+                                    <div>
+                                      <div className={lbl}>Horário</div>
+                                      <div className="inline-flex items-center px-3 py-1 rounded-lg bg-amber-50 border border-amber-200">
+                                        <span className="text-[15px] font-bold text-amber-700">{ticket.actualReturnTime}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Observações e Anexos */}
+                        {((ticket.ticketObservations && ticket.transportType !== 'van') || (ticket.attachmentIds && ticket.attachmentIds.length > 0)) && (
+                          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+                            <span className={secHead}>Informações Adicionais</span>
+                            {ticket.ticketObservations && ticket.transportType !== 'van' && (
+                              <div>
+                                <div className={lbl}>Observações</div>
+                                <div className="text-sm text-slate-700 whitespace-pre-wrap">{ticket.ticketObservations}</div>
+                              </div>
+                            )}
                             {ticket.attachmentIds && ticket.attachmentIds.length > 0 && (
-                              <div className="md:col-span-2">
-                                <Label className="text-xs text-green-600 dark:text-green-300 font-medium mb-2 block">📎 Anexos da Passagem</Label>
+                              <div>
+                                <div className={lbl + " mb-2"}>Anexos da Passagem</div>
                                 <div className="flex flex-wrap gap-2">
                                   {ticket.attachmentIds.map((attachmentId, index) => (
-                                    <div 
-                                      key={attachmentId} 
-                                      className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-3 py-2 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer transition-colors"
+                                    <div
+                                      key={attachmentId}
+                                      className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-sm hover:bg-slate-100 cursor-pointer transition-colors"
                                       onClick={async () => {
-                                        // Função para visualizar anexo com chamada real para API
-                                        const handleViewAttachment = async (attachmentId: string, attachmentIndex: number) => {
-                                          try {
-                                            // Buscar informações do anexo via API
-                                            const response = await fetch(`/api/attachments/${attachmentId}`);
-                                            const attachmentData = await response.json();
-                                            
-                                            if (response.ok) {
-                                              // Mostrar informações reais do anexo
-                                              toast({
-                                                title: `📎 Anexo ${attachmentIndex + 1}`,
-                                                description: `Nome: ${attachmentData.name}\\nTipo: ${attachmentData.type}\\nTamanho: ${attachmentData.size}\\nID: ${attachmentId}\\n\\n${attachmentData.message}`,
-                                              });
-                                              
-                                              // Abrir anexo se disponível
-                                              if (attachmentData.viewUrl && attachmentData.viewUrl !== "#") {
-                                                // Determinar se abrir inline ou fazer download
-                                                const isViewable = attachmentData.type?.includes('pdf') || 
-                                                                 attachmentData.type?.includes('image');
-                                                
-                                                if (isViewable) {
-                                                  // Abrir para visualização inline
-                                                  window.open(attachmentData.viewUrl, '_blank');
-                                                } else {
-                                                  // Fazer download direto
-                                                  window.open(attachmentData.downloadUrl, '_blank');
-                                                }
+                                        try {
+                                          const response = await fetch(`/api/attachments/${attachmentId}`);
+                                          const attachmentData = await response.json();
+                                          if (response.ok) {
+                                            toast({
+                                              title: `📎 Anexo ${index + 1}`,
+                                              description: `Nome: ${attachmentData.name}\nTipo: ${attachmentData.type}\nTamanho: ${attachmentData.size}\nID: ${attachmentId}\n\n${attachmentData.message}`,
+                                            });
+                                            if (attachmentData.viewUrl && attachmentData.viewUrl !== "#") {
+                                              const isViewable = attachmentData.type?.includes('pdf') || attachmentData.type?.includes('image');
+                                              if (isViewable) {
+                                                window.open(attachmentData.viewUrl, '_blank');
                                               } else {
-                                                // Se não há URL válida, explicar ao usuário
-                                                toast({
-                                                  title: "Anexo não disponível",
-                                                  description: "Este anexo foi criado antes da implementação do sistema de storage. Não é possível visualizar ou baixar.",
-                                                  variant: "destructive",
-                                                });
+                                                window.open(attachmentData.downloadUrl, '_blank');
                                               }
                                             } else {
-                                              throw new Error(attachmentData.message || 'Erro ao buscar anexo');
+                                              toast({ title: "Anexo não disponível", description: "Este anexo foi criado antes da implementação do sistema de storage. Não é possível visualizar ou baixar.", variant: "destructive" });
                                             }
-                                          } catch (error) {
-                                            toast({
-                                              title: "Erro ao abrir anexo",
-                                              description: `Não foi possível abrir o anexo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
-                                              variant: "destructive",
-                                            });
+                                          } else {
+                                            throw new Error(attachmentData.message || 'Erro ao buscar anexo');
                                           }
-                                        };
-                                        
-                                        await handleViewAttachment(attachmentId, index);
+                                        } catch (error) {
+                                          toast({ title: "Erro ao abrir anexo", description: `Não foi possível abrir o anexo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`, variant: "destructive" });
+                                        }
                                       }}
                                     >
-                                      <FileText className="w-4 h-4 text-blue-600" />
-                                      <span className="font-medium text-blue-700 dark:text-blue-300">
-                                        Anexo {index + 1}
-                                      </span>
-                                      <span className="text-xs text-blue-500 dark:text-blue-400 font-mono">
-                                        {attachmentId.slice(-8)}
-                                      </span>
+                                      <FileText className="w-3.5 h-3.5 text-slate-400" />
+                                      <span className="text-slate-700 font-medium">Arquivo {index + 1}</span>
+                                      <span className="text-[10px] text-slate-400 font-mono">{attachmentId.slice(-8)}</span>
                                     </div>
                                   ))}
                                 </div>
                               </div>
                             )}
                           </div>
+                        )}
 
-                          {/* Botão de Edição */}
-                          <div className="mt-6 flex justify-end">
-                            {!isReadOnly(selectedInclusion, user) && canEditScreen(user, 'tickets') && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  // Mudar para modo de edição
+                        {/* Comentários view */}
+                        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                          <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
+                            <span className={secHead}>Comentários</span>
+                            <button onClick={() => setShowCommentsModal(true)} className="flex items-center gap-1.5 text-[12px] font-semibold text-blue-600 hover:text-blue-700 transition-colors">
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              {roMode ? "Ver Comentários" : "Ver/Adicionar"}
+                            </button>
+                          </div>
+                          <div className="p-4">
+                            {comments && comments.length > 0 ? (
+                              <div className="space-y-2.5">
+                                {comments.slice(-2).map((comment) => (
+                                  <div key={comment.id} className="border-l-2 border-slate-200 pl-3">
+                                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-0.5">
+                                      <span className="font-semibold text-slate-500">{users?.find(u => u.id === comment.userId)?.name || 'Usuário'}</span>
+                                      <span>·</span>
+                                      <span>{comment.createdAt ? new Date(comment.createdAt).toLocaleDateString('pt-BR') : ''}</span>
+                                    </div>
+                                    <p className="text-sm text-slate-600">{comment.content.length > 100 ? `${comment.content.substring(0, 100)}...` : comment.content}</p>
+                                  </div>
+                                ))}
+                                {comments.length > 2 && (
+                                  <button onClick={() => setShowCommentsModal(true)} className="text-[11px] text-blue-600 hover:underline font-medium">Ver todos os {comments.length} comentários →</button>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center py-4 gap-2">
+                                <MessageCircle className="w-7 h-7 text-slate-200" />
+                                <p className="text-[12px] text-slate-400 text-center">Nenhum comentário registrado.</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Footer view */}
+                        <div className="sticky bottom-0 bg-white border-t border-slate-100 -mx-6 px-6 py-4 flex items-center justify-between">
+                          <button onClick={() => { setShowModal(false); setEditingTicketId(null); }} className="text-[13px] font-medium text-slate-500 hover:text-slate-700 transition-colors">Fechar</button>
+                          {!roMode && canEditTicket && selectedInclusion?.status !== 'hospedagem' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setTicketData(prev => ({
+                                  ...prev,
+                                  [selectedInclusion.id]: {
+                                    transportType: ticket.transportType || "aereo",
+                                    isOneWay: !ticket.actualReturnDate && !ticket.actualReturnTime,
+                                    value: ((ticket.value || 0) / 100).toString(),
+                                    departureAirport: ticket.departureAirport || "",
+                                    destinationAirport: ticket.destinationAirport || "",
+                                    departureCityOrigin: ticket.departureCityOrigin || "",
+                                    departureCityDestination: ticket.departureCityDestination || "",
+                                    returnCityOrigin: ticket.returnCityOrigin || "",
+                                    returnCityDestination: ticket.returnCityDestination || "",
+                                    purchaseOrderNumber: ticket.purchaseOrderNumber || "",
+                                    actualDepartureDate: ticket.actualDepartureDate || "",
+                                    actualReturnDate: ticket.actualReturnDate || "",
+                                    actualDepartureTime: ticket.actualDepartureTime || "",
+                                    actualReturnTime: ticket.actualReturnTime || "",
+                                    cardLastFourDigits: ticket.cardLastFourDigits || "",
+                                    ticketObservations: ticket.ticketObservations || "",
+                                    attachmentIds: ticket.attachmentIds || []
+                                  }
+                                }));
+                                setEditingTicketId(selectedInclusion.id);
+                              }}
+                              className="flex items-center gap-2"
+                            >
+                              <Edit className="w-4 h-4" />
+                              Editar Passagem
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                    ) : (
+
+                      /* ─── FORMULÁRIO DE REGISTRO ─── */
+                      <div className="space-y-4">
+
+                        {/* Período de Trabalho */}
+                        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                          <details>
+                            <summary className="px-4 py-3 cursor-pointer flex items-center justify-between hover:bg-slate-50 transition-colors list-none">
+                              <span className={secHead}>Período de Trabalho</span>
+                              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                            </summary>
+                            <div className="px-4 pb-4 pt-3 grid grid-cols-2 gap-4 border-t border-slate-100">
+                              <div>
+                                <div className={lbl}>Data Início</div>
+                                <div className="text-[13px] font-semibold text-slate-800">{formatDate(selectedInclusion.scheduleStartDate)}</div>
+                              </div>
+                              <div>
+                                <div className={lbl}>Data Fim</div>
+                                <div className="text-[13px] font-semibold text-slate-800">{formatDate(selectedInclusion.scheduleEndDate)}</div>
+                              </div>
+                            </div>
+                          </details>
+                        </div>
+
+                        {/* Tipo de Transporte */}
+                        <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                          <div className={secHead + " mb-3"}>Tipo de Transporte</div>
+                          <div className="flex items-end gap-6 flex-wrap">
+                            <div className="flex-1 min-w-[160px]">
+                              <div className={lbl + " mb-1"}>Modalidade *</div>
+                              <Select
+                                value={data.transportType || "aereo"}
+                                onValueChange={(value) => {
+                                  const eventLocation = getEventLocation(selectedInclusion.eventId);
+                                  const hasGoodLocation = eventLocation && eventLocation !== 'Destino não informado';
                                   setTicketData(prev => ({
                                     ...prev,
                                     [selectedInclusion.id]: {
-                                      transportType: ticket.transportType || "aereo",
-                                      isOneWay: !ticket.actualReturnDate && !ticket.actualReturnTime,
-                                      value: ((ticket.value || 0) / 100).toString(),
-                                      departureAirport: ticket.departureAirport || "",
-                                      destinationAirport: ticket.destinationAirport || "",
-                                      departureCityOrigin: ticket.departureCityOrigin || "",
-                                      departureCityDestination: ticket.departureCityDestination || "",
-                                      returnCityOrigin: ticket.returnCityOrigin || "",
-                                      returnCityDestination: ticket.returnCityDestination || "",
-                                      purchaseOrderNumber: ticket.purchaseOrderNumber || "",
-                                      actualDepartureDate: ticket.actualDepartureDate || "",
-                                      actualReturnDate: ticket.actualReturnDate || "",
-                                      actualDepartureTime: ticket.actualDepartureTime || "",
-                                      actualReturnTime: ticket.actualReturnTime || "",
-                                      cardLastFourDigits: ticket.cardLastFourDigits || "",
-                                      ticketObservations: ticket.ticketObservations || "",
-                                      attachmentIds: ticket.attachmentIds || []
+                                      ...prev[selectedInclusion.id],
+                                      transportType: value,
+                                      departureCityDestination: prev[selectedInclusion.id]?.departureCityDestination || (hasGoodLocation ? eventLocation : ''),
+                                      returnCityOrigin: prev[selectedInclusion.id]?.returnCityOrigin || (hasGoodLocation ? eventLocation : ''),
+                                      ...(value === 'rodoviario' ? {
+                                        actualDepartureDate: selectedInclusion.scheduleStartDate || prev[selectedInclusion.id]?.actualDepartureDate || '',
+                                        actualReturnDate: selectedInclusion.scheduleEndDate || prev[selectedInclusion.id]?.actualReturnDate || '',
+                                      } : {}),
                                     }
                                   }));
-                                  // Forçar re-render para modo de edição
-                                  setEditingTicketId(selectedInclusion.id);
                                 }}
-                                className="flex items-center gap-2"
                               >
-                                <Edit className="w-4 h-4" />
-                                Editar Passagem
-                              </Button>
-                            )}
-                          </div>
+                                <SelectTrigger data-testid={`select-transport-type-${selectedInclusion.id}`}>
+                                  <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="aereo">✈️ Aérea</SelectItem>
+                                  <SelectItem value="rodoviario">🚌 Rodoviária</SelectItem>
+                                  <SelectItem value="van">🚐 Van</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex items-center gap-2.5 pb-0.5">
+                              <button
+                                role="switch"
+                                aria-checked={data.isOneWay || false}
+                                onClick={() => !roMode && canEditTicket && handleTicketDataChange(selectedInclusion.id, "isOneWay", !(data.isOneWay || false))}
+                                style={{
+                                  width: 40, height: 22, borderRadius: 11, border: 'none', cursor: roMode ? 'not-allowed' : 'pointer',
+                                  background: data.isOneWay ? '#2563EB' : '#CBD5E1', position: 'relative', transition: 'background 0.2s', flexShrink: 0, padding: 0
+                                }}
+                              >
+                                <span style={{
+                                  position: 'absolute', top: 2, left: data.isOneWay ? 20 : 2,
+                                  width: 18, height: 18, borderRadius: '50%', background: '#fff',
+                                  transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                                }} />
+                              </button>
+                              <label
+                                className="text-[13px] font-medium text-slate-600 cursor-pointer select-none"
+                                onClick={() => !roMode && canEditTicket && handleTicketDataChange(selectedInclusion.id, "isOneWay", !(data.isOneWay || false))}
+                              >
+                                Apenas ida
+                              </label>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ) : (
-                      /* Formulário para registrar passagem */
-                      <div className="space-y-6">
-                        {/* Período de Trabalho - RECOLHIDO */}
-                        <details className="p-3 bg-accent/30 rounded-lg border border-border">
-                          <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                            Período de Trabalho
-                          </summary>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 pt-3 border-t border-border">
+
+                        {/* VAN */}
+                        {data.transportType === 'van' && (
+                          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+                            <div className={secHead}>Dados da Van</div>
                             <div>
-                              <Label className="text-xs text-muted-foreground">Data Início</Label>
-                              <p className="text-sm font-medium">{formatDate(selectedInclusion.scheduleStartDate)}</p>
+                              <Label htmlFor={`vanCompany-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">Nome da Empresa *</Label>
+                              <Input
+                                id={`vanCompany-${selectedInclusion.id}`}
+                                placeholder="Ex: Transluz Transportes"
+                                value={data.purchaseOrderNumber || ""}
+                                onChange={(e) => handleTicketDataChange(selectedInclusion.id, "purchaseOrderNumber", e.target.value)}
+                                className="mt-1"
+                                disabled={roMode || !canEditTicket}
+                              />
                             </div>
                             <div>
-                              <Label className="text-xs text-muted-foreground">Data Fim</Label>
-                              <p className="text-sm font-medium">{formatDate(selectedInclusion.scheduleEndDate)}</p>
+                              <Label htmlFor={`vanObs-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">Observação</Label>
+                              <Textarea
+                                id={`vanObs-${selectedInclusion.id}`}
+                                placeholder="Horário de saída, ponto de encontro, número de vagas..."
+                                value={data.ticketObservations || ""}
+                                onChange={(e) => handleTicketDataChange(selectedInclusion.id, "ticketObservations", e.target.value)}
+                                className="mt-1 h-24 resize-none"
+                                disabled={roMode || !canEditTicket}
+                              />
                             </div>
                           </div>
-                        </details>
+                        )}
 
+                        {/* Aéreo / Rodoviário */}
+                        {data.transportType !== 'van' && (<>
 
-                        {/* Seção de Dados da Compra */}
-                        <div className="space-y-6">
-                          {/* Tipo de Transporte e Configurações */}
-                          <div className="bg-purple-50 dark:bg-purple-950 p-4 rounded-lg border-l-4 border-purple-500">
-                            <h4 className="font-medium mb-4 text-purple-800 dark:text-purple-200 flex items-center gap-2">
-                              🚀 Tipo de Transporte
-                            </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Informações da Compra */}
+                          <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                            <div className={secHead + " mb-3"}>Informações da Compra</div>
+                            <div className="grid grid-cols-2 gap-4">
                               <div>
-                                <Label htmlFor={`transportType-${selectedInclusion.id}`} className="text-sm font-medium text-purple-700 dark:text-purple-300">
-                                  Tipo de Transporte *
-                                </Label>
-                                <Select
-                                  value={data.transportType || "aereo"}
-                                  onValueChange={(value) => {
-                                    const eventLocation = getEventLocation(selectedInclusion.eventId);
-                                    const hasGoodLocation = eventLocation && eventLocation !== 'Destino não informado';
-                                    setTicketData(prev => ({
-                                      ...prev,
-                                      [selectedInclusion.id]: {
-                                        ...prev[selectedInclusion.id],
-                                        transportType: value,
-                                        departureCityDestination: prev[selectedInclusion.id]?.departureCityDestination || (hasGoodLocation ? eventLocation : ''),
-                                        returnCityOrigin: prev[selectedInclusion.id]?.returnCityOrigin || (hasGoodLocation ? eventLocation : ''),
-                                        ...(value === 'rodoviario' ? {
-                                          actualDepartureDate: selectedInclusion.scheduleStartDate || prev[selectedInclusion.id]?.actualDepartureDate || '',
-                                          actualReturnDate: selectedInclusion.scheduleEndDate || prev[selectedInclusion.id]?.actualReturnDate || '',
-                                        } : {}),
-                                      }
-                                    }));
-                                  }}
-                                >
-                                  <SelectTrigger className="mt-1" data-testid={`select-transport-type-${selectedInclusion.id}`}>
-                                    <SelectValue placeholder="Selecione" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="aereo">✈️ Aérea</SelectItem>
-                                    <SelectItem value="rodoviario">🚌 Rodoviária</SelectItem>
-                                    <SelectItem value="van">🚐 Van</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="flex items-center gap-3 mt-6">
-                                <button
-                                  role="switch"
-                                  aria-checked={data.isOneWay || false}
-                                  onClick={() => !isReadOnly(selectedInclusion, user) && canEditScreen(user, 'tickets') && handleTicketDataChange(selectedInclusion.id, "isOneWay", !(data.isOneWay || false))}
-                                  style={{
-                                    width: 44, height: 24, borderRadius: 12, border: 'none', cursor: isReadOnly(selectedInclusion, user) ? 'not-allowed' : 'pointer',
-                                    background: data.isOneWay ? '#3B5BDB' : '#CBD5E1', position: 'relative', transition: 'background 0.2s', flexShrink: 0, padding: 0
-                                  }}
-                                >
-                                  <span style={{
-                                    position: 'absolute', top: 2, left: data.isOneWay ? 22 : 2,
-                                    width: 20, height: 20, borderRadius: '50%', background: '#fff',
-                                    transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-                                  }} />
-                                </button>
-                                <label style={{fontSize:14,fontWeight:500,color:'#7C3AED',cursor:'pointer'}}
-                                  onClick={() => !isReadOnly(selectedInclusion, user) && canEditScreen(user, 'tickets') && handleTicketDataChange(selectedInclusion.id, "isOneWay", !(data.isOneWay || false))}>
-                                  Apenas ida (sem volta)
-                                </label>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* VAN: formulário simplificado */}
-                          {data.transportType === 'van' && (
-                            <div className="bg-slate-50 p-4 rounded-lg border-l-4 border-slate-400 space-y-4">
-                              <h4 className="font-medium text-slate-800 flex items-center gap-2">
-                                🚐 Dados da Van
-                              </h4>
-                              <div>
-                                <Label htmlFor={`vanCompany-${selectedInclusion.id}`} className="text-sm font-medium">
-                                  Nome da Empresa *
-                                </Label>
-                                <Input
-                                  id={`vanCompany-${selectedInclusion.id}`}
-                                  placeholder="Ex: Transluz Transportes"
-                                  value={data.purchaseOrderNumber || ""}
-                                  onChange={(e) => handleTicketDataChange(selectedInclusion.id, "purchaseOrderNumber", e.target.value)}
-                                  className="mt-1"
-                                  disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
-                                />
-                              </div>
-                              <div>
-                                <Label htmlFor={`vanObs-${selectedInclusion.id}`} className="text-sm font-medium">
-                                  Observação
-                                </Label>
-                                <Textarea
-                                  id={`vanObs-${selectedInclusion.id}`}
-                                  placeholder="Horário de saída, ponto de encontro, número de vagas..."
-                                  value={data.ticketObservations || ""}
-                                  onChange={(e) => handleTicketDataChange(selectedInclusion.id, "ticketObservations", e.target.value)}
-                                  className="mt-1 h-24 resize-none"
-                                  disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
-                                />
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Informações Gerais, Viagem e Adicionais: ocultos na van */}
-                          {data.transportType !== 'van' && (<>
-                          <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg border-l-4 border-green-500">
-                            <h4 className="font-medium mb-4 text-green-800 dark:text-green-200 flex items-center gap-2">
-                              💰 Informações da Compra
-                            </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div>
-                                <Label htmlFor={`purchaseOrderNumber-${selectedInclusion.id}`} className="text-sm font-medium text-green-700 dark:text-green-300">
-                                  LOC *
+                                <Label htmlFor={`purchaseOrderNumber-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                                  {data.transportType === 'rodoviario' ? 'Bilhete' : 'LOC'} *
                                 </Label>
                                 <Input
                                   id={`purchaseOrderNumber-${selectedInclusion.id}`}
-                                  placeholder="Número da LOC"
+                                  placeholder={data.transportType === 'rodoviario' ? 'Número do bilhete' : 'Número da LOC'}
                                   value={data.purchaseOrderNumber || ""}
                                   onChange={(e) => handleTicketDataChange(selectedInclusion.id, "purchaseOrderNumber", e.target.value)}
                                   data-testid={`input-purchase-order-${selectedInclusion.id}`}
-                                  disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
+                                  disabled={roMode || !canEditTicket}
+                                  className="mt-1"
                                 />
                               </div>
                               <div>
-                                <Label htmlFor={`purchaseDate-${selectedInclusion.id}`} className="text-sm font-medium text-green-700 dark:text-green-300">
-                                  Data da Compra *
-                                </Label>
+                                <Label htmlFor={`purchaseDate-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">Data da Compra *</Label>
                                 <Input
                                   id={`purchaseDate-${selectedInclusion.id}`}
                                   type="date"
@@ -2475,211 +2343,96 @@ export default function Tickets() {
                                   onChange={(e) => handleTicketDataChange(selectedInclusion.id, "purchaseDate", e.target.value)}
                                   className="mt-1"
                                   data-testid={`input-purchase-date-${selectedInclusion.id}`}
-                                  disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
+                                  disabled={roMode || !canEditTicket}
                                 />
                               </div>
                             </div>
                           </div>
 
-                          {/* Informações de Viagem - Agrupadas por Trecho */}
-                          <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border-l-4 border-blue-500">
-                            <h4 className="font-medium mb-4 text-blue-800 dark:text-blue-200 flex items-center gap-2">
-                              {data.transportType === "van" ? "🚐" : data.transportType === "rodoviario" ? "🚌" : "✈️"} Informações de Viagem
-                            </h4>
-                            
-                            {/* Agrupamento por Trecho - Ida e Volta */}
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                              {/* Trecho de IDA */}
-                              <div className="bg-white dark:bg-blue-900/30 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
-                                <h5 className="font-medium text-blue-700 dark:text-blue-300 mb-4 flex items-center gap-2">
-                                  {data.transportType === "van" ? "🚐" : data.transportType === "rodoviario" ? "🚌" : "🛫"} IDA
-                                </h5>
-                                <div className="space-y-3">
-                                  {/* Cidades */}
+                          {/* Informações de Viagem */}
+                          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                            <div className="px-4 py-2.5 border-b border-slate-100 flex items-center gap-2">
+                              <span className={secHead}>Informações de Viagem</span>
+                            </div>
+                            <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+                              {/* IDA */}
+                              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                                <div className="text-[11px] font-black uppercase tracking-[0.12em] flex items-center gap-1.5" style={{color:'#2563EB'}}>
+                                  {data.transportType === "rodoviario" ? '🚌' : '🛫'} IDA
+                                </div>
+                                <div>
+                                  <Label htmlFor={`departureCityOrigin-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">Cidade Origem *</Label>
+                                  <Input id={`departureCityOrigin-${selectedInclusion.id}`} placeholder="Ex: São Paulo" value={data.departureCityOrigin || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureCityOrigin", e.target.value)} className="mt-1" data-testid={`input-departure-city-origin-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                </div>
+                                <div>
+                                  <Label htmlFor={`departureCityDestination-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 flex items-center gap-1.5">
+                                    Cidade Destino *
+                                    <span className="text-[10px] font-medium bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full normal-case">Local do evento</span>
+                                  </Label>
+                                  <Input id={`departureCityDestination-${selectedInclusion.id}`} placeholder="Ex: Rio de Janeiro" value={data.departureCityDestination || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureCityDestination", e.target.value)} className="mt-1" data-testid={`input-departure-city-destination-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                </div>
+                                <div>
+                                  <Label htmlFor={`departureAirport-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                                    {data.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"} *
+                                  </Label>
+                                  <Input id={`departureAirport-${selectedInclusion.id}`} placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: GRU, CGH, BSB"} value={data.departureAirport || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureAirport", e.target.value)} className="mt-1" data-testid={`input-departure-airport-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                </div>
+                                <div>
+                                  <Label htmlFor={`destinationAirport-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                                    {data.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"} *
+                                  </Label>
+                                  <Input id={`destinationAirport-${selectedInclusion.id}`} placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: SDU, GIG, RJ"} value={data.destinationAirport || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "destinationAirport", e.target.value)} className="mt-1" data-testid={`input-destination-airport-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
                                   <div>
-                                    <Label htmlFor={`departureCityOrigin-${selectedInclusion.id}`} className="text-sm font-medium">
-                                      Cidade Origem *
-                                    </Label>
-                                    <Input
-                                      id={`departureCityOrigin-${selectedInclusion.id}`}
-                                      placeholder="Ex: São Paulo"
-                                      value={data.departureCityOrigin || ""}
-                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureCityOrigin", e.target.value)}
-                                      className="mt-1"
-                                      data-testid={`input-departure-city-origin-${selectedInclusion.id}`}
-                                      disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
-                                    />
+                                    <Label htmlFor={`actualDepartureDate-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">Data *</Label>
+                                    <Input id={`actualDepartureDate-${selectedInclusion.id}`} type="date" value={data.actualDepartureDate || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureDate", e.target.value)} className="mt-1" data-testid={`input-departure-date-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
                                   </div>
                                   <div>
-                                    <Label htmlFor={`departureCityDestination-${selectedInclusion.id}`} className="text-sm font-medium flex items-center gap-1.5">
-                                      Cidade Destino *
-                                      <span className="text-[10px] font-medium bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full normal-case">Local do evento</span>
-                                    </Label>
-                                    <Input
-                                      id={`departureCityDestination-${selectedInclusion.id}`}
-                                      placeholder="Ex: Rio de Janeiro"
-                                      value={data.departureCityDestination || ""}
-                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureCityDestination", e.target.value)}
-                                      className="mt-1"
-                                      data-testid={`input-departure-city-destination-${selectedInclusion.id}`}
-                                      disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
-                                    />
-                                  </div>
-                                  {/* Aeroportos/Rodoviárias */}
-                                  <div>
-                                    <Label htmlFor={`departureAirport-${selectedInclusion.id}`} className="text-sm font-medium">
-                                      {data.transportType === "van" ? "Local de Saída" : data.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"} *
-                                    </Label>
-                                    <Input
-                                      id={`departureAirport-${selectedInclusion.id}`}
-                                      placeholder={data.transportType === "van" ? "Ex: Endereço de saída" : data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: GRU, CGH, BSB"}
-                                      value={data.departureAirport || ""}
-                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureAirport", e.target.value)}
-                                      className="mt-1"
-                                      data-testid={`input-departure-airport-${selectedInclusion.id}`}
-                                      disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label htmlFor={`destinationAirport-${selectedInclusion.id}`} className="text-sm font-medium">
-                                      {data.transportType === "van" ? "Local de Chegada" : data.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"} *
-                                    </Label>
-                                    <Input
-                                      id={`destinationAirport-${selectedInclusion.id}`}
-                                      placeholder={data.transportType === "van" ? "Ex: Endereço de chegada" : data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: SDU, GIG, RJ"}
-                                      value={data.destinationAirport || ""}
-                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "destinationAirport", e.target.value)}
-                                      className="mt-1"
-                                      data-testid={`input-destination-airport-${selectedInclusion.id}`}
-                                      disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label htmlFor={`actualDepartureDate-${selectedInclusion.id}`} className="text-sm font-medium">
-                                      Data de Ida *
-                                    </Label>
-                                    <Input
-                                      id={`actualDepartureDate-${selectedInclusion.id}`}
-                                      type="date"
-                                      value={data.actualDepartureDate || ""}
-                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureDate", e.target.value)}
-                                      className="mt-1"
-                                      data-testid={`input-departure-date-${selectedInclusion.id}`}
-                                      disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label htmlFor={`actualDepartureTime-${selectedInclusion.id}`} className="text-sm font-medium">
-                                      Horário de Ida *
-                                    </Label>
-                                    <Input
-                                      id={`actualDepartureTime-${selectedInclusion.id}`}
-                                      type="time"
-                                      placeholder="Ex: 08:30"
-                                      value={data.actualDepartureTime || ""}
-                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureTime", e.target.value)}
-                                      className="mt-1"
-                                      data-testid={`input-departure-time-${selectedInclusion.id}`}
-                                      disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
-                                    />
+                                    <Label htmlFor={`actualDepartureTime-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">Horário *</Label>
+                                    <Input id={`actualDepartureTime-${selectedInclusion.id}`} type="time" value={data.actualDepartureTime || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureTime", e.target.value)} className="mt-1" data-testid={`input-departure-time-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
                                   </div>
                                 </div>
                               </div>
 
-                              {/* Trecho de VOLTA - Condicional */}
+                              {/* VOLTA */}
                               {!data.isOneWay && (
-                                <div className="bg-white dark:bg-blue-900/30 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
-                                  <h5 className="font-medium text-blue-700 dark:text-blue-300 mb-4 flex items-center gap-2">
-                                    {data.transportType === "van" ? "🚐" : data.transportType === "rodoviario" ? "🚌" : "🛬"} VOLTA
-                                  </h5>
-                                  <div className="space-y-3">
-                                    {/* Cidades */}
+                                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                                  <div className="text-[11px] font-black uppercase tracking-[0.12em] flex items-center gap-1.5" style={{color:'#B45309'}}>
+                                    {data.transportType === "rodoviario" ? '🚌' : '🛬'} VOLTA
+                                  </div>
+                                  <div>
+                                    <Label htmlFor={`returnCityOrigin-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 flex items-center gap-1.5">
+                                      Cidade Origem *
+                                      <span className="text-[10px] font-medium bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full normal-case">Local do evento</span>
+                                    </Label>
+                                    <Input id={`returnCityOrigin-${selectedInclusion.id}`} placeholder="Ex: Rio de Janeiro" value={data.returnCityOrigin || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnCityOrigin", e.target.value)} className="mt-1" data-testid={`input-return-city-origin-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor={`returnCityDestination-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">Cidade Destino *</Label>
+                                    <Input id={`returnCityDestination-${selectedInclusion.id}`} placeholder="Ex: São Paulo" value={data.returnCityDestination || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnCityDestination", e.target.value)} className="mt-1" data-testid={`input-return-city-destination-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor={`returnOriginAirport-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                                      {data.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"} *
+                                    </Label>
+                                    <Input id={`returnOriginAirport-${selectedInclusion.id}`} placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: SDU, GIG, GRU"} value={data.returnOriginAirport || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnOriginAirport", e.target.value)} className="mt-1" data-testid={`input-return-origin-airport-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor={`returnDestinationAirport-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                                      {data.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"} *
+                                    </Label>
+                                    <Input id={`returnDestinationAirport-${selectedInclusion.id}`} placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: GRU, CGH, BSB"} value={data.returnDestinationAirport || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnDestinationAirport", e.target.value)} className="mt-1" data-testid={`input-return-destination-airport-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
                                     <div>
-                                      <Label htmlFor={`returnCityOrigin-${selectedInclusion.id}`} className="text-sm font-medium flex items-center gap-1.5">
-                                        Cidade Origem *
-                                        <span className="text-[10px] font-medium bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full normal-case">Local do evento</span>
-                                      </Label>
-                                      <Input
-                                        id={`returnCityOrigin-${selectedInclusion.id}`}
-                                        placeholder="Ex: Rio de Janeiro"
-                                        value={data.returnCityOrigin || ""}
-                                        onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnCityOrigin", e.target.value)}
-                                        className="mt-1"
-                                        data-testid={`input-return-city-origin-${selectedInclusion.id}`}
-                                        disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
-                                      />
+                                      <Label htmlFor={`actualReturnDate-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">Data *</Label>
+                                      <Input id={`actualReturnDate-${selectedInclusion.id}`} type="date" value={data.actualReturnDate || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnDate", e.target.value)} className="mt-1" data-testid={`input-return-date-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
                                     </div>
                                     <div>
-                                      <Label htmlFor={`returnCityDestination-${selectedInclusion.id}`} className="text-sm font-medium">
-                                        Cidade Destino *
-                                      </Label>
-                                      <Input
-                                        id={`returnCityDestination-${selectedInclusion.id}`}
-                                        placeholder="Ex: São Paulo"
-                                        value={data.returnCityDestination || ""}
-                                        onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnCityDestination", e.target.value)}
-                                        className="mt-1"
-                                        data-testid={`input-return-city-destination-${selectedInclusion.id}`}
-                                        disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
-                                      />
-                                    </div>
-                                    {/* Aeroportos/Rodoviárias */}
-                                    <div>
-                                      <Label htmlFor={`returnOriginAirport-${selectedInclusion.id}`} className="text-sm font-medium">
-                                        {data.transportType === "van" ? "Local de Saída (Volta)" : data.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"} *
-                                      </Label>
-                                      <Input
-                                        id={`returnOriginAirport-${selectedInclusion.id}`}
-                                        placeholder={data.transportType === "van" ? "Ex: Endereço de saída" : data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: SDU, GIG, GRU"}
-                                        value={data.returnOriginAirport || ""}
-                                        onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnOriginAirport", e.target.value)}
-                                        className="mt-1"
-                                        data-testid={`input-return-origin-airport-${selectedInclusion.id}`}
-                                        disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
-                                      />
-                                    </div>
-                                    <div>
-                                      <Label htmlFor={`returnDestinationAirport-${selectedInclusion.id}`} className="text-sm font-medium">
-                                        {data.transportType === "van" ? "Local de Chegada (Volta)" : data.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"} *
-                                      </Label>
-                                      <Input
-                                        id={`returnDestinationAirport-${selectedInclusion.id}`}
-                                        placeholder={data.transportType === "van" ? "Ex: Endereço de chegada" : data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: GRU, CGH, BSB"}
-                                        value={data.returnDestinationAirport || ""}
-                                        onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnDestinationAirport", e.target.value)}
-                                        className="mt-1"
-                                        data-testid={`input-return-destination-airport-${selectedInclusion.id}`}
-                                        disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
-                                      />
-                                    </div>
-                                    <div>
-                                      <Label htmlFor={`actualReturnDate-${selectedInclusion.id}`} className="text-sm font-medium">
-                                        Data de Volta *
-                                      </Label>
-                                      <Input
-                                        id={`actualReturnDate-${selectedInclusion.id}`}
-                                        type="date"
-                                        value={data.actualReturnDate || ""}
-                                        onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnDate", e.target.value)}
-                                        className="mt-1"
-                                        data-testid={`input-return-date-${selectedInclusion.id}`}
-                                        disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
-                                      />
-                                    </div>
-                                    <div>
-                                      <Label htmlFor={`actualReturnTime-${selectedInclusion.id}`} className="text-sm font-medium">
-                                        Horário de Volta *
-                                      </Label>
-                                      <Input
-                                        id={`actualReturnTime-${selectedInclusion.id}`}
-                                        type="time"
-                                        placeholder="Ex: 18:45"
-                                        value={data.actualReturnTime || ""}
-                                        onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnTime", e.target.value)}
-                                        className="mt-1"
-                                        data-testid={`input-return-time-${selectedInclusion.id}`}
-                                        disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
-                                      />
+                                      <Label htmlFor={`actualReturnTime-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">Horário *</Label>
+                                      <Input id={`actualReturnTime-${selectedInclusion.id}`} type="time" value={data.actualReturnTime || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnTime", e.target.value)} className="mt-1" data-testid={`input-return-time-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
                                     </div>
                                   </div>
                                 </div>
@@ -2688,350 +2441,280 @@ export default function Tickets() {
                           </div>
 
                           {/* Informações Adicionais */}
-                          <div className="bg-gray-50 dark:bg-gray-950 p-4 rounded-lg border-l-4 border-gray-500">
-                            <h4 className="font-medium mb-4 text-gray-800 dark:text-gray-200 flex items-center gap-2">
-                              💳 Informações Adicionais
-                            </h4>
-                            <div className="space-y-4">
+                          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+                            <div className={secHead}>Informações Adicionais</div>
+                            <div className="grid grid-cols-2 gap-4">
                               <div>
-                                <Label htmlFor={`cardLastFourDigits-${selectedInclusion.id}`} className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                  Últimos 4 Dígitos do Cartão (Opcional)
-                                </Label>
+                                <Label htmlFor={`cardLastFourDigits-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">Últimos 4 dígitos do cartão</Label>
                                 <Input
                                   id={`cardLastFourDigits-${selectedInclusion.id}`}
                                   placeholder="1234"
                                   maxLength={4}
                                   value={data.cardLastFourDigits || ""}
                                   onChange={(e) => handleTicketDataChange(selectedInclusion.id, "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
-                                  className="mt-1"
+                                  className="mt-1 font-mono"
                                   data-testid={`input-card-digits-${selectedInclusion.id}`}
-                                  disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
-                                />
-                              </div>
-                              <div>
-                                <Label htmlFor={`ticketObservations-${selectedInclusion.id}`} className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                  Observações sobre a Passagem (Opcional)
-                                </Label>
-                                <Textarea
-                                  id={`ticketObservations-${selectedInclusion.id}`}
-                                  placeholder="Informações adicionais sobre a passagem..."
-                                  value={data.ticketObservations || ""}
-                                  onChange={(e) => handleTicketDataChange(selectedInclusion.id, "ticketObservations", e.target.value)}
-                                  className="mt-1 h-20 resize-none"
-                                  data-testid={`textarea-ticket-observations-${selectedInclusion.id}`}
-                                  disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
+                                  disabled={roMode || !canEditTicket}
                                 />
                               </div>
                             </div>
+                            <div>
+                              <Label htmlFor={`ticketObservations-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">Observações sobre a Passagem</Label>
+                              <Textarea
+                                id={`ticketObservations-${selectedInclusion.id}`}
+                                placeholder="Informações adicionais sobre a passagem..."
+                                value={data.ticketObservations || ""}
+                                onChange={(e) => handleTicketDataChange(selectedInclusion.id, "ticketObservations", e.target.value)}
+                                className="mt-1 h-20 resize-none"
+                                data-testid={`textarea-ticket-observations-${selectedInclusion.id}`}
+                                disabled={roMode || !canEditTicket}
+                              />
+                            </div>
                           </div>
-                          </>)}
+                        </>)}
+
+                        {/* Anexos */}
+                        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                          <div className="px-4 py-2.5 border-b border-slate-100">
+                            <span className={secHead}>Anexos</span>
+                          </div>
+                          <div className="p-4">
+                            <AttachmentUpload
+                              attachmentIds={data.attachmentIds || []}
+                              onAttachmentsChange={(attachmentIds) => handleTicketDataChange(selectedInclusion.id, "attachmentIds", attachmentIds)}
+                              disabled={createTicketMutation.isPending || roMode}
+                            />
+                          </div>
                         </div>
 
-                        {/* Campo de Anexos */}
-                        <div className="mt-4">
-                          <AttachmentUpload
-                            attachmentIds={data.attachmentIds || []}
-                            onAttachmentsChange={(attachmentIds) => 
-                              handleTicketDataChange(selectedInclusion.id, "attachmentIds", attachmentIds)
-                            }
-                            disabled={createTicketMutation.isPending || isReadOnly(selectedInclusion, user)}
-                          />
-                        </div>
-
-
-                        {/* Seção de Comentários */}
-                        <div className="space-y-3" style={{borderTop:'1px solid #E2E8F0',paddingTop:16}}>
-                          <div className="flex items-center justify-between">
-                            <h4 style={{fontSize:14,fontWeight:600,color:'#1E293B',display:'flex',alignItems:'center',gap:6}}>
-                              <MessageCircle className="w-4 h-4" style={{color:'#64748B'}} />
-                              Comentários
-                            </h4>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setShowCommentsModal(true)}
-                              style={{borderColor:'#3B5BDB',color:'#3B5BDB'}}
-                              className="flex items-center gap-2"
-                            >
-                              <MessageCircle className="w-4 h-4" />
-                              {isReadOnly(selectedInclusion, user) ? "Ver Comentários" : "Ver/Adicionar Comentários"}
-                            </Button>
+                        {/* Comentários */}
+                        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                          <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
+                            <span className={secHead}>Comentários</span>
+                            <button onClick={() => setShowCommentsModal(true)} className="flex items-center gap-1.5 text-[12px] font-semibold text-blue-600 hover:text-blue-700 transition-colors">
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              {roMode ? "Ver Comentários" : "Ver/Adicionar"}
+                            </button>
                           </div>
-                          
-                          <div className="rounded-lg p-3" style={{background:'#F8FAFC',border:'1px solid #E2E8F0'}}>
+                          <div className="p-4">
                             {comments && comments.length > 0 ? (
-                              <div className="space-y-2">
-                                <p className="text-sm font-medium text-muted-foreground">
-                                  Últimos comentários ({comments.length} total):
-                                </p>
+                              <div className="space-y-2.5">
                                 {comments.slice(-2).map((comment) => (
-                                  <div key={comment.id} className="text-sm">
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                      <span>{users?.find(u => u.id === comment.userId)?.name || 'Usuário'}</span>
-                                      <span>•</span>
+                                  <div key={comment.id} className="border-l-2 border-slate-200 pl-3">
+                                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-0.5">
+                                      <span className="font-semibold text-slate-500">{users?.find(u => u.id === comment.userId)?.name || 'Usuário'}</span>
+                                      <span>·</span>
                                       <span>{comment.createdAt ? new Date(comment.createdAt).toLocaleDateString('pt-BR') : ''}</span>
-                                      <span>•</span>
-                                      <span className="capitalize">{comment.phase}</span>
                                     </div>
-                                    <p className="text-foreground mt-1">
-                                      {comment.content.length > 100 
-                                        ? `${comment.content.substring(0, 100)}...` 
-                                        : comment.content
-                                      }
-                                    </p>
+                                    <p className="text-sm text-slate-600">{comment.content.length > 100 ? `${comment.content.substring(0, 100)}...` : comment.content}</p>
                                   </div>
                                 ))}
                                 {comments.length > 2 && (
-                                  <p className="text-xs text-muted-foreground cursor-pointer hover:underline"
-                                     onClick={() => setShowCommentsModal(true)}>
-                                    Ver todos os {comments.length} comentários →
-                                  </p>
+                                  <button onClick={() => setShowCommentsModal(true)} className="text-[11px] text-blue-600 hover:underline font-medium">Ver todos os {comments.length} comentários →</button>
                                 )}
                               </div>
                             ) : (
-                              <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'12px 0',gap:8}}>
-                                <MessageCircle style={{width:28,height:28,color:'#CBD5E1'}} />
-                                <p style={{fontSize:13,color:'#94A3B8',textAlign:'center'}}>Nenhum comentário registrado para esta inclusão.</p>
+                              <div className="flex flex-col items-center py-4 gap-2">
+                                <MessageCircle className="w-7 h-7 text-slate-200" />
+                                <p className="text-[12px] text-slate-400 text-center">Nenhum comentário registrado.</p>
                               </div>
                             )}
                           </div>
                         </div>
 
-                        {/* Botões */}
-                        <div className="flex gap-3 justify-end" style={{borderTop:'1px solid #E2E8F0',paddingTop:16}}>
-                          <Button variant="outline" style={{border:'1px solid #E2E8F0',color:'#64748B'}} onClick={() => {
-                            setShowModal(false);
-                            setEditingTicketId(null);
-                          }}>
+                        {/* Sticky Footer */}
+                        <div className="sticky bottom-0 bg-white border-t border-slate-100 -mx-6 px-6 py-4 flex items-center justify-between gap-3">
+                          <Button variant="ghost" onClick={() => { setShowModal(false); setEditingTicketId(null); }} className="text-slate-500 hover:text-slate-700">
                             Cancelar
                           </Button>
-                          
-                          {selectedInclusion?.status !== 'hospedagem' && !isReadOnly(selectedInclusion, user) && (
+                          {selectedInclusion?.status !== 'hospedagem' && !roMode && (
                             <>
-                              {/* Botões de edição - apenas para usuários com permissão */}
-                              {canEditScreen(user, 'tickets') && (
-                                <>
-                                  {/* Botão Salvar - para dados parciais */}
+                              {canEditTicket && (
+                                <div className="flex items-center gap-2">
                                   <Button
-                                style={{background:'#64748B',color:'#fff'}}
-                                onClick={async () => {
-                                  try {
-                                    if (editingTicketId || getTicket(selectedInclusion.id)) {
-                                      // Atualizar ticket existente com dados parciais
-                                      const ticketToUpdate = getTicket(selectedInclusion.id);
-                                      if (ticketToUpdate) {
-                                        await updateTicketMutation.mutateAsync({
-                                          id: ticketToUpdate.id,
-                                          data: {
-                                            transportType: data.transportType || ticketToUpdate.transportType || "aereo",
-                                            value: data.value ? Math.round(parseFloat(data.value) * 100) : ticketToUpdate.value,
-                                            actualDepartureDate: data.actualDepartureDate || ticketToUpdate.actualDepartureDate,
-                                            actualDepartureTime: data.actualDepartureTime || ticketToUpdate.actualDepartureTime,
-                                            actualReturnDate: data.isOneWay ? null : data.actualReturnDate || ticketToUpdate.actualReturnDate,
-                                            actualReturnTime: data.isOneWay ? null : data.actualReturnTime || ticketToUpdate.actualReturnTime,
-                                            departureCityOrigin: data.departureCityOrigin || ticketToUpdate.departureCityOrigin,
-                                            departureCityDestination: data.departureCityDestination || ticketToUpdate.departureCityDestination,
-                                            returnCityOrigin: data.isOneWay ? null : data.returnCityOrigin || ticketToUpdate.returnCityOrigin,
-                                            returnCityDestination: data.isOneWay ? null : data.returnCityDestination || ticketToUpdate.returnCityDestination,
-                                            departureAirport: data.departureAirport || ticketToUpdate.departureAirport,
-                                            destinationAirport: data.destinationAirport || ticketToUpdate.destinationAirport,
-                                            purchaseOrderNumber: data.purchaseOrderNumber || ticketToUpdate.purchaseOrderNumber,
-                                            cardLastFourDigits: data.cardLastFourDigits || ticketToUpdate.cardLastFourDigits,
-                                            ticketObservations: data.ticketObservations || ticketToUpdate.ticketObservations,
-                                            attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : ticketToUpdate.attachmentIds
+                                    variant="outline"
+                                    onClick={async () => {
+                                      try {
+                                        if (editingTicketId || getTicket(selectedInclusion.id)) {
+                                          const ticketToUpdate = getTicket(selectedInclusion.id);
+                                          if (ticketToUpdate) {
+                                            await updateTicketMutation.mutateAsync({
+                                              id: ticketToUpdate.id,
+                                              data: {
+                                                transportType: data.transportType || ticketToUpdate.transportType || "aereo",
+                                                value: data.value ? Math.round(parseFloat(data.value) * 100) : ticketToUpdate.value,
+                                                actualDepartureDate: data.actualDepartureDate || ticketToUpdate.actualDepartureDate,
+                                                actualDepartureTime: data.actualDepartureTime || ticketToUpdate.actualDepartureTime,
+                                                actualReturnDate: data.isOneWay ? null : data.actualReturnDate || ticketToUpdate.actualReturnDate,
+                                                actualReturnTime: data.isOneWay ? null : data.actualReturnTime || ticketToUpdate.actualReturnTime,
+                                                departureCityOrigin: data.departureCityOrigin || ticketToUpdate.departureCityOrigin,
+                                                departureCityDestination: data.departureCityDestination || ticketToUpdate.departureCityDestination,
+                                                returnCityOrigin: data.isOneWay ? null : data.returnCityOrigin || ticketToUpdate.returnCityOrigin,
+                                                returnCityDestination: data.isOneWay ? null : data.returnCityDestination || ticketToUpdate.returnCityDestination,
+                                                departureAirport: data.departureAirport || ticketToUpdate.departureAirport,
+                                                destinationAirport: data.destinationAirport || ticketToUpdate.destinationAirport,
+                                                purchaseOrderNumber: data.purchaseOrderNumber || ticketToUpdate.purchaseOrderNumber,
+                                                cardLastFourDigits: data.cardLastFourDigits || ticketToUpdate.cardLastFourDigits,
+                                                ticketObservations: data.ticketObservations || ticketToUpdate.ticketObservations,
+                                                attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : ticketToUpdate.attachmentIds
+                                              }
+                                            });
                                           }
-                                        });
-                                      }
-                                    } else if (data.value || data.departureAirport || data.destinationAirport || data.purchaseOrderNumber) {
-                                      // Criar novo ticket com dados parciais (se pelo menos um campo estiver preenchido)
-                                      await createTicketMutation.mutateAsync({
-                                        teamInclusionId: selectedInclusion.id,
-                                        transportType: data.transportType || "aereo",
-                                        value: data.value ? Math.round(parseFloat(data.value) * 100) : 0,
-                                        purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
-                                        actualDepartureDate: data.actualDepartureDate || null,
-                                        actualDepartureTime: data.actualDepartureTime || null,
-                                        actualReturnDate: data.isOneWay ? null : data.actualReturnDate || null,
-                                        actualReturnTime: data.isOneWay ? null : data.actualReturnTime || null,
-                                        departureCityOrigin: data.departureCityOrigin || null,
-                                        departureCityDestination: data.departureCityDestination || null,
-                                        returnCityOrigin: data.isOneWay ? null : data.returnCityOrigin || null,
-                                        returnCityDestination: data.isOneWay ? null : data.returnCityDestination || null,
-                                        departureAirport: data.departureAirport || "",
-                                        destinationAirport: data.destinationAirport || "",
-                                        purchaseOrderNumber: data.purchaseOrderNumber || "",
-                                        fileUrl: data.fileUrl || null,
-                                        attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null,
-                                        cardLastFourDigits: data.cardLastFourDigits || null,
-                                        ticketObservations: data.ticketObservations || null
-                                      });
-                                    }
-
-                                    toast({
-                                      title: "Sucesso",
-                                      description: "Dados salvos com sucesso",
-                                    });
-
-                                    setShowModal(false);
-                                    setEditingTicketId(null);
-                                  } catch (error) {
-                                    toast({
-                                      title: "Erro",
-                                      description: "Erro ao salvar dados",
-                                      variant: "destructive",
-                                    });
-                                  }
-                                }}
-                                disabled={createTicketMutation.isPending || updateTicketMutation.isPending}
-                              >
-                                {(createTicketMutation.isPending || updateTicketMutation.isPending) ? "Salvando..." : "Salvar"}
-                              </Button>
-
-                              {/* Botão Registrar Passagem - para dados obrigatórios */}
-                              <Button
-                                onClick={async () => {
-                                  const isVanModal = data.transportType === 'van';
-                                  const isRodoModal = data.transportType === 'rodoviario';
-
-                                  // Validar campos obrigatórios por tipo de transporte
-                                  let baseFields: string[];
-                                  if (isVanModal) {
-                                    baseFields = ['purchaseOrderNumber'];
-                                  } else if (isRodoModal) {
-                                    // Rodoviária: apenas terminais e datas obrigatórios (valor e bilhete são opcionais)
-                                    baseFields = ['departureAirport', 'actualDepartureDate', 'actualDepartureTime'];
-                                  } else {
-                                    // Aéreo: todos os campos obrigatórios
-                                    baseFields = ['value', 'departureAirport', 'destinationAirport', 'purchaseOrderNumber', 'actualDepartureDate', 'actualDepartureTime'];
-                                  }
-                                  const requiredFieldsModal = (!isVanModal && !data.isOneWay)
-                                    ? [...baseFields, 'actualReturnDate', 'actualReturnTime']
-                                    : baseFields;
-                                  
-                                  const missingModalFields = requiredFieldsModal.filter(field => !data[field as keyof typeof data] || data[field as keyof typeof data] === '');
-                                  if (missingModalFields.length > 0) {
-                                    toast({
-                                      title: "Erro",
-                                      description: isVanModal
-                                        ? "Preencha o campo Nome da Empresa"
-                                        : isRodoModal
-                                        ? "Preencha os campos obrigatórios: Rodoviária Origem (ida), datas e horários"
-                                        : "Preencha todos os campos obrigatórios (Aeroporto Ida/Volta, valor, LOC, datas e horários)",
-                                      variant: "destructive",
-                                    });
-                                    return;
-                                  }
-
-                                  try {
-                                    if (editingTicketId) {
-                                      // Atualizar ticket existente
-                                      const ticket = getTicket(selectedInclusion.id);
-                                      if (ticket) {
-                                        await updateTicketMutation.mutateAsync({
-                                          id: ticket.id,
-                                        data: {
-                                          transportType: data.transportType || "aereo",
-                                          value: isVanModal ? null : Math.round(parseFloat(data.value) * 100),
-                                          actualDepartureDate: isVanModal ? null : data.actualDepartureDate,
-                                          actualDepartureTime: isVanModal ? null : data.actualDepartureTime,
-                                          actualReturnDate: isVanModal ? null : (data.isOneWay ? null : data.actualReturnDate),
-                                          actualReturnTime: isVanModal ? null : (data.isOneWay ? null : data.actualReturnTime),
-                                          departureCityOrigin: isVanModal ? null : (data.departureCityOrigin || null),
-                                          departureCityDestination: isVanModal ? null : (data.departureCityDestination || null),
-                                          returnCityOrigin: isVanModal ? null : (data.isOneWay ? null : data.returnCityOrigin || null),
-                                          returnCityDestination: isVanModal ? null : (data.isOneWay ? null : data.returnCityDestination || null),
-                                          departureAirport: isVanModal ? null : data.departureAirport,
-                                          destinationAirport: isVanModal ? null : data.destinationAirport,
-                                          purchaseOrderNumber: data.purchaseOrderNumber,
-                                          cardLastFourDigits: isVanModal ? null : (data.cardLastFourDigits || null),
-                                          ticketObservations: data.ticketObservations || null,
-                                          attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null
+                                        } else if (data.value || data.departureAirport || data.destinationAirport || data.purchaseOrderNumber) {
+                                          await createTicketMutation.mutateAsync({
+                                            teamInclusionId: selectedInclusion.id,
+                                            transportType: data.transportType || "aereo",
+                                            value: data.value ? Math.round(parseFloat(data.value) * 100) : 0,
+                                            purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
+                                            actualDepartureDate: data.actualDepartureDate || null,
+                                            actualDepartureTime: data.actualDepartureTime || null,
+                                            actualReturnDate: data.isOneWay ? null : data.actualReturnDate || null,
+                                            actualReturnTime: data.isOneWay ? null : data.actualReturnTime || null,
+                                            departureCityOrigin: data.departureCityOrigin || null,
+                                            departureCityDestination: data.departureCityDestination || null,
+                                            returnCityOrigin: data.isOneWay ? null : data.returnCityOrigin || null,
+                                            returnCityDestination: data.isOneWay ? null : data.returnCityDestination || null,
+                                            departureAirport: data.departureAirport || "",
+                                            destinationAirport: data.destinationAirport || "",
+                                            purchaseOrderNumber: data.purchaseOrderNumber || "",
+                                            fileUrl: data.fileUrl || null,
+                                            attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null,
+                                            cardLastFourDigits: data.cardLastFourDigits || null,
+                                            ticketObservations: data.ticketObservations || null
+                                          });
                                         }
+                                        toast({ title: "Sucesso", description: "Dados salvos com sucesso" });
+                                        setShowModal(false);
+                                        setEditingTicketId(null);
+                                      } catch (error) {
+                                        toast({ title: "Erro", description: "Erro ao salvar dados", variant: "destructive" });
+                                      }
+                                    }}
+                                    disabled={createTicketMutation.isPending || updateTicketMutation.isPending}
+                                    className="text-slate-600"
+                                  >
+                                    {(createTicketMutation.isPending || updateTicketMutation.isPending) ? "Salvando..." : "Salvar"}
+                                  </Button>
+                                  <Button
+                                    onClick={async () => {
+                                      const isVanModal = data.transportType === 'van';
+                                      const isRodoModal = data.transportType === 'rodoviario';
+                                      let baseFields: string[];
+                                      if (isVanModal) {
+                                        baseFields = ['purchaseOrderNumber'];
+                                      } else if (isRodoModal) {
+                                        baseFields = ['departureAirport', 'actualDepartureDate', 'actualDepartureTime'];
+                                      } else {
+                                        baseFields = ['value', 'departureAirport', 'destinationAirport', 'purchaseOrderNumber', 'actualDepartureDate', 'actualDepartureTime'];
+                                      }
+                                      const requiredFieldsModal = (!isVanModal && !data.isOneWay)
+                                        ? [...baseFields, 'actualReturnDate', 'actualReturnTime']
+                                        : baseFields;
+                                      const missingModalFields = requiredFieldsModal.filter(field => !data[field as keyof typeof data] || data[field as keyof typeof data] === '');
+                                      if (missingModalFields.length > 0) {
+                                        toast({
+                                          title: "Erro",
+                                          description: isVanModal
+                                            ? "Preencha o campo Nome da Empresa"
+                                            : isRodoModal
+                                            ? "Preencha os campos obrigatórios: Rodoviária Origem (ida), datas e horários"
+                                            : "Preencha todos os campos obrigatórios (Aeroporto Ida/Volta, valor, LOC, datas e horários)",
+                                          variant: "destructive",
                                         });
+                                        return;
                                       }
-                                    } else {
-                                      // Criar novo ticket
-                                      await createTicketMutation.mutateAsync({
-                                        teamInclusionId: selectedInclusion.id,
-                                        transportType: data.transportType || "aereo",
-                                        value: isVanModal ? null : Math.round(parseFloat(data.value) * 100),
-                                        purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
-                                        actualDepartureDate: isVanModal ? null : data.actualDepartureDate,
-                                        actualDepartureTime: isVanModal ? null : data.actualDepartureTime,
-                                        actualReturnDate: isVanModal ? null : (data.isOneWay ? null : data.actualReturnDate),
-                                        actualReturnTime: isVanModal ? null : (data.isOneWay ? null : data.actualReturnTime),
-                                        departureCityOrigin: isVanModal ? null : (data.departureCityOrigin || null),
-                                        departureCityDestination: isVanModal ? null : (data.departureCityDestination || null),
-                                        returnCityOrigin: isVanModal ? null : (data.isOneWay ? null : data.returnCityOrigin || null),
-                                        returnCityDestination: isVanModal ? null : (data.isOneWay ? null : data.returnCityDestination || null),
-                                        departureAirport: isVanModal ? null : data.departureAirport,
-                                        destinationAirport: isVanModal ? null : data.destinationAirport,
-                                        purchaseOrderNumber: data.purchaseOrderNumber,
-                                        fileUrl: data.fileUrl || null,
-                                        attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null,
-                                        cardLastFourDigits: isVanModal ? null : (data.cardLastFourDigits || null),
-                                        ticketObservations: data.ticketObservations || null
-                                      });
-
-                                      // Atualizar team inclusion status - passagem agora é independente de hospedagem
-                                      const needsAccommodation = selectedInclusion.needsAccommodation;
-                                      const accommodation = accommodations?.find(acc => acc.teamInclusionId === selectedInclusion.id);
-                                      const accommodationPurchased = accommodation && accommodation.hotelName;
-                                      
-                                      let newStatus = "passagem_comprada";
-                                      let newPhase = "passagem";
-                                      
-                                      // Se precisa hospedagem E hospedagem já foi comprada, marcar como ambos comprados
-                                      if (needsAccommodation && accommodationPurchased) {
-                                        newStatus = "hospedagem_passagem_comprada";
-                                        newPhase = "hospedagem";
-                                      }
-                                      // Senão, apenas marcar passagem como comprada (independente se precisa ou não de hospedagem)
-                                      
-                                      await updateTeamInclusionMutation.mutateAsync({
-                                        id: selectedInclusion.id,
-                                        data: {
-                                          status: newStatus,
-                                          phase: newPhase
+                                      try {
+                                        if (editingTicketId) {
+                                          const ticketEx = getTicket(selectedInclusion.id);
+                                          if (ticketEx) {
+                                            await updateTicketMutation.mutateAsync({
+                                              id: ticketEx.id,
+                                              data: {
+                                                transportType: data.transportType || "aereo",
+                                                value: isVanModal ? null : Math.round(parseFloat(data.value) * 100),
+                                                actualDepartureDate: isVanModal ? null : data.actualDepartureDate,
+                                                actualDepartureTime: isVanModal ? null : data.actualDepartureTime,
+                                                actualReturnDate: isVanModal ? null : (data.isOneWay ? null : data.actualReturnDate),
+                                                actualReturnTime: isVanModal ? null : (data.isOneWay ? null : data.actualReturnTime),
+                                                departureCityOrigin: isVanModal ? null : (data.departureCityOrigin || null),
+                                                departureCityDestination: isVanModal ? null : (data.departureCityDestination || null),
+                                                returnCityOrigin: isVanModal ? null : (data.isOneWay ? null : data.returnCityOrigin || null),
+                                                returnCityDestination: isVanModal ? null : (data.isOneWay ? null : data.returnCityDestination || null),
+                                                departureAirport: isVanModal ? null : data.departureAirport,
+                                                destinationAirport: isVanModal ? null : data.destinationAirport,
+                                                purchaseOrderNumber: data.purchaseOrderNumber,
+                                                cardLastFourDigits: isVanModal ? null : (data.cardLastFourDigits || null),
+                                                ticketObservations: data.ticketObservations || null,
+                                                attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null
+                                              }
+                                            });
+                                          }
+                                        } else {
+                                          await createTicketMutation.mutateAsync({
+                                            teamInclusionId: selectedInclusion.id,
+                                            transportType: data.transportType || "aereo",
+                                            value: isVanModal ? null : Math.round(parseFloat(data.value) * 100),
+                                            purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
+                                            actualDepartureDate: isVanModal ? null : data.actualDepartureDate,
+                                            actualDepartureTime: isVanModal ? null : data.actualDepartureTime,
+                                            actualReturnDate: isVanModal ? null : (data.isOneWay ? null : data.actualReturnDate),
+                                            actualReturnTime: isVanModal ? null : (data.isOneWay ? null : data.actualReturnTime),
+                                            departureCityOrigin: isVanModal ? null : (data.departureCityOrigin || null),
+                                            departureCityDestination: isVanModal ? null : (data.departureCityDestination || null),
+                                            returnCityOrigin: isVanModal ? null : (data.isOneWay ? null : data.returnCityOrigin || null),
+                                            returnCityDestination: isVanModal ? null : (data.isOneWay ? null : data.returnCityDestination || null),
+                                            departureAirport: isVanModal ? null : data.departureAirport,
+                                            destinationAirport: isVanModal ? null : data.destinationAirport,
+                                            purchaseOrderNumber: data.purchaseOrderNumber,
+                                            fileUrl: data.fileUrl || null,
+                                            attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null,
+                                            cardLastFourDigits: isVanModal ? null : (data.cardLastFourDigits || null),
+                                            ticketObservations: data.ticketObservations || null
+                                          });
+                                          const needsAccommodation = selectedInclusion.needsAccommodation;
+                                          const accommodation = accommodations?.find(acc => acc.teamInclusionId === selectedInclusion.id);
+                                          const accommodationPurchased = accommodation && accommodation.hotelName;
+                                          let newStatus = "passagem_comprada";
+                                          let newPhase = "passagem";
+                                          if (needsAccommodation && accommodationPurchased) {
+                                            newStatus = "hospedagem_passagem_comprada";
+                                            newPhase = "hospedagem";
+                                          }
+                                          await updateTeamInclusionMutation.mutateAsync({ id: selectedInclusion.id, data: { status: newStatus, phase: newPhase } });
                                         }
-                                      });
+                                        const inc = selectedInclusion;
+                                        setSuccessInfo({
+                                          message: editingTicketId ? "Passagem atualizada com sucesso!" : "Passagem registrada com sucesso!",
+                                          inclusionNumber: inc?.inclusionNumber ?? null,
+                                          eventName: events?.find(e => e.id === inc?.eventId)?.name ?? "—",
+                                          collaboratorName: inc?.collaboratorId ? getCollaboratorName(inc.collaboratorId) : "—",
+                                          functionName: inc?.functionId ? getFunctionName(inc.functionId) : "—",
+                                        });
+                                        setShowModal(false);
+                                        setShowSuccessModal(true);
+                                      } catch (error) {
+                                        // Error is already handled by the mutation
+                                      }
+                                    }}
+                                    disabled={createTicketMutation.isPending || updateTicketMutation.isPending}
+                                    className="bg-[#2563EB] hover:bg-[#1d4ed8] text-white gap-1.5"
+                                  >
+                                    {(createTicketMutation.isPending || updateTicketMutation.isPending)
+                                      ? (editingTicketId ? "Atualizando..." : "Registrando...")
+                                      : <><span>✓</span> {editingTicketId ? "Atualizar Passagem" : "Registrar Passagem"}</>
                                     }
-
-                                    // Mostrar modal de sucesso
-                                    const inc = selectedInclusion;
-                                    setSuccessInfo({
-                                      message: editingTicketId ? "Passagem atualizada com sucesso!" : "Passagem registrada com sucesso!",
-                                      inclusionNumber: inc?.inclusionNumber ?? null,
-                                      eventName: events?.find(e => e.id === inc?.eventId)?.name ?? "—",
-                                      collaboratorName: inc?.collaboratorId ? getCollaboratorName(inc.collaboratorId) : "—",
-                                      functionName: inc?.functionId ? getFunctionName(inc.functionId) : "—",
-                                    });
-                                    setShowModal(false);
-                                    setShowSuccessModal(true);
-                                  } catch (error) {
-                                    // Error is already handled by the mutation
-                                  }
-                                }}
-                                disabled={createTicketMutation.isPending || updateTicketMutation.isPending}
-                                style={{background:'#3B5BDB',color:'#fff'}}
-                              >
-                                {(createTicketMutation.isPending || updateTicketMutation.isPending) 
-                                  ? (editingTicketId ? "Atualizando..." : "Registrando...") 
-                                  : <><span style={{marginRight:6}}>✓</span>{editingTicketId ? "Atualizar Passagem" : "Registrar Passagem"}</>
-                                }
-                              </Button>
-                                </>
+                                  </Button>
+                                </div>
                               )}
                             </>
                           )}
                         </div>
                       </div>
-                    );
-                  })()}
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
-
+              );
+            })()}
           </DialogContent>
         </Dialog>
 
