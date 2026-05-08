@@ -1,0 +1,66 @@
+Ajustar apenas alguns pontos no modal “Detalhes da Escalação”, mantendo a estrutura atual que já foi implementada com abas.
+
+Não refazer o modal inteiro.
+Não mudar a paleta.
+Não alterar a lógica.
+Não mexer nas regras de passagem, hospedagem ou histórico que já foram aplicadas.
+Fazer somente os ajustes abaixo.
+
+1. Remover o campo “Valor”
+Na aba “Passagem”, remover o campo “Valor” do resumo superior.
+Hoje aparece algo como:
+- Tipo
+- Data da compra
+- Ordem de compra
+- Valor
+
+O campo “Valor” não deve aparecer mais.
+Manter apenas:
+- Tipo
+- Data da compra
+- Ordem de compra
+- Status, se existir
+
+2. Melhorar visualmente a área de anexos
+A seção de anexos que aparece abaixo da passagem está visualmente fraca e mal posicionada.
+
+Melhorar o componente de anexos para ficar mais profissional, seguindo a paleta atual.
+
+Trocar o modelo atual simples por um card/lista mais elegante, contendo:
+- ícone de arquivo/anexo
+- nome do arquivo, se existir
+- tipo/extensão do arquivo, se existir
+- botão ou ícone de visualizar
+- botão ou ícone de baixar, se aplicável
+
+Evitar o texto genérico “Clique para visualizar” sozinho.
+O anexo precisa parecer uma informação importante e bem organizada, não um bloco solto.
+
+Se houver apenas 1 anexo, mostrar em um card horizontal compacto.
+Se houver mais de 1 anexo, mostrar em lista compacta.
+Se não houver anexo, mostrar empty state discreto:
+“Nenhum anexo disponível.”
+
+3. Colocar anexos também na aba “Resumo”
+Além da aba “Passagem”, os anexos também devem aparecer na aba “Resumo”.
+
+Na aba “Resumo”, adicionar uma seção chamada “Anexos” abaixo dos principais dados da escalação.
+
+Essa seção deve mostrar os mesmos anexos vinculados ao registro, usando o mesmo componente visual melhorado.
+
+A ideia é que a pessoa consiga ver rapidamente no Resumo se existe algum comprovante/documento anexado, sem precisar entrar obrigatoriamente na aba Passagem.
+
+4. Manter o layout sem scroll desnecessário
+Ao adicionar os anexos no Resumo, não deixar a tela pesada ou muito vertical.
+
+Usar card compacto ou lista curta.
+Se houver muitos anexos, mostrar apenas os primeiros e um botão/link:
+“Ver todos os anexos”
+
+5. Critérios de aceite
+- O campo “Valor” não aparece mais na aba Passagem.
+- A área de anexos ficou mais bonita e profissional.
+- Os anexos aparecem também na aba Resumo.
+- O texto “Clique para visualizar” sozinho não é mais usado.
+- O layout continua limpo e dentro da paleta atual.
+- Não foi refeita a estrutura inteira do modal.

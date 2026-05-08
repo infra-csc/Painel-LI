@@ -1482,6 +1482,36 @@ export default function Scaling() {
             const tabTrigger = "relative rounded-none border-b-2 border-transparent data-[state=active]:border-[#2563EB] data-[state=active]:text-[#2563EB] text-slate-500 bg-transparent data-[state=active]:bg-transparent px-4 pb-3 pt-2 text-sm font-medium shadow-none hover:text-slate-700 transition-colors";
             const lbl = "text-[10px] uppercase tracking-[0.12em] text-slate-400 font-black mb-1";
             const val = "text-[13px] font-semibold text-slate-700";
+            const renderAttachments = (ids: string[] | null | undefined, label: string) => {
+              if (!ids || ids.length === 0) {
+                return (
+                  <div className="flex items-center gap-2.5 py-3 px-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                    <File className="w-4 h-4 text-slate-300" />
+                    <span className="text-sm text-slate-400">Nenhum anexo disponível.</span>
+                  </div>
+                );
+              }
+              return (
+                <div className="space-y-2">
+                  {ids.map((attachmentId, index) => (
+                    <div
+                      key={attachmentId}
+                      className="flex items-center gap-3 bg-white border border-slate-200 hover:border-[#2563EB] hover:bg-blue-50 rounded-xl px-4 py-3 cursor-pointer transition-all group"
+                      onClick={() => openAttachment(attachmentId, `${label} ${index + 1}`)}
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-4 h-4 text-[#2563EB]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] font-semibold text-slate-700">{label} {index + 1}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">Documento anexado · clique para visualizar</div>
+                      </div>
+                      <Eye className="w-4 h-4 text-slate-300 group-hover:text-[#2563EB] transition-colors flex-shrink-0" />
+                    </div>
+                  ))}
+                </div>
+              );
+            };
             return (
               <>
                 {/* ── Abas ── */}
@@ -1668,6 +1698,56 @@ export default function Scaling() {
                         </div>
 
                       </div>
+
+                      {/* Seção de Anexos no Resumo */}
+                      {(() => {
+                        const ticketIds = selectedTicket?.attachmentIds || [];
+                        const accommodationIds = accommodation?.attachmentIds || [];
+                        const allAttachments = [
+                          ...ticketIds.map(id => ({ id, label: 'Passagem' })),
+                          ...accommodationIds.map(id => ({ id, label: 'Hospedagem' })),
+                        ];
+                        if (allAttachments.length === 0) return null;
+                        const visible = allAttachments.slice(0, 3);
+                        const hasMore = allAttachments.length > 3;
+                        return (
+                          <div className="mt-5">
+                            <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                              <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-slate-400" />
+                                <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Anexos</span>
+                                <span className="bg-slate-200 text-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{allAttachments.length}</span>
+                              </div>
+                              <div className="p-4 space-y-2">
+                                {visible.map(({ id, label }, index) => (
+                                  <div
+                                    key={id}
+                                    className="flex items-center gap-3 bg-white border border-slate-200 hover:border-[#2563EB] hover:bg-blue-50 rounded-xl px-3 py-2.5 cursor-pointer transition-all group"
+                                    onClick={() => openAttachment(id, `${label} · Anexo ${index + 1}`)}
+                                  >
+                                    <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
+                                      <FileText className="w-3.5 h-3.5 text-[#2563EB]" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-[12px] font-semibold text-slate-700">{label} · Anexo {index + 1}</div>
+                                      <div className="text-[10px] text-slate-400">Documento anexado</div>
+                                    </div>
+                                    <Eye className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#2563EB] transition-colors flex-shrink-0" />
+                                  </div>
+                                ))}
+                                {hasMore && (
+                                  <button
+                                    className="w-full text-center text-[12px] text-[#2563EB] font-semibold py-1.5 hover:bg-blue-50 rounded-lg transition-colors"
+                                    onClick={() => setModalActiveTab('passagem')}
+                                  >
+                                    Ver todos os {allAttachments.length} anexos →
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </TabsContent>
 
                     {/* ══ ABA: PASSAGEM ══ */}
@@ -1747,12 +1827,6 @@ export default function Scaling() {
                                 <div>
                                   <div className={lbl}>Cartão</div>
                                   <div className="text-[13px] font-semibold text-slate-700 font-mono">****{selectedTicket.cardLastFourDigits}</div>
-                                </div>
-                              )}
-                              {selectedTicket.value && (
-                                <div>
-                                  <div className={lbl}>Valor</div>
-                                  <div className="text-[13px] font-semibold text-slate-700">{formatCurrency(selectedTicket.value / 100)}</div>
                                 </div>
                               )}
                             </div>
@@ -1928,24 +2002,10 @@ export default function Scaling() {
                           )}
 
                           {/* Anexos da Passagem */}
-                          {selectedTicket.attachmentIds && selectedTicket.attachmentIds.length > 0 && (
-                            <div>
-                              <div className={lbl + " mb-2"}>📎 Anexos</div>
-                              <div className="grid grid-cols-2 gap-3">
-                                {selectedTicket.attachmentIds.map((attachmentId, index) => (
-                                  <div
-                                    key={attachmentId}
-                                    className="bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer transition-all"
-                                    onClick={() => openAttachment(attachmentId, `Anexo ${index + 1} da Passagem`)}
-                                  >
-                                    <div className="bg-blue-100 text-blue-600 rounded-lg w-7 h-7 flex items-center justify-center text-xs font-bold flex-shrink-0">{index + 1}</div>
-                                    <span className="flex-1 text-sm text-slate-400">Clique para visualizar</span>
-                                    <Eye className="w-4 h-4 text-blue-400 flex-shrink-0" />
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                          <div>
+                            <div className={lbl + " mb-2"}>📎 Anexos</div>
+                            {renderAttachments(selectedTicket.attachmentIds, 'Passagem')}
+                          </div>
                         </div>
                       )}
                     </TabsContent>
@@ -2012,24 +2072,10 @@ export default function Scaling() {
                             )}
                           </div>
                           {/* Anexos */}
-                          {accommodation.attachmentIds && accommodation.attachmentIds.length > 0 && (
-                            <div>
-                              <div className={lbl + " mb-2"}>📎 Anexos</div>
-                              <div className="grid grid-cols-2 gap-3">
-                                {accommodation.attachmentIds.map((attachmentId, index) => (
-                                  <div
-                                    key={attachmentId}
-                                    className="bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer transition-all"
-                                    onClick={() => openAttachment(attachmentId, `Anexo ${index + 1} da Hospedagem`)}
-                                  >
-                                    <div className="bg-blue-100 text-blue-600 rounded-lg w-7 h-7 flex items-center justify-center text-xs font-bold flex-shrink-0">{index + 1}</div>
-                                    <span className="flex-1 text-sm text-slate-400">Clique para visualizar</span>
-                                    <Eye className="w-4 h-4 text-blue-400 flex-shrink-0" />
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                          <div>
+                            <div className={lbl + " mb-2"}>📎 Anexos</div>
+                            {renderAttachments(accommodation.attachmentIds, 'Hospedagem')}
+                          </div>
                         </div>
                       )}
                     </TabsContent>
