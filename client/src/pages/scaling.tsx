@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
-import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -1244,11 +1244,25 @@ export default function Scaling() {
                                         <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />Pendente
                                       </span>
                                     )}
-                                    {getTicket(inclusion.id) && (
-                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
-                                        <Plane className="w-3 h-3" />Passagem comprada
-                                      </span>
-                                    )}
+                                    {(() => {
+                                      const ticket = getTicket(inclusion.id);
+                                      if (!ticket) return null;
+                                      if (ticket.transportType === 'van') return (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
+                                          🚐 Van registrada
+                                        </span>
+                                      );
+                                      if (ticket.transportType === 'rodoviario') return (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
+                                          <Bus className="w-3 h-3" />Rodoviária comprada
+                                        </span>
+                                      );
+                                      return (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
+                                          <Plane className="w-3 h-3" />Passagem comprada
+                                        </span>
+                                      );
+                                    })()}
                                     {(() => {
                                       const accommodation = getAccommodation(inclusion.id);
                                       const accommodationInfo = formatAccommodationInfo(accommodation);
@@ -1373,11 +1387,25 @@ export default function Scaling() {
                                         <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />Pendente
                                       </span>
                                     )}
-                                    {getTicket(inclusion.id) && (
-                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
-                                        <Plane className="w-3 h-3" />Passagem comprada
-                                      </span>
-                                    )}
+                                    {(() => {
+                                      const ticket = getTicket(inclusion.id);
+                                      if (!ticket) return null;
+                                      if (ticket.transportType === 'van') return (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
+                                          🚐 Van registrada
+                                        </span>
+                                      );
+                                      if (ticket.transportType === 'rodoviario') return (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
+                                          <Bus className="w-3 h-3" />Rodoviária comprada
+                                        </span>
+                                      );
+                                      return (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
+                                          <Plane className="w-3 h-3" />Passagem comprada
+                                        </span>
+                                      );
+                                    })()}
                                     {(() => {
                                       const accommodation = getAccommodation(inclusion.id);
                                       const accommodationInfo = formatAccommodationInfo(accommodation);
@@ -1604,96 +1632,117 @@ export default function Scaling() {
                   {selectedTicket ? (
                     <>
                       {/* Título da seção quando passagem comprada */}
-                      <h3 className="text-lg font-semibold text-green-700 dark:text-green-300 mb-4 flex items-center gap-2">
-                        ✈️ Datas de Viagem Emitidas
+                      <h3 className="text-lg font-semibold text-green-700 mb-4 flex items-center gap-2">
+                        {selectedTicket.transportType === 'van' ? '🚐 Van Registrada' : selectedTicket.transportType === 'rodoviario' ? '🚌 Rodoviária Comprada' : '✈️ Passagem Aérea Comprada'}
                       </h3>
-                      
+
                       {/* Informações Gerais da Compra */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                        <div>
-                          <Label className="text-xs text-green-600 dark:text-green-300 font-medium">📅 Data da Compra</Label>
-                          <p className="font-medium">{selectedTicket.purchaseDate ? formatDate(selectedTicket.purchaseDate) : "-"}</p>
-                        </div>
+                        {selectedTicket.transportType !== 'van' && selectedTicket.purchaseDate && (
+                          <div>
+                            <Label className="text-xs text-green-600 font-medium">📅 Data da Compra</Label>
+                            <p className="font-medium">{formatDate(selectedTicket.purchaseDate)}</p>
+                          </div>
+                        )}
                         {selectedTicket.purchaseOrderNumber && (
                           <div>
-                            <Label className="text-xs text-green-600 dark:text-green-300 font-medium">📋 Ordem de Compra</Label>
+                            <Label className="text-xs text-green-600 font-medium">
+                              {selectedTicket.transportType === 'van' ? '🏢 Nome da Empresa' : '📋 Ordem de Compra'}
+                            </Label>
                             <p className="font-medium">{selectedTicket.purchaseOrderNumber}</p>
                           </div>
                         )}
                       </div>
 
-                      {/* Detalhes dos Voos - Agrupados por Trecho */}
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        {/* Trecho de IDA */}
-                        <div className="bg-white border border-slate-200 rounded-xl p-4 flex-1">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-blue-600 mb-3 flex items-center gap-2">
-                            🛫 IDA
-                          </h4>
-                          <div className="space-y-2">
-                            <div>
-                              <div className="text-xs text-slate-400 uppercase tracking-wider">Origem</div>
-                              <div className="text-sm font-medium text-slate-700">{selectedTicket.departureAirport || "-"}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-slate-400 uppercase tracking-wider">Destino</div>
-                              <div className="text-sm font-medium text-slate-700">{selectedTicket.destinationAirport || "-"}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Data</div>
-                              <div className="text-sm font-medium text-blue-600 mb-2">
-                                {selectedTicket.actualDepartureDate ? formatDate(selectedTicket.actualDepartureDate) : "-"}
+                      {/* Conteúdo específico por tipo */}
+                      {selectedTicket.transportType === 'van' ? (
+                        /* Van: mostra só observações */
+                        selectedTicket.ticketObservations ? (
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                            <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Observação</div>
+                            <div className="text-sm text-slate-700">{selectedTicket.ticketObservations}</div>
+                          </div>
+                        ) : (
+                          <div className="text-sm text-slate-400 italic">Nenhuma observação registrada.</div>
+                        )
+                      ) : (
+                        /* Aéreo / Rodoviário: grid IDA + VOLTA */
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {/* Trecho de IDA */}
+                          <div className="bg-white border border-slate-200 rounded-xl p-4 flex-1">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-blue-600 mb-3 flex items-center gap-2">
+                              {selectedTicket.transportType === 'rodoviario' ? '🚌' : '🛫'} IDA
+                            </h4>
+                            <div className="space-y-2">
+                              <div>
+                                <div className="text-xs text-slate-400 uppercase tracking-wider">
+                                  {selectedTicket.transportType === 'rodoviario' ? 'Cidade de Origem' : 'Origem'}
+                                </div>
+                                <div className="text-sm font-medium text-slate-700">{selectedTicket.departureAirport || "-"}</div>
                               </div>
-                              <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Horário</div>
-                              {selectedTicket.actualDepartureTime ? (
-                                <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2">
-                                  <span className="text-lg font-bold text-green-700">
-                                    {selectedTicket.actualDepartureTime}
-                                  </span>
+                              <div>
+                                <div className="text-xs text-slate-400 uppercase tracking-wider">
+                                  {selectedTicket.transportType === 'rodoviario' ? 'Cidade de Destino' : 'Destino'}
                                 </div>
-                              ) : (
-                                <div className="bg-slate-50 border-l-4 border-slate-200 rounded-lg px-3 py-2">
-                                  <span className="text-lg font-bold text-slate-300">--:--</span>
+                                <div className="text-sm font-medium text-slate-700">{selectedTicket.destinationAirport || "-"}</div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Data</div>
+                                <div className="text-sm font-medium text-blue-600 mb-2">
+                                  {selectedTicket.actualDepartureDate ? formatDate(selectedTicket.actualDepartureDate) : "-"}
                                 </div>
-                              )}
+                                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Horário</div>
+                                {selectedTicket.actualDepartureTime ? (
+                                  <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2">
+                                    <span className="text-lg font-bold text-green-700">{selectedTicket.actualDepartureTime}</span>
+                                  </div>
+                                ) : (
+                                  <div className="bg-slate-50 border-l-4 border-slate-200 rounded-lg px-3 py-2">
+                                    <span className="text-lg font-bold text-slate-300">--:--</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        {/* Trecho de VOLTA */}
-                        <div className="bg-white border border-slate-200 rounded-xl p-4 flex-1">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-blue-600 mb-3 flex items-center gap-2">
-                            🛬 VOLTA
-                          </h4>
-                          <div className="space-y-2">
-                            <div>
-                              <div className="text-xs text-slate-400 uppercase tracking-wider">Origem</div>
-                              <div className="text-sm font-medium text-slate-700">{selectedTicket.destinationAirport || "-"}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-slate-400 uppercase tracking-wider">Destino</div>
-                              <div className="text-sm font-medium text-slate-700">{selectedTicket.departureAirport || "-"}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Data</div>
-                              <div className="text-sm font-medium text-blue-600 mb-2">
-                                {selectedTicket.actualReturnDate ? formatDate(selectedTicket.actualReturnDate) : "-"}
+                          {/* Trecho de VOLTA */}
+                          <div className="bg-white border border-slate-200 rounded-xl p-4 flex-1">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-blue-600 mb-3 flex items-center gap-2">
+                              {selectedTicket.transportType === 'rodoviario' ? '🚌' : '🛬'} VOLTA
+                            </h4>
+                            <div className="space-y-2">
+                              <div>
+                                <div className="text-xs text-slate-400 uppercase tracking-wider">
+                                  {selectedTicket.transportType === 'rodoviario' ? 'Cidade de Origem' : 'Origem'}
+                                </div>
+                                <div className="text-sm font-medium text-slate-700">{selectedTicket.destinationAirport || "-"}</div>
                               </div>
-                              <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Horário</div>
-                              {selectedTicket.actualReturnTime ? (
-                                <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2">
-                                  <span className="text-lg font-bold text-green-700">
-                                    {selectedTicket.actualReturnTime}
-                                  </span>
+                              <div>
+                                <div className="text-xs text-slate-400 uppercase tracking-wider">
+                                  {selectedTicket.transportType === 'rodoviario' ? 'Cidade de Destino' : 'Destino'}
                                 </div>
-                              ) : (
-                                <div className="bg-slate-50 border-l-4 border-slate-200 rounded-lg px-3 py-2">
-                                  <span className="text-lg font-bold text-slate-300">--:--</span>
+                                <div className="text-sm font-medium text-slate-700">{selectedTicket.departureAirport || "-"}</div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Data</div>
+                                <div className="text-sm font-medium text-blue-600 mb-2">
+                                  {selectedTicket.actualReturnDate ? formatDate(selectedTicket.actualReturnDate) : "-"}
                                 </div>
-                              )}
+                                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Horário</div>
+                                {selectedTicket.actualReturnTime ? (
+                                  <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2">
+                                    <span className="text-lg font-bold text-green-700">{selectedTicket.actualReturnTime}</span>
+                                  </div>
+                                ) : (
+                                  <div className="bg-slate-50 border-l-4 border-slate-200 rounded-lg px-3 py-2">
+                                    <span className="text-lg font-bold text-slate-300">--:--</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
+                      )}
                     </>
                   ) : (
                     <>
