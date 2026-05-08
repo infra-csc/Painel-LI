@@ -1258,7 +1258,7 @@ export default function Accommodations() {
         </div>
 
       {/* Modal de Hospedagem */}
-      <Dialog open={showModal} onOpenChange={setShowModal}>
+      <Dialog open={showModal} onOpenChange={setShowModal} modal={!showSuccessModal}>
         <AccommodationModal />
       </Dialog>
 

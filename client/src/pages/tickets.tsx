@@ -1856,7 +1856,7 @@ export default function Tickets() {
         </div>
 
         {/* Modal de Detalhes da Passagem */}
-        <Dialog open={showModal} onOpenChange={setShowModal}>
+        <Dialog open={showModal} onOpenChange={setShowModal} modal={!showSuccessModal}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 p-0 gap-0">
             {selectedInclusion && (
               <div>

@@ -1427,7 +1427,7 @@ export default function Scaling() {
           })()}
 
       {/* Modal de Detalhes da Escalação */}
-      <Dialog open={showModal} onOpenChange={setShowModal}>
+      <Dialog open={showModal} onOpenChange={setShowModal} modal={!showSuccessModal}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 p-0 gap-0">
           <DialogHeader className="bg-white -mx-0 px-6 pt-6 pb-4 border-b border-slate-100 mb-0 sticky top-0 z-10">
             <DialogTitle className="flex items-center gap-3">
