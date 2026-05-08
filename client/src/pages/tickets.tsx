@@ -489,22 +489,26 @@ export default function Tickets() {
     const quickData = ticketData["quick"];
     if (!quickData || selectedTickets.length === 0) return;
 
+    const isVanQuick = quickData.transportType === 'van';
+
     // Validar campos obrigatórios
-    const baseRequiredFields = [
-      { field: 'value', label: 'Valor da Passagem' },
-      { field: 'departureAirport', label: quickData.transportType === 'rodoviario' ? 'Rodoviária Ida' : quickData.transportType === 'van' ? 'Local de Saída' : 'Aeroporto Ida' },
-      { field: 'destinationAirport', label: quickData.transportType === 'rodoviario' ? 'Rodoviária Volta' : quickData.transportType === 'van' ? 'Local de Chegada' : 'Aeroporto Volta' },
-      { field: 'purchaseOrderNumber', label: 'LOC' },
-      { field: 'actualDepartureDate', label: 'Data de Ida' },
-      { field: 'actualDepartureTime', label: 'Horário de Ida' }
-    ];
+    const baseRequiredFields = isVanQuick
+      ? [{ field: 'purchaseOrderNumber', label: 'Nome da Empresa' }]
+      : [
+          { field: 'value', label: 'Valor da Passagem' },
+          { field: 'departureAirport', label: quickData.transportType === 'rodoviario' ? 'Rodoviária Ida' : 'Aeroporto Ida' },
+          { field: 'destinationAirport', label: quickData.transportType === 'rodoviario' ? 'Rodoviária Volta' : 'Aeroporto Volta' },
+          { field: 'purchaseOrderNumber', label: 'LOC' },
+          { field: 'actualDepartureDate', label: 'Data de Ida' },
+          { field: 'actualDepartureTime', label: 'Horário de Ida' }
+        ];
     
-    // Adicionar campos de volta apenas se não for "apenas ida"
-    const requiredFields = quickData.isOneWay ? baseRequiredFields : [
+    // Adicionar campos de volta apenas se não for "apenas ida" e não for van
+    const requiredFields = (!isVanQuick && !quickData.isOneWay) ? [
       ...baseRequiredFields,
       { field: 'actualReturnDate', label: 'Data de Volta' },
       { field: 'actualReturnTime', label: 'Horário de Volta' }
-    ];
+    ] : baseRequiredFields;
     
     const missingFields = requiredFields.filter(({ field }) => {
       let value = quickData[field];
@@ -539,22 +543,22 @@ export default function Tickets() {
           await createTicketMutation.mutateAsync({
             teamInclusionId: inclusion.id,
             transportType: quickData.transportType || "aereo",
-            value: Math.round(parseFloat(quickData.value) * 100),
+            value: isVanQuick ? null : Math.round(parseFloat(quickData.value) * 100),
             purchaseDate: quickData.purchaseDate || new Date().toISOString().split('T')[0],
-            actualDepartureDate: quickData.actualDepartureDate || null,
-            actualDepartureTime: quickData.actualDepartureTime,
-            actualReturnDate: quickData.isOneWay ? null : quickData.actualReturnDate,
-            actualReturnTime: quickData.isOneWay ? null : quickData.actualReturnTime,
-            departureCityOrigin: quickData.departureCityOrigin || null,
-            departureCityDestination: quickData.departureCityDestination || null,
-            returnCityOrigin: quickData.isOneWay ? null : quickData.returnCityOrigin || null,
-            returnCityDestination: quickData.isOneWay ? null : quickData.returnCityDestination || null,
-            departureAirport: quickData.departureAirport,
-            destinationAirport: quickData.destinationAirport,
+            actualDepartureDate: isVanQuick ? null : (quickData.actualDepartureDate || null),
+            actualDepartureTime: isVanQuick ? null : quickData.actualDepartureTime,
+            actualReturnDate: isVanQuick ? null : (quickData.isOneWay ? null : quickData.actualReturnDate),
+            actualReturnTime: isVanQuick ? null : (quickData.isOneWay ? null : quickData.actualReturnTime),
+            departureCityOrigin: isVanQuick ? null : (quickData.departureCityOrigin || null),
+            departureCityDestination: isVanQuick ? null : (quickData.departureCityDestination || null),
+            returnCityOrigin: isVanQuick ? null : (quickData.isOneWay ? null : quickData.returnCityOrigin || null),
+            returnCityDestination: isVanQuick ? null : (quickData.isOneWay ? null : quickData.returnCityDestination || null),
+            departureAirport: isVanQuick ? null : quickData.departureAirport,
+            destinationAirport: isVanQuick ? null : quickData.destinationAirport,
             purchaseOrderNumber: quickData.purchaseOrderNumber || null,
             fileUrl: quickData.fileUrl || null,
             attachmentIds: quickData.attachmentIds && quickData.attachmentIds.length > 0 ? quickData.attachmentIds : null,
-            cardLastFourDigits: quickData.cardLastFourDigits || null,
+            cardLastFourDigits: isVanQuick ? null : (quickData.cardLastFourDigits || null),
             ticketObservations: quickData.ticketObservations || null
           });
 
@@ -2695,16 +2699,21 @@ export default function Tickets() {
                               {/* Botão Registrar Passagem - para dados obrigatórios */}
                               <Button
                                 onClick={async () => {
+                                  const isVanModal = data.transportType === 'van';
+
                                   // Validar campos obrigatórios
-                                  const baseFields = ['value', 'departureAirport', 'destinationAirport', 'purchaseOrderNumber', 'actualDepartureDate', 'actualDepartureTime'];
-                                  const requiredFieldsModal = data.isOneWay ? baseFields : [...baseFields, 'actualReturnDate', 'actualReturnTime'];
+                                  const baseFields = isVanModal
+                                    ? ['purchaseOrderNumber']
+                                    : ['value', 'departureAirport', 'destinationAirport', 'purchaseOrderNumber', 'actualDepartureDate', 'actualDepartureTime'];
+                                  const requiredFieldsModal = (!isVanModal && !data.isOneWay) ? [...baseFields, 'actualReturnDate', 'actualReturnTime'] : baseFields;
                                   
                                   const missingModalFields = requiredFieldsModal.filter(field => !data[field] || data[field] === '');
                                   if (missingModalFields.length > 0) {
-                                    const transportLabel = data.transportType === 'van' ? 'Local (Van)' : data.transportType === 'rodoviario' ? 'Rodoviária' : 'Aeroporto';
                                     toast({
                                       title: "Erro",
-                                      description: `Preencha todos os campos obrigatórios (${transportLabel} Ida/Volta, datas e horários)`,
+                                      description: isVanModal
+                                        ? "Preencha o campo Nome da Empresa"
+                                        : `Preencha todos os campos obrigatórios (${data.transportType === 'rodoviario' ? 'Rodoviária' : 'Aeroporto'} Ida/Volta, datas e horários)`,
                                       variant: "destructive",
                                     });
                                     return;
@@ -2719,19 +2728,19 @@ export default function Tickets() {
                                           id: ticket.id,
                                         data: {
                                           transportType: data.transportType || "aereo",
-                                          value: Math.round(parseFloat(data.value) * 100),
-                                          actualDepartureDate: data.actualDepartureDate,
-                                          actualDepartureTime: data.actualDepartureTime,
-                                          actualReturnDate: data.isOneWay ? null : data.actualReturnDate,
-                                          actualReturnTime: data.isOneWay ? null : data.actualReturnTime,
-                                          departureCityOrigin: data.departureCityOrigin || null,
-                                          departureCityDestination: data.departureCityDestination || null,
-                                          returnCityOrigin: data.isOneWay ? null : data.returnCityOrigin || null,
-                                          returnCityDestination: data.isOneWay ? null : data.returnCityDestination || null,
-                                          departureAirport: data.departureAirport,
-                                          destinationAirport: data.destinationAirport,
+                                          value: isVanModal ? null : Math.round(parseFloat(data.value) * 100),
+                                          actualDepartureDate: isVanModal ? null : data.actualDepartureDate,
+                                          actualDepartureTime: isVanModal ? null : data.actualDepartureTime,
+                                          actualReturnDate: isVanModal ? null : (data.isOneWay ? null : data.actualReturnDate),
+                                          actualReturnTime: isVanModal ? null : (data.isOneWay ? null : data.actualReturnTime),
+                                          departureCityOrigin: isVanModal ? null : (data.departureCityOrigin || null),
+                                          departureCityDestination: isVanModal ? null : (data.departureCityDestination || null),
+                                          returnCityOrigin: isVanModal ? null : (data.isOneWay ? null : data.returnCityOrigin || null),
+                                          returnCityDestination: isVanModal ? null : (data.isOneWay ? null : data.returnCityDestination || null),
+                                          departureAirport: isVanModal ? null : data.departureAirport,
+                                          destinationAirport: isVanModal ? null : data.destinationAirport,
                                           purchaseOrderNumber: data.purchaseOrderNumber,
-                                          cardLastFourDigits: data.cardLastFourDigits || null,
+                                          cardLastFourDigits: isVanModal ? null : (data.cardLastFourDigits || null),
                                           ticketObservations: data.ticketObservations || null,
                                           attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null
                                         }
@@ -2742,22 +2751,22 @@ export default function Tickets() {
                                       await createTicketMutation.mutateAsync({
                                         teamInclusionId: selectedInclusion.id,
                                         transportType: data.transportType || "aereo",
-                                        value: Math.round(parseFloat(data.value) * 100),
+                                        value: isVanModal ? null : Math.round(parseFloat(data.value) * 100),
                                         purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
-                                        actualDepartureDate: data.actualDepartureDate,
-                                        actualDepartureTime: data.actualDepartureTime,
-                                        actualReturnDate: data.isOneWay ? null : data.actualReturnDate,
-                                        actualReturnTime: data.isOneWay ? null : data.actualReturnTime,
-                                        departureCityOrigin: data.departureCityOrigin || null,
-                                        departureCityDestination: data.departureCityDestination || null,
-                                        returnCityOrigin: data.isOneWay ? null : data.returnCityOrigin || null,
-                                        returnCityDestination: data.isOneWay ? null : data.returnCityDestination || null,
-                                        departureAirport: data.departureAirport,
-                                        destinationAirport: data.destinationAirport,
+                                        actualDepartureDate: isVanModal ? null : data.actualDepartureDate,
+                                        actualDepartureTime: isVanModal ? null : data.actualDepartureTime,
+                                        actualReturnDate: isVanModal ? null : (data.isOneWay ? null : data.actualReturnDate),
+                                        actualReturnTime: isVanModal ? null : (data.isOneWay ? null : data.actualReturnTime),
+                                        departureCityOrigin: isVanModal ? null : (data.departureCityOrigin || null),
+                                        departureCityDestination: isVanModal ? null : (data.departureCityDestination || null),
+                                        returnCityOrigin: isVanModal ? null : (data.isOneWay ? null : data.returnCityOrigin || null),
+                                        returnCityDestination: isVanModal ? null : (data.isOneWay ? null : data.returnCityDestination || null),
+                                        departureAirport: isVanModal ? null : data.departureAirport,
+                                        destinationAirport: isVanModal ? null : data.destinationAirport,
                                         purchaseOrderNumber: data.purchaseOrderNumber,
                                         fileUrl: data.fileUrl || null,
                                         attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null,
-                                        cardLastFourDigits: data.cardLastFourDigits || null,
+                                        cardLastFourDigits: isVanModal ? null : (data.cardLastFourDigits || null),
                                         ticketObservations: data.ticketObservations || null
                                       });
 
