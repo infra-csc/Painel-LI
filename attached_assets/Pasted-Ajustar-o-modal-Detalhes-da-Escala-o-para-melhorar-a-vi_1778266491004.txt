@@ -1,0 +1,241 @@
+Ajustar o modal “Detalhes da Escalação” para melhorar a visualização das informações da escalação, passagem e hospedagem, mantendo a paleta atual do sistema e sem criar scroll interno no desktop.
+
+OBJETIVO
+O modal deve mostrar de forma organizada todas as informações preenchidas pela pessoa que registrou a escalação, passagem ou hospedagem.
+
+Hoje o modal está muito vertical, com scroll interno e informações espalhadas. Quero reorganizar em abas e cards para ficar mais bonito, profissional e fácil de consultar.
+
+IMPORTANTE
+Não alterar a lógica de negócio.
+Não mudar a paleta atual.
+Não remover informações.
+Não esconder informações preenchidas.
+Não deixar campos importantes fora da visualização.
+Não usar scroll interno no desktop como solução principal.
+
+ESTRUTURA DO MODAL
+Criar um modal maior e mais horizontal, com largura aproximada entre 1100px e 1240px no desktop.
+
+O modal deve ter:
+- Header com ícone
+- Título: “Detalhes da Escalação”
+- Subtítulo com ID e evento, exemplo: “#281 · Pedro Teste 3”
+- Badge de status da escalação
+- Botão X para fechar
+- Rodapé simples com botão “Fechar”
+
+O corpo do modal deve ser dividido em abas:
+
+1. Aba “Resumo”
+2. Aba “Passagem”
+3. Aba “Hospedagem”
+4. Aba “Comentários e Histórico”
+
+A aba “Resumo” deve abrir por padrão.
+
+ABA 1 — RESUMO
+Mostrar em cards compactos:
+- Evento
+- ID
+- Função
+- Status
+- Colaborador
+- Período de trabalho
+- Data início
+- Data término
+- Quantidade de dias
+- Dias do período em mini cards
+- Avisos de bloqueio, se houver, exemplo:
+  “Não é possível alterar — passagem já comprada”
+
+Essa aba deve ser limpa, visual e sem excesso de informação.
+
+ABA 2 — PASSAGEM
+A passagem pode ser de apenas um dos três tipos:
+- Van
+- Aérea
+- Rodoviária
+
+Nunca exibir os três tipos ao mesmo tempo.
+O modal deve identificar qual tipo de passagem foi registrado e mostrar somente os dados daquele tipo.
+
+Se não houver passagem registrada:
+Mostrar um empty state elegante com:
+“Nenhuma passagem registrada para esta escalação.”
+
+Se houver passagem registrada:
+Mostrar primeiro um resumo superior com:
+- Tipo de passagem: Van, Aérea ou Rodoviária
+- Data da compra, se existir
+- Ordem de compra, se existir
+- Status da passagem, se existir
+
+Depois exibir os dados específicos do tipo registrado.
+
+PASSAGEM RODOVIÁRIA
+Quando o tipo for Rodoviária, exibir todos os dados preenchidos no registro.
+
+Organizar em cards:
+
+Card “Ida”
+- Nome da rodoviária de origem
+- Cidade de origem
+- Nome da rodoviária de destino
+- Cidade de destino
+- Data da ida
+- Horário da ida
+- Empresa, se existir
+- Número/localizador/bilhete, se existir
+- Observações, se existir
+
+Card “Volta”
+Exibir somente se houver volta registrada.
+- Nome da rodoviária de origem da volta
+- Cidade de origem da volta
+- Nome da rodoviária de destino da volta
+- Cidade de destino da volta
+- Data da volta
+- Horário da volta
+- Empresa, se existir
+- Número/localizador/bilhete, se existir
+- Observações, se existir
+
+Ponto importante:
+Hoje está faltando no modal o nome da rodoviária de origem e destino tanto na ida quanto na volta. Esses dados são preenchidos por quem registra e precisam aparecer no modal.
+
+PASSAGEM AÉREA
+Quando o tipo for Aérea, exibir todos os campos preenchidos pela pessoa que registrou a passagem aérea.
+
+Organizar em cards:
+
+Card “Ida”
+Mostrar todos os campos existentes/preenchidos da ida aérea, por exemplo:
+- Aeroporto de origem
+- Cidade de origem
+- Aeroporto de destino
+- Cidade de destino
+- Data da ida
+- Horário da ida
+- Companhia aérea
+- Número do voo
+- Localizador
+- Observações
+
+Card “Volta”
+Exibir somente se houver volta registrada.
+Mostrar todos os campos existentes/preenchidos da volta aérea, por exemplo:
+- Aeroporto de origem
+- Cidade de origem
+- Aeroporto de destino
+- Cidade de destino
+- Data da volta
+- Horário da volta
+- Companhia aérea
+- Número do voo
+- Localizador
+- Observações
+
+Regra:
+Não limitar a exibição apenas aos campos do exemplo. Se o banco/schema tiver outros campos preenchidos para passagem aérea, eles também devem aparecer de forma organizada no modal.
+
+PASSAGEM DE VAN
+Quando o tipo for Van, exibir todos os campos preenchidos no registro da van.
+
+Organizar em cards ou grid compacto mostrando todos os dados disponíveis, por exemplo:
+- Local de saída
+- Local de destino
+- Data
+- Horário
+- Empresa/motorista, se existir
+- Telefone/contato, se existir
+- Quantidade de passageiros, se existir
+- Placa, se existir
+- Observações
+- Qualquer outro campo preenchido no cadastro da van
+
+Regra:
+Todos os campos existentes/preenchidos da van devem aparecer no modal. Não deixar informação registrada escondida.
+
+REGRAS GERAIS PARA PASSAGEM
+- Exibir somente o tipo de passagem que existe no registro
+- Não mostrar blocos vazios
+- Não mostrar campos sem informação, a menos que seja importante indicar ausência
+- Sempre mostrar todos os campos preenchidos pela pessoa que registrou
+- Usar labels claros e valores destacados
+- Usar cards lado a lado para ida e volta quando existir
+- Se só houver ida, mostrar apenas ida
+- A passagem deve ficar fácil de entender rapidamente
+
+ABA 3 — HOSPEDAGEM
+A hospedagem possui apenas estes campos:
+- Nome do hotel
+- Localização
+- Observações
+
+Exibir somente esses campos.
+
+Se houver hospedagem registrada:
+Mostrar um card limpo com:
+- Nome do hotel
+- Localização
+- Observações
+
+Se não houver hospedagem registrada:
+Mostrar empty state:
+“Nenhuma hospedagem registrada para esta escalação.”
+
+Não criar campos extras de hospedagem como check-in, check-out, valor, tipo de quarto ou forma de pagamento, pois esses campos não existem nesse fluxo.
+
+ABA 4 — COMENTÁRIOS E HISTÓRICO
+Dividir em duas colunas:
+
+Coluna esquerda:
+- Comentários
+- Lista de comentários existentes
+- Campo para adicionar comentário
+- Botão “Enviar”
+
+Coluna direita:
+- Histórico de alterações em formato de timeline compacta
+- Mostrar no máximo 5 registros recentes
+- Se houver mais registros, mostrar botão/link “Ver histórico completo”
+
+O histórico não deve ocupar a tela inteira nem gerar scroll grande dentro do modal.
+
+SEM SCROLL INTERNO
+O principal objetivo é evitar scroll interno no desktop.
+
+Para isso:
+- Usar abas
+- Usar cards compactos
+- Usar grid em 2 ou 3 colunas quando fizer sentido
+- Não empilhar tudo verticalmente
+- Não deixar histórico expandido por padrão
+- Não exibir todos os blocos ao mesmo tempo
+
+No desktop, o usuário deve conseguir navegar pelas abas sem precisar rolar o modal.
+
+VISUAL
+Melhorar o visual do modal com:
+- Cards com borda suave
+- Leve sombra
+- Mais espaçamento inteligente
+- Títulos de seção claros
+- Ícones discretos
+- Labels menores
+- Valores com mais destaque
+- Badges de status
+- Layout mais corporativo e premium
+
+CRITÉRIOS DE ACEITE
+- O modal ficou sem scroll interno no desktop
+- As informações ficaram organizadas por abas
+- A passagem mostra somente um tipo: Van, Aérea ou Rodoviária
+- Rodoviária mostra nome da rodoviária de origem e destino na ida e na volta, quando houver
+- Aérea mostra todos os campos preenchidos da passagem aérea
+- Van mostra todos os campos preenchidos da passagem de van
+- Hospedagem mostra apenas nome do hotel, localização e observações
+- Campos vazios não poluem a tela
+- Nenhuma informação preenchida deixa de aparecer
+- O layout mantém a paleta atual do sistema
+- O modal fica mais bonito, limpo e profissional
