@@ -1,0 +1,179 @@
+Ajustar e refinar o modal “Detalhes da Escalação” para deixá-lo mais claro, mais bonito e com aparência 10/10, mantendo a paleta atual, a estrutura em abas já implementada e a lógica existente.
+
+IMPORTANTE
+- Não refazer a arquitetura do modal do zero
+- Não mudar regras de negócio
+- Não alterar a paleta atual
+- Não remover abas
+- Não mudar a lógica de passagem, hospedagem, comentários ou histórico
+- Fazer um refinamento visual e estrutural para deixar o modal mais claro, elegante e profissional
+
+OBJETIVO
+Quero que o modal tenha mais cara de sistema premium/corporativo.
+Hoje ele já está melhor, mas alguns blocos ainda parecem soltos, principalmente no Resumo.
+
+PRINCIPAL AJUSTE
+O campo “Tipo” está largado e sem contexto.
+Do jeito atual, não fica claro que essa informação vem do cadastro do colaborador.
+
+AJUSTAR ASSIM:
+- Não usar apenas o label “Tipo”
+- Renomear para algo mais claro, como:
+  - “Tipo do colaborador”
+  ou
+  - “Categoria do colaborador”
+- Exibir esse dado dentro de um card/bloco chamado “Dados do colaborador”
+- Dentro desse bloco mostrar:
+  - Nome do colaborador
+  - Tipo do colaborador
+  - texto de apoio pequeno e discreto, por exemplo:
+    “Informação vinda do cadastro do colaborador”
+- O “Tipo do colaborador” não deve parecer uma tag solta no meio da tela
+- Ele deve estar claramente associado ao colaborador
+
+MELHORIAS GERAIS NO MODAL
+
+1. HEADER MAIS REFINADO
+Melhorar o topo do modal:
+- manter ícone do módulo
+- manter título “Detalhes da Escalação”
+- manter subtítulo com ID + nome do colaborador
+- melhorar o alinhamento visual do badge de status “Escalado”
+- deixar o X de fechar mais elegante e alinhado
+- dar mais sensação de cabeçalho premium
+
+2. ABA “RESUMO” MAIS FORTE
+A aba Resumo precisa ficar com mais hierarquia e menos sensação de blocos soltos.
+
+Organizar em 3 blocos principais bem definidos:
+
+Bloco 1 — Informações da escalação
+- Evento
+- ID
+- Função
+- Status
+
+Bloco 2 — Dados do colaborador
+- Nome do colaborador
+- Tipo do colaborador / Categoria do colaborador
+- texto de apoio:
+  “Informação vinda do cadastro do colaborador”
+
+Bloco 3 — Período de trabalho
+- Início
+- Término
+- Quantidade de dias
+- Dias do período em mini cards
+
+Ajustes visuais:
+- melhorar o alinhamento interno
+- dar mais contraste entre label e valor
+- deixar labels menores e valores com mais destaque
+- usar cards com borda suave e leve sombra
+- melhorar distribuição horizontal dos cards
+- deixar o resumo com cara de painel executivo
+
+3. CHIPS/INDICADORES DE PASSAGEM E HOSPEDAGEM
+Os indicadores de “Passagem” e “Hospedagem” no Resumo podem ficar melhores.
+
+Melhorar para:
+- usar chips mais elegantes
+- deixar mais claro se existe ou não informação registrada
+- se houver passagem, mostrar chip positivo
+- se houver hospedagem, mostrar chip positivo
+- se não houver, usar estado neutro/discreto
+- manter leitura rápida
+
+4. ABA “PASSAGEM” MAIS BEM RESOLVIDA
+A aba Passagem ainda está visualmente pobre quando há poucos dados.
+
+Melhorias:
+- reforçar o card de resumo superior
+- melhorar a área “Informações da Van”, “Informações da Aérea” ou “Informações da Rodoviária”
+- se houver poucos dados, não deixar a tela com sensação de vazio
+- organizar melhor os campos preenchidos
+- destacar melhor labels e valores
+- manter anexos bem posicionados e com aparência mais premium
+
+5. ÁREA DE ANEXOS MELHOR
+A área de anexos precisa parecer parte importante do modal, não algo secundário largado.
+
+Melhorar para:
+- usar card/lista elegante para anexos
+- exibir ícone de arquivo
+- nome do arquivo
+- tipo/extensão do arquivo, se existir
+- botão/ícone de visualizar
+- botão/ícone de baixar, se aplicável
+- empty state mais elegante quando não houver anexo
+
+6. ABA “HOSPEDAGEM” MENOS VAZIA
+Hoje a aba de hospedagem com empty state está limpa, mas pode ficar mais refinada.
+
+Melhorias:
+- deixar o empty state mais compacto e elegante
+- não ocupar tanto espaço vazio no centro
+- usar ícone, título e descrição mais refinados
+- se houver hospedagem, mostrar card com:
+  - nome do hotel
+  - localização
+  - observações
+- manter aparência clean, mas mais sofisticada
+
+7. ABA “COMENTÁRIOS E HISTÓRICO” MAIS EQUILIBRADA
+Essa aba está boa, mas pode ficar mais premium.
+
+Melhorias:
+- melhorar alinhamento entre comentários e histórico
+- destacar melhor o título das seções
+- melhorar visual do campo de comentário
+- melhorar botão “Enviar”
+- melhorar a timeline do histórico com melhor hierarquia:
+  - ação
+  - descrição
+  - autor
+  - data/hora
+- dar mais clareza visual para cada entrada do histórico
+
+8. MELHORAR O ESPAÇAMENTO GERAL
+Ajustar o modal para parecer mais refinado:
+- melhor espaçamento entre cards
+- melhor padding interno
+- menos sensação de áreas “largadas”
+- mais consistência entre alturas dos blocos
+- melhor aproveitamento do espaço horizontal
+- layout mais equilibrado e corporativo
+
+9. MELHORAR OS EMPTY STATES
+Quando não houver informações em alguma aba:
+- usar empty states mais elegantes e menores
+- evitar sensação de tela vazia demais
+- usar ícone + título + texto de apoio
+- manter consistência visual entre Passagem, Hospedagem e Anexos
+
+10. RODAPÉ MAIS POLIDO
+- manter botão “Fechar”
+- melhorar alinhamento do rodapé
+- deixar o botão mais consistente com o restante da interface
+- rodapé simples, limpo e elegante
+
+ESTILO VISUAL ESPERADO
+Quero um visual:
+- mais premium
+- mais corporativo
+- mais organizado
+- com melhor hierarquia visual
+- com cards mais bonitos
+- com labels mais discretos
+- com valores mais claros
+- com sensação de produto mais maduro
+
+CRITÉRIOS DE ACEITE
+- O modal ficou visualmente mais bonito e mais profissional
+- O campo “Tipo” não está mais solto
+- Agora fica claro que o tipo vem do cadastro do colaborador
+- O bloco do colaborador ficou mais bem resolvido
+- A aba Resumo ficou mais forte visualmente
+- Passagem, Hospedagem e Comentários/Histórico ficaram mais refinados
+- Os empty states ficaram melhores
+- O modal ficou com aparência 10/10 sem mudar a lógica atual

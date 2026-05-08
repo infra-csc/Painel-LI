@@ -1,0 +1,96 @@
+Melhorar visualmente a tela “Escalação - Visualização”, mantendo a paleta atual, a lógica existente e a estrutura geral da página.
+
+Não refazer a tela inteira.
+Não mudar regras de negócio.
+Não alterar permissões.
+Apenas melhorar layout, espaçamento, hierarquia visual e leitura das informações.
+
+Pontos de ajuste:
+
+1. Área de filtros
+A área de filtros está ocupando muita altura.
+Compactar melhor os filtros para deixar a tela mais leve.
+
+Manter os filtros existentes:
+- Buscar
+- Evento
+- Funções
+- Colaborador
+- Escalação
+- Status da passagem
+- Exportar
+- Mostrar excluídos
+- Limpar filtros
+
+Melhorias desejadas:
+- Melhor alinhamento entre campos
+- Menos altura vertical
+- Espaçamento mais equilibrado
+- Botões “Exportar”, “Mostrar Excluídos” e “Limpar filtros” mais bem agrupados à direita
+- Manter visual limpo, com bordas suaves e paleta atual
+
+2. Cards de resumo “Sem Passagem” e “Com Transporte”
+Melhorar os dois cards principais sem mudar a lógica.
+
+Problema atual:
+O card “Com Transporte” está muito largo, com muito espaço vazio no meio.
+O card ativo com borda verde está correto, mas pode ficar mais elegante.
+
+Ajustes:
+- Deixar os dois cards visualmente mais equilibrados
+- Melhorar alinhamento interno
+- Colocar ícone, título, badge de quantidade e subtítulo em uma composição mais compacta
+- O card selecionado pode continuar com borda verde, mas com visual mais refinado
+- Evitar excesso de fundo verde
+- Usar badges mais discretos para os números
+- Melhorar a leitura de:
+  - “Sem Passagem”
+  - “Com Transporte”
+  - quantidade total
+  - pendentes de escalação
+
+3. Tabela de escalações
+Melhorar a tabela para ficar mais profissional e fácil de consultar.
+
+Ajustes:
+- Melhorar o espaçamento das linhas
+- Dar mais destaque ao nome da função
+- Deixar o evento em chip mais bonito e consistente
+- Melhorar o botão/ícone de visualização, pois hoje o olho está discreto demais
+- Criar hover suave nas linhas
+- Melhorar alinhamento das colunas
+- Manter cabeçalho da tabela limpo e com boa hierarquia
+
+4. Coluna de status
+Hoje aparecem status como:
+- Escalado
+- Pendente
+- Van registrada
+
+Melhorar a organização visual desses status.
+
+Sugestão:
+Na coluna Status, separar visualmente:
+- Status da escalação: Escalado / Pendente
+- Status do transporte/passagem: Van registrada / Aéreo registrado / Rodoviária registrada / Sem passagem
+
+Pode usar badges menores empilhadas ou lado a lado, mantendo boa leitura.
+
+5. Melhorar sensação geral da tela
+Quero que a tela pareça mais premium e corporativa:
+- Menos espaços vazios desnecessários
+- Melhor proporção entre filtros, cards e tabela
+- Mais consistência entre ícones
+- Badges mais elegantes
+- Cards com sombra/borda suave
+- Layout mais limpo e refinado
+- Manter a identidade visual atual azul, verde, laranja e cinza claro
+
+6. Critérios de aceite
+- A tela continua com a mesma lógica
+- Os filtros continuam funcionando
+- Os cards “Sem Passagem” e “Com Transporte” continuam funcionando como seleção/filtro
+- O layout fica mais compacto e bonito
+- A tabela fica mais fácil de ler
+- O status fica mais claro
+- O visual fica mais profissional, sem mudar a paleta atual
