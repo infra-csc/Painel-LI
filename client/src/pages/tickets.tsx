@@ -1955,83 +1955,212 @@ export default function Tickets() {
                           <div className="p-4">
                           
                           {/* Informações Gerais da Compra */}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                            <div>
-                              <Label className="text-xs text-green-600 dark:text-green-300 font-medium">💰 Valor</Label>
-                              <p className="font-bold text-lg text-green-700 dark:text-green-300">{formatCurrency((ticket.value || 0) / 100)}</p>
+                          {ticket.transportType === 'van' ? (
+                            <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-slate-100 rounded-lg">
+                              <Truck className="w-4 h-4 text-slate-500" />
+                              <span className="text-sm font-semibold text-slate-700">Van / Transporte Terrestre</span>
                             </div>
-                            <div>
-                              <Label className="text-xs text-green-600 dark:text-green-300 font-medium">📅 Data da Compra</Label>
-                              <p className="font-medium">{ticket.purchaseDate ? formatDate(ticket.purchaseDate) : "-"}</p>
-                            </div>
-                            {ticket.purchaseOrderNumber && (
+                          ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                               <div>
-                                <Label className="text-xs text-green-600 dark:text-green-300 font-medium">📋 LOC</Label>
-                                <p className="font-medium">{ticket.purchaseOrderNumber}</p>
+                                <Label className="text-xs text-green-600 font-medium">💰 Valor</Label>
+                                <p className="font-bold text-lg text-green-700">{formatCurrency((ticket.value || 0) / 100)}</p>
                               </div>
-                            )}
-                          </div>
+                              <div>
+                                <Label className="text-xs text-green-600 font-medium">📅 Data da Compra</Label>
+                                <p className="font-medium">{ticket.purchaseDate ? formatDate(ticket.purchaseDate) : "-"}</p>
+                              </div>
+                              {ticket.purchaseOrderNumber && (
+                                <div>
+                                  <Label className="text-xs text-green-600 font-medium">
+                                    {ticket.transportType === 'rodoviario' ? '🎫 Bilhete' : '📋 LOC'}
+                                  </Label>
+                                  <p className="font-medium">{ticket.purchaseOrderNumber}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
 
-                          {/* Detalhes dos Voos - Agrupados por Trecho */}
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {/* Trecho de IDA */}
-                            <div className="bg-white dark:bg-green-900/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
-                              <h4 className="font-medium text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
-                                🛫 IDA
-                              </h4>
-                              <div className="space-y-2">
+                          {/* Detalhes — adaptados por tipo de transporte */}
+                          {ticket.transportType === 'van' ? (
+                            /* VAN: apenas empresa e observações */
+                            <div className="bg-slate-50 rounded-lg border border-slate-200 p-4 space-y-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Truck className="w-4 h-4 text-slate-500" />
+                                <span className="text-sm font-semibold text-slate-700">Dados da Van</span>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-slate-500 font-medium uppercase tracking-wide">Empresa / Identificação</Label>
+                                <p className="font-semibold text-slate-800 mt-0.5">{ticket.purchaseOrderNumber || "-"}</p>
+                              </div>
+                              {ticket.ticketObservations && (
                                 <div>
-                                  <Label className="text-xs text-muted-foreground">Aeroporto Origem</Label>
-                                  <p className="font-medium uppercase">{ticket.departureAirport || "-"}</p>
+                                  <Label className="text-xs text-slate-500 font-medium uppercase tracking-wide">Observações</Label>
+                                  <p className="text-sm text-slate-700 mt-0.5 whitespace-pre-wrap">{ticket.ticketObservations}</p>
                                 </div>
-                                <div>
-                                  <Label className="text-xs text-muted-foreground">Aeroporto Destino</Label>
-                                  <p className="font-medium uppercase">{ticket.destinationAirport || "-"}</p>
+                              )}
+                            </div>
+                          ) : ticket.transportType === 'rodoviario' ? (
+                            /* RODOVIÁRIO: cidades, terminais, datas */
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                              {/* IDA */}
+                              <div className="bg-white p-4 rounded-lg border border-green-200">
+                                <h4 className="font-medium text-green-700 mb-3 flex items-center gap-2">
+                                  <Bus className="w-4 h-4" /> EMBARQUE
+                                </h4>
+                                <div className="space-y-2 text-sm">
+                                  {ticket.departureCityOrigin && (
+                                    <div>
+                                      <Label className="text-xs text-slate-500">Cidade Origem</Label>
+                                      <p className="font-medium">{ticket.departureCityOrigin}</p>
+                                    </div>
+                                  )}
+                                  {ticket.departureAirport && (
+                                    <div>
+                                      <Label className="text-xs text-slate-500">Terminal / Rodoviária</Label>
+                                      <p className="font-medium">{ticket.departureAirport}</p>
+                                    </div>
+                                  )}
+                                  {ticket.departureCityDestination && (
+                                    <div>
+                                      <Label className="text-xs text-slate-500">Cidade Destino</Label>
+                                      <p className="font-medium">{ticket.departureCityDestination}</p>
+                                    </div>
+                                  )}
+                                  {ticket.destinationAirport && (
+                                    <div>
+                                      <Label className="text-xs text-slate-500">Terminal Destino</Label>
+                                      <p className="font-medium">{ticket.destinationAirport}</p>
+                                    </div>
+                                  )}
+                                  {ticket.actualDepartureDate && (
+                                    <div>
+                                      <Label className="text-xs text-slate-500">Data</Label>
+                                      <p className="font-medium text-blue-600">{formatDate(ticket.actualDepartureDate)}</p>
+                                    </div>
+                                  )}
+                                  {ticket.actualDepartureTime && (
+                                    <div>
+                                      <Label className="text-xs text-slate-500">Horário</Label>
+                                      <div className="bg-green-100 px-3 py-2 rounded-md border-l-4 border-green-500 mt-0.5">
+                                        <span className="text-lg font-bold text-green-800">{ticket.actualDepartureTime}</span>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-                                <div>
-                                  <Label className="text-xs text-muted-foreground">Data</Label>
-                                  <p className="font-medium text-blue-600 dark:text-blue-400 mb-2">
-                                    {ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : "-"}
-                                  </p>
-                                  <Label className="text-xs text-muted-foreground">Horário</Label>
-                                  <div className="bg-green-100 dark:bg-green-800 px-3 py-2 rounded-md border-l-4 border-green-500">
-                                    <span className="text-lg font-bold text-green-800 dark:text-green-100">
-                                      {ticket.actualDepartureTime || "--:--"}
-                                    </span>
+                              </div>
+                              {/* VOLTA */}
+                              {(ticket.actualReturnDate || ticket.returnCityOrigin) && (
+                                <div className="bg-white p-4 rounded-lg border border-orange-200">
+                                  <h4 className="font-medium text-orange-600 mb-3 flex items-center gap-2">
+                                    <Bus className="w-4 h-4" /> DESEMBARQUE
+                                  </h4>
+                                  <div className="space-y-2 text-sm">
+                                    {ticket.returnCityOrigin && (
+                                      <div>
+                                        <Label className="text-xs text-slate-500">Cidade Origem</Label>
+                                        <p className="font-medium">{ticket.returnCityOrigin}</p>
+                                      </div>
+                                    )}
+                                    {ticket.returnOriginAirport && (
+                                      <div>
+                                        <Label className="text-xs text-slate-500">Terminal / Rodoviária</Label>
+                                        <p className="font-medium">{ticket.returnOriginAirport}</p>
+                                      </div>
+                                    )}
+                                    {ticket.returnCityDestination && (
+                                      <div>
+                                        <Label className="text-xs text-slate-500">Cidade Destino</Label>
+                                        <p className="font-medium">{ticket.returnCityDestination}</p>
+                                      </div>
+                                    )}
+                                    {ticket.returnDestinationAirport && (
+                                      <div>
+                                        <Label className="text-xs text-slate-500">Terminal Destino</Label>
+                                        <p className="font-medium">{ticket.returnDestinationAirport}</p>
+                                      </div>
+                                    )}
+                                    {ticket.actualReturnDate && (
+                                      <div>
+                                        <Label className="text-xs text-slate-500">Data</Label>
+                                        <p className="font-medium text-blue-600">{formatDate(ticket.actualReturnDate)}</p>
+                                      </div>
+                                    )}
+                                    {ticket.actualReturnTime && (
+                                      <div>
+                                        <Label className="text-xs text-slate-500">Horário</Label>
+                                        <div className="bg-orange-100 px-3 py-2 rounded-md border-l-4 border-orange-400 mt-0.5">
+                                          <span className="text-lg font-bold text-orange-700">{ticket.actualReturnTime}</span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            /* AÉREO: aeroportos, datas */
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                              {/* Trecho de IDA */}
+                              <div className="bg-white p-4 rounded-lg border border-green-200">
+                                <h4 className="font-medium text-green-700 mb-3 flex items-center gap-2">
+                                  🛫 IDA
+                                </h4>
+                                <div className="space-y-2">
+                                  <div>
+                                    <Label className="text-xs text-muted-foreground">Aeroporto Origem</Label>
+                                    <p className="font-medium uppercase">{ticket.departureAirport || "-"}</p>
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs text-muted-foreground">Aeroporto Destino</Label>
+                                    <p className="font-medium uppercase">{ticket.destinationAirport || "-"}</p>
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs text-muted-foreground">Data</Label>
+                                    <p className="font-medium text-blue-600 mb-2">
+                                      {ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : "-"}
+                                    </p>
+                                    <Label className="text-xs text-muted-foreground">Horário</Label>
+                                    <div className="bg-green-100 px-3 py-2 rounded-md border-l-4 border-green-500">
+                                      <span className="text-lg font-bold text-green-800">
+                                        {ticket.actualDepartureTime || "--:--"}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
-                            </div>
-
-                            {/* Trecho de VOLTA */}
-                            <div className="bg-white dark:bg-green-900/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
-                              <h4 className="font-medium text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
-                                🛬 VOLTA
-                              </h4>
-                              <div className="space-y-2">
-                                <div>
-                                  <Label className="text-xs text-muted-foreground">Aeroporto Origem</Label>
-                                  <p className="font-medium uppercase">{ticket.destinationAirport || "-"}</p>
-                                </div>
-                                <div>
-                                  <Label className="text-xs text-muted-foreground">Aeroporto Destino</Label>
-                                  <p className="font-medium uppercase">{ticket.departureAirport || "-"}</p>
-                                </div>
-                                <div>
-                                  <Label className="text-xs text-muted-foreground">Data</Label>
-                                  <p className="font-medium text-blue-600 dark:text-blue-400 mb-2">
-                                    {ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : "-"}
-                                  </p>
-                                  <Label className="text-xs text-muted-foreground">Horário</Label>
-                                  <div className="bg-green-100 dark:bg-green-800 px-3 py-2 rounded-md border-l-4 border-green-500">
-                                    <span className="text-lg font-bold text-green-800 dark:text-green-100">
-                                      {ticket.actualReturnTime || "--:--"}
-                                    </span>
+                              {/* Trecho de VOLTA */}
+                              {(ticket.actualReturnDate || ticket.actualReturnTime) && (
+                                <div className="bg-white p-4 rounded-lg border border-green-200">
+                                  <h4 className="font-medium text-green-700 mb-3 flex items-center gap-2">
+                                    🛬 VOLTA
+                                  </h4>
+                                  <div className="space-y-2">
+                                    <div>
+                                      <Label className="text-xs text-muted-foreground">Aeroporto Origem</Label>
+                                      <p className="font-medium uppercase">{ticket.destinationAirport || "-"}</p>
+                                    </div>
+                                    <div>
+                                      <Label className="text-xs text-muted-foreground">Aeroporto Destino</Label>
+                                      <p className="font-medium uppercase">{ticket.departureAirport || "-"}</p>
+                                    </div>
+                                    <div>
+                                      <Label className="text-xs text-muted-foreground">Data</Label>
+                                      <p className="font-medium text-blue-600 mb-2">
+                                        {ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : "-"}
+                                      </p>
+                                      <Label className="text-xs text-muted-foreground">Horário</Label>
+                                      <div className="bg-green-100 px-3 py-2 rounded-md border-l-4 border-green-500">
+                                        <span className="text-lg font-bold text-green-800">
+                                          {ticket.actualReturnTime || "--:--"}
+                                        </span>
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
+                              )}
                             </div>
-                          </div>
+                          )}
 
                           {/* Informações Adicionais */}
                           <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
