@@ -3055,9 +3055,9 @@ export default function Tickets() {
                 </div>
                 <div className="flex items-start justify-between gap-4 text-sm">
                   <span className="text-slate-400 font-medium shrink-0">Colaborador</span>
-                  <span className="text-right">
-                    <span className="block text-slate-700 font-semibold">{successInfo?.collaboratorName}</span>
-                    {successInfo?.inclusionNumber != null && <span className="text-xs text-slate-400 font-normal">#{successInfo.inclusionNumber}</span>}
+                  <span className="text-slate-700 font-semibold text-right">
+                    {successInfo?.collaboratorName}
+                    {successInfo?.inclusionNumber != null && <span className="ml-1.5 text-slate-400 font-normal text-xs">#{successInfo.inclusionNumber}</span>}
                   </span>
                 </div>
                 <div className="flex items-start justify-between gap-4 text-sm">
