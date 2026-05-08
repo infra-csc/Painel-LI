@@ -717,7 +717,24 @@ export default function Tickets() {
                       const active = (ticketData["quick"]?.transportType || 'aereo') === opt.value;
                       return (
                         <button key={opt.value} type="button"
-                          onClick={() => handleTicketDataChange("quick", "transportType", opt.value)}
+                          onClick={() => {
+                            if (opt.value === 'rodoviario' && filters.eventId !== 'all') {
+                              const ev = events?.find(e => e.id === filters.eventId);
+                              setTicketData(prev => ({
+                                ...prev,
+                                quick: {
+                                  ...prev.quick,
+                                  transportType: opt.value,
+                                  departureCityDestination: ev?.location || prev.quick?.departureCityDestination || '',
+                                  returnCityOrigin: ev?.location || prev.quick?.returnCityOrigin || '',
+                                  actualDepartureDate: ev?.startDate || prev.quick?.actualDepartureDate || '',
+                                  actualReturnDate: ev?.endDate || prev.quick?.actualReturnDate || '',
+                                }
+                              }));
+                            } else {
+                              handleTicketDataChange("quick", "transportType", opt.value);
+                            }
+                          }}
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-semibold transition-all ${active ? 'bg-white shadow-sm text-[#0033CC]' : 'text-slate-400 hover:text-slate-600'}`}>
                           <opt.Icon className="w-3.5 h-3.5" />
                           {opt.label}
@@ -918,11 +935,15 @@ export default function Tickets() {
                                 </div>
                                 {/* Cidade Destino */}
                                 <div className="space-y-1.5">
-                                  <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Cidade de Destino *</Label>
+                                  <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight flex items-center gap-1">
+                                    Cidade de Destino *
+                                    {isRodo && <span className="text-[9px] font-bold bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full normal-case tracking-normal">Local do evento</span>}
+                                  </Label>
                                   <Input placeholder="Ex: Rio de Janeiro"
                                     value={ticketData["quick"]?.departureCityDestination || ""}
-                                    onChange={(e) => handleTicketDataChange("quick", "departureCityDestination", e.target.value)}
-                                    className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
+                                    onChange={(e) => !isRodo && handleTicketDataChange("quick", "departureCityDestination", e.target.value)}
+                                    readOnly={isRodo}
+                                    className={`h-[34px] border-slate-200 rounded-lg text-xs ${isRodo ? 'bg-blue-50 text-blue-700 font-medium cursor-default' : 'bg-slate-50'}`}
                                     data-testid="input-quick-departure-city-destination"
                                   />
                                 </div>
@@ -1078,11 +1099,15 @@ export default function Tickets() {
                                 <>
                                   {/* Rodoviário/Van: Cidade Origem */}
                                   <div className="space-y-1.5">
-                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Cidade de Origem *</Label>
+                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight flex items-center gap-1">
+                                      Cidade de Origem *
+                                      {isRodo && <span className="text-[9px] font-bold bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full normal-case tracking-normal">Local do evento</span>}
+                                    </Label>
                                     <Input placeholder="Ex: Rio de Janeiro"
                                       value={ticketData["quick"]?.returnCityOrigin || ""}
-                                      onChange={(e) => handleTicketDataChange("quick", "returnCityOrigin", e.target.value)}
-                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
+                                      onChange={(e) => !isRodo && handleTicketDataChange("quick", "returnCityOrigin", e.target.value)}
+                                      readOnly={isRodo}
+                                      className={`h-[34px] border-slate-200 rounded-lg text-xs ${isRodo ? 'bg-blue-50 text-blue-700 font-medium cursor-default' : 'bg-slate-50'}`}
                                       data-testid="input-quick-return-city-origin"
                                     />
                                   </div>
@@ -2168,7 +2193,24 @@ export default function Tickets() {
                                 </Label>
                                 <Select
                                   value={data.transportType || "aereo"}
-                                  onValueChange={(value) => handleTicketDataChange(selectedInclusion.id, "transportType", value)}
+                                  onValueChange={(value) => {
+                                    if (value === 'rodoviario') {
+                                      const eventLocation = getEventLocation(selectedInclusion.eventId);
+                                      setTicketData(prev => ({
+                                        ...prev,
+                                        [selectedInclusion.id]: {
+                                          ...prev[selectedInclusion.id],
+                                          transportType: value,
+                                          departureCityDestination: eventLocation !== 'Destino não informado' ? eventLocation : (prev[selectedInclusion.id]?.departureCityDestination || ''),
+                                          returnCityOrigin: eventLocation !== 'Destino não informado' ? eventLocation : (prev[selectedInclusion.id]?.returnCityOrigin || ''),
+                                          actualDepartureDate: selectedInclusion.scheduleStartDate || prev[selectedInclusion.id]?.actualDepartureDate || '',
+                                          actualReturnDate: selectedInclusion.scheduleEndDate || prev[selectedInclusion.id]?.actualReturnDate || '',
+                                        }
+                                      }));
+                                    } else {
+                                      handleTicketDataChange(selectedInclusion.id, "transportType", value);
+                                    }
+                                  }}
                                 >
                                   <SelectTrigger className="mt-1" data-testid={`select-transport-type-${selectedInclusion.id}`}>
                                     <SelectValue placeholder="Selecione" />
@@ -2322,17 +2364,19 @@ export default function Tickets() {
                                     />
                                   </div>
                                   <div>
-                                    <Label htmlFor={`departureCityDestination-${selectedInclusion.id}`} className="text-sm font-medium">
+                                    <Label htmlFor={`departureCityDestination-${selectedInclusion.id}`} className="text-sm font-medium flex items-center gap-1.5">
                                       Cidade Destino *
+                                      {data.transportType === 'rodoviario' && <span className="text-[10px] font-bold bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full normal-case">Local do evento</span>}
                                     </Label>
                                     <Input
                                       id={`departureCityDestination-${selectedInclusion.id}`}
                                       placeholder="Ex: Rio de Janeiro"
                                       value={data.departureCityDestination || ""}
-                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureCityDestination", e.target.value)}
-                                      className="mt-1"
+                                      onChange={(e) => data.transportType !== 'rodoviario' && handleTicketDataChange(selectedInclusion.id, "departureCityDestination", e.target.value)}
+                                      readOnly={data.transportType === 'rodoviario'}
+                                      className={`mt-1 ${data.transportType === 'rodoviario' ? 'bg-blue-50 text-blue-700 font-medium cursor-default border-blue-200' : ''}`}
                                       data-testid={`input-departure-city-destination-${selectedInclusion.id}`}
-                                      disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
+                                      disabled={(isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')) && data.transportType !== 'rodoviario'}
                                     />
                                   </div>
                                   {/* Aeroportos/Rodoviárias */}
@@ -2405,17 +2449,19 @@ export default function Tickets() {
                                   <div className="space-y-3">
                                     {/* Cidades */}
                                     <div>
-                                      <Label htmlFor={`returnCityOrigin-${selectedInclusion.id}`} className="text-sm font-medium">
+                                      <Label htmlFor={`returnCityOrigin-${selectedInclusion.id}`} className="text-sm font-medium flex items-center gap-1.5">
                                         Cidade Origem *
+                                        {data.transportType === 'rodoviario' && <span className="text-[10px] font-bold bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full normal-case">Local do evento</span>}
                                       </Label>
                                       <Input
                                         id={`returnCityOrigin-${selectedInclusion.id}`}
                                         placeholder="Ex: Rio de Janeiro"
                                         value={data.returnCityOrigin || ""}
-                                        onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnCityOrigin", e.target.value)}
-                                        className="mt-1"
+                                        onChange={(e) => data.transportType !== 'rodoviario' && handleTicketDataChange(selectedInclusion.id, "returnCityOrigin", e.target.value)}
+                                        readOnly={data.transportType === 'rodoviario'}
+                                        className={`mt-1 ${data.transportType === 'rodoviario' ? 'bg-blue-50 text-blue-700 font-medium cursor-default border-blue-200' : ''}`}
                                         data-testid={`input-return-city-origin-${selectedInclusion.id}`}
-                                        disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
+                                        disabled={(isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')) && data.transportType !== 'rodoviario'}
                                       />
                                     </div>
                                     <div>
