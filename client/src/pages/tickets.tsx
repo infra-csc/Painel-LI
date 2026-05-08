@@ -1590,7 +1590,7 @@ export default function Tickets() {
                     <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
                     <th className="px-4 py-3 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">Destino</th>
                     <SortableHeader field="diarias" sortConfig={sortConfig} onSort={handleSort}>Datas e Horários</SortableHeader>
-                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">Voos Sugeridos</th>
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">Sugestões</th>
                     <th className="px-4 py-3 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 text-center">Status</th>
                     <th className="py-3 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 text-center w-[72px]">Ações</th>
                   </tr>
@@ -1675,29 +1675,65 @@ export default function Tickets() {
                           })()}
                         </td>
 
-                        {/* Destino — aeroportos quando comprada */}
+                        {/* Destino — adapta por tipo de transporte */}
                         <td className={`px-4 py-3 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
-                          {ticket && (ticket.departureAirport || ticket.destinationAirport) ? (
-                            <div className="flex flex-col gap-0.5">
-                              {/* Cidade em destaque */}
-                              <p className="text-[14px] font-semibold text-[#111827]">{getEventLocation(inclusion.eventId)}</p>
-                              {/* Ida */}
-                              <div className="flex items-center gap-1 mt-0.5">
-                                <span className="material-symbols-outlined text-slate-400" style={{fontSize:12}}>flight_takeoff</span>
-                                <span className="text-[11px] font-medium text-[#6B7280] uppercase">{ticket.departureAirport || '—'}</span>
-                                <span className="text-[10px] text-slate-300">→</span>
-                                <span className="text-[11px] font-medium text-[#6B7280] uppercase">{ticket.destinationAirport || '—'}</span>
+                          {ticket ? (
+                            ticket.transportType === 'van' ? (
+                              /* VAN: empresa + destino do evento */
+                              <div className="flex flex-col gap-0.5">
+                                <p className="text-[14px] font-semibold text-[#111827]">{getEventLocation(inclusion.eventId)}</p>
+                                {ticket.purchaseOrderNumber && (
+                                  <div className="flex items-center gap-1 mt-0.5">
+                                    <span className="material-symbols-outlined text-slate-400" style={{fontSize:12}}>directions_bus</span>
+                                    <span className="text-[11px] font-medium text-[#6B7280]">{ticket.purchaseOrderNumber}</span>
+                                  </div>
+                                )}
                               </div>
-                              {/* Volta */}
-                              {(ticket.destinationAirport || ticket.departureAirport) && (
-                                <div className="flex items-center gap-1">
-                                  <span className="material-symbols-outlined text-slate-400" style={{fontSize:12}}>flight_land</span>
-                                  <span className="text-[11px] font-medium text-[#6B7280] uppercase">{ticket.destinationAirport || '—'}</span>
-                                  <span className="text-[10px] text-slate-300">→</span>
-                                  <span className="text-[11px] font-medium text-[#6B7280] uppercase">{ticket.departureAirport || '—'}</span>
-                                </div>
-                              )}
-                            </div>
+                            ) : ticket.transportType === 'rodoviario' ? (
+                              /* RODOVIÁRIO: cidades de origem/destino */
+                              <div className="flex flex-col gap-0.5">
+                                <p className="text-[14px] font-semibold text-[#111827]">{getEventLocation(inclusion.eventId)}</p>
+                                {(ticket.departureCityOrigin || ticket.departureCityDestination) && (
+                                  <div className="flex items-center gap-1 mt-0.5">
+                                    <span className="material-symbols-outlined text-slate-400" style={{fontSize:12}}>directions_bus</span>
+                                    <span className="text-[11px] font-medium text-[#6B7280]">{ticket.departureCityOrigin || '—'}</span>
+                                    <span className="text-[10px] text-slate-300">→</span>
+                                    <span className="text-[11px] font-medium text-[#6B7280]">{ticket.departureCityDestination || '—'}</span>
+                                  </div>
+                                )}
+                                {(ticket.returnCityOrigin || ticket.returnCityDestination) && !ticket.isOneWay && (
+                                  <div className="flex items-center gap-1">
+                                    <span className="material-symbols-outlined text-slate-400" style={{fontSize:12}}>directions_bus</span>
+                                    <span className="text-[11px] font-medium text-[#6B7280]">{ticket.returnCityOrigin || '—'}</span>
+                                    <span className="text-[10px] text-slate-300">→</span>
+                                    <span className="text-[11px] font-medium text-[#6B7280]">{ticket.returnCityDestination || '—'}</span>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              /* AÉREO: aeroportos */
+                              <div className="flex flex-col gap-0.5">
+                                <p className="text-[14px] font-semibold text-[#111827]">{getEventLocation(inclusion.eventId)}</p>
+                                {(ticket.departureAirport || ticket.destinationAirport) && (
+                                  <>
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <span className="material-symbols-outlined text-slate-400" style={{fontSize:12}}>flight_takeoff</span>
+                                      <span className="text-[11px] font-medium text-[#6B7280] uppercase">{ticket.departureAirport || '—'}</span>
+                                      <span className="text-[10px] text-slate-300">→</span>
+                                      <span className="text-[11px] font-medium text-[#6B7280] uppercase">{ticket.destinationAirport || '—'}</span>
+                                    </div>
+                                    {!ticket.isOneWay && (
+                                      <div className="flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-slate-400" style={{fontSize:12}}>flight_land</span>
+                                        <span className="text-[11px] font-medium text-[#6B7280] uppercase">{ticket.destinationAirport || '—'}</span>
+                                        <span className="text-[10px] text-slate-300">→</span>
+                                        <span className="text-[11px] font-medium text-[#6B7280] uppercase">{ticket.departureAirport || '—'}</span>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            )
                           ) : (
                             <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
                               <span className="material-symbols-outlined text-slate-400" style={{fontSize:16}}>location_on</span>
@@ -1706,22 +1742,40 @@ export default function Tickets() {
                           )}
                         </td>
 
-                        {/* Datas e Horários */}
+                        {/* Datas e Horários — adapta ícones por tipo */}
                         <td className={`px-4 py-3 cursor-pointer whitespace-nowrap ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {ticket ? (
-                            <div className="flex flex-col gap-1">
-                              <span className="text-[10px] font-bold text-[#16A34A] tracking-wide mb-0.5">✓ Passagem confirmada</span>
-                              <div className="flex items-center gap-2 text-xs">
-                                <span className="material-symbols-outlined text-[#16A34A]" style={{fontSize:13}}>flight_takeoff</span>
-                                <span className="font-bold text-slate-700">{ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : '—'}</span>
-                                {ticket.actualDepartureTime && <span className="text-slate-400 font-medium">{ticket.actualDepartureTime}</span>}
+                            ticket.transportType === 'van' ? (
+                              /* VAN: sem datas, só confirmação */
+                              <div className="flex flex-col gap-1">
+                                <span className="text-[10px] font-bold text-[#16A34A] tracking-wide">✓ Van confirmada</span>
                               </div>
-                              <div className="flex items-center gap-2 text-xs">
-                                <span className="material-symbols-outlined text-[#22C55E]" style={{fontSize:13}}>flight_land</span>
-                                <span className="font-bold text-slate-700">{ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : '—'}</span>
-                                {ticket.actualReturnTime && <span className="text-slate-400 font-medium">{ticket.actualReturnTime}</span>}
+                            ) : (
+                              /* AÉREO / RODOVIÁRIO: datas e horários */
+                              <div className="flex flex-col gap-1">
+                                <span className="text-[10px] font-bold text-[#16A34A] tracking-wide mb-0.5">
+                                  {ticket.transportType === 'rodoviario' ? '✓ Passagem confirmada' : '✓ Passagem confirmada'}
+                                </span>
+                                <div className="flex items-center gap-2 text-xs">
+                                  {ticket.transportType === 'rodoviario'
+                                    ? <span className="material-symbols-outlined text-[#16A34A]" style={{fontSize:13}}>directions_bus</span>
+                                    : <span className="material-symbols-outlined text-[#16A34A]" style={{fontSize:13}}>flight_takeoff</span>
+                                  }
+                                  <span className="font-bold text-slate-700">{ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : '—'}</span>
+                                  {ticket.actualDepartureTime && <span className="text-slate-400 font-medium">{ticket.actualDepartureTime}</span>}
+                                </div>
+                                {!ticket.isOneWay && (
+                                  <div className="flex items-center gap-2 text-xs">
+                                    {ticket.transportType === 'rodoviario'
+                                      ? <span className="material-symbols-outlined text-[#22C55E]" style={{fontSize:13}}>directions_bus</span>
+                                      : <span className="material-symbols-outlined text-[#22C55E]" style={{fontSize:13}}>flight_land</span>
+                                    }
+                                    <span className="font-bold text-slate-700">{ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : '—'}</span>
+                                    {ticket.actualReturnTime && <span className="text-slate-400 font-medium">{ticket.actualReturnTime}</span>}
+                                  </div>
+                                )}
                               </div>
-                            </div>
+                            )
                           ) : (
                             <span className="text-sm text-slate-300 italic">Não comprada</span>
                           )}
