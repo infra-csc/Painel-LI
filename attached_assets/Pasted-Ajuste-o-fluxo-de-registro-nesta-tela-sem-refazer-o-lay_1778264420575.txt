@@ -1,0 +1,77 @@
+Ajuste o fluxo de registro nesta tela sem refazer o layout inteiro e mantendo a paleta atual do app.
+
+Contexto:
+Na tela de Compra de Hospedagem, quando o usuário registra uma hospedagem/passagem, hoje aparece a confirmação, mas preciso melhorar o comportamento dos modais e reduzir as travadas após salvar.
+
+O que deve ser feito:
+
+1. Modal de sucesso
+Após clicar em “Salvar hospedagem”, exibir um modal central de sucesso sobre o modal principal, não apenas um toast lateral.
+
+O modal de sucesso deve ter:
+- Ícone grande de check verde
+- Título: “Sucesso”
+- Mensagem: “Passagem registrada com sucesso!”
+- Botão principal azul: “OK”
+- Mesmo padrão visual do app: fundo branco, cantos arredondados, sombra leve, paleta azul/verde atual
+
+2. Comportamento ao clicar em OK
+Quando o usuário clicar em “OK”, o sistema deve:
+- Fechar o modal de sucesso
+- Fechar também o modal principal de registro
+- Limpar/resetar o formulário
+- Atualizar a linha/lista da tabela com o novo status
+- Não deixar nenhum overlay escuro preso na tela
+- Não manter estado de loading ativo
+
+Ou seja: depois do OK, o usuário deve voltar direto para a tela principal já atualizada.
+
+3. Evitar travamentos ao registrar
+A tela está dando pequenas travadas quando salva o registro. Otimize o fluxo para ficar mais fluido.
+
+Ajustes técnicos esperados:
+- Não usar `window.location.reload()`
+- Não recarregar a página inteira após salvar
+- Não buscar todos os dados mais de uma vez sem necessidade
+- Evitar múltiplos `setState` separados logo após o save
+- Evitar loop de atualização em `useEffect`
+- Garantir que o botão “Salvar hospedagem” fique desabilitado enquanto está salvando, para impedir clique duplo
+- Mostrar estado de loading somente no botão, por exemplo: “Salvando...”
+- Após salvar com sucesso, atualizar apenas o item alterado na lista local ou fazer apenas um refetch leve
+- Usar `try/catch/finally` para garantir que o loading sempre seja desligado
+- Não abrir toast junto com o modal de sucesso
+- Evitar renderizar novamente toda a tabela se apenas um registro mudou
+- Se houver filtros ativos, preservar os filtros após o registro
+
+4. Fluxo ideal
+O fluxo final deve ser:
+
+Usuário clica no ícone de registrar hospedagem/passagem
+→ abre o modal “Registrar Hospedagem”
+→ usuário preenche os dados
+→ clica em “Salvar hospedagem”
+→ botão fica em loading “Salvando...”
+→ salva no banco
+→ abre modal central de sucesso
+→ usuário clica em “OK”
+→ fecha o modal de sucesso
+→ fecha o modal de registro
+→ limpa o formulário
+→ tabela é atualizada sem travar a página
+
+5. Importante
+Não alterar a identidade visual da tela.
+Não mudar a paleta.
+Não refazer a tabela.
+Não mudar regras de permissão.
+Não criar nova tela.
+Apenas ajustar o fluxo dos modais, feedback de sucesso e performance do salvamento.
+
+Critério de aceite:
+- Ao salvar, aparece um modal central de sucesso.
+- Ao clicar em OK, os dois modais fecham.
+- A tela principal volta atualizada.
+- Não existe toast duplicado.
+- Não existe overlay preso.
+- O botão não permite salvar duas vezes.
+- O salvamento fica visivelmente mais fluido e sem travadas.

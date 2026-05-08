@@ -35,6 +35,8 @@ export default function Tickets() {
   const [sortConfig, setSortConfig] = useState<SortConfig | null>({ field: 'id', direction: 'desc' });
   const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   const [selectedTickets, setSelectedTickets] = useState<string[]>([]); // IDs dos tickets selecionados
   const [editingTicketId, setEditingTicketId] = useState<string | null>(null); // ID do ticket sendo editado
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -99,10 +101,6 @@ export default function Tickets() {
       return response.json();
     },
     onSuccess: () => {
-      toast({
-        title: "Sucesso",
-        description: "Passagem registrada com sucesso",
-      });
       queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
@@ -121,10 +119,6 @@ export default function Tickets() {
       return response.json();
     },
     onSuccess: () => {
-      toast({
-        title: "Sucesso",
-        description: "Passagem atualizada com sucesso",
-      });
       queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       setEditingTicketId(null);
     },
@@ -3037,15 +3031,9 @@ export default function Tickets() {
                                       });
                                     }
 
-                                    setShowModal(false);
-                                    setEditingTicketId(null);
-                                    
-                                    // Limpar dados do formulário
-                                    setTicketData(prev => {
-                                      const newData = { ...prev };
-                                      delete newData[selectedInclusion.id];
-                                      return newData;
-                                    });
+                                    // Mostrar modal de sucesso
+                                    setSuccessMessage(editingTicketId ? "Passagem atualizada com sucesso!" : "Passagem registrada com sucesso!");
+                                    setShowSuccessModal(true);
                                   } catch (error) {
                                     // Error is already handled by the mutation
                                   }
@@ -3066,6 +3054,40 @@ export default function Tickets() {
                       </div>
                     );
                   })()}
+                </div>
+              </div>
+            )}
+
+            {/* Modal de sucesso — overlay central sobre o modal principal */}
+            {showSuccessModal && (
+              <div className="absolute inset-0 z-50 flex items-center justify-center rounded-lg" style={{background:'rgba(0,0,0,0.35)'}}>
+                <div className="bg-white rounded-2xl shadow-2xl flex flex-col items-center px-10 py-8 max-w-xs w-full mx-4" style={{boxShadow:'0 8px 40px rgba(0,0,0,0.18)'}}>
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{background:'#DCFCE7'}}>
+                    <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                      <circle cx="18" cy="18" r="18" fill="#16A34A" fillOpacity="0.12"/>
+                      <path d="M10 18.5L15.5 24L26 13" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-800 mb-1">Sucesso</h3>
+                  <p className="text-sm text-slate-500 text-center mb-6">{successMessage}</p>
+                  <button
+                    onClick={() => {
+                      setShowSuccessModal(false);
+                      setShowModal(false);
+                      setEditingTicketId(null);
+                      if (selectedInclusion) {
+                        setTicketData(prev => {
+                          const newData = { ...prev };
+                          delete newData[selectedInclusion.id];
+                          return newData;
+                        });
+                      }
+                    }}
+                    className="w-full py-2.5 rounded-xl font-semibold text-white text-sm transition-all"
+                    style={{background:'#2563EB'}}
+                  >
+                    OK
+                  </button>
                 </div>
               </div>
             )}
