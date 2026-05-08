@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
-import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File, HelpCircle } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -1600,28 +1600,37 @@ export default function Scaling() {
                         {/* Col 2: Colaborador */}
                         <div className="space-y-4">
                           <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4">
-                            <div className={lbl + " mb-2"}>Colaborador <span className="text-red-400">*</span></div>
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <span className={lbl} style={{marginBottom:0}}>Colaborador <span className="text-red-400">*</span></span>
+                              {!canEditCollaborator(selectedInclusion) && (() => {
+                                const ticketPurchased = selectedInclusion.needsTicket
+                                  ? tickets?.some(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null) : false;
+                                const accommodationReserved = selectedInclusion.needsAccommodation
+                                  ? accommodations?.some(a => a.teamInclusionId === selectedInclusion.id) : false;
+                                const reason = ticketPurchased && accommodationReserved
+                                  ? "passagem comprada e hospedagem reservada"
+                                  : ticketPurchased ? "passagem já comprada"
+                                  : accommodationReserved ? "hospedagem já reservada"
+                                  : null;
+                                const tooltipText = reason
+                                  ? `Troca de colaborador bloqueada — ${reason}.\n\nA substituição só é possível enquanto não houver passagem comprada nem hospedagem reservada vinculada a esta escalação.`
+                                  : "Você não tem permissão para alterar o colaborador nesta escalação.";
+                                return (
+                                  <div className="relative group inline-flex items-center">
+                                    <HelpCircle className="w-3.5 h-3.5 text-slate-400 hover:text-[#2563EB] cursor-help transition-colors" />
+                                    <div className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 z-50 w-64 bg-slate-800 text-white text-[11px] leading-relaxed rounded-xl px-3 py-2.5 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-pre-line">
+                                      {tooltipText}
+                                      <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800" />
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
                             {!canEditCollaborator(selectedInclusion) ? (
                               <div>
                                 <div className="border border-slate-200 rounded-xl bg-white px-3 py-2.5">
                                   <div className="text-sm font-medium text-slate-700">{getCollaboratorName(modalData.collaboratorId)}</div>
                                 </div>
-                                {(() => {
-                                  const ticketPurchased = selectedInclusion.needsTicket
-                                    ? tickets?.some(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null) : false;
-                                  const accommodationReserved = selectedInclusion.needsAccommodation
-                                    ? accommodations?.some(a => a.teamInclusionId === selectedInclusion.id) : false;
-                                  const msg = ticketPurchased && accommodationReserved
-                                    ? "Não é possível alterar — passagem comprada e hospedagem reservada"
-                                    : ticketPurchased ? "Não é possível alterar — passagem já comprada"
-                                    : accommodationReserved ? "Não é possível alterar — hospedagem já reservada"
-                                    : "Você não tem permissão para alterar o colaborador";
-                                  return (
-                                    <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-700 flex items-start gap-1.5">
-                                      ⚠️ {msg}
-                                    </div>
-                                  );
-                                })()}
                               </div>
                             ) : (
                               <div>
