@@ -736,8 +736,6 @@ export default function Tickets() {
                                 quick: {
                                   ...prev.quick,
                                   transportType: opt.value,
-                                  departureCityDestination: ev?.location || prev.quick?.departureCityDestination || '',
-                                  returnCityOrigin: ev?.location || prev.quick?.returnCityOrigin || '',
                                   actualDepartureDate: ev?.startDate || prev.quick?.actualDepartureDate || '',
                                   actualReturnDate: ev?.endDate || prev.quick?.actualReturnDate || '',
                                 }
@@ -946,15 +944,13 @@ export default function Tickets() {
                                 </div>
                                 {/* Cidade Destino */}
                                 <div className="space-y-1.5">
-                                  <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight flex items-center gap-1">
+                                  <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">
                                     Cidade de Destino *
-                                    {isRodo && <span className="text-[9px] font-bold bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full normal-case tracking-normal">Local do evento</span>}
                                   </Label>
                                   <Input placeholder="Ex: Rio de Janeiro"
                                     value={ticketData["quick"]?.departureCityDestination || ""}
-                                    onChange={(e) => !isRodo && handleTicketDataChange("quick", "departureCityDestination", e.target.value)}
-                                    readOnly={isRodo}
-                                    className={`h-[34px] border-slate-200 rounded-lg text-xs ${isRodo ? 'bg-blue-50 text-blue-700 font-medium cursor-default' : 'bg-slate-50'}`}
+                                    onChange={(e) => handleTicketDataChange("quick", "departureCityDestination", e.target.value)}
+                                    className="h-[34px] border-slate-200 rounded-lg text-xs bg-slate-50"
                                     data-testid="input-quick-departure-city-destination"
                                   />
                                 </div>
@@ -1110,15 +1106,13 @@ export default function Tickets() {
                                 <>
                                   {/* Rodoviário/Van: Cidade Origem */}
                                   <div className="space-y-1.5">
-                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight flex items-center gap-1">
+                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">
                                       Cidade de Origem *
-                                      {isRodo && <span className="text-[9px] font-bold bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full normal-case tracking-normal">Local do evento</span>}
                                     </Label>
                                     <Input placeholder="Ex: Rio de Janeiro"
                                       value={ticketData["quick"]?.returnCityOrigin || ""}
-                                      onChange={(e) => !isRodo && handleTicketDataChange("quick", "returnCityOrigin", e.target.value)}
-                                      readOnly={isRodo}
-                                      className={`h-[34px] border-slate-200 rounded-lg text-xs ${isRodo ? 'bg-blue-50 text-blue-700 font-medium cursor-default' : 'bg-slate-50'}`}
+                                      onChange={(e) => handleTicketDataChange("quick", "returnCityOrigin", e.target.value)}
+                                      className="h-[34px] border-slate-200 rounded-lg text-xs bg-slate-50"
                                       data-testid="input-quick-return-city-origin"
                                     />
                                   </div>
