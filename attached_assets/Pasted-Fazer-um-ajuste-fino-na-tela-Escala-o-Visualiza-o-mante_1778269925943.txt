@@ -1,0 +1,93 @@
+Fazer um ajuste fino na tela “Escalação - Visualização”, mantendo a estrutura atual, a paleta atual e toda a lógica existente.
+
+Não refazer a tela inteira.
+Não mudar regras de negócio.
+Não alterar filtros nem funcionamento.
+Apenas melhorar consistência visual e percepção de usabilidade.
+
+AJUSTES NECESSÁRIOS
+
+1. Padronizar visualmente os filtros
+Quero padronizar todos os filtros da tela para que tenham a mesma linguagem visual e pareçam parte do mesmo sistema.
+
+Padronizar:
+- altura dos campos
+- espaçamento interno
+- borda
+- raio dos cantos
+- posição dos ícones
+- tamanho da fonte
+- cor dos labels
+- cor do placeholder
+- alinhamento do texto
+- comportamento visual no foco, hover e aberto
+
+Aplicar isso em todos os filtros:
+- Buscar
+- Evento
+- Funções
+- Colaborador
+- Escalação
+- Status da passagem
+
+IMPORTANTE:
+Os dropdowns abertos também devem seguir o mesmo padrão visual.
+
+Padronizar os menus abertos:
+- mesmo raio de borda
+- mesma sombra
+- mesmo espaçamento entre itens
+- mesma altura de item
+- mesmo estilo do campo de busca interno
+- mesma cor de item selecionado
+- mesma linguagem para checkboxes e listas
+- mesma hierarquia visual entre título, subtítulo e conteúdo
+
+Hoje o dropdown de Evento e o de Funções parecem de componentes diferentes.
+Quero que todos pareçam parte do mesmo design system.
+
+2. Melhorar o campo de busca dentro dos dropdowns
+Nos dropdowns que possuem busca interna, melhorar o visual para ficar mais refinado e consistente com o restante da tela.
+
+Ajustar:
+- campo de busca mais alinhado
+- ícone de busca mais bem posicionado
+- placeholder mais elegante
+- espaçamento melhor
+- borda inferior ou separação mais clara do conteúdo da lista
+
+3. Melhorar o ícone de visualização (olho)
+O ícone de olho da tabela hoje está discreto demais.
+Como ele só parece ganhar destaque no hover, passa a sensação de que está desabilitado.
+
+Quero corrigir isso.
+
+Ajustes:
+- deixar o ícone visível já no estado normal
+- manter aparência leve, mas claramente clicável
+- melhorar contraste
+- aumentar levemente presença visual
+- aplicar hover suave sem depender totalmente do hover para parecer ativo
+- pode usar fundo bem sutil, borda suave ou botão fantasma discreto
+- manter estilo clean e pequeno
+- não exagerar para não poluir a tabela
+
+Objetivo:
+o usuário deve bater o olho e entender que é uma ação clicável de “visualizar”, e não um item desabilitado.
+
+4. Consistência geral
+Aproveitar para fazer um polimento geral nesses componentes:
+- alinhamentos mais consistentes
+- melhor espaçamento entre filtros
+- melhor relação entre labels e inputs
+- sensação de design system mais maduro
+- aparência mais premium e corporativa
+
+CRITÉRIOS DE ACEITE
+- Todos os filtros têm aparência padronizada
+- Dropdown de Evento, Funções e demais filtros parecem do mesmo sistema
+- Menus abertos dos filtros têm o mesmo padrão visual
+- Campo de busca interno dos dropdowns está mais refinado
+- O ícone de olho parece clicável mesmo sem hover
+- A tela continua limpa, leve e dentro da paleta atual
+- Nenhuma lógica foi alterada, apenas o visual e a percepção de usabilidade

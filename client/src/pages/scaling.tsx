@@ -1700,22 +1700,15 @@ export default function Scaling() {
                             const nameParts = collabName.trim().split(/\s+/).filter(Boolean);
                             const initials = nameParts.length === 0 ? '?' : nameParts.length === 1 ? nameParts[0].slice(0, 2).toUpperCase() : (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
                             return (
-                              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                                <div className={lbl + " mb-3"}>Dados do colaborador</div>
-                                <div className="flex items-center gap-3 mb-3.5">
-                                  <div className="w-10 h-10 rounded-xl bg-[#2563EB] text-white flex items-center justify-center text-[13px] font-black shrink-0" style={{ boxShadow: '0 2px 8px #2563EB30' }}>{initials}</div>
-                                  <div>
-                                    <div className="text-[13px] font-bold text-slate-800 leading-tight">{collab.name}</div>
-                                    <div className="text-[11px] text-slate-400 mt-0.5">Colaborador cadastrado</div>
-                                  </div>
+                              <div className="flex items-center gap-3 mt-2 px-1">
+                                <div className="w-9 h-9 rounded-xl bg-[#2563EB] text-white flex items-center justify-center text-[12px] font-black shrink-0" style={{ boxShadow: '0 2px 8px #2563EB25' }}>{initials}</div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-[13px] font-bold text-slate-800 leading-tight truncate">{collab.name || '—'}</div>
+                                  <div className="text-[11px] text-slate-400 mt-0.5">Colaborador cadastrado</div>
                                 </div>
-                                <div className="pt-3 border-t border-slate-100">
-                                  <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-1.5">Tipo do colaborador</div>
-                                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border ${t.cls}`}>
-                                    {t.label}
-                                  </span>
-                                  <div className="text-[10px] text-slate-400 italic mt-2.5">Informação vinda do cadastro do colaborador.</div>
-                                </div>
+                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border shrink-0 ${t.cls}`}>
+                                  {t.label}
+                                </span>
                               </div>
                             );
                           })()}
