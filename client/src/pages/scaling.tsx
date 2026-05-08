@@ -312,26 +312,17 @@ export default function Scaling() {
     const isManager = canManageFunction(inclusion.functionId);
     if (!hasRole && !isManager) return false;
     
-    // BLOQUEIA SOMENTE SE HÁ COMPRA EFETIVA:
-    // 1. Se precisa de passagem E passagem foi comprada → bloqueia
-    if (inclusion.needsTicket === true) {
-      const ticketPurchased = tickets?.some(t => 
-        t.teamInclusionId === inclusion.id && t.purchaseDate !== null
-      );
-      if (ticketPurchased) return false;
-      // Passagem não comprada ou não há info de compra → permite editar
-      return true;
-    }
-    
-    // 2. Se NÃO precisa de passagem MAS precisa de hospedagem E hospedagem foi reservada → bloqueia
-    if (inclusion.needsTicket === false && inclusion.needsAccommodation === true) {
-      const accommodationPurchased = accommodations?.some(a => a.teamInclusionId === inclusion.id);
-      if (accommodationPurchased) return false;
-      // Hospedagem não reservada ou não há info de reserva → permite editar
-      return true;
-    }
-    
-    // 3. Em qualquer outro caso (indefinido, sem necessidade, etc) → permite editar
+    // BLOQUEIA SE HÁ COMPRA EFETIVA (passagem OU hospedagem):
+    const ticketPurchased = inclusion.needsTicket
+      ? tickets?.some(t => t.teamInclusionId === inclusion.id && t.purchaseDate !== null)
+      : false;
+
+    const accommodationReserved = inclusion.needsAccommodation
+      ? accommodations?.some(a => a.teamInclusionId === inclusion.id)
+      : false;
+
+    if (ticketPurchased || accommodationReserved) return false;
+
     return true;
   };
 
@@ -1509,26 +1500,35 @@ export default function Scaling() {
                       {getCollaboratorName(modalData.collaboratorId)}
                     </div>
                     {(() => {
-                      const ticketPurchased = tickets?.some(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null);
-                      const accommodationPurchased = accommodations?.some(a => a.teamInclusionId === selectedInclusion.id);
-                      
-                      // Se precisa de passagem e foi comprada
-                      if (selectedInclusion.needsTicket && ticketPurchased) {
+                      const ticketPurchased = selectedInclusion.needsTicket
+                        ? tickets?.some(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null)
+                        : false;
+                      const accommodationReserved = selectedInclusion.needsAccommodation
+                        ? accommodations?.some(a => a.teamInclusionId === selectedInclusion.id)
+                        : false;
+
+                      if (ticketPurchased && accommodationReserved) {
+                        return (
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs text-amber-700 flex items-center gap-1 mt-1">
+                            ⚠️ Não é possível alterar - passagem comprada e hospedagem reservada
+                          </div>
+                        );
+                      }
+                      if (ticketPurchased) {
                         return (
                           <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs text-amber-700 flex items-center gap-1 mt-1">
                             ⚠️ Não é possível alterar - passagem já comprada
                           </div>
                         );
                       }
-                      // Se não precisa de passagem mas precisa de hospedagem e foi reservada
-                      if (!selectedInclusion.needsTicket && selectedInclusion.needsAccommodation && accommodationPurchased) {
+                      if (accommodationReserved) {
                         return (
                           <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs text-amber-700 flex items-center gap-1 mt-1">
                             ⚠️ Não é possível alterar - hospedagem já reservada
                           </div>
                         );
                       }
-                      // Sem permissão
+                      // Sem permissão de role
                       return (
                         <div className="text-xs text-amber-600 mt-1 flex items-center gap-1">
                           ⚠️ Você não tem permissão para alterar o colaborador
