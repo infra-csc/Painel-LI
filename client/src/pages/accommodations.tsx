@@ -1280,7 +1280,10 @@ export default function Accommodations() {
               </svg>
             </div>
             <h3 className="text-lg font-bold text-slate-800 mb-1">Sucesso</h3>
-            <p className="text-sm text-slate-500 text-center mb-4">{successInfo?.message}</p>
+            <p className="text-sm text-slate-500 text-center mb-3">{successInfo?.message}</p>
+            {successInfo?.inclusionNumber != null && (
+              <span className="mb-4 px-3 py-0.5 rounded-full text-sm font-bold" style={{background:'#EEF2FF', color:'#4F46E5'}}>#{successInfo.inclusionNumber}</span>
+            )}
             <div className="w-full border-t border-slate-100 mb-4"/>
             <div className="w-full space-y-2 mb-5">
               <div className="flex items-start justify-between gap-4 text-sm">
@@ -1289,10 +1292,7 @@ export default function Accommodations() {
               </div>
               <div className="flex items-start justify-between gap-4 text-sm">
                 <span className="text-slate-400 font-medium shrink-0">Colaborador</span>
-                <span className="text-slate-700 font-semibold text-right">
-                  {successInfo?.collaboratorName}
-                  {successInfo?.inclusionNumber != null && <span className="ml-1.5 text-slate-400 font-normal text-xs">#{successInfo.inclusionNumber}</span>}
-                </span>
+                <span className="text-slate-700 font-semibold text-right">{successInfo?.collaboratorName}</span>
               </div>
               <div className="flex items-start justify-between gap-4 text-sm">
                 <span className="text-slate-400 font-medium shrink-0">Função</span>
