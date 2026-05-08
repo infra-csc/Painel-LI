@@ -1120,19 +1120,26 @@ export default function Scaling() {
                       <Check className="w-3 h-3 text-white" strokeWidth={3} />
                     </span>
                     <div className="flex items-center gap-3 px-4 pt-6 pb-4">
-                      {/* Ícone em círculo */}
+                      {/* Ícones dos 3 tipos de transporte */}
                       <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                        <Plane className="w-5 h-5 text-[#22C55E]" />
+                        <div className="flex flex-col items-center justify-center gap-0" style={{lineHeight: 1}}>
+                          <span className="text-[10px] leading-none">✈️</span>
+                          <span className="flex gap-0.5 mt-0.5">
+                            <span className="text-[9px] leading-none">🚌</span>
+                            <span className="text-[9px] leading-none">🚐</span>
+                          </span>
+                        </div>
                       </div>
                       {/* Textos */}
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <h3 className="text-base font-bold text-slate-900 leading-tight">Com Passagem</h3>
+                          <h3 className="text-base font-bold text-slate-900 leading-tight">Com Transporte</h3>
                           <span className="px-1.5 py-0.5 rounded-full bg-green-100 text-[#22C55E] text-[11px] font-black leading-none">
                             {withTicket.length}
                           </span>
                         </div>
-                        <p className="text-[11px] font-semibold mt-0.5 text-green-400">
+                        <p className="text-[10px] font-medium text-slate-400 mt-0.5 mb-0.5">Aéreo · Rodoviário · Van</p>
+                        <p className="text-[11px] font-semibold text-green-400">
                           {withTicketPending > 0 && filters.escalationStatus !== "pending"
                             ? `${withTicketPending} pendente${withTicketPending !== 1 ? 's' : ''} de escalação`
                             : <span className="text-slate-300">Todos escalados</span>}
