@@ -85,21 +85,21 @@ export default function CollaboratorCombobox({
         className="p-0 border border-slate-200 rounded-xl shadow-lg overflow-hidden z-50 bg-white min-w-[280px]"
         style={{ width: "var(--radix-popover-trigger-width, 280px)" }}
       >
-        <div className="flex items-center border-b border-slate-100 px-3 py-2.5">
-          <Search className="w-4 h-4 text-slate-400 mr-2 flex-shrink-0" />
+        <div className="flex items-center gap-2 bg-slate-50 border-b border-slate-100 px-3 py-2.5">
+          <Search className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
           <input
             autoFocus
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar colaborador..."
-            className="w-full text-sm bg-transparent outline-none placeholder:text-slate-400 text-slate-700"
+            className="w-full text-[13px] bg-transparent outline-none placeholder:text-slate-400 text-slate-700"
           />
         </div>
 
         <div className="max-h-[240px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
           <div
-            className={`px-4 py-2.5 text-sm font-medium border-b border-slate-100 cursor-pointer transition-colors ${
+            className={`px-3 py-2.5 text-[13px] font-medium border-b border-slate-100 cursor-pointer transition-colors ${
               value === "all"
                 ? "bg-blue-50 text-blue-700"
                 : "text-slate-400 hover:bg-blue-50 hover:text-blue-700"
@@ -113,7 +113,7 @@ export default function CollaboratorCombobox({
           </div>
 
           {filtered.length === 0 ? (
-            <div className="px-4 py-4 text-sm text-slate-400 text-center">
+            <div className="px-4 py-4 text-[13px] text-slate-400 text-center">
               Nenhum colaborador encontrado.
             </div>
           ) : (
@@ -123,7 +123,7 @@ export default function CollaboratorCombobox({
               return (
                 <div
                   key={collaborator.id}
-                  className={`px-4 py-2.5 text-sm cursor-pointer transition-colors whitespace-normal ${
+                  className={`px-3 py-2.5 text-[13px] cursor-pointer transition-colors whitespace-normal border-b border-slate-50 last:border-0 ${
                     isSelected
                       ? "bg-blue-50 text-blue-700 font-medium"
                       : "text-slate-700 hover:bg-blue-50 hover:text-blue-700"

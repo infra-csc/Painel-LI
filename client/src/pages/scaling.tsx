@@ -1189,7 +1189,7 @@ export default function Scaling() {
                                       #{inclusion.inclusionNumber || 'N/A'}
                                     </span>
                                     <button
-                                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 group-hover/row:text-slate-500 hover:!bg-[#2563EB] hover:!text-white transition-all duration-150 border border-transparent hover:border-[#2563EB]"
+                                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 bg-slate-50 border border-slate-200 hover:bg-[#2563EB] hover:text-white hover:border-[#2563EB] transition-all duration-150"
                                       onClick={(e) => handleViewComments(e, inclusion)}
                                       title="Ver detalhes"
                                     >
@@ -1341,7 +1341,7 @@ export default function Scaling() {
                                       #{inclusion.inclusionNumber || 'N/A'}
                                     </span>
                                     <button
-                                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 group-hover/row:text-slate-500 hover:!bg-[#2563EB] hover:!text-white transition-all duration-150 border border-transparent hover:border-[#2563EB]"
+                                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 bg-slate-50 border border-slate-200 hover:bg-[#2563EB] hover:text-white hover:border-[#2563EB] transition-all duration-150"
                                       onClick={(e) => handleViewComments(e, inclusion)}
                                       title="Ver detalhes"
                                     >

@@ -94,7 +94,7 @@ export default function EventCombobox({
         style={{ width: "var(--radix-popover-trigger-width, 240px)", minWidth: 240 }}
       >
         {/* Search field */}
-        <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2.5">
+        <div className="flex items-center gap-2 bg-slate-50 border-b border-slate-100 px-3 py-2.5">
           <Search className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
           <input
             autoFocus
@@ -102,7 +102,7 @@ export default function EventCombobox({
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Buscar evento..."
-            className="w-full text-sm bg-transparent outline-none placeholder:text-slate-400 text-slate-700"
+            className="w-full text-[13px] bg-transparent outline-none placeholder:text-slate-400 text-slate-700"
           />
           {search && (
             <button
@@ -119,10 +119,10 @@ export default function EventCombobox({
           {/* "Todos" option */}
           {showAllOption && !search && (
             <div
-              className={`px-3 py-2.5 text-sm font-medium border-b border-slate-100 cursor-pointer transition-colors ${
+              className={`px-3 py-2.5 text-[13px] font-medium border-b border-slate-100 cursor-pointer transition-colors ${
                 value === "all"
-                  ? "bg-violet-50 text-violet-700"
-                  : "text-slate-400 hover:bg-violet-50 hover:text-violet-700"
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-slate-400 hover:bg-blue-50 hover:text-blue-700"
               }`}
               onClick={() => { onValueChange("all"); close(); }}
             >
@@ -131,7 +131,7 @@ export default function EventCombobox({
           )}
 
           {filtered.length === 0 ? (
-            <div className="px-4 py-4 text-sm text-slate-400 text-center">
+            <div className="px-4 py-4 text-[13px] text-slate-400 text-center">
               Nenhum evento encontrado.
             </div>
           ) : (
@@ -143,19 +143,19 @@ export default function EventCombobox({
                   key={event.id}
                   className={`flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-colors border-b border-slate-50 last:border-0 ${
                     isSelected
-                      ? "bg-violet-50 text-violet-700"
-                      : "text-slate-700 hover:bg-violet-50 hover:text-violet-700"
+                      ? "bg-blue-50 text-blue-700"
+                      : "text-slate-700 hover:bg-blue-50 hover:text-blue-700"
                   }`}
                   onClick={() => { onValueChange(event.id); close(); }}
                 >
-                  <Calendar className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? "text-violet-500" : "text-slate-400"}`} />
+                  <Calendar className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? "text-blue-500" : "text-slate-400"}`} />
                   <div className="flex-1 min-w-0">
-                    <div className={`text-sm whitespace-normal break-words ${isSelected ? "font-semibold" : ""}`}>{event.name}</div>
+                    <div className={`text-[13px] whitespace-normal break-words ${isSelected ? "font-semibold" : ""}`}>{event.name}</div>
                     {dateLabel && (
-                      <div className={`text-[11px] mt-0.5 ${isSelected ? "text-violet-400" : "text-slate-400"}`}>{dateLabel}</div>
+                      <div className={`text-[11px] mt-0.5 ${isSelected ? "text-blue-400" : "text-slate-400"}`}>{dateLabel}</div>
                     )}
                   </div>
-                  {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-violet-500 flex-shrink-0" />}
+                  {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />}
                 </div>
               );
             })
