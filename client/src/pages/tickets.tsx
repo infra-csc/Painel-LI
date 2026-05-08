@@ -778,7 +778,45 @@ export default function Tickets() {
                 {/* Coluna esquerda (8 cols) */}
                 <div className="col-span-12 lg:col-span-8 space-y-2">
 
+                  {/* VAN: formulário simplificado */}
+                  {ticketData["quick"]?.transportType === 'van' && (
+                    <div className="space-y-3">
+                      <section className="rounded-xl overflow-hidden border border-slate-200">
+                        <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+                          <div className="w-5 h-5 rounded-md bg-[#0033CC] flex items-center justify-center shrink-0">
+                            <Truck className="w-3 h-3 text-white" />
+                          </div>
+                          <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Dados da Van</h4>
+                        </div>
+                        <div className="p-3 bg-white space-y-3">
+                          <div className="space-y-1.5">
+                            <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Nome da Empresa *</Label>
+                            <Input
+                              placeholder="Ex: Transluz Transportes"
+                              value={ticketData["quick"]?.purchaseOrderNumber || ""}
+                              onChange={(e) => handleTicketDataChange("quick", "purchaseOrderNumber", e.target.value)}
+                              className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
+                              data-testid="input-quick-van-company"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Observação</Label>
+                            <Textarea
+                              placeholder="Horário de saída, ponto de encontro, número de vagas..."
+                              value={ticketData["quick"]?.ticketObservations || ""}
+                              onChange={(e) => handleTicketDataChange("quick", "ticketObservations", e.target.value)}
+                              className="text-xs resize-none bg-slate-50 border-slate-200 rounded-lg"
+                              style={{ height: 80 }}
+                              data-testid="textarea-quick-van-observations"
+                            />
+                          </div>
+                        </div>
+                      </section>
+                    </div>
+                  )}
+
                   {/* Card: Dados Financeiros */}
+                  {ticketData["quick"]?.transportType !== 'van' && (<>
                   <section className="rounded-xl overflow-hidden border border-slate-200">
                     <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
                       <div className="w-5 h-5 rounded-md bg-[#0033CC] flex items-center justify-center shrink-0">
@@ -1189,6 +1227,7 @@ export default function Tickets() {
                       })()}
                     </div>
                   </div>
+                  </>)}
                 </div>
 
                 {/* Coluna direita (4 cols) */}
@@ -2161,7 +2200,43 @@ export default function Tickets() {
                             </div>
                           </div>
 
-                          {/* Informações Gerais */}
+                          {/* VAN: formulário simplificado */}
+                          {data.transportType === 'van' && (
+                            <div className="bg-slate-50 p-4 rounded-lg border-l-4 border-slate-400 space-y-4">
+                              <h4 className="font-medium text-slate-800 flex items-center gap-2">
+                                🚐 Dados da Van
+                              </h4>
+                              <div>
+                                <Label htmlFor={`vanCompany-${selectedInclusion.id}`} className="text-sm font-medium">
+                                  Nome da Empresa *
+                                </Label>
+                                <Input
+                                  id={`vanCompany-${selectedInclusion.id}`}
+                                  placeholder="Ex: Transluz Transportes"
+                                  value={data.purchaseOrderNumber || ""}
+                                  onChange={(e) => handleTicketDataChange(selectedInclusion.id, "purchaseOrderNumber", e.target.value)}
+                                  className="mt-1"
+                                  disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor={`vanObs-${selectedInclusion.id}`} className="text-sm font-medium">
+                                  Observação
+                                </Label>
+                                <Textarea
+                                  id={`vanObs-${selectedInclusion.id}`}
+                                  placeholder="Horário de saída, ponto de encontro, número de vagas..."
+                                  value={data.ticketObservations || ""}
+                                  onChange={(e) => handleTicketDataChange(selectedInclusion.id, "ticketObservations", e.target.value)}
+                                  className="mt-1 h-24 resize-none"
+                                  disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Informações Gerais, Viagem e Adicionais: ocultos na van */}
+                          {data.transportType !== 'van' && (<>
                           <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg border-l-4 border-green-500">
                             <h4 className="font-medium mb-4 text-green-800 dark:text-green-200 flex items-center gap-2">
                               💰 Informações da Compra
@@ -2454,6 +2529,7 @@ export default function Tickets() {
                               </div>
                             </div>
                           </div>
+                          </>)}
                         </div>
 
                         {/* Campo de Anexos */}
