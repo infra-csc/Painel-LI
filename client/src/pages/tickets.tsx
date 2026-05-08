@@ -500,7 +500,6 @@ export default function Tickets() {
     const baseRequiredFields = isVanQuick
       ? [{ field: 'purchaseOrderNumber', label: 'Nome da Empresa' }]
       : [
-          { field: 'value', label: 'Valor da Passagem' },
           { field: 'departureAirport', label: quickData.transportType === 'rodoviario' ? 'Rodoviária Ida' : 'Aeroporto Ida' },
           { field: 'destinationAirport', label: quickData.transportType === 'rodoviario' ? 'Rodoviária Volta' : 'Aeroporto Volta' },
           { field: 'purchaseOrderNumber', label: 'LOC' },
@@ -849,19 +848,6 @@ export default function Tickets() {
                       <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Dados Financeiros</h4>
                     </div>
                     <div className="p-3 bg-white grid grid-cols-2 gap-x-3 gap-y-2">
-                      <div className="space-y-1.5">
-                        <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Valor Total *</Label>
-                        <div className="flex h-[34px] rounded-lg overflow-hidden border border-slate-200 focus-within:ring-2 focus-within:ring-[#0033CC]/20">
-                          <span className="flex items-center px-2.5 bg-slate-50 text-slate-500 font-semibold text-xs border-r border-slate-200 shrink-0">R$</span>
-                          <input
-                            type="number" step="0.01" placeholder="0,00"
-                            value={ticketData["quick"]?.value || ""}
-                            onChange={(e) => handleTicketDataChange("quick", "value", e.target.value)}
-                            className="flex-1 px-3 text-sm font-bold bg-white border-0 outline-none w-full"
-                            data-testid="input-quick-value"
-                          />
-                        </div>
-                      </div>
                       <div className="space-y-1.5">
                         <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">
                           {ticketData["quick"]?.transportType === "rodoviario" ? "Número do Bilhete *" : ticketData["quick"]?.transportType === "van" ? "Número da Van *" : "LOC / Reserva *"}
@@ -1301,15 +1287,14 @@ export default function Tickets() {
                   {/* Status da operação */}
                   {(() => {
                     const q = ticketData["quick"];
-                    const hasValue = !!(q?.value);
-                    const hasLoc = !!(q?.purchaseOrderNumber);
+                                        const hasLoc = !!(q?.purchaseOrderNumber);
                     const hasOrigin = !!(q?.departureCityOrigin && q?.departureAirport);
                     const hasDestination = !!(q?.departureCityDestination && q?.destinationAirport);
                     const hasDates = !!(q?.actualDepartureDate && q?.actualDepartureTime);
                     const attachCount = q?.attachmentIds?.length || 0;
 
                     // 3-state logic: green=done, yellow=partial, red=empty
-                    const financialStatus = hasValue && hasLoc ? 'done' : hasValue || hasLoc ? 'partial' : 'empty';
+                    const financialStatus = hasLoc ? 'done' : 'empty';
                     const idaStatus = hasOrigin && hasDestination && hasDates ? 'done' : hasOrigin || hasDestination ? 'partial' : 'empty';
                     const attachStatus = attachCount > 0 ? 'done' : 'empty';
                     const selectionStatus = selectedTickets.length > 0 ? 'done' : 'empty';
@@ -1336,7 +1321,7 @@ export default function Tickets() {
                             <div className="flex-1 min-w-0">
                               <p className={`text-[11px] font-semibold ${textColor(financialStatus)}`}>Dados financeiros</p>
                               <p className="text-[10px] text-slate-400">
-                                {financialStatus === 'done' ? 'Valor e LOC preenchidos' : financialStatus === 'partial' ? 'Parcialmente preenchidos' : 'Valor e LOC pendentes'}
+                                {financialStatus === 'done' ? 'LOC preenchida' : 'LOC pendente'}
                               </p>
                             </div>
                           </li>
@@ -2014,11 +1999,7 @@ export default function Tickets() {
                               <span className="text-sm font-semibold text-slate-700">Van / Transporte Terrestre</span>
                             </div>
                           ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                              <div>
-                                <Label className="text-xs text-green-600 font-medium">💰 Valor</Label>
-                                <p className="font-bold text-lg text-green-700">{formatCurrency((ticket.value || 0) / 100)}</p>
-                              </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                               <div>
                                 <Label className="text-xs text-green-600 font-medium">📅 Data da Compra</Label>
                                 <p className="font-medium">{ticket.purchaseDate ? formatDate(ticket.purchaseDate) : "-"}</p>
@@ -2468,23 +2449,7 @@ export default function Tickets() {
                             <h4 className="font-medium mb-4 text-green-800 dark:text-green-200 flex items-center gap-2">
                               💰 Informações da Compra
                             </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <div>
-                                <Label htmlFor={`value-${selectedInclusion.id}`} className="text-sm font-medium text-green-700 dark:text-green-300">
-                                  Valor da Passagem (R$) *
-                                </Label>
-                                <Input
-                                  id={`value-${selectedInclusion.id}`}
-                                  type="number"
-                                  step="0.01"
-                                  placeholder="0.00"
-                                  value={data.value || ""}
-                                  onChange={(e) => handleTicketDataChange(selectedInclusion.id, "value", e.target.value)}
-                                  className="mt-1"
-                                  data-testid={`input-value-${selectedInclusion.id}`}
-                                  disabled={isReadOnly(selectedInclusion, user) || !canEditScreen(user, 'tickets')}
-                                />
-                              </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
                                 <Label htmlFor={`purchaseOrderNumber-${selectedInclusion.id}`} className="text-sm font-medium text-green-700 dark:text-green-300">
                                   LOC *
