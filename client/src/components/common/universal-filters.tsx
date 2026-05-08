@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { X, Search, CalendarDays, Layers, UserRound, Tag, ArrowUpDown, RotateCcw } from "lucide-react";
+import { X, Search, CalendarDays, Layers, UserRound, Tag, ArrowUpDown, RotateCcw, Plane, BedDouble } from "lucide-react";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
 import EventCombobox from "@/components/ui/event-combobox";
 import FunctionMultiSelect from "@/components/ui/function-multi-select";
@@ -17,11 +17,15 @@ interface UniversalFiltersProps {
     escalationStatus: string;
     searchId: string;
     showDeleted?: boolean;
+    ticketStatus?: string;
+    accommodationStatus?: string;
   };
   onFiltersChange: (filters: any) => void;
   hideStatusFilter?: boolean;
   children?: React.ReactNode;
   rightActions?: React.ReactNode;
+  showTicketFilter?: boolean;
+  showAccommodationFilter?: boolean;
 }
 
 const FilterLabel = ({ icon: Icon, text }: { icon: any; text: string }) => (
@@ -31,7 +35,7 @@ const FilterLabel = ({ icon: Icon, text }: { icon: any; text: string }) => (
   </label>
 );
 
-export default function UniversalFilters({ filters, onFiltersChange, hideStatusFilter = false, children, rightActions }: UniversalFiltersProps) {
+export default function UniversalFilters({ filters, onFiltersChange, hideStatusFilter = false, children, rightActions, showTicketFilter = false, showAccommodationFilter = false }: UniversalFiltersProps) {
   const [searchInput, setSearchInput] = useState(filters.searchId ?? "");
 
   useEffect(() => {
@@ -79,21 +83,26 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
       searchId: "",
       showDeleted: false
     };
-    if (!hideStatusFilter) {
-      baseFilters.status = "all";
-    }
+    if (!hideStatusFilter) baseFilters.status = "all";
+    if (showTicketFilter) baseFilters.ticketStatus = "all";
+    if (showAccommodationFilter) baseFilters.accommodationStatus = "all";
     onFiltersChange(baseFilters);
   };
 
   const selectTriggerClass =
     "!h-9 w-full border border-slate-200 rounded-lg bg-white px-3 text-sm text-slate-700 font-normal cursor-pointer hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400 py-0 [&>span]:text-slate-700 [&>span]:font-normal data-[placeholder]:text-slate-400 shadow-none";
 
+  const baseCols = hideStatusFilter ? 5 : 6;
+  const extraCols = (showTicketFilter ? 1 : 0) + (showAccommodationFilter ? 1 : 0);
+  const totalCols = baseCols + extraCols;
+  const gridCols = `160px ${Array(totalCols - 1).fill('1fr').join(' ')}`;
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-[0_1px_8px_rgba(0,51,204,0.06)] px-5 py-4 mb-6">
       {/* Grid de filtros */}
       <div
         className="grid gap-3 items-end"
-        style={{ gridTemplateColumns: hideStatusFilter ? '160px 1fr 1fr 1fr 1fr' : '160px 1fr 1fr 1fr 1fr 1fr' }}
+        style={{ gridTemplateColumns: gridCols }}
       >
         {/* Busca */}
         <div>
@@ -193,6 +202,48 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
             </SelectContent>
           </Select>
         </div>
+
+        {/* Passagem */}
+        {showTicketFilter && (
+          <div>
+            <FilterLabel icon={Plane} text="Passagem" />
+            <Select
+              value={filters.ticketStatus ?? "all"}
+              onValueChange={(value) => onFiltersChange({ ...filters, ticketStatus: value })}
+              data-testid="filter-ticket-status"
+            >
+              <SelectTrigger className={selectTriggerClass}>
+                <SelectValue placeholder="Filtrar por passagem" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border border-slate-200 rounded-lg shadow-lg min-w-[220px]">
+                <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todas</SelectItem>
+                <SelectItem value="purchased" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Comprada</SelectItem>
+                <SelectItem value="not-purchased" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Não comprada</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Hospedagem */}
+        {showAccommodationFilter && (
+          <div>
+            <FilterLabel icon={BedDouble} text="Hospedagem" />
+            <Select
+              value={filters.accommodationStatus ?? "all"}
+              onValueChange={(value) => onFiltersChange({ ...filters, accommodationStatus: value })}
+              data-testid="filter-accommodation-status"
+            >
+              <SelectTrigger className={selectTriggerClass}>
+                <SelectValue placeholder="Filtrar por hospedagem" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border border-slate-200 rounded-lg shadow-lg min-w-[220px]">
+                <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todas</SelectItem>
+                <SelectItem value="reserved" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Reservada</SelectItem>
+                <SelectItem value="not-reserved" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Não reservada</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       {/* Linha 2: children (esquerda) + Toggle + Limpar (direita) */}

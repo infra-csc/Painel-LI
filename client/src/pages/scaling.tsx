@@ -32,6 +32,7 @@ export default function Scaling() {
     collaboratorId: string;
     escalationStatus: string;
     ticketStatus: string;
+    accommodationStatus: string;
     searchId: string;
     showDeleted: boolean;
   }>({
@@ -39,7 +40,8 @@ export default function Scaling() {
     functionId: [],
     collaboratorId: "all",
     escalationStatus: "all",
-    ticketStatus: "all", // all, purchased, not-purchased
+    ticketStatus: "all",
+    accommodationStatus: "all",
     searchId: "",
     showDeleted: false,
   });
@@ -373,6 +375,13 @@ export default function Scaling() {
           const hasTicket = getTicket(inclusion.id) !== undefined;
           if (filters.ticketStatus === "purchased" && !hasTicket) return false;
           if (filters.ticketStatus === "not-purchased" && hasTicket) return false;
+        }
+
+        // Apply accommodation status filter
+        if (filters.accommodationStatus !== "all") {
+          const hasAccommodation = getAccommodation(inclusion.id) !== undefined;
+          if (filters.accommodationStatus === "reserved" && !hasAccommodation) return false;
+          if (filters.accommodationStatus === "not-reserved" && hasAccommodation) return false;
         }
         
         return idMatch;
@@ -1022,6 +1031,8 @@ export default function Scaling() {
         filters={filters}
         onFiltersChange={setFilters}
         hideStatusFilter={true}
+        showTicketFilter={true}
+        showAccommodationFilter={true}
         rightActions={
           <Button
             onClick={handleExportToExcel}
@@ -1033,26 +1044,7 @@ export default function Scaling() {
             Exportar
           </Button>
         }
-      >
-        <div className="w-56">
-          <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
-            Status da Passagem
-          </label>
-          <Select
-            value={filters.ticketStatus}
-            onValueChange={(value) => setFilters({ ...filters, ticketStatus: value })}
-          >
-            <SelectTrigger className="!h-9 py-0 border border-slate-200 rounded-lg bg-white text-sm text-slate-700 [&>span]:text-slate-700 [&>span]:font-normal focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all" data-testid="select-ticket-status">
-              <SelectValue placeholder="Status da passagem" />
-            </SelectTrigger>
-            <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
-              <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos</SelectItem>
-              <SelectItem value="purchased" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">✈️ Passagens Compradas</SelectItem>
-              <SelectItem value="not-purchased" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">❌ Passagens Não Compradas</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </UniversalFilters>
+      />
 
 
           {scalingInclusions.length === 0 ? (
