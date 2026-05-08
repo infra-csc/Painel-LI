@@ -1055,6 +1055,20 @@ export default function Accommodations() {
           <table className="w-full text-left border-collapse">
             <thead style={{background:"#F8FAFC",borderBottom:"2px solid #E2E8F0"}}>
               <tr>
+                {expandedSections.basic && (
+                  <th style={{padding:'12px 12px',width:44,textAlign:'center'}}>
+                    <input
+                      type="checkbox"
+                      title="Selecionar todos pendentes"
+                      style={{width:16,height:16,cursor:'pointer',accentColor:'#0033CC'}}
+                      checked={(() => {
+                        const pendingIds = filteredData.filter(i => !accommodationMap.get(i.id) && i.status !== 'cancelado').map(i => i.id);
+                        return pendingIds.length > 0 && pendingIds.every(id => selectedInclusionsForBatch.includes(id));
+                      })()}
+                      onChange={toggleAllInclusions}
+                    />
+                  </th>
+                )}
                 <th style={{padding:'12px 12px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase',width:64}}>ID</th>
                 <th style={{padding:'12px 16px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase'}}>Evento</th>
                 <th style={{padding:'12px 16px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase'}}>Colaborador / Função</th>
@@ -1079,19 +1093,36 @@ export default function Accommodations() {
                   const borderColor = isCanceled ? '#E2E8F0' : hasAccommodation ? '#22C55E' : '#F97316';
                   const rowBase = idx % 2 === 1 ? '#F8FAFC80' : '#ffffff';
 
+                  const isSelectedForBatch = selectedInclusionsForBatch.includes(inclusion.id);
+                  const canSelectForBatch = !isCanceled && !hasAccommodation;
+
                   return (
                     <tr
                       key={inclusion.id}
                       data-testid={`accommodation-row-${inclusion.inclusionNumber}`}
                       className="transition-colors"
                       style={{
-                        borderLeft: `3px solid ${borderColor}`,
+                        borderLeft: `3px solid ${isSelectedForBatch ? '#0033CC' : borderColor}`,
                         opacity: isCanceled ? 0.6 : 1,
-                        backgroundColor: rowBase,
+                        backgroundColor: isSelectedForBatch ? '#EEF2FF80' : rowBase,
                       }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#EEF2FF33'; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = rowBase; }}
+                      onMouseEnter={e => { if (!isSelectedForBatch) (e.currentTarget as HTMLElement).style.backgroundColor = '#EEF2FF33'; }}
+                      onMouseLeave={e => { if (!isSelectedForBatch) (e.currentTarget as HTMLElement).style.backgroundColor = rowBase; }}
                     >
+                      {/* Checkbox seleção lote */}
+                      {expandedSections.basic && (
+                        <td style={{padding:'12px 12px',width:44,textAlign:'center'}}>
+                          {canSelectForBatch && (
+                            <input
+                              type="checkbox"
+                              checked={isSelectedForBatch}
+                              onChange={() => toggleInclusionSelection(inclusion.id)}
+                              style={{width:16,height:16,cursor:'pointer',accentColor:'#0033CC'}}
+                              data-testid={`checkbox-batch-${inclusion.inclusionNumber}`}
+                            />
+                          )}
+                        </td>
+                      )}
                       {/* ID */}
                       <td style={{padding:'12px 12px',width:64}}>
                         <span style={{display:'inline-block',background:'#EEF2FF',color:'#3B4FE4',fontSize:13,fontWeight:600,borderRadius:6,padding:'4px 8px',whiteSpace:'nowrap'}}>
