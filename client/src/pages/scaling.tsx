@@ -1696,29 +1696,6 @@ export default function Scaling() {
                               </div>
                             )}
                           </div>
-                          {/* Card: Dados do colaborador */}
-                          {(() => {
-                            const collab = collaborators?.find(c => c.id === (modalData.collaboratorId || selectedInclusion.collaboratorId));
-                            if (!collab) return null;
-                            const typeMap: Record<string, { label: string; cls: string }> = {
-                              casa:   { label: 'Casa',   cls: 'bg-blue-50 text-blue-700 border-blue-100' },
-                              freela: { label: 'Freela', cls: 'bg-violet-50 text-violet-700 border-violet-100' },
-                              local:  { label: 'Local',  cls: 'bg-orange-50 text-orange-700 border-orange-100' },
-                            };
-                            const t = typeMap[collab.type] ?? { label: collab.type ?? '—', cls: 'bg-slate-100 text-slate-600 border-slate-200' };
-                            const collabName = collab.name || '';
-                            const nameParts = collabName.trim().split(/\s+/).filter(Boolean);
-                            const initials = nameParts.length === 0 ? '?' : nameParts.length === 1 ? nameParts[0].slice(0, 2).toUpperCase() : (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
-                            return (
-                              <div className="flex items-center gap-3 mt-2 px-1">
-                                <div className="w-9 h-9 rounded-xl bg-[#2563EB] text-white flex items-center justify-center text-[12px] font-black shrink-0" style={{ boxShadow: '0 2px 8px #2563EB25' }}>{initials}</div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-[13px] font-bold text-slate-800 leading-tight truncate">{collab.name || '—'}</div>
-                                  <div className="text-[11px] text-slate-400 mt-0.5">Colaborador cadastrado</div>
-                                </div>
-                              </div>
-                            );
-                          })()}
                         </div>
 
                         {/* Col 3: Período de Trabalho */}
