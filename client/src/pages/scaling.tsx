@@ -2121,7 +2121,7 @@ export default function Scaling() {
       {/* Modal de sucesso — portal no body para escapar do transform do Dialog */}
       {showSuccessModal && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{background:'rgba(0,0,0,0.45)'}}>
-          <div className="bg-white rounded-2xl shadow-2xl flex flex-col items-center px-8 py-7 max-w-sm w-full mx-4" style={{boxShadow:'0 8px 40px rgba(0,0,0,0.18)'}}>
+          <div className="bg-white rounded-2xl shadow-2xl flex flex-col items-center px-8 py-7 w-full mx-4" style={{boxShadow:'0 8px 40px rgba(0,0,0,0.18)', maxWidth: 440}}>
             <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{background:'#DCFCE7'}}>
               <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
                 <circle cx="18" cy="18" r="18" fill="#16A34A" fillOpacity="0.12"/>
@@ -2132,20 +2132,20 @@ export default function Scaling() {
             <p className="text-sm text-slate-500 text-center mb-4">{successInfo?.message}</p>
             <div className="w-full border-t border-slate-100 mb-4"/>
             <div className="w-full space-y-2 mb-5">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-400 font-medium">Evento</span>
-                <span className="text-slate-700 font-semibold text-right max-w-[180px] truncate">{successInfo?.eventName}</span>
+              <div className="flex items-start justify-between gap-4 text-sm">
+                <span className="text-slate-400 font-medium shrink-0">Evento</span>
+                <span className="text-slate-700 font-semibold text-right">{successInfo?.eventName}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-400 font-medium">Colaborador</span>
-                <span className="text-slate-700 font-semibold text-right max-w-[180px] truncate">
-                  {successInfo?.collaboratorName}
-                  {successInfo?.inclusionNumber != null && <span className="ml-1 text-slate-400 font-normal">#{successInfo.inclusionNumber}</span>}
+              <div className="flex items-start justify-between gap-4 text-sm">
+                <span className="text-slate-400 font-medium shrink-0">Colaborador</span>
+                <span className="text-right">
+                  <span className="block text-slate-700 font-semibold">{successInfo?.collaboratorName}</span>
+                  {successInfo?.inclusionNumber != null && <span className="text-xs text-slate-400 font-normal">#{successInfo.inclusionNumber}</span>}
                 </span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-400 font-medium">Função</span>
-                <span className="text-slate-700 font-semibold text-right max-w-[180px] truncate">{successInfo?.functionName}</span>
+              <div className="flex items-start justify-between gap-4 text-sm">
+                <span className="text-slate-400 font-medium shrink-0">Função</span>
+                <span className="text-slate-700 font-semibold text-right">{successInfo?.functionName}</span>
               </div>
             </div>
             <button
