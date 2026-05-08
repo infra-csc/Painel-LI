@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -48,6 +48,9 @@ export default function Scaling() {
   
   const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const pendingScalingAction = useRef<'save'|'confirm'>('save');
   const [modalData, setModalData] = useState({
     collaboratorId: "",
     observations: "",
@@ -440,19 +443,15 @@ export default function Scaling() {
       return response.json();
     },
     onSuccess: (updatedInclusion) => {
-      toast({
-        title: "Sucesso",
-        description: "Escalação atualizada com sucesso",
-      });
       // CRITICAL: Update selectedInclusion with fresh data from backend
-      // This ensures subsequent operations (like confirm escalation) use updated data
       if (selectedInclusion && updatedInclusion.id === selectedInclusion.id) {
         setSelectedInclusion(updatedInclusion);
       }
-      // Force refetch to ensure UI updates
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
       queryClient.refetchQueries({ queryKey: ["/api/team-inclusions"] });
-      setShowModal(false);
+      // Show success modal instead of toast
+      setSuccessMessage(pendingScalingAction.current === 'confirm' ? "Escalação confirmada com sucesso!" : "Alterações salvas com sucesso!");
+      setShowSuccessModal(true);
     },
     onError: () => {
       toast({
@@ -703,6 +702,7 @@ export default function Scaling() {
       updateData.dailyValue = Math.round(modalData.dailyValue * 100); // Store in cents
     }
     
+    pendingScalingAction.current = 'save';
     updateTeamInclusionMutation.mutate({
       id: selectedInclusion.id,
       data: updateData
@@ -766,6 +766,7 @@ export default function Scaling() {
     
     console.log("🔍 [CONFIRM DEBUG] Update data being sent:", updateData);
     
+    pendingScalingAction.current = 'confirm';
     updateTeamInclusionMutation.mutate({
       id: selectedInclusion.id,
       data: updateData
@@ -2101,6 +2102,32 @@ export default function Scaling() {
                     ⚠️ Apenas o responsável pela função pode confirmar escalações
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Modal de sucesso — overlay central */}
+          {showSuccessModal && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center rounded-lg" style={{background:'rgba(0,0,0,0.35)'}}>
+              <div className="bg-white rounded-2xl shadow-2xl flex flex-col items-center px-10 py-8 max-w-xs w-full mx-4" style={{boxShadow:'0 8px 40px rgba(0,0,0,0.18)'}}>
+                <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{background:'#DCFCE7'}}>
+                  <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                    <circle cx="18" cy="18" r="18" fill="#16A34A" fillOpacity="0.12"/>
+                    <path d="M10 18.5L15.5 24L26 13" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-slate-800 mb-1">Sucesso</h3>
+                <p className="text-sm text-slate-500 text-center mb-6">{successMessage}</p>
+                <button
+                  onClick={() => {
+                    setShowSuccessModal(false);
+                    setShowModal(false);
+                  }}
+                  className="w-full py-2.5 rounded-xl font-semibold text-white text-sm"
+                  style={{background:'#2563EB'}}
+                >
+                  OK
+                </button>
               </div>
             </div>
           )}
