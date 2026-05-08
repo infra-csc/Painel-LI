@@ -1082,29 +1082,29 @@ export default function Scaling() {
                   <TabsTrigger
                     value="without-ticket"
                     disabled={withoutTicket.length === 0}
-                    className="group relative overflow-hidden rounded-3xl border-2 border-slate-200 bg-white shadow-sm hover:shadow-md data-[state=active]:border-[#F97316] data-[state=active]:bg-orange-50/40 data-[state=active]:shadow-lg data-[state=active]:shadow-orange-900/10 transition-all duration-200 disabled:opacity-40 text-left p-0 h-auto"
+                    className="group relative overflow-hidden rounded-2xl border-2 border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/20 data-[state=active]:border-[#F97316] data-[state=active]:bg-orange-50/60 data-[state=active]:shadow-lg data-[state=active]:shadow-orange-100 transition-all duration-200 disabled:opacity-40 text-left p-0 h-auto"
                   >
-                    {/* Faixa superior laranja */}
-                    <div className="absolute top-0 inset-x-0 h-1.5 bg-[#F97316] rounded-t-[22px]" />
-                    {/* Checkmark no canto superior direito */}
-                    <span className="absolute top-2.5 right-3 w-5 h-5 rounded-full bg-[#F97316] items-center justify-center shadow-md hidden group-data-[state=active]:flex">
-                      <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                    {/* Faixa superior — só aparece quando ativo */}
+                    <div className="absolute top-0 inset-x-0 h-[3px] bg-[#F97316] rounded-t-[14px] opacity-0 group-data-[state=active]:opacity-100 transition-opacity duration-200" />
+                    {/* Checkmark */}
+                    <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-[#F97316] items-center justify-center shadow hidden group-data-[state=active]:flex">
+                      <Check className="w-3 h-3 text-white" strokeWidth={3.5} />
                     </span>
-                    <div className="flex items-center gap-3 px-4 pt-4 pb-3">
-                      <div className="w-9 h-9 rounded-xl bg-orange-100 flex items-center justify-center shrink-0">
-                        <Clock className="w-4 h-4 text-[#F97316]" />
+                    <div className="flex items-center gap-3.5 px-4 pt-4 pb-4">
+                      <div className="w-10 h-10 rounded-xl bg-orange-100 group-data-[state=active]:bg-orange-200/60 flex items-center justify-center shrink-0 transition-colors duration-200">
+                        <Clock className="w-[18px] h-[18px] text-[#F97316]" />
                       </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-[14px] font-bold text-slate-900 leading-tight">Sem Passagem</h3>
-                          <span className="px-2 py-0.5 rounded-full bg-orange-100 text-[#F97316] text-[11px] font-black tabular-nums">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <h3 className="text-[14px] font-bold text-slate-800 leading-tight">Sem Passagem</h3>
+                          <span className="px-2 py-0.5 rounded-full bg-orange-100 text-[#F97316] text-[11px] font-black tabular-nums group-data-[state=active]:bg-orange-200/70">
                             {withoutTicket.length}
                           </span>
                         </div>
-                        <p className="text-[11px] font-medium mt-0.5 text-orange-400">
+                        <p className="text-[11px] font-medium leading-tight text-orange-400 group-[&:not([data-state=active])]:text-slate-400">
                           {withoutTicketPending > 0 && filters.escalationStatus !== "pending"
                             ? `${withoutTicketPending} pendente${withoutTicketPending !== 1 ? 's' : ''} de escalação`
-                            : <span className="text-slate-300">Nenhum pendente</span>}
+                            : 'Nenhum pendente'}
                         </p>
                       </div>
                     </div>
@@ -1114,28 +1114,28 @@ export default function Scaling() {
                   <TabsTrigger
                     value="with-ticket"
                     disabled={withTicket.length === 0}
-                    className="group relative overflow-hidden rounded-3xl border-2 border-slate-200 bg-white shadow-sm hover:shadow-md data-[state=active]:border-[#22C55E] data-[state=active]:bg-green-50/40 data-[state=active]:shadow-lg data-[state=active]:shadow-green-900/10 transition-all duration-200 disabled:opacity-40 text-left p-0 h-auto"
+                    className="group relative overflow-hidden rounded-2xl border-2 border-slate-200 bg-white hover:border-green-200 hover:bg-green-50/20 data-[state=active]:border-[#16A34A] data-[state=active]:bg-green-50/60 data-[state=active]:shadow-lg data-[state=active]:shadow-green-100 transition-all duration-200 disabled:opacity-40 text-left p-0 h-auto"
                   >
-                    {/* Faixa superior verde */}
-                    <div className="absolute top-0 inset-x-0 h-1.5 bg-[#22C55E] rounded-t-[22px]" />
-                    {/* Checkmark no canto superior direito */}
-                    <span className="absolute top-2.5 right-3 w-5 h-5 rounded-full bg-[#22C55E] items-center justify-center shadow-md hidden group-data-[state=active]:flex">
-                      <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                    {/* Faixa superior — só aparece quando ativo */}
+                    <div className="absolute top-0 inset-x-0 h-[3px] bg-[#16A34A] rounded-t-[14px] opacity-0 group-data-[state=active]:opacity-100 transition-opacity duration-200" />
+                    {/* Checkmark */}
+                    <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-[#16A34A] items-center justify-center shadow hidden group-data-[state=active]:flex">
+                      <Check className="w-3 h-3 text-white" strokeWidth={3.5} />
                     </span>
-                    <div className="flex items-center gap-3 px-4 pt-4 pb-3">
-                      <div className="w-9 h-9 rounded-xl bg-green-100 flex items-center justify-center shrink-0 text-[13px]">✈️</div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-[14px] font-bold text-slate-900 leading-tight">Com Transporte</h3>
-                          <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[11px] font-black tabular-nums">
+                    <div className="flex items-center gap-3.5 px-4 pt-4 pb-4">
+                      <div className="w-10 h-10 rounded-xl bg-slate-100 group-data-[state=active]:bg-green-100 flex items-center justify-center shrink-0 transition-colors duration-200 text-[15px]">✈️</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <h3 className="text-[14px] font-bold text-slate-800 leading-tight">Com Transporte</h3>
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[11px] font-black tabular-nums group-data-[state=active]:bg-green-100 group-data-[state=active]:text-green-700 transition-colors duration-200">
                             {withTicket.length}
                           </span>
                         </div>
-                        <p className="text-[11px] font-medium mt-0.5 text-slate-400">Aéreo · Rodoviário · Van</p>
-                        <p className="text-[11px] font-medium text-green-500">
+                        <p className="text-[11px] font-medium text-slate-400 leading-tight">Aéreo · Rodoviário · Van</p>
+                        <p className="text-[11px] font-medium text-green-500 group-[&:not([data-state=active])]:text-slate-400 leading-tight">
                           {withTicketPending > 0 && filters.escalationStatus !== "pending"
                             ? `${withTicketPending} pendente${withTicketPending !== 1 ? 's' : ''} de escalação`
-                            : <span className="text-slate-300">Todos escalados</span>}
+                            : 'Todos escalados'}
                         </p>
                       </div>
                     </div>
@@ -1180,16 +1180,16 @@ export default function Scaling() {
                             {withoutTicket.map((inclusion, rowIdx) => (
                               <tr
                                 key={inclusion.id}
-                                className={`transition-colors cursor-pointer ${rowIdx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'} hover:bg-blue-50/30 ${inclusion.status === 'cancelado' ? 'opacity-50' : ''}`}
+                                className={`group/row transition-colors cursor-pointer ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'} hover:bg-blue-50/50 ${inclusion.status === 'cancelado' ? 'opacity-50' : ''}`}
                                 onClick={() => handleRowClick(inclusion)}
                               >
                                 <td className="px-4 py-3 whitespace-nowrap">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[11px] font-bold text-[#2563EB] bg-blue-50 px-2.5 py-1 rounded-lg font-mono">
+                                    <span className="text-[11px] font-bold text-[#2563EB] bg-blue-50 px-2.5 py-1 rounded-lg font-mono border border-blue-100">
                                       #{inclusion.inclusionNumber || 'N/A'}
                                     </span>
                                     <button
-                                      className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:bg-[#2563EB] hover:text-white transition-all"
+                                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 group-hover/row:text-slate-500 hover:!bg-[#2563EB] hover:!text-white transition-all duration-150 border border-transparent hover:border-[#2563EB]"
                                       onClick={(e) => handleViewComments(e, inclusion)}
                                       title="Ver detalhes"
                                     >
@@ -1198,10 +1198,10 @@ export default function Scaling() {
                                   </div>
                                 </td>
                                 <td className="px-4 py-3">
-                                  <div className="text-[13px] font-bold text-slate-900 leading-tight">
+                                  <div className="text-[13px] font-bold text-slate-800 leading-tight">
                                     {getFunctionName(inclusion.functionId)}
                                   </div>
-                                  <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-blue-50 text-[#2563EB] text-[10px] font-semibold border border-blue-100">
+                                  <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-blue-50 text-[#2563EB] text-[10px] font-semibold border border-blue-100/80">
                                     <CalendarDays className="w-2.5 h-2.5 shrink-0" />
                                     <span className="break-words truncate max-w-[200px]">{getEventName(inclusion.eventId)}</span>
                                   </span>
@@ -1332,16 +1332,16 @@ export default function Scaling() {
                             {withTicket.map((inclusion, rowIdx) => (
                               <tr
                                 key={inclusion.id}
-                                className={`transition-colors cursor-pointer ${rowIdx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'} hover:bg-blue-50/30 ${inclusion.status === 'cancelado' ? 'opacity-50' : ''}`}
+                                className={`group/row transition-colors cursor-pointer ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'} hover:bg-blue-50/50 ${inclusion.status === 'cancelado' ? 'opacity-50' : ''}`}
                                 onClick={() => handleRowClick(inclusion)}
                               >
                                 <td className="px-4 py-3 whitespace-nowrap">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[11px] font-bold text-[#2563EB] bg-blue-50 px-2.5 py-1 rounded-lg font-mono">
+                                    <span className="text-[11px] font-bold text-[#2563EB] bg-blue-50 px-2.5 py-1 rounded-lg font-mono border border-blue-100">
                                       #{inclusion.inclusionNumber || 'N/A'}
                                     </span>
                                     <button
-                                      className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:bg-[#2563EB] hover:text-white transition-all"
+                                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 group-hover/row:text-slate-500 hover:!bg-[#2563EB] hover:!text-white transition-all duration-150 border border-transparent hover:border-[#2563EB]"
                                       onClick={(e) => handleViewComments(e, inclusion)}
                                       title="Ver detalhes"
                                     >
@@ -1350,10 +1350,10 @@ export default function Scaling() {
                                   </div>
                                 </td>
                                 <td className="px-4 py-3">
-                                  <div className="text-[13px] font-bold text-slate-900 leading-tight">
+                                  <div className="text-[13px] font-bold text-slate-800 leading-tight">
                                     {getFunctionName(inclusion.functionId)}
                                   </div>
-                                  <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-blue-50 text-[#2563EB] text-[10px] font-semibold border border-blue-100">
+                                  <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-blue-50 text-[#2563EB] text-[10px] font-semibold border border-blue-100/80">
                                     <CalendarDays className="w-2.5 h-2.5 shrink-0" />
                                     <span className="break-words truncate max-w-[200px]">{getEventName(inclusion.eventId)}</span>
                                   </span>
