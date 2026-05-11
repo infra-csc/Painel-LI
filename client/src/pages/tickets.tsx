@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plane, Bus, Truck, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit, CheckCircle, Clock, Ticket as TicketIcon, CreditCard, Paperclip, NotebookPen, ClipboardCheck } from "lucide-react";
+import { Plane, Bus, Truck, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit, CheckCircle, Clock, Ticket as TicketIcon, CreditCard, Paperclip, NotebookPen, ClipboardCheck, History } from "lucide-react";
 import EventCombobox from "@/components/ui/event-combobox";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
 import FunctionMultiSelect from "@/components/ui/function-multi-select";
@@ -21,7 +21,7 @@ import { isReadOnly, canEdit, canPerformActions } from "@/lib/interactions";
 import { canView, canEdit as canEditScreen } from "@/lib/permissions";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
-import type { TeamInclusion, Event, Function, Collaborator, Ticket, Comment } from "@shared/schema";
+import type { TeamInclusion, Event, Function, Collaborator, Ticket, Comment, TeamInclusionLog } from "@shared/schema";
 
 export default function Tickets() {
   const { user } = useAuth();
@@ -48,6 +48,7 @@ export default function Tickets() {
   });
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [modalActiveTab, setModalActiveTab] = useState<string>('resumo');
+  const [showAllLogs, setShowAllLogs] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -95,6 +96,11 @@ export default function Tickets() {
   // Buscar comentários para mostrar na modal
   const { data: comments } = useQuery<Comment[]>({
     queryKey: ["/api/comments", selectedInclusion?.id],
+    enabled: !!selectedInclusion?.id,
+  });
+
+  const { data: inclusionLogs } = useQuery<TeamInclusionLog[]>({
+    queryKey: ["/api/team-inclusions", selectedInclusion?.id, "logs"],
     enabled: !!selectedInclusion?.id,
   });
 
@@ -2146,6 +2152,80 @@ export default function Tickets() {
                                 <div className="text-sm text-slate-700 whitespace-pre-wrap">{ticket.ticketObservations}</div>
                               </div>
                             )}
+
+                            {/* Datas Sugeridas (view mode) */}
+                            {(() => {
+                              const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined, selectedInclusion);
+                              const notEmpty = (v: string) => v && v !== 'N/A' && v !== 'Não definido' && v !== 'Não informado';
+                              const hasAny = notEmpty(travelInfo.ida) || notEmpty(travelInfo.retorno) || notEmpty(travelInfo.chegada) || notEmpty(travelInfo.horario);
+                              if (!hasAny) return null;
+                              return (
+                                <div className="border border-blue-200 rounded-2xl overflow-hidden">
+                                  <div className="bg-blue-50 border-b border-blue-200 px-4 py-2.5 flex items-center gap-2">
+                                    <Plane className="w-3.5 h-3.5 text-blue-500" />
+                                    <span className="text-[11px] font-black text-blue-600 uppercase tracking-[0.12em]">Datas Sugeridas</span>
+                                  </div>
+                                  <div className="p-3 grid grid-cols-2 gap-2">
+                                    <div className="bg-white border border-blue-100 rounded-xl p-2.5">
+                                      <div className="text-[10px] font-black uppercase tracking-[0.12em] text-blue-400 mb-1.5">🛫 IDA</div>
+                                      <div className="text-[11px] text-slate-500">Data</div>
+                                      <div className="text-[12px] font-semibold text-slate-700">{notEmpty(travelInfo.ida) ? formatSuggestionDate(travelInfo.ida) : '—'}</div>
+                                      <div className="text-[11px] text-slate-500 mt-1">Horário</div>
+                                      <div className="text-[12px] font-semibold text-slate-700">{notEmpty(travelInfo.chegada) ? travelInfo.chegada : '—'}</div>
+                                    </div>
+                                    <div className="bg-white border border-blue-100 rounded-xl p-2.5">
+                                      <div className="text-[10px] font-black uppercase tracking-[0.12em] text-blue-400 mb-1.5">🛬 VOLTA</div>
+                                      <div className="text-[11px] text-slate-500">Data</div>
+                                      <div className="text-[12px] font-semibold text-slate-700">{notEmpty(travelInfo.retorno) ? formatSuggestionDate(travelInfo.retorno) : '—'}</div>
+                                      <div className="text-[11px] text-slate-500 mt-1">Horário</div>
+                                      <div className="text-[12px] font-semibold text-slate-700">{notEmpty(travelInfo.horario) ? travelInfo.horario : '—'}</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
+                            {/* Anexos (view mode) */}
+                            {ticket.attachmentIds && ticket.attachmentIds.length > 0 && (
+                              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                                <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center gap-2">
+                                  <FileText className="w-4 h-4 text-slate-400" />
+                                  <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Anexos</span>
+                                  <span className="ml-auto text-[10px] text-slate-400">{ticket.attachmentIds.length} arquivo(s)</span>
+                                </div>
+                                <div className="p-4 space-y-2">
+                                  {ticket.attachmentIds.map((attachmentId, index) => (
+                                    <div
+                                      key={attachmentId}
+                                      className="flex items-center gap-3 bg-white border border-slate-200 hover:border-[#2563EB] hover:bg-blue-50 rounded-xl px-4 py-3 cursor-pointer transition-all group"
+                                      onClick={async () => {
+                                        try {
+                                          const response = await fetch(`/api/attachments/${attachmentId}`);
+                                          const attachmentData = await response.json();
+                                          if (response.ok && attachmentData.viewUrl && attachmentData.viewUrl !== "#") {
+                                            const isViewable = attachmentData.type?.includes('pdf') || attachmentData.type?.includes('image');
+                                            window.open(isViewable ? attachmentData.viewUrl : attachmentData.downloadUrl, '_blank');
+                                          } else {
+                                            toast({ title: "Anexo não disponível", variant: "destructive" });
+                                          }
+                                        } catch {
+                                          toast({ title: "Erro ao abrir anexo", variant: "destructive" });
+                                        }
+                                      }}
+                                    >
+                                      <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
+                                        <FileText className="w-4 h-4 text-[#2563EB]" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-[13px] font-semibold text-slate-700">Arquivo {index + 1}</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">Documento anexado · clique para visualizar</div>
+                                      </div>
+                                      <Eye className="w-4 h-4 text-slate-300 group-hover:text-[#2563EB] transition-colors flex-shrink-0" />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           /* FORM MODE */
@@ -2264,6 +2344,19 @@ export default function Tickets() {
                                       />
                                     </div>
                                   </div>
+                                  <div className="mt-3">
+                                    <Label htmlFor={`cardLastFourDigits-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Últimos 4 dígitos do cartão</Label>
+                                    <Input
+                                      id={`cardLastFourDigits-${selectedInclusion.id}`}
+                                      placeholder="1234"
+                                      maxLength={4}
+                                      value={data.cardLastFourDigits || ""}
+                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                      className="font-mono max-w-[140px]"
+                                      data-testid={`input-card-digits-${selectedInclusion.id}`}
+                                      disabled={roMode || !canEditTicket}
+                                    />
+                                  </div>
                                 </div>
 
                                 {/* Viagem: IDA + VOLTA lado a lado */}
@@ -2361,6 +2454,68 @@ export default function Tickets() {
                                 </div>
                               </>
                             )}
+
+                            {/* Datas Sugeridas — visíveis durante o preenchimento */}
+                            {(() => {
+                              const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined, selectedInclusion);
+                              const notEmpty = (v: string) => v && v !== 'N/A' && v !== 'Não definido' && v !== 'Não informado';
+                              const hasAny = notEmpty(travelInfo.ida) || notEmpty(travelInfo.retorno) || notEmpty(travelInfo.chegada) || notEmpty(travelInfo.horario);
+                              if (!hasAny) return null;
+                              return (
+                                <div className="border border-blue-200 rounded-2xl overflow-hidden">
+                                  <div className="bg-blue-50 border-b border-blue-200 px-4 py-2.5 flex items-center gap-2">
+                                    <Plane className="w-3.5 h-3.5 text-blue-500" />
+                                    <span className="text-[11px] font-black text-blue-600 uppercase tracking-[0.12em]">Datas Sugeridas</span>
+                                    <span className="ml-auto text-[10px] text-blue-400 font-medium">Referência para preenchimento</span>
+                                  </div>
+                                  <div className="p-3 grid grid-cols-2 gap-2">
+                                    <div className="bg-white border border-blue-100 rounded-xl p-2.5">
+                                      <div className="text-[10px] font-black uppercase tracking-[0.12em] text-blue-400 mb-1.5">🛫 IDA</div>
+                                      <div className="text-[11px] text-slate-500">Data</div>
+                                      <div className="text-[12px] font-semibold text-slate-700">{notEmpty(travelInfo.ida) ? formatSuggestionDate(travelInfo.ida) : '—'}</div>
+                                      <div className="text-[11px] text-slate-500 mt-1">Horário</div>
+                                      <div className="text-[12px] font-semibold text-slate-700">{notEmpty(travelInfo.chegada) ? travelInfo.chegada : '—'}</div>
+                                    </div>
+                                    <div className="bg-white border border-blue-100 rounded-xl p-2.5">
+                                      <div className="text-[10px] font-black uppercase tracking-[0.12em] text-blue-400 mb-1.5">🛬 VOLTA</div>
+                                      <div className="text-[11px] text-slate-500">Data</div>
+                                      <div className="text-[12px] font-semibold text-slate-700">{notEmpty(travelInfo.retorno) ? formatSuggestionDate(travelInfo.retorno) : '—'}</div>
+                                      <div className="text-[11px] text-slate-500 mt-1">Horário</div>
+                                      <div className="text-[12px] font-semibold text-slate-700">{notEmpty(travelInfo.horario) ? travelInfo.horario : '—'}</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
+                            {/* Observações */}
+                            <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                              <Label htmlFor={`ticketObservations-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Observações sobre a Passagem</Label>
+                              <Textarea
+                                id={`ticketObservations-${selectedInclusion.id}`}
+                                placeholder="Informações adicionais sobre a passagem..."
+                                value={data.ticketObservations || ""}
+                                onChange={(e) => handleTicketDataChange(selectedInclusion.id, "ticketObservations", e.target.value)}
+                                className="h-24 resize-none"
+                                data-testid={`textarea-ticket-observations-${selectedInclusion.id}`}
+                                disabled={roMode || !canEditTicket}
+                              />
+                            </div>
+
+                            {/* Anexos */}
+                            <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                              <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-slate-400" />
+                                <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Anexos</span>
+                              </div>
+                              <div className="p-4">
+                                <AttachmentUpload
+                                  attachmentIds={data.attachmentIds || []}
+                                  onAttachmentsChange={(attachmentIds) => handleTicketDataChange(selectedInclusion.id, "attachmentIds", attachmentIds)}
+                                  disabled={createTicketMutation.isPending || roMode}
+                                />
+                              </div>
+                            </div>
                           </div>
                         )}
                       </TabsContent>
@@ -2369,115 +2524,8 @@ export default function Tickets() {
                       <TabsContent value="complementos" className="m-0 p-6">
                         <div className="grid grid-cols-2 gap-6">
 
-                          {/* Coluna Esquerda: Cartão + Observações */}
+                          {/* Coluna Esquerda: Comentários */}
                           <div className="space-y-4">
-                            {/* Cartão */}
-                            {!isFormMode ? (
-                              ticket?.cardLastFourDigits ? (
-                                <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4">
-                                  <div className={lbl}>Cartão Utilizado</div>
-                                  <div className="text-[15px] font-bold text-slate-700 font-mono mt-1">****{ticket.cardLastFourDigits}</div>
-                                </div>
-                              ) : null
-                            ) : (
-                              <div className="bg-white border border-slate-200 rounded-2xl p-4">
-                                <Label htmlFor={`cardLastFourDigits-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Últimos 4 dígitos do cartão</Label>
-                                <Input
-                                  id={`cardLastFourDigits-${selectedInclusion.id}`}
-                                  placeholder="1234"
-                                  maxLength={4}
-                                  value={data.cardLastFourDigits || ""}
-                                  onChange={(e) => handleTicketDataChange(selectedInclusion.id, "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
-                                  className="font-mono"
-                                  data-testid={`input-card-digits-${selectedInclusion.id}`}
-                                  disabled={roMode || !canEditTicket}
-                                />
-                              </div>
-                            )}
-
-                            {/* Observações */}
-                            {!isFormMode ? (
-                              ticket?.ticketObservations ? (
-                                <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4">
-                                  <div className={lbl}>Observações</div>
-                                  <div className="text-sm text-slate-700 whitespace-pre-wrap mt-1">{ticket.ticketObservations}</div>
-                                </div>
-                              ) : null
-                            ) : (
-                              <div className="bg-white border border-slate-200 rounded-2xl p-4">
-                                <Label htmlFor={`ticketObservations-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Observações sobre a Passagem</Label>
-                                <Textarea
-                                  id={`ticketObservations-${selectedInclusion.id}`}
-                                  placeholder="Informações adicionais sobre a passagem..."
-                                  value={data.ticketObservations || ""}
-                                  onChange={(e) => handleTicketDataChange(selectedInclusion.id, "ticketObservations", e.target.value)}
-                                  className="h-24 resize-none"
-                                  data-testid={`textarea-ticket-observations-${selectedInclusion.id}`}
-                                  disabled={roMode || !canEditTicket}
-                                />
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Coluna Direita: Anexos + Comentários */}
-                          <div className="space-y-4">
-                            {/* Anexos */}
-                            <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                              <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center gap-2">
-                                <FileText className="w-4 h-4 text-slate-400" />
-                                <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Anexos</span>
-                              </div>
-                              <div className="p-4">
-                                {!isFormMode ? (
-                                  ticket?.attachmentIds && ticket.attachmentIds.length > 0 ? (
-                                    <div className="space-y-2">
-                                      {ticket.attachmentIds.map((attachmentId, index) => (
-                                        <div
-                                          key={attachmentId}
-                                          className="flex items-center gap-3 bg-white border border-slate-200 hover:border-[#2563EB] hover:bg-blue-50 rounded-xl px-4 py-3 cursor-pointer transition-all group"
-                                          onClick={async () => {
-                                            try {
-                                              const response = await fetch(`/api/attachments/${attachmentId}`);
-                                              const attachmentData = await response.json();
-                                              if (response.ok && attachmentData.viewUrl && attachmentData.viewUrl !== "#") {
-                                                const isViewable = attachmentData.type?.includes('pdf') || attachmentData.type?.includes('image');
-                                                window.open(isViewable ? attachmentData.viewUrl : attachmentData.downloadUrl, '_blank');
-                                              } else {
-                                                toast({ title: "Anexo não disponível", variant: "destructive" });
-                                              }
-                                            } catch {
-                                              toast({ title: "Erro ao abrir anexo", variant: "destructive" });
-                                            }
-                                          }}
-                                        >
-                                          <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
-                                            <FileText className="w-4 h-4 text-[#2563EB]" />
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                            <div className="text-[13px] font-semibold text-slate-700">Arquivo {index + 1}</div>
-                                            <div className="text-[10px] text-slate-400 mt-0.5">Documento anexado · clique para visualizar</div>
-                                          </div>
-                                          <Eye className="w-4 h-4 text-slate-300 group-hover:text-[#2563EB] transition-colors flex-shrink-0" />
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center gap-2.5 py-3 px-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-                                      <FileText className="w-4 h-4 text-slate-300" />
-                                      <span className="text-sm text-slate-400">Nenhum anexo disponível.</span>
-                                    </div>
-                                  )
-                                ) : (
-                                  <AttachmentUpload
-                                    attachmentIds={data.attachmentIds || []}
-                                    onAttachmentsChange={(attachmentIds) => handleTicketDataChange(selectedInclusion.id, "attachmentIds", attachmentIds)}
-                                    disabled={createTicketMutation.isPending || roMode}
-                                  />
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Comentários */}
                             <div className="border border-slate-200 rounded-2xl overflow-hidden">
                               <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
@@ -2494,9 +2542,9 @@ export default function Tickets() {
                               </div>
                               <div className="p-4">
                                 {comments && comments.length > 0 ? (
-                                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                                    {comments.slice(-3).map((comment) => (
-                                      <div key={comment.id} className="bg-white border border-slate-200 p-3 rounded-xl">
+                                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                                    {comments.map((comment) => (
+                                      <div key={comment.id} className="bg-white border border-slate-200 p-3 rounded-xl shadow-sm">
                                         <div className="flex justify-between items-center mb-1.5">
                                           <div className="flex items-center gap-2">
                                             <div className="w-5 h-5 rounded-full bg-[#2563EB] text-white flex items-center justify-center text-[9px] font-black shrink-0">
@@ -2506,23 +2554,81 @@ export default function Tickets() {
                                           </div>
                                           <div className="text-[10px] text-slate-400">{comment.createdAt ? new Date(comment.createdAt).toLocaleDateString('pt-BR') : ''}</div>
                                         </div>
-                                        <div className="text-[12px] text-slate-600">{comment.content.length > 120 ? `${comment.content.substring(0, 120)}...` : comment.content}</div>
+                                        <div className="text-[12px] text-slate-600 leading-relaxed">{comment.content}</div>
                                       </div>
                                     ))}
-                                    {comments.length > 3 && (
-                                      <button onClick={() => setShowCommentsModal(true)} className="text-[11px] text-blue-600 hover:underline font-medium w-full text-center py-1">
-                                        Ver todos os {comments.length} comentários →
-                                      </button>
-                                    )}
                                   </div>
                                 ) : (
-                                  <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center py-6">
+                                  <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center py-8">
                                     <MessageCircle className="w-6 h-6 text-slate-200 mx-auto mb-2" />
                                     <div className="text-[12px] text-slate-400">Nenhum comentário registrado.</div>
                                   </div>
                                 )}
                               </div>
                             </div>
+                          </div>
+
+                          {/* Coluna Direita: Histórico */}
+                          <div>
+                            <div className="flex items-center gap-2 mb-3">
+                              <History className="w-4 h-4 text-slate-400" />
+                              <span className="text-[12px] font-black text-slate-600 uppercase tracking-[0.1em]">Histórico</span>
+                              {inclusionLogs && inclusionLogs.length > 0 && (
+                                <span className="text-[10px] text-slate-400">{inclusionLogs.length} entr.</span>
+                              )}
+                            </div>
+                            {!inclusionLogs || inclusionLogs.length === 0 ? (
+                              <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center py-8">
+                                <History className="w-6 h-6 text-slate-200 mx-auto mb-2" />
+                                <div className="text-[12px] text-slate-400">Nenhum histórico encontrado.</div>
+                              </div>
+                            ) : (
+                              <div>
+                                <div className="border-l-2 border-slate-100 ml-3 pl-4 space-y-2 max-h-72 overflow-y-auto">
+                                  {inclusionLogs
+                                    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+                                    .slice(0, showAllLogs ? undefined : 5)
+                                    .map((log) => {
+                                      const actionLabels: Record<string, string> = {
+                                        'status_changed': '🔄 Status Alterado',
+                                        'collaborator_changed': '👤 Colaborador Alterado',
+                                        'dates_changed': '📅 Período Alterado',
+                                        'travel_dates_changed': '✈️ Datas de Viagem',
+                                        'observations_changed': '📝 Observações',
+                                        'ticket_created': '🎫 Passagem Criada',
+                                        'ticket_updated': '✏️ Passagem Atualizada',
+                                        'created': '✨ Criado',
+                                        'confirmed': '✅ Confirmado',
+                                        'reopened': '🔓 Reaberto',
+                                      };
+                                      return (
+                                        <div key={log.id} className="flex gap-3">
+                                          <div className="w-2.5 h-2.5 bg-[#2563EB] rounded-full -ml-[1.3rem] mt-2.5 flex-shrink-0 ring-4 ring-white" />
+                                          <div className="flex-1 min-w-0 bg-white border border-slate-100 rounded-xl px-3 py-2 shadow-sm">
+                                            <div className="flex items-start justify-between gap-2">
+                                              <div className="text-[11px] font-bold text-slate-700">{actionLabels[log.action] || log.action}</div>
+                                              <div className="text-[10px] text-slate-400 whitespace-nowrap flex-shrink-0">
+                                                {log.createdAt && new Date(log.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                              </div>
+                                            </div>
+                                            {log.details && <div className="text-[11px] text-slate-500 mt-0.5">{log.details}</div>}
+                                            <div className="text-[10px] font-semibold mt-1" style={{ color: '#2563EB' }}>↳ {log.userName}</div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+                                {!showAllLogs && inclusionLogs.length > 5 && (
+                                  <button
+                                    onClick={() => setShowAllLogs(true)}
+                                    className="text-xs font-medium mt-2 ml-7 hover:underline"
+                                    style={{ color: '#2563EB' }}
+                                  >
+                                    Ver todos ({inclusionLogs.length - 5} mais)
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                         </div>

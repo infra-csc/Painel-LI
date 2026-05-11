@@ -1,0 +1,110 @@
+Fazer apenas ajustes pontuais no modal “Registro de Passagem”, mantendo a estrutura atual com abas e o visual já melhorado.
+
+Não refazer o modal inteiro.
+Não mudar a paleta.
+Não alterar a lógica de negócio.
+Não remover campos.
+Não mexer no que já está funcionando.
+Apenas corrigir os pontos abaixo.
+
+PROBLEMAS A CORRIGIR
+
+1. Observações precisam ficar na mesma aba de registro
+Hoje o campo de observações foi jogado para a aba “Complementos”, mas isso atrapalha o fluxo.
+
+A pessoa precisa visualizar e preencher as observações enquanto registra a passagem.
+
+Ajuste:
+- mover o campo “Observações sobre a Passagem” para a aba “Dados da Passagem”
+- esse campo deve ficar na mesma tela onde a pessoa escolhe modalidade e preenche ida/volta
+- manter boa organização visual
+- não deixar o campo muito distante do restante do formulário
+- idealmente posicionar após “Informações de Viagem” ou em um bloco inferior da mesma aba
+
+2. Datas sugeridas precisam ficar na mesma aba de registro
+Hoje as datas sugeridas estão no Resumo, mas a pessoa também precisa ver isso no momento do preenchimento.
+
+Ajuste:
+- exibir também as “Datas sugeridas” dentro da aba “Dados da Passagem”
+- mostrar as sugestões de ida e volta na mesma tela onde a pessoa registra os dados
+- essas sugestões devem ser visíveis sem precisar voltar para a aba Resumo
+- usar um card compacto e elegante, sem ocupar espaço excessivo
+- manter leitura rápida:
+  - Ida: data + horário sugerido
+  - Volta: data + horário sugerido
+
+Importante:
+pode continuar existindo no Resumo também, mas obrigatoriamente deve aparecer na aba “Dados da Passagem”.
+
+3. Anexos precisam ficar na mesma aba de registro
+Hoje os anexos foram jogados para “Complementos”, mas isso quebra o fluxo.
+
+A pessoa precisa anexar comprovantes/documentos no momento em que registra a passagem.
+
+Ajuste:
+- mover a área de anexos para a aba “Dados da Passagem”
+- deixar os anexos na mesma tela do registro
+- manter uma área de upload elegante e compacta
+- se houver arquivo anexado, mostrar lista/card do anexo
+- se não houver, manter a área pronta para upload
+
+Importante:
+anexos devem ficar na mesma aba do registro, não separados em outra aba.
+
+4. Histórico do card está faltando
+Nesta tela está faltando o histórico/card de histórico.
+
+Ajuste:
+- incluir a seção de histórico nesta experiência
+- pode ficar na aba “Complementos” ou em uma seção própria no final, desde que fique acessível
+- mostrar histórico das alterações/ações relacionadas à passagem
+- usar visual de card/timeline compacto
+- manter o padrão visual do modal de escalação
+- mostrar pelo menos:
+  - ação realizada
+  - descrição
+  - autor
+  - data/hora
+
+5. Reorganização das abas
+Com esses ajustes, reorganizar assim:
+
+ABA “Resumo”
+- informações de contexto
+- evento
+- colaborador
+- função
+- documento
+- data de nascimento
+- período de trabalho
+- status
+- sugestões de viagem podem continuar aqui também
+
+ABA “Dados da Passagem”
+Essa deve ser a aba principal de trabalho e precisa conter:
+- configuração da passagem
+- modalidade
+- switch “Apenas ida”
+- informações da compra
+- informações de viagem
+- datas sugeridas
+- observações
+- anexos
+
+ABA “Complementos”
+Deixar apenas conteúdos secundários, como:
+- histórico
+- comentários, se fizer sentido manter aqui
+
+Importante:
+a aba “Dados da Passagem” deve concentrar o que a pessoa precisa consultar e preencher para registrar a passagem sem precisar ficar trocando de aba toda hora.
+
+6. Critérios de aceite
+- Observações aparecem na aba “Dados da Passagem”
+- Datas sugeridas aparecem também na aba “Dados da Passagem”
+- Anexos aparecem na aba “Dados da Passagem”
+- O histórico volta a existir nessa experiência
+- O fluxo de registro fica mais prático
+- A pessoa consegue registrar a passagem com menos troca de aba
+- O modal continua bonito e no padrão visual atual
+- Não houve regressão na lógica do formulário
