@@ -154,12 +154,7 @@ export default function Accommodations() {
         [inclusion.id]: {
           hotelName: acc.hotelName || '',
           hotelLocation: acc.hotelLocation || '',
-          checkInDate: acc.checkInDate || '',
-          checkInTime: acc.checkInTime || '',
-          checkOutDate: acc.checkOutDate || '',
-          checkOutTime: acc.checkOutTime || '',
           reservationNumber: acc.reservationNumber || '',
-          dailyRate: acc.dailyRate ? (acc.dailyRate / 100).toString() : '',
           accommodationObservations: acc.accommodationObservations || '',
           attachmentIds: acc.attachmentIds || [],
           ...prev[inclusion.id],
@@ -201,12 +196,7 @@ export default function Accommodations() {
           teamInclusionId: selectedInclusion.id,
           hotelName: data.hotelName || null,
           hotelLocation: data.hotelLocation || null,
-          checkInDate: data.checkInDate || null,
-          checkInTime: data.checkInTime || null,
-          checkOutDate: data.checkOutDate || null,
-          checkOutTime: data.checkOutTime || null,
           reservationNumber: data.reservationNumber || null,
-          dailyRate: data.dailyRate ? Math.round(parseFloat(String(data.dailyRate)) * 100) : null,
           accommodationObservations: data.accommodationObservations || null,
           attachmentIds: data.attachmentIds || [],
           updatedBy: user?.id,
@@ -373,22 +363,6 @@ export default function Accommodations() {
                           <div className={lbl}>Localização</div>
                           <div className={val}>{accommodation.hotelLocation || '—'}</div>
                         </div>
-                        {(accommodation.checkInDate || accommodation.checkOutDate) && (
-                          <div className="grid grid-cols-2 gap-2 pt-1">
-                            {accommodation.checkInDate && (
-                              <div>
-                                <div className={lbl}>Check-in</div>
-                                <div className={val}>{formatDate(accommodation.checkInDate)}{accommodation.checkInTime && ` · ${accommodation.checkInTime}`}</div>
-                              </div>
-                            )}
-                            {accommodation.checkOutDate && (
-                              <div>
-                                <div className={lbl}>Check-out</div>
-                                <div className={val}>{formatDate(accommodation.checkOutDate)}{accommodation.checkOutTime && ` · ${accommodation.checkOutTime}`}</div>
-                              </div>
-                            )}
-                          </div>
-                        )}
                         {accommodation.reservationNumber && (
                           <div>
                             <div className={lbl}>Reserva</div>
@@ -446,70 +420,6 @@ export default function Accommodations() {
                       disabled={roMode}
                     />
                   </div>
-                </div>
-
-                {/* Check-in / Check-out */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-                    <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">🏨 Check-in</div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Data</Label>
-                        <Input
-                          type="date"
-                          value={data.checkInDate || ""}
-                          onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "checkInDate", e.target.value)}
-                          disabled={roMode}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Horário</Label>
-                        <Input
-                          type="time"
-                          value={data.checkInTime || ""}
-                          onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "checkInTime", e.target.value)}
-                          disabled={roMode}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-                    <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">🚪 Check-out</div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Data</Label>
-                        <Input
-                          type="date"
-                          value={data.checkOutDate || ""}
-                          onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "checkOutDate", e.target.value)}
-                          disabled={roMode}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Horário</Label>
-                        <Input
-                          type="time"
-                          value={data.checkOutTime || ""}
-                          onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "checkOutTime", e.target.value)}
-                          disabled={roMode}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Diária */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-4">
-                  <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Valor da Diária (R$)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    placeholder="0,00"
-                    value={data.dailyRate || ""}
-                    onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "dailyRate", e.target.value)}
-                    className="max-w-[180px]"
-                    disabled={roMode}
-                  />
                 </div>
 
                 {/* Observações */}
@@ -1579,7 +1489,7 @@ export default function Accommodations() {
 
       {/* Modal de Hospedagem */}
       <Dialog open={showModal} onOpenChange={setShowModal} modal={!showSuccessModal}>
-        <AccommodationModal />
+        {AccommodationModal()}
       </Dialog>
 
       {/* Modal de sucesso — portal no body para escapar do transform do Dialog */}
