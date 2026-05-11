@@ -266,7 +266,7 @@ export default function Accommodations() {
                   : <span className="ml-1.5 bg-amber-100 text-amber-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">!</span>
                 }
               </TabsTrigger>
-              <TabsTrigger value="complementos" className={tabTrigger}>Complementos</TabsTrigger>
+              <TabsTrigger value="complementos" className={tabTrigger}>Complementos e Histórico</TabsTrigger>
             </TabsList>
           </div>
 
