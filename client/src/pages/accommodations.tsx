@@ -734,6 +734,30 @@ export default function Accommodations() {
   }, [accommodations]);
 
 
+  // Função auxiliar para obter valor de campo para ordenação
+  const getFieldValue = (inclusion: TeamInclusion, field: string) => {
+    const event = events?.find(e => e.id === inclusion.eventId);
+    const func = functions?.find(f => f.id === inclusion.functionId);
+    const collaborator = collaborators?.find(c => c.id === inclusion.collaboratorId);
+    const accommodation = accommodationMap.get(inclusion.id);
+
+    switch (field) {
+      case 'id': return inclusion.inclusionNumber || 0;
+      case 'event': return event?.name || '';
+      case 'function': return func?.name || '';
+      case 'collaborator': return fixEncoding(collaborator?.fullName) || '';
+      case 'eventName': return event?.name || '';
+      case 'functionName': return func?.name || '';
+      case 'collaboratorName': return fixEncoding(collaborator?.fullName) || '';
+      case 'inclusionNumber': return inclusion.inclusionNumber || '';
+      case 'checkInDate': return accommodation?.checkInDate || null;
+      case 'checkOutDate': return accommodation?.checkOutDate || null;
+      case 'hotelName': return accommodation?.hotelName || '';
+      case 'hotelLocation': return accommodation?.hotelLocation || '';
+      default: return '';
+    }
+  };
+
   // Filtrar e ordenar dados
   const filteredData = useMemo(() => {
     let data = teamInclusionsWithAccommodation.filter(inclusion => {
@@ -776,30 +800,6 @@ export default function Accommodations() {
 
     return data;
   }, [teamInclusionsWithAccommodation, accommodationMap, filters, sortConfig]);
-
-  // Função auxiliar para obter valor de campo para ordenação
-  const getFieldValue = (inclusion: TeamInclusion, field: string) => {
-    const event = events?.find(e => e.id === inclusion.eventId);
-    const func = functions?.find(f => f.id === inclusion.functionId);
-    const collaborator = collaborators?.find(c => c.id === inclusion.collaboratorId);
-    const accommodation = accommodationMap.get(inclusion.id);
-
-    switch (field) {
-      case 'id': return inclusion.inclusionNumber || 0;
-      case 'event': return event?.name || '';
-      case 'function': return func?.name || '';
-      case 'collaborator': return fixEncoding(collaborator?.fullName) || '';
-      case 'eventName': return event?.name || '';
-      case 'functionName': return func?.name || '';
-      case 'collaboratorName': return fixEncoding(collaborator?.fullName) || '';
-      case 'inclusionNumber': return inclusion.inclusionNumber || '';
-      case 'checkInDate': return accommodation?.checkInDate || null;
-      case 'checkOutDate': return accommodation?.checkOutDate || null;
-      case 'hotelName': return accommodation?.hotelName || '';
-      case 'hotelLocation': return accommodation?.hotelLocation || '';
-      default: return '';
-    }
-  };
 
   // Mutations
   const createAccommodationMutation = useMutation({
