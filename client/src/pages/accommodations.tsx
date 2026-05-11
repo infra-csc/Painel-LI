@@ -5,7 +5,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Hotel, Save, Eye, ChevronDown, ChevronRight, MessageCircle, Edit } from "lucide-react";
+import { Hotel, Save, Eye, ChevronDown, ChevronRight, MessageCircle, Edit, FileText, History } from "lucide-react";
+import AttachmentUpload from "@/components/ui/attachment-upload";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StatusBadge from "@/components/common/status-badge";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import EventCombobox from "@/components/ui/event-combobox";
@@ -28,7 +30,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import type { TeamInclusion, Event, Function, Collaborator, Accommodation, Comment } from "@shared/schema";
+import type { TeamInclusion, Event, Function, Collaborator, Accommodation, Comment, TeamInclusionLog } from "@shared/schema";
 
 // Helper: Mostrar "Escalado" apenas quando não precisa passagem nem hospedagem
 const getDisplayStatus = (inclusion: TeamInclusion) => {
@@ -40,15 +42,6 @@ const getDisplayStatus = (inclusion: TeamInclusion) => {
   return inclusion.status;
 };
 
-// Schema de validação — somente campos necessários
-const accommodationFormSchema = z.object({
-  teamInclusionId: z.string(),
-  hotelName: z.string().min(1, "Nome do hotel é obrigatório"),
-  hotelLocation: z.string().min(1, "Localização é obrigatória"),
-  accommodationObservations: z.string().optional(),
-});
-
-type AccommodationFormData = z.infer<typeof accommodationFormSchema>;
 
 export default function Accommodations() {
   const { user } = useAuth();
@@ -74,6 +67,8 @@ export default function Accommodations() {
     additional: false
   });
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [modalActiveTab, setModalActiveTab] = useState<string>('resumo');
+  const [showAllLogs, setShowAllLogs] = useState(false);
   const [accommodationData, setAccommodationData] = useState<Record<string, any>>({});
   const [selectedInclusionsForBatch, setSelectedInclusionsForBatch] = useState<string[]>([]);
   
@@ -138,55 +133,98 @@ export default function Accommodations() {
     }));
   };
 
-  // Função para visualizar detalhes da hospedagem (similar à handleViewTicketDetails)
+  // Buscar comentários da inclusão selecionada
+  const { data: comments } = useQuery<Comment[]>({
+    queryKey: ["/api/comments", selectedInclusion?.id],
+    enabled: !!selectedInclusion?.id,
+  });
+
+  const { data: inclusionLogs } = useQuery<TeamInclusionLog[]>({
+    queryKey: ["/api/team-inclusions", selectedInclusion?.id, "logs"],
+    enabled: !!selectedInclusion?.id,
+  });
+
+  // Função para visualizar detalhes da hospedagem
   const handleViewAccommodationDetails = (inclusion: TeamInclusion) => {
     if (inclusion.status === 'cancelado') return;
-    
-    
+    const acc = accommodationMap.get(inclusion.id);
+    if (acc) {
+      setAccommodationData(prev => ({
+        ...prev,
+        [inclusion.id]: {
+          hotelName: acc.hotelName || '',
+          hotelLocation: acc.hotelLocation || '',
+          checkInDate: acc.checkInDate || '',
+          checkInTime: acc.checkInTime || '',
+          checkOutDate: acc.checkOutDate || '',
+          checkOutTime: acc.checkOutTime || '',
+          reservationNumber: acc.reservationNumber || '',
+          dailyRate: acc.dailyRate ? (acc.dailyRate / 100).toString() : '',
+          accommodationObservations: acc.accommodationObservations || '',
+          attachmentIds: acc.attachmentIds || [],
+          ...prev[inclusion.id],
+        }
+      }));
+    }
     setSelectedInclusion(inclusion);
     setShowModal(true);
+    setModalActiveTab('resumo');
+    setShowAllLogs(false);
   };
 
-  // Componente do Modal de Hospedagem
+  // Componente do Modal de Hospedagem — design com abas
   const AccommodationModal = () => {
     const accommodation = selectedInclusion ? accommodationMap.get(selectedInclusion.id) : null;
-    // Considera que está editando se existe um registro de accommodation
-    const isEditing = !!accommodation;
     const isPostPurchase = ['hospedagem_comprada', 'hospedagem_passagem_comprada'].includes(selectedInclusion?.status || '');
     const canEditRecord = selectedInclusion && user && canEdit(user) && selectedInclusion.status !== 'cancelado' && !isPostPurchase;
-    
-    // Usar estado do componente pai para anexos (evita reset por re-mount)
-    
-    // Configurar valores padrão do formulário
-    const defaultValues: Partial<AccommodationFormData> = {
-      teamInclusionId: selectedInclusion?.id || '',
-      hotelName: accommodation?.hotelName || '',
-      hotelLocation: accommodation?.hotelLocation || '',
-      accommodationObservations: accommodation?.accommodationObservations || '',
-    };
+    const roMode = !canEditRecord;
 
-    const form = useForm<AccommodationFormData>({
-      resolver: zodResolver(accommodationFormSchema),
-      defaultValues,
-    });
+    if (!selectedInclusion) return null;
 
-    const onSubmit = async (data: AccommodationFormData) => {
+    const data = accommodationData[selectedInclusion.id] || {};
+    const event = events?.find(e => e.id === selectedInclusion.eventId);
+    const func = functions?.find(f => f.id === selectedInclusion.functionId);
+    const collaborator = collaborators?.find(c => c.id === selectedInclusion.collaboratorId);
+
+    const lbl = "text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400 mb-0.5";
+    const val = "text-[13px] font-semibold text-slate-700";
+    const tabTrigger = "relative rounded-none border-b-2 border-transparent data-[state=active]:border-[#2563EB] data-[state=active]:text-[#2563EB] text-slate-500 bg-transparent data-[state=active]:bg-transparent px-4 pb-3 pt-2 text-sm font-medium shadow-none hover:text-slate-700 transition-colors";
+
+    const handleSave = async () => {
       if (!selectedInclusion) return;
+      if (!data.hotelName || !data.hotelLocation) {
+        toast({ title: "Campos obrigatórios", description: "Nome do hotel e localização são obrigatórios", variant: "destructive" });
+        return;
+      }
       try {
+        const payload = {
+          teamInclusionId: selectedInclusion.id,
+          hotelName: data.hotelName || null,
+          hotelLocation: data.hotelLocation || null,
+          checkInDate: data.checkInDate || null,
+          checkInTime: data.checkInTime || null,
+          checkOutDate: data.checkOutDate || null,
+          checkOutTime: data.checkOutTime || null,
+          reservationNumber: data.reservationNumber || null,
+          dailyRate: data.dailyRate ? Math.round(parseFloat(String(data.dailyRate)) * 100) : null,
+          accommodationObservations: data.accommodationObservations || null,
+          attachmentIds: data.attachmentIds || [],
+          updatedBy: user?.id,
+        };
         const msg = accommodation ? "Hospedagem atualizada com sucesso!" : "Hospedagem registrada com sucesso!";
         if (accommodation) {
           pendingAccomAction.current = 'update';
-          await updateAccommodationMutation.mutateAsync({ id: accommodation.id, data });
+          await updateAccommodationMutation.mutateAsync({ id: accommodation.id, data: payload });
         } else {
           pendingAccomAction.current = 'create';
-          await createAccommodationMutation.mutateAsync(data);
+          await createAccommodationMutation.mutateAsync(payload);
         }
         setSuccessInfo({
           message: msg,
           inclusionNumber: selectedInclusion?.inclusionNumber ?? null,
           eventName: events?.find(e => e.id === selectedInclusion?.eventId)?.name ?? "—",
-          collaboratorName: selectedInclusion?.collaboratorId ? getCollaboratorName(selectedInclusion.collaboratorId) : "—",
-          functionName: selectedInclusion?.functionId ? getFunctionName(selectedInclusion.functionId) : "—",
+          collaboratorName: collaborator ? (fixEncoding(collaborator.fullName) || "—") : "—",
+          functionName: func?.name ?? "—",
         });
         setShowModal(false);
         setShowSuccessModal(true);
@@ -194,182 +232,457 @@ export default function Accommodations() {
         console.error('Erro ao salvar hospedagem:', error);
       }
     };
-    
-    if (!selectedInclusion) return null;
-    
-    const event = events?.find(e => e.id === selectedInclusion.eventId);
-    const func = functions?.find(f => f.id === selectedInclusion.functionId);
-    const collaborator = collaborators?.find(c => c.id === selectedInclusion.collaboratorId);
-    
-    const NA = () => <span style={{background:'#F1F5F9',color:'#94A3B8',fontSize:12,padding:'2px 8px',borderRadius:20}}>Não informado</span>;
 
     return (
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
-        {/* Accessibility title (screen reader only) */}
+      <DialogContent className="!max-w-[1100px] w-[95vw] max-h-[88vh] !flex !flex-col p-0 gap-0 overflow-hidden">
         <DialogHeader className="sr-only">
-          <DialogTitle>{isEditing ? 'Editar Hospedagem' : 'Nova Hospedagem'}</DialogTitle>
+          <DialogTitle>Registro de Hospedagem</DialogTitle>
           <DialogDescription>Modal de hospedagem</DialogDescription>
         </DialogHeader>
 
-        {/* Visual header */}
-        <div style={{padding:'24px 24px 16px',borderBottom:'1px solid #E2E8F0'}}>
-          <div style={{display:'flex',alignItems:'flex-start',gap:12,paddingRight:44}}>
-            <span style={{fontSize:22,lineHeight:1}}>🏨</span>
-            <div style={{flex:1}}>
-              <h2 style={{margin:0,fontSize:20,fontWeight:700,color:'#1E293B',lineHeight:1.2}}>
-                {isEditing ? 'Editar Hospedagem' : 'Nova Hospedagem'}
-              </h2>
-              <p style={{margin:'4px 0 0',fontSize:13,color:'#94A3B8'}}>
-                {isEditing ? 'Dados de hospedagem desta inclusão' : 'Preencha os dados de hospedagem para esta inclusão'}
-              </p>
-            </div>
+        {/* ─── HEADER ─── */}
+        <div className="shrink-0 px-6 py-4 flex items-center gap-4" style={{ background: 'linear-gradient(135deg, #f0f7ff 0%, #e8f4ff 50%, #f5f5ff 100%)', borderBottom: '1px solid #e0eaf8' }}>
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm shrink-0" style={{ background: 'linear-gradient(135deg, #2563EB, #1d4ed8)' }}>
+            <Hotel className="w-5 h-5 text-white" />
           </div>
-
-          {/* Badges row */}
-          <div style={{display:'flex',gap:6,marginTop:12,flexWrap:'wrap',alignItems:'center'}}>
-            <span style={{background:'#EEF2FF',color:'#3B5BDB',fontWeight:700,fontSize:12,padding:'3px 10px',borderRadius:20}}>
-              #{selectedInclusion.inclusionNumber || 'N/A'}
-            </span>
-            {event?.name && (
-              <span style={{background:'#F1F5F9',color:'#475569',fontSize:12,padding:'3px 10px',borderRadius:20}}>
-                {event.name}
+          <div className="flex-1 min-w-0">
+            <h2 className="text-[17px] font-black text-slate-800 leading-tight">Registro de Hospedagem</h2>
+            <p className="text-[12px] text-slate-500 mt-0.5 truncate">
+              #{selectedInclusion.inclusionNumber || 'N/A'} · {event?.name || '—'} · {func?.name || '—'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {accommodation ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 text-[11px] font-bold rounded-full border border-green-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Registrada
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-600 text-[11px] font-bold rounded-full border border-orange-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />Pendente
               </span>
             )}
-            {func?.name && (
-              <span style={{background:'#F1F5F9',color:'#475569',fontSize:12,padding:'3px 10px',borderRadius:20}}>
-                {func.name}
-              </span>
-            )}
-            <StatusBadge status={getDisplayStatus(selectedInclusion)} />
           </div>
-
-          {/* Collaborator card */}
-          {collaborator && (
-            <div style={{background:'#F8FAFC',borderRadius:12,border:'1px solid #E2E8F0',padding:'16px 20px',marginTop:16}}>
-              <div style={{fontSize:11,fontWeight:600,color:'#94A3B8',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:12}}>
-                Dados do Colaborador
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px 24px'}}>
-                <div>
-                  <div style={{fontSize:11,color:'#94A3B8',marginBottom:2}}>Nome:</div>
-                  <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{fixEncoding(collaborator.fullName) || <NA />}</div>
-                </div>
-                <div>
-                  <div style={{fontSize:11,color:'#94A3B8',marginBottom:2}}>{collaborator.documentType === 'cpf' ? 'CPF:' : 'RG:'}</div>
-                  <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{collaborator.officialDocument || <NA />}</div>
-                </div>
-                <div>
-                  <div style={{fontSize:11,color:'#94A3B8',marginBottom:2}}>Cidade:</div>
-                  <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{collaborator.city || <NA />}</div>
-                </div>
-                <div>
-                  <div style={{fontSize:11,color:'#94A3B8',marginBottom:2}}>Nascimento:</div>
-                  <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>
-                    {collaborator.birthDate ? format(new Date(collaborator.birthDate), 'dd/MM/yyyy', { locale: ptBR }) : <NA />}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Main content */}
-        <div style={{padding:'20px 24px 24px'}}>
-          {isPostPurchase ? (
-            /* ───── Read-only post-purchase view ───── */
-            <div style={{display:'flex',flexDirection:'column',gap:16}}>
-              <div style={{background:'#D1FAE5',borderLeft:'4px solid #10B981',padding:'12px 16px',borderRadius:'0 8px 8px 0'}}>
-                <span style={{color:'#065F46',fontWeight:600,fontSize:14}}>✓ Hospedagem confirmada — edição bloqueada</span>
-              </div>
-              {accommodation && (
-                <>
-                  <div style={{background:'#F0FDF4',border:'1px solid #A7F3D0',borderRadius:12,padding:'16px 20px'}}>
-                    <div style={{fontSize:18,fontWeight:700,color:'#1E293B'}}>{accommodation.hotelName}</div>
-                    {accommodation.hotelLocation && (
-                      <div style={{fontSize:13,color:'#64748B',marginTop:4}}>{accommodation.hotelLocation}</div>
+        {/* ─── ABAS ─── */}
+        <Tabs value={modalActiveTab} onValueChange={setModalActiveTab} className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <div className="px-6 border-b border-slate-100 shrink-0">
+            <TabsList className="bg-transparent p-0 h-auto gap-0 rounded-none -mb-px">
+              <TabsTrigger value="resumo" className={tabTrigger}>Resumo</TabsTrigger>
+              <TabsTrigger value="dados" className={tabTrigger}>
+                Dados da Hospedagem
+                {accommodation
+                  ? <span className="ml-1.5 bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">✓</span>
+                  : <span className="ml-1.5 bg-amber-100 text-amber-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">!</span>
+                }
+              </TabsTrigger>
+              <TabsTrigger value="complementos" className={tabTrigger}>Complementos</TabsTrigger>
+            </TabsList>
+          </div>
+
+          <div className="flex-1 overflow-y-auto min-h-0">
+
+            {/* ══ ABA: RESUMO ══ */}
+            <TabsContent value="resumo" className="m-0 p-6">
+              <div className="grid grid-cols-3 gap-5">
+
+                {/* Col 1: Evento + Função */}
+                <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4 space-y-3">
+                  <div>
+                    <div className={lbl}>Evento</div>
+                    <div className="text-[13px] font-semibold text-[#2563EB] leading-snug">{event?.name || '—'}</div>
+                  </div>
+                  <div>
+                    <div className={lbl}>ID</div>
+                    <div className="text-[13px] font-bold text-slate-700 font-mono">#{selectedInclusion.inclusionNumber || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <div className={lbl}>Função</div>
+                    <div className={val}>{func?.name || '—'}</div>
+                  </div>
+                  <div>
+                    <div className={lbl}>Hospedagem</div>
+                    {accommodation ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 text-[10px] font-bold rounded-lg border border-green-100">
+                        <Hotel style={{ width: 9, height: 9 }} />Registrada
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-600 text-[10px] font-bold rounded-lg border border-amber-200">
+                        <Hotel style={{ width: 9, height: 9 }} />Pendente
+                      </span>
                     )}
                   </div>
-                  {accommodation.accommodationObservations && (
+                </div>
+
+                {/* Col 2: Colaborador */}
+                <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4 space-y-3">
+                  <div>
+                    <div className={lbl}>Colaborador</div>
+                    <div className={val}>{collaborator ? fixEncoding(collaborator.fullName) : '—'}</div>
+                  </div>
+                  {collaborator && (<>
                     <div>
-                      <div style={{fontSize:11,fontWeight:600,color:'#94A3B8',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Observações</div>
-                      <div style={{background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,padding:'10px 14px',fontSize:13,color:'#1E293B'}}>
-                        {accommodation.accommodationObservations}
+                      <div className={lbl}>Documento</div>
+                      <div className="text-[13px] font-semibold text-slate-700 font-mono">{collaborator.documentType?.toUpperCase() || 'N/A'}: {collaborator.officialDocument || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div className={lbl}>Data de Nascimento</div>
+                      <div className={val}>{collaborator.birthDate ? formatDate(collaborator.birthDate) : 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div className={lbl}>Cidade</div>
+                      <div className={val}>{collaborator.city || '—'}</div>
+                    </div>
+                    <div>
+                      <div className={lbl}>Tipo</div>
+                      <div className={val}>{collaborator.type || '—'}</div>
+                    </div>
+                  </>)}
+                </div>
+
+                {/* Col 3: Período + Hotel (se registrado) */}
+                <div className="space-y-3">
+                  <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                    <div className="bg-[#2563EB]/5 border-b border-slate-200 px-4 py-2.5">
+                      <span className="text-[11px] font-black text-[#2563EB] uppercase tracking-[0.12em]">Período de Trabalho</span>
+                    </div>
+                    <div className="p-4 grid grid-cols-2 gap-3">
+                      <div>
+                        <div className={lbl}>Início</div>
+                        <div className={val}>{selectedInclusion.scheduleStartDate ? formatDate(selectedInclusion.scheduleStartDate) : '—'}</div>
+                      </div>
+                      <div>
+                        <div className={lbl}>Término</div>
+                        <div className={val}>{selectedInclusion.scheduleEndDate ? formatDate(selectedInclusion.scheduleEndDate) : '—'}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {accommodation && (
+                    <div className="border border-green-200 rounded-2xl overflow-hidden">
+                      <div className="bg-green-50 border-b border-green-200 px-4 py-2.5 flex items-center gap-2">
+                        <Hotel className="w-3.5 h-3.5 text-green-600" />
+                        <span className="text-[11px] font-black text-green-700 uppercase tracking-[0.12em]">Hotel</span>
+                      </div>
+                      <div className="p-4 space-y-2">
+                        <div>
+                          <div className={lbl}>Nome</div>
+                          <div className={val}>{accommodation.hotelName || '—'}</div>
+                        </div>
+                        <div>
+                          <div className={lbl}>Localização</div>
+                          <div className={val}>{accommodation.hotelLocation || '—'}</div>
+                        </div>
+                        {(accommodation.checkInDate || accommodation.checkOutDate) && (
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            {accommodation.checkInDate && (
+                              <div>
+                                <div className={lbl}>Check-in</div>
+                                <div className={val}>{formatDate(accommodation.checkInDate)}{accommodation.checkInTime && ` · ${accommodation.checkInTime}`}</div>
+                              </div>
+                            )}
+                            {accommodation.checkOutDate && (
+                              <div>
+                                <div className={lbl}>Check-out</div>
+                                <div className={val}>{formatDate(accommodation.checkOutDate)}{accommodation.checkOutTime && ` · ${accommodation.checkOutTime}`}</div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {accommodation.reservationNumber && (
+                          <div>
+                            <div className={lbl}>Reserva</div>
+                            <div className="text-[13px] font-bold text-slate-700 font-mono">{accommodation.reservationNumber}</div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
-                </>
-              )}
-              <div style={{borderTop:'1px solid #E2E8F0',paddingTop:16,display:'flex',justifyContent:'flex-end'}}>
-                <Button variant="outline" onClick={() => setShowModal(false)} style={{borderColor:'#E2E8F0',color:'#64748B'}}>
-                  Fechar
-                </Button>
+                </div>
               </div>
-            </div>
-          ) : (
-            /* ───── Editable form ───── */
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} style={{display:'flex',flexDirection:'column',gap:16}}>
-                {/* Nome do Hotel */}
-                <FormField control={form.control} name="hotelName" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel style={{fontSize:11,color:'#94A3B8',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Nome do Hotel *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ex: Hotel Copacabana Palace" data-testid="input-hotel-name"
-                        disabled={!canEditRecord} {...field}
-                        style={{borderRadius:8,height:42,borderColor:'#E2E8F0'}} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                {/* Localização */}
-                <FormField control={form.control} name="hotelLocation" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel style={{fontSize:11,color:'#94A3B8',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Localização *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ex: Copacabana, Rio de Janeiro" data-testid="input-hotel-location"
-                        disabled={!canEditRecord} {...field}
-                        style={{borderRadius:8,height:42,borderColor:'#E2E8F0'}} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+            </TabsContent>
+
+            {/* ══ ABA: DADOS DA HOSPEDAGEM ══ */}
+            <TabsContent value="dados" className="m-0 p-6">
+              <div className="space-y-4">
+                {isPostPurchase && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
+                    <span className="text-amber-700 font-semibold text-[13px]">⚠ Hospedagem confirmada — campos em modo somente leitura</span>
+                  </div>
+                )}
+
+                {/* Dados do Hotel */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                  <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 mb-3">Dados do Hotel</div>
+                  <div className="grid grid-cols-2 gap-4 mb-3">
+                    <div>
+                      <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Nome do Hotel *</Label>
+                      <Input
+                        placeholder="Ex: Hotel Copacabana Palace"
+                        value={data.hotelName || ""}
+                        onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "hotelName", e.target.value)}
+                        data-testid="input-hotel-name"
+                        disabled={roMode}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Localização *</Label>
+                      <Input
+                        placeholder="Ex: Copacabana, Rio de Janeiro"
+                        value={data.hotelLocation || ""}
+                        onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "hotelLocation", e.target.value)}
+                        data-testid="input-hotel-location"
+                        disabled={roMode}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Número da Reserva</Label>
+                    <Input
+                      placeholder="Ex: RES-123456"
+                      value={data.reservationNumber || ""}
+                      onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "reservationNumber", e.target.value)}
+                      className="max-w-[280px]"
+                      disabled={roMode}
+                    />
+                  </div>
+                </div>
+
+                {/* Check-in / Check-out */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                    <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">🏨 Check-in</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Data</Label>
+                        <Input
+                          type="date"
+                          value={data.checkInDate || ""}
+                          onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "checkInDate", e.target.value)}
+                          disabled={roMode}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Horário</Label>
+                        <Input
+                          type="time"
+                          value={data.checkInTime || ""}
+                          onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "checkInTime", e.target.value)}
+                          disabled={roMode}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                    <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">🚪 Check-out</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Data</Label>
+                        <Input
+                          type="date"
+                          value={data.checkOutDate || ""}
+                          onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "checkOutDate", e.target.value)}
+                          disabled={roMode}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Horário</Label>
+                        <Input
+                          type="time"
+                          value={data.checkOutTime || ""}
+                          onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "checkOutTime", e.target.value)}
+                          disabled={roMode}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Diária */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                  <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Valor da Diária (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="0,00"
+                    value={data.dailyRate || ""}
+                    onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "dailyRate", e.target.value)}
+                    className="max-w-[180px]"
+                    disabled={roMode}
+                  />
+                </div>
+
                 {/* Observações */}
-                <FormField control={form.control} name="accommodationObservations" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel style={{fontSize:11,color:'#94A3B8',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Observações</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Informações adicionais sobre a hospedagem..."
-                        data-testid="textarea-observations" disabled={!canEditRecord} {...field}
-                        style={{borderRadius:8,minHeight:80,borderColor:'#E2E8F0'}} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                {/* Footer */}
-                <div style={{borderTop:'1px solid #E2E8F0',paddingTop:16,display:'flex',justifyContent:'flex-end',gap:8}}>
-                  <Button type="button" variant="outline"
-                    onClick={() => { setShowModal(false); form.reset(); }}
-                    data-testid="button-cancel"
-                    style={{borderColor:'#E2E8F0',color:'#64748B'}}>
-                    Cancelar
-                  </Button>
-                  {canEditRecord && (
-                    <Button type="submit"
-                      disabled={createAccommodationMutation.isPending || updateAccommodationMutation.isPending}
-                      data-testid="button-register"
-                      style={{background:'#059672',color:'#fff',border:'none',minWidth:160}}>
-                      {(createAccommodationMutation.isPending || updateAccommodationMutation.isPending)
-                        ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                        : null}
-                      🏨 Confirmar Hospedagem
-                    </Button>
+                <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                  <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Observações</Label>
+                  <Textarea
+                    placeholder="Informações adicionais sobre a hospedagem..."
+                    value={data.accommodationObservations || ""}
+                    onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "accommodationObservations", e.target.value)}
+                    className="h-24 resize-none"
+                    data-testid="textarea-observations"
+                    disabled={roMode}
+                  />
+                </div>
+
+                {/* Anexos */}
+                <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                  <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-slate-400" />
+                    <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Anexos</span>
+                  </div>
+                  <div className="p-4">
+                    <AttachmentUpload
+                      attachmentIds={data.attachmentIds || []}
+                      onAttachmentsChange={(attachmentIds) => handleAccommodationDataChange(selectedInclusion.id, "attachmentIds", attachmentIds)}
+                      disabled={roMode}
+                    />
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* ══ ABA: COMPLEMENTOS ══ */}
+            <TabsContent value="complementos" className="m-0 p-6">
+              <div className="grid grid-cols-2 gap-6">
+
+                {/* Comentários */}
+                <div className="space-y-4">
+                  <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                    <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <MessageCircle className="w-4 h-4 text-slate-400" />
+                        <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Comentários</span>
+                        {comments && comments.length > 0 && (
+                          <span className="bg-[#2563EB] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{comments.length}</span>
+                        )}
+                      </div>
+                      <button onClick={() => setShowCommentsModal(true)} className="flex items-center gap-1.5 text-[12px] font-semibold text-blue-600 hover:text-blue-700 transition-colors">
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        {roMode ? "Ver" : "Ver/Adicionar"}
+                      </button>
+                    </div>
+                    <div className="p-4">
+                      {comments && comments.length > 0 ? (
+                        <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                          {comments.map((comment) => (
+                            <div key={comment.id} className="bg-white border border-slate-200 p-3 rounded-xl shadow-sm">
+                              <div className="flex justify-between items-center mb-1.5">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-5 h-5 rounded-full bg-[#2563EB] text-white flex items-center justify-center text-[9px] font-black shrink-0">
+                                    {(users?.find((u: any) => u.id === comment.userId)?.name || 'U').charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="text-[12px] font-bold text-slate-700">{users?.find((u: any) => u.id === comment.userId)?.name || 'Usuário'}</div>
+                                </div>
+                                <div className="text-[10px] text-slate-400">{comment.createdAt ? new Date(comment.createdAt).toLocaleDateString('pt-BR') : ''}</div>
+                              </div>
+                              <div className="text-[12px] text-slate-600 leading-relaxed">{comment.content}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center py-8">
+                          <MessageCircle className="w-6 h-6 text-slate-200 mx-auto mb-2" />
+                          <div className="text-[12px] text-slate-400">Nenhum comentário registrado.</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Histórico */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <History className="w-4 h-4 text-slate-400" />
+                    <span className="text-[12px] font-black text-slate-600 uppercase tracking-[0.1em]">Histórico</span>
+                    {inclusionLogs && inclusionLogs.length > 0 && (
+                      <span className="text-[10px] text-slate-400">{inclusionLogs.length} entr.</span>
+                    )}
+                  </div>
+                  {!inclusionLogs || inclusionLogs.length === 0 ? (
+                    <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center py-8">
+                      <History className="w-6 h-6 text-slate-200 mx-auto mb-2" />
+                      <div className="text-[12px] text-slate-400">Nenhum histórico encontrado.</div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="border-l-2 border-slate-100 ml-3 pl-4 space-y-2 max-h-72 overflow-y-auto">
+                        {inclusionLogs
+                          .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+                          .slice(0, showAllLogs ? undefined : 5)
+                          .map((log) => {
+                            const actionLabels: Record<string, string> = {
+                              'status_changed': '🔄 Status Alterado',
+                              'collaborator_changed': '👤 Colaborador Alterado',
+                              'dates_changed': '📅 Período Alterado',
+                              'accommodation_created': '🏨 Hospedagem Criada',
+                              'accommodation_updated': '✏️ Hospedagem Atualizada',
+                              'created': '✨ Criado',
+                              'confirmed': '✅ Confirmado',
+                              'reopened': '🔓 Reaberto',
+                            };
+                            return (
+                              <div key={log.id} className="flex gap-3">
+                                <div className="w-2.5 h-2.5 bg-[#2563EB] rounded-full -ml-[1.3rem] mt-2.5 flex-shrink-0 ring-4 ring-white" />
+                                <div className="flex-1 min-w-0 bg-white border border-slate-100 rounded-xl px-3 py-2 shadow-sm">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="text-[11px] font-bold text-slate-700">{actionLabels[log.action] || log.action}</div>
+                                    <div className="text-[10px] text-slate-400 whitespace-nowrap flex-shrink-0">
+                                      {log.createdAt && new Date(log.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                    </div>
+                                  </div>
+                                  {log.details && <div className="text-[11px] text-slate-500 mt-0.5">{log.details}</div>}
+                                  <div className="text-[10px] font-semibold mt-1" style={{ color: '#2563EB' }}>↳ {log.userName}</div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                      {!showAllLogs && inclusionLogs.length > 5 && (
+                        <button
+                          onClick={() => setShowAllLogs(true)}
+                          className="text-xs font-medium mt-2 ml-7 hover:underline"
+                          style={{ color: '#2563EB' }}
+                        >
+                          Ver todos ({inclusionLogs.length - 5} mais)
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
-              </form>
-            </Form>
+
+              </div>
+            </TabsContent>
+
+          </div>
+        </Tabs>
+
+        {/* ─── FOOTER ─── */}
+        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0 bg-white">
+          <Button
+            variant="outline"
+            onClick={() => setShowModal(false)}
+            className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl px-5 py-2 text-sm font-medium"
+          >
+            Fechar
+          </Button>
+          {!roMode && (
+            <Button
+              onClick={handleSave}
+              disabled={createAccommodationMutation.isPending || updateAccommodationMutation.isPending}
+              className="flex items-center gap-2 text-white rounded-xl px-5 py-2 text-sm font-bold hover:opacity-90"
+              style={{ background: '#059672' }}
+              data-testid="button-register"
+            >
+              {(createAccommodationMutation.isPending || updateAccommodationMutation.isPending) ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+              ) : (
+                <Hotel className="w-4 h-4" />
+              )}
+              {accommodation ? "Atualizar Hospedagem" : "🏨 Confirmar Hospedagem"}
+            </Button>
           )}
         </div>
-
       </DialogContent>
     );
   };
