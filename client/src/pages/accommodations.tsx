@@ -9,7 +9,7 @@ import { Hotel, Save, Eye, ChevronDown, ChevronRight, MessageCircle, Edit, FileT
 import AttachmentUpload from "@/components/ui/attachment-upload";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StatusBadge from "@/components/common/status-badge";
-import { type SortConfig, type SortField } from "@/components/common/sortable-header";
+import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import EventCombobox from "@/components/ui/event-combobox";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
 import FunctionMultiSelect from "@/components/ui/function-multi-select";
@@ -54,7 +54,7 @@ export default function Accommodations() {
     inclusionStatus: "active", // all, active (excludes cancelado)
   });
   
-  const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>({ field: 'id', direction: 'desc' });
   const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -785,6 +785,10 @@ export default function Accommodations() {
     const accommodation = accommodationMap.get(inclusion.id);
 
     switch (field) {
+      case 'id': return inclusion.inclusionNumber || 0;
+      case 'event': return event?.name || '';
+      case 'function': return func?.name || '';
+      case 'collaborator': return fixEncoding(collaborator?.fullName) || '';
       case 'eventName': return event?.name || '';
       case 'functionName': return func?.name || '';
       case 'collaboratorName': return fixEncoding(collaborator?.fullName) || '';
@@ -1299,7 +1303,7 @@ export default function Accommodations() {
                     />
                   </th>
                 )}
-                <th style={{padding:'12px 12px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase',width:64}}>ID</th>
+                <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort} className="!px-3 !py-3">ID</SortableHeader>
                 <th style={{padding:'12px 16px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase'}}>Evento</th>
                 <th style={{padding:'12px 16px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase'}}>Colaborador / Função</th>
                 <th style={{padding:'12px 12px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase',width:110}}>Check-in</th>
