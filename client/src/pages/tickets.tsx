@@ -880,9 +880,9 @@ export default function Tickets() {
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Valor da Passagem</Label>
-                        <Input placeholder="0,00" type="number" step="0.01" min="0"
+                        <Input placeholder="0,00" type="text" inputMode="decimal"
                           value={ticketData["quick"]?.value || ""}
-                          onChange={(e) => handleTicketDataChange("quick", "value", e.target.value)}
+                          onChange={(e) => handleTicketDataChange("quick", "value", e.target.value.replace(',', '.'))}
                           className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                           data-testid="input-quick-ticket-value"
                         />
@@ -2351,11 +2351,10 @@ export default function Tickets() {
                                     <Input
                                       id={`value-${selectedInclusion.id}`}
                                       placeholder="0,00"
-                                      type="number"
-                                      step="0.01"
-                                      min="0"
+                                      type="text"
+                                      inputMode="decimal"
                                       value={data.value || ""}
-                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "value", e.target.value)}
+                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "value", e.target.value.replace(',', '.'))}
                                       className="max-w-[160px]"
                                       data-testid={`input-ticket-value-${selectedInclusion.id}`}
                                       disabled={roMode || !canEditTicket}
