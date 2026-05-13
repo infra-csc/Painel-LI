@@ -584,7 +584,7 @@ export default function Scaling() {
         'Função': func?.name || 'N/A',
         'Área': inclusion.area || 'N/A',
         'Colaborador': fixEncoding(collaborator?.fullName) || 'Não escalado',
-        'Tipo': collaborator?.type ? collaborator.type.toUpperCase() : 'N/A',
+        'Tipo': collaborator?.type ? (collaborator.type === 'local' ? 'CASA' : collaborator.type.toUpperCase()) : 'N/A',
         'CPF Colaborador': cpfColaborador,
         'Data Nascimento': collaborator?.birthDate ? formatDate(collaborator.birthDate) : 'N/A',
         'Telefone Colaborador': collaborator?.phone || 'N/A',
