@@ -879,12 +879,12 @@ export default function Tickets() {
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Cartão (Final 4)</Label>
-                        <Input placeholder="0000" maxLength={4}
-                          value={ticketData["quick"]?.cardLastFourDigits || ""}
-                          onChange={(e) => handleTicketDataChange("quick", "cardLastFourDigits", e.target.value.replace(/\D/g,'').slice(0,4))}
+                        <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Valor da Passagem</Label>
+                        <Input placeholder="0,00" type="number" step="0.01" min="0"
+                          value={ticketData["quick"]?.value || ""}
+                          onChange={(e) => handleTicketDataChange("quick", "value", e.target.value)}
                           className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                          data-testid="input-quick-card-digits"
+                          data-testid="input-quick-ticket-value"
                         />
                       </div>
                     </div>
@@ -2072,10 +2072,12 @@ export default function Tickets() {
                                       <div className={val}>{formatDate(ticket.purchaseDate)}</div>
                                     </div>
                                   )}
-                                  {ticket.cardLastFourDigits && (
+                                  {ticket.value != null && ticket.value > 0 && (
                                     <div>
-                                      <div className={lbl}>Cartão</div>
-                                      <div className="text-[13px] font-semibold text-slate-700 font-mono">****{ticket.cardLastFourDigits}</div>
+                                      <div className={lbl}>Valor da Passagem</div>
+                                      <div className="text-[13px] font-semibold text-slate-700">
+                                        {(ticket.value / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                      </div>
                                     </div>
                                   )}
                                 </div>
@@ -2345,15 +2347,17 @@ export default function Tickets() {
                                     </div>
                                   </div>
                                   <div className="mt-3">
-                                    <Label htmlFor={`cardLastFourDigits-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Últimos 4 dígitos do cartão</Label>
+                                    <Label htmlFor={`value-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Valor da Passagem</Label>
                                     <Input
-                                      id={`cardLastFourDigits-${selectedInclusion.id}`}
-                                      placeholder="1234"
-                                      maxLength={4}
-                                      value={data.cardLastFourDigits || ""}
-                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
-                                      className="font-mono max-w-[140px]"
-                                      data-testid={`input-card-digits-${selectedInclusion.id}`}
+                                      id={`value-${selectedInclusion.id}`}
+                                      placeholder="0,00"
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      value={data.value || ""}
+                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "value", e.target.value)}
+                                      className="max-w-[160px]"
+                                      data-testid={`input-ticket-value-${selectedInclusion.id}`}
                                       disabled={roMode || !canEditTicket}
                                     />
                                   </div>
