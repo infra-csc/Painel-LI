@@ -584,6 +584,7 @@ export default function Scaling() {
         'Função': func?.name || 'N/A',
         'Área': inclusion.area || 'N/A',
         'Colaborador': fixEncoding(collaborator?.fullName) || 'Não escalado',
+        'Tipo': collaborator?.type ? collaborator.type.toUpperCase() : 'N/A',
         'CPF Colaborador': cpfColaborador,
         'Data Nascimento': collaborator?.birthDate ? formatDate(collaborator.birthDate) : 'N/A',
         'Telefone Colaborador': collaborator?.phone || 'N/A',
@@ -624,6 +625,7 @@ export default function Scaling() {
       { wch: 25 },  // Função
       { wch: 20 },  // Área
       { wch: 30 },  // Colaborador
+      { wch: 12 },  // Tipo
       { wch: 18 },  // Documento
       { wch: 15 },  // Data Nascimento
       { wch: 15 },  // Telefone
