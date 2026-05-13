@@ -585,7 +585,7 @@ function MonthView({
 
         {/* Week rows — minmax ensures minimum height so last row never gets clipped */}
         <div
-          className="flex-1 min-h-0"
+          className="flex-1 min-h-0 overflow-y-auto"
           style={{ display: "grid", gridTemplateRows: `repeat(${weeks.length}, minmax(112px, 1fr))` }}
         >
           {weeks.map((week, wi) => {
