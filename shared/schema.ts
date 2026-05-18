@@ -595,3 +595,29 @@ export const budgetNotes = pgTable("budget_notes", {
 export const insertBudgetNoteSchema = createInsertSchema(budgetNotes).omit({ id: true, createdAt: true });
 export type BudgetNote = typeof budgetNotes.$inferSelect;
 export type InsertBudgetNote = z.infer<typeof insertBudgetNoteSchema>;
+
+// Swap Requests — solicitações de troca de colaborador na escalação
+export const swapRequests = pgTable("swap_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamInclusionId: varchar("team_inclusion_id").notNull().references(() => teamInclusions.id, { onDelete: 'cascade' }),
+  requestedBy: varchar("requested_by").notNull().references(() => users.id),
+  requestedByName: text("requested_by_name").notNull(),
+  currentCollaboratorId: varchar("current_collaborator_id").references(() => collaborators.id),
+  newCollaboratorId: varchar("new_collaborator_id").references(() => collaborators.id),
+  reason: text("reason").notNull(),
+  status: text("status").notNull().default("pendente"), // pendente, aprovado, rejeitado
+  reviewComment: text("review_comment"),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedByName: text("reviewed_by_name"),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSwapRequestSchema = createInsertSchema(swapRequests).omit({
+  id: true,
+  createdAt: true,
+  reviewedAt: true,
+});
+
+export type SwapRequest = typeof swapRequests.$inferSelect;
+export type InsertSwapRequest = z.infer<typeof insertSwapRequestSchema>;

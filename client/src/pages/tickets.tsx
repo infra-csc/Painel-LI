@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plane, Bus, Truck, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit, CheckCircle, Clock, Ticket as TicketIcon, CreditCard, Paperclip, NotebookPen, ClipboardCheck, History } from "lucide-react";
+import { Plane, Bus, Truck, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit, CheckCircle, Clock, Ticket as TicketIcon, CreditCard, Paperclip, NotebookPen, ClipboardCheck, History, AlertCircle, ArrowLeftRight, CheckCheck, XCircle } from "lucide-react";
 import EventCombobox from "@/components/ui/event-combobox";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
 import FunctionMultiSelect from "@/components/ui/function-multi-select";
@@ -21,7 +21,7 @@ import { isReadOnly, canEdit, canPerformActions } from "@/lib/interactions";
 import { canView, canEdit as canEditScreen } from "@/lib/permissions";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
-import type { TeamInclusion, Event, Function, Collaborator, Ticket, Comment, TeamInclusionLog } from "@shared/schema";
+import type { TeamInclusion, Event, Function, Collaborator, Ticket, Comment, TeamInclusionLog, SwapRequest } from "@shared/schema";
 
 export default function Tickets() {
   const { user } = useAuth();
@@ -102,6 +102,52 @@ export default function Tickets() {
   const { data: inclusionLogs } = useQuery<TeamInclusionLog[]>({
     queryKey: ["/api/team-inclusions", selectedInclusion?.id, "logs"],
     enabled: !!selectedInclusion?.id,
+  });
+
+  const { data: swapRequests } = useQuery<SwapRequest[]>({
+    queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id],
+    queryFn: async () => {
+      if (!selectedInclusion?.id) return [];
+      const r = await fetch(`/api/swap-requests/inclusion/${selectedInclusion.id}`);
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!selectedInclusion?.id,
+  });
+
+  const pendingSwap = swapRequests?.find(s => s.status === 'pendente');
+
+  const isPurchasingRole = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
+
+  const approveSwapMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, {});
+      return r.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Troca aprovada", description: "O colaborador foi atualizado na escalação." });
+      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+    },
+    onError: async (err: any) => {
+      const msg = await err?.response?.json?.().catch(() => null);
+      toast({ title: "Erro", description: msg?.message || "Erro ao aprovar troca", variant: "destructive" });
+    },
+  });
+
+  const rejectSwapMutation = useMutation({
+    mutationFn: async ({ id, comment }: { id: string; comment?: string }) => {
+      const r = await apiRequest("PATCH", `/api/swap-requests/${id}/reject`, { reviewComment: comment || "" });
+      return r.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Troca rejeitada" });
+      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id] });
+    },
+    onError: async (err: any) => {
+      const msg = await err?.response?.json?.().catch(() => null);
+      toast({ title: "Erro", description: msg?.message || "Erro ao rejeitar troca", variant: "destructive" });
+    },
   });
 
   const createTicketMutation = useMutation({
@@ -1983,6 +2029,38 @@ export default function Tickets() {
                                 <div className={val}>{collaborator.type || '—'}</div>
                               </div>
                             </>)}
+                            {/* Banner de solicitação de troca pendente */}
+                            {pendingSwap && (
+                              <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+                                  <span className="text-[11px] font-black text-amber-700 uppercase tracking-[0.08em]">Troca de Colaborador Solicitada</span>
+                                </div>
+                                <div className="text-[11px] text-amber-700 space-y-0.5">
+                                  <div>Novo: <span className="font-semibold">{getCollaboratorName((pendingSwap as any).new_collaborator_id)}</span></div>
+                                  <div className="text-amber-600">Motivo: {pendingSwap.reason}</div>
+                                  <div className="text-amber-500">Solicitado por: {(pendingSwap as any).requested_by_name}</div>
+                                </div>
+                                {isPurchasingRole && (
+                                  <div className="flex gap-2 pt-1">
+                                    <button
+                                      onClick={() => approveSwapMutation.mutate((pendingSwap as any).id)}
+                                      disabled={approveSwapMutation.isPending || rejectSwapMutation.isPending}
+                                      className="flex-1 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-[11px] font-bold py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                                    >
+                                      <CheckCheck className="w-3.5 h-3.5" />Aprovar
+                                    </button>
+                                    <button
+                                      onClick={() => rejectSwapMutation.mutate({ id: (pendingSwap as any).id })}
+                                      disabled={approveSwapMutation.isPending || rejectSwapMutation.isPending}
+                                      className="flex-1 flex items-center justify-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-[11px] font-bold py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                                    >
+                                      <XCircle className="w-3.5 h-3.5" />Rejeitar
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           {/* Col 3: Período + Sugestões */}

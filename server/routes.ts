@@ -4,7 +4,7 @@ import multer from "multer";
 import { z } from "zod";
 import { storage } from "./storage";
 import { db } from "./db";
-import { budgetNotes, functionManagers as functionManagersTable, budgetPlanned as budgetPlannedTable, events as eventsTable } from "@shared/schema";
+import { budgetNotes, functionManagers as functionManagersTable, budgetPlanned as budgetPlannedTable, events as eventsTable, swapRequests as swapRequestsTable, teamInclusions as teamInclusionsTable, collaborators as collaboratorsTable } from "@shared/schema";
 import { eq, and, inArray, desc, sql as drizzleSql } from "drizzle-orm";
 import { 
   insertEventSchema,
@@ -23,7 +23,8 @@ import {
   insertBudgetActualSchema,
   insertBudgetComparisonSchema,
   insertInvoiceSchema,
-  insertBudgetNoteSchema
+  insertBudgetNoteSchema,
+  insertSwapRequestSchema
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
@@ -3493,6 +3494,155 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching event activity logs:", error);
       res.status(500).json({ message: "Erro ao buscar histórico do evento" });
+    }
+  });
+
+  // ─── Swap Requests (Solicitações de Troca de Colaborador) ─────────────────
+
+  // Criar tabela se não existir (migration inline)
+  app.get("/api/swap-requests", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    try {
+      const rows = await db.execute(drizzleSql`
+        SELECT sr.*, 
+               cc.full_name as current_collaborator_name,
+               nc.full_name as new_collaborator_name
+        FROM swap_requests sr
+        LEFT JOIN collaborators cc ON sr.current_collaborator_id = cc.id
+        LEFT JOIN collaborators nc ON sr.new_collaborator_id = nc.id
+        ORDER BY sr.created_at DESC
+      `);
+      res.json((rows as any).rows ?? rows);
+    } catch (error) {
+      console.error("Error fetching swap requests:", error);
+      res.status(500).json({ message: "Erro ao buscar solicitações de troca" });
+    }
+  });
+
+  app.get("/api/swap-requests/inclusion/:teamInclusionId", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    const { teamInclusionId } = req.params;
+    try {
+      const rows = await db.execute(drizzleSql`
+        SELECT sr.*, 
+               cc.full_name as current_collaborator_name,
+               nc.full_name as new_collaborator_name
+        FROM swap_requests sr
+        LEFT JOIN collaborators cc ON sr.current_collaborator_id = cc.id
+        LEFT JOIN collaborators nc ON sr.new_collaborator_id = nc.id
+        WHERE sr.team_inclusion_id = ${teamInclusionId}
+        ORDER BY sr.created_at DESC
+      `);
+      res.json((rows as any).rows ?? rows);
+    } catch (error) {
+      console.error("Error fetching swap requests for inclusion:", error);
+      res.status(500).json({ message: "Erro ao buscar solicitações de troca" });
+    }
+  });
+
+  app.post("/api/swap-requests", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    const currentUser = await storage.getUser(req.session.userId);
+    if (!currentUser) return res.status(401).json({ message: "Usuário não encontrado" });
+
+    const { teamInclusionId, newCollaboratorId, reason } = req.body;
+    if (!teamInclusionId || !newCollaboratorId || !reason?.trim()) {
+      return res.status(400).json({ message: "Campos obrigatórios: teamInclusionId, newCollaboratorId, reason" });
+    }
+
+    // Verificar se já existe solicitação pendente para essa inclusão
+    const existing = await db.execute(drizzleSql`
+      SELECT id FROM swap_requests WHERE team_inclusion_id = ${teamInclusionId} AND status = 'pendente'
+    `);
+    const existingRows = (existing as any).rows ?? existing;
+    if (existingRows.length > 0) {
+      return res.status(409).json({ message: "Já existe uma solicitação de troca pendente para esta escalação" });
+    }
+
+    // Buscar inclusão para pegar o colaborador atual
+    const inclusionRows = await db.execute(drizzleSql`
+      SELECT collaborator_id FROM team_inclusions WHERE id = ${teamInclusionId}
+    `);
+    const inclRows = (inclusionRows as any).rows ?? inclusionRows;
+    const currentCollaboratorId = inclRows[0]?.collaborator_id ?? null;
+
+    try {
+      const result = await db.execute(drizzleSql`
+        INSERT INTO swap_requests (team_inclusion_id, requested_by, requested_by_name, current_collaborator_id, new_collaborator_id, reason, status)
+        VALUES (${teamInclusionId}, ${currentUser.id}, ${currentUser.name}, ${currentCollaboratorId}, ${newCollaboratorId}, ${reason.trim()}, 'pendente')
+        RETURNING *
+      `);
+      const row = ((result as any).rows ?? result)[0];
+      res.status(201).json(row);
+    } catch (error) {
+      console.error("Error creating swap request:", error);
+      res.status(500).json({ message: "Erro ao criar solicitação de troca" });
+    }
+  });
+
+  app.patch("/api/swap-requests/:id/approve", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    const currentUser = await storage.getUser(req.session.userId);
+    if (!currentUser) return res.status(401).json({ message: "Usuário não encontrado" });
+
+    const isAdminOrPurchasing = ['admin', 'administrator', 'administrador', 'purchasing'].includes(currentUser.role);
+    if (!isAdminOrPurchasing) return res.status(403).json({ message: "Sem permissão" });
+
+    const { id } = req.params;
+    const { reviewComment } = req.body;
+
+    try {
+      // Buscar o swap request
+      const srRows = await db.execute(drizzleSql`SELECT * FROM swap_requests WHERE id = ${id}`);
+      const sr = ((srRows as any).rows ?? srRows)[0];
+      if (!sr) return res.status(404).json({ message: "Solicitação não encontrada" });
+      if (sr.status !== 'pendente') return res.status(400).json({ message: "Solicitação não está pendente" });
+
+      // Atualizar colaborador na team_inclusion
+      await db.execute(drizzleSql`
+        UPDATE team_inclusions SET collaborator_id = ${sr.new_collaborator_id}, updated_at = NOW() WHERE id = ${sr.team_inclusion_id}
+      `);
+
+      // Marcar swap request como aprovado
+      await db.execute(drizzleSql`
+        UPDATE swap_requests SET status = 'aprovado', reviewed_by = ${currentUser.id}, reviewed_by_name = ${currentUser.name}, review_comment = ${reviewComment ?? null}, reviewed_at = NOW()
+        WHERE id = ${id}
+      `);
+
+      res.json({ message: "Troca aprovada com sucesso" });
+    } catch (error) {
+      console.error("Error approving swap request:", error);
+      res.status(500).json({ message: "Erro ao aprovar troca" });
+    }
+  });
+
+  app.patch("/api/swap-requests/:id/reject", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    const currentUser = await storage.getUser(req.session.userId);
+    if (!currentUser) return res.status(401).json({ message: "Usuário não encontrado" });
+
+    const isAdminOrPurchasing = ['admin', 'administrator', 'administrador', 'purchasing'].includes(currentUser.role);
+    if (!isAdminOrPurchasing) return res.status(403).json({ message: "Sem permissão" });
+
+    const { id } = req.params;
+    const { reviewComment } = req.body;
+    if (!reviewComment?.trim()) return res.status(400).json({ message: "Motivo da rejeição é obrigatório" });
+
+    try {
+      const srRows = await db.execute(drizzleSql`SELECT * FROM swap_requests WHERE id = ${id}`);
+      const sr = ((srRows as any).rows ?? srRows)[0];
+      if (!sr) return res.status(404).json({ message: "Solicitação não encontrada" });
+      if (sr.status !== 'pendente') return res.status(400).json({ message: "Solicitação não está pendente" });
+
+      await db.execute(drizzleSql`
+        UPDATE swap_requests SET status = 'rejeitado', reviewed_by = ${currentUser.id}, reviewed_by_name = ${currentUser.name}, review_comment = ${reviewComment.trim()}, reviewed_at = NOW()
+        WHERE id = ${id}
+      `);
+
+      res.json({ message: "Troca rejeitada" });
+    } catch (error) {
+      console.error("Error rejecting swap request:", error);
+      res.status(500).json({ message: "Erro ao rejeitar troca" });
     }
   });
 

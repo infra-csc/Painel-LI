@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
-import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File, HelpCircle } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File, HelpCircle, ArrowLeftRight, AlertCircle } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { TeamInclusion, Event, Function, Collaborator, Comment, Ticket, Accommodation, TeamInclusionLog } from "@shared/schema";
+import type { TeamInclusion, Event, Function, Collaborator, Comment, Ticket, Accommodation, TeamInclusionLog, SwapRequest } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import CommentsModal from "@/components/modals/comments-modal";
 import { isReadOnly } from "@/lib/interactions";
@@ -72,6 +72,11 @@ export default function Scaling() {
 
   // Estado para lightbox de imagens
   const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null);
+
+  // Estado para modal de solicitação de troca
+  const [showSwapModal, setShowSwapModal] = useState(false);
+  const [swapNewCollaboratorId, setSwapNewCollaboratorId] = useState("");
+  const [swapReason, setSwapReason] = useState("");
 
   // Cache de metadados de anexos { [id]: { name, type, viewUrl, downloadUrl } }
   const [attachmentMeta, setAttachmentMeta] = useState<Record<string, { name?: string; type?: string; viewUrl?: string; downloadUrl?: string }>>({});
@@ -177,6 +182,39 @@ export default function Scaling() {
   const { data: inclusionLogs } = useQuery<TeamInclusionLog[]>({
     queryKey: ["/api/team-inclusions", selectedInclusion?.id, "logs"],
     enabled: !!selectedInclusion?.id,
+  });
+
+  // Query para buscar swap requests da inclusão selecionada
+  const { data: swapRequests } = useQuery<SwapRequest[]>({
+    queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id],
+    queryFn: async () => {
+      if (!selectedInclusion?.id) return [];
+      const r = await fetch(`/api/swap-requests/inclusion/${selectedInclusion.id}`);
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!selectedInclusion?.id,
+  });
+
+  const pendingSwap = swapRequests?.find(s => s.status === 'pendente');
+
+  // Mutation para criar swap request
+  const createSwapRequestMutation = useMutation({
+    mutationFn: async (data: { teamInclusionId: string; newCollaboratorId: string; reason: string }) => {
+      const r = await apiRequest("POST", "/api/swap-requests", data);
+      return r.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Solicitação enviada", description: "O time de compras será notificado para aprovar a troca." });
+      setShowSwapModal(false);
+      setSwapNewCollaboratorId("");
+      setSwapReason("");
+      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id] });
+    },
+    onError: async (err: any) => {
+      const msg = await err?.response?.json?.().catch(() => null);
+      toast({ title: "Erro", description: msg?.message || "Erro ao criar solicitação", variant: "destructive" });
+    },
   });
 
   // Mutation para adicionar comentário inline
@@ -1672,10 +1710,33 @@ export default function Scaling() {
                               })()}
                             </div>
                             {!canEditCollaborator(selectedInclusion) ? (
-                              <div>
+                              <div className="space-y-2">
                                 <div className="border border-slate-200 rounded-xl bg-white px-3 py-2.5">
                                   <div className="text-sm font-medium text-slate-700">{getCollaboratorName(modalData.collaboratorId)}</div>
                                 </div>
+                                {/* Banner: troca pendente */}
+                                {pendingSwap && (
+                                  <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                                    <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                                    <div className="text-[11px] text-amber-700">
+                                      <div className="font-bold mb-0.5">Troca solicitada — aguardando aprovação</div>
+                                      <div>Novo colaborador: <span className="font-semibold">{getCollaboratorName((pendingSwap as any).new_collaborator_id)}</span></div>
+                                      <div className="text-amber-600 mt-0.5">Motivo: {pendingSwap.reason}</div>
+                                    </div>
+                                  </div>
+                                )}
+                                {/* Botão Solicitar Troca — só aparece se escalado, tem colaborador, sem pendência */}
+                                {isEscalationConfirmed(selectedInclusion) && selectedInclusion.collaboratorId && !pendingSwap && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full text-[12px] gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50"
+                                    onClick={() => { setSwapNewCollaboratorId(""); setSwapReason(""); setShowSwapModal(true); }}
+                                  >
+                                    <ArrowLeftRight className="w-3.5 h-3.5" />
+                                    Solicitar Troca de Colaborador
+                                  </Button>
+                                )}
                               </div>
                             ) : (
                               <div>
@@ -2446,6 +2507,77 @@ export default function Scaling() {
           }}
           teamInclusionId={selectedInclusionForComments}
         />
+      )}
+
+      {/* Modal de Solicitação de Troca de Colaborador */}
+      {showSwapModal && selectedInclusion && createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowSwapModal(false)} />
+          <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3" style={{ background: 'linear-gradient(to right, #f8faff, #ffffff)' }}>
+              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
+                <ArrowLeftRight className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="text-[15px] font-bold text-slate-900">Solicitar Troca de Colaborador</div>
+                <div className="text-[12px] text-slate-400 mt-0.5">
+                  Atual: <span className="font-semibold text-slate-600">{getCollaboratorName(selectedInclusion.collaboratorId || undefined)}</span>
+                </div>
+              </div>
+              <button onClick={() => setShowSwapModal(false)} className="ml-auto hover:bg-slate-100 rounded-lg p-1.5 text-slate-400 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {/* Body */}
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="text-[11px] uppercase tracking-[0.12em] font-black text-slate-500 mb-2 block">Novo Colaborador</label>
+                <CollaboratorCombobox
+                  collaborators={collaborators || []}
+                  value={swapNewCollaboratorId}
+                  onValueChange={setSwapNewCollaboratorId}
+                  placeholder="Selecione o novo colaborador"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] uppercase tracking-[0.12em] font-black text-slate-500 mb-2 block">Motivo da Troca</label>
+                <Textarea
+                  value={swapReason}
+                  onChange={(e) => setSwapReason(e.target.value)}
+                  placeholder="Descreva o motivo da solicitação de troca..."
+                  className="resize-none text-sm"
+                  rows={3}
+                />
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                <p className="text-[11px] text-amber-700">A troca precisará ser aprovada pelo time de compras antes de ser efetivada.</p>
+              </div>
+            </div>
+            {/* Footer */}
+            <div className="px-6 pb-5 flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setShowSwapModal(false)}>
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={!swapNewCollaboratorId || !swapReason.trim() || createSwapRequestMutation.isPending}
+                onClick={() => {
+                  if (!selectedInclusion || !swapNewCollaboratorId || !swapReason.trim()) return;
+                  createSwapRequestMutation.mutate({
+                    teamInclusionId: selectedInclusion.id,
+                    newCollaboratorId: swapNewCollaboratorId,
+                    reason: swapReason.trim(),
+                  });
+                }}
+              >
+                {createSwapRequestMutation.isPending ? "Enviando..." : "Enviar Solicitação"}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
     </div>
