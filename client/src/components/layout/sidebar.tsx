@@ -90,17 +90,55 @@ export default function Sidebar() {
       if (!r.ok) return [];
       return r.json();
     },
-    enabled: !!isPurchasing,
+    enabled: !!user,
     refetchInterval: 30000,
   });
 
-  const pendingSwapCount = useMemo(() =>
-    isPurchasing ? (swapRequests?.filter(s => s.status === 'pendente').length ?? 0) : 0,
-    [swapRequests, isPurchasing]
-  );
+  const { data: teamInclusions } = useQuery<any[]>({
+    queryKey: ["/api/team-inclusions"],
+    enabled: !!isPurchasing,
+  });
 
-  // IDs de tabs que devem mostrar o badge de trocas pendentes (para compras)
-  const swapBadgeTabs = new Set(['tickets', 'accommodations', 'scaling']);
+  // Mapa de teamInclusionId → status da inclusão
+  const inclusionStatusMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    (teamInclusions ?? []).forEach(ti => { map[ti.id] = ti.status; });
+    return map;
+  }, [teamInclusions]);
+
+  // Para compras: badge por tela baseado no status atual da inclusão
+  const ticketSwapCount = useMemo(() => {
+    if (!isPurchasing || !swapRequests) return 0;
+    return swapRequests.filter(s =>
+      s.status === 'pendente' &&
+      inclusionStatusMap[(s as any).team_inclusion_id || s.teamInclusionId] === 'passagem'
+    ).length;
+  }, [swapRequests, inclusionStatusMap, isPurchasing]);
+
+  const accommodationSwapCount = useMemo(() => {
+    if (!isPurchasing || !swapRequests) return 0;
+    return swapRequests.filter(s =>
+      s.status === 'pendente' &&
+      inclusionStatusMap[(s as any).team_inclusion_id || s.teamInclusionId] === 'hospedagem'
+    ).length;
+  }, [swapRequests, inclusionStatusMap, isPurchasing]);
+
+  // Para quem solicitou: badge em Escalação quando a troca foi aprovada (últimas 48h)
+  const approvedSwapCount = useMemo(() => {
+    if (isPurchasing || !swapRequests || !user) return 0;
+    return swapRequests.filter(s =>
+      s.status === 'aprovado' &&
+      ((s as any).requested_by === user.id || s.requestedBy === user.id) &&
+      s.reviewedAt && (Date.now() - new Date(s.reviewedAt).getTime()) < 48 * 60 * 60 * 1000
+    ).length;
+  }, [swapRequests, isPurchasing, user]);
+
+  // Mapa tab id → badge count
+  const tabBadgeCount: Record<string, number> = {
+    tickets: ticketSwapCount,
+    accommodations: accommodationSwapCount,
+    scaling: approvedSwapCount,
+  };
 
   return (
     <>
@@ -241,8 +279,8 @@ export default function Sidebar() {
                             {tab.label}
                           </span>
 
-                          {/* Badge de trocas pendentes — só para compras */}
-                          {pendingSwapCount > 0 && swapBadgeTabs.has(tab.id) && (
+                          {/* Badge de trocas — contextual por tela */}
+                          {(tabBadgeCount[tab.id] ?? 0) > 0 && (
                             <span style={{
                               minWidth: 18, height: 18, borderRadius: 9,
                               background: "#EF4444", color: "#fff",
@@ -251,7 +289,7 @@ export default function Sidebar() {
                               padding: "0 5px", flexShrink: 0,
                               lineHeight: 1,
                             }}>
-                              {pendingSwapCount > 99 ? "99+" : pendingSwapCount}
+                              {tabBadgeCount[tab.id] > 99 ? "99+" : tabBadgeCount[tab.id]}
                             </span>
                           )}
                         </div>
