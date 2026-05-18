@@ -2655,23 +2655,6 @@ export default function Scaling() {
                     </div>
                   </div>
 
-                  {/* Alerta compacto */}
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 flex items-start gap-2">
-                    <AlertCircle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <p className="text-[11px] text-amber-700 leading-relaxed">
-                          <span className="font-semibold">Atenção:</span> Esta solicitação não cancela automaticamente passagem ou hospedagem já registrada. Compras avaliará os impactos antes de aprovar.
-                        </p>
-                        {(hasTicket || hasAccommodation) && (
-                          <div className="flex gap-1.5 flex-wrap">
-                            {hasTicket && <span className="text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">Passagem registrada</span>}
-                            {hasAccommodation && <span className="text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">Hospedagem registrada</span>}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
                 </div>
 
                 {/* ── Footer ── */}
