@@ -1755,15 +1755,18 @@ export default function Scaling() {
                                 )}
                                 {/* Botão Solicitar Troca — só aparece se escalado, tem colaborador, sem pendência */}
                                 {isEscalationConfirmed(selectedInclusion) && selectedInclusion.collaboratorId && !pendingSwap && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="w-full text-[12px] gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50"
-                                    onClick={() => { setSwapNewCollaboratorId(""); setSwapReason(""); setShowSwapModal(true); }}
-                                  >
-                                    <ArrowLeftRight className="w-3.5 h-3.5" />
-                                    Solicitar Troca de Colaborador
-                                  </Button>
+                                  <div className="space-y-1">
+                                    <button
+                                      type="button"
+                                      title="Após aprovado pelo time de Compras, a alteração do colaborador será liberada."
+                                      onClick={() => { setSwapNewCollaboratorId(""); setSwapReason(""); setShowSwapModal(true); }}
+                                      className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-blue-200 bg-blue-50/60 text-blue-700 text-[12px] font-medium transition-all hover:bg-blue-100 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-1 active:bg-blue-100"
+                                    >
+                                      <ArrowLeftRight className="w-3.5 h-3.5 shrink-0" />
+                                      Solicitar troca
+                                    </button>
+                                    <p className="text-center text-[10px] text-slate-400 leading-tight">Requer aprovação de Compras</p>
+                                  </div>
                                 )}
                               </div>
                             ) : (
