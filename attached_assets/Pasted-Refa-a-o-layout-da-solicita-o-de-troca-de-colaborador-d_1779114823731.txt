@@ -1,0 +1,150 @@
+Refaça o layout da solicitação de troca de colaborador dentro do modal “Registro de Passagem”.
+
+O layout atual ainda não está bom porque a solicitação está espremida dentro do card do colaborador. Isso deixa o card apertado, pesado e com pouca hierarquia visual.
+
+Quero mudar a abordagem:
+
+1. Não exibir mais o card completo de aprovação dentro do card “Colaborador”.
+2. Dentro do card “Colaborador”, mostrar apenas um badge/status discreto abaixo do nome ou tipo:
+
+Texto:
+“Troca solicitada · Aguardando análise”
+
+Tooltip:
+“Há uma solicitação de troca de colaborador aguardando análise de Compras.”
+
+Esse badge deve ser compacto, elegante e não ocupar muito espaço.
+
+3. Criar um painel próprio para análise da troca, fora do card do colaborador.
+
+Esse painel deve ocupar a largura disponível do modal, preferencialmente abaixo dos três cards principais do resumo ou logo abaixo do cabeçalho da aba “Resumo”.
+
+Objetivo:
+A solicitação de troca deve parecer uma pendência operacional importante para Compras, e não um alerta improvisado dentro de um card pequeno.
+
+Estrutura do novo painel:
+
+Título:
+“Solicitação de troca de colaborador”
+
+Badge:
+“Aguardando análise”
+
+Linha de contexto:
+“Solicitado por Admin Sistema em 18/05/2026 às 13:26”
+
+Usar a data e hora real da solicitação no formato:
+dd/MM/yyyy às HH:mm
+
+Corpo do painel em layout horizontal:
+
+Colaborador atual
+Ana Claudia Motta Alves De Souza
+
+ícone/seta discreta no centro
+
+Colaborador solicitado
+Teste Yan
+
+Abaixo ou ao lado, exibir:
+
+Motivo da solicitação
+Teste
+
+Aviso de passagem comprada:
+“Esta escala possui passagem comprada. Revise os impactos antes de aprovar a troca.”
+
+Microcopy discreta:
+“A aprovação libera a alteração do colaborador nesta escala.”
+
+Botões:
+“Aprovar troca”
+“Rejeitar troca”
+
+4. Visual desejado do painel:
+- Fundo branco ou cinza muito claro;
+- Borda suave;
+- Sombra leve;
+- Nada de fundo amarelo dominante no card inteiro;
+- Usar amarelo apenas no badge “Aguardando análise” e no aviso de passagem comprada;
+- Visual corporativo, limpo e premium;
+- Não parecer erro;
+- Não parecer alerta de sistema;
+- Parecer um painel de decisão.
+
+5. Layout sugerido:
+
+------------------------------------------------------
+Solicitação de troca de colaborador        [Aguardando análise]
+Solicitado por Admin Sistema em 18/05/2026 às 13:26
+
+[Colaborador atual]        →        [Colaborador solicitado]
+Ana Claudia Motta Alves             Teste Yan
+De Souza
+
+Motivo da solicitação
+Teste
+
+[aviso discreto] Esta escala possui passagem comprada. Revise os impactos antes de aprovar a troca.
+
+[Aprovar troca] [Rejeitar troca]
+------------------------------------------------------
+
+6. Melhorar os botões:
+- Usar botões menores e mais elegantes;
+- “Aprovar troca” em verde, mas sem verde muito saturado;
+- “Rejeitar troca” em vermelho, mas sem vermelho agressivo;
+- Mesma largura para os dois botões;
+- Ícones pequenos e alinhados;
+- Hover suave;
+- Espaçamento confortável.
+
+7. Melhorar o aviso de passagem comprada:
+Atualmente ele está ocupando muito destaque.
+Deixar mais discreto, como uma linha informativa.
+
+Texto:
+“Esta escala possui passagem comprada. Revise os impactos antes de aprovar a troca.”
+
+Visual:
+- Fundo âmbar muito suave;
+- Borda discreta;
+- Ícone pequeno;
+- Texto menor;
+- Não ocupar muita altura.
+
+8. Remover o excesso de amarelo do card.
+O amarelo deve aparecer apenas:
+- No badge “Aguardando análise”;
+- No aviso de passagem comprada.
+
+O restante do painel deve ser neutro e limpo.
+
+9. Evitar texto centralizado.
+A frase:
+“A aprovação libera a alteração do colaborador nesta escala.”
+
+não deve ficar centralizada em duas linhas.
+Deixar alinhada à esquerda, em texto pequeno e discreto.
+
+10. Manter:
+- Paleta Titanium;
+- Modal geral atual;
+- Abas atuais;
+- Dados da passagem;
+- Datas sugeridas;
+- Botões “Fechar” e “Editar Passagem”;
+- Lógica atual de aprovar/rejeitar;
+- Confirmação antes de aprovar ou rejeitar;
+- Sem criar scroll no modal.
+
+11. Critérios de aceite:
+- A solicitação de troca não pode mais ficar espremida dentro do card do colaborador;
+- Deve existir um painel próprio de análise;
+- O painel deve ocupar mais largura e respirar melhor;
+- O visual deve ficar mais limpo, premium e corporativo;
+- A data e hora da solicitação devem aparecer;
+- O motivo deve aparecer com clareza;
+- Os botões devem continuar claros, mas mais refinados;
+- O aviso de passagem comprada deve ficar discreto;
+- O layout não pode quebrar nem criar scroll.
