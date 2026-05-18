@@ -2510,75 +2510,72 @@ export default function Scaling() {
       )}
 
       {/* Modal de Solicitação de Troca de Colaborador */}
-      {showSwapModal && selectedInclusion && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowSwapModal(false)} />
-          <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            {/* Header */}
-            <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3" style={{ background: 'linear-gradient(to right, #f8faff, #ffffff)' }}>
-              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
-                <ArrowLeftRight className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <div className="text-[15px] font-bold text-slate-900">Solicitar Troca de Colaborador</div>
-                <div className="text-[12px] text-slate-400 mt-0.5">
-                  Atual: <span className="font-semibold text-slate-600">{getCollaboratorName(selectedInclusion.collaboratorId || undefined)}</span>
+      <Dialog open={showSwapModal} onOpenChange={(open) => { if (!open) { setShowSwapModal(false); setSwapNewCollaboratorId(""); setSwapReason(""); } }}>
+        <DialogContent className="max-w-md p-0 gap-0 overflow-hidden">
+          {selectedInclusion && (
+            <>
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3" style={{ background: 'linear-gradient(to right, #f8faff, #ffffff)' }}>
+                <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
+                  <ArrowLeftRight className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <DialogTitle className="text-[15px] font-bold text-slate-900 m-0 p-0">Solicitar Troca de Colaborador</DialogTitle>
+                  <div className="text-[12px] text-slate-400 mt-0.5">
+                    Atual: <span className="font-semibold text-slate-600">{getCollaboratorName(selectedInclusion.collaboratorId || undefined)}</span>
+                  </div>
                 </div>
               </div>
-              <button onClick={() => setShowSwapModal(false)} className="ml-auto hover:bg-slate-100 rounded-lg p-1.5 text-slate-400 transition-colors">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            {/* Body */}
-            <div className="px-6 py-5 space-y-4">
-              <div>
-                <label className="text-[11px] uppercase tracking-[0.12em] font-black text-slate-500 mb-2 block">Novo Colaborador</label>
-                <CollaboratorCombobox
-                  collaborators={collaborators || []}
-                  value={swapNewCollaboratorId}
-                  onValueChange={setSwapNewCollaboratorId}
-                  placeholder="Selecione o novo colaborador"
-                />
+              {/* Body */}
+              <div className="px-6 py-5 space-y-4">
+                <div>
+                  <label className="text-[11px] uppercase tracking-[0.12em] font-black text-slate-500 mb-2 block">Novo Colaborador</label>
+                  <CollaboratorCombobox
+                    collaborators={collaborators || []}
+                    value={swapNewCollaboratorId}
+                    onValueChange={setSwapNewCollaboratorId}
+                    placeholder="Selecione o novo colaborador"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] uppercase tracking-[0.12em] font-black text-slate-500 mb-2 block">Motivo da Troca</label>
+                  <Textarea
+                    value={swapReason}
+                    onChange={(e) => setSwapReason(e.target.value)}
+                    placeholder="Descreva o motivo da solicitação de troca..."
+                    className="resize-none text-sm"
+                    rows={3}
+                  />
+                </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                  <p className="text-[11px] text-amber-700">A troca precisará ser aprovada pelo time de compras antes de ser efetivada.</p>
+                </div>
               </div>
-              <div>
-                <label className="text-[11px] uppercase tracking-[0.12em] font-black text-slate-500 mb-2 block">Motivo da Troca</label>
-                <Textarea
-                  value={swapReason}
-                  onChange={(e) => setSwapReason(e.target.value)}
-                  placeholder="Descreva o motivo da solicitação de troca..."
-                  className="resize-none text-sm"
-                  rows={3}
-                />
+              {/* Footer */}
+              <div className="px-6 pb-5 flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => setShowSwapModal(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={!swapNewCollaboratorId || !swapReason.trim() || createSwapRequestMutation.isPending}
+                  onClick={() => {
+                    if (!selectedInclusion || !swapNewCollaboratorId || !swapReason.trim()) return;
+                    createSwapRequestMutation.mutate({
+                      teamInclusionId: selectedInclusion.id,
+                      newCollaboratorId: swapNewCollaboratorId,
+                      reason: swapReason.trim(),
+                    });
+                  }}
+                >
+                  {createSwapRequestMutation.isPending ? "Enviando..." : "Enviar Solicitação"}
+                </Button>
               </div>
-              <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-                <p className="text-[11px] text-amber-700">A troca precisará ser aprovada pelo time de compras antes de ser efetivada.</p>
-              </div>
-            </div>
-            {/* Footer */}
-            <div className="px-6 pb-5 flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setShowSwapModal(false)}>
-                Cancelar
-              </Button>
-              <Button
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                disabled={!swapNewCollaboratorId || !swapReason.trim() || createSwapRequestMutation.isPending}
-                onClick={() => {
-                  if (!selectedInclusion || !swapNewCollaboratorId || !swapReason.trim()) return;
-                  createSwapRequestMutation.mutate({
-                    teamInclusionId: selectedInclusion.id,
-                    newCollaboratorId: swapNewCollaboratorId,
-                    reason: swapReason.trim(),
-                  });
-                }}
-              >
-                {createSwapRequestMutation.isPending ? "Enviando..." : "Enviar Solicitação"}
-              </Button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
