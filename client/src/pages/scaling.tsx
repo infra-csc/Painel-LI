@@ -1768,7 +1768,7 @@ export default function Scaling() {
                                   if (!swap) return null;
 
                                   const isAdminOrPurchasing = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
-                                  const canCancel = swap.status === 'pendente' && (isAdminOrPurchasing || swap.requestedBy === user?.id);
+                                  const canCancel = swap.status === 'pendente' && (isAdminOrPurchasing || (swap as any).requested_by === user?.id);
 
                                   const variants: Record<string, { bg: string; border: string; icon: React.ReactNode; title: string; badge: string; badgeClass: string; msg: string; textColor: string }> = {
                                     pendente: {
@@ -1817,16 +1817,16 @@ export default function Scaling() {
                                       <div className="space-y-1">
                                         <div className="flex items-start gap-1.5 text-[11px]">
                                           <span className="text-slate-400 shrink-0">Novo colaborador:</span>
-                                          <span className="font-medium text-slate-700">{getCollaboratorName(swap.newCollaboratorId)}</span>
+                                          <span className="font-medium text-slate-700">{getCollaboratorName((swap as any).new_collaborator_id)}</span>
                                         </div>
                                         <div className="flex items-start gap-1.5 text-[11px]">
                                           <span className="text-slate-400 shrink-0">Motivo:</span>
                                           <span className="text-slate-600 leading-snug">{swap.reason}</span>
                                         </div>
-                                        {swap.reviewComment && (
+                                        {(swap as any).review_comment && (
                                           <div className="flex items-start gap-1.5 text-[11px]">
                                             <span className="text-slate-400 shrink-0">Observação:</span>
-                                            <span className="text-slate-600 leading-snug italic">{swap.reviewComment}</span>
+                                            <span className="text-slate-600 leading-snug italic">{(swap as any).review_comment}</span>
                                           </div>
                                         )}
                                       </div>
