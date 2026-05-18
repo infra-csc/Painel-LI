@@ -77,6 +77,7 @@ export default function Scaling() {
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [swapNewCollaboratorId, setSwapNewCollaboratorId] = useState("");
   const [swapReason, setSwapReason] = useState("");
+  const [swapSuccess, setSwapSuccess] = useState(false);
 
   // Cache de metadados de anexos { [id]: { name, type, viewUrl, downloadUrl } }
   const [attachmentMeta, setAttachmentMeta] = useState<Record<string, { name?: string; type?: string; viewUrl?: string; downloadUrl?: string }>>({});
@@ -156,6 +157,24 @@ export default function Scaling() {
     queryKey: ["/api/tickets"],
   });
 
+  // Query global de swap requests — para badges nas linhas da tabela
+  const { data: allSwapRequests } = useQuery<SwapRequest[]>({
+    queryKey: ["/api/swap-requests"],
+    queryFn: async () => {
+      const r = await fetch("/api/swap-requests");
+      if (!r.ok) return [];
+      return r.json();
+    },
+  });
+
+  const pendingSwapByInclusion = useMemo(() => {
+    const map = new Map<string, SwapRequest>();
+    allSwapRequests?.filter(s => s.status === 'pendente').forEach(s => {
+      map.set((s as any).team_inclusion_id, s);
+    });
+    return map;
+  }, [allSwapRequests]);
+
   // Query lazy — só busca quando o usuário clica em Exportar
   const { data: allComments, refetch: refetchAllComments } = useQuery<Comment[]>({
     queryKey: ["/api/all-comments"],
@@ -205,11 +224,9 @@ export default function Scaling() {
       return r.json();
     },
     onSuccess: () => {
-      toast({ title: "Solicitação enviada", description: "O time de compras será notificado para aprovar a troca." });
-      setShowSwapModal(false);
-      setSwapNewCollaboratorId("");
-      setSwapReason("");
+      setSwapSuccess(true);
       queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests"] });
     },
     onError: async (err: any) => {
       const msg = await err?.response?.json?.().catch(() => null);
@@ -1312,6 +1329,11 @@ export default function Scaling() {
                                           </span>
                                         );
                                       })()}
+                                      {pendingSwapByInclusion.has(inclusion.id) && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold border border-amber-200">
+                                          <ArrowLeftRight className="w-2.5 h-2.5" />Troca pendente
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
                                 </td>
@@ -1464,6 +1486,11 @@ export default function Scaling() {
                                           </span>
                                         );
                                       })()}
+                                      {pendingSwapByInclusion.has(inclusion.id) && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold border border-amber-200">
+                                          <ArrowLeftRight className="w-2.5 h-2.5" />Troca pendente
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
                                 </td>
@@ -2510,69 +2537,127 @@ export default function Scaling() {
       )}
 
       {/* Modal de Solicitação de Troca de Colaborador */}
-      <Dialog open={showSwapModal} onOpenChange={(open) => { if (!open) { setShowSwapModal(false); setSwapNewCollaboratorId(""); setSwapReason(""); } }}>
-        <DialogContent className="max-w-md p-0 gap-0 overflow-hidden">
+      <Dialog open={showSwapModal} onOpenChange={(open) => { if (!open) { setShowSwapModal(false); setSwapNewCollaboratorId(""); setSwapReason(""); setSwapSuccess(false); } }}>
+        <DialogContent className="max-w-[480px] p-0 gap-0 overflow-hidden">
           {selectedInclusion && (
-            <>
-              {/* Header */}
-              <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3" style={{ background: 'linear-gradient(to right, #f8faff, #ffffff)' }}>
-                <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
-                  <ArrowLeftRight className="w-5 h-5 text-white" />
+            swapSuccess ? (
+              /* ── Tela de sucesso ── */
+              <div className="flex flex-col items-center px-8 py-10 text-center">
+                <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-5 shadow-sm">
+                  <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
+                    <path d="M8 19L14.5 25.5L28 12" stroke="#16A34A" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
                 </div>
-                <div>
-                  <DialogTitle className="text-[15px] font-bold text-slate-900 m-0 p-0">Solicitar Troca de Colaborador</DialogTitle>
-                  <div className="text-[12px] text-slate-400 mt-0.5">
-                    Atual: <span className="font-semibold text-slate-600">{getCollaboratorName(selectedInclusion.collaboratorId || undefined)}</span>
+                <DialogTitle className="text-[18px] font-bold text-slate-900 mb-2">Solicitação enviada!</DialogTitle>
+                <p className="text-[13px] text-slate-500 leading-relaxed mb-6">
+                  A solicitação foi registrada e aguarda aprovação do time de compras. Você verá o resultado diretamente na escalação.
+                </p>
+                <div className="w-full bg-slate-50 rounded-2xl border border-slate-100 p-4 mb-6 text-left space-y-2">
+                  <div className="flex items-center justify-between text-[12px]">
+                    <span className="text-slate-400 font-medium">Colaborador atual</span>
+                    <span className="font-semibold text-slate-700">{getCollaboratorName(selectedInclusion.collaboratorId || undefined)}</span>
+                  </div>
+                  <div className="flex items-center justify-center">
+                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+                      <ArrowLeftRight className="w-3.5 h-3.5 text-blue-600" />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-[12px]">
+                    <span className="text-slate-400 font-medium">Novo colaborador</span>
+                    <span className="font-semibold text-blue-700">{getCollaboratorName(swapNewCollaboratorId)}</span>
+                  </div>
+                  <div className="border-t border-slate-100 pt-2 mt-1 flex items-start gap-1.5">
+                    <span className="text-slate-400 text-[12px] font-medium shrink-0">Motivo</span>
+                    <span className="text-slate-600 text-[12px] text-right ml-auto">{swapReason}</span>
                   </div>
                 </div>
-              </div>
-              {/* Body */}
-              <div className="px-6 py-5 space-y-4">
-                <div>
-                  <label className="text-[11px] uppercase tracking-[0.12em] font-black text-slate-500 mb-2 block">Novo Colaborador</label>
-                  <CollaboratorCombobox
-                    collaborators={collaborators || []}
-                    value={swapNewCollaboratorId}
-                    onValueChange={setSwapNewCollaboratorId}
-                    placeholder="Selecione o novo colaborador"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] uppercase tracking-[0.12em] font-black text-slate-500 mb-2 block">Motivo da Troca</label>
-                  <Textarea
-                    value={swapReason}
-                    onChange={(e) => setSwapReason(e.target.value)}
-                    placeholder="Descreva o motivo da solicitação de troca..."
-                    className="resize-none text-sm"
-                    rows={3}
-                  />
-                </div>
-                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-                  <p className="text-[11px] text-amber-700">A troca precisará ser aprovada pelo time de compras antes de ser efetivada.</p>
-                </div>
-              </div>
-              {/* Footer */}
-              <div className="px-6 pb-5 flex gap-3">
-                <Button variant="outline" className="flex-1" onClick={() => setShowSwapModal(false)}>
-                  Cancelar
-                </Button>
                 <Button
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                  disabled={!swapNewCollaboratorId || !swapReason.trim() || createSwapRequestMutation.isPending}
-                  onClick={() => {
-                    if (!selectedInclusion || !swapNewCollaboratorId || !swapReason.trim()) return;
-                    createSwapRequestMutation.mutate({
-                      teamInclusionId: selectedInclusion.id,
-                      newCollaboratorId: swapNewCollaboratorId,
-                      reason: swapReason.trim(),
-                    });
-                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 font-semibold text-sm"
+                  onClick={() => { setShowSwapModal(false); setSwapNewCollaboratorId(""); setSwapReason(""); setSwapSuccess(false); }}
                 >
-                  {createSwapRequestMutation.isPending ? "Enviando..." : "Enviar Solicitação"}
+                  Fechar
                 </Button>
               </div>
-            </>
+            ) : (
+              /* ── Formulário ── */
+              <>
+                {/* Header */}
+                <div className="px-6 pt-6 pb-5 border-b border-slate-100" style={{ background: 'linear-gradient(135deg, #f0f7ff 0%, #ffffff 100%)' }}>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 shadow-sm" style={{ boxShadow: '0 4px 12px #2563EB40' }}>
+                      <ArrowLeftRight className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <DialogTitle className="text-[15px] font-bold text-slate-900 m-0 p-0 leading-tight">Solicitar Troca de Colaborador</DialogTitle>
+                      <p className="text-[11px] text-slate-400 mt-0.5">A solicitação será analisada pelo time de compras</p>
+                    </div>
+                  </div>
+                  {/* Card: colaborador atual → novo */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-3 flex items-center gap-3 shadow-sm">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] uppercase tracking-[0.1em] font-black text-slate-400 mb-0.5">Colaborador Atual</div>
+                      <div className="text-[13px] font-bold text-slate-800 truncate">{getCollaboratorName(selectedInclusion.collaboratorId || undefined)}</div>
+                    </div>
+                    <div className="w-7 h-7 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+                      <ArrowLeftRight className="w-3.5 h-3.5 text-amber-500" />
+                    </div>
+                    <div className="flex-1 min-w-0 text-right">
+                      <div className="text-[10px] uppercase tracking-[0.1em] font-black text-slate-400 mb-0.5">Novo Colaborador</div>
+                      {swapNewCollaboratorId
+                        ? <div className="text-[13px] font-bold text-blue-700 truncate">{getCollaboratorName(swapNewCollaboratorId)}</div>
+                        : <div className="text-[13px] text-slate-300 italic">Não selecionado</div>
+                      }
+                    </div>
+                  </div>
+                </div>
+                {/* Body */}
+                <div className="px-6 py-5 space-y-4">
+                  <div>
+                    <label className="text-[11px] uppercase tracking-[0.12em] font-black text-slate-500 mb-2 block">Novo Colaborador</label>
+                    <CollaboratorCombobox
+                      collaborators={collaborators || []}
+                      value={swapNewCollaboratorId}
+                      onValueChange={setSwapNewCollaboratorId}
+                      placeholder="Selecione o novo colaborador"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] uppercase tracking-[0.12em] font-black text-slate-500 mb-2 block">Motivo da Troca</label>
+                    <Textarea
+                      value={swapReason}
+                      onChange={(e) => setSwapReason(e.target.value)}
+                      placeholder="Descreva o motivo da solicitação de troca..."
+                      className="resize-none text-sm rounded-xl"
+                      rows={3}
+                    />
+                  </div>
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 flex items-start gap-2">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
+                    <p className="text-[11px] text-amber-700 leading-relaxed">A passagem/hospedagem atual <span className="font-bold">não será cancelada automaticamente</span> — o time de compras deverá tratar isso ao aprovar a troca.</p>
+                  </div>
+                </div>
+                {/* Footer */}
+                <div className="px-6 pb-6 flex gap-3 border-t border-slate-100 pt-4">
+                  <Button variant="outline" className="flex-1 rounded-xl" onClick={() => setShowSwapModal(false)}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold"
+                    disabled={!swapNewCollaboratorId || !swapReason.trim() || createSwapRequestMutation.isPending}
+                    onClick={() => {
+                      if (!selectedInclusion || !swapNewCollaboratorId || !swapReason.trim()) return;
+                      createSwapRequestMutation.mutate({
+                        teamInclusionId: selectedInclusion.id,
+                        newCollaboratorId: swapNewCollaboratorId,
+                        reason: swapReason.trim(),
+                      });
+                    }}
+                  >
+                    {createSwapRequestMutation.isPending ? "Enviando..." : "Enviar Solicitação"}
+                  </Button>
+                </div>
+              </>
+            )
           )}
         </DialogContent>
       </Dialog>
