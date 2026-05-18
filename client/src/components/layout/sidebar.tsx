@@ -123,21 +123,29 @@ export default function Sidebar() {
     ).length;
   }, [swapRequests, inclusionStatusMap, isPurchasing]);
 
+  // Para compras: todas as trocas pendentes → badge na aba Escalação
+  const scalingSwapCount = useMemo(() => {
+    if (!isPurchasing || !swapRequests) return 0;
+    return swapRequests.filter(s => s.status === 'pendente').length;
+  }, [swapRequests, isPurchasing]);
+
   // Para quem solicitou: badge em Escalação quando a troca foi aprovada (últimas 48h)
   const approvedSwapCount = useMemo(() => {
     if (isPurchasing || !swapRequests || !user) return 0;
-    return swapRequests.filter(s =>
-      s.status === 'aprovado' &&
-      ((s as any).requested_by === user.id || s.requestedBy === user.id) &&
-      s.reviewedAt && (Date.now() - new Date(s.reviewedAt).getTime()) < 48 * 60 * 60 * 1000
-    ).length;
+    return swapRequests.filter(s => {
+      if (s.status !== 'aprovado') return false;
+      const requestedBy = (s as any).requested_by || s.requestedBy;
+      if (requestedBy !== user.id) return false;
+      const reviewedAt = (s as any).reviewed_at || s.reviewedAt;
+      return reviewedAt && (Date.now() - new Date(reviewedAt).getTime()) < 48 * 60 * 60 * 1000;
+    }).length;
   }, [swapRequests, isPurchasing, user]);
 
   // Mapa tab id → badge count
   const tabBadgeCount: Record<string, number> = {
     tickets: ticketSwapCount,
     accommodations: accommodationSwapCount,
-    scaling: approvedSwapCount,
+    scaling: isPurchasing ? scalingSwapCount : approvedSwapCount,
   };
 
   return (
