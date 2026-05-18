@@ -1774,6 +1774,7 @@ export default function Scaling() {
                                   onValueChange={(value) => setModalData(prev => ({ ...prev, collaboratorId: value }))}
                                   placeholder="Selecione um colaborador"
                                   testId="select-collaborator-escalation"
+                                  hideAll={true}
                                 />
                                 {isEscalationConfirmed(selectedInclusion) && canEditCollaborator(selectedInclusion) && (
                                   <div className="text-xs text-blue-600 mt-1.5">
