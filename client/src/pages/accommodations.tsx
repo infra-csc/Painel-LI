@@ -1560,8 +1560,9 @@ export default function Accommodations() {
                             <p style={{fontSize:14,fontWeight:500,color:'#1a1a2e',lineHeight:1.2}}>{displayName || <span style={{color:'#CBD5E1'}}>Sem colaborador</span>}</p>
                             <p style={{fontSize:12,color:'#999',marginTop:2}}>{func?.name || '—'}</p>
                             {inclusion.status === 'hospedagem_comprada' && pendingSwapByInclusion.has(inclusion.id) && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold border border-amber-200 mt-1">
-                                <ArrowLeftRight className="w-2.5 h-2.5" />Troca pendente
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-100 mt-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 animate-pulse" />
+                                <span className="text-[10px] font-medium text-amber-600">Troca pendente</span>
                               </span>
                             )}
                           </div>
