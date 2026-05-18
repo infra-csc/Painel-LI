@@ -396,122 +396,6 @@ export default function Accommodations() {
                       <div className={val}>{collaborator.type || '—'}</div>
                     </div>
                   </>)}
-                  {/* Card de troca de colaborador */}
-                  {(pendingSwap || latestSwap) && (() => {
-                    const swap = pendingSwap || latestSwap!;
-                    const swapStatus = (swap as any).status || swap.status;
-                    const currentCollabName = toTitleCase(fixEncoding(collaborators?.find(c => c.id === selectedInclusion.collaboratorId)?.fullName) || '—');
-                    const requestedCollabId = (swap as any).new_collaborator_id;
-                    const requestedCollabName = toTitleCase(fixEncoding(collaborators?.find(c => c.id === requestedCollabId)?.fullName) || '—');
-                    const requestedByName = (swap as any).requested_by_name || '—';
-                    const reviewComment = (swap as any).review_comment || swap.reviewComment;
-                    const hasAccomPurchased = ['hospedagem_comprada', 'hospedagem_passagem_comprada'].includes(selectedInclusion.status);
-
-                    if (swapStatus === 'pendente') {
-                      const swapCreatedAt = (swap as any).created_at || swap.createdAt;
-                      const formatSwapDT = (dt: any) => {
-                        if (!dt) return '—';
-                        const d = new Date(dt);
-                        const day = String(d.getDate()).padStart(2,'0');
-                        const mon = String(d.getMonth()+1).padStart(2,'0');
-                        const hrs = String(d.getHours()).padStart(2,'0');
-                        const min = String(d.getMinutes()).padStart(2,'0');
-                        return `${day}/${mon}/${d.getFullYear()} às ${hrs}:${min}`;
-                      };
-                      return (
-                        <div className="mt-2 rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-white">
-                          <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
-                            <div className="flex items-center justify-between mb-0.5">
-                              <div className="flex items-center gap-2">
-                                <ArrowLeftRight className="w-3.5 h-3.5 text-slate-400" />
-                                <span className="text-[12px] font-bold text-slate-700">Troca de colaborador solicitada</span>
-                              </div>
-                              <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 whitespace-nowrap">Aguardando análise</span>
-                            </div>
-                            <p className="text-[10px] text-slate-400 pl-[22px]">
-                              Solicitado por <span className="font-medium text-slate-500">{requestedByName}</span> em {formatSwapDT(swapCreatedAt)}
-                            </p>
-                          </div>
-                          <div className="p-3 space-y-2">
-                            <div className="flex items-stretch gap-1.5">
-                              <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 min-w-0">
-                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.08em] mb-1">Colaborador atual</p>
-                                <p className="text-[12px] font-semibold text-slate-700 leading-snug break-words">{currentCollabName}</p>
-                              </div>
-                              <div className="flex items-center justify-center shrink-0 w-6">
-                                <ArrowRight className="w-3.5 h-3.5 text-slate-300" />
-                              </div>
-                              <div className="flex-1 bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-2 min-w-0">
-                                <p className="text-[9px] font-bold text-blue-400 uppercase tracking-[0.08em] mb-1">Colaborador solicitado</p>
-                                <p className="text-[12px] font-semibold text-blue-700 leading-snug break-words">{requestedCollabName}</p>
-                              </div>
-                            </div>
-                            <div className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2">
-                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.08em] mb-0.5">Motivo da solicitação</p>
-                              <p className="text-[11px] text-slate-600 leading-snug">{swap.reason || '—'}</p>
-                            </div>
-                            {hasAccomPurchased && (
-                              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
-                                <AlertCircle className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
-                                <p className="text-[10px] text-amber-700 leading-snug">Esta escala possui hospedagem comprada. Revise os impactos antes de aprovar a troca.</p>
-                              </div>
-                            )}
-                            {isPurchasingRole && (
-                              <div className="space-y-1.5 pt-0.5">
-                                <p className="text-[10px] text-slate-400 text-center">A aprovação libera a alteração do colaborador nesta escala.</p>
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => setSwapConfirmAction('approve')}
-                                    disabled={approveSwapMutation.isPending || rejectSwapMutation.isPending}
-                                    className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                                  >
-                                    <CheckCheck className="w-3.5 h-3.5" />Aprovar troca
-                                  </button>
-                                  <button
-                                    onClick={() => { setSwapConfirmAction('reject'); setSwapRejectReason(''); }}
-                                    disabled={approveSwapMutation.isPending || rejectSwapMutation.isPending}
-                                    className="flex-1 flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-semibold py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                                  >
-                                    <XCircle className="w-3.5 h-3.5" />Rejeitar troca
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (swapStatus === 'aprovado') return (
-                      <div className="mt-2 border border-green-200 rounded-xl overflow-hidden">
-                        <div className="flex items-center justify-between px-3 py-2 bg-green-50 border-b border-green-200">
-                          <div className="flex items-center gap-1.5">
-                            <CheckCheck className="w-3.5 h-3.5 text-green-600" />
-                            <span className="text-[11px] font-bold text-green-800">Troca aprovada</span>
-                          </div>
-                          <span className="text-[10px] font-semibold bg-green-200 text-green-800 px-2 py-0.5 rounded-full">Aprovada por Compras</span>
-                        </div>
-                        <div className="px-3 py-2 bg-green-50/30">
-                          <p className="text-[11px] text-green-700">A alteração do colaborador foi liberada para esta escala.</p>
-                        </div>
-                      </div>
-                    );
-                    if (swapStatus === 'rejeitado') return (
-                      <div className="mt-2 border border-red-200 rounded-xl overflow-hidden">
-                        <div className="flex items-center justify-between px-3 py-2 bg-red-50 border-b border-red-200">
-                          <div className="flex items-center gap-1.5">
-                            <XCircle className="w-3.5 h-3.5 text-red-500" />
-                            <span className="text-[11px] font-bold text-red-800">Troca rejeitada</span>
-                          </div>
-                          <span className="text-[10px] font-semibold bg-red-200 text-red-800 px-2 py-0.5 rounded-full">Rejeitada por Compras</span>
-                        </div>
-                        <div className="px-3 py-2 space-y-1 bg-red-50/30">
-                          <p className="text-[11px] text-red-700">A escala permanece com o colaborador atual.</p>
-                          {reviewComment && <p className="text-[11px] text-slate-500">Motivo: <span className="font-medium text-slate-600">{reviewComment}</span></p>}
-                        </div>
-                      </div>
-                    );
-                    return null;
-                  })()}
                 </div>
 
                 {/* Col 3: Período + Hotel (se registrado) */}
@@ -1562,11 +1446,6 @@ export default function Accommodations() {
                           <div>
                             <p style={{fontSize:14,fontWeight:500,color:'#1a1a2e',lineHeight:1.2}}>{displayName || <span style={{color:'#CBD5E1'}}>Sem colaborador</span>}</p>
                             <p style={{fontSize:12,color:'#999',marginTop:2}}>{func?.name || '—'}</p>
-                            {pendingSwapByInclusion.has(inclusion.id) && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold border border-amber-200 mt-1">
-                                <ArrowLeftRight className="w-2.5 h-2.5" />Troca pendente
-                              </span>
-                            )}
                           </div>
                         </div>
                       </td>

@@ -113,10 +113,7 @@ export default function Sidebar() {
     return swapRequests.filter(s => s.status === 'pendente').length;
   }, [swapRequests, isPurchasing]);
 
-  const accommodationSwapCount = useMemo(() => {
-    if (!isPurchasing || !swapRequests) return 0;
-    return swapRequests.filter(s => s.status === 'pendente').length;
-  }, [swapRequests, isPurchasing]);
+  const accommodationSwapCount = 0;
 
   // Para compras: todas as trocas pendentes → badge na aba Escalação
   const scalingSwapCount = useMemo(() => {
