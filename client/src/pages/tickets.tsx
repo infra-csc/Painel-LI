@@ -2137,6 +2137,90 @@ export default function Tickets() {
                           </div>
 
                         </div>
+
+                        {/* ══ PAINEL DE ANÁLISE DE TROCA ══ */}
+                        {pendingSwap && (() => {
+                          const swap = pendingSwap;
+                          const swapCreatedAt = (swap as any).created_at || swap.createdAt;
+                          const formatSwapDT = (dt: any) => {
+                            if (!dt) return '—';
+                            const d = new Date(dt);
+                            const day = String(d.getDate()).padStart(2,'0');
+                            const mon = String(d.getMonth()+1).padStart(2,'0');
+                            const hrs = String(d.getHours()).padStart(2,'0');
+                            const min = String(d.getMinutes()).padStart(2,'0');
+                            return `${day}/${mon}/${d.getFullYear()} às ${hrs}:${min}`;
+                          };
+                          const currentCollabName = toTitleCase(getCollaboratorName(selectedInclusion.collaboratorId || undefined));
+                          const requestedCollabName = toTitleCase(getCollaboratorName((swap as any).new_collaborator_id));
+                          const requestedByName = (swap as any).requested_by_name || '—';
+                          const hasTicketPurchased = ['passagem_comprada', 'hospedagem_passagem_comprada'].includes(selectedInclusion.status);
+                          return (
+                            <div className="mt-5 rounded-2xl border border-slate-200 shadow-sm bg-white overflow-hidden">
+                              <div className="flex items-start justify-between px-5 py-3 bg-slate-50 border-b border-slate-200">
+                                <div>
+                                  <div className="flex items-center gap-2 mb-0.5">
+                                    <ArrowLeftRight className="w-4 h-4 text-slate-400" />
+                                    <span className="text-[13px] font-bold text-slate-700">Solicitação de troca de colaborador</span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-400 pl-6">
+                                    Solicitado por <span className="font-medium text-slate-500">{requestedByName}</span> em {formatSwapDT(swapCreatedAt)}
+                                  </p>
+                                </div>
+                                <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full border border-amber-200 whitespace-nowrap shrink-0 mt-0.5">Aguardando análise</span>
+                              </div>
+                              <div className="p-5 space-y-4">
+                                <div className="flex items-stretch gap-3">
+                                  <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 min-w-0">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.08em] mb-1.5">Colaborador atual</p>
+                                    <p className="text-[14px] font-semibold text-slate-700 leading-snug">{currentCollabName}</p>
+                                  </div>
+                                  <div className="flex items-center justify-center shrink-0 px-1">
+                                    <ArrowRight className="w-5 h-5 text-slate-300" />
+                                  </div>
+                                  <div className="flex-1 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 min-w-0">
+                                    <p className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.08em] mb-1.5">Colaborador solicitado</p>
+                                    <p className="text-[14px] font-semibold text-blue-700 leading-snug">{requestedCollabName}</p>
+                                  </div>
+                                  <div className="w-px bg-slate-200 shrink-0" />
+                                  <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 min-w-0">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.08em] mb-1.5">Motivo da solicitação</p>
+                                    <p className="text-[13px] text-slate-600 leading-snug">{swap.reason || '—'}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-4 flex-wrap">
+                                  {hasTicketPurchased && (
+                                    <div className="flex items-center gap-2 flex-1 min-w-0 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                                      <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                      <p className="text-[11px] text-amber-700 leading-snug">Esta escala possui passagem comprada. Revise os impactos antes de aprovar a troca.</p>
+                                    </div>
+                                  )}
+                                  {isPurchasingRole && (
+                                    <div className="flex flex-col items-start gap-1.5 shrink-0">
+                                      <p className="text-[10px] text-slate-400">A aprovação libera a alteração do colaborador nesta escala.</p>
+                                      <div className="flex gap-2">
+                                        <button
+                                          onClick={() => setSwapConfirmAction('approve')}
+                                          disabled={approveSwapMutation.isPending || rejectSwapMutation.isPending}
+                                          className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] font-semibold px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
+                                        >
+                                          <CheckCheck className="w-3.5 h-3.5" />Aprovar troca
+                                        </button>
+                                        <button
+                                          onClick={() => { setSwapConfirmAction('reject'); setSwapRejectReason(''); }}
+                                          disabled={approveSwapMutation.isPending || rejectSwapMutation.isPending}
+                                          className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[12px] font-semibold px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
+                                        >
+                                          <XCircle className="w-3.5 h-3.5" />Rejeitar troca
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </TabsContent>
 
                       {/* ══ ABA: DADOS DA PASSAGEM ══ */}
@@ -2622,89 +2706,6 @@ export default function Tickets() {
                           </div>
                         )}
 
-                        {/* ══ PAINEL DE ANÁLISE DE TROCA ══ */}
-                        {pendingSwap && (() => {
-                          const swap = pendingSwap;
-                          const swapCreatedAt = (swap as any).created_at || swap.createdAt;
-                          const formatSwapDT = (dt: any) => {
-                            if (!dt) return '—';
-                            const d = new Date(dt);
-                            const day = String(d.getDate()).padStart(2,'0');
-                            const mon = String(d.getMonth()+1).padStart(2,'0');
-                            const hrs = String(d.getHours()).padStart(2,'0');
-                            const min = String(d.getMinutes()).padStart(2,'0');
-                            return `${day}/${mon}/${d.getFullYear()} às ${hrs}:${min}`;
-                          };
-                          const currentCollabName = toTitleCase(getCollaboratorName(selectedInclusion.collaboratorId || undefined));
-                          const requestedCollabName = toTitleCase(getCollaboratorName((swap as any).new_collaborator_id));
-                          const requestedByName = (swap as any).requested_by_name || '—';
-                          const hasTicketPurchased = ['passagem_comprada', 'hospedagem_passagem_comprada'].includes(selectedInclusion.status);
-                          return (
-                            <div className="col-span-3 mt-1 rounded-2xl border border-slate-200 shadow-sm bg-white overflow-hidden">
-                              <div className="flex items-start justify-between px-5 py-3 bg-slate-50 border-b border-slate-200">
-                                <div>
-                                  <div className="flex items-center gap-2 mb-0.5">
-                                    <ArrowLeftRight className="w-4 h-4 text-slate-400" />
-                                    <span className="text-[13px] font-bold text-slate-700">Solicitação de troca de colaborador</span>
-                                  </div>
-                                  <p className="text-[11px] text-slate-400 pl-6">
-                                    Solicitado por <span className="font-medium text-slate-500">{requestedByName}</span> em {formatSwapDT(swapCreatedAt)}
-                                  </p>
-                                </div>
-                                <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full border border-amber-200 whitespace-nowrap shrink-0 mt-0.5">Aguardando análise</span>
-                              </div>
-                              <div className="p-5 space-y-4">
-                                <div className="flex items-stretch gap-3">
-                                  <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 min-w-0">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.08em] mb-1.5">Colaborador atual</p>
-                                    <p className="text-[14px] font-semibold text-slate-700 leading-snug">{currentCollabName}</p>
-                                  </div>
-                                  <div className="flex items-center justify-center shrink-0 px-1">
-                                    <ArrowRight className="w-5 h-5 text-slate-300" />
-                                  </div>
-                                  <div className="flex-1 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 min-w-0">
-                                    <p className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.08em] mb-1.5">Colaborador solicitado</p>
-                                    <p className="text-[14px] font-semibold text-blue-700 leading-snug">{requestedCollabName}</p>
-                                  </div>
-                                  <div className="w-px bg-slate-200 shrink-0" />
-                                  <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 min-w-0">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.08em] mb-1.5">Motivo da solicitação</p>
-                                    <p className="text-[13px] text-slate-600 leading-snug">{swap.reason || '—'}</p>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-4 flex-wrap">
-                                  {hasTicketPurchased && (
-                                    <div className="flex items-center gap-2 flex-1 min-w-0 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                                      <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                                      <p className="text-[11px] text-amber-700 leading-snug">Esta escala possui passagem comprada. Revise os impactos antes de aprovar a troca.</p>
-                                    </div>
-                                  )}
-                                  {isPurchasingRole && (
-                                    <div className="flex flex-col items-start gap-1.5 shrink-0">
-                                      <p className="text-[10px] text-slate-400">A aprovação libera a alteração do colaborador nesta escala.</p>
-                                      <div className="flex gap-2">
-                                        <button
-                                          onClick={() => setSwapConfirmAction('approve')}
-                                          disabled={approveSwapMutation.isPending || rejectSwapMutation.isPending}
-                                          className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] font-semibold px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
-                                        >
-                                          <CheckCheck className="w-3.5 h-3.5" />Aprovar troca
-                                        </button>
-                                        <button
-                                          onClick={() => { setSwapConfirmAction('reject'); setSwapRejectReason(''); }}
-                                          disabled={approveSwapMutation.isPending || rejectSwapMutation.isPending}
-                                          className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[12px] font-semibold px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
-                                        >
-                                          <XCircle className="w-3.5 h-3.5" />Rejeitar troca
-                                        </button>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })()}
                       </TabsContent>
 
                       {/* ══ ABA: COMPLEMENTOS ══ */}
