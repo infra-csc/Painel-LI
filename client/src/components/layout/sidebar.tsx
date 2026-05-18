@@ -129,23 +129,25 @@ export default function Sidebar() {
     return swapRequests.filter(s => s.status === 'pendente').length;
   }, [swapRequests, isPurchasing]);
 
-  // Para quem solicitou: badge em Escalação quando a troca foi aprovada (últimas 48h)
+  // Para quem solicitou: badge em Escalação quando a troca foi respondida (aprovada ou rejeitada, últimas 48h)
   const approvedSwapCount = useMemo(() => {
-    if (isPurchasing || !swapRequests || !user) return 0;
+    if (!swapRequests || !user) return 0;
     return swapRequests.filter(s => {
-      if (s.status !== 'aprovado') return false;
+      if (!['aprovado', 'rejeitado'].includes(s.status)) return false;
       const requestedBy = (s as any).requested_by || s.requestedBy;
       if (requestedBy !== user.id) return false;
       const reviewedAt = (s as any).reviewed_at || s.reviewedAt;
       return reviewedAt && (Date.now() - new Date(reviewedAt).getTime()) < 48 * 60 * 60 * 1000;
     }).length;
-  }, [swapRequests, isPurchasing, user]);
+  }, [swapRequests, user]);
 
   // Mapa tab id → badge count
+  // Compras vê trocas pendentes em Passagem/Hospedagem (não em Escalação)
+  // Quem enviou vê badge em Escalação apenas quando recebe resposta
   const tabBadgeCount: Record<string, number> = {
     tickets: ticketSwapCount,
     accommodations: accommodationSwapCount,
-    scaling: isPurchasing ? scalingSwapCount : approvedSwapCount,
+    scaling: approvedSwapCount,
   };
 
   return (

@@ -1,0 +1,157 @@
+Melhore o card de “Troca de Colaborador Solicitada” dentro do modal “Registro de Passagem”, mantendo a paleta Titanium atual e sem alterar a lógica principal do sistema.
+
+Contexto:
+Este modal é usado pelo time de Compras para visualizar dados da passagem e também aprovar ou rejeitar solicitações de troca de colaborador. Quando existe uma solicitação pendente, o card precisa ficar mais claro, profissional e orientado à decisão.
+
+Não alterar:
+- Fluxo geral do modal;
+- Dados da passagem;
+- Abas existentes;
+- Permissões;
+- Integrações;
+- Endpoints;
+- Lógica de edição da passagem;
+- Paleta Titanium;
+- Layout geral da tela.
+
+Ajustar apenas o bloco/card da solicitação de troca.
+
+Melhorias desejadas:
+
+1. Transformar o card atual em um card de análise mais profissional.
+
+Título:
+“Troca de colaborador solicitada”
+
+Badge no canto direito:
+“Aguardando análise de Compras”
+
+2. Trocar o texto “Novo” por:
+“Colaborador solicitado”
+
+Motivo:
+A troca ainda não foi aprovada, então o colaborador não deve ser tratado como novo colaborador definitivo.
+
+3. Estrutura sugerida do card:
+
+Troca de colaborador solicitada    [Aguardando análise]
+
+Colaborador atual:
+ANA CLAUDIA MOTTA ALVES DE SOUZA
+
+Colaborador solicitado:
+teste yan
+
+Motivo:
+Teste
+
+Solicitado por:
+Admin Sistema
+
+Mensagem auxiliar:
+“Ao aprovar, a alteração do colaborador será liberada para esta escala.”
+
+4. Como a passagem está com status “Comprada”, exibir um aviso discreto dentro do card:
+
+“Esta escala possui passagem comprada. Revise os impactos antes de aprovar a troca.”
+
+Esse aviso deve ser pequeno, elegante e não muito alarmante.
+
+5. Melhorar os botões de ação.
+
+Trocar:
+“Aprovar”
+“Rejeitar”
+
+Para:
+“Aprovar troca”
+“Rejeitar troca”
+
+Motivo:
+Evitar confusão com aprovação/rejeição da passagem. A ação é sobre a troca de colaborador.
+
+6. Visual dos botões:
+- “Aprovar troca”: verde, mas sem exagero visual;
+- “Rejeitar troca”: vermelho, mas com aparência corporativa;
+- Altura consistente;
+- Ícones alinhados;
+- Hover suave;
+- Espaçamento equilibrado;
+- Os dois botões devem ter o mesmo tamanho.
+
+7. Criar modal de confirmação antes de aprovar ou rejeitar.
+
+Ao clicar em “Aprovar troca”, abrir um modal pequeno:
+
+Título:
+“Aprovar troca de colaborador?”
+
+Texto:
+“Ao confirmar, a alteração do colaborador será liberada para esta escala.”
+
+Resumo:
+Colaborador atual: ANA CLAUDIA MOTTA ALVES DE SOUZA
+Colaborador solicitado: teste yan
+
+Botões:
+“Cancelar”
+“Confirmar aprovação”
+
+Ao clicar em “Rejeitar troca”, abrir um modal pequeno:
+
+Título:
+“Rejeitar troca de colaborador?”
+
+Texto:
+“A solicitação será recusada e a escala continuará com o colaborador atual.”
+
+Campo obrigatório:
+“Motivo da rejeição”
+
+Botões:
+“Cancelar”
+“Confirmar rejeição”
+
+8. Após aprovação:
+Atualizar o card para estado aprovado:
+
+Título:
+“Troca aprovada”
+Badge:
+“Aprovada por Compras”
+
+Mensagem:
+“A alteração do colaborador foi liberada para esta escala.”
+
+9. Após rejeição:
+Atualizar o card para estado rejeitado:
+
+Título:
+“Troca rejeitada”
+Badge:
+“Rejeitada por Compras”
+
+Mensagem:
+“A escala permanece com o colaborador atual.”
+
+Exibir o motivo da rejeição, se houver.
+
+10. Melhorar hierarquia visual:
+- O card não deve parecer erro;
+- Reduzir excesso de laranja forte;
+- Usar fundo amarelo suave apenas para estado pendente;
+- Usar labels discretas;
+- Destacar moderadamente o colaborador solicitado;
+- Manter o card compacto;
+- Não aumentar a altura geral do modal;
+- Não criar scroll.
+
+11. Critérios de aceite:
+- O usuário entende claramente que está aprovando/rejeitando uma troca de colaborador;
+- O termo “Colaborador solicitado” aparece no lugar de “Novo”;
+- Os botões dizem “Aprovar troca” e “Rejeitar troca”;
+- Existe confirmação antes de aprovar ou rejeitar;
+- Rejeição exige motivo;
+- O visual permanece alinhado à paleta Titanium;
+- O card fica mais profissional, compacto e claro;
+- Nenhuma lógica existente do modal de passagem é quebrada.
