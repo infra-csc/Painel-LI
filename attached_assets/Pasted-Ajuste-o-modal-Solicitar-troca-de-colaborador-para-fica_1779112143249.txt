@@ -1,0 +1,251 @@
+Ajuste o modal “Solicitar troca de colaborador” para ficar em nível 10/10 de layout e experiência, mantendo a paleta Titanium já usada no sistema.
+
+IMPORTANTE:
+Não recrie o fluxo do zero.
+Não mude a lógica principal do app.
+Não altere integrações, permissões, endpoints, tabelas ou nomes de funções sem necessidade.
+Faça apenas melhorias de UI/UX, responsividade, validação visual e confirmação pós-envio.
+Mantenha a identidade visual atual: fundo claro, azul como cor principal, cinzas suaves, bordas arredondadas, cards limpos, sombra leve e aparência corporativa.
+
+PROBLEMA ATUAL:
+O modal ficou bom visualmente, mas está alto demais e criou scroll interno. Isso não pode acontecer no desktop. O usuário precisa enxergar o conteúdo principal e os botões sem precisar rolar.
+
+OBJETIVO PRINCIPAL:
+Reestruturar o modal para caber em uma única tela, sem scroll interno no desktop, mantendo todas as informações importantes:
+- Cabeçalho;
+- Resumo da escala;
+- Colaborador atual;
+- Novo colaborador;
+- Motivo da troca;
+- Alerta sobre passagem/hospedagem;
+- Botões.
+
+Ajustes obrigatórios:
+
+1. Remover scroll interno do modal no desktop
+O modal não deve ter barra de rolagem interna em telas desktop/notebook comuns.
+
+Use uma estrutura mais compacta e elegante:
+- Reduzir espaçamentos verticais excessivos;
+- Reduzir altura dos cards;
+- Evitar blocos muito altos;
+- Aproveitar melhor a largura;
+- Usar layout em duas colunas onde fizer sentido;
+- Manter o footer sempre visível sem precisar rolar.
+
+Configuração sugerida:
+- Largura do modal: entre 680px e 760px;
+- Altura automática;
+- max-height apenas como segurança, mas sem gerar scroll no desktop;
+- overflow interno apenas como fallback para telas muito pequenas;
+- Footer fixo visualmente dentro do modal, mas sem sobrepor conteúdo.
+
+2. Cabeçalho mais premium
+Manter o ícone azul à esquerda, mas deixar o cabeçalho mais refinado.
+
+Título:
+“Solicitar troca de colaborador”
+
+Subtítulo:
+“A troca só será efetivada após aprovação do time de Compras.”
+
+Melhorias:
+- Alinhar perfeitamente ícone, título e subtítulo;
+- Reduzir um pouco a altura do cabeçalho;
+- Botão de fechar no canto superior direito com hover discreto;
+- Corrigir acentuação dos textos: “aprovação”, “colaborador”, “solicitação”, “hospedagem”.
+
+3. Resumo da escala mais compacto
+O card de contexto está bom, mas pode ficar mais compacto.
+
+Transformar o resumo em um card horizontal premium, com 4 informações bem distribuídas:
+
+Evento: Pedro teste evento 2
+Função: cenotecnica
+Período: 12/11/2025 a 16/11/2025
+Status: Passagem comprada
+
+Melhorias:
+- Card menor em altura;
+- Labels discretas;
+- Valores com bom contraste;
+- Status com badge pequeno, não apenas texto comum;
+- Usar grid de 4 colunas no desktop;
+- Em telas menores, quebrar para 2 colunas.
+
+4. Reposicionar o bloco de colaborador para economizar altura
+O card grande de comparação “Colaborador atual → Novo colaborador” está ocupando muita altura.
+
+Trocar para um layout mais compacto em linha, com aparência premium:
+
+Linha 1:
+Colaborador atual: ZEDERJUNIOR GOMES NOGUEIRA
+
+Linha 2:
+Novo colaborador: Ainda não selecionado
+
+Ou então um card horizontal menor com:
+[Atual] Nome do colaborador atual  →  [Novo] Ainda não selecionado
+
+Regras:
+- Não cortar agressivamente o nome do colaborador;
+- Permitir quebra discreta em até 2 linhas;
+- Se o nome for muito grande, usar ellipsis com tooltip;
+- Manter um ícone pequeno de troca no meio;
+- Reduzir a altura total desse bloco.
+
+5. Layout em duas colunas para campos
+Para evitar scroll, reorganizar os campos em layout mais inteligente.
+
+Sugestão:
+- Coluna esquerda: Novo colaborador;
+- Coluna direita: Motivo da troca.
+
+Mas como o motivo precisa de mais espaço, pode ser:
+- Novo colaborador em linha única;
+- Motivo da troca abaixo, porém com altura menor.
+
+O campo “Motivo da troca” não precisa ser tão alto.
+Reduzir a altura para algo entre 82px e 96px.
+Manter legível, mas sem ocupar muito espaço.
+
+Label:
+“Motivo da troca”
+
+Placeholder:
+“Informe o motivo da troca. Ex: colaborador indisponível, ajuste operacional ou substituição solicitada.”
+
+Texto auxiliar:
+“Mínimo de 10 caracteres.”
+
+Contador:
+“0/10” ou “0/300”, se existir limite maior.
+
+6. Melhorar o alerta de passagem e hospedagem
+O alerta atual está visualmente bom, mas está alto demais.
+
+Transformar em um alerta compacto e sofisticado.
+
+Título:
+“Atenção sobre passagem e hospedagem”
+
+Texto:
+“Esta solicitação não cancela automaticamente passagem ou hospedagem já registrada. Compras deverá avaliar os impactos antes de aprovar.”
+
+Chips:
+“Passagem registrada”
+“Hospedagem registrada”
+
+Melhorias:
+- Reduzir padding;
+- Manter o fundo amarelo suave;
+- Manter borda amarela/laranja discreta;
+- Ícone pequeno;
+- Texto em duas linhas no máximo;
+- Chips pequenos e alinhados;
+- Não deixar o alerta maior que o necessário.
+
+7. Footer sem scroll e mais refinado
+O rodapé deve ficar sempre visível sem precisar rolar.
+
+Botões:
+Cancelar
+Enviar para aprovação
+
+Melhorias:
+- Footer com separador sutil no topo;
+- Botões alinhados e com altura consistente;
+- Botão “Cancelar” secundário;
+- Botão “Enviar para aprovação” principal azul;
+- Quando desabilitado, deve parecer realmente desabilitado;
+- Quando habilitado, hover suave e aparência premium.
+
+O botão “Enviar para aprovação” só deve habilitar quando:
+- Novo colaborador estiver selecionado;
+- Novo colaborador for diferente do colaborador atual;
+- Motivo tiver pelo menos 10 caracteres;
+- Não existir solicitação pendente para a mesma escala, se essa validação já existir.
+
+Durante envio:
+- Trocar texto para “Enviando...”
+- Desabilitar botões;
+- Evitar duplo clique.
+
+8. Criar modal após enviar para aprovação
+Após o usuário clicar em “Enviar para aprovação” e a solicitação ser enviada com sucesso, abrir um novo modal de confirmação, mantendo a mesma paleta Titanium.
+
+Esse modal deve ser menor, sem scroll, elegante e objetivo.
+
+Título:
+“Solicitação enviada para aprovação”
+
+Subtítulo:
+“A troca foi enviada para análise do time de Compras.”
+
+Conteúdo do modal:
+Mostrar um resumo curto da solicitação:
+
+Escala:
+Pedro teste evento 2 — cenotecnica
+
+Colaborador atual:
+ZEDERJUNIOR GOMES NOGUEIRA
+
+Novo colaborador:
+[NOME DO NOVO COLABORADOR SELECIONADO]
+
+Status:
+Aguardando aprovação de Compras
+
+Mensagem principal:
+“A escala continuará com o colaborador atual até que a troca seja aprovada.”
+
+Também incluir uma mensagem sobre passagem/hospedagem:
+“Caso exista passagem ou hospedagem vinculada, o time de Compras avaliará os impactos antes da aprovação.”
+
+Botões:
+- “Entendi” como botão principal;
+- Opcional: “Ver solicitações” se já existir uma tela/lista de solicitações no sistema.
+
+Visual do modal pós-envio:
+- Ícone de sucesso discreto no topo;
+- Card de resumo pequeno;
+- Badge “Aguardando aprovação”;
+- Sem scroll;
+- Aparência limpa, corporativa e premium;
+- Não usar emojis.
+
+9. Melhorar microcopy geral
+Corrigir todos os textos para português profissional:
+
+Usar:
+“Solicitar troca de colaborador”
+“A troca só será efetivada após aprovação do time de Compras.”
+“Novo colaborador”
+“Selecione o novo colaborador”
+“Motivo da troca”
+“Mínimo de 10 caracteres.”
+“Atenção sobre passagem e hospedagem”
+“Enviar para aprovação”
+“Solicitação enviada para aprovação”
+“Aguardando aprovação de Compras”
+
+Evitar:
+“aprovacao” sem acento;
+“colaborador” escrito errado;
+textos longos demais;
+mensagens técnicas para o usuário.
+
+10. Critérios de aceite
+O ajuste só estará correto se:
+- O modal principal não tiver scroll interno no desktop;
+- Os botões ficarem visíveis sem rolar;
+- O conteúdo continuar claro e completo;
+- O layout parecer mais premium e corporativo;
+- O alerta de passagem/hospedagem ficar mais compacto;
+- O resumo da escala ficar elegante e menor;
+- O card de colaborador atual/novo colaborador ocupar menos altura;
+- O modal pós-envio aparecer após sucesso;
+- O modal pós-envio informar claramente que a troca ainda depende de aprovação;
+- A escala continuar com o colaborador atual até aprovação;
+- A paleta Titanium e o estilo visual atual forem mantidos.
