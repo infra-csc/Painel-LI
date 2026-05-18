@@ -99,7 +99,10 @@ export default function CollaboratorCombobox({
           />
         </div>
 
-        <div className="max-h-[240px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+        <div
+          className="max-h-[240px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent"
+          onWheel={(e) => e.stopPropagation()}
+        >
           {!hideAll && (
             <div
               className={`px-3 py-2.5 text-[13px] font-medium border-b border-slate-100 cursor-pointer transition-colors ${
