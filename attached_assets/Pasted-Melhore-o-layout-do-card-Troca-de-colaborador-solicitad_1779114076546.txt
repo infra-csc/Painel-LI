@@ -1,0 +1,140 @@
+Melhore o layout do card “Troca de colaborador solicitada” dentro do modal “Registro de Passagem”.
+
+O layout atual não ficou bom: está muito apertado, com muito amarelo, informações espremidas e pouca hierarquia visual. Quero que o card fique mais premium, limpo, corporativo e fácil para o time de Compras analisar.
+
+Manter:
+- Paleta Titanium atual;
+- Modal geral atual;
+- Abas atuais;
+- Dados de passagem;
+- Regras de aprovação/rejeição existentes;
+- Sem criar scroll;
+- Sem alterar permissões, endpoints ou lógica principal do sistema.
+
+Ajustar apenas o card de solicitação de troca.
+
+Novo objetivo:
+Transformar o card em um painel de análise de troca, deixando claro:
+1. Qual colaborador está atualmente na escala;
+2. Qual colaborador foi solicitado;
+3. Quem solicitou;
+4. Quando solicitou;
+5. Qual o motivo;
+6. Que a passagem já está comprada;
+7. Que Compras precisa aprovar ou rejeitar a troca.
+
+Estrutura desejada do card:
+
+Topo do card:
+- Título: “Troca de colaborador solicitada”
+- Badge: “Aguardando análise”
+- Abaixo do título, uma linha discreta com:
+  “Solicitado por Admin Sistema em 18/05/2026 às 14:30”
+
+Importante:
+Adicionar a data e hora da solicitação.
+Usar o campo de data/hora real da solicitação, se já existir.
+Se ainda não existir, criar/usar um campo como:
+dataSolicitacaoTroca
+createdAtSolicitacaoTroca
+ou equivalente, preenchido no momento em que a solicitação é enviada.
+
+Formato:
+dd/MM/yyyy às HH:mm
+
+Exemplo:
+“Solicitado por Admin Sistema em 18/05/2026 às 14:30”
+
+Corpo do card:
+Criar uma comparação visual mais bonita entre os colaboradores.
+
+Layout sugerido:
+
+[Colaborador atual]              [Colaborador solicitado]
+Ana Claudia Motta Alves          Teste Yan
+De Souza
+
+Entre os dois blocos, usar uma seta discreta ou ícone de troca.
+
+Regras visuais:
+- Dois mini-cards lado a lado;
+- Fundo branco ou cinza muito suave;
+- Borda discreta;
+- Labels em cinza;
+- Nome do colaborador atual em texto escuro;
+- Nome do colaborador solicitado com destaque moderado em azul;
+- Não deixar os nomes espremidos;
+- Permitir quebra de linha natural;
+- Não usar excesso de caixa alta.
+
+Abaixo da comparação, criar uma seção separada para o motivo:
+
+Label:
+“Motivo da solicitação”
+
+Valor:
+Teste
+
+O motivo deve ficar em um bloco próprio, com fundo neutro, para não misturar com os dados dos colaboradores.
+
+Depois do motivo, manter o aviso de passagem comprada, mas mais compacto e elegante:
+
+Texto:
+“Esta escala possui passagem comprada. Revise os impactos antes de aprovar a troca.”
+
+Visual:
+- Fundo laranja/amarelo bem suave;
+- Ícone pequeno;
+- Borda discreta;
+- Texto menor;
+- Não ocupar muita altura;
+- Não parecer erro grave.
+
+Remover ou reduzir o texto:
+“Ao aprovar, a alteração do colaborador será liberada para esta escala.”
+
+Se mantiver, deixar como microcopy discreta logo acima dos botões:
+“A aprovação libera a alteração do colaborador nesta escala.”
+
+Botões:
+Manter:
+“Aprovar troca”
+“Rejeitar troca”
+
+Melhorar visual:
+- Botões com mesma largura;
+- Altura menor e mais elegante;
+- Verde e vermelho menos agressivos;
+- Ícones alinhados;
+- Espaçamento melhor;
+- Hover suave;
+- Não deixar os botões grudados no conteúdo.
+
+Layout visual final esperado:
+
+------------------------------------------------
+Troca de colaborador solicitada        [Aguardando análise]
+Solicitado por Admin Sistema em 18/05/2026 às 14:30
+
+[Colaborador atual]        →        [Colaborador solicitado]
+Ana Claudia Motta Alves             Teste Yan
+De Souza
+
+Motivo da solicitação
+Teste
+
+Aviso: Esta escala possui passagem comprada. Revise os impactos antes de aprovar a troca.
+
+[Aprovar troca] [Rejeitar troca]
+------------------------------------------------
+
+Critérios de aceite:
+- O card deve parecer um painel de análise, não um alerta improvisado;
+- Deve ter data e hora da solicitação;
+- “Colaborador atual” e “Colaborador solicitado” devem ficar visualmente bem separados;
+- O motivo deve ter uma área própria;
+- O aviso de passagem comprada deve ser discreto;
+- Os botões devem continuar claros, mas mais refinados;
+- O card deve ficar mais bonito, organizado e profissional;
+- Não pode criar scroll no modal;
+- Não pode quebrar a lógica atual de aprovação/rejeição.

@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Hotel, Save, Eye, ChevronDown, ChevronRight, MessageCircle, Edit, FileText, History, AlertCircle, CheckCheck, XCircle, ArrowLeftRight } from "lucide-react";
+import { Hotel, Save, Eye, ChevronDown, ChevronRight, MessageCircle, Edit, FileText, History, AlertCircle, CheckCheck, XCircle, ArrowLeftRight, ArrowRight } from "lucide-react";
 import AttachmentUpload from "@/components/ui/attachment-upload";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StatusBadge from "@/components/common/status-badge";
@@ -159,6 +159,25 @@ export default function Accommodations() {
 
   const pendingSwap = swapRequests?.find(s => s.status === 'pendente');
   const latestSwap = swapRequests?.find(s => ['aprovado', 'rejeitado'].includes(s.status));
+
+  // Query global — para badges nas linhas da tabela (sem depender de inclusão selecionada)
+  const { data: allSwapRequests } = useQuery<SwapRequest[]>({
+    queryKey: ["/api/swap-requests"],
+    queryFn: async () => {
+      const r = await fetch("/api/swap-requests");
+      if (!r.ok) return [];
+      return r.json();
+    },
+  });
+
+  const pendingSwapByInclusion = useMemo(() => {
+    const map = new Map<string, boolean>();
+    allSwapRequests?.filter(s => s.status === 'pendente').forEach(s => {
+      const id = (s as any).team_inclusion_id || s.teamInclusionId;
+      if (id) map.set(id, true);
+    });
+    return map;
+  }, [allSwapRequests]);
 
   const isPurchasingRole = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
 
@@ -388,64 +407,80 @@ export default function Accommodations() {
                     const reviewComment = (swap as any).review_comment || swap.reviewComment;
                     const hasAccomPurchased = ['hospedagem_comprada', 'hospedagem_passagem_comprada'].includes(selectedInclusion.status);
 
-                    if (swapStatus === 'pendente') return (
-                      <div className="mt-2 border border-amber-200 rounded-xl overflow-hidden">
-                        <div className="flex items-center justify-between px-3 py-2 bg-amber-50 border-b border-amber-200">
-                          <div className="flex items-center gap-1.5">
-                            <ArrowLeftRight className="w-3.5 h-3.5 text-amber-600" />
-                            <span className="text-[11px] font-bold text-amber-800">Troca de colaborador solicitada</span>
-                          </div>
-                          <span className="text-[10px] font-semibold bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full whitespace-nowrap">Aguardando análise</span>
-                        </div>
-                        <div className="p-3 space-y-2 bg-amber-50/30">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em] mb-0.5">Colaborador atual</p>
-                              <p className="text-[11px] font-semibold text-slate-700 leading-snug">{currentCollabName}</p>
+                    if (swapStatus === 'pendente') {
+                      const swapCreatedAt = (swap as any).created_at || swap.createdAt;
+                      const formatSwapDT = (dt: any) => {
+                        if (!dt) return '—';
+                        const d = new Date(dt);
+                        const day = String(d.getDate()).padStart(2,'0');
+                        const mon = String(d.getMonth()+1).padStart(2,'0');
+                        const hrs = String(d.getHours()).padStart(2,'0');
+                        const min = String(d.getMinutes()).padStart(2,'0');
+                        return `${day}/${mon}/${d.getFullYear()} às ${hrs}:${min}`;
+                      };
+                      return (
+                        <div className="mt-2 rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-white">
+                          <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+                            <div className="flex items-center justify-between mb-0.5">
+                              <div className="flex items-center gap-2">
+                                <ArrowLeftRight className="w-3.5 h-3.5 text-slate-400" />
+                                <span className="text-[12px] font-bold text-slate-700">Troca de colaborador solicitada</span>
+                              </div>
+                              <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 whitespace-nowrap">Aguardando análise</span>
                             </div>
-                            <div>
-                              <p className="text-[9px] font-bold text-blue-500 uppercase tracking-[0.1em] mb-0.5">Colaborador solicitado</p>
-                              <p className="text-[11px] font-semibold text-blue-700 leading-snug">{requestedCollabName}</p>
-                            </div>
+                            <p className="text-[10px] text-slate-400 pl-[22px]">
+                              Solicitado por <span className="font-medium text-slate-500">{requestedByName}</span> em {formatSwapDT(swapCreatedAt)}
+                            </p>
                           </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em] mb-0.5">Motivo</p>
+                          <div className="p-3 space-y-2">
+                            <div className="flex items-stretch gap-1.5">
+                              <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 min-w-0">
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.08em] mb-1">Colaborador atual</p>
+                                <p className="text-[12px] font-semibold text-slate-700 leading-snug break-words">{currentCollabName}</p>
+                              </div>
+                              <div className="flex items-center justify-center shrink-0 w-6">
+                                <ArrowRight className="w-3.5 h-3.5 text-slate-300" />
+                              </div>
+                              <div className="flex-1 bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-2 min-w-0">
+                                <p className="text-[9px] font-bold text-blue-400 uppercase tracking-[0.08em] mb-1">Colaborador solicitado</p>
+                                <p className="text-[12px] font-semibold text-blue-700 leading-snug break-words">{requestedCollabName}</p>
+                              </div>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2">
+                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.08em] mb-0.5">Motivo da solicitação</p>
                               <p className="text-[11px] text-slate-600 leading-snug">{swap.reason || '—'}</p>
                             </div>
-                            <div>
-                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em] mb-0.5">Solicitado por</p>
-                              <p className="text-[11px] text-slate-600 leading-snug">{requestedByName}</p>
-                            </div>
+                            {hasAccomPurchased && (
+                              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                                <AlertCircle className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
+                                <p className="text-[10px] text-amber-700 leading-snug">Esta escala possui hospedagem comprada. Revise os impactos antes de aprovar a troca.</p>
+                              </div>
+                            )}
+                            {isPurchasingRole && (
+                              <div className="space-y-1.5 pt-0.5">
+                                <p className="text-[10px] text-slate-400 text-center">A aprovação libera a alteração do colaborador nesta escala.</p>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => setSwapConfirmAction('approve')}
+                                    disabled={approveSwapMutation.isPending || rejectSwapMutation.isPending}
+                                    className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                                  >
+                                    <CheckCheck className="w-3.5 h-3.5" />Aprovar troca
+                                  </button>
+                                  <button
+                                    onClick={() => { setSwapConfirmAction('reject'); setSwapRejectReason(''); }}
+                                    disabled={approveSwapMutation.isPending || rejectSwapMutation.isPending}
+                                    className="flex-1 flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-semibold py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                                  >
+                                    <XCircle className="w-3.5 h-3.5" />Rejeitar troca
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          {hasAccomPurchased && (
-                            <div className="flex items-center gap-1.5 bg-orange-50 border border-orange-200 rounded-lg px-2 py-1.5">
-                              <AlertCircle className="w-3 h-3 text-orange-400 shrink-0" />
-                              <p className="text-[10px] text-orange-600">Esta escala possui hospedagem comprada. Revise os impactos antes de aprovar.</p>
-                            </div>
-                          )}
-                          <p className="text-[10px] text-slate-400 italic">Ao aprovar, a alteração do colaborador será liberada para esta escala.</p>
-                          {isPurchasingRole && (
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => setSwapConfirmAction('approve')}
-                                disabled={approveSwapMutation.isPending || rejectSwapMutation.isPending}
-                                className="flex-1 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-[11px] font-semibold py-2 rounded-lg transition-colors disabled:opacity-50"
-                              >
-                                <CheckCheck className="w-3.5 h-3.5" />Aprovar troca
-                              </button>
-                              <button
-                                onClick={() => { setSwapConfirmAction('reject'); setSwapRejectReason(''); }}
-                                disabled={approveSwapMutation.isPending || rejectSwapMutation.isPending}
-                                className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-[11px] font-semibold py-2 rounded-lg transition-colors disabled:opacity-50"
-                              >
-                                <XCircle className="w-3.5 h-3.5" />Rejeitar troca
-                              </button>
-                            </div>
-                          )}
                         </div>
-                      </div>
-                    );
+                      );
+                    }
                     if (swapStatus === 'aprovado') return (
                       <div className="mt-2 border border-green-200 rounded-xl overflow-hidden">
                         <div className="flex items-center justify-between px-3 py-2 bg-green-50 border-b border-green-200">
@@ -1527,6 +1562,11 @@ export default function Accommodations() {
                           <div>
                             <p style={{fontSize:14,fontWeight:500,color:'#1a1a2e',lineHeight:1.2}}>{displayName || <span style={{color:'#CBD5E1'}}>Sem colaborador</span>}</p>
                             <p style={{fontSize:12,color:'#999',marginTop:2}}>{func?.name || '—'}</p>
+                            {pendingSwapByInclusion.has(inclusion.id) && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold border border-amber-200 mt-1">
+                                <ArrowLeftRight className="w-2.5 h-2.5" />Troca pendente
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>

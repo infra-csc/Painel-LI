@@ -106,22 +106,17 @@ export default function Sidebar() {
     return map;
   }, [teamInclusions]);
 
-  // Para compras: badge por tela baseado no status atual da inclusão
+  // Para compras: todas as trocas pendentes aparecem em Passagem e Hospedagem
+  // (não filtramos por status da inclusão pois o status pode variar)
   const ticketSwapCount = useMemo(() => {
     if (!isPurchasing || !swapRequests) return 0;
-    return swapRequests.filter(s =>
-      s.status === 'pendente' &&
-      inclusionStatusMap[(s as any).team_inclusion_id || s.teamInclusionId] === 'passagem'
-    ).length;
-  }, [swapRequests, inclusionStatusMap, isPurchasing]);
+    return swapRequests.filter(s => s.status === 'pendente').length;
+  }, [swapRequests, isPurchasing]);
 
   const accommodationSwapCount = useMemo(() => {
     if (!isPurchasing || !swapRequests) return 0;
-    return swapRequests.filter(s =>
-      s.status === 'pendente' &&
-      inclusionStatusMap[(s as any).team_inclusion_id || s.teamInclusionId] === 'hospedagem'
-    ).length;
-  }, [swapRequests, inclusionStatusMap, isPurchasing]);
+    return swapRequests.filter(s => s.status === 'pendente').length;
+  }, [swapRequests, isPurchasing]);
 
   // Para compras: todas as trocas pendentes → badge na aba Escalação
   const scalingSwapCount = useMemo(() => {
