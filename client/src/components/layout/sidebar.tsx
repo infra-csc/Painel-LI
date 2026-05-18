@@ -3,10 +3,11 @@ import { Menu, X } from "lucide-react";
 import logoImg from "@assets/image_1776349526988.png";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/contexts/sidebar-context";
 import { useTheme } from "@/contexts/theme-context";
+import { useQuery } from "@tanstack/react-query";
 
 function MI({ name, filled, style }: {
   name: string;
@@ -79,6 +80,27 @@ export default function Sidebar() {
   const getGroup = (ids: string[]) => tabs.filter(t => ids.includes(t.id));
   const userName = user?.name || "Usuário";
   const sidebarHidden = isCollapsed || isFocusMode;
+
+  const isPurchasing = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
+
+  const { data: swapRequests } = useQuery<any[]>({
+    queryKey: ["/api/swap-requests"],
+    queryFn: async () => {
+      const r = await fetch("/api/swap-requests");
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!isPurchasing,
+    refetchInterval: 30000,
+  });
+
+  const pendingSwapCount = useMemo(() =>
+    isPurchasing ? (swapRequests?.filter(s => s.status === 'pendente').length ?? 0) : 0,
+    [swapRequests, isPurchasing]
+  );
+
+  // IDs de tabs que devem mostrar o badge de trocas pendentes (para compras)
+  const swapBadgeTabs = new Set(['tickets', 'accommodations', 'scaling']);
 
   return (
     <>
@@ -214,9 +236,24 @@ export default function Sidebar() {
                             fontWeight: isActive ? 600 : 400,
                             color: isActive ? BLUE : "#374151",
                             letterSpacing: isActive ? "-0.01em" : "normal",
+                            flex: 1,
                           }}>
                             {tab.label}
                           </span>
+
+                          {/* Badge de trocas pendentes — só para compras */}
+                          {pendingSwapCount > 0 && swapBadgeTabs.has(tab.id) && (
+                            <span style={{
+                              minWidth: 18, height: 18, borderRadius: 9,
+                              background: "#EF4444", color: "#fff",
+                              fontSize: 10, fontWeight: 700,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              padding: "0 5px", flexShrink: 0,
+                              lineHeight: 1,
+                            }}>
+                              {pendingSwapCount > 99 ? "99+" : pendingSwapCount}
+                            </span>
+                          )}
                         </div>
                       </Link>
                     );

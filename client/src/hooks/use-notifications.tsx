@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
-import type { TeamInclusion, Financial } from "@shared/schema";
+import type { TeamInclusion, Financial, SwapRequest } from "@shared/schema";
 
 export interface Notification {
   id: string;
@@ -25,10 +25,58 @@ export function useNotifications() {
     enabled: !!user,
   });
 
+  const { data: swapRequests } = useQuery<SwapRequest[]>({
+    queryKey: ["/api/swap-requests"],
+    queryFn: async () => {
+      const r = await fetch("/api/swap-requests");
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!user,
+    refetchInterval: 30000,
+  });
+
   const notifications: Notification[] = [];
 
   if (!user || !teamInclusions) {
     return { notifications, totalCount: 0 };
+  }
+
+  const isPurchasing = ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
+
+  // Compras — trocas de colaborador pendentes de aprovação
+  if (isPurchasing && swapRequests) {
+    const pendingSwaps = swapRequests.filter(s => s.status === 'pendente');
+    if (pendingSwaps.length > 0) {
+      notifications.push({
+        id: "pending-swaps",
+        title: "Trocas de Colaborador Pendentes",
+        description: `${pendingSwaps.length} solicitação(ões) aguardando aprovação`,
+        type: "scaling",
+        count: pendingSwaps.length,
+        route: "/scaling",
+      });
+    }
+  }
+
+  // Qualquer usuário — trocas que ele solicitou e foram aprovadas recentemente
+  if (!isPurchasing && swapRequests) {
+    const approvedForMe = swapRequests.filter(s =>
+      s.status === 'aprovado' &&
+      (s as any).requested_by === user.id &&
+      // Aprovado nas últimas 48h
+      s.reviewedAt && (Date.now() - new Date((s as any).reviewed_at || s.reviewedAt).getTime()) < 48 * 60 * 60 * 1000
+    );
+    if (approvedForMe.length > 0) {
+      notifications.push({
+        id: "swap-approved",
+        title: "Troca de Colaborador Aprovada",
+        description: `${approvedForMe.length} troca(s) de colaborador foram aprovadas`,
+        type: "scaling",
+        count: approvedForMe.length,
+        route: "/scaling",
+      });
+    }
   }
 
   // Área de Produção - pode ver inclusões pendentes (Tela 1)
