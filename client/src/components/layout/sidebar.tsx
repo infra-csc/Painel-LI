@@ -3,7 +3,8 @@ import { Menu, X } from "lucide-react";
 import logoImg from "@assets/image_1776349526988.png";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { getSeenState } from "@/lib/seenSwaps";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/contexts/sidebar-context";
 import { useTheme } from "@/contexts/theme-context";
@@ -83,6 +84,18 @@ export default function Sidebar() {
 
   const isPurchasing = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
 
+  const [seenState, setSeenState] = useState<Record<string, any>>(() =>
+    user ? getSeenState(user.id) : {}
+  );
+
+  useEffect(() => {
+    const handler = () => {
+      if (user) setSeenState(getSeenState(user.id));
+    };
+    window.addEventListener('swapSeenUpdated', handler);
+    return () => window.removeEventListener('swapSeenUpdated', handler);
+  }, [user]);
+
   const { data: swapRequests } = useQuery<any[]>({
     queryKey: ["/api/swap-requests"],
     queryFn: async () => {
@@ -133,25 +146,32 @@ export default function Sidebar() {
     return swapRequests.filter(s => s.status === 'pendente').length;
   }, [swapRequests, isPurchasing]);
 
-  // Para quem solicitou: badge em Escalação quando a troca foi respondida (aprovada ou rejeitada, últimas 48h)
-  const approvedSwapCount = useMemo(() => {
-    if (!swapRequests || !user) return 0;
-    return swapRequests.filter(s => {
-      if (!['aprovado', 'rejeitado'].includes(s.status)) return false;
+  // Para quem solicitou (não-compras): badge em Escalação
+  //   - troca pendente que ainda não foi visualizada
+  //   - resposta (aprovada/rejeitada nas últimas 48h) que ainda não foi visualizada
+  const myScalingSwapsCount = useMemo(() => {
+    if (!swapRequests || !user || isPurchasing) return 0;
+    let count = 0;
+    swapRequests.forEach(s => {
       const requestedBy = (s as any).requested_by || s.requestedBy;
-      if (requestedBy !== user.id) return false;
-      const reviewedAt = (s as any).reviewed_at || s.reviewedAt;
-      return reviewedAt && (Date.now() - new Date(reviewedAt).getTime()) < 48 * 60 * 60 * 1000;
-    }).length;
-  }, [swapRequests, user]);
+      if (requestedBy !== user.id) return;
+      if (s.status === 'pendente' && !seenState[s.id]?.pendingSeen) {
+        count++;
+      } else if (['aprovado', 'rejeitado'].includes(s.status) && !seenState[s.id]?.respondedSeen) {
+        const reviewedAt = (s as any).reviewed_at || s.reviewedAt;
+        if (reviewedAt && (Date.now() - new Date(reviewedAt).getTime()) < 48 * 60 * 60 * 1000) count++;
+      }
+    });
+    return count;
+  }, [swapRequests, user, isPurchasing, seenState]);
 
   // Mapa tab id → badge count
-  // Compras vê trocas pendentes em Passagem/Hospedagem (não em Escalação)
-  // Quem enviou vê badge em Escalação apenas quando recebe resposta
+  // Compras vê trocas pendentes em Passagem/Hospedagem (some ao agir)
+  // Solicitante vê badge em Escalação (some ao visualizar)
   const tabBadgeCount: Record<string, number> = {
     tickets: ticketSwapCount,
     accommodations: accommodationSwapCount,
-    scaling: approvedSwapCount,
+    scaling: myScalingSwapsCount,
   };
 
   return (

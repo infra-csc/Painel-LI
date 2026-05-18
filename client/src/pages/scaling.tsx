@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
+import { markSwapSeen, getSeenState } from "@/lib/seenSwaps";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
 import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File, HelpCircle, ArrowLeftRight, AlertCircle } from "lucide-react";
@@ -86,6 +87,23 @@ export default function Scaling() {
   
   const { user } = useAuth();
   const { toast } = useToast();
+
+  // IDs de trocas pendentes já visualizadas pelo solicitante
+  const [seenSwapIds, setSeenSwapIds] = useState<Set<string>>(() => {
+    if (!user) return new Set<string>();
+    const state = getSeenState(user.id);
+    return new Set(Object.entries(state).filter(([, v]: [string, any]) => v.pendingSeen).map(([k]) => k));
+  });
+
+  useEffect(() => {
+    const handler = () => {
+      if (!user) return;
+      const state = getSeenState(user.id);
+      setSeenSwapIds(new Set(Object.entries(state).filter(([, v]: [string, any]) => v.pendingSeen).map(([k]) => k)));
+    };
+    window.addEventListener('swapSeenUpdated', handler);
+    return () => window.removeEventListener('swapSeenUpdated', handler);
+  }, [user]);
 
   // Handle column sorting
   const handleSort = (field: SortField) => {
@@ -746,26 +764,41 @@ export default function Scaling() {
     });
   };
 
+  const markInclusionSwapSeen = (inclusionId: string) => {
+    if (!user) return;
+    const swap = allSwapRequests?.find(s => {
+      const inclId = (s as any).team_inclusion_id || s.teamInclusionId;
+      return inclId === inclusionId;
+    });
+    if (!swap) return;
+    const requestedBy = (swap as any).requested_by || swap.requestedBy;
+    if (requestedBy === user.id) {
+      if (swap.status === 'pendente') markSwapSeen(user.id, swap.id, 'pending');
+      else if (['aprovado', 'rejeitado'].includes(swap.status)) markSwapSeen(user.id, swap.id, 'responded');
+    }
+  };
+
   const handleRowClick = (inclusion: TeamInclusion) => {
     setSelectedInclusion(inclusion);
     setModalData({
       collaboratorId: inclusion.collaboratorId || "",
-      observations: inclusion.observations || "", // Preservar observações existentes
-      dailyValue: 0, // Always start empty, user must input value
-    });
-    setShowModal(true);
-  };
-
-  const handleViewComments = (e: React.MouseEvent, inclusion: TeamInclusion) => {
-    e.stopPropagation(); // Evita que o click na linha seja acionado
-    // Abrir o modal da escalação com os dados da inclusão
-    setSelectedInclusion(inclusion);
-    setModalData({
-      collaboratorId: inclusion.collaboratorId || "",
-      observations: inclusion.observations || "", // Preservar observações existentes
+      observations: inclusion.observations || "",
       dailyValue: 0,
     });
     setShowModal(true);
+    markInclusionSwapSeen(inclusion.id);
+  };
+
+  const handleViewComments = (e: React.MouseEvent, inclusion: TeamInclusion) => {
+    e.stopPropagation();
+    setSelectedInclusion(inclusion);
+    setModalData({
+      collaboratorId: inclusion.collaboratorId || "",
+      observations: inclusion.observations || "",
+      dailyValue: 0,
+    });
+    setShowModal(true);
+    markInclusionSwapSeen(inclusion.id);
   };
 
   const handleSave = () => {
@@ -1350,11 +1383,18 @@ export default function Scaling() {
                                           </span>
                                         );
                                       })()}
-                                      {pendingSwapByInclusion.has(inclusion.id) && (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold border border-amber-200">
-                                          <ArrowLeftRight className="w-2.5 h-2.5" />Troca pendente
-                                        </span>
-                                      )}
+                                      {(() => {
+                                        const swap = pendingSwapByInclusion.get(inclusion.id);
+                                        if (!swap) return null;
+                                        const requestedBy = (swap as any).requested_by || swap.requestedBy;
+                                        if (requestedBy !== user?.id) return null;
+                                        if (seenSwapIds.has(swap.id)) return null;
+                                        return (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold border border-amber-200">
+                                            <ArrowLeftRight className="w-2.5 h-2.5" />Troca pendente
+                                          </span>
+                                        );
+                                      })()}
                                     </div>
                                   </div>
                                 </td>
@@ -1507,11 +1547,18 @@ export default function Scaling() {
                                           </span>
                                         );
                                       })()}
-                                      {pendingSwapByInclusion.has(inclusion.id) && (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold border border-amber-200">
-                                          <ArrowLeftRight className="w-2.5 h-2.5" />Troca pendente
-                                        </span>
-                                      )}
+                                      {(() => {
+                                        const swap = pendingSwapByInclusion.get(inclusion.id);
+                                        if (!swap) return null;
+                                        const requestedBy = (swap as any).requested_by || swap.requestedBy;
+                                        if (requestedBy !== user?.id) return null;
+                                        if (seenSwapIds.has(swap.id)) return null;
+                                        return (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold border border-amber-200">
+                                            <ArrowLeftRight className="w-2.5 h-2.5" />Troca pendente
+                                          </span>
+                                        );
+                                      })()}
                                     </div>
                                   </div>
                                 </td>
