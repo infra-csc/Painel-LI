@@ -2539,7 +2539,7 @@ export default function Scaling() {
 
       {/* Modal de Solicitação de Troca de Colaborador */}
       <Dialog open={showSwapModal} onOpenChange={(open) => { if (!open) { setShowSwapModal(false); setSwapNewCollaboratorId(""); setSwapReason(""); setSwapSuccess(false); setSwapSubmitAttempted(false); } }}>
-        <DialogContent className="max-w-[500px] p-0 gap-0 overflow-hidden rounded-2xl">
+        <DialogContent className="max-w-[500px] p-0 gap-0 rounded-2xl flex flex-col" style={{ maxHeight: '92vh' }}>
           {selectedInclusion && (() => {
             const currentCollabName = getCollaboratorName(selectedInclusion.collaboratorId || undefined);
             const newCollabName = swapNewCollaboratorId ? getCollaboratorName(swapNewCollaboratorId) : null;
@@ -2550,9 +2550,12 @@ export default function Scaling() {
             const canSubmit = !!swapNewCollaboratorId && !isSameCollab && swapReason.trim().length >= 10 && !createSwapRequestMutation.isPending;
 
             const statusLabels: Record<string, string> = {
-              rascunho: "Rascunho", pendente: "Pendente", escalacao: "Escalado",
-              passagem: "Passagem", hospedagem: "Hospedagem", aprovacao: "Aprovação",
-              aprovado: "Aprovado", cancelado: "Cancelado",
+              rascunho: "Rascunho", planejado: "Planejado", confirmado: "Confirmado",
+              pendente: "Pendente", reaberto: "Reaberto", escalacao: "Escalado",
+              passagem: "Aguardando passagem", passagem_comprada: "Passagem comprada",
+              hospedagem: "Aguardando hospedagem", hospedagem_comprada: "Hospedagem reservada",
+              hospedagem_passagem_comprada: "Passagem e hospedagem prontas",
+              aprovacao: "Em aprovação", aprovado: "Aprovado", cancelado: "Cancelado",
             };
             const statusLabel = statusLabels[selectedInclusion.status] || selectedInclusion.status;
 
@@ -2656,7 +2659,7 @@ export default function Scaling() {
                 </div>
 
                 {/* Body */}
-                <div className="px-6 py-5 space-y-5">
+                <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
 
                   {/* Card comparativo atual → novo */}
                   <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
