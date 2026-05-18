@@ -1,0 +1,66 @@
+Melhore apenas o card de resumo dentro do modal “Solicitação enviada para aprovação”, mantendo a paleta Titanium e o layout geral atual.
+
+Não alterar a lógica de envio, permissões, integrações, endpoints ou funcionamento do modal. Fazer apenas ajustes visuais e de microcopy.
+
+Ajustes desejados:
+
+1. Trocar o label “Novo colaborador” para:
+“Colaborador solicitado”
+
+Motivo:
+Nesse momento a troca ainda não foi aprovada, então o colaborador não deve ser tratado como novo colaborador oficial. Ele é apenas o colaborador solicitado para análise.
+
+2. Melhorar a estrutura do card de resumo.
+
+Estrutura sugerida:
+
+Topo do card:
+Escala
+Pedro Teste 3
+Função: cenotecnica
+
+Badge no canto direito:
+Aguardando aprovação
+
+Área de comparação:
+Colaborador atual
+teste yan
+
+ícone ou seta discreta
+
+Colaborador solicitado
+ADAILTON DE ALMEIDA CARDOSO
+
+3. O badge “Aguardando aprovação” deve continuar visível, mas com aparência mais elegante:
+- Fundo amarelo suave;
+- Borda discreta;
+- Texto com bom contraste;
+- Não parecer alerta de erro;
+- Parecer status de processo.
+
+4. Melhorar a separação visual entre colaborador atual e colaborador solicitado:
+- Pode usar grid de duas colunas;
+- Pode usar uma seta discreta entre eles;
+- Manter nomes legíveis;
+- Evitar excesso de azul forte no nome do colaborador solicitado;
+- Usar azul apenas como destaque moderado.
+
+5. Ajustar o card informativo azul inferior.
+Remover qualquer menção a passagem ou hospedagem.
+Deixar somente:
+
+“A escala continuará com o colaborador atual até que a troca seja aprovada pelo time de Compras.”
+
+Após remover o segundo parágrafo, reduzir a altura e o padding do card azul para ficar mais compacto e premium.
+
+6. Manter:
+- Ícone de sucesso no topo;
+- Título “Solicitação enviada para aprovação”;
+- Subtítulo atual;
+- Botão “Entendi”;
+- Paleta Titanium;
+- Modal sem scroll;
+- Visual limpo, claro e corporativo.
+
+Resultado esperado:
+O modal deve deixar claro que a solicitação foi enviada, mas que a troca ainda não aconteceu. O termo “Colaborador solicitado” deve evitar qualquer confusão com alteração já aprovada.

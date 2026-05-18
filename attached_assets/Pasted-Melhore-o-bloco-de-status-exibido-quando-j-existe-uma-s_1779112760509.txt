@@ -1,0 +1,94 @@
+Melhore o bloco de status exibido quando já existe uma solicitação de troca de colaborador pendente.
+
+Contexto:
+Quando uma troca de colaborador já foi solicitada, o usuário não deve ver mais o botão de solicitar troca. No lugar, deve aparecer um status claro informando que a solicitação está aguardando aprovação do time de Compras.
+
+Manter a paleta Titanium atual, com visual claro, corporativo, bordas arredondadas, cinzas suaves e azul como cor principal. Não alterar lógica, endpoints, permissões ou regras existentes. Fazer apenas melhoria visual e de microcopy.
+
+Estado atual:
+Existe um card amarelo com o texto:
+“Troca solicitada — aguardando aprovação”
+“Novo colaborador: teste yan”
+“Motivo: Teste”
+
+Melhorias desejadas:
+
+1. Transformar esse bloco em um status card mais premium e menos parecido com alerta de erro.
+
+2. Trocar o ícone de exclamação por um ícone de pendência/relógio/análise, pois o status não representa erro, e sim uma solicitação em andamento.
+
+3. Estrutura sugerida do card:
+
+Título:
+“Troca solicitada”
+
+Badge no canto direito:
+“Aguardando aprovação”
+
+Subtexto:
+“A solicitação foi enviada para análise do time de Compras.”
+
+Informações:
+Novo colaborador: [nome do novo colaborador]
+Motivo: [motivo informado]
+
+Mensagem complementar:
+“O colaborador atual será mantido até a aprovação.”
+
+4. Visual:
+- Fundo amarelo muito suave;
+- Borda amarelo/laranja discreta;
+- Texto principal em tom escuro;
+- Badge pequeno em amarelo/laranja suave;
+- Evitar excesso de laranja forte;
+- Padding compacto;
+- Altura menor que o card atual;
+- Tipografia alinhada ao restante do sistema;
+- Não deixar o bloco visualmente pesado.
+
+5. Se existir rota ou modal de detalhes da solicitação, adicionar botão discreto:
+“Ver solicitação”
+
+Esse botão deve ser secundário, pequeno e elegante.
+
+6. Se o usuário tiver permissão para cancelar a solicitação, adicionar ação secundária:
+“Cancelar solicitação”
+
+Essa ação deve ser discreta, não destrutiva visualmente, e pedir confirmação antes de cancelar.
+
+7. Criar variações visuais para os possíveis status da troca:
+
+Pendente:
+Título: “Troca solicitada”
+Badge: “Aguardando aprovação”
+Cor: amarelo suave
+Mensagem: “O colaborador atual será mantido até a aprovação.”
+
+Aprovada:
+Título: “Troca aprovada”
+Badge: “Aprovada por Compras”
+Cor: verde suave
+Mensagem: “A alteração do colaborador foi liberada.”
+
+Reprovada:
+Título: “Troca recusada”
+Badge: “Reprovada por Compras”
+Cor: vermelho suave
+Mensagem: “A escala permanece com o colaborador atual.”
+
+Cancelada:
+Título: “Solicitação cancelada”
+Badge: “Cancelada”
+Cor: cinza suave
+Mensagem: “A solicitação de troca foi cancelada.”
+
+8. No estado pendente, manter o campo do colaborador atual bloqueado e impedir nova solicitação até que a solicitação atual seja aprovada, reprovada ou cancelada.
+
+9. Critérios de aceite:
+- O bloco deve parecer um status de processo, não um erro;
+- O usuário deve entender claramente que a troca ainda não foi aprovada;
+- O colaborador atual deve continuar visível;
+- O novo colaborador solicitado deve aparecer com destaque moderado;
+- O motivo deve aparecer de forma limpa;
+- O botão de solicitar troca não deve aparecer enquanto houver solicitação pendente;
+- O visual deve ficar consistente com a paleta Titanium e com os outros cards do sistema.

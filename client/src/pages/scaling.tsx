@@ -79,6 +79,7 @@ export default function Scaling() {
   const [swapReason, setSwapReason] = useState("");
   const [swapSuccess, setSwapSuccess] = useState(false);
   const [swapSubmitAttempted, setSwapSubmitAttempted] = useState(false);
+  const [showCancelSwapConfirm, setShowCancelSwapConfirm] = useState(false);
 
   // Cache de metadados de anexos { [id]: { name, type, viewUrl, downloadUrl } }
   const [attachmentMeta, setAttachmentMeta] = useState<Record<string, { name?: string; type?: string; viewUrl?: string; downloadUrl?: string }>>({});
@@ -217,6 +218,7 @@ export default function Scaling() {
   });
 
   const pendingSwap = swapRequests?.find(s => s.status === 'pendente');
+  const latestSwap = swapRequests?.[0]; // mais recente (pode ser rejeitado/cancelado)
 
   // Mutation para criar swap request
   const createSwapRequestMutation = useMutation({
@@ -232,6 +234,24 @@ export default function Scaling() {
     onError: async (err: any) => {
       const msg = await err?.response?.json?.().catch(() => null);
       toast({ title: "Erro", description: msg?.message || "Erro ao criar solicitação", variant: "destructive" });
+    },
+  });
+
+  // Mutation para cancelar swap request
+  const cancelSwapMutation = useMutation({
+    mutationFn: async (swapId: string) => {
+      const r = await apiRequest("PATCH", `/api/swap-requests/${swapId}/cancel`, {});
+      return r.json();
+    },
+    onSuccess: () => {
+      setShowCancelSwapConfirm(false);
+      toast({ title: "Solicitação cancelada", description: "A solicitação de troca foi cancelada com sucesso." });
+      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests"] });
+    },
+    onError: async (err: any) => {
+      const msg = await err?.response?.json?.().catch(() => null);
+      toast({ title: "Erro", description: msg?.message || "Erro ao cancelar solicitação", variant: "destructive" });
     },
   });
 
@@ -1742,17 +1762,91 @@ export default function Scaling() {
                                 <div className="border border-slate-200 rounded-xl bg-white px-3 py-2.5">
                                   <div className="text-sm font-medium text-slate-700">{getCollaboratorName(modalData.collaboratorId)}</div>
                                 </div>
-                                {/* Banner: troca pendente */}
-                                {pendingSwap && (
-                                  <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
-                                    <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-                                    <div className="text-[11px] text-amber-700">
-                                      <div className="font-bold mb-0.5">Troca solicitada — aguardando aprovação</div>
-                                      <div>Novo colaborador: <span className="font-semibold">{getCollaboratorName((pendingSwap as any).new_collaborator_id)}</span></div>
-                                      <div className="text-amber-600 mt-0.5">Motivo: {pendingSwap.reason}</div>
+                                {/* Card de status de troca */}
+                                {(() => {
+                                  const swap = pendingSwap || (latestSwap && ['rejeitado', 'aprovado'].includes(latestSwap.status) ? latestSwap : null);
+                                  if (!swap) return null;
+
+                                  const isAdminOrPurchasing = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
+                                  const canCancel = swap.status === 'pendente' && (isAdminOrPurchasing || swap.requestedBy === user?.id);
+
+                                  const variants: Record<string, { bg: string; border: string; icon: React.ReactNode; title: string; badge: string; badgeClass: string; msg: string; textColor: string }> = {
+                                    pendente: {
+                                      bg: 'bg-amber-50/80', border: 'border-amber-200',
+                                      icon: <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />,
+                                      title: 'Troca solicitada', badge: 'Aguardando aprovação',
+                                      badgeClass: 'bg-amber-100 text-amber-700 border-amber-200',
+                                      msg: 'O colaborador atual será mantido até a aprovação.',
+                                      textColor: 'text-slate-700',
+                                    },
+                                    aprovado: {
+                                      bg: 'bg-green-50/80', border: 'border-green-200',
+                                      icon: <Check className="w-3.5 h-3.5 text-green-600 shrink-0" />,
+                                      title: 'Troca aprovada', badge: 'Aprovada por Compras',
+                                      badgeClass: 'bg-green-100 text-green-700 border-green-200',
+                                      msg: 'A alteração do colaborador foi liberada.',
+                                      textColor: 'text-slate-700',
+                                    },
+                                    rejeitado: {
+                                      bg: 'bg-red-50/70', border: 'border-red-200',
+                                      icon: <X className="w-3.5 h-3.5 text-red-500 shrink-0" />,
+                                      title: 'Troca recusada', badge: 'Reprovada por Compras',
+                                      badgeClass: 'bg-red-100 text-red-700 border-red-200',
+                                      msg: 'A escala permanece com o colaborador atual.',
+                                      textColor: 'text-slate-700',
+                                    },
+                                  };
+
+                                  const v = variants[swap.status] || variants.pendente;
+
+                                  return (
+                                    <div className={`rounded-xl border ${v.border} ${v.bg} px-3 py-2.5 space-y-2`}>
+                                      {/* Cabeçalho */}
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-1.5">
+                                          {v.icon}
+                                          <span className={`text-[12px] font-semibold ${v.textColor}`}>{v.title}</span>
+                                        </div>
+                                        <span className={`text-[10px] font-medium border rounded-full px-2 py-px leading-tight ${v.badgeClass}`}>{v.badge}</span>
+                                      </div>
+
+                                      {/* Subtexto */}
+                                      <p className="text-[10.5px] text-slate-500 leading-snug">A solicitação foi enviada para análise do time de Compras.</p>
+
+                                      {/* Detalhes */}
+                                      <div className="space-y-1">
+                                        <div className="flex items-start gap-1.5 text-[11px]">
+                                          <span className="text-slate-400 shrink-0">Novo colaborador:</span>
+                                          <span className="font-medium text-slate-700">{getCollaboratorName(swap.newCollaboratorId)}</span>
+                                        </div>
+                                        <div className="flex items-start gap-1.5 text-[11px]">
+                                          <span className="text-slate-400 shrink-0">Motivo:</span>
+                                          <span className="text-slate-600 leading-snug">{swap.reason}</span>
+                                        </div>
+                                        {swap.reviewComment && (
+                                          <div className="flex items-start gap-1.5 text-[11px]">
+                                            <span className="text-slate-400 shrink-0">Observação:</span>
+                                            <span className="text-slate-600 leading-snug italic">{swap.reviewComment}</span>
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Rodapé */}
+                                      <div className="flex items-center justify-between pt-0.5">
+                                        <p className="text-[10px] text-slate-400 italic leading-tight">{v.msg}</p>
+                                        {canCancel && (
+                                          <button
+                                            type="button"
+                                            onClick={() => setShowCancelSwapConfirm(true)}
+                                            className="text-[10px] text-slate-400 hover:text-red-500 transition-colors underline underline-offset-2 shrink-0"
+                                          >
+                                            Cancelar solicitação
+                                          </button>
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
+                                  );
+                                })()}
                                 {/* Botão Solicitar Troca — só aparece se escalado, tem colaborador, sem pendência */}
                                 {isEscalationConfirmed(selectedInclusion) && selectedInclusion.collaboratorId && !pendingSwap && (
                                   <div className="space-y-1">
@@ -2718,37 +2812,37 @@ export default function Scaling() {
 
                 {/* Resumo compacto */}
                 <div className="bg-slate-50 rounded-xl border border-slate-100 p-4 mb-4 space-y-3">
-                  <div className="flex items-start justify-between gap-4">
+                  {/* Topo: evento + função + badge */}
+                  <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="text-[9px] uppercase tracking-wide font-semibold text-slate-400 mb-0.5">Escala</div>
-                      <div className="text-[12px] font-semibold text-slate-700 leading-tight">
-                        {getEventName(selectedInclusion.eventId)} — {getFunctionName(selectedInclusion.functionId)}
-                      </div>
+                      <div className="text-[12px] font-semibold text-slate-800 leading-tight truncate">{getEventName(selectedInclusion.eventId)}</div>
+                      <div className="text-[11px] text-slate-500 leading-tight">Função: {getFunctionName(selectedInclusion.functionId)}</div>
                     </div>
-                    <span className="inline-block text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5 shrink-0 mt-0.5">Aguardando aprovação</span>
+                    <span className="text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2.5 py-1 shrink-0 leading-tight">Aguardando aprovação</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-                    <div>
+
+                  {/* Comparação atual → solicitado */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                    <div className="flex-1 min-w-0">
                       <div className="text-[9px] uppercase tracking-wide font-semibold text-slate-400 mb-0.5">Colaborador atual</div>
                       <div className="text-[12px] font-semibold text-slate-700 leading-snug">{currentCollabName}</div>
                     </div>
-                    <div>
-                      <div className="text-[9px] uppercase tracking-wide font-semibold text-slate-400 mb-0.5">Novo colaborador</div>
-                      <div className="text-[12px] font-semibold text-blue-700 leading-snug">{newCollabName || "—"}</div>
+                    <div className="w-6 h-6 rounded-full bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                      <ArrowLeftRight className="w-3 h-3 text-slate-400" />
+                    </div>
+                    <div className="flex-1 min-w-0 text-right">
+                      <div className="text-[9px] uppercase tracking-wide font-semibold text-slate-400 mb-0.5">Colaborador solicitado</div>
+                      <div className="text-[12px] font-semibold text-blue-600 leading-snug">{newCollabName || "—"}</div>
                     </div>
                   </div>
                 </div>
 
                 {/* Mensagem principal */}
-                <div className="bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-3 mb-5">
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-2.5 mb-5">
                   <p className="text-[11px] text-blue-800 leading-relaxed">
                     <span className="font-semibold">A escala continuará com o colaborador atual</span> até que a troca seja aprovada pelo time de Compras.
                   </p>
-                  {(hasTicket || hasAccommodation) && (
-                    <p className="text-[11px] text-blue-700 mt-1.5 leading-relaxed">
-                      Caso exista passagem ou hospedagem vinculada, Compras avaliará os impactos antes da aprovação.
-                    </p>
-                  )}
                 </div>
 
                 {/* Botão */}
@@ -2761,6 +2855,40 @@ export default function Scaling() {
               </div>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog de confirmação de cancelamento de troca ── */}
+      <Dialog open={showCancelSwapConfirm} onOpenChange={(open) => { if (!open) setShowCancelSwapConfirm(false); }}>
+        <DialogContent className="max-w-[400px] p-0 gap-0 rounded-2xl overflow-hidden">
+          <div className="px-6 py-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
+                <X className="w-4 h-4 text-red-500" />
+              </div>
+              <div>
+                <DialogTitle className="text-[14px] font-bold text-slate-900 leading-tight mb-0.5">Cancelar solicitação de troca?</DialogTitle>
+                <p className="text-[12px] text-slate-500 leading-relaxed">A solicitação será cancelada e o colaborador atual será mantido. Uma nova solicitação poderá ser feita.</p>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="outline"
+                className="flex-1 rounded-xl h-9 text-[12px] border-slate-200 text-slate-600 hover:bg-slate-50"
+                onClick={() => setShowCancelSwapConfirm(false)}
+                disabled={cancelSwapMutation.isPending}
+              >
+                Manter solicitação
+              </Button>
+              <Button
+                className="flex-1 rounded-xl h-9 text-[12px] bg-red-500 hover:bg-red-600 text-white"
+                onClick={() => { if (pendingSwap) cancelSwapMutation.mutate(pendingSwap.id); }}
+                disabled={cancelSwapMutation.isPending}
+              >
+                {cancelSwapMutation.isPending ? "Cancelando..." : "Sim, cancelar"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

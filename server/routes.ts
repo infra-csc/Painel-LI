@@ -3646,6 +3646,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/swap-requests/:id/cancel", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    const currentUser = await storage.getUser(req.session.userId);
+    if (!currentUser) return res.status(401).json({ message: "Usuário não encontrado" });
+
+    const { id } = req.params;
+    try {
+      const srRows = await db.execute(drizzleSql`SELECT * FROM swap_requests WHERE id = ${id}`);
+      const sr = ((srRows as any).rows ?? srRows)[0];
+      if (!sr) return res.status(404).json({ message: "Solicitação não encontrada" });
+      if (sr.status !== 'pendente') return res.status(400).json({ message: "Solicitação não está pendente" });
+
+      const isAdminOrPurchasing = ['admin', 'administrator', 'administrador', 'purchasing'].includes(currentUser.role);
+      const isRequester = sr.requested_by === currentUser.id;
+      if (!isAdminOrPurchasing && !isRequester) return res.status(403).json({ message: "Sem permissão para cancelar" });
+
+      await db.execute(drizzleSql`
+        UPDATE swap_requests SET status = 'cancelado', reviewed_by = ${currentUser.id}, reviewed_by_name = ${currentUser.name}, reviewed_at = NOW()
+        WHERE id = ${id}
+      `);
+
+      res.json({ message: "Solicitação cancelada" });
+    } catch (error) {
+      console.error("Error cancelling swap request:", error);
+      res.status(500).json({ message: "Erro ao cancelar solicitação" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
