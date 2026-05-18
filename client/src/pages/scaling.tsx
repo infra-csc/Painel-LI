@@ -2625,10 +2625,11 @@ export default function Scaling() {
                     <div>
                       <label className="text-[10px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5 block">Novo colaborador</label>
                       <CollaboratorCombobox
-                        collaborators={collaborators || []}
+                        collaborators={(collaborators || []).filter(c => c.id !== selectedInclusion.collaboratorId)}
                         value={swapNewCollaboratorId}
                         onValueChange={(v) => { setSwapNewCollaboratorId(v); setSwapSubmitAttempted(false); }}
                         placeholder="Selecione o colaborador"
+                        hideAll={true}
                       />
                       {collabEmpty && <p className="text-[10px] text-red-500 mt-1">Selecione um novo colaborador.</p>}
                       {isSameCollab && <p className="text-[10px] text-red-500 mt-1">Precisa ser diferente do atual.</p>}

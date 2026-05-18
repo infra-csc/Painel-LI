@@ -21,6 +21,7 @@ interface CollaboratorComboboxProps {
   onValueChange: (value: string) => void;
   placeholder?: string;
   testId?: string;
+  hideAll?: boolean;
 }
 
 export default function CollaboratorCombobox({
@@ -29,6 +30,7 @@ export default function CollaboratorCombobox({
   onValueChange,
   placeholder = "Selecionar colaborador",
   testId = "collaborator-combobox",
+  hideAll = false,
 }: CollaboratorComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -98,19 +100,21 @@ export default function CollaboratorCombobox({
         </div>
 
         <div className="max-h-[240px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-          <div
-            className={`px-3 py-2.5 text-[13px] font-medium border-b border-slate-100 cursor-pointer transition-colors ${
-              value === "all"
-                ? "bg-blue-50 text-blue-700"
-                : "text-slate-400 hover:bg-blue-50 hover:text-blue-700"
-            }`}
-            onClick={() => {
-              onValueChange("all");
-              close();
-            }}
-          >
-            Todos os Colaboradores
-          </div>
+          {!hideAll && (
+            <div
+              className={`px-3 py-2.5 text-[13px] font-medium border-b border-slate-100 cursor-pointer transition-colors ${
+                value === "all"
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-slate-400 hover:bg-blue-50 hover:text-blue-700"
+              }`}
+              onClick={() => {
+                onValueChange("all");
+                close();
+              }}
+            >
+              Todos os Colaboradores
+            </div>
+          )}
 
           {filtered.length === 0 ? (
             <div className="px-4 py-4 text-[13px] text-slate-400 text-center">
