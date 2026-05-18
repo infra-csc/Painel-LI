@@ -2637,7 +2637,7 @@ export default function Scaling() {
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-[10px] uppercase tracking-wide font-semibold text-slate-500">Motivo da troca</label>
+                        <label className="text-[10px] uppercase tracking-wide font-semibold text-slate-500">Motivo da troca <span className="text-red-500">*</span></label>
                         <span className={`text-[10px] ${swapReason.trim().length >= 10 ? "text-green-500" : "text-slate-300"}`}>{swapReason.trim().length}/10</span>
                       </div>
                       <Textarea
