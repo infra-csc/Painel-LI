@@ -1,0 +1,222 @@
+Melhore o modal “Solicitar Troca de Colaborador” mantendo a identidade visual atual do sistema e a paleta Titanium que já está sendo usada. Não recrie a tela do zero e não altere a lógica principal do fluxo; faça apenas melhorias de layout, clareza, validação visual e experiência do usuário.
+
+Contexto da função:
+Esse modal é aberto quando o usuário solicita a troca de um colaborador já escalado. A troca não deve acontecer imediatamente. Ela deve ser enviada para aprovação do time de Compras. Somente após a aprovação a alteração do colaborador poderá ser liberada.
+
+Objetivo do ajuste:
+Deixar o modal mais profissional, claro e seguro, deixando evidente para o usuário que:
+1. Ele está apenas solicitando uma troca;
+2. A troca só será efetivada após aprovação de Compras;
+3. A passagem e hospedagem atuais não são canceladas automaticamente;
+4. A escala continua com o colaborador atual até a aprovação;
+5. O botão de envio só deve ficar habilitado quando os campos obrigatórios forem preenchidos corretamente.
+
+Manter:
+- Paleta atual Titanium;
+- Fundo claro, elegante e corporativo;
+- Azul como cor principal de ação;
+- Bordas suaves;
+- Cards com sombra leve;
+- Layout limpo e moderno;
+- Estilo visual já usado nos outros modais do app;
+- Ícones existentes, se já estiverem na biblioteca;
+- Responsividade;
+- Lógica atual de abertura, fechamento e envio da solicitação.
+
+Não fazer:
+- Não mudar o fluxo geral do app;
+- Não mudar nomes de variáveis, endpoints, funções ou integrações existentes sem necessidade;
+- Não remover regras atuais de permissão;
+- Não alterar a tela de fundo “Detalhes da Escalação”, exceto se for necessário para preservar o modal;
+- Não usar emojis no texto do modal;
+- Não criar uma identidade visual diferente da atual.
+
+Melhorias desejadas no modal:
+
+1. Cabeçalho do modal
+Melhorar o cabeçalho para ficar mais claro e elegante.
+
+Título:
+“Solicitar troca de colaborador”
+
+Subtítulo:
+“A troca só será efetivada após aprovação do time de Compras.”
+
+O botão de fechar deve continuar no canto superior direito, com bom espaçamento, hover discreto e aparência profissional.
+
+O ícone azul à esquerda pode ser mantido, mas ajuste o alinhamento para que fique perfeitamente centralizado com o título e subtítulo.
+
+2. Adicionar resumo da escala
+Logo abaixo do cabeçalho, adicionar um card compacto de contexto da escala, para o usuário ter certeza de qual escala está solicitando alteração.
+
+Exibir de forma discreta e organizada:
+- Evento
+- Função
+- Período de trabalho
+- Status atual
+
+Exemplo visual:
+Evento: Pedro teste evento 2
+Função: Kit
+Período: 13/11/2025 a 16/11/2025
+Status: Escalado
+
+Esse card deve ser compacto, com fundo levemente destacado, borda suave e tipografia menor. Não deve deixar o modal pesado.
+
+3. Melhorar o card de comparação
+O card atual que mostra “Colaborador atual” e “Novo colaborador” está bom, mas precisa ficar mais legível.
+
+Melhorar para:
+- Não cortar o nome do colaborador atual de forma agressiva;
+- Permitir quebra de linha se o nome for grande;
+- Manter visual comparativo “Atual → Novo”;
+- Destacar o novo colaborador quando ele for selecionado;
+- Quando nenhum novo colaborador estiver selecionado, mostrar:
+“Ainda não selecionado”
+
+Estrutura sugerida:
+Colaborador atual
+JOAQUIM FRANCISCO SANTOS NETO
+
+Novo colaborador
+Ainda não selecionado
+
+No centro, manter um ícone de troca/setas, com visual discreto.
+
+4. Campo “Novo colaborador”
+Manter o campo select/dropdown, mas melhorar a leitura e o estado visual.
+
+Label:
+“Novo colaborador”
+
+Placeholder:
+“Selecione o novo colaborador”
+
+Regras visuais:
+- Se nada estiver selecionado, manter texto em cinza;
+- Se selecionado, mostrar nome em destaque;
+- Se o usuário tentar enviar sem selecionar, mostrar erro abaixo do campo:
+“Selecione um novo colaborador para continuar.”
+
+Também impedir que o mesmo colaborador atual seja selecionado. Caso isso aconteça, mostrar mensagem:
+“O novo colaborador precisa ser diferente do colaborador atual.”
+
+5. Campo “Motivo da troca”
+Melhorar o campo de motivo para orientar melhor o usuário.
+
+Label:
+“Motivo da troca”
+
+Placeholder:
+“Informe o motivo da troca. Ex: colaborador indisponível, ajuste operacional ou substituição solicitada.”
+
+Melhorias:
+- Altura confortável;
+- Visual alinhado com os demais inputs;
+- Manter borda suave;
+- Mostrar contador discreto ou texto auxiliar:
+“Mínimo de 10 caracteres.”
+
+Validação:
+Se estiver vazio ou muito curto, mostrar:
+“Informe um motivo com pelo menos 10 caracteres.”
+
+6. Alerta sobre passagem e hospedagem
+Melhorar o alerta amarelo atual para ficar mais claro, profissional e menos poluído.
+
+Título do alerta:
+“Atenção sobre passagem e hospedagem”
+
+Texto:
+“A solicitação de troca não cancela automaticamente passagem ou hospedagem já registrada. O time de Compras deverá avaliar esses impactos antes de aprovar.”
+
+O alerta deve manter a cor de atenção da paleta atual, com fundo suave, borda levemente amarela/laranja, ícone discreto e boa hierarquia visual.
+
+Se já existirem dados de passagem/hospedagem, exibir chips acima ou dentro do alerta:
+- Passagem registrada
+- Hospedagem pendente
+ou os status reais disponíveis no sistema.
+
+Esses chips devem ser pequenos, elegantes e seguir a mesma linguagem visual dos status do app.
+
+7. Rodapé e botões
+Melhorar o rodapé para ficar mais profissional.
+
+Botões:
+Cancelar
+Enviar para aprovação
+
+Trocar o texto atual “Enviar Solicitação” para:
+“Enviar para aprovação”
+
+O botão “Enviar para aprovação” deve ficar desabilitado quando:
+- Nenhum novo colaborador foi selecionado;
+- O motivo da troca está vazio;
+- O motivo tem menos de 10 caracteres;
+- O novo colaborador é igual ao colaborador atual;
+- Já existe uma solicitação pendente para essa escala, se essa informação estiver disponível.
+
+Estado desabilitado:
+- Aparência realmente desabilitada;
+- Cor mais opaca;
+- Cursor adequado;
+- Não parecer clicável.
+
+Estado habilitado:
+- Azul principal da paleta;
+- Hover sutil;
+- Loading ao enviar.
+
+Durante envio:
+- Alterar texto para “Enviando...”
+- Desabilitar botões para evitar duplo clique.
+
+8. Confirmação após envio
+Após enviar com sucesso, exibir uma confirmação clara, seja em toast ou feedback dentro do modal.
+
+Mensagem sugerida:
+“Solicitação enviada para Compras. A escala continuará com o colaborador atual até que a troca seja aprovada.”
+
+Se usar toast, manter estilo visual do sistema.
+
+9. Caso já exista solicitação pendente
+Se o sistema já tiver informação de solicitação pendente para aquela escala, mostrar um estado bloqueado.
+
+Mensagem:
+“Já existe uma solicitação de troca pendente para esta escala.”
+
+Nesse caso:
+- Desabilitar o envio;
+- Permitir apenas fechar/cancelar;
+- Mostrar o status da solicitação, se disponível.
+
+10. Refinamento visual geral
+Ajustar espaçamentos internos do modal para ficar mais equilibrado.
+
+Diretrizes:
+- Padding consistente;
+- Labels em uppercase podem ser mantidos, mas com peso visual mais leve;
+- Reduzir excesso de contraste em textos secundários;
+- Garantir bom alinhamento entre campos;
+- Manter largura do modal próxima da atual;
+- Evitar que o conteúdo fique apertado;
+- Em telas menores, o modal deve ser responsivo e não cortar botões.
+
+11. Acessibilidade
+Adicionar melhorias básicas:
+- Labels associados aos campos;
+- Foco visível em inputs e botões;
+- Fechamento por tecla ESC se já for padrão do sistema;
+- Botões com aria-label quando necessário;
+- Mensagens de erro próximas aos campos correspondentes.
+
+12. Critérios de aceite
+Considerar o ajuste concluído quando:
+- O modal estiver visualmente mais profissional e consistente com a paleta Titanium;
+- O usuário entender claramente que a troca depende de aprovação;
+- O card de contexto da escala estiver visível;
+- O card “colaborador atual → novo colaborador” estiver mais legível;
+- O botão “Enviar para aprovação” só habilitar com dados válidos;
+- O alerta de passagem/hospedagem estiver mais claro;
+- A confirmação após envio informar que a escala continua igual até aprovação;
+- Nada da lógica existente do app for quebrado.

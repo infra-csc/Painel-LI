@@ -78,6 +78,7 @@ export default function Scaling() {
   const [swapNewCollaboratorId, setSwapNewCollaboratorId] = useState("");
   const [swapReason, setSwapReason] = useState("");
   const [swapSuccess, setSwapSuccess] = useState(false);
+  const [swapSubmitAttempted, setSwapSubmitAttempted] = useState(false);
 
   // Cache de metadados de anexos { [id]: { name, type, viewUrl, downloadUrl } }
   const [attachmentMeta, setAttachmentMeta] = useState<Record<string, { name?: string; type?: string; viewUrl?: string; downloadUrl?: string }>>({});
@@ -2537,115 +2538,241 @@ export default function Scaling() {
       )}
 
       {/* Modal de Solicitação de Troca de Colaborador */}
-      <Dialog open={showSwapModal} onOpenChange={(open) => { if (!open) { setShowSwapModal(false); setSwapNewCollaboratorId(""); setSwapReason(""); setSwapSuccess(false); } }}>
-        <DialogContent className="max-w-[480px] p-0 gap-0 overflow-hidden">
-          {selectedInclusion && (
-            swapSuccess ? (
+      <Dialog open={showSwapModal} onOpenChange={(open) => { if (!open) { setShowSwapModal(false); setSwapNewCollaboratorId(""); setSwapReason(""); setSwapSuccess(false); setSwapSubmitAttempted(false); } }}>
+        <DialogContent className="max-w-[500px] p-0 gap-0 overflow-hidden rounded-2xl">
+          {selectedInclusion && (() => {
+            const currentCollabName = getCollaboratorName(selectedInclusion.collaboratorId || undefined);
+            const newCollabName = swapNewCollaboratorId ? getCollaboratorName(swapNewCollaboratorId) : null;
+            const isSameCollab = swapNewCollaboratorId && swapNewCollaboratorId === selectedInclusion.collaboratorId;
+            const reasonTooShort = swapReason.trim().length > 0 && swapReason.trim().length < 10;
+            const reasonEmpty = swapSubmitAttempted && !swapReason.trim();
+            const collabEmpty = swapSubmitAttempted && !swapNewCollaboratorId;
+            const canSubmit = !!swapNewCollaboratorId && !isSameCollab && swapReason.trim().length >= 10 && !createSwapRequestMutation.isPending;
+
+            const statusLabels: Record<string, string> = {
+              rascunho: "Rascunho", pendente: "Pendente", escalacao: "Escalado",
+              passagem: "Passagem", hospedagem: "Hospedagem", aprovacao: "Aprovação",
+              aprovado: "Aprovado", cancelado: "Cancelado",
+            };
+            const statusLabel = statusLabels[selectedInclusion.status] || selectedInclusion.status;
+
+            const hasTicket = selectedInclusion.needsTicket;
+            const hasAccommodation = selectedInclusion.needsAccommodation;
+
+            const startDate = selectedInclusion.scheduleStartDate
+              ? format(parseISO(selectedInclusion.scheduleStartDate), "dd/MM/yyyy", { locale: ptBR })
+              : null;
+            const endDate = selectedInclusion.scheduleEndDate
+              ? format(parseISO(selectedInclusion.scheduleEndDate), "dd/MM/yyyy", { locale: ptBR })
+              : null;
+            const periodo = startDate && endDate ? `${startDate} a ${endDate}` : startDate || endDate || "—";
+
+            if (swapSuccess) {
               /* ── Tela de sucesso ── */
-              <div className="flex flex-col items-center px-8 py-10 text-center">
-                <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-5 shadow-sm">
-                  <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
-                    <path d="M8 19L14.5 25.5L28 12" stroke="#16A34A" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-                <DialogTitle className="text-[18px] font-bold text-slate-900 mb-2">Solicitação enviada!</DialogTitle>
-                <p className="text-[13px] text-slate-500 leading-relaxed mb-6">
-                  A solicitação foi registrada e aguarda aprovação do time de compras. Você verá o resultado diretamente na escalação.
-                </p>
-                <div className="w-full bg-slate-50 rounded-2xl border border-slate-100 p-4 mb-6 text-left space-y-2">
-                  <div className="flex items-center justify-between text-[12px]">
-                    <span className="text-slate-400 font-medium">Colaborador atual</span>
-                    <span className="font-semibold text-slate-700">{getCollaboratorName(selectedInclusion.collaboratorId || undefined)}</span>
+              return (
+                <div className="flex flex-col items-center px-8 py-10 text-center">
+                  <div className="w-16 h-16 rounded-full bg-green-50 border border-green-100 flex items-center justify-center mb-5">
+                    <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
+                      <circle cx="18" cy="18" r="17" stroke="#16A34A" strokeWidth="1.5" strokeOpacity="0.3"/>
+                      <path d="M10 19L15.5 24.5L26 13" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
                   </div>
-                  <div className="flex items-center justify-center">
-                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
-                      <ArrowLeftRight className="w-3.5 h-3.5 text-blue-600" />
+                  <DialogTitle className="text-[17px] font-bold text-slate-900 mb-2">Solicitação enviada</DialogTitle>
+                  <p className="text-[13px] text-slate-500 leading-relaxed mb-1">
+                    A solicitação foi encaminhada para o time de Compras.
+                  </p>
+                  <p className="text-[12px] text-slate-400 leading-relaxed mb-6">
+                    A escala continuará com o colaborador atual até que a troca seja aprovada.
+                  </p>
+                  <div className="w-full bg-slate-50 rounded-xl border border-slate-100 p-4 mb-6 text-left space-y-3">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.1em] font-semibold text-slate-400 mb-0.5">Colaborador atual</div>
+                      <div className="text-[13px] font-semibold text-slate-700">{currentCollabName}</div>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between text-[12px]">
-                    <span className="text-slate-400 font-medium">Novo colaborador</span>
-                    <span className="font-semibold text-blue-700">{getCollaboratorName(swapNewCollaboratorId)}</span>
-                  </div>
-                  <div className="border-t border-slate-100 pt-2 mt-1 flex items-start gap-1.5">
-                    <span className="text-slate-400 text-[12px] font-medium shrink-0">Motivo</span>
-                    <span className="text-slate-600 text-[12px] text-right ml-auto">{swapReason}</span>
-                  </div>
-                </div>
-                <Button
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 font-semibold text-sm"
-                  onClick={() => { setShowSwapModal(false); setSwapNewCollaboratorId(""); setSwapReason(""); setSwapSuccess(false); }}
-                >
-                  Fechar
-                </Button>
-              </div>
-            ) : (
-              /* ── Formulário ── */
-              <>
-                {/* Header */}
-                <div className="px-6 pt-6 pb-5 border-b border-slate-100" style={{ background: 'linear-gradient(135deg, #f0f7ff 0%, #ffffff 100%)' }}>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 shadow-sm" style={{ boxShadow: '0 4px 12px #2563EB40' }}>
-                      <ArrowLeftRight className="w-5 h-5 text-white" />
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-px bg-slate-100" />
+                      <div className="w-6 h-6 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+                        <ArrowLeftRight className="w-3 h-3 text-blue-500" />
+                      </div>
+                      <div className="flex-1 h-px bg-slate-100" />
                     </div>
                     <div>
-                      <DialogTitle className="text-[15px] font-bold text-slate-900 m-0 p-0 leading-tight">Solicitar Troca de Colaborador</DialogTitle>
-                      <p className="text-[11px] text-slate-400 mt-0.5">A solicitação será analisada pelo time de compras</p>
+                      <div className="text-[10px] uppercase tracking-[0.1em] font-semibold text-slate-400 mb-0.5">Novo colaborador</div>
+                      <div className="text-[13px] font-semibold text-blue-700">{newCollabName}</div>
+                    </div>
+                    {swapReason.trim() && (
+                      <div className="border-t border-slate-100 pt-3">
+                        <div className="text-[10px] uppercase tracking-[0.1em] font-semibold text-slate-400 mb-0.5">Motivo</div>
+                        <div className="text-[12px] text-slate-600 leading-relaxed">{swapReason}</div>
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 font-semibold text-sm"
+                    onClick={() => { setShowSwapModal(false); setSwapNewCollaboratorId(""); setSwapReason(""); setSwapSuccess(false); setSwapSubmitAttempted(false); }}
+                  >
+                    Fechar
+                  </Button>
+                </div>
+              );
+            }
+
+            /* ── Formulário ── */
+            return (
+              <>
+                {/* Header */}
+                <div className="px-6 pt-5 pb-4 border-b border-slate-100" style={{ background: 'linear-gradient(135deg, #f0f7ff 0%, #ffffff 60%)' }}>
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 mt-0.5" style={{ boxShadow: '0 3px 10px #2563EB35' }}>
+                      <ArrowLeftRight className="w-4.5 h-4.5 text-white" style={{ width: 18, height: 18 }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <DialogTitle className="text-[15px] font-bold text-slate-900 leading-tight">Solicitar troca de colaborador</DialogTitle>
+                      <p className="text-[12px] text-slate-400 mt-0.5 leading-snug">A troca so sera efetivada apos aprovacao do time de Compras.</p>
                     </div>
                   </div>
-                  {/* Card: colaborador atual → novo */}
-                  <div className="bg-white rounded-2xl border border-slate-200 p-3 flex items-center gap-3 shadow-sm">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[10px] uppercase tracking-[0.1em] font-black text-slate-400 mb-0.5">Colaborador Atual</div>
-                      <div className="text-[13px] font-bold text-slate-800 truncate">{getCollaboratorName(selectedInclusion.collaboratorId || undefined)}</div>
-                    </div>
-                    <div className="w-7 h-7 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
-                      <ArrowLeftRight className="w-3.5 h-3.5 text-amber-500" />
-                    </div>
-                    <div className="flex-1 min-w-0 text-right">
-                      <div className="text-[10px] uppercase tracking-[0.1em] font-black text-slate-400 mb-0.5">Novo Colaborador</div>
-                      {swapNewCollaboratorId
-                        ? <div className="text-[13px] font-bold text-blue-700 truncate">{getCollaboratorName(swapNewCollaboratorId)}</div>
-                        : <div className="text-[13px] text-slate-300 italic">Não selecionado</div>
-                      }
+
+                  {/* Card contexto da escala */}
+                  <div className="bg-white rounded-xl border border-slate-200 px-3.5 py-3 shadow-sm">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                      <div>
+                        <div className="text-[10px] text-slate-400 font-medium mb-0.5">Evento</div>
+                        <div className="text-[12px] font-semibold text-slate-700 leading-tight truncate">{getEventName(selectedInclusion.eventId)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-400 font-medium mb-0.5">Função</div>
+                        <div className="text-[12px] font-semibold text-slate-700 leading-tight truncate">{getFunctionName(selectedInclusion.functionId)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-400 font-medium mb-0.5">Período</div>
+                        <div className="text-[12px] font-medium text-slate-600">{periodo}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-400 font-medium mb-0.5">Status</div>
+                        <div className="text-[12px] font-medium text-slate-600">{statusLabel}</div>
+                      </div>
                     </div>
                   </div>
                 </div>
+
                 {/* Body */}
-                <div className="px-6 py-5 space-y-4">
+                <div className="px-6 py-5 space-y-5">
+
+                  {/* Card comparativo atual → novo */}
+                  <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
+                    <div className="flex items-stretch gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] uppercase tracking-[0.09em] font-semibold text-slate-400 mb-1">Colaborador atual</div>
+                        <div className="text-[13px] font-semibold text-slate-800 leading-snug break-words">{currentCollabName}</div>
+                      </div>
+                      <div className="flex items-center justify-center shrink-0 px-1">
+                        <div className="w-7 h-7 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center">
+                          <ArrowLeftRight className="w-3.5 h-3.5 text-slate-400" />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0 text-right">
+                        <div className="text-[10px] uppercase tracking-[0.09em] font-semibold text-slate-400 mb-1">Novo colaborador</div>
+                        {newCollabName
+                          ? <div className="text-[13px] font-semibold text-blue-700 leading-snug break-words">{newCollabName}</div>
+                          : <div className="text-[12px] text-slate-300 italic leading-snug">Ainda nao selecionado</div>
+                        }
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Campo: novo colaborador */}
                   <div>
-                    <label className="text-[11px] uppercase tracking-[0.12em] font-black text-slate-500 mb-2 block">Novo Colaborador</label>
+                    <label className="text-[11px] uppercase tracking-[0.1em] font-semibold text-slate-500 mb-1.5 block">
+                      Novo colaborador
+                    </label>
                     <CollaboratorCombobox
                       collaborators={collaborators || []}
                       value={swapNewCollaboratorId}
-                      onValueChange={setSwapNewCollaboratorId}
+                      onValueChange={(v) => { setSwapNewCollaboratorId(v); setSwapSubmitAttempted(false); }}
                       placeholder="Selecione o novo colaborador"
                     />
+                    {collabEmpty && (
+                      <p className="text-[11px] text-red-500 mt-1.5">Selecione um novo colaborador para continuar.</p>
+                    )}
+                    {isSameCollab && (
+                      <p className="text-[11px] text-red-500 mt-1.5">O novo colaborador precisa ser diferente do colaborador atual.</p>
+                    )}
                   </div>
+
+                  {/* Campo: motivo */}
                   <div>
-                    <label className="text-[11px] uppercase tracking-[0.12em] font-black text-slate-500 mb-2 block">Motivo da Troca</label>
+                    <label className="text-[11px] uppercase tracking-[0.1em] font-semibold text-slate-500 mb-1.5 block">
+                      Motivo da troca
+                    </label>
                     <Textarea
                       value={swapReason}
-                      onChange={(e) => setSwapReason(e.target.value)}
-                      placeholder="Descreva o motivo da solicitação de troca..."
-                      className="resize-none text-sm rounded-xl"
+                      onChange={(e) => { setSwapReason(e.target.value); setSwapSubmitAttempted(false); }}
+                      placeholder="Informe o motivo da troca. Ex: colaborador indisponivel, ajuste operacional ou substituicao solicitada."
+                      className="resize-none text-[13px] rounded-xl min-h-[88px]"
                       rows={3}
                     />
+                    <div className="flex items-center justify-between mt-1.5">
+                      {(reasonEmpty || reasonTooShort) ? (
+                        <p className="text-[11px] text-red-500">
+                          {reasonEmpty ? "Informe um motivo para a troca." : "Minimo de 10 caracteres."}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-slate-400">Minimo de 10 caracteres.</p>
+                      )}
+                      <span className={`text-[11px] ${swapReason.trim().length >= 10 ? "text-green-500" : "text-slate-300"}`}>
+                        {swapReason.trim().length}/10
+                      </span>
+                    </div>
                   </div>
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 flex items-start gap-2">
-                    <AlertCircle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
-                    <p className="text-[11px] text-amber-700 leading-relaxed">A passagem/hospedagem atual <span className="font-bold">não será cancelada automaticamente</span> — o time de compras deverá tratar isso ao aprovar a troca.</p>
+
+                  {/* Alerta passagem / hospedagem */}
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3">
+                    <div className="flex items-start gap-2.5">
+                      <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-semibold text-amber-800 mb-1">Atencao sobre passagem e hospedagem</p>
+                        <p className="text-[11px] text-amber-700 leading-relaxed">
+                          Esta solicitacao nao cancela automaticamente passagem ou hospedagem ja registrada. O time de Compras devera avaliar esses impactos antes de aprovar.
+                        </p>
+                        {(hasTicket || hasAccommodation) && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {hasTicket && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">
+                                Passagem registrada
+                              </span>
+                            )}
+                            {hasAccommodation && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">
+                                Hospedagem registrada
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
+
                 {/* Footer */}
                 <div className="px-6 pb-6 flex gap-3 border-t border-slate-100 pt-4">
-                  <Button variant="outline" className="flex-1 rounded-xl" onClick={() => setShowSwapModal(false)}>
+                  <Button
+                    variant="outline"
+                    className="flex-1 rounded-xl h-10 text-[13px] font-medium"
+                    onClick={() => { setShowSwapModal(false); setSwapSubmitAttempted(false); }}
+                    disabled={createSwapRequestMutation.isPending}
+                  >
                     Cancelar
                   </Button>
                   <Button
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold"
-                    disabled={!swapNewCollaboratorId || !swapReason.trim() || createSwapRequestMutation.isPending}
+                    className="flex-1 h-10 text-[13px] font-semibold rounded-xl transition-all"
+                    style={{
+                      background: canSubmit ? '#2563EB' : undefined,
+                      opacity: canSubmit ? 1 : undefined,
+                    }}
+                    disabled={!canSubmit}
                     onClick={() => {
-                      if (!selectedInclusion || !swapNewCollaboratorId || !swapReason.trim()) return;
+                      setSwapSubmitAttempted(true);
+                      if (!selectedInclusion || !canSubmit) return;
                       createSwapRequestMutation.mutate({
                         teamInclusionId: selectedInclusion.id,
                         newCollaboratorId: swapNewCollaboratorId,
@@ -2653,12 +2780,12 @@ export default function Scaling() {
                       });
                     }}
                   >
-                    {createSwapRequestMutation.isPending ? "Enviando..." : "Enviar Solicitação"}
+                    {createSwapRequestMutation.isPending ? "Enviando..." : "Enviar para aprovacao"}
                   </Button>
                 </div>
               </>
-            )
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
