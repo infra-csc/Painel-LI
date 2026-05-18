@@ -2593,9 +2593,11 @@ export default function Scaling() {
                       <div className="text-[9px] text-slate-400 font-medium uppercase tracking-wide mb-0.5">Período</div>
                       <div className="text-[11px] font-medium text-slate-600">{periodo}</div>
                     </div>
-                    <div>
+                    <div className="flex flex-col">
                       <div className="text-[9px] text-slate-400 font-medium uppercase tracking-wide mb-0.5">Status</div>
-                      <span className="inline-block text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100 rounded-full px-2 py-0.5 leading-tight">{statusLabel}</span>
+                      <div className="flex items-start">
+                        <span className="text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100 rounded-full px-2 py-px leading-[18px]">{statusLabel}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
