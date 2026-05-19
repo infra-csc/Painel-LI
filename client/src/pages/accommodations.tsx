@@ -181,6 +181,17 @@ export default function Accommodations() {
 
   const isPurchasingRole = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
 
+  // Banner: trocas pendentes que exigem análise de Compras (hospedagem comprada)
+  const pendingAccommodationSwapsCount = useMemo(() => {
+    if (!isPurchasingRole || !allSwapRequests || !teamInclusions) return 0;
+    const inclStatusMap = new Map((teamInclusions as any[]).map(ti => [ti.id, ti.status]));
+    return allSwapRequests.filter(s => {
+      if (s.status !== 'pendente') return false;
+      const inclId = (s as any).team_inclusion_id || s.teamInclusionId;
+      return inclStatusMap.get(inclId) === 'hospedagem_comprada';
+    }).length;
+  }, [isPurchasingRole, allSwapRequests, teamInclusions]);
+
   const approveSwapMutation = useMutation({
     mutationFn: async (id: string) => {
       const r = await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, {});
@@ -1169,6 +1180,28 @@ export default function Accommodations() {
           </div>
         ))}
       </div>
+
+      {/* Banner: trocas pendentes aguardando análise de Compras */}
+      {isPurchasingRole && pendingAccommodationSwapsCount > 0 && (
+        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+            <ArrowLeftRight className="w-4 h-4 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-semibold text-amber-800 leading-snug">
+              {pendingAccommodationSwapsCount === 1
+                ? '1 solicitação de troca de colaborador aguarda sua análise'
+                : `${pendingAccommodationSwapsCount} solicitações de troca de colaborador aguardam sua análise`}
+            </p>
+            <p className="text-[11px] text-amber-600 mt-0.5">
+              Localize as linhas com o badge <span className="font-bold">Troca pendente</span> na tabela abaixo e clique para analisar.
+            </p>
+          </div>
+          <span className="shrink-0 text-[11px] font-bold bg-amber-200 text-amber-800 px-2.5 py-1 rounded-full">
+            {pendingAccommodationSwapsCount} pendente{pendingAccommodationSwapsCount !== 1 ? 's' : ''}
+          </span>
+        </div>
+      )}
 
       {/* Aplicar em Lote — discrete card */}
       <div
