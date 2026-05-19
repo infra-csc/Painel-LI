@@ -33,6 +33,7 @@ export default function Tickets() {
     ticketStatus: "all", // all, pending, processed
     inclusionStatus: "active", // all, active (excludes cancelado)
   });
+  const [showOnlyPendingSwaps, setShowOnlyPendingSwaps] = useState(false);
   
   const [sortConfig, setSortConfig] = useState<SortConfig | null>({ field: 'id', direction: 'desc' });
   const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
@@ -474,6 +475,7 @@ export default function Tickets() {
   // Apply ticket status filter to deduplicated inclusions and apply sorting
   const filteredTicketInclusions = useMemo(() => {
     const filtered = deduplicatedInclusions.filter(inclusion => {
+      if (showOnlyPendingSwaps && !pendingSwapByInclusion.has(inclusion.id)) return false;
       if (filters.ticketStatus !== "all") {
         const hasTicket = getTicket(inclusion.id);
         if (filters.ticketStatus === "pending" && hasTicket) return false;
@@ -771,7 +773,10 @@ export default function Tickets() {
 
           {/* Banner: trocas pendentes aguardando análise de Compras */}
           {isPurchasingRole && pendingTicketSwapsCount > 0 && (
-            <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+            <button
+              onClick={() => setShowOnlyPendingSwaps(v => !v)}
+              className={`w-full flex items-center gap-3 rounded-xl px-4 py-3 border text-left transition-colors ${showOnlyPendingSwaps ? 'bg-amber-100 border-amber-400' : 'bg-amber-50 border-amber-200 hover:bg-amber-100'}`}
+            >
               <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
                 <ArrowLeftRight className="w-4 h-4 text-amber-600" />
               </div>
@@ -782,13 +787,15 @@ export default function Tickets() {
                     : `${pendingTicketSwapsCount} solicitações de troca de colaborador aguardam sua análise`}
                 </p>
                 <p className="text-[11px] text-amber-600 mt-0.5">
-                  Localize as linhas com o badge <span className="font-bold">Troca pendente</span> na tabela abaixo e clique para analisar.
+                  {showOnlyPendingSwaps
+                    ? 'Mostrando apenas linhas com troca pendente — clique para ver todas'
+                    : 'Clique aqui para filtrar e ver apenas as linhas com troca pendente'}
                 </p>
               </div>
               <span className="shrink-0 text-[11px] font-bold bg-amber-200 text-amber-800 px-2.5 py-1 rounded-full">
-                {pendingTicketSwapsCount} pendente{pendingTicketSwapsCount !== 1 ? 's' : ''}
+                {showOnlyPendingSwaps ? 'Filtro ativo' : `${pendingTicketSwapsCount} pendente${pendingTicketSwapsCount !== 1 ? 's' : ''}`}
               </span>
-            </div>
+            </button>
           )}
 
           {/* Seção de Registro Rápido */}
@@ -1692,10 +1699,12 @@ export default function Tickets() {
                     return (
                       <tr
                         key={inclusion.id}
-                        className={`transition-colors group border-b border-slate-100 last:border-0 ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}
+                        className={`transition-colors group border-b border-slate-100 last:border-0 ${pendingSwapByInclusion.has(inclusion.id) ? 'bg-amber-50/40' : rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}
                         style={{
                           opacity: inclusion.status === 'cancelado' ? 0.5 : 1,
-                          borderLeft: inclusion.status === 'cancelado'
+                          borderLeft: pendingSwapByInclusion.has(inclusion.id)
+                            ? '3px solid #F59E0B'
+                            : inclusion.status === 'cancelado'
                             ? '3px solid #E2E8F0'
                             : ticket
                             ? '3px solid #22C55E'

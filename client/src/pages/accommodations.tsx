@@ -45,6 +45,7 @@ const getDisplayStatus = (inclusion: TeamInclusion) => {
 
 export default function Accommodations() {
   const { user } = useAuth();
+  const [showOnlyPendingSwaps, setShowOnlyPendingSwaps] = useState(false);
   const [filters, setFilters] = useState({
     eventId: "all",
     functionId: [] as string[], 
@@ -953,6 +954,7 @@ export default function Accommodations() {
   // Filtrar e ordenar dados
   const filteredData = useMemo(() => {
     let data = teamInclusionsWithAccommodation.filter(inclusion => {
+      if (showOnlyPendingSwaps && !pendingSwapByInclusion.has(inclusion.id)) return false;
       const matchesEvent = filters.eventId === "all" || inclusion.eventId === filters.eventId;
       const matchesFunction = filters.functionId.length === 0 || filters.functionId.includes(inclusion.functionId);
       const matchesCollaborator = filters.collaboratorId === "all" || inclusion.collaboratorId === filters.collaboratorId;
@@ -1183,7 +1185,10 @@ export default function Accommodations() {
 
       {/* Banner: trocas pendentes aguardando análise de Compras */}
       {isPurchasingRole && pendingAccommodationSwapsCount > 0 && (
-        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+        <button
+          onClick={() => setShowOnlyPendingSwaps(v => !v)}
+          className={`w-full flex items-center gap-3 rounded-xl px-4 py-3 border text-left transition-colors ${showOnlyPendingSwaps ? 'bg-amber-100 border-amber-400' : 'bg-amber-50 border-amber-200 hover:bg-amber-100'}`}
+        >
           <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
             <ArrowLeftRight className="w-4 h-4 text-amber-600" />
           </div>
@@ -1194,13 +1199,15 @@ export default function Accommodations() {
                 : `${pendingAccommodationSwapsCount} solicitações de troca de colaborador aguardam sua análise`}
             </p>
             <p className="text-[11px] text-amber-600 mt-0.5">
-              Localize as linhas com o badge <span className="font-bold">Troca pendente</span> na tabela abaixo e clique para analisar.
+              {showOnlyPendingSwaps
+                ? 'Mostrando apenas linhas com troca pendente — clique para ver todas'
+                : 'Clique aqui para filtrar e ver apenas as linhas com troca pendente'}
             </p>
           </div>
           <span className="shrink-0 text-[11px] font-bold bg-amber-200 text-amber-800 px-2.5 py-1 rounded-full">
-            {pendingAccommodationSwapsCount} pendente{pendingAccommodationSwapsCount !== 1 ? 's' : ''}
+            {showOnlyPendingSwaps ? 'Filtro ativo' : `${pendingAccommodationSwapsCount} pendente${pendingAccommodationSwapsCount !== 1 ? 's' : ''}`}
           </span>
-        </div>
+        </button>
       )}
 
       {/* Aplicar em Lote — discrete card */}
@@ -1538,7 +1545,8 @@ export default function Accommodations() {
                   const isPostPurchaseRow = ['hospedagem_comprada', 'hospedagem_passagem_comprada'].includes(inclusion.status);
                   const displayName = toTitleCase(collaborator?.fullName);
                   const colNameInitials = (displayName || '??').split(' ').slice(0,2).map((n:string) => n[0]).join('').toUpperCase();
-                  const borderColor = isCanceled ? '#E2E8F0' : hasAccommodation ? '#22C55E' : '#F97316';
+                  const hasPendingSwap = pendingSwapByInclusion.has(inclusion.id);
+                  const borderColor = hasPendingSwap ? '#F59E0B' : isCanceled ? '#E2E8F0' : hasAccommodation ? '#22C55E' : '#F97316';
                   const rowBase = idx % 2 === 1 ? '#F8FAFC80' : '#ffffff';
 
                   const isSelectedForBatch = selectedInclusionsForBatch.includes(inclusion.id);
