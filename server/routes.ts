@@ -1724,6 +1724,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'pendente',
         deletedAt: null,
         deletedBy: null,
+        updatedBy: userId,
       });
       await createAuditLog('reactivate', 'team_inclusion', id, current, userId, user.name ?? 'Admin', undefined, req);
       res.json({ message: "Escalação reativada com sucesso", inclusion: updated });
