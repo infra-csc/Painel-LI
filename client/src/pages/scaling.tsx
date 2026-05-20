@@ -4,7 +4,7 @@ import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
 import { markSwapSeen, getSeenState } from "@/lib/seenSwaps";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
-import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File, HelpCircle, ArrowLeftRight, AlertCircle } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File, HelpCircle, ArrowLeftRight, AlertCircle, RotateCcw } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -270,6 +270,25 @@ export default function Scaling() {
     onError: async (err: any) => {
       const msg = await err?.response?.json?.().catch(() => null);
       toast({ title: "Erro", description: msg?.message || "Erro ao cancelar solicitação", variant: "destructive" });
+    },
+  });
+
+  // Mutation para reativar escalação cancelada (admin only)
+  const [showReactivateConfirm, setShowReactivateConfirm] = useState(false);
+  const reactivateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await apiRequest("PATCH", `/api/team-inclusions/${id}/reactivate`, {});
+      return r.json();
+    },
+    onSuccess: (data) => {
+      setShowReactivateConfirm(false);
+      setShowModal(false);
+      toast({ title: "Escalação reativada", description: "A escalação foi reativada e voltou ao status Pendente." });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+    },
+    onError: async (err: any) => {
+      const msg = await err?.response?.json?.().catch(() => null);
+      toast({ title: "Erro", description: msg?.message || "Erro ao reativar escalação", variant: "destructive" });
     },
   });
 
@@ -2500,6 +2519,18 @@ export default function Scaling() {
 
                 {/* ── Footer ── */}
                 <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0 bg-white">
+                  {/* Botão Reativar — só aparece para admin em escalações canceladas */}
+                  {selectedInclusion?.status === 'cancelado' &&
+                    (user?.role === 'admin' || user?.role === 'administrator' || user?.role === 'administrador') && (
+                    <Button
+                      onClick={() => setShowReactivateConfirm(true)}
+                      disabled={reactivateMutation.isPending}
+                      className="mr-auto flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 py-2 text-sm font-semibold"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Reativar escalação
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     onClick={() => setShowModal(false)}
@@ -2933,6 +2964,42 @@ export default function Scaling() {
                 disabled={cancelSwapMutation.isPending}
               >
                 {cancelSwapMutation.isPending ? "Cancelando..." : "Sim, cancelar"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Confirm: Reativar escalação ── */}
+      <Dialog open={showReactivateConfirm} onOpenChange={(open) => { if (!open) setShowReactivateConfirm(false); }}>
+        <DialogContent className="max-w-[400px] p-0 gap-0 rounded-2xl overflow-hidden">
+          <div className="px-6 py-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
+                <RotateCcw className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-[14px] font-bold text-slate-900 leading-tight mb-0.5">Reativar escalação?</DialogTitle>
+                <p className="text-[12px] text-slate-500 leading-relaxed">
+                  A escalação voltará ao status <span className="font-semibold text-slate-700">Pendente</span> e ficará disponível novamente para edição e confirmação.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="outline"
+                className="flex-1 rounded-xl h-9 text-[12px] border-slate-200 text-slate-600 hover:bg-slate-50"
+                onClick={() => setShowReactivateConfirm(false)}
+                disabled={reactivateMutation.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 rounded-xl h-9 text-[12px] bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => { if (selectedInclusion) reactivateMutation.mutate(selectedInclusion.id); }}
+                disabled={reactivateMutation.isPending}
+              >
+                {reactivateMutation.isPending ? "Reativando..." : "Sim, reativar"}
               </Button>
             </div>
           </div>

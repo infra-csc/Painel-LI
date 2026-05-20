@@ -1703,6 +1703,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reativar escalação cancelada (admin only)
+  app.patch("/api/team-inclusions/:id/reactivate", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.session?.userId;
+      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
+
+      const isAdmin = ['admin', 'administrator', 'administrador'].includes(user.role ?? '');
+      if (!isAdmin) return res.status(403).json({ message: "Apenas administradores podem reativar escalações" });
+
+      const current = await storage.getTeamInclusion(id);
+      if (!current) return res.status(404).json({ message: "Escalação não encontrada" });
+      if (current.status !== 'cancelado') return res.status(400).json({ message: "Apenas escalações canceladas podem ser reativadas" });
+
+      const updated = await storage.updateTeamInclusion(id, {
+        status: 'pendente',
+        deletedAt: null,
+        deletedBy: null,
+      });
+      await createAuditLog('reactivate', 'team_inclusion', id, current, userId, user.name ?? 'Admin', undefined, req);
+      res.json({ message: "Escalação reativada com sucesso", inclusion: updated });
+    } catch (error) {
+      console.error("Error reactivating team inclusion:", error);
+      res.status(500).json({ message: "Erro ao reativar escalação" });
+    }
+  });
+
   app.delete("/api/team-inclusions/:id", async (req, res) => {
     try {
       const { id } = req.params;
