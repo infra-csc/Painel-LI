@@ -1930,7 +1930,7 @@ export default function Scaling() {
                                 )}
                               </div>
                             ) : (
-                              <div>
+                              <div className="space-y-2">
                                 <CollaboratorCombobox
                                   collaborators={collaborators}
                                   value={modalData.collaboratorId}
@@ -1939,13 +1939,19 @@ export default function Scaling() {
                                   testId="select-collaborator-escalation"
                                   hideAll={true}
                                 />
-                                {isEscalationConfirmed(selectedInclusion) && canEditCollaborator(selectedInclusion) && (
-                                  <div className="text-xs text-blue-600 mt-1.5">
-                                    {selectedInclusion.needsTicket
-                                      ? "ℹ️ Você pode alterar até a passagem ser comprada"
-                                      : selectedInclusion.needsAccommodation
-                                        ? "ℹ️ Você pode alterar até a hospedagem ser reservada"
-                                        : "ℹ️ Você pode alterar o colaborador (escalação confirmada)"}
+                                {/* Botão Solicitar Troca também no branch editável */}
+                                {isEscalationConfirmed(selectedInclusion) && selectedInclusion.collaboratorId && !pendingSwap && (
+                                  <div className="space-y-1">
+                                    <button
+                                      type="button"
+                                      title="Após aprovado pelo time de Compras, a alteração do colaborador será liberada."
+                                      onClick={() => { setSwapNewCollaboratorId(""); setSwapReason(""); setShowSwapModal(true); }}
+                                      className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-blue-200 bg-blue-50/60 text-blue-700 text-[12px] font-medium transition-all hover:bg-blue-100 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-1 active:bg-blue-100"
+                                    >
+                                      <ArrowLeftRight className="w-3.5 h-3.5 shrink-0" />
+                                      Solicitar troca
+                                    </button>
+                                    <p className="text-center text-[10px] text-slate-400 leading-tight">Requer aprovação de Compras</p>
                                   </div>
                                 )}
                               </div>
