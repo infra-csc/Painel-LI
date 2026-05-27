@@ -142,15 +142,15 @@ export default function Tickets() {
 
   const isPurchasingRole = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
 
-  // Banner: trocas pendentes que exigem análise de Compras (passagem comprada)
+  // Banner: trocas pendentes que exigem análise de Compras (qualquer status escalado)
   const pendingTicketSwapsCount = useMemo(() => {
     if (!isPurchasingRole || !allSwapRequests || !teamInclusions) return 0;
-    const ticketStatuses = new Set(['passagem_comprada', 'hospedagem_passagem_comprada']);
+    const escalatedStatuses = new Set(['escalado', 'passagem', 'passagem_comprada', 'hospedagem', 'hospedagem_comprada', 'hospedagem_passagem_comprada', 'aprovacao', 'aprovado']);
     const inclStatusMap = new Map(teamInclusions.map(ti => [ti.id, ti.status]));
     return allSwapRequests.filter(s => {
       if (s.status !== 'pendente') return false;
       const inclId = (s as any).team_inclusion_id || s.teamInclusionId;
-      return ticketStatuses.has(inclStatusMap.get(inclId) ?? '');
+      return escalatedStatuses.has(inclStatusMap.get(inclId) ?? '');
     }).length;
   }, [isPurchasingRole, allSwapRequests, teamInclusions]);
 
