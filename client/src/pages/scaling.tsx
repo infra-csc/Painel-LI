@@ -365,6 +365,27 @@ export default function Scaling() {
     );
   };
 
+  // Detecta conflitos de escalação para um colaborador
+  const getCollaboratorConflicts = (collaboratorId: string, excludeInclusionId?: string) => {
+    if (!collaboratorId || !teamInclusions) return { sameEvent: [] as TeamInclusion[], dateOverlap: [] as TeamInclusion[] };
+    const active = ['escalado', 'passagem', 'passagem_comprada', 'hospedagem', 'hospedagem_comprada', 'aprovacao', 'aprovado'];
+    const others = teamInclusions.filter(ti =>
+      ti.collaboratorId === collaboratorId &&
+      ti.id !== excludeInclusionId &&
+      active.includes(ti.status)
+    );
+    const ref = teamInclusions.find(ti => ti.id === excludeInclusionId) || selectedInclusion;
+    const sameEvent = others.filter(ti => ref && ti.eventId === ref.eventId);
+    const dateOverlap = others.filter(ti => {
+      if (!ref?.scheduleStartDate || !ref?.scheduleEndDate) return false;
+      if (!ti.scheduleStartDate || !ti.scheduleEndDate) return false;
+      return new Date(ti.scheduleStartDate) <= new Date(ref.scheduleEndDate) &&
+             new Date(ti.scheduleStartDate) <= new Date(ref.scheduleEndDate) &&
+             new Date(ref.scheduleStartDate) <= new Date(ti.scheduleEndDate);
+    });
+    return { sameEvent, dateOverlap };
+  };
+
   // Helper functions for getting names
   const getEventName = (eventId: string | null) => {
     if (!eventId) return "Evento não encontrado";
@@ -1939,6 +1960,25 @@ export default function Scaling() {
                                   testId="select-collaborator-escalation"
                                   hideAll={true}
                                 />
+                                {/* Alerta de conflito de escalação */}
+                                {(() => {
+                                  if (!modalData.collaboratorId) return null;
+                                  const { sameEvent, dateOverlap } = getCollaboratorConflicts(modalData.collaboratorId, selectedInclusion?.id);
+                                  if (!sameEvent.length && !dateOverlap.length) return null;
+                                  return (
+                                    <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                                      <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                                      <div className="text-[11px] text-amber-700 leading-snug">
+                                        <span className="font-semibold">Colaborador já escalado</span>
+                                        {sameEvent.length > 0 && <span> neste evento</span>}
+                                        {sameEvent.length > 0 && dateOverlap.length > 0 && <span> e</span>}
+                                        {dateOverlap.length > 0 && sameEvent.length === 0 && <span> em evento com datas sobrepostas</span>}
+                                        {dateOverlap.length > 0 && sameEvent.length > 0 && <span> em datas sobrepostas</span>}
+                                        .
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
                                 {/* Botão Solicitar Troca também no branch editável */}
                                 {isEscalationConfirmed(selectedInclusion) && selectedInclusion.collaboratorId && !pendingSwap && (
                                   <div className="space-y-1">
@@ -2817,6 +2857,24 @@ export default function Scaling() {
                       />
                       {collabEmpty && <p className="text-[10px] text-red-500 mt-1">Selecione um novo colaborador.</p>}
                       {isSameCollab && <p className="text-[10px] text-red-500 mt-1">Precisa ser diferente do atual.</p>}
+                      {(() => {
+                        if (!swapNewCollaboratorId) return null;
+                        const { sameEvent, dateOverlap } = getCollaboratorConflicts(swapNewCollaboratorId, selectedInclusion?.id);
+                        if (!sameEvent.length && !dateOverlap.length) return null;
+                        return (
+                          <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 mt-1">
+                            <AlertCircle className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
+                            <p className="text-[10px] text-amber-700 leading-snug">
+                              <span className="font-semibold">Já escalado</span>
+                              {sameEvent.length > 0 && <span> neste evento</span>}
+                              {sameEvent.length > 0 && dateOverlap.length > 0 && <span> e</span>}
+                              {dateOverlap.length > 0 && sameEvent.length === 0 && <span> em datas sobrepostas</span>}
+                              {dateOverlap.length > 0 && sameEvent.length > 0 && <span> em datas sobrepostas</span>}
+                              .
+                            </p>
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
