@@ -1816,6 +1816,20 @@ export default function Scaling() {
                                 )}
                               </div>
                             )}
+                            {(() => {
+                              const isAdminOrPurchasing = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
+                              if (!isAdminOrPurchasing) return null;
+                              if (selectedInclusion.needsTicket || selectedInclusion.needsAccommodation) return null;
+                              const swap = pendingSwapByInclusion.get(selectedInclusion.id);
+                              if (!swap || seenSwapIds.has(swap.id)) return null;
+                              return (
+                                <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
+                                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-600 text-[10px] font-bold rounded-lg border border-amber-200">
+                                    <ArrowLeftRight style={{ width: 9, height: 9 }} />Troca pendente
+                                  </span>
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
 
