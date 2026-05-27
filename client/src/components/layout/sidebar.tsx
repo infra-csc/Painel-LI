@@ -140,11 +140,16 @@ export default function Sidebar() {
     }).length;
   }, [swapRequests, isPurchasing, inclusionStatusMap]);
 
-  // Para compras: todas as trocas pendentes → badge na aba Escalação
+  // Para compras: trocas pendentes de escalações SEM passagem/hospedagem já comprada → badge na aba Escalação
   const scalingSwapCount = useMemo(() => {
     if (!isPurchasing || !swapRequests) return 0;
-    return swapRequests.filter(s => s.status === 'pendente').length;
-  }, [swapRequests, isPurchasing]);
+    const alreadyHandledStatuses = new Set(['passagem_comprada', 'hospedagem_passagem_comprada', 'hospedagem_comprada']);
+    return swapRequests.filter(s => {
+      if (s.status !== 'pendente') return false;
+      const inclId = (s as any).team_inclusion_id || s.teamInclusionId;
+      return !alreadyHandledStatuses.has(inclusionStatusMap[inclId]);
+    }).length;
+  }, [swapRequests, isPurchasing, inclusionStatusMap]);
 
   // Para quem solicitou (não-compras): badge em Escalação
   //   - troca pendente que ainda não foi visualizada
@@ -166,12 +171,12 @@ export default function Sidebar() {
   }, [swapRequests, user, isPurchasing, seenState]);
 
   // Mapa tab id → badge count
-  // Compras vê trocas pendentes em Passagem/Hospedagem (some ao agir)
+  // Compras vê trocas pendentes em Passagem/Hospedagem (some ao agir) + Escalação (sem logística)
   // Solicitante vê badge em Escalação (some ao visualizar)
   const tabBadgeCount: Record<string, number> = {
     tickets: ticketSwapCount,
     accommodations: accommodationSwapCount,
-    scaling: myScalingSwapsCount,
+    scaling: isPurchasing ? scalingSwapCount : myScalingSwapsCount,
   };
 
   return (
