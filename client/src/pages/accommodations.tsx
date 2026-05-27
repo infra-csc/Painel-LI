@@ -182,6 +182,10 @@ export default function Accommodations() {
 
   const isPurchasingRole = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
 
+  const { data: teamInclusions, isLoading } = useQuery<TeamInclusion[]>({
+    queryKey: ["/api/team-inclusions"],
+  });
+
   // Banner: trocas pendentes que exigem análise de Compras (hospedagem comprada)
   const pendingAccommodationSwapsCount = useMemo(() => {
     if (!isPurchasingRole || !allSwapRequests || !teamInclusions) return 0;
@@ -860,10 +864,6 @@ export default function Accommodations() {
       });
     }
   };
-
-  const { data: teamInclusions, isLoading } = useQuery<TeamInclusion[]>({
-    queryKey: ["/api/team-inclusions"],
-  });
 
   const { data: events } = useQuery<Event[]>({
     queryKey: ["/api/events"],
