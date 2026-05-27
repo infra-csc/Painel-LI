@@ -273,6 +273,25 @@ export default function Scaling() {
     },
   });
 
+  // Mutation para aprovar escalação sem passagem/hospedagem (Compras/admin)
+  const [showApproveConfirm, setShowApproveConfirm] = useState(false);
+  const approveEscalationMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await apiRequest("PATCH", `/api/team-inclusions/${id}`, { status: "aprovado", phase: "aprovado" });
+      return r.json();
+    },
+    onSuccess: () => {
+      setShowApproveConfirm(false);
+      setShowModal(false);
+      toast({ title: "Escalação aprovada", description: "A escalação foi aprovada com sucesso." });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+    },
+    onError: async (err: any) => {
+      const msg = await err?.response?.json?.().catch(() => null);
+      toast({ title: "Erro", description: msg?.message || "Erro ao aprovar escalação", variant: "destructive" });
+    },
+  });
+
   // Mutation para reativar escalação cancelada (admin only)
   const [showReactivateConfirm, setShowReactivateConfirm] = useState(false);
   const reactivateMutation = useMutation({
@@ -347,6 +366,7 @@ export default function Scaling() {
       inclusion.status === "passagem_comprada" ||
       inclusion.status === "hospedagem" || 
       inclusion.status === "hospedagem_comprada" ||
+      inclusion.status === "aprovacao" ||
       inclusion.status === "aprovado" ||
       inclusion.status === "concluido"
     );
@@ -360,6 +380,7 @@ export default function Scaling() {
       inclusion.status === "passagem_comprada" ||
       inclusion.status === "hospedagem" || 
       inclusion.status === "hospedagem_comprada" ||
+      inclusion.status === "aprovacao" ||
       inclusion.status === "aprovado" ||
       inclusion.status === "concluido"
     );
@@ -904,10 +925,10 @@ export default function Scaling() {
       return;
     }
 
-    // Na tela de Escalação, confirmar SEMPRE muda para "escalado"
-    // As outras telas (Passagens/Hospedagem) controlam seus próprios workflows
-    const nextStatus = "escalado";
-    const nextPhase = "escalacao";
+    // Se não precisa de passagem nem hospedagem → vai direto para aprovação de Compras
+    const noLogistics = !selectedInclusion.needsTicket && !selectedInclusion.needsAccommodation;
+    const nextStatus = noLogistics ? "aprovacao" : "escalado";
+    const nextPhase = noLogistics ? "aprovacao" : "escalacao";
 
     console.log("🔍 [CONFIRM DEBUG] Calculated next status:", nextStatus);
     console.log("🔍 [CONFIRM DEBUG] Calculated next phase:", nextPhase);
@@ -1747,6 +1768,14 @@ export default function Scaling() {
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-500 text-[11px] font-bold rounded-full">
                                   <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Cancelado
                                 </span>
+                              ) : selectedInclusion.status === 'aprovacao' ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-100 text-blue-700 text-[11px] font-bold rounded-full">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />Aguardando aprovação
+                                </span>
+                              ) : selectedInclusion.status === 'aprovado' ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 text-emerald-700 text-[11px] font-bold rounded-full">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Aprovado
+                                </span>
                               ) : isEscalated(selectedInclusion) ? (
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 text-green-700 text-[11px] font-bold rounded-full">
                                   <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Escalado
@@ -2062,6 +2091,46 @@ export default function Scaling() {
                             </div>
                             <div className="px-4 py-3">
                               <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-line">{selectedInclusion.observations}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ── Aprovação de Compras (sem passagem/hospedagem) ── */}
+                      {selectedInclusion.status === 'aprovacao' &&
+                        !selectedInclusion.needsTicket && !selectedInclusion.needsAccommodation && (
+                        <div className="mt-5">
+                          <div className="border border-blue-200 rounded-2xl overflow-hidden">
+                            <div className="bg-blue-50 border-b border-blue-100 px-4 py-2.5 flex items-center gap-2">
+                              <Check className="w-4 h-4 text-blue-600" />
+                              <span className="text-[11px] font-black text-blue-700 uppercase tracking-[0.12em]">Aprovação de Compras</span>
+                            </div>
+                            <div className="p-4">
+                              {(user?.role === 'purchasing' || user?.role === 'admin' || user?.role === 'administrator' || user?.role === 'administrador') ? (
+                                <div className="space-y-3">
+                                  <p className="text-[12px] text-slate-600 leading-relaxed">
+                                    Esta escalação não requer passagem nem hospedagem. Revise as informações e aprove para liberar o colaborador.
+                                  </p>
+                                  <Button
+                                    onClick={() => setShowApproveConfirm(true)}
+                                    disabled={approveEscalationMutation.isPending}
+                                    className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-9 text-[13px] font-semibold"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    {approveEscalationMutation.isPending ? "Aprovando..." : "Aprovar escalação"}
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-3 py-2">
+                                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                                    <Clock className="w-4 h-4 text-blue-500" />
+                                  </div>
+                                  <div>
+                                    <p className="text-[12px] font-semibold text-slate-700">Aguardando aprovação de Compras</p>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">O time de Compras precisa aprovar esta escalação.</p>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -3028,6 +3097,42 @@ export default function Scaling() {
                 disabled={cancelSwapMutation.isPending}
               >
                 {cancelSwapMutation.isPending ? "Cancelando..." : "Sim, cancelar"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Confirm: Aprovar escalação (sem passagem/hospedagem) ── */}
+      <Dialog open={showApproveConfirm} onOpenChange={(open) => { if (!open) setShowApproveConfirm(false); }}>
+        <DialogContent className="max-w-[400px] p-0 gap-0 rounded-2xl overflow-hidden">
+          <div className="px-6 py-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
+                <Check className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-[14px] font-bold text-slate-900 leading-tight mb-0.5">Aprovar escalação?</DialogTitle>
+                <p className="text-[12px] text-slate-500 leading-relaxed">
+                  A escalação será marcada como <span className="font-semibold text-slate-700">Aprovada</span>. Essa ação não pode ser desfeita sem cancelar a escalação.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="outline"
+                className="flex-1 rounded-xl h-9 text-[12px] border-slate-200 text-slate-600 hover:bg-slate-50"
+                onClick={() => setShowApproveConfirm(false)}
+                disabled={approveEscalationMutation.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 rounded-xl h-9 text-[12px] bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => { if (selectedInclusion) approveEscalationMutation.mutate(selectedInclusion.id); }}
+                disabled={approveEscalationMutation.isPending}
+              >
+                {approveEscalationMutation.isPending ? "Aprovando..." : "Sim, aprovar"}
               </Button>
             </div>
           </div>
