@@ -1404,6 +1404,14 @@ export default function Scaling() {
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold">
                                           <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Cancelado
                                         </span>
+                                      ) : inclusion.status === "aprovacao" ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />Ag. aprovação
+                                        </span>
+                                      ) : inclusion.status === "aprovado" ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Aprovado
+                                        </span>
                                       ) : isEscalated(inclusion) ? (
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold">
                                           <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Escalado
@@ -1416,6 +1424,11 @@ export default function Scaling() {
                                     </div>
                                     {/* Status do transporte e hospedagem */}
                                     <div className="flex flex-wrap gap-1">
+                                      {inclusion.status === "aprovacao" && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-semibold border border-blue-200">
+                                          <Check className="w-2.5 h-2.5" />Aprovação pendente
+                                        </span>
+                                      )}
                                       {(() => {
                                         const ticket = getTicket(inclusion.id);
                                         if (!ticket) return null;
@@ -2097,7 +2110,7 @@ export default function Scaling() {
                       )}
 
                       {/* ── Aprovação de Compras (sem passagem/hospedagem) ── */}
-                      {selectedInclusion.status === 'aprovacao' &&
+                      {(selectedInclusion.status === 'aprovacao' || selectedInclusion.status === 'escalado') &&
                         !selectedInclusion.needsTicket && !selectedInclusion.needsAccommodation && (
                         <div className="mt-5">
                           <div className="border border-blue-200 rounded-2xl overflow-hidden">
