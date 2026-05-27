@@ -190,7 +190,8 @@ export default function Scaling() {
   const pendingSwapByInclusion = useMemo(() => {
     const map = new Map<string, SwapRequest>();
     allSwapRequests?.filter(s => s.status === 'pendente').forEach(s => {
-      map.set((s as any).team_inclusion_id, s);
+      const inclId = (s as any).team_inclusion_id || (s as any).teamInclusionId;
+      if (inclId) map.set(inclId, s);
     });
     return map;
   }, [allSwapRequests]);
@@ -1820,7 +1821,7 @@ export default function Scaling() {
                               const isAdminOrPurchasing = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
                               if (!isAdminOrPurchasing) return null;
                               const swap = pendingSwapByInclusion.get(selectedInclusion.id);
-                              if (!swap || seenSwapIds.has(swap.id)) return null;
+                              if (!swap) return null;
                               return (
                                 <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
                                   <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-600 text-[10px] font-bold rounded-lg border border-amber-200">
