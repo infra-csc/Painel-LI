@@ -1687,6 +1687,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // VALIDAÇÃO: Bloquear alteração direta de colaborador em escalações confirmadas
+      // A única forma permitida de trocar colaborador após confirmação é via solicitação de troca (swap request)
+      const confirmedStatuses = ['escalado', 'passagem', 'passagem_comprada', 'hospedagem', 'hospedagem_comprada', 'aprovacao', 'aprovado', 'concluido'];
+      if (
+        bodyData.collaboratorId !== undefined &&
+        bodyData.collaboratorId !== currentInclusion.collaboratorId &&
+        confirmedStatuses.includes(currentInclusion.status)
+      ) {
+        return res.status(403).json({
+          message: "Não é possível alterar o colaborador diretamente após a escalação ser confirmada. Use o fluxo de Solicitação de Troca."
+        });
+      }
+
       const updates = { 
         ...bodyData, 
         updatedBy: userId // Use authenticated user ID

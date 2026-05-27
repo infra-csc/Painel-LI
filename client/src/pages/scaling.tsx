@@ -1823,7 +1823,7 @@ export default function Scaling() {
                                 );
                               })()}
                             </div>
-                            {!canEditCollaborator(selectedInclusion) ? (
+                            {(!canEditCollaborator(selectedInclusion) || isEscalationConfirmed(selectedInclusion)) ? (
                               <div className="space-y-2">
                                 <div className="border border-slate-200 rounded-xl bg-white px-3 py-2.5">
                                   <div className="text-sm font-medium text-slate-700">{getCollaboratorName(modalData.collaboratorId)}</div>
