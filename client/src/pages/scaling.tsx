@@ -1932,6 +1932,12 @@ export default function Scaling() {
 
                                   const v = variants[swap.status] || variants.pendente;
 
+                                  const reviewedAt = (swap as any).reviewed_at || swap.reviewedAt;
+                                  const reviewedByName = (swap as any).reviewed_by_name || swap.reviewedByName;
+                                  const currentCollabName = getCollaboratorName((swap as any).current_collaborator_id || (swap as any).currentCollaboratorId);
+                                  const newCollabName = getCollaboratorName((swap as any).new_collaborator_id || (swap as any).newCollaboratorId);
+                                  const isResolved = swap.status === 'aprovado' || swap.status === 'rejeitado';
+
                                   return (
                                     <div className={`rounded-xl border ${v.border} ${v.bg} px-3 py-2.5 space-y-2`}>
                                       {/* Cabeçalho */}
@@ -1943,26 +1949,50 @@ export default function Scaling() {
                                         <span className={`text-[10px] font-medium border rounded-full px-2 py-px leading-tight ${v.badgeClass}`}>{v.badge}</span>
                                       </div>
 
-                                      {/* Subtexto */}
-                                      <p className="text-[10.5px] text-slate-500 leading-snug">A solicitação foi enviada para análise do time de Compras.</p>
-
-                                      {/* Detalhes */}
-                                      <div className="space-y-1">
-                                        <div className="flex items-start gap-1.5 text-[11px]">
-                                          <span className="text-slate-400 shrink-0">Novo colaborador:</span>
-                                          <span className="font-medium text-slate-700">{getCollaboratorName((swap as any).new_collaborator_id)}</span>
-                                        </div>
-                                        <div className="flex items-start gap-1.5 text-[11px]">
-                                          <span className="text-slate-400 shrink-0">Motivo:</span>
-                                          <span className="text-slate-600 leading-snug">{swap.reason}</span>
-                                        </div>
-                                        {(swap as any).review_comment && (
-                                          <div className="flex items-start gap-1.5 text-[11px]">
-                                            <span className="text-slate-400 shrink-0">Observação:</span>
-                                            <span className="text-slate-600 leading-snug italic">{(swap as any).review_comment}</span>
+                                      {/* Prova da alteração (aprovado/rejeitado) */}
+                                      {isResolved ? (
+                                        <div className="bg-white/70 rounded-lg border border-slate-100 p-2 space-y-1.5">
+                                          {/* Mudança de colaborador */}
+                                          <div className="flex items-center gap-1.5 text-[11px]">
+                                            <span className="text-slate-500 line-through">{currentCollabName || '—'}</span>
+                                            <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
+                                            <span className={`font-semibold ${swap.status === 'aprovado' ? 'text-green-700' : 'text-slate-500'}`}>{newCollabName || '—'}</span>
                                           </div>
-                                        )}
-                                      </div>
+                                          {/* Quem resolveu e quando */}
+                                          {reviewedByName && (
+                                            <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                                              <Check className="w-2.5 h-2.5 shrink-0" />
+                                              <span>{swap.status === 'aprovado' ? 'Aprovado' : 'Recusado'} por <span className="font-medium text-slate-600">{reviewedByName}</span>
+                                              {reviewedAt && <> · {new Date(reviewedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}</>}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {/* Motivo da solicitação */}
+                                          <div className="flex items-start gap-1 text-[10px] text-slate-400">
+                                            <span className="shrink-0">Motivo:</span>
+                                            <span className="text-slate-500 leading-snug">{swap.reason}</span>
+                                          </div>
+                                          {/* Comentário de revisão */}
+                                          {(swap as any).review_comment && (
+                                            <div className="flex items-start gap-1 text-[10px] text-slate-400">
+                                              <span className="shrink-0">Obs.:</span>
+                                              <span className="text-slate-500 leading-snug italic">{(swap as any).review_comment}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <div className="space-y-1">
+                                          <p className="text-[10.5px] text-slate-500 leading-snug">Aguardando análise do time de Compras.</p>
+                                          <div className="flex items-start gap-1.5 text-[11px]">
+                                            <span className="text-slate-400 shrink-0">Novo colaborador:</span>
+                                            <span className="font-medium text-slate-700">{newCollabName}</span>
+                                          </div>
+                                          <div className="flex items-start gap-1.5 text-[11px]">
+                                            <span className="text-slate-400 shrink-0">Motivo:</span>
+                                            <span className="text-slate-600 leading-snug">{swap.reason}</span>
+                                          </div>
+                                        </div>
+                                      )}
 
                                       {/* Rodapé */}
                                       <div className="flex items-center justify-between pt-0.5">
