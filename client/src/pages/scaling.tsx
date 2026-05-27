@@ -1819,7 +1819,6 @@ export default function Scaling() {
                             {(() => {
                               const isAdminOrPurchasing = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
                               if (!isAdminOrPurchasing) return null;
-                              if (selectedInclusion.needsTicket || selectedInclusion.needsAccommodation) return null;
                               const swap = pendingSwapByInclusion.get(selectedInclusion.id);
                               if (!swap || seenSwapIds.has(swap.id)) return null;
                               return (
