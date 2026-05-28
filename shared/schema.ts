@@ -144,6 +144,8 @@ export const tickets = pgTable("tickets", {
   returnCityDestination: text("return_city_destination"), // cidade de destino da volta
   departureAirport: text("departure_airport"), // aeroporto origem da ida 
   destinationAirport: text("destination_airport"), // aeroporto destino da ida
+  returnOriginAirport: text("return_origin_airport"), // aeroporto origem da volta
+  returnDestinationAirport: text("return_destination_airport"), // aeroporto destino da volta
   value: integer("value"), // valor em centavos
   purchaseOrderNumber: text("purchase_order_number"),
   fileUrl: text("file_url"),
