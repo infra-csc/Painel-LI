@@ -2413,10 +2413,22 @@ export default function Scaling() {
                                         <div className="text-sm font-medium text-slate-700">{selectedTicket.returnCityOrigin}</div>
                                       </div>
                                     )}
+                                    {selectedTicket.transportType === 'aereo' && (selectedTicket as any).returnOriginAirport && (
+                                      <div>
+                                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">Aeroporto de Origem</div>
+                                        <div className="text-sm font-bold text-slate-700 uppercase font-mono">{(selectedTicket as any).returnOriginAirport}</div>
+                                      </div>
+                                    )}
                                     {selectedTicket.returnCityDestination && (
                                       <div>
                                         <div className="text-[10px] text-slate-400 uppercase tracking-wider">Cidade de Destino</div>
                                         <div className="text-sm font-medium text-slate-700">{selectedTicket.returnCityDestination}</div>
+                                      </div>
+                                    )}
+                                    {selectedTicket.transportType === 'aereo' && (selectedTicket as any).returnDestinationAirport && (
+                                      <div>
+                                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">Aeroporto de Destino</div>
+                                        <div className="text-sm font-bold text-slate-700 uppercase font-mono">{(selectedTicket as any).returnDestinationAirport}</div>
                                       </div>
                                     )}
                                     {selectedTicket.actualReturnDate && (

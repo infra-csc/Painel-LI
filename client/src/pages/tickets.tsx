@@ -2347,9 +2347,9 @@ export default function Tickets() {
                                     </div>
                                     <div className="space-y-2.5">
                                       {ticket.returnCityOrigin && <div><div className={lbl}>Cidade Origem</div><div className="text-sm font-medium text-slate-700">{ticket.returnCityOrigin}</div></div>}
-                                      {ticket.returnOriginAirport && <div><div className={lbl}>{ticket.transportType === 'rodoviario' ? 'Rodoviária Origem' : 'Aeroporto Origem'}</div><div className="text-[13px] font-bold text-slate-700 uppercase font-mono">{ticket.returnOriginAirport}</div></div>}
+                                      {(ticket as any).returnOriginAirport && <div><div className={lbl}>{ticket.transportType === 'rodoviario' ? 'Rodoviária Origem' : 'Aeroporto Origem'}</div><div className="text-[13px] font-bold text-slate-700 uppercase font-mono">{(ticket as any).returnOriginAirport}</div></div>}
                                       {ticket.returnCityDestination && <div><div className={lbl}>Cidade Destino</div><div className="text-sm font-medium text-slate-700">{ticket.returnCityDestination}</div></div>}
-                                      {ticket.returnDestinationAirport && <div><div className={lbl}>{ticket.transportType === 'rodoviario' ? 'Rodoviária Destino' : 'Aeroporto Destino'}</div><div className="text-[13px] font-bold text-slate-700 uppercase font-mono">{ticket.returnDestinationAirport}</div></div>}
+                                      {(ticket as any).returnDestinationAirport && <div><div className={lbl}>{ticket.transportType === 'rodoviario' ? 'Rodoviária Destino' : 'Aeroporto Destino'}</div><div className="text-[13px] font-bold text-slate-700 uppercase font-mono">{(ticket as any).returnDestinationAirport}</div></div>}
                                       {ticket.actualReturnDate && <div><div className={lbl}>Data</div><div className="text-[13px] font-semibold text-[#2563EB]">{formatDate(ticket.actualReturnDate)}</div></div>}
                                       {ticket.actualReturnTime && (
                                         <div>
