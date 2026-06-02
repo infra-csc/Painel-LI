@@ -41,6 +41,7 @@ export const functions = pgTable("functions", {
   name: text("name").notNull().unique(),
   description: text("description"),
   responsibleArea: text("responsible_area"),
+  costCenter: text("cost_center"), // centro de custo da função
   quantity: integer("quantity").notNull().default(1),
   userId: varchar("user_id").references(() => users.id), // mantido para compatibilidade, será depreciado
   createdAt: timestamp("created_at").defaultNow(),
