@@ -1,0 +1,286 @@
+A tela “Espelho Operacional do Evento” melhorou, mas ainda não está 10/10 em design e experiência de uso.
+
+Agora quero uma melhoria forte de UX/UI para deixar a visualização muito mais clara, elegante, moderna e operacional.
+
+Objetivo:
+Transformar essa tela em uma experiência premium de gestão logística.
+Ela deve continuar tendo os mesmos dados do anexo operacional, mas com uma visualização muito melhor, mais legível e com navegação mais inteligente.
+
+Referência conceitual:
+A estrutura de dados continua baseada na planilha operacional do evento:
+- Período de Escala
+- Passagem
+- Hospedagem
+- Bagagem Extra
+- Uber
+- Locação de Carro
+Mas a interface deve ser superior à planilha, com visual moderno e leitura facilitada.
+
+Problemas atuais:
+- A tabela ainda está pesada visualmente.
+- Falta hierarquia visual.
+- A leitura está cansativa.
+- Os dados estão todos “achatados”.
+- A edição célula a célula pode ficar confusa sem contexto.
+- Falta um modo melhor de visualizar os dados além da grade pura.
+
+Quero criar uma experiência 10/10 com os seguintes pontos:
+
+1. MODOS DE VISUALIZAÇÃO
+Criar abas ou toggle de visualização com 5 modos:
+
+1. Grade Operacional
+- visão completa em tabela
+- igual à estrutura da planilha
+- ideal para edição e conferência
+
+2. Colaboradores
+- mostrar cada colaborador em card ou linha expandível
+- cada card deve mostrar:
+  - nome
+  - departamento
+  - período
+  - resumo da passagem
+  - resumo da hospedagem
+  - bagagem
+  - Uber
+  - locação
+  - pendências
+- ideal para leitura rápida
+
+3. Departamentos
+- agrupar colaboradores por departamento/função
+- mostrar subtotal financeiro por grupo
+- permitir expandir/recolher grupos
+- ideal para gestão
+
+4. Quartos
+- mostrar somente agrupamentos e sugestões de quartos
+- visualizar quem divide quarto com quem
+- mostrar status: sugestão, confirmado, pendente
+
+5. Uber
+- mostrar somente agrupamentos e sugestões de Uber
+- visualizar ida e volta
+- mostrar grupos, horários e participantes
+
+2. NOVO HEADER MAIS BONITO
+Refazer o topo da página para ficar mais elegante.
+
+Deve conter:
+- título da página
+- subtítulo curto
+- seletor de evento
+- botão recalcular sugestões
+- botão exportar Excel
+- botão de filtros
+- botão “mostrar/ocultar colunas”
+
+Criar um bloco de informações do evento com cards:
+- Evento / Projeto
+- Endereço
+- Data
+- Total de colaboradores
+- Período geral
+
+3. CARDS DE INDICADORES MAIS FORTES
+Melhorar os cards de total:
+- Passagens
+- Hotelaria
+- Bagagem
+- Uber
+- Locação
+- Total Geral
+
+Cada card deve:
+- ter ícone
+- valor em destaque
+- subtítulo explicativo
+- visual consistente
+- hover suave
+- borda e fundo refinados
+
+4. BARRA DE PENDÊNCIAS MELHOR
+Substituir a faixa simples de pendências por algo mais útil:
+- mostrar total de pendências
+- chips por categoria:
+  - Sem passagem
+  - Sem hospedagem
+  - Sem OC
+  - Sem localizador
+  - Sem gênero
+- clicar no chip aplica filtro
+- usar cores leves, não agressivas
+
+5. TABELA MUITO MELHOR
+Na Grade Operacional, melhorar a tabela:
+
+5.1 Estrutura
+- cabeçalho duplo sticky
+- cabeçalhos agrupados por bloco
+- subcolunas organizadas
+- primeira coluna fixa (Nome)
+- segunda coluna fixa (Departamento)
+- scroll horizontal suave
+
+5.2 Estilo
+- linhas zebra
+- bordas discretas
+- cabeçalhos com cor por bloco:
+  - Período de Escala
+  - Passagem
+  - Hospedagem
+  - Bagagem Extra
+  - Uber
+  - Locação
+- fundo claro e elegante
+- tipografia melhor
+- padding mais equilibrado
+- compactar altura das linhas sem perder legibilidade
+
+5.3 Experiência
+- hover destaca linha inteira
+- hover na célula mostra ações
+- tooltips em campos truncados
+- badges visuais para status
+- ícones pequenos onde fizer sentido
+- colunas com largura otimizada
+- opção de densidade: confortável / compacta
+
+6. MELHOR VISUALIZAÇÃO DOS DADOS
+Hoje muitos dados estão difíceis de ler.
+Melhorar cada bloco:
+
+Passagem:
+- exibir valor em destaque
+- abaixo mostrar localizador
+- abaixo rota/resumo compacto
+- exibir status em badge
+- botão rápido para editar
+
+Hospedagem:
+- hotel em destaque
+- diárias e tipo de quarto
+- valor total
+- empresa pagamento
+- status
+
+Bagagem / Uber / Locação:
+- exibir valor
+- OC
+- status/check-in
+- observação rápida
+
+Pendências:
+- exibir badges no final da linha
+- usar cores suaves por tipo
+- clicar na badge pode abrir detalhe
+
+7. EDIÇÃO MAIS INTELIGENTE
+Não quero apenas edição crua em célula.
+Quero edição híbrida:
+
+- campos simples:
+  - datas
+  - valores
+  - texto curto
+  podem ser editados inline
+
+- campos complexos:
+  - passagem
+  - hospedagem
+  - Uber
+  - locação
+  devem abrir drawer lateral ou modal contextual
+
+Exemplo:
+Ao clicar em uma célula de passagem, abrir um drawer “Editar Passagem” com:
+- valor
+- aeroporto ida
+- hora ida
+- hora volta
+- aeroporto volta
+- localizador
+- empresa
+- OC
+- check-in 3
+
+Ao clicar em hospedagem, abrir “Editar Hospedagem” com:
+- diárias
+- quarto
+- diária
+- late check out
+- hotel total
+- hotel
+- empresa pagamento
+- OC
+- check-in 4
+
+8. FILTROS PROFISSIONAIS
+Criar uma barra de filtros refinada:
+- Evento
+- Departamento
+- Com pendência
+- Sem passagem
+- Sem hospedagem
+- Sem localizador
+- Sem OC
+- Hotel
+- Data ida
+- Data volta
+- Sugestão de quarto
+- Sugestão de Uber
+
+Adicionar:
+- limpar filtros
+- salvar visão
+- mostrar/ocultar colunas
+- ordenar por qualquer coluna
+
+9. SUBTOTAIS E RODAPÉ
+No final da tabela, mostrar:
+- Total Hotelaria
+- Total Passagens
+- Total Bagagem
+- Total Uber
+- Total Locação
+- Total Geral
+
+Também mostrar subtotais por departamento:
+- Atendimento
+- Marketing
+- Produção Hub
+- LI
+- RH
+- Running
+- Assinaturas
+ou conforme os departamentos reais do sistema
+
+10. RESPONSIVIDADE E PERFORMANCE
+- priorizar desktop
+- manter boa navegação em telas menores
+- virtualizar linhas se a tabela ficar muito grande
+- usar carregamento eficiente
+- preservar filtros e colunas escolhidas
+
+11. DESIGN SYSTEM
+Aplicar um visual mais premium:
+- layout mais limpo
+- espaçamento melhor
+- paleta elegante
+- ícones consistentes
+- sombras leves
+- cantos arredondados
+- aparência corporativa moderna
+
+12. CRITÉRIOS DE ACEITE
+1. A tela deve ficar visualmente muito mais bonita.
+2. A leitura da grade deve ficar muito mais fácil.
+3. Deve existir mais de um modo de visualização.
+4. A grade operacional deve continuar completa.
+5. A edição deve ser mais inteligente e contextual.
+6. Os cards e pendências devem ficar mais úteis.
+7. Os filtros devem melhorar a navegação.
+8. A visualização agrupada por departamento deve existir.
+9. A visualização por colaborador deve existir.
+10. O resultado final deve parecer uma ferramenta premium de operação, não apenas uma tabela grande.

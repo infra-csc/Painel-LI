@@ -1,0 +1,775 @@
+Quero refinar profundamente a tela “Espelho Operacional do Evento” para que ela fique 10/10 em UX/UI, leitura dos dados, edição e experiência operacional.
+
+Contexto:
+A tela já existe e já possui uma grade operacional baseada no modelo do anexo “Circuito das Estações”.
+Porém, visualmente ainda está muito crua, parecendo uma tabela simples.
+Preciso que ela evolua para uma ferramenta premium de operação logística, mantendo todos os campos da planilha, mas com uma experiência muito melhor.
+
+Objetivo principal:
+Transformar o “Espelho Operacional do Evento” em uma tela moderna, elegante, editável e extremamente fácil de usar, onde o administrador consiga visualizar rapidamente:
+
+* quem está escalado;
+* quem já tem passagem;
+* quem já tem hospedagem;
+* quem tem bagagem;
+* quem tem Uber;
+* quem tem locação;
+* quais OCs faltam;
+* quais check-ins faltam;
+* quais campos estão pendentes;
+* quais custos já existem;
+* quais dados precisam de ação.
+
+A tela deve ter cara de produto profissional/enterprise, não de planilha crua.
+
+Referência de estrutura:
+Manter os campos do anexo, na seguinte ordem lógica:
+
+CABEÇALHO DO EVENTO:
+
+* Evento / Projeto
+* Endereço
+* Data
+
+DADOS DO COLABORADOR:
+
+* Nome
+* Departamento
+
+PERÍODO DE ESCALA:
+
+* Início
+* Data Ida
+* Término
+* Data Volta
+
+PASSAGEM:
+
+* Passagens TT R$
+* Aero Ida
+* HR Ida
+* HR Volta
+* Aero Volta
+* Localizador
+* Empresa
+* OC
+* Check-in 3
+
+HOSPEDAGEM:
+
+* Diárias
+* Quarto
+* R$ Diária H
+* Late Check Out
+* Hotel TT R$
+* Hotel
+* Empresa Pagamento
+* OC
+* Check-in 4
+
+BAGAGEM EXTRA:
+
+* Bagagem TT R$
+* OC
+* Check-in 1
+
+UBER:
+
+* Uber TT R$
+* OC
+* Check-in 2
+
+LOCAÇÃO DE CARRO:
+
+* Empresa Locação
+* TT R$
+* OC
+* Check-in
+
+PENDÊNCIAS:
+
+* Pendências automáticas
+* Observações internas
+
+1. NOVA EXPERIÊNCIA DE LAYOUT
+
+Refazer o topo da tela para parecer uma central de controle.
+
+O topo deve ter:
+
+* Título: Espelho Operacional do Evento
+* Subtítulo: Grade operacional editável para controle de passagens, hospedagem, bagagem, Uber e locação.
+* Seletor de evento
+* Botão “Recalcular sugestões”
+* Botão “Exportar Excel”
+* Botão “Filtros”
+* Botão “Colunas”
+* Botão “Modo edição”
+
+Abaixo, criar um bloco elegante de informações do evento:
+
+* Evento / Projeto
+* Endereço
+* Data
+* Período geral
+* Total de colaboradores
+* Status geral da logística
+
+Esse bloco deve ter visual premium:
+
+* cards limpos
+* ícones pequenos
+* bordas suaves
+* fundo levemente destacado
+* espaçamento confortável
+* tipografia forte no dado principal
+
+2. CARDS DE INDICADORES MAIS BONITOS
+
+Melhorar os cards superiores:
+
+* Passagens
+* Hotelaria
+* Bagagem
+* Uber
+* Locação
+* Total Geral
+
+Cada card deve conter:
+
+* ícone
+* título
+* valor em destaque
+* subtítulo pequeno, quando útil
+* borda leve
+* fundo branco
+* hover suave
+* sombra muito discreta
+* destaque maior no Total Geral
+
+Visual esperado:
+
+* moderno
+* corporativo
+* limpo
+* sem excesso de cores fortes
+* com boa hierarquia visual
+
+3. BARRA DE PENDÊNCIAS INTELIGENTE
+
+Substituir a faixa simples de pendências por uma central de alertas mais útil.
+
+Exibir:
+
+* total de pendências
+* chips clicáveis por tipo de pendência:
+
+  * Sem passagem
+  * Sem hospedagem
+  * Sem localizador
+  * Sem OC
+  * Sem check-in
+  * Sem gênero
+  * Divergência de data
+  * Sem voucher/anexo
+
+Ao clicar em um chip:
+
+* aplicar filtro automaticamente na grade
+* destacar as linhas afetadas
+
+A barra deve usar cores suaves:
+
+* amarelo claro para alerta
+* vermelho claro apenas para pendência crítica
+* azul/cinza para informação
+
+Não usar visual agressivo demais.
+
+4. MODOS DE VISUALIZAÇÃO
+
+Criar alternador de visualização com os modos:
+
+1. Grade Operacional
+   Visão completa no formato tabela editável, com todos os campos do anexo.
+
+2. Cards por Colaborador
+   Visão mais amigável para leitura.
+   Cada colaborador deve aparecer em um card compacto com:
+
+* nome
+* departamento
+* período
+* passagem resumida
+* hospedagem resumida
+* bagagem
+* Uber
+* locação
+* pendências
+* botão “Editar logística”
+
+3. Agrupado por Departamento
+   Agrupar colaboradores por departamento.
+   Cada grupo deve mostrar:
+
+* nome do departamento
+* quantidade de colaboradores
+* total de passagens
+* total de hotelaria
+* total de extras
+* total geral
+* pendências do grupo
+* botão expandir/recolher
+
+4. Quartos
+   Visão dedicada para hospedagem.
+   Mostrar:
+
+* quartos sugeridos
+* quartos confirmados
+* pessoas sem quarto
+* quarto single
+* quarto duplo
+* quarto triplo, se permitido
+* pendências de hospedagem
+* botão confirmar/editar grupo
+
+5. Uber
+   Visão dedicada para deslocamentos.
+   Mostrar:
+
+* grupos sugeridos de Uber
+* ida
+* volta
+* aeroporto
+* horário
+* participantes
+* custo estimado
+* status
+* botão confirmar/editar grupo
+
+A navegação entre modos deve ser clara e elegante, usando tabs ou segmented control.
+
+5. GRADE OPERACIONAL PREMIUM
+
+A grade operacional é o coração da tela e precisa ficar muito melhor.
+
+5.1 Estrutura da tabela
+
+Implementar:
+
+* cabeçalho duplo sticky
+* primeira linha do cabeçalho com blocos agrupados
+* segunda linha com os nomes das colunas
+* primeira coluna fixa: Nome
+* segunda coluna fixa: Departamento
+* scroll horizontal suave
+* scroll vertical com cabeçalho fixo
+* linhas compactas, mas legíveis
+* largura otimizada por tipo de campo
+
+Blocos do cabeçalho:
+
+* Dados
+* Período de Escala
+* Passagem
+* Hospedagem
+* Bagagem Extra
+* Uber
+* Locação de Carro
+* Pendências
+
+Cada bloco deve ter uma cor leve própria:
+
+* Dados: cinza/azul suave
+* Período: azul claro
+* Passagem: azul/lilás claro
+* Hospedagem: verde claro
+* Bagagem: amarelo claro
+* Uber: roxo claro
+* Locação: laranja claro
+* Pendências: vermelho/âmbar claro
+
+As cores devem ser suaves e elegantes, não saturadas.
+
+5.2 Melhor leitura da linha
+
+Cada linha deve ter:
+
+* hover destacando a linha inteira
+* alternância leve de fundo entre linhas
+* separadores sutis entre blocos
+* valores monetários alinhados à direita
+* datas centralizadas
+* textos longos com tooltip
+* badges para status e pendências
+* ícones pequenos apenas onde melhorarem a leitura
+
+5.3 Células mais inteligentes
+
+Não exibir tudo como texto cru.
+
+Exemplos:
+
+* valores monetários com destaque discreto
+* OC como badge pequena
+* localizador como código em estilo monoespaçado
+* check-in como badge de status
+* quarto como badge: SINGLE, DUPLO, TRIPLO
+* late check-out como sim/não visual
+* campos vazios com traço leve, não muito pesado
+
+6. EDIÇÃO 10/10
+
+A tela precisa ser editável, mas sem virar bagunça.
+
+Criar edição híbrida:
+
+6.1 Edição inline
+Campos simples podem ser editados direto na célula:
+
+* datas
+* horários
+* valores
+* localizador
+* OC
+* empresa
+* hotel
+* quarto
+* check-in
+* observações
+
+Comportamento:
+
+* clicar na célula ativa edição
+* pressionar Enter salva
+* Esc cancela
+* ao sair da célula salva
+* mostrar indicador “salvando...”
+* após salvar, mostrar feedback “salvo”
+* em erro, restaurar valor anterior e mostrar mensagem
+
+6.2 Drawer lateral para edição contextual
+Para blocos complexos, criar drawer lateral.
+
+Ao clicar em “Editar Passagem”, abrir drawer com:
+
+* Passagens TT R$
+* Aero Ida
+* HR Ida
+* HR Volta
+* Aero Volta
+* Localizador
+* Empresa
+* OC
+* Check-in 3
+* Voucher/anexo
+* Status
+
+Ao clicar em “Editar Hospedagem”, abrir drawer com:
+
+* Diárias
+* Quarto
+* R$ Diária H
+* Late Check Out
+* Hotel TT R$
+* Hotel
+* Empresa Pagamento
+* OC
+* Check-in 4
+* Reserva
+* Voucher/anexo
+* Status
+
+Ao clicar em “Editar Extras”, abrir drawer com:
+
+* Bagagem TT R$
+* OC bagagem
+* Check-in 1
+* Uber TT R$
+* OC Uber
+* Check-in 2
+* Empresa Locação
+* TT R$ Locação
+* OC Locação
+* Check-in Locação
+
+6.3 Modo edição
+Criar botão “Modo edição”.
+
+Quando desligado:
+
+* a tabela fica mais limpa
+* células não mostram inputs
+* foco em leitura
+
+Quando ligado:
+
+* células editáveis mostram estado editável no hover
+* aparece ícone de lápis
+* ações rápidas ficam visíveis
+
+7. FILTROS AVANÇADOS
+
+Criar uma barra de filtros profissional.
+
+Filtros:
+
+* Evento
+* Departamento
+* Período
+* Data ida
+* Data volta
+* Aeroporto ida
+* Aeroporto volta
+* Hotel
+* Com pendência
+* Sem passagem
+* Sem hospedagem
+* Sem localizador
+* Sem OC
+* Sem check-in
+* Com bagagem
+* Com Uber
+* Com locação
+* Quarto single
+* Quarto duplo
+* Sugestão de quarto
+* Sugestão de Uber
+
+Também criar:
+
+* botão limpar filtros
+* contador de registros filtrados
+* busca por nome
+* mostrar/ocultar colunas
+* ordenação por qualquer coluna
+
+8. MENU DE COLUNAS
+
+Criar botão “Colunas” para o usuário escolher o que visualizar.
+
+Deve permitir:
+
+* marcar/desmarcar colunas
+* ocultar blocos inteiros
+* restaurar padrão
+* salvar preferência local do usuário
+
+Blocos ocultáveis:
+
+* Passagem
+* Hospedagem
+* Bagagem Extra
+* Uber
+* Locação
+* Pendências
+
+9. CARDS POR COLABORADOR
+
+Criar modo “Colaboradores” com cards bonitos.
+
+Cada card deve ter:
+
+* nome do colaborador
+* departamento
+* período de escala
+* resumo de passagem
+* resumo de hospedagem
+* resumo de extras
+* total individual
+* pendências
+* botões rápidos:
+
+  * editar passagem
+  * editar hospedagem
+  * editar extras
+  * abrir detalhes
+
+Layout do card:
+
+* cabeçalho com nome e departamento
+* corpo dividido em mini-blocos
+* rodapé com pendências e ações
+* visual limpo e fácil de escanear
+
+10. VISÃO POR DEPARTAMENTO
+
+Criar modo “Departamentos”.
+
+Agrupar por departamento ou centro de custo.
+
+Cada grupo deve mostrar:
+
+* nome do departamento
+* total de colaboradores
+* total passagens
+* total hotelaria
+* total bagagem
+* total Uber
+* total locação
+* total geral
+* quantidade de pendências
+
+O grupo deve ser expansível.
+Dentro dele, mostrar linhas resumidas dos colaboradores.
+
+Essa visão é importante para o gestor entender custo por área.
+
+11. VISÃO DE QUARTOS
+
+Criar modo “Quartos”.
+
+Objetivo:
+Facilitar divisão de hospedagem.
+
+Exibir:
+
+* quartos sugeridos
+* quartos confirmados
+* colaboradores sem quarto
+* conflitos
+* pendências
+
+Regras visuais:
+
+* card por quarto
+* mostrar tipo: SINGLE, DUPLO ou TRIPLO
+* mostrar hotel
+* check-in/check-out
+* participantes
+* badge “Sugestão”
+* badge “Confirmado”
+* badge “Pendente”
+
+Regras funcionais:
+
+* quarto duplo apenas mesmo sexo/gênero
+* não sugerir quarto duplo se gênero estiver vazio
+* preferir mesma data de hospedagem
+* preferir mesmo departamento
+* permitir confirmar grupo
+* permitir editar grupo
+* não sobrescrever grupo confirmado ao recalcular sugestões
+
+12. VISÃO DE UBER
+
+Criar modo “Uber”.
+
+Objetivo:
+Facilitar divisão de deslocamentos.
+
+Exibir:
+
+* grupos de ida
+* grupos de volta
+* aeroporto
+* data
+* horário
+* participantes
+* destino
+* custo estimado
+* status
+
+Regras:
+
+* agrupar por mesma data
+* agrupar por aeroporto
+* agrupar por horários próximos
+* janela padrão: 90 minutos
+* máximo 4 pessoas por carro
+* separar ida e volta
+* permitir confirmar grupo
+* permitir editar grupo
+* não sobrescrever grupo confirmado ao recalcular sugestões
+
+13. TOTAIS E SUBTOTAIS
+
+Melhorar totais no topo e no rodapé.
+
+Topo:
+
+* totais gerais do evento
+
+Rodapé da tabela:
+
+* total passagens
+* total hotelaria
+* total bagagem
+* total Uber
+* total locação
+* total geral
+
+Subtotais por departamento:
+
+* calcular automaticamente por departamento real
+* exibir no modo Departamentos
+* também exibir no final da exportação Excel
+
+14. EXPORTAÇÃO EXCEL
+
+O botão “Exportar Excel” deve exportar exatamente os dados da grade operacional.
+
+Regras:
+
+* respeitar filtros aplicados
+* respeitar colunas visíveis, se possível
+* manter a ordem dos campos do anexo
+* exportar cabeçalho do evento
+* exportar blocos:
+
+  * Período de Escala
+  * Passagem
+  * Hospedagem
+  * Bagagem Extra
+  * Uber
+  * Locação de Carro
+* exportar subtotais
+* exportar total geral
+* exportar pendências
+
+O Excel deve sair parecido com a planilha modelo, mas organizado e sem erros visuais.
+
+15. PENDÊNCIAS AUTOMÁTICAS
+
+Melhorar geração e exibição de pendências.
+
+Pendências possíveis:
+
+* sem colaborador vinculado
+* sem departamento
+* sem passagem
+* passagem sem localizador
+* passagem sem OC
+* passagem sem check-in
+* passagem sem voucher
+* sem hospedagem
+* hospedagem sem hotel
+* hospedagem sem OC
+* hospedagem sem check-in
+* hospedagem sem voucher
+* sem gênero cadastrado
+* impossível sugerir quarto
+* sem grupo de Uber
+* Uber sem OC
+* bagagem sem OC
+* locação sem OC
+* data ida diferente do início
+* data volta diferente do término
+
+Exibição:
+
+* badge por pendência
+* cor por gravidade
+* clique na pendência abre detalhe
+* pendência deve destacar a célula relacionada
+* chips da barra superior filtram pendências
+
+16. MICROINTERAÇÕES
+
+Adicionar pequenos detalhes que deixam o produto mais profissional:
+
+* skeleton loading ao carregar
+* empty state bonito quando não houver dados
+* hover suave em cards
+* transição ao trocar modo de visualização
+* feedback ao salvar célula
+* toast de sucesso/erro
+* tooltip em campos truncados
+* indicador de filtros ativos
+* indicador de colunas ocultas
+* loading no botão “Recalcular sugestões”
+* loading no botão “Exportar Excel”
+
+17. RESPONSIVIDADE
+
+Priorizar desktop, porque a tela é operacional e possui muitas colunas.
+
+Mesmo assim:
+
+* em telas menores, permitir scroll horizontal
+* manter colunas fixas
+* cards por colaborador devem funcionar bem em tablet
+* evitar quebrar a tabela inteira no mobile
+
+18. PERFORMANCE
+
+A tabela pode crescer muito.
+
+Implementar:
+
+* virtualização de linhas, se necessário
+* memoização dos cálculos de totais
+* evitar re-render desnecessário
+* salvar célula sem recarregar a tela inteira
+* atualizar apenas a linha alterada
+* preservar scroll após salvar
+
+19. DESIGN SYSTEM
+
+Usar o design system atual do app, mas elevar o refinamento.
+
+Direção visual:
+
+* enterprise
+* limpo
+* premium
+* organizado
+* operacional
+* moderno
+
+Evitar:
+
+* cores fortes demais
+* excesso de bordas pesadas
+* tabela poluída
+* textos grudados
+* botões demais aparecendo ao mesmo tempo
+* sensação de planilha antiga
+
+Usar:
+
+* branco
+* cinzas suaves
+* azul como cor principal
+* badges leves
+* sombras sutis
+* cantos arredondados
+* boa hierarquia tipográfica
+* espaçamento consistente
+
+20. CRITÉRIOS DE ACEITE
+
+A tela será considerada pronta quando:
+
+1. A visualização estiver muito mais bonita e profissional.
+2. A grade operacional continuar com todos os campos do anexo.
+3. Os blocos da tabela estiverem claros e visualmente separados.
+4. A primeira coluna e o cabeçalho ficarem fixos.
+5. A leitura das linhas estiver fácil.
+6. Existir modo Grade Operacional.
+7. Existir modo Cards por Colaborador.
+8. Existir modo Departamentos.
+9. Existir modo Quartos.
+10. Existir modo Uber.
+11. A edição inline funcionar.
+12. O drawer lateral de edição funcionar para passagem, hospedagem e extras.
+13. As pendências ficarem mais úteis e filtráveis.
+14. Os filtros funcionarem bem.
+15. O usuário conseguir ocultar/exibir colunas.
+16. Os totais baterem com as linhas.
+17. A exportação Excel sair completa.
+18. A tela parecer uma central operacional profissional, não apenas uma tabela.
+19. O administrador conseguir bater o olho e saber o que está pendente.
+20. A experiência final ficar 10/10 em design, usabilidade e operação.
+
+Importante:
+Não remover nenhum campo já existente.
+Não simplificar a grade.
+Não substituir os campos detalhados por resumos.
+A grade precisa continuar completa, mas a experiência visual precisa ser muito melhor.
+
+Manter compatibilidade com os dados e endpoints atuais.
+Criar novos componentes apenas quando necessário.
+Reaproveitar o design system existente.
+Priorizar clareza, edição fácil e leitura operacional.
