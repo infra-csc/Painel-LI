@@ -46,15 +46,19 @@ const PEND_CATS: { key: string; label: string; match: (p: string) => boolean }[]
   { key: "localizador", label: "Sem localizador", match: (p) => /localizador/i.test(p) },
   { key: "genero", label: "Sem gênero", match: (p) => /(gênero|sexo)/i.test(p) },
   { key: "voucher", label: "Sem voucher/anexo", match: (p) => /(voucher|anexo)/i.test(p) },
+  { key: "reserva", label: "Sem reserva", match: (p) => /reserva/i.test(p) },
+  { key: "data", label: "Divergência de data", match: (p) => /(≠|diverg)/i.test(p) },
 ];
 
 // ============ Editable inline cell ============
+type CellVariant = "mono" | "oc" | "checkin" | "room";
 function EditableCell({
-  rowId, field, value, type, onSave, align = "left", compact, onEdit,
+  rowId, field, value, type, onSave, align = "left", compact, onEdit, editMode = true, variant,
 }: {
   rowId: string; field: string; value: any; type: CellType;
   onSave: (rowId: string, field: string, value: any) => Promise<void>;
   align?: "left" | "right" | "center"; compact?: boolean; onEdit?: () => void;
+  editMode?: boolean; variant?: CellVariant;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -74,7 +78,12 @@ function EditableCell({
     if (value === null || value === undefined || value === "") return <span className="text-muted-foreground/30">—</span>;
     if (type === "money") return brl(value as number);
     if (type === "date") return fmtDate(value as string);
-    return String(value);
+    const s = String(value);
+    if (variant === "mono") return <span className="font-mono text-[11px] tracking-tight">{s}</span>;
+    if (variant === "oc") return <Badge variant="outline" className="font-mono text-[9px] px-1 py-0 font-normal">{s}</Badge>;
+    if (variant === "room") return <Badge variant="secondary" className="text-[9px] uppercase px-1 py-0">{s}</Badge>;
+    if (variant === "checkin") return <Badge variant="outline" className="text-[9px] px-1 py-0 font-normal border-emerald-300 text-emerald-700 dark:text-emerald-300">{s}</Badge>;
+    return s;
   }
   function parseDraft(raw: string): any {
     const t = raw.trim();
@@ -104,6 +113,13 @@ function EditableCell({
     : state === "saved" ? "bg-green-50/60 dark:bg-green-950/30"
     : state === "error" ? "ring-1 ring-inset ring-red-400 bg-red-50/60 dark:bg-red-950/30" : "";
 
+  if (!editMode) {
+    return (
+      <td className={`border-r border-border/30 ${pad} text-xs whitespace-nowrap ${alignCls} ${align !== "left" ? "tabular-nums" : ""}`}>
+        <span className="truncate inline-block max-w-[180px] align-middle">{display()}</span>
+      </td>
+    );
+  }
   if (type === "bool") {
     return (
       <td className={`p-0 border-r border-border/30 ${ring}`}>
@@ -181,6 +197,7 @@ export default function OperationalMirror() {
   const [eventId, setEventId] = useState(initialEventId);
 
   const [view, setView] = useState<ViewKey>("grade");
+  const [editMode, setEditMode] = useState(true);
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
   const [searchText, setSearchText] = useState("");
   const [deptFilter, setDeptFilter] = useState("all");
@@ -190,7 +207,7 @@ export default function OperationalMirror() {
   const [sort, setSort] = useState<{ key: "nome" | "departamento" | null; dir: "asc" | "desc" }>({ key: null, dir: "asc" });
   const [hiddenBlocks, setHiddenBlocks] = useState<Set<Block>>(new Set());
   const [collapsedDepts, setCollapsedDepts] = useState<Set<string>>(new Set());
-  const [drawer, setDrawer] = useState<{ kind: "ticket" | "accommodation" | null; rowId: string | null; name?: string; source: any }>({ kind: null, rowId: null, source: null });
+  const [drawer, setDrawer] = useState<{ kind: "ticket" | "accommodation" | "extras" | null; rowId: string | null; name?: string; source: any }>({ kind: null, rowId: null, source: null });
 
   // persist prefs
   useEffect(() => {
@@ -199,6 +216,7 @@ export default function OperationalMirror() {
       if (raw) {
         const p = JSON.parse(raw);
         if (p.density) setDensity(p.density);
+        if (typeof p.editMode === "boolean") setEditMode(p.editMode);
         if (p.hiddenBlocks) setHiddenBlocks(new Set(p.hiddenBlocks));
         if (p.view) setView(p.view);
         if (p.deptFilter) setDeptFilter(p.deptFilter);
@@ -209,8 +227,8 @@ export default function OperationalMirror() {
     } catch {}
   }, []);
   useEffect(() => {
-    try { localStorage.setItem(LS_KEY, JSON.stringify({ density, hiddenBlocks: Array.from(hiddenBlocks), view, deptFilter, hotelFilter, flags, sort })); } catch {}
-  }, [density, hiddenBlocks, view, deptFilter, hotelFilter, flags, sort]);
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ density, editMode, hiddenBlocks: Array.from(hiddenBlocks), view, deptFilter, hotelFilter, flags, sort })); } catch {}
+  }, [density, editMode, hiddenBlocks, view, deptFilter, hotelFilter, flags, sort]);
 
   const { data: events } = useQuery<any[]>({ queryKey: ["/api/events"] });
   const mirrorKey = ["/api/events", eventId, "operational-mirror"];
@@ -277,6 +295,9 @@ export default function OperationalMirror() {
       if (flags.semHospedagem && r.accommodation) return false;
       if (flags.semLocalizador && r.ticket?.locator) return false;
       if (flags.semOc && r.ticket?.purchaseOrderNumber) return false;
+      if (flags.comBagagem && !(r.baggage?.extraCents > 0)) return false;
+      if (flags.comUber && !(r.uber?.totalCents > 0)) return false;
+      if (flags.comLocacao && !(r.carRental?.totalCents > 0)) return false;
       if (flags.sugQuarto && !r.suggestedRoomGroupId) return false;
       if (flags.sugUber && !r.uber.suggestedGroupId) return false;
       return true;
@@ -293,8 +314,9 @@ export default function OperationalMirror() {
   function clearFilters() { setSearchText(""); setDeptFilter("all"); setHotelFilter("all"); setPendCat(null); setFlags({}); }
   function toggleSort(key: "nome" | "departamento") { setSort((s) => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }); }
 
-  function openDrawer(kind: "ticket" | "accommodation", r: any) {
-    setDrawer({ kind, rowId: r.teamInclusionId, name: r.collaborator.fullName, source: kind === "ticket" ? r.ticket : r.accommodation });
+  function openDrawer(kind: "ticket" | "accommodation" | "extras", r: any) {
+    const source = kind === "ticket" ? r.ticket : kind === "accommodation" ? r.accommodation : r;
+    setDrawer({ kind, rowId: r.teamInclusionId, name: r.collaborator.fullName, source });
   }
 
   const compact = density === "compact";
@@ -312,6 +334,9 @@ export default function OperationalMirror() {
             <p className="text-sm text-muted-foreground">Gestão logística completa — passagem, hospedagem, bagagem, Uber e locação por colaborador.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Button variant={editMode ? "default" : "outline"} size="sm" onClick={() => setEditMode((v) => !v)} data-testid="button-edit-mode">
+              <Pencil className="h-4 w-4 mr-2" /> {editMode ? "Modo edição: ON" : "Modo edição: OFF"}
+            </Button>
             <Button variant="outline" size="sm" onClick={() => recalcMutation.mutate()} disabled={!eventId || recalcMutation.isPending} data-testid="button-recalc">
               {recalcMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
               Recalcular sugestões
@@ -355,7 +380,8 @@ export default function OperationalMirror() {
                   <Separator />
                   {[
                     ["comPendencia", "Com pendência"], ["semPassagem", "Sem passagem"], ["semHospedagem", "Sem hospedagem"],
-                    ["semLocalizador", "Sem localizador"], ["semOc", "Sem OC"], ["sugQuarto", "Tem sugestão de quarto"], ["sugUber", "Tem sugestão de Uber"],
+                    ["semLocalizador", "Sem localizador"], ["semOc", "Sem OC"], ["comBagagem", "Com bagagem"],
+                    ["comUber", "Com Uber"], ["comLocacao", "Com locação"], ["sugQuarto", "Tem sugestão de quarto"], ["sugUber", "Tem sugestão de Uber"],
                   ].map(([k, label]) => (
                     <label key={k} className="flex items-center gap-2 text-sm cursor-pointer">
                       <Checkbox checked={!!flags[k]} onCheckedChange={(v) => setFlags((f) => ({ ...f, [k]: !!v }))} />
@@ -475,7 +501,7 @@ export default function OperationalMirror() {
             )}
 
             {/* ===== VIEWS ===== */}
-            {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} totals={totals} sort={sort} onSort={toggleSort} />}
+            {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} totals={totals} sort={sort} onSort={toggleSort} editMode={editMode} />}
             {view === "colaboradores" && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} />}
             {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} />}
             {view === "quartos" && <QuartosView groups={data.roomGroups} onConfirm={(id: string) => confirmRoomMutation.mutate(id)} pending={confirmRoomMutation.isPending} />}
@@ -491,7 +517,7 @@ export default function OperationalMirror() {
 }
 
 // ============ GRADE VIEW ============
-function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, sort, onSort }: any) {
+function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, sort, onSort, editMode }: any) {
   const show = (b: Block) => !hiddenBlocks.has(b);
   const headPad = compact ? "px-2 py-1" : "px-2 py-1.5";
   const sortIcon = (key: string) => sort?.key === key ? (sort.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ChevronsUpDown className="h-3 w-3 opacity-40" />;
@@ -545,47 +571,47 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
                         <div className="text-[10px] text-muted-foreground">{genderLabel[r.collaborator.gender || "unknown"]} · {r.collaborator.state || "—"}</div>
                       </td>
                       <td className={`sticky left-[150px] z-20 ${idx % 2 ? "bg-[hsl(var(--muted))]" : "bg-card"} group-hover:bg-muted px-2 py-1 border-r border-border/40 min-w-[120px] capitalize`}>{r.function.area || r.function.name || "—"}</td>
-                      <EditableCell rowId={r.teamInclusionId} field="schedule.startDate" value={r.schedule.startDate} type="date" onSave={saveCell} compact={compact} />
-                      <EditableCell rowId={r.teamInclusionId} field="schedule.departureDate" value={r.schedule.flightDepartureDate} type="date" onSave={saveCell} compact={compact} />
-                      <EditableCell rowId={r.teamInclusionId} field="schedule.endDate" value={r.schedule.endDate} type="date" onSave={saveCell} compact={compact} />
-                      <EditableCell rowId={r.teamInclusionId} field="schedule.returnDate" value={r.schedule.flightReturnDate} type="date" onSave={saveCell} compact={compact} />
+                      <EditableCell rowId={r.teamInclusionId} field="schedule.startDate" value={r.schedule.startDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
+                      <EditableCell rowId={r.teamInclusionId} field="schedule.departureDate" value={r.schedule.flightDepartureDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
+                      <EditableCell rowId={r.teamInclusionId} field="schedule.endDate" value={r.schedule.endDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
+                      <EditableCell rowId={r.teamInclusionId} field="schedule.returnDate" value={r.schedule.flightReturnDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
                       {show("passagem") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.value" value={t.value} type="money" onSave={saveCell} compact={compact} align="right" onEdit={() => openDrawer("ticket", r)} />
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.departureAirport" value={t.departureAirport} type="text" onSave={saveCell} compact={compact} />
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.actualDepartureTime" value={t.actualDepartureTime} type="time" onSave={saveCell} compact={compact} align="center" />
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.actualReturnTime" value={t.actualReturnTime} type="time" onSave={saveCell} compact={compact} align="center" />
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.returnOriginAirport" value={t.returnOriginAirport} type="text" onSave={saveCell} compact={compact} />
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.locator" value={t.locator} type="text" onSave={saveCell} compact={compact} />
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.ticketCompany" value={t.ticketCompany} type="text" onSave={saveCell} compact={compact} />
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.purchaseOrderNumber" value={t.purchaseOrderNumber} type="text" onSave={saveCell} compact={compact} />
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.checkIn3" value={t.checkIn3} type="text" onSave={saveCell} compact={compact} align="center" />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.value" value={t.value} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" onEdit={() => openDrawer("ticket", r)} />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.departureAirport" value={t.departureAirport} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.actualDepartureTime" value={t.actualDepartureTime} type="time" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.actualReturnTime" value={t.actualReturnTime} type="time" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.returnOriginAirport" value={t.returnOriginAirport} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.locator" value={t.locator} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="mono" />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.ticketCompany" value={t.ticketCompany} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.purchaseOrderNumber" value={t.purchaseOrderNumber} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.checkIn3" value={t.checkIn3} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("hospedagem") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.nightsCount" value={a.nightsCount} type="int" onSave={saveCell} compact={compact} align="center" onEdit={() => openDrawer("accommodation", r)} />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.roomType" value={a.roomType} type="text" onSave={saveCell} compact={compact} />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.dailyRate" value={a.dailyRate} type="money" onSave={saveCell} compact={compact} align="right" />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.lateCheckout" value={a.lateCheckout} type="bool" onSave={saveCell} compact={compact} align="center" />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.totalCents" value={a.totalCents} type="money" onSave={saveCell} compact={compact} align="right" />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.hotelName" value={a.hotelName} type="text" onSave={saveCell} compact={compact} />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.paymentCompany" value={a.paymentCompany} type="text" onSave={saveCell} compact={compact} />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.hotelOc" value={a.hotelOc} type="text" onSave={saveCell} compact={compact} />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.checkIn4" value={a.checkIn4} type="text" onSave={saveCell} compact={compact} align="center" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.nightsCount" value={a.nightsCount} type="int" onSave={saveCell} compact={compact} editMode={editMode} align="center" onEdit={() => openDrawer("accommodation", r)} />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.roomType" value={a.roomType} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="room" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.dailyRate" value={a.dailyRate} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.lateCheckout" value={a.lateCheckout} type="bool" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.totalCents" value={a.totalCents} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.hotelName" value={a.hotelName} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.paymentCompany" value={a.paymentCompany} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.hotelOc" value={a.hotelOc} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.checkIn4" value={a.checkIn4} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("bagagem") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="baggage.amountCents" value={r.baggage.extraCents} type="money" onSave={saveCell} compact={compact} align="right" />
-                        <EditableCell rowId={r.teamInclusionId} field="baggage.oc" value={r.baggage.oc} type="text" onSave={saveCell} compact={compact} />
-                        <EditableCell rowId={r.teamInclusionId} field="baggage.checkIn" value={r.baggage.checkIn} type="text" onSave={saveCell} compact={compact} align="center" />
+                        <EditableCell rowId={r.teamInclusionId} field="baggage.amountCents" value={r.baggage.extraCents} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
+                        <EditableCell rowId={r.teamInclusionId} field="baggage.oc" value={r.baggage.oc} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
+                        <EditableCell rowId={r.teamInclusionId} field="baggage.checkIn" value={r.baggage.checkIn} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("uber") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="uber.amountCents" value={r.uber.totalCents} type="money" onSave={saveCell} compact={compact} align="right" />
-                        <EditableCell rowId={r.teamInclusionId} field="uber.oc" value={r.uber.oc} type="text" onSave={saveCell} compact={compact} />
-                        <EditableCell rowId={r.teamInclusionId} field="uber.checkIn" value={r.uber.checkIn} type="text" onSave={saveCell} compact={compact} align="center" />
+                        <EditableCell rowId={r.teamInclusionId} field="uber.amountCents" value={r.uber.totalCents} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
+                        <EditableCell rowId={r.teamInclusionId} field="uber.oc" value={r.uber.oc} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
+                        <EditableCell rowId={r.teamInclusionId} field="uber.checkIn" value={r.uber.checkIn} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("locacao") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="carRental.company" value={r.carRental.company} type="text" onSave={saveCell} compact={compact} />
-                        <EditableCell rowId={r.teamInclusionId} field="carRental.amountCents" value={r.carRental.totalCents} type="money" onSave={saveCell} compact={compact} align="right" />
-                        <EditableCell rowId={r.teamInclusionId} field="carRental.oc" value={r.carRental.oc} type="text" onSave={saveCell} compact={compact} />
-                        <EditableCell rowId={r.teamInclusionId} field="carRental.checkIn" value={r.carRental.checkIn} type="text" onSave={saveCell} compact={compact} align="center" />
+                        <EditableCell rowId={r.teamInclusionId} field="carRental.company" value={r.carRental.company} type="text" onSave={saveCell} compact={compact} editMode={editMode} onEdit={() => openDrawer("extras", r)} />
+                        <EditableCell rowId={r.teamInclusionId} field="carRental.amountCents" value={r.carRental.totalCents} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
+                        <EditableCell rowId={r.teamInclusionId} field="carRental.oc" value={r.carRental.oc} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
+                        <EditableCell rowId={r.teamInclusionId} field="carRental.checkIn" value={r.carRental.checkIn} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("pendencias") && <>
                         <td className="px-2 py-1 border-r border-border/30">
@@ -593,7 +619,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
                             <div className="flex flex-col gap-0.5 min-w-[130px]">{r.pendencies.map((p: string, i: number) => <Badge key={i} variant="outline" className="text-[9px] border-amber-400 text-amber-700 dark:text-amber-400 w-fit">{p}</Badge>)}</div>
                           )}
                         </td>
-                        <EditableCell rowId={r.teamInclusionId} field="observations" value={r.observations} type="text" onSave={saveCell} compact={compact} />
+                        <EditableCell rowId={r.teamInclusionId} field="observations" value={r.observations} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
                       </>}
                     </tr>
                   );
@@ -620,6 +646,8 @@ function ColaboradoresView({ rows, openDrawer }: any) {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {rows.map((r: any) => {
         const t = r.ticket; const a = r.accommodation;
+        const hotelTotal = a?.totalCents || (a?.dailyRate || 0) * (a?.nightsCount || 0);
+        const indivTotal = (t?.value || 0) + hotelTotal + (r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0);
         return (
           <Card key={r.teamInclusionId} className="overflow-hidden hover:shadow-md transition-shadow" data-testid={`collab-card-${r.teamInclusionId}`}>
             <CardHeader className="pb-3 bg-muted/30">
@@ -642,13 +670,24 @@ function ColaboradoresView({ rows, openDrawer }: any) {
                 lines={[t?.locator && `Loc: ${t.locator}`, (t?.departureAirport || t?.returnOriginAirport) && `${t?.departureAirport || "?"} → ${t?.returnOriginAirport || "?"}`, t?.purchaseOrderNumber && `OC: ${t.purchaseOrderNumber}`]} />
               <SummaryBlock icon={<BedDouble className="h-3.5 w-3.5 text-emerald-500" />} title="Hospedagem" value={brl(a?.totalCents || (a?.dailyRate || 0) * (a?.nightsCount || 0))} onEdit={() => openDrawer("accommodation", r)}
                 lines={[a?.hotelName, a?.nightsCount && `${a.nightsCount} diária(s)${a.roomType ? " · " + a.roomType : ""}`, a?.hotelOc && `OC: ${a.hotelOc}`]} />
-              <SummaryBlock icon={<Luggage className="h-3.5 w-3.5 text-amber-500" />} title="Bagagem" value={brl(r.baggage.extraCents)} lines={[r.baggage.oc && `OC: ${r.baggage.oc}`, r.baggage.checkIn && `Check-in: ${r.baggage.checkIn}`]} />
-              <SummaryBlock icon={<Car className="h-3.5 w-3.5 text-fuchsia-500" />} title="Uber" value={brl(r.uber.totalCents)} lines={[r.uber.groupName, r.uber.oc && `OC: ${r.uber.oc}`]} />
-              <SummaryBlock icon={<Car className="h-3.5 w-3.5 text-orange-500" />} title="Locação" value={brl(r.carRental.totalCents)} lines={[r.carRental.company, r.carRental.oc && `OC: ${r.carRental.oc}`]} />
+              <SummaryBlock icon={<Luggage className="h-3.5 w-3.5 text-amber-500" />} title="Bagagem" value={brl(r.baggage.extraCents)} onEdit={() => openDrawer("extras", r)} lines={[r.baggage.oc && `OC: ${r.baggage.oc}`, r.baggage.checkIn && `Check-in: ${r.baggage.checkIn}`]} />
+              <SummaryBlock icon={<Car className="h-3.5 w-3.5 text-fuchsia-500" />} title="Uber" value={brl(r.uber.totalCents)} onEdit={() => openDrawer("extras", r)} lines={[r.uber.groupName, r.uber.oc && `OC: ${r.uber.oc}`]} />
+              <SummaryBlock icon={<Car className="h-3.5 w-3.5 text-orange-500" />} title="Locação" value={brl(r.carRental.totalCents)} onEdit={() => openDrawer("extras", r)} lines={[r.carRental.company, r.carRental.oc && `OC: ${r.carRental.oc}`]} />
               <div className="rounded-lg border bg-muted/20 p-2.5">
                 <div className="text-xs text-muted-foreground mb-1">Pendências</div>
                 {r.pendencies.length === 0 ? <div className="flex items-center gap-1 text-green-600 text-xs"><CheckCircle2 className="h-3.5 w-3.5" /> Tudo certo</div> :
                   <div className="flex flex-wrap gap-1">{r.pendencies.map((p: string, i: number) => <Badge key={i} variant="outline" className="text-[9px] border-amber-400 text-amber-700 dark:text-amber-400">{p}</Badge>)}</div>}
+              </div>
+              <div className="col-span-2 flex items-center justify-between border-t pt-3 mt-1">
+                <div>
+                  <span className="text-xs text-muted-foreground">Total individual</span>
+                  <div className="text-lg font-bold tabular-nums">{brl(indivTotal)}</div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => openDrawer("ticket", r)}><Plane className="h-3 w-3 mr-1" /> Passagem</Button>
+                  <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => openDrawer("accommodation", r)}><BedDouble className="h-3 w-3 mr-1" /> Hotel</Button>
+                  <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => openDrawer("extras", r)}><Luggage className="h-3 w-3 mr-1" /> Extras</Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -686,6 +725,8 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer }
         const dt = deptTotal(name);
         const isOpen = !collapsed.has(name);
         const subtotal = dt?.total ?? 0;
+        const extrasTotal = members.reduce((s: number, r: any) => s + (r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0), 0);
+        const pendCount = members.reduce((s: number, r: any) => s + r.pendencies.length, 0);
         return (
           <Card key={name} data-testid={`dept-${name}`}>
             <Collapsible open={isOpen} onOpenChange={(o) => setCollapsed((s: Set<string>) => { const n = new Set(s); if (o) n.delete(name); else n.add(name); return n; })}>
@@ -702,6 +743,8 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer }
                       <span className="hidden md:inline text-muted-foreground">Passagem {brl(dt.tickets)}</span>
                       <span className="hidden md:inline text-muted-foreground">Hotel {brl(dt.hotel)}</span>
                     </>}
+                    <span className="hidden md:inline text-muted-foreground">Extras {brl(extrasTotal)}</span>
+                    {pendCount > 0 && <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-700 dark:text-amber-400">{pendCount} pend.</Badge>}
                     <span className="font-bold">{brl(subtotal)}</span>
                   </div>
                 </div>
@@ -718,11 +761,11 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer }
                       <span className="text-xs text-muted-foreground">{fmtDate(r.schedule.startDate)} → {fmtDate(r.schedule.endDate)}</span>
                       <span className="flex items-center gap-1 text-xs"><Plane className="h-3 w-3 text-indigo-500" /> {brl(r.ticket?.value)}</span>
                       <span className="flex items-center gap-1 text-xs"><BedDouble className="h-3 w-3 text-emerald-500" /> {brl(r.accommodation?.totalCents || (r.accommodation?.dailyRate || 0) * (r.accommodation?.nightsCount || 0))}</span>
-                      <span className="flex items-center gap-1 text-xs"><Luggage className="h-3 w-3 text-amber-500" /> {brl(r.baggage.extraCents)}</span>
-                      <span className="flex items-center gap-1 text-xs"><Car className="h-3 w-3 text-fuchsia-500" /> {brl(r.uber.totalCents)}</span>
+                      <span className="flex items-center gap-1 text-xs"><Luggage className="h-3 w-3 text-amber-500" /> {brl((r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0))}</span>
                       {r.pendencies.length > 0 && <Badge variant="outline" className="text-[9px] border-amber-400 text-amber-700 dark:text-amber-400 ml-auto">{r.pendencies.length} pend.</Badge>}
                       <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("ticket", r)}><Pencil className="h-3 w-3 mr-1" /> Passagem</Button>
                       <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("accommodation", r)}><Pencil className="h-3 w-3 mr-1" /> Hotel</Button>
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("extras", r)}><Pencil className="h-3 w-3 mr-1" /> Extras</Button>
                     </div>
                   ))}
                 </div>

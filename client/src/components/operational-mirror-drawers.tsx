@@ -4,10 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Plane, BedDouble, Loader2, Save } from "lucide-react";
+import { Plane, BedDouble, Loader2, Save, Luggage } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type FieldType = "text" | "money" | "time" | "int" | "bool";
+type DrawerKind = "ticket" | "accommodation" | "extras";
 
 interface FieldDef {
   field: string;
@@ -15,6 +16,7 @@ interface FieldDef {
   type: FieldType;
   span?: 1 | 2;
   placeholder?: string;
+  get?: (row: any) => any;
 }
 
 const TICKET_FIELDS: FieldDef[] = [
@@ -41,10 +43,26 @@ const ACC_FIELDS: FieldDef[] = [
   { field: "accommodation.lateCheckout", label: "Late check-out", type: "bool", span: 2 },
 ];
 
+const EXTRAS_FIELDS: FieldDef[] = [
+  { field: "baggage.amountCents", label: "Bagagem extra (R$)", type: "money", get: (r) => r?.baggage?.extraCents },
+  { field: "baggage.oc", label: "OC bagagem", type: "text", get: (r) => r?.baggage?.oc },
+  { field: "baggage.checkIn", label: "Check-in bagagem", type: "text", get: (r) => r?.baggage?.checkIn },
+  { field: "uber.amountCents", label: "Uber (R$)", type: "money", get: (r) => r?.uber?.totalCents },
+  { field: "uber.oc", label: "OC Uber", type: "text", get: (r) => r?.uber?.oc },
+  { field: "uber.checkIn", label: "Check-in Uber", type: "text", get: (r) => r?.uber?.checkIn },
+  { field: "carRental.company", label: "Empresa locação", type: "text", span: 2, get: (r) => r?.carRental?.company },
+  { field: "carRental.amountCents", label: "Locação (R$)", type: "money", get: (r) => r?.carRental?.totalCents },
+  { field: "carRental.oc", label: "OC locação", type: "text", get: (r) => r?.carRental?.oc },
+  { field: "carRental.checkIn", label: "Check-in locação", type: "text", get: (r) => r?.carRental?.checkIn },
+];
+
 function getValue(source: any, field: string): any {
   // field like "ticket.value" — source is the ticket/accommodation object directly
   const key = field.split(".")[1];
   return source ? source[key] : null;
+}
+function readVal(f: FieldDef, source: any): any {
+  return f.get ? f.get(source) : getValue(source, f.field);
 }
 
 function toInput(value: any, type: FieldType): string {
@@ -71,23 +89,23 @@ function parseInput(raw: string, type: FieldType): any {
 export interface EditDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  kind: "ticket" | "accommodation" | null;
+  kind: DrawerKind | null;
   rowId: string | null;
   rowName?: string;
-  source: any; // ticket or accommodation object
+  source: any; // ticket / accommodation object, or full row for extras
   onSaveMany: (rowId: string, changes: Record<string, any>) => Promise<void>;
 }
 
 export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, onSaveMany }: EditDrawerProps) {
   const { toast } = useToast();
-  const fields = kind === "ticket" ? TICKET_FIELDS : ACC_FIELDS;
+  const fields = kind === "ticket" ? TICKET_FIELDS : kind === "accommodation" ? ACC_FIELDS : EXTRAS_FIELDS;
   const [draft, setDraft] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open || !kind) return;
     const init: Record<string, any> = {};
-    for (const f of fields) init[f.field] = getValue(source, f.field);
+    for (const f of fields) init[f.field] = readVal(f, source);
     setDraft(init);
   }, [open, kind, rowId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -95,7 +113,7 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
     if (!rowId) return;
     const changes: Record<string, any> = {};
     for (const f of fields) {
-      const orig = getValue(source, f.field);
+      const orig = readVal(f, source);
       const next = draft[f.field];
       const a = f.type === "money" || f.type === "int" ? (orig ?? null) : f.type === "bool" ? !!orig : (orig ?? "");
       const b = f.type === "bool" ? !!next : next;
@@ -119,8 +137,8 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
       <SheetContent className="w-full sm:max-w-md overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
-            {kind === "ticket" ? <Plane className="h-5 w-5 text-indigo-500" /> : <BedDouble className="h-5 w-5 text-emerald-500" />}
-            {kind === "ticket" ? "Editar Passagem" : "Editar Hospedagem"}
+            {kind === "ticket" ? <Plane className="h-5 w-5 text-indigo-500" /> : kind === "accommodation" ? <BedDouble className="h-5 w-5 text-emerald-500" /> : <Luggage className="h-5 w-5 text-amber-500" />}
+            {kind === "ticket" ? "Editar Passagem" : kind === "accommodation" ? "Editar Hospedagem" : "Editar Extras (Bagagem · Uber · Locação)"}
           </SheetTitle>
           <SheetDescription>{rowName || "Colaborador"}</SheetDescription>
         </SheetHeader>
