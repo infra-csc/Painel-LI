@@ -28,6 +28,13 @@ import {
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
+import { getOperationalMirror, recalculateLogisticsSuggestions, exportOperationalMirrorExcel } from "./operational-mirror";
+import {
+  uberGroups as uberGroupsTable,
+  hotelRoomGroups as hotelRoomGroupsTable,
+  logisticsExtraCosts as logisticsExtraCostsTable,
+  insertLogisticsExtraCostSchema,
+} from "@shared/schema";
 
 // Audit helpers
 function sanitizeFields(data: any): any {
@@ -1899,6 +1906,129 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(accommodation);
     } catch (error) {
       res.status(400).json({ message: "Erro ao atualizar hospedagem" });
+    }
+  });
+
+  // ===== Espelho Operacional (Logística do Evento) =====
+  app.get("/api/events/:eventId/operational-mirror", async (req, res) => {
+    try {
+      const data = await getOperationalMirror(req.params.eventId);
+      if (!data) return res.status(404).json({ message: "Evento não encontrado" });
+      res.json(data);
+    } catch (error) {
+      console.error("Erro espelho operacional:", error);
+      res.status(500).json({ message: "Erro ao carregar espelho operacional" });
+    }
+  });
+
+  app.post("/api/events/:eventId/recalculate-logistics-suggestions", async (req, res) => {
+    try {
+      const result = await recalculateLogisticsSuggestions(req.params.eventId);
+      res.json(result);
+    } catch (error) {
+      console.error("Erro ao recalcular sugestões:", error);
+      res.status(500).json({ message: "Erro ao recalcular sugestões" });
+    }
+  });
+
+  app.get("/api/events/:eventId/operational-mirror/export", async (req, res) => {
+    try {
+      const buf = await exportOperationalMirrorExcel(req.params.eventId);
+      if (!buf) return res.status(404).json({ message: "Evento não encontrado" });
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="espelho-operacional.xlsx"`);
+      res.send(buf);
+    } catch (error) {
+      console.error("Erro ao exportar espelho:", error);
+      res.status(500).json({ message: "Erro ao exportar" });
+    }
+  });
+
+  app.post("/api/hotel-room-groups/:id/confirm", async (req, res) => {
+    try {
+      const [g] = await db.update(hotelRoomGroupsTable)
+        .set({ confirmed: true, suggested: false, updatedAt: new Date() })
+        .where(eq(hotelRoomGroupsTable.id, req.params.id)).returning();
+      res.json(g);
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao confirmar grupo de quarto" });
+    }
+  });
+
+  app.patch("/api/hotel-room-groups/:id", async (req, res) => {
+    try {
+      const allowed: any = {};
+      for (const k of ["hotelName", "roomType", "genderRule", "checkInDate", "checkOutDate", "notes", "confirmed"]) {
+        if (k in req.body) allowed[k] = req.body[k];
+      }
+      const [g] = await db.update(hotelRoomGroupsTable)
+        .set({ ...allowed, updatedAt: new Date() })
+        .where(eq(hotelRoomGroupsTable.id, req.params.id)).returning();
+      res.json(g);
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao atualizar grupo de quarto" });
+    }
+  });
+
+  app.post("/api/uber-groups/:id/confirm", async (req, res) => {
+    try {
+      const [g] = await db.update(uberGroupsTable)
+        .set({ confirmed: true, suggested: false, status: "confirmado", updatedAt: new Date() })
+        .where(eq(uberGroupsTable.id, req.params.id)).returning();
+      res.json(g);
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao confirmar grupo de uber" });
+    }
+  });
+
+  app.patch("/api/uber-groups/:id", async (req, res) => {
+    try {
+      const allowed: any = {};
+      for (const k of ["groupName", "direction", "origin", "destination", "date", "time", "estimatedTotalCents", "notes", "status", "confirmed"]) {
+        if (k in req.body) allowed[k] = req.body[k];
+      }
+      const [g] = await db.update(uberGroupsTable)
+        .set({ ...allowed, updatedAt: new Date() })
+        .where(eq(uberGroupsTable.id, req.params.id)).returning();
+      res.json(g);
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao atualizar grupo de uber" });
+    }
+  });
+
+  // Custos extras de logística (bagagem, uber, locação)
+  app.post("/api/logistics-extra-costs", async (req, res) => {
+    try {
+      const data = insertLogisticsExtraCostSchema.parse(req.body);
+      const [created] = await db.insert(logisticsExtraCostsTable).values(data).returning();
+      res.json(created);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "erro";
+      res.status(400).json({ message: "Dados inválidos", error: msg });
+    }
+  });
+
+  app.patch("/api/logistics-extra-costs/:id", async (req, res) => {
+    try {
+      const allowed: any = {};
+      for (const k of ["collaboratorId", "type", "description", "amountCents", "oc", "checkInReference", "company", "notes", "attachmentUrl"]) {
+        if (k in req.body) allowed[k] = req.body[k];
+      }
+      const [updated] = await db.update(logisticsExtraCostsTable)
+        .set({ ...allowed, updatedAt: new Date() })
+        .where(eq(logisticsExtraCostsTable.id, req.params.id)).returning();
+      res.json(updated);
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao atualizar custo" });
+    }
+  });
+
+  app.delete("/api/logistics-extra-costs/:id", async (req, res) => {
+    try {
+      await db.delete(logisticsExtraCostsTable).where(eq(logisticsExtraCostsTable.id, req.params.id));
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao excluir custo" });
     }
   });
 

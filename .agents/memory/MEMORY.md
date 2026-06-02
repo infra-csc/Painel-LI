@@ -1,0 +1,2 @@
+- [DB migrations](db-migrations.md) — apply schema changes with `npx tsx` + `pg` Pool ALTER TABLE, never `db:push` (false-positive diffs on session/timestamps drop data).
+- [Logistics suggestions](logistics-suggestions.md) — recalc must read confirmed groups first, delete only non-confirmed, regenerate; design is idempotent/re-runnable so no transaction needed.

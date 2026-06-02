@@ -83,6 +83,8 @@ export const collaborators = pgTable("collaborators", {
   type: text("type").notNull(), // casa, freela, local
   phone: text("phone"), // Make phone optional
   city: text("city").notNull(),
+  state: text("state"), // estado de origem
+  gender: text("gender"), // male, female, other, unknown — usado para sugestão de quarto
   status: text("status").notNull().default("pendente"), // pendente, aprovado, rejeitado, inativo
   approvalNotes: text("approval_notes"), // observações do administrador
   approvedBy: varchar("approved_by").references(() => users.id), // quem aprovou/rejeitou
@@ -153,6 +155,12 @@ export const tickets = pgTable("tickets", {
   attachmentIds: text("attachment_ids").array(), // IDs de referência dos anexos da passagem
   cardLastFourDigits: text("card_last_four_digits"), // últimos 4 dígitos do cartão
   ticketObservations: text("ticket_observations"), // observações sobre a passagem
+  ticketCompany: text("ticket_company"), // companhia aérea/empresa da passagem
+  ticketStatus: text("ticket_status"), // pendente, comprada, confirmada, cancelada
+  locator: text("locator"), // localizador (LOC) — separado do reservationNumber
+  baggageTotalCents: integer("baggage_total_cents"), // valor total bagagem em centavos
+  baggageOc: text("baggage_oc"), // OC da bagagem
+  baggageNotes: text("baggage_notes"), // observações da bagagem
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
@@ -172,6 +180,12 @@ export const accommodations = pgTable("accommodations", {
   reservationNumber: text("reservation_number"), // número da reserva/LOC
   accommodationObservations: text("accommodation_observations"), // observações
   attachmentIds: text("attachment_ids").array(), // IDs de referência dos anexos da hospedagem
+  roomType: text("room_type"), // single, duplo, triplo
+  lateCheckout: boolean("late_checkout").default(false), // late check-out
+  totalCents: integer("total_cents"), // valor total da hospedagem em centavos
+  paymentCompany: text("payment_company"), // empresa de pagamento do hotel
+  hotelOc: text("hotel_oc"), // OC do hotel
+  hotelStatus: text("hotel_status"), // pendente, reservada, confirmada, cancelada
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
@@ -624,3 +638,91 @@ export const insertSwapRequestSchema = createInsertSchema(swapRequests).omit({
 
 export type SwapRequest = typeof swapRequests.$inferSelect;
 export type InsertSwapRequest = z.infer<typeof insertSwapRequestSchema>;
+
+// ===== ESPELHO OPERACIONAL — Logística do Evento =====
+
+// Custos extras de logística (bagagem, uber, locação de carro, outros)
+export const logisticsExtraCosts = pgTable("logistics_extra_costs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: 'cascade' }),
+  collaboratorId: varchar("collaborator_id").references(() => collaborators.id),
+  type: text("type").notNull(), // baggage, uber, car_rental, other
+  description: text("description"),
+  amountCents: integer("amount_cents").notNull().default(0),
+  oc: text("oc"),
+  checkInReference: text("check_in_reference"),
+  company: text("company"),
+  notes: text("notes"),
+  attachmentUrl: text("attachment_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Grupos de Uber (sugeridos ou confirmados)
+export const uberGroups = pgTable("uber_groups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: 'cascade' }),
+  groupName: text("group_name"),
+  direction: text("direction"), // ida, volta, interno, aeroporto_hotel, hotel_evento
+  origin: text("origin"),
+  destination: text("destination"),
+  date: date("date"),
+  time: text("time"),
+  estimatedTotalCents: integer("estimated_total_cents").default(0),
+  notes: text("notes"),
+  status: text("status").notNull().default("sugerido"), // sugerido, confirmado
+  suggested: boolean("suggested").notNull().default(true),
+  confirmed: boolean("confirmed").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const uberGroupMembers = pgTable("uber_group_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  uberGroupId: varchar("uber_group_id").notNull().references(() => uberGroups.id, { onDelete: 'cascade' }),
+  collaboratorId: varchar("collaborator_id").notNull().references(() => collaborators.id),
+  estimatedShareCents: integer("estimated_share_cents").default(0),
+  confirmed: boolean("confirmed").notNull().default(false),
+  notes: text("notes"),
+});
+
+// Grupos de quarto de hotel (sugeridos ou confirmados)
+export const hotelRoomGroups = pgTable("hotel_room_groups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: 'cascade' }),
+  hotelName: text("hotel_name"),
+  roomType: text("room_type"), // single, double, triple
+  genderRule: text("gender_rule"), // male, female, mixed, none
+  checkInDate: date("check_in_date"),
+  checkOutDate: date("check_out_date"),
+  notes: text("notes"),
+  suggested: boolean("suggested").notNull().default(true),
+  confirmed: boolean("confirmed").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const hotelRoomGroupMembers = pgTable("hotel_room_group_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  hotelRoomGroupId: varchar("hotel_room_group_id").notNull().references(() => hotelRoomGroups.id, { onDelete: 'cascade' }),
+  collaboratorId: varchar("collaborator_id").notNull().references(() => collaborators.id),
+  confirmed: boolean("confirmed").notNull().default(false),
+  notes: text("notes"),
+});
+
+export const insertLogisticsExtraCostSchema = createInsertSchema(logisticsExtraCosts).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUberGroupSchema = createInsertSchema(uberGroups).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUberGroupMemberSchema = createInsertSchema(uberGroupMembers).omit({ id: true });
+export const insertHotelRoomGroupSchema = createInsertSchema(hotelRoomGroups).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertHotelRoomGroupMemberSchema = createInsertSchema(hotelRoomGroupMembers).omit({ id: true });
+
+export type LogisticsExtraCost = typeof logisticsExtraCosts.$inferSelect;
+export type InsertLogisticsExtraCost = z.infer<typeof insertLogisticsExtraCostSchema>;
+export type UberGroup = typeof uberGroups.$inferSelect;
+export type InsertUberGroup = z.infer<typeof insertUberGroupSchema>;
+export type UberGroupMember = typeof uberGroupMembers.$inferSelect;
+export type InsertUberGroupMember = z.infer<typeof insertUberGroupMemberSchema>;
+export type HotelRoomGroup = typeof hotelRoomGroups.$inferSelect;
+export type InsertHotelRoomGroup = z.infer<typeof insertHotelRoomGroupSchema>;
+export type HotelRoomGroupMember = typeof hotelRoomGroupMembers.$inferSelect;
+export type InsertHotelRoomGroupMember = z.infer<typeof insertHotelRoomGroupMemberSchema>;

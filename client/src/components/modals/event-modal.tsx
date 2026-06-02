@@ -222,6 +222,19 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                     )} />
                   )}
 
+                  {/* Espelho Operacional (só edição) */}
+                  {isEditing && event && (
+                    <a
+                      href={`/operational-mirror?eventId=${event.id}`}
+                      data-testid="link-operational-mirror"
+                      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, height: 44, fontSize: 13, fontWeight: 700, color: "#004ac6", background: "#EEF2FF", border: "1px solid rgba(0,74,198,0.15)", borderRadius: 8, textDecoration: "none", fontFamily: "inherit" }}
+                      className="hover:bg-blue-100 transition-colors"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 18 }}>table_view</span>
+                      Abrir Espelho Operacional
+                    </a>
+                  )}
+
                   {/* ── Empresa Pagadora ── */}
                   <div style={{ background: "#F8FAFC", borderRadius: 12, padding: "16px 18px", border: "1px solid rgba(226,232,240,0.5)" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>

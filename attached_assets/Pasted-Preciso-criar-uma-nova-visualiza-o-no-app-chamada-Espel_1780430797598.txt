@@ -1,0 +1,446 @@
+Preciso criar uma nova visualização no app chamada “Espelho Operacional do Evento” ou “Logística do Evento”.
+
+Contexto:
+O sistema já possui módulos de Eventos, Escalação, Passagens e Hospedagem.
+Hoje eu tenho dados separados nos modais de passagem e hospedagem, mas preciso de uma tela consolidada parecida com uma planilha operacional do evento, no estilo do anexo “Circuito das Estações”.
+
+Objetivo da nova tela:
+Criar uma visualização por evento que mostre, em uma única tela, todos os colaboradores escalados e suas informações de:
+- período de escala;
+- passagem aérea;
+- hospedagem;
+- bagagem;
+- Uber;
+- locação de carro;
+- OCs;
+- custos totais;
+- sugestões automáticas de divisão de Uber;
+- sugestões automáticas de divisão de quartos de hotel.
+
+Essa tela deve funcionar como um “espelho operacional” para o time de compras/logística/RH/admin acompanhar tudo que precisa ser comprado, confirmado ou ajustado.
+
+Layout desejado:
+Criar uma página acessível pelo menu lateral e também dentro do evento.
+
+Nome da página:
+“Espelho Operacional”
+
+Ao abrir a página:
+1. O usuário escolhe ou acessa um evento.
+2. A tela exibe um cabeçalho com:
+   - Nome do evento/projeto
+   - Endereço/local do evento
+   - Data do evento
+   - Período geral da escala
+   - Status geral da logística
+   - Total de passagem
+   - Total de hotel
+   - Total de Uber
+   - Total de bagagem
+   - Total de locação
+   - Total geral
+
+Abaixo do cabeçalho, criar uma tabela larga, parecida com planilha, com agrupamento visual por blocos.
+
+Blocos da tabela:
+
+1. Dados do colaborador
+- Nome
+- Departamento / Função
+- Tipo de colaborador, se existir
+- Sexo/gênero, obrigatório para sugestão de quarto
+- Cidade de origem, se existir
+- Evento
+
+2. Período de escala
+- Início
+- Data ida
+- Término
+- Data volta
+- Quantidade de diárias previstas
+
+3. Passagem
+- Passagens TT R$
+- Aero ida
+- Hr ida
+- Hr volta
+- Aero volta
+- Localizador
+- Empresa da passagem
+- OC da passagem
+- Status da passagem
+- Anexo/voucher da passagem
+
+4. Hospedagem
+- Check-in
+- Check-out
+- Quantidade de diárias
+- Tipo de quarto: SINGLE, DUPLO ou TRIPLO
+- Sugestão de quarto/grupo
+- Valor diária hotel
+- Late check-out
+- Hotel TT R$
+- Nome do hotel
+- Localização do hotel
+- Empresa de pagamento
+- OC do hotel
+- Status da hospedagem
+- Anexo/voucher da hospedagem
+
+5. Bagagem
+- Bagagem TT R$
+- OC bagagem
+- Check-in/observação
+
+6. Uber
+- Uber TT R$
+- OC Uber
+- Check-in/observação
+- Sugestão de divisão de Uber
+- Grupo sugerido de Uber
+
+7. Locação de carro
+- Empresa locação
+- Locação TT R$
+- OC locação
+- Check-in/observação
+
+8. Observações e pendências
+- Pendências detectadas automaticamente
+- Observações manuais
+- Última atualização
+
+Visual:
+A tabela deve ter cabeçalhos coloridos por bloco, semelhante à planilha:
+- Dados do colaborador
+- Período de escala
+- Passagem
+- Hospedagem
+- Bagagem
+- Uber
+- Locação de carro
+- Pendências
+
+A tabela deve ter scroll horizontal e vertical.
+A primeira coluna com nome do colaborador deve ficar fixa.
+Deve haver filtros por:
+- Evento
+- Departamento/Função
+- Status da passagem
+- Status da hospedagem
+- Hotel
+- Data ida
+- Data volta
+- Aeroporto ida
+- Aeroporto volta
+- Pendências
+- Somente sem passagem
+- Somente sem hospedagem
+- Somente sem localizador
+- Somente sem OC
+- Somente com sugestão de Uber
+- Somente com sugestão de quarto
+
+Também deve ter botões:
+- Exportar Excel
+- Atualizar sugestões
+- Ver pendências
+- Expandir detalhes
+- Abrir registro de passagem
+- Abrir registro de hospedagem
+
+Campos que precisam ser adicionados ou garantidos no banco:
+
+Na tabela collaborators:
+- gender ou sex
+  Valores possíveis: male, female, other, unknown
+  Esse campo será usado para sugestão de quarto duplo. Quarto duplo só pode sugerir pessoas do mesmo sexo/gênero.
+- home_city, se ainda não existir
+- home_state, se ainda não existir
+
+Na tabela tickets:
+- ticket_company
+- ticket_oc
+- ticket_voucher_url ou attachment_url
+- baggage_total_cents
+- baggage_oc
+- baggage_notes
+- ticket_status
+- ida_airport
+- ida_time
+- return_airport
+- return_time
+- locator
+
+Se já existirem campos equivalentes, reaproveitar os existentes e apenas mapear para a nova tela.
+
+Na tabela accommodations:
+- hotel_name
+- hotel_location
+- reservation_number
+- check_in_date
+- check_out_date
+- nights_count
+- room_type
+- room_group_id
+- suggested_room_group_id
+- hotel_daily_value_cents
+- hotel_total_cents
+- late_checkout
+- payment_company
+- hotel_oc
+- hotel_status
+- hotel_voucher_url ou attachment_url
+- accommodation_notes
+
+Criar nova tabela operational_extra_costs ou logistics_extra_costs para custos complementares:
+Campos:
+- id
+- event_id
+- collaborator_id
+- type: baggage, uber, car_rental, other
+- description
+- amount_cents
+- oc
+- check_in_reference
+- company
+- notes
+- attachment_url
+- created_at
+- updated_at
+
+Criar tabela uber_groups:
+- id
+- event_id
+- group_name
+- direction: ida, volta, interno, aeroporto_hotel, hotel_evento
+- origin
+- destination
+- date
+- time
+- estimated_total_cents
+- notes
+- status
+- created_at
+- updated_at
+
+Criar tabela uber_group_members:
+- id
+- uber_group_id
+- collaborator_id
+- estimated_share_cents
+- confirmed
+- notes
+
+Criar tabela hotel_room_groups:
+- id
+- event_id
+- hotel_name
+- room_type: single, double, triple
+- gender_rule
+- check_in_date
+- check_out_date
+- suggested
+- confirmed
+- notes
+- created_at
+- updated_at
+
+Criar tabela hotel_room_group_members:
+- id
+- hotel_room_group_id
+- collaborator_id
+- confirmed
+- notes
+
+Regras de sugestão de quarto:
+1. Quarto SINGLE:
+   - Usar quando o colaborador estiver sozinho nas datas.
+   - Usar quando não houver outra pessoa compatível.
+   - Usar quando houver regra manual dizendo que a pessoa precisa ficar sozinha.
+
+2. Quarto DUPLO:
+   - Sugerir apenas com duas pessoas.
+   - As duas pessoas precisam ter o mesmo sexo/gênero.
+   - As datas de check-in e check-out precisam ser iguais ou compatíveis.
+   - Preferir pessoas do mesmo departamento/função.
+   - Preferir pessoas com mesmo hotel.
+   - Nunca misturar masculino e feminino.
+   - Se gender estiver unknown, não sugerir quarto duplo automaticamente; marcar como pendência.
+
+3. Quarto TRIPLO:
+   - Opcional.
+   - Só sugerir se permitido pelo evento/hotel.
+   - Mesmas regras do quarto duplo.
+   - Máximo 3 pessoas.
+
+4. Permitir edição manual:
+   - O sistema sugere, mas o usuário pode confirmar, alterar ou desfazer grupos.
+   - Grupos confirmados não devem ser sobrescritos ao recalcular sugestões.
+   - Exibir badge “Sugestão” quando o grupo for automático.
+   - Exibir badge “Confirmado” quando o usuário validar.
+
+Regras de sugestão de Uber:
+Criar sugestões de divisão de Uber agrupando colaboradores por:
+- mesma data de ida;
+- horário de chegada/partida próximo;
+- mesmo aeroporto de origem ou destino;
+- mesmo hotel ou local do evento;
+- mesma cidade de destino;
+- janela de horário configurável, por exemplo 60 ou 90 minutos.
+
+Para ida:
+- Agrupar pessoas que chegam no mesmo aeroporto em horários próximos.
+- Destino sugerido: hotel ou local do evento.
+- Se mais de 4 pessoas no mesmo grupo, dividir em grupos de até 4.
+- Preferir grupos de 3 ou 4 pessoas.
+- Se o horário tiver diferença muito grande, criar grupos separados.
+
+Para volta:
+- Agrupar pessoas que saem do mesmo hotel/local para o mesmo aeroporto em horários próximos.
+- Considerar horário de voo e sugerir saída antecipada.
+- Exemplo: voo às 15:00, sugerir saída 3 horas antes, se for aeroporto.
+
+Campos de configuração:
+Criar configurações no sistema:
+- uber_group_time_window_minutes, padrão 90
+- uber_max_people_per_car, padrão 4
+- allow_triple_room, padrão false
+- hotel_group_by_same_department_priority, padrão true
+- require_same_gender_for_shared_room, padrão true
+
+Pendências automáticas:
+Na nova tela, criar uma coluna ou painel de pendências que destaque:
+- colaborador sem passagem;
+- colaborador sem hospedagem;
+- passagem sem localizador;
+- passagem sem OC;
+- passagem sem voucher;
+- hospedagem sem hotel;
+- hospedagem sem reserva;
+- hospedagem sem OC;
+- hospedagem sem anexo;
+- colaborador sem sexo/gênero cadastrado;
+- impossível sugerir quarto por falta de dados;
+- Uber sem grupo sugerido;
+- custo sem OC;
+- divergência entre data de ida e início da escala;
+- divergência entre data de volta e término da escala.
+
+Resumo financeiro:
+No rodapé da tabela, exibir subtotais por:
+- Departamento/Função
+- Passagem
+- Hospedagem
+- Bagagem
+- Uber
+- Locação
+- Total geral
+
+Também criar cards acima da tabela:
+- Total Passagens
+- Total Hospedagem
+- Total Bagagem
+- Total Uber
+- Total Locação
+- Total Geral
+- Pendências abertas
+- Quartos sugeridos
+- Ubers sugeridos
+
+Exportação:
+Criar botão “Exportar Excel” gerando arquivo parecido com o modelo do Circuito das Estações.
+O Excel deve ter os mesmos blocos da tela:
+- Evento/Projeto
+- Endereço
+- Data
+- Período de escala
+- Passagem
+- Hospedagem
+- Bagagem
+- Uber
+- Locação de carro
+- Subtotais
+
+A exportação deve respeitar filtros aplicados.
+
+UX:
+A tela precisa ser mais operacional do que gráfica.
+O administrador precisa bater o olho e entender:
+- quem já tem passagem;
+- quem já tem hospedagem;
+- quem está pendente;
+- quais OCs faltam;
+- quais vouchers faltam;
+- quem pode dividir quarto;
+- quem pode dividir Uber;
+- quanto o evento está custando.
+
+Não quero uma tela cheia de gráficos. Quero uma tela de controle, detalhada, parecida com uma planilha inteligente, mas com visual moderno do app.
+
+Criar também dentro do modal do evento uma aba chamada “Logística Consolidada”.
+Essa aba deve mostrar um resumo menor:
+- total de colaboradores;
+- passagens compradas;
+- hospedagens confirmadas;
+- pendências;
+- total de custos;
+- grupos de Uber sugeridos;
+- quartos sugeridos;
+- botão para abrir a tela completa do Espelho Operacional.
+
+Implementar backend:
+Criar endpoint:
+GET /api/events/:eventId/operational-mirror
+
+Esse endpoint deve retornar:
+- dados do evento;
+- colaboradores escalados;
+- dados de passagem;
+- dados de hospedagem;
+- custos extras;
+- sugestões de Uber;
+- sugestões de quartos;
+- pendências;
+- totais.
+
+Criar endpoint:
+POST /api/events/:eventId/recalculate-logistics-suggestions
+
+Esse endpoint recalcula sugestões de Uber e quarto, sem sobrescrever grupos já confirmados manualmente.
+
+Criar endpoint:
+POST /api/hotel-room-groups/:id/confirm
+
+Criar endpoint:
+POST /api/uber-groups/:id/confirm
+
+Criar endpoint:
+PATCH /api/hotel-room-groups/:id
+
+Criar endpoint:
+PATCH /api/uber-groups/:id
+
+Criar endpoint:
+GET /api/events/:eventId/operational-mirror/export
+
+Esse endpoint exporta Excel.
+
+Importante:
+Antes de criar campos novos, verificar se já existem campos equivalentes em tickets, accommodations, team_inclusions, collaborators e events.
+Se existirem, reaproveitar.
+Criar migrations Drizzle apenas para campos/tabelas realmente ausentes.
+Manter compatibilidade com os modais atuais de passagem e hospedagem.
+A nova tela deve apenas consolidar e complementar o que já existe.
+
+Critérios de aceite:
+1. Consigo abrir um evento e ver todos os colaboradores em uma tabela operacional.
+2. Consigo ver passagem, hospedagem, bagagem, Uber e locação na mesma linha.
+3. Consigo identificar pendências automaticamente.
+4. Consigo gerar sugestões de quartos duplos apenas para pessoas do mesmo sexo/gênero.
+5. Consigo gerar sugestões de Uber por data, aeroporto e horário próximo.
+6. Consigo confirmar ou editar sugestões.
+7. Consigo exportar Excel no formato parecido com a planilha do Circuito das Estações.
+8. A tela deve ser responsiva, mas priorizar desktop.
+9. A primeira coluna da tabela deve ficar fixa.
+10. A tela deve manter o design system atual do app.

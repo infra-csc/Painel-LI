@@ -53,6 +53,7 @@ const allTabs = [
   { id: "scaling",           path: "/scaling",           label: "Escalação",             icon: "assignment_ind",          iconColor: BLUE70,    iconBg: "#EEF2FF", permission: "canAccessScreen2"       as const },
   { id: "tickets",           path: "/tickets",           label: "Passagem",              icon: "confirmation_number",     iconColor: ORANGE70,  iconBg: "#FFE8DF", permission: "canAccessScreen3"       as const },
   { id: "accommodations",    path: "/accommodations",    label: "Hospedagem",            icon: "bed",                     iconColor: BLUE70,    iconBg: "#EEF2FF", permission: "canAccessScreen3"       as const },
+  { id: "operational-mirror", path: "/operational-mirror", label: "Espelho Operacional",  icon: "table_view",              iconColor: ORANGE70,  iconBg: "#FFE8DF", permission: "canAccessScreen3"       as const },
   { id: "budget-planned",    path: "/budget-planned",    label: "Planejado",             icon: "pending_actions",         iconColor: ORANGE70,  iconBg: "#FFE8DF", permission: "canAccessFinanceiro"    as const },
   { id: "budget-actual",     path: "/budget-actual",     label: "Realizado",             icon: "account_balance_wallet",  iconColor: BLUE70,    iconBg: "#EEF2FF", permission: "canAccessFinanceiro"    as const },
   { id: "budget-comparison", path: "/budget-comparison", label: "Comparativo",           icon: "query_stats",             iconColor: ORANGE70,  iconBg: "#FFE8DF", permission: "canAccessScreen5"       as const },
