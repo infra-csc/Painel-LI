@@ -731,6 +731,32 @@ export default function Scaling() {
         }
       }
 
+      // Dados reais da passagem (se existir)
+      const ticket = tickets?.find(t => t.teamInclusionId === inclusion.id && t.purchaseDate !== null)
+        || tickets?.find(t => t.teamInclusionId === inclusion.id);
+      const ticketAny = ticket as any;
+
+      const tipoTransporte = ticket?.transportType
+        ? ({ aereo: 'Aéreo', rodoviario: 'Rodoviário', van: 'Van' }[ticket.transportType] || ticket.transportType)
+        : 'N/A';
+      const passagemLoc = ticket?.purchaseOrderNumber || 'N/A';
+      const passagemDataCompra = ticket?.purchaseDate ? formatDate(ticket.purchaseDate) : 'N/A';
+      const passagemValor = ticket?.value ? (ticket.value / 100).toFixed(2) : 'N/A';
+
+      const idaCidadeOrigem = ticket?.departureCityOrigin || 'N/A';
+      const idaAeroportoOrigem = ticket?.departureAirport || 'N/A';
+      const idaCidadeDestino = ticket?.departureCityDestination || 'N/A';
+      const idaAeroportoDestino = ticket?.destinationAirport || 'N/A';
+      const idaData = ticket?.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : dataVooIda;
+      const idaHorario = ticket?.actualDepartureTime || horarioSugeridoIda;
+
+      const voltaCidadeOrigem = ticket?.returnCityOrigin || 'N/A';
+      const voltaAeroportoOrigem = ticketAny?.returnOriginAirport || 'N/A';
+      const voltaCidadeDestino = ticket?.returnCityDestination || 'N/A';
+      const voltaAeroportoDestino = ticketAny?.returnDestinationAirport || 'N/A';
+      const voltaData = ticket?.actualReturnDate ? formatDate(ticket.actualReturnDate) : dataVooVolta;
+      const voltaHorario = ticket?.actualReturnTime || horarioSugeridoVolta;
+
       return {
         'ID': `#${inclusion.inclusionNumber || 'N/A'}`,
         'Evento': event?.name || 'N/A',
@@ -750,9 +776,23 @@ export default function Scaling() {
         'Período Real - Início': inclusion.actualStartDate ? formatDate(inclusion.actualStartDate) : 'N/A',
         'Período Real - Fim': inclusion.actualEndDate ? formatDate(inclusion.actualEndDate) : 'N/A',
         'Precisa Passagem': inclusion.needsTicket ? 'Sim' : 'Não',
-        'Data Voo Ida': dataVooIda,
+        'Tipo de Transporte': tipoTransporte,
+        'Passagem LOC': passagemLoc,
+        'Passagem Data Compra': passagemDataCompra,
+        'Passagem Valor (R$)': passagemValor,
+        'Ida - Cidade Origem': idaCidadeOrigem,
+        'Ida - Aeroporto Origem': idaAeroportoOrigem,
+        'Ida - Cidade Destino': idaCidadeDestino,
+        'Ida - Aeroporto Destino': idaAeroportoDestino,
+        'Ida - Data': idaData,
+        'Ida - Horário': idaHorario,
         'Horário Sugerido Ida': horarioSugeridoIda,
-        'Data Voo Volta': dataVooVolta,
+        'Volta - Cidade Origem': voltaCidadeOrigem,
+        'Volta - Aeroporto Origem': voltaAeroportoOrigem,
+        'Volta - Cidade Destino': voltaCidadeDestino,
+        'Volta - Aeroporto Destino': voltaAeroportoDestino,
+        'Volta - Data': voltaData,
+        'Volta - Horário': voltaHorario,
         'Horário Sugerido Volta': horarioSugeridoVolta,
         'Precisa Hospedagem': inclusion.needsAccommodation ? 'Sim' : 'Não',
         'Diárias Planejadas': inclusion.dailyRates ?? 0,
@@ -782,7 +822,7 @@ export default function Scaling() {
       { wch: 20 },  // Área
       { wch: 30 },  // Colaborador
       { wch: 12 },  // Tipo
-      { wch: 18 },  // Documento
+      { wch: 18 },  // CPF
       { wch: 15 },  // Data Nascimento
       { wch: 15 },  // Telefone
       { wch: 20 },  // Cidade
@@ -791,9 +831,23 @@ export default function Scaling() {
       { wch: 18 },  // Período Real - Início
       { wch: 18 },  // Período Real - Fim
       { wch: 15 },  // Precisa Passagem
-      { wch: 15 },  // Data Voo Ida
+      { wch: 16 },  // Tipo de Transporte
+      { wch: 15 },  // Passagem LOC
+      { wch: 18 },  // Passagem Data Compra
+      { wch: 18 },  // Passagem Valor
+      { wch: 20 },  // Ida - Cidade Origem
+      { wch: 18 },  // Ida - Aeroporto Origem
+      { wch: 20 },  // Ida - Cidade Destino
+      { wch: 18 },  // Ida - Aeroporto Destino
+      { wch: 15 },  // Ida - Data
+      { wch: 12 },  // Ida - Horário
       { wch: 18 },  // Horário Sugerido Ida
-      { wch: 15 },  // Data Voo Volta
+      { wch: 20 },  // Volta - Cidade Origem
+      { wch: 18 },  // Volta - Aeroporto Origem
+      { wch: 20 },  // Volta - Cidade Destino
+      { wch: 18 },  // Volta - Aeroporto Destino
+      { wch: 15 },  // Volta - Data
+      { wch: 12 },  // Volta - Horário
       { wch: 18 },  // Horário Sugerido Volta
       { wch: 18 },  // Precisa Hospedagem
       { wch: 18 },  // Diárias Planejadas
