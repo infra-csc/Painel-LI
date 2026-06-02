@@ -34,9 +34,13 @@ export default function OperationalMirror() {
   const initialEventId = new URLSearchParams(search).get("eventId") || "";
   const [eventId, setEventId] = useState<string>(initialEventId);
 
+  const { data: events } = useQuery<any[]>({
+    queryKey: ["/api/events"],
+  });
+
   const { data, isLoading } = useQuery<any>({
     queryKey: ["/api/events", eventId, "operational-mirror"],
-    enabled: !!eventId,
+    enabled: !!eventId && eventId !== "all",
   });
 
   const recalcMutation = useMutation({
@@ -94,7 +98,7 @@ export default function OperationalMirror() {
       </div>
 
       <div className="max-w-md">
-        <EventCombobox value={eventId} onValueChange={setEventId} placeholder="Selecione um evento" />
+        <EventCombobox events={events} value={eventId} onValueChange={setEventId} placeholder="Selecione um evento" showAllOption={false} />
       </div>
 
       {!eventId && (
