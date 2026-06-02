@@ -1,2 +1,1 @@
-- [DB migrations](db-migrations.md) — apply schema changes with `npx tsx` + `pg` Pool ALTER TABLE, never `db:push` (false-positive diffs on session/timestamps drop data).
-- [Logistics suggestions](logistics-suggestions.md) — recalc must read confirmed groups first, delete only non-confirmed, regenerate; design is idempotent/re-runnable so no transaction needed.
+- [DB migration convention](db-migration-convention.md) — schema changes go via manual ALTER TABLE (tsx+pg) + shared/schema.ts, NOT db:push/migrations; migration 0000 is stale.

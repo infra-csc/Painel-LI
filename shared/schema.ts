@@ -158,6 +158,7 @@ export const tickets = pgTable("tickets", {
   ticketCompany: text("ticket_company"), // companhia aérea/empresa da passagem
   ticketStatus: text("ticket_status"), // pendente, comprada, confirmada, cancelada
   locator: text("locator"), // localizador (LOC) — separado do reservationNumber
+  checkIn3: text("check_in_3"), // conferência da passagem (espelho operacional)
   baggageTotalCents: integer("baggage_total_cents"), // valor total bagagem em centavos
   baggageOc: text("baggage_oc"), // OC da bagagem
   baggageNotes: text("baggage_notes"), // observações da bagagem
@@ -181,10 +182,12 @@ export const accommodations = pgTable("accommodations", {
   accommodationObservations: text("accommodation_observations"), // observações
   attachmentIds: text("attachment_ids").array(), // IDs de referência dos anexos da hospedagem
   roomType: text("room_type"), // single, duplo, triplo
+  nightsCount: integer("nights_count"), // quantidade de diárias (espelho operacional)
   lateCheckout: boolean("late_checkout").default(false), // late check-out
   totalCents: integer("total_cents"), // valor total da hospedagem em centavos
   paymentCompany: text("payment_company"), // empresa de pagamento do hotel
   hotelOc: text("hotel_oc"), // OC do hotel
+  checkIn4: text("check_in_4"), // conferência da hospedagem (espelho operacional)
   hotelStatus: text("hotel_status"), // pendente, reservada, confirmada, cancelada
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -646,6 +649,7 @@ export const logisticsExtraCosts = pgTable("logistics_extra_costs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: 'cascade' }),
   collaboratorId: varchar("collaborator_id").references(() => collaborators.id),
+  teamInclusionId: varchar("team_inclusion_id").references(() => teamInclusions.id),
   type: text("type").notNull(), // baggage, uber, car_rental, other
   description: text("description"),
   amountCents: integer("amount_cents").notNull().default(0),

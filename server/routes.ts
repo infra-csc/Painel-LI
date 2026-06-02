@@ -28,7 +28,7 @@ import {
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
-import { getOperationalMirror, recalculateLogisticsSuggestions, exportOperationalMirrorExcel } from "./operational-mirror";
+import { getOperationalMirror, recalculateLogisticsSuggestions, exportOperationalMirrorExcel, patchOperationalMirrorCell } from "./operational-mirror";
 import {
   uberGroups as uberGroupsTable,
   hotelRoomGroups as hotelRoomGroupsTable,
@@ -1918,6 +1918,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Erro espelho operacional:", error);
       res.status(500).json({ message: "Erro ao carregar espelho operacional" });
+    }
+  });
+
+  app.patch("/api/events/:eventId/operational-mirror/rows/:rowId", async (req, res) => {
+    try {
+      if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+      const { field, value } = req.body || {};
+      if (!field) return res.status(400).json({ message: "Campo obrigatório" });
+      const result = await patchOperationalMirrorCell(req.params.eventId, req.params.rowId, field, value);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Erro ao salvar célula do espelho:", error);
+      res.status(400).json({ message: error?.message || "Erro ao salvar célula" });
     }
   });
 

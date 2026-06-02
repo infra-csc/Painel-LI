@@ -41,9 +41,10 @@ export interface MirrorRow {
   };
   ticket: any | null;
   accommodation: any | null;
-  baggage: { totalCents: number; oc: string | null; notes: string | null };
-  uber: { totalCents: number; oc: string | null; notes: string | null; suggestedGroupId: string | null; groupName: string | null };
-  carRental: { company: string | null; totalCents: number; oc: string | null; notes: string | null };
+  observations: string | null;
+  baggage: { totalCents: number; extraCents: number; oc: string | null; notes: string | null; checkIn: string | null };
+  uber: { totalCents: number; oc: string | null; notes: string | null; checkIn: string | null; suggestedGroupId: string | null; groupName: string | null };
+  carRental: { company: string | null; totalCents: number; oc: string | null; notes: string | null; checkIn: string | null };
   suggestedRoomGroupId: string | null;
   roomGroupLabel: string | null;
   pendencies: string[];
@@ -130,16 +131,19 @@ export async function getOperationalMirror(eventId: string) {
     for (const m of g.members) collabToRoomGroup.set(m.collaboratorId, g);
   }
 
-  // extras por colaborador e tipo
-  function extrasFor(collabId: string | null, type: string) {
-    if (!collabId) return { total: 0, oc: null as string | null, notes: null as string | null, company: null as string | null };
-    const items = extras.filter((e: any) => e.collaboratorId === collabId && e.type === type);
+  // extras por inclusão (preferencial) ou colaborador (legado) e tipo
+  function extrasFor(inclusionId: string, collabId: string | null, type: string) {
+    const items = extras.filter((e: any) =>
+      e.type === type &&
+      (e.teamInclusionId === inclusionId || (!e.teamInclusionId && collabId && e.collaboratorId === collabId))
+    );
     const total = items.reduce((s: number, e: any) => s + (e.amountCents || 0), 0);
     return {
       total,
       oc: items.find((e: any) => e.oc)?.oc || null,
       notes: items.find((e: any) => e.notes)?.notes || null,
       company: items.find((e: any) => e.company)?.company || null,
+      checkIn: items.find((e: any) => e.checkInReference)?.checkInReference || null,
     };
   }
 
@@ -149,9 +153,9 @@ export async function getOperationalMirror(eventId: string) {
     const ticket = ticketByInclusion.get(ti.id) || null;
     const acc = accByInclusion.get(ti.id) || null;
 
-    const baggageExtra = extrasFor(ti.collaboratorId, "baggage");
-    const uberExtra = extrasFor(ti.collaboratorId, "uber");
-    const carExtra = extrasFor(ti.collaboratorId, "car_rental");
+    const baggageExtra = extrasFor(ti.id, ti.collaboratorId, "baggage");
+    const uberExtra = extrasFor(ti.id, ti.collaboratorId, "uber");
+    const carExtra = extrasFor(ti.id, ti.collaboratorId, "car_rental");
 
     const baggageTotal = (ticket?.baggageTotalCents || 0) + baggageExtra.total;
     const uberGroup = ti.collaboratorId ? collabToUberGroup.get(ti.collaboratorId) : null;
@@ -205,15 +209,17 @@ export async function getOperationalMirror(eventId: string) {
       },
       ticket,
       accommodation: acc,
-      baggage: { totalCents: baggageTotal, oc: ticket?.baggageOc || baggageExtra.oc, notes: ticket?.baggageNotes || baggageExtra.notes },
+      observations: ti.observations || null,
+      baggage: { totalCents: baggageTotal, extraCents: baggageExtra.total, oc: ticket?.baggageOc || baggageExtra.oc, notes: ticket?.baggageNotes || baggageExtra.notes, checkIn: baggageExtra.checkIn },
       uber: {
         totalCents: uberExtra.total,
         oc: uberExtra.oc,
         notes: uberExtra.notes,
+        checkIn: uberExtra.checkIn,
         suggestedGroupId: uberGroup?.id || null,
         groupName: uberGroup?.groupName || null,
       },
-      carRental: { company: carExtra.company, totalCents: carExtra.total, oc: carExtra.oc, notes: carExtra.notes },
+      carRental: { company: carExtra.company, totalCents: carExtra.total, oc: carExtra.oc, notes: carExtra.notes, checkIn: carExtra.checkIn },
       suggestedRoomGroupId: roomGroup?.id || null,
       roomGroupLabel: roomGroup ? `${roomGroup.roomType || ""} ${roomGroup.confirmed ? "(Confirmado)" : "(Sugestão)"}`.trim() : null,
       pendencies,
@@ -224,7 +230,7 @@ export async function getOperationalMirror(eventId: string) {
   let totalTickets = 0, totalHotel = 0, totalBaggage = 0, totalUber = 0, totalCarRental = 0;
   for (const r of rows) {
     totalTickets += r.ticket?.value || 0;
-    totalHotel += r.accommodation?.totalCents || ((r.accommodation?.dailyRate || 0) * (r.schedule.dailyRates || 0)) || 0;
+    totalHotel += r.accommodation?.totalCents || ((r.accommodation?.dailyRate || 0) * (r.accommodation?.nightsCount || r.schedule.dailyRates || 0)) || 0;
     totalBaggage += r.baggage.totalCents;
     totalUber += r.uber.totalCents;
     totalCarRental += r.carRental.totalCents;
@@ -237,13 +243,28 @@ export async function getOperationalMirror(eventId: string) {
     const key = r.function.name || "(sem função)";
     if (!byFunction[key]) byFunction[key] = { name: key, tickets: 0, hotel: 0, baggage: 0, uber: 0, carRental: 0, total: 0 };
     const t = r.ticket?.value || 0;
-    const h = r.accommodation?.totalCents || ((r.accommodation?.dailyRate || 0) * (r.schedule.dailyRates || 0)) || 0;
+    const h = r.accommodation?.totalCents || ((r.accommodation?.dailyRate || 0) * (r.accommodation?.nightsCount || r.schedule.dailyRates || 0)) || 0;
     byFunction[key].tickets += t;
     byFunction[key].hotel += h;
     byFunction[key].baggage += r.baggage.totalCents;
     byFunction[key].uber += r.uber.totalCents;
     byFunction[key].carRental += r.carRental.totalCents;
     byFunction[key].total += t + h + r.baggage.totalCents + r.uber.totalCents + r.carRental.totalCents;
+  }
+
+  // subtotais por departamento (area)
+  const byDepartment: Record<string, { name: string; tickets: number; hotel: number; baggage: number; uber: number; carRental: number; total: number }> = {};
+  for (const r of rows) {
+    const key = r.function.area || r.function.name || "(sem departamento)";
+    if (!byDepartment[key]) byDepartment[key] = { name: key, tickets: 0, hotel: 0, baggage: 0, uber: 0, carRental: 0, total: 0 };
+    const t = r.ticket?.value || 0;
+    const h = r.accommodation?.totalCents || ((r.accommodation?.dailyRate || 0) * (r.accommodation?.nightsCount || r.schedule.dailyRates || 0)) || 0;
+    byDepartment[key].tickets += t;
+    byDepartment[key].hotel += h;
+    byDepartment[key].baggage += r.baggage.totalCents;
+    byDepartment[key].uber += r.uber.totalCents;
+    byDepartment[key].carRental += r.carRental.totalCents;
+    byDepartment[key].total += t + h + r.baggage.totalCents + r.uber.totalCents + r.carRental.totalCents;
   }
 
   const pendingCount = rows.reduce((s, r) => s + r.pendencies.length, 0);
@@ -268,11 +289,130 @@ export async function getOperationalMirror(eventId: string) {
       carRental: totalCarRental,
       grand,
       byFunction: Object.values(byFunction),
+      byDepartment: Object.values(byDepartment),
     },
     pendingCount,
     suggestedRoomCount: roomGroupRows.length,
     suggestedUberCount: uberGroupRows.length,
   };
+}
+
+// ---------- Edição célula a célula ----------
+type FieldTarget =
+  | { table: "team_inclusions"; col: string; type: "date" | "text" | "int" }
+  | { table: "tickets"; col: string; type: "date" | "text" | "int" }
+  | { table: "accommodations"; col: string; type: "date" | "text" | "int" | "bool" }
+  | { table: "logistics"; logType: "baggage" | "uber" | "car_rental"; col: string; type: "text" | "int" };
+
+const FIELD_MAP: Record<string, FieldTarget> = {
+  // Escala (team_inclusions)
+  "schedule.startDate": { table: "team_inclusions", col: "scheduleStartDate", type: "date" },
+  "schedule.departureDate": { table: "team_inclusions", col: "flightDepartureDate", type: "date" },
+  "schedule.endDate": { table: "team_inclusions", col: "scheduleEndDate", type: "date" },
+  "schedule.returnDate": { table: "team_inclusions", col: "flightReturnDate", type: "date" },
+  "function.area": { table: "team_inclusions", col: "area", type: "text" },
+  "observations": { table: "team_inclusions", col: "observations", type: "text" },
+  // Passagem (tickets)
+  "ticket.value": { table: "tickets", col: "value", type: "int" },
+  "ticket.departureAirport": { table: "tickets", col: "departureAirport", type: "text" },
+  "ticket.actualDepartureTime": { table: "tickets", col: "actualDepartureTime", type: "text" },
+  "ticket.actualReturnTime": { table: "tickets", col: "actualReturnTime", type: "text" },
+  "ticket.returnOriginAirport": { table: "tickets", col: "returnOriginAirport", type: "text" },
+  "ticket.locator": { table: "tickets", col: "locator", type: "text" },
+  "ticket.ticketCompany": { table: "tickets", col: "ticketCompany", type: "text" },
+  "ticket.purchaseOrderNumber": { table: "tickets", col: "purchaseOrderNumber", type: "text" },
+  "ticket.checkIn3": { table: "tickets", col: "checkIn3", type: "text" },
+  // Hospedagem (accommodations)
+  "accommodation.nightsCount": { table: "accommodations", col: "nightsCount", type: "int" },
+  "accommodation.roomType": { table: "accommodations", col: "roomType", type: "text" },
+  "accommodation.dailyRate": { table: "accommodations", col: "dailyRate", type: "int" },
+  "accommodation.lateCheckout": { table: "accommodations", col: "lateCheckout", type: "bool" },
+  "accommodation.totalCents": { table: "accommodations", col: "totalCents", type: "int" },
+  "accommodation.hotelName": { table: "accommodations", col: "hotelName", type: "text" },
+  "accommodation.paymentCompany": { table: "accommodations", col: "paymentCompany", type: "text" },
+  "accommodation.hotelOc": { table: "accommodations", col: "hotelOc", type: "text" },
+  "accommodation.checkIn4": { table: "accommodations", col: "checkIn4", type: "text" },
+  // Bagagem (logistics_extra_costs type baggage)
+  "baggage.amountCents": { table: "logistics", logType: "baggage", col: "amountCents", type: "int" },
+  "baggage.oc": { table: "logistics", logType: "baggage", col: "oc", type: "text" },
+  "baggage.checkIn": { table: "logistics", logType: "baggage", col: "checkInReference", type: "text" },
+  // Uber (logistics type uber)
+  "uber.amountCents": { table: "logistics", logType: "uber", col: "amountCents", type: "int" },
+  "uber.oc": { table: "logistics", logType: "uber", col: "oc", type: "text" },
+  "uber.checkIn": { table: "logistics", logType: "uber", col: "checkInReference", type: "text" },
+  // Locação (logistics type car_rental)
+  "carRental.company": { table: "logistics", logType: "car_rental", col: "company", type: "text" },
+  "carRental.amountCents": { table: "logistics", logType: "car_rental", col: "amountCents", type: "int" },
+  "carRental.oc": { table: "logistics", logType: "car_rental", col: "oc", type: "text" },
+  "carRental.checkIn": { table: "logistics", logType: "car_rental", col: "checkInReference", type: "text" },
+};
+
+function coerce(value: any, type: string): any {
+  if (value === "" || value === undefined || value === null) {
+    return type === "bool" ? false : null;
+  }
+  if (type === "int") {
+    const n = typeof value === "number" ? value : parseInt(String(value), 10);
+    return Number.isFinite(n) ? Math.round(n) : null;
+  }
+  if (type === "bool") return value === true || value === "true" || value === 1 || value === "1";
+  if (type === "date") return String(value); // YYYY-MM-DD
+  return String(value);
+}
+
+export async function patchOperationalMirrorCell(eventId: string, rowId: string, field: string, rawValue: any) {
+  const target = FIELD_MAP[field];
+  if (!target) throw new Error(`Campo não permitido: ${field}`);
+
+  // valida que a inclusão pertence ao evento
+  const [inclusion] = await db.select().from(teamInclusions).where(eq(teamInclusions.id, rowId));
+  if (!inclusion || inclusion.eventId !== eventId) throw new Error("Inclusão não encontrada para o evento");
+
+  const value = coerce(rawValue, target.type);
+
+  if (target.table === "team_inclusions") {
+    await db.update(teamInclusions).set({ [target.col]: value, updatedAt: new Date() } as any).where(eq(teamInclusions.id, rowId));
+    return { ok: true };
+  }
+
+  if (target.table === "tickets") {
+    const [existing] = await db.select().from(tickets).where(eq(tickets.teamInclusionId, rowId));
+    if (existing) {
+      await db.update(tickets).set({ [target.col]: value, updatedAt: new Date() } as any).where(eq(tickets.id, existing.id));
+    } else {
+      await db.insert(tickets).values({ teamInclusionId: rowId, [target.col]: value } as any);
+    }
+    return { ok: true };
+  }
+
+  if (target.table === "accommodations") {
+    const [existing] = await db.select().from(accommodations).where(eq(accommodations.teamInclusionId, rowId));
+    if (existing) {
+      await db.update(accommodations).set({ [target.col]: value, updatedAt: new Date() } as any).where(eq(accommodations.id, existing.id));
+    } else {
+      await db.insert(accommodations).values({ teamInclusionId: rowId, [target.col]: value } as any);
+    }
+    return { ok: true };
+  }
+
+  // logistics_extra_costs por inclusão + tipo
+  const items = await db.select().from(logisticsExtraCosts).where(eq(logisticsExtraCosts.eventId, eventId));
+  const existing = items.find((e: any) => e.teamInclusionId === rowId && e.type === target.logType)
+    || items.find((e: any) => !e.teamInclusionId && inclusion.collaboratorId && e.collaboratorId === inclusion.collaboratorId && e.type === target.logType);
+  if (existing) {
+    await db.update(logisticsExtraCosts)
+      .set({ [target.col]: value, teamInclusionId: rowId, updatedAt: new Date() } as any)
+      .where(eq(logisticsExtraCosts.id, existing.id));
+  } else {
+    await db.insert(logisticsExtraCosts).values({
+      eventId,
+      teamInclusionId: rowId,
+      collaboratorId: inclusion.collaboratorId || null,
+      type: target.logType,
+      [target.col]: value,
+    } as any);
+  }
+  return { ok: true };
 }
 
 // ---------- Recalcular sugestões (sem sobrescrever confirmados) ----------
@@ -511,67 +651,62 @@ export async function exportOperationalMirrorExcel(eventId: string): Promise<Buf
   const data = await getOperationalMirror(eventId);
   if (!data) return null;
 
+  // Ordem EXATA do anexo modelo
   const header = [
-    "Colaborador", "Departamento/Função", "Centro de Custo", "Tipo", "Sexo", "Cidade", "UF",
-    "Início escala", "Término escala", "Data ida", "Data volta", "Diárias",
-    "Passagem R$", "Aero ida", "Hr ida", "Aero volta", "Hr volta", "Localizador", "Empresa pass.", "OC pass.", "Status pass.",
-    "Check-in", "Check-out", "Tipo quarto", "Diária hotel", "Late check-out", "Hotel R$", "Nome hotel", "Local hotel", "Empresa pag.", "OC hotel", "Status hosp.",
-    "Bagagem R$", "OC bagagem",
-    "Uber R$", "OC uber", "Grupo uber",
-    "Locação empresa", "Locação R$", "OC locação",
-    "Pendências",
+    "NOME", "DEPARTAMENTO",
+    "INÍCIO", "DATA IDA", "TÉRMINO", "DATA VOLTA",
+    "PASSAGENS TT R$", "AERO IDA", "HR IDA", "HR VOLTA", "AERO VOLTA", "LOCALIZADOR", "EMPRESA", "OC", "CHECK IN 3",
+    "DIÁRIAS", "QUARTO", "R$ DIARIA H", "LATE CHECK OUT", "HOTEL TT R$", "HOTEL", "EMPRESA PAGAMENTO", "OC", "CHECK IN 4",
+    "BAGAGEM TT R$", "OC", "CHECK IN 1",
+    "UBER TT R$", "OC", "CHECK IN 2",
+    "EMPRESA LOCAÇÃO", "TT R$", "OC", "CHECK IN",
+    "PENDÊNCIAS",
   ];
 
   const aoa: any[][] = [];
   aoa.push([`Evento: ${data.event.name}`]);
-  aoa.push([`Local: ${data.event.location}`]);
-  aoa.push([`Período: ${data.event.startDate} a ${data.event.endDate}`]);
+  aoa.push([`Endereço: ${data.event.location || ""}`]);
+  aoa.push([`Data: ${data.event.startDate} a ${data.event.endDate}`]);
   aoa.push([]);
   aoa.push(header);
 
   for (const r of data.rows) {
-    const hotelTotal = r.accommodation?.totalCents || ((r.accommodation?.dailyRate || 0) * (r.schedule.dailyRates || 0)) || 0;
+    const hotelTotal = r.accommodation?.totalCents || ((r.accommodation?.dailyRate || 0) * (r.accommodation?.nightsCount || r.schedule.dailyRates || 0)) || 0;
     aoa.push([
       r.collaborator.fullName,
-      r.function.name || "",
-      r.function.costCenter || "",
-      r.collaborator.type || "",
-      r.collaborator.gender || "",
-      r.collaborator.city || "",
-      r.collaborator.state || "",
+      r.function.area || r.function.name || "",
       r.schedule.startDate || "",
+      r.schedule.flightDepartureDate || "",
       r.schedule.endDate || "",
-      r.ticket?.actualDepartureDate || "",
-      r.ticket?.actualReturnDate || "",
-      r.schedule.dailyRates ?? "",
+      r.schedule.flightReturnDate || "",
       r.ticket?.value ? brl(r.ticket.value) : "",
-      r.ticket?.destinationAirport || "",
+      r.ticket?.departureAirport || "",
       r.ticket?.actualDepartureTime || "",
-      r.ticket?.returnOriginAirport || "",
       r.ticket?.actualReturnTime || "",
+      r.ticket?.returnOriginAirport || "",
       r.ticket?.locator || r.ticket?.reservationNumber || "",
       r.ticket?.ticketCompany || "",
       r.ticket?.purchaseOrderNumber || "",
-      r.ticket?.ticketStatus || "",
-      r.accommodation?.checkInDate || "",
-      r.accommodation?.checkOutDate || "",
+      r.ticket?.checkIn3 || "",
+      r.accommodation?.nightsCount ?? "",
       r.accommodation?.roomType || "",
       r.accommodation?.dailyRate ? brl(r.accommodation.dailyRate) : "",
       r.accommodation?.lateCheckout ? "Sim" : "",
       hotelTotal ? brl(hotelTotal) : "",
       r.accommodation?.hotelName || "",
-      r.accommodation?.hotelLocation || "",
       r.accommodation?.paymentCompany || "",
       r.accommodation?.hotelOc || "",
-      r.accommodation?.hotelStatus || "",
+      r.accommodation?.checkIn4 || "",
       r.baggage.totalCents ? brl(r.baggage.totalCents) : "",
       r.baggage.oc || "",
+      r.baggage.checkIn || "",
       r.uber.totalCents ? brl(r.uber.totalCents) : "",
       r.uber.oc || "",
-      r.uber.groupName || "",
+      r.uber.checkIn || "",
       r.carRental.company || "",
       r.carRental.totalCents ? brl(r.carRental.totalCents) : "",
       r.carRental.oc || "",
+      r.carRental.checkIn || "",
       r.pendencies.join("; "),
     ]);
   }

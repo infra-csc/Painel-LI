@@ -1,0 +1,335 @@
+Revisar a tela “Espelho Operacional do Evento” comparando com o anexo “Circuito das Estações Inverno - Brasília”.
+
+A tela atual está muito resumida e ainda não possui todos os campos da planilha modelo.
+Preciso que ela fique fiel ao anexo e também seja editável.
+
+Objetivo:
+Transformar a tela “Espelho Operacional do Evento” em uma grade operacional editável, parecida com uma planilha inteligente, mantendo o visual moderno do app.
+
+A tela precisa ter exatamente estes blocos e campos:
+
+CABEÇALHO DO EVENTO:
+- Evento / Projeto
+- Endereço
+- Data
+
+BLOCO 1 — DADOS DO COLABORADOR:
+- Nome
+- Departamento
+
+BLOCO 2 — PERÍODO DE ESCALA:
+- Início
+- Data Ida
+- Término
+- Data Volta
+
+BLOCO 3 — PASSAGEM:
+- Passagens TT R$
+- Aero Ida
+- HR Ida
+- HR Volta
+- Aero Volta
+- Localizador
+- Empresa
+- OC
+- Check-in 3
+
+BLOCO 4 — HOSPEDAGEM:
+- Diárias
+- Quarto
+- R$ Diária H
+- Late Check Out
+- Hotel TT R$
+- Hotel
+- Empresa Pagamento
+- OC
+- Check-in 4
+
+BLOCO 5 — BAGAGEM EXTRA:
+- Bagagem TT R$
+- OC
+- Check-in 1
+
+BLOCO 6 — UBER:
+- Uber TT R$
+- OC
+- Check-in 2
+
+BLOCO 7 — LOCAÇÃO DE CARRO:
+- Empresa Locação
+- TT R$
+- OC
+- Check-in
+
+BLOCO 8 — PENDÊNCIAS:
+- Pendências automáticas
+- Observações internas
+
+A tabela deve seguir a mesma ordem dos campos do anexo:
+NOME,
+DEPARTAMENTO,
+INÍCIO,
+DATA IDA,
+TÉRMINO,
+DATA VOLTA,
+PASSAGENS TT R$,
+AERO IDA,
+HR IDA,
+HR VOLTA,
+AERO VOLTA,
+LOCALIZADOR,
+EMPRESA,
+OC,
+CHECK IN 3,
+DIÁRIAS,
+QUARTO,
+R$ DIARIA H,
+LATE CHECK OUT,
+HOTEL TT R$,
+HOTEL,
+EMPRESA PAGAMENTO,
+OC,
+CHECK IN 4,
+BAGAGEM TT R$,
+OC,
+CHECK IN 1,
+UBER TT R$,
+OC,
+CHECK IN 2,
+EMPRESA LOCAÇÃO,
+TT R$,
+OC,
+CHECK IN,
+PENDÊNCIAS.
+
+Importante:
+Hoje a tela está exibindo colunas genéricas como “Passagem”, “Hospedagem”, “Bagagem”, “Uber” e “Locação”.
+Preciso quebrar essas colunas em campos individuais, igual à planilha modelo.
+
+A tela precisa ser editável:
+- Cada célula editável deve permitir alteração direta na tabela.
+- Ao clicar em uma célula, transformar em input, select, datepicker ou money input conforme o tipo do campo.
+- Ao sair da célula ou pressionar Enter, salvar automaticamente.
+- Exibir feedback visual de “salvando...” e “salvo”.
+- Em caso de erro, manter o valor anterior e mostrar alerta.
+- Campos calculados podem ser somente leitura.
+
+Campos editáveis:
+- Departamento, se permitido
+- Início
+- Data Ida
+- Término
+- Data Volta
+- Passagens TT R$
+- Aero Ida
+- HR Ida
+- HR Volta
+- Aero Volta
+- Localizador
+- Empresa da passagem
+- OC da passagem
+- Check-in 3
+- Diárias
+- Quarto
+- R$ Diária H
+- Late Check Out
+- Hotel TT R$
+- Hotel
+- Empresa Pagamento
+- OC do hotel
+- Check-in 4
+- Bagagem TT R$
+- OC bagagem
+- Check-in 1
+- Uber TT R$
+- OC Uber
+- Check-in 2
+- Empresa Locação
+- TT R$ Locação
+- OC Locação
+- Check-in Locação
+- Observações internas
+
+Campos preferencialmente somente leitura:
+- Nome do colaborador
+- Total geral, quando calculado
+- Pendências automáticas
+
+Criar comportamento de edição:
+1. Usuário clica na célula.
+2. Célula vira campo editável.
+3. Usuário altera.
+4. Sistema salva no backend.
+5. Atualiza os totais e pendências automaticamente.
+
+Criar endpoint genérico para salvar célula:
+PATCH /api/events/:eventId/operational-mirror/rows/:rowId
+
+Payload:
+{
+  "field": "ticket.locator",
+  "value": "ABC123"
+}
+
+O backend deve identificar a tabela correta conforme o campo:
+- Campos de escala atualizam team_inclusions.
+- Campos de passagem atualizam tickets.
+- Campos de hospedagem atualizam accommodations.
+- Campos de bagagem, Uber e locação atualizam logistics_extra_costs.
+- Campos de colaborador atualizam collaborators apenas se permitido.
+
+Mapeamento dos campos:
+
+team_inclusions:
+- scaleStartDate = Início
+- departureDate = Data Ida
+- scaleEndDate = Término
+- returnDate = Data Volta
+- department/function = Departamento, se aplicável
+
+tickets:
+- totalCents = Passagens TT R$
+- outboundOriginAirport = Aero Ida
+- outboundTime = HR Ida
+- returnTime = HR Volta
+- returnDestinationAirport ou returnOriginAirport = Aero Volta, conforme estrutura atual
+- locator = Localizador
+- company = Empresa
+- oc = OC
+- checkIn3 = Check-in 3
+
+accommodations:
+- nightsCount = Diárias
+- roomType = Quarto
+- dailyValueCents = R$ Diária H
+- lateCheckout = Late Check Out
+- totalCents = Hotel TT R$
+- hotelName = Hotel
+- paymentCompany = Empresa Pagamento
+- oc = OC
+- checkIn4 = Check-in 4
+
+logistics_extra_costs type baggage:
+- amountCents = Bagagem TT R$
+- oc = OC
+- checkInReference = Check-in 1
+
+logistics_extra_costs type uber:
+- amountCents = Uber TT R$
+- oc = OC
+- checkInReference = Check-in 2
+
+logistics_extra_costs type car_rental:
+- company = Empresa Locação
+- amountCents = TT R$
+- oc = OC
+- checkInReference = Check-in
+
+Se algum campo ainda não existir no banco, criar migration Drizzle.
+Antes de criar campo novo, verificar se já existe campo equivalente com outro nome.
+
+Adicionar campos ausentes se necessário:
+
+tickets:
+- company
+- oc
+- check_in_3
+- outbound_origin_airport
+- outbound_time
+- return_time
+- return_airport
+- locator
+- total_cents
+
+accommodations:
+- nights_count
+- room_type
+- daily_value_cents
+- late_checkout
+- total_cents
+- hotel_name
+- payment_company
+- oc
+- check_in_4
+
+logistics_extra_costs:
+- id
+- event_id
+- collaborator_id
+- team_inclusion_id
+- type
+- company
+- amount_cents
+- oc
+- check_in_reference
+- notes
+- created_at
+- updated_at
+
+Visual da tabela:
+- Cabeçalhos agrupados por cor, igual ao anexo:
+  - Período de Escala
+  - Passagem
+  - Hospedagem
+  - Bagagem Extra
+  - Uber
+  - Locação de Carro
+- Manter primeira coluna fixa.
+- Permitir scroll horizontal.
+- Permitir linhas compactas.
+- Mostrar valores monetários no formato R$ 0,00.
+- Mostrar datas no formato dd/mm/yyyy.
+- Mostrar horários no formato HH:mm.
+
+Criar modo de edição:
+- Botão “Editar Grade”
+- Botão “Salvar alterações”
+- Botão “Cancelar”
+- Botão “Recalcular totais”
+- Botão “Exportar Excel”
+
+Pode ter duas formas:
+1. Auto-save célula a célula.
+2. Ou modo edição com alterações em lote.
+
+Preferência:
+Usar auto-save célula a célula, mas mantendo indicador visual de alteração.
+
+Totais:
+No rodapé, criar totais iguais ao anexo:
+- Total Hotelaria
+- Subtotal Atendimento
+- Subtotal Marketing
+- Subtotal Produção Hub
+- Subtotal LI
+- Subtotal RH
+- Subtotal Running
+- Subtotal Assinaturas
+- Total Passagem
+- Total Bagagem Extra
+- Total Uber
+- Total Locação
+- Total Geral
+
+Os subtotais devem ser calculados por departamento, função ou centro de custo.
+
+Exportação:
+O Excel exportado deve seguir exatamente a ordem dos campos do anexo.
+O Excel deve exportar os dados editados.
+A exportação deve respeitar filtros aplicados.
+
+Pendências:
+Manter pendências automáticas, mas não substituir os campos da planilha.
+As pendências devem aparecer no final da linha.
+
+Critérios de aceite:
+1. A tela deve ter todos os campos do anexo.
+2. A ordem dos campos deve seguir o anexo.
+3. A tela deve ser editável célula a célula.
+4. Ao editar, o dado deve salvar no banco.
+5. Os totais devem recalcular após edição.
+6. O Excel exportado deve sair igual à grade da tela.
+7. A primeira coluna deve ficar fixa.
+8. Os blocos devem ter cabeçalhos visuais como na planilha.
+9. Passagem, hospedagem, bagagem, Uber e locação devem ter seus próprios campos de OC e check-in.
+10. Não exibir apenas colunas resumidas; exibir os campos detalhados.
