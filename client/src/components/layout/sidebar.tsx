@@ -66,7 +66,7 @@ const allTabs = [
 
 const menuGroups = [
   { title: "Cadastros",   ids: ["user-registration", "events", "calendar", "functions", "collaborators"] },
-  { title: "Operacional", ids: ["team-inclusion", "scaling", "tickets", "accommodations"] },
+  { title: "Operacional", ids: ["team-inclusion", "scaling", "tickets", "accommodations", "operational-mirror"] },
   { title: "Financeiro",  ids: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "system-settings"] },
   { title: "Gestão",      ids: ["consultation", "admin-users"] },
 ];
