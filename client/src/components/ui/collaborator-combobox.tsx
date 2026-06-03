@@ -37,7 +37,7 @@ export default function CollaboratorCombobox({
 
   const sortedCollaborators =
     collaborators
-      ?.filter((c) => c.status === "aprovado")
+      ?.filter((c) => c.status === "aprovado" && (c as any).active !== false)
       ?.sort((a, b) =>
         a.fullName.localeCompare(b.fullName, "pt-BR", { sensitivity: "base" })
       ) || [];

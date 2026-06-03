@@ -90,6 +90,9 @@ export const collaborators = pgTable("collaborators", {
   approvedBy: varchar("approved_by").references(() => users.id), // quem aprovou/rejeitou
   approvedAt: timestamp("approved_at"), // quando foi aprovado/rejeitado
   isCoordinator: boolean("is_coordinator").default(false), // flag para indicar se é coordenador
+  active: boolean("active").notNull().default(true), // false = inativado (mantido no histórico, oculto nas escalações)
+  inactiveReason: text("inactive_reason"), // motivo obrigatório da inativação
+  inactivatedAt: timestamp("inactivated_at"), // quando foi inativado
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -410,6 +413,7 @@ export const insertFunctionSchema = createInsertSchema(functions).omit({
 export const insertCollaboratorSchema = createInsertSchema(collaborators).omit({
   id: true,
   createdAt: true,
+  inactivatedAt: true,
 }).extend({
   birthDate: z.string().optional(), // Força string para birthDate
 });

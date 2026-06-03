@@ -219,6 +219,7 @@ export function SplitVagaModal({
     const q = collabSearch.toLowerCase();
     return collaborators
       .filter(c => c.id !== item.collaboratorId)
+      .filter(c => (c as any).status === "aprovado" && (c as any).active !== false)
       .filter(c => !q || fixEncoding(c.fullName || "").toLowerCase().includes(q))
       .sort((a, b) => fixEncoding(a.fullName || "").localeCompare(fixEncoding(b.fullName || ""), "pt-BR"))
       .slice(0, 60);

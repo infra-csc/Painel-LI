@@ -1516,6 +1516,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const collaboratorData = insertCollaboratorSchema.partial().parse(req.body);
+      // Campos de inativação só podem ser alterados pelas rotas dedicadas
+      // (/inactivate e /reactivate), que aplicam a checagem de permissão e o
+      // motivo obrigatório. Removemos aqui para evitar burlar essas regras.
+      delete (collaboratorData as any).active;
+      delete (collaboratorData as any).inactiveReason;
+      delete (collaboratorData as any).inactivatedAt;
       const collaborator = await storage.updateCollaborator(id, collaboratorData);
       res.json(collaborator);
     } catch (error) {
@@ -1523,24 +1529,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/collaborators/:id", async (req, res) => {
+  app.post("/api/collaborators/:id/inactivate", async (req, res) => {
     const userId = req.session?.userId;
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
     const currentUser = await storage.getUser(userId);
     const isAdminOrPurchasing = currentUser && ['admin', 'administrator', 'administrador', 'purchasing'].includes(currentUser.role);
-    if (!isAdminOrPurchasing) return res.status(403).json({ message: "Sem permissão para excluir colaboradores" });
+    if (!isAdminOrPurchasing) return res.status(403).json({ message: "Sem permissão para inativar colaboradores" });
+    try {
+      const { id } = req.params;
+      const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
+      if (!reason) return res.status(400).json({ message: "O motivo da inativação é obrigatório." });
+      const collaborator = await storage.getCollaborator(id);
+      if (!collaborator) return res.status(404).json({ message: "Colaborador não encontrado" });
+      const updated = await storage.updateCollaborator(id, {
+        active: false,
+        inactiveReason: reason,
+        inactivatedAt: new Date(),
+      } as any);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error inactivating collaborator:", error);
+      res.status(500).json({ message: "Erro ao inativar colaborador" });
+    }
+  });
+
+  app.post("/api/collaborators/:id/reactivate", async (req, res) => {
+    const userId = req.session?.userId;
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+    const currentUser = await storage.getUser(userId);
+    const isAdminOrPurchasing = currentUser && ['admin', 'administrator', 'administrador', 'purchasing'].includes(currentUser.role);
+    if (!isAdminOrPurchasing) return res.status(403).json({ message: "Sem permissão para reativar colaboradores" });
     try {
       const { id } = req.params;
       const collaborator = await storage.getCollaborator(id);
       if (!collaborator) return res.status(404).json({ message: "Colaborador não encontrado" });
-      await storage.deleteCollaborator(id);
-      res.json({ success: true });
+      const updated = await storage.updateCollaborator(id, {
+        active: true,
+        inactiveReason: null,
+        inactivatedAt: null,
+      } as any);
+      res.json(updated);
     } catch (error: any) {
-      if (error?.code === '23503') {
-        return res.status(409).json({ message: "Este colaborador está vinculado a escalações, orçamentos ou outros registros e não pode ser excluído." });
-      }
-      console.error("Error deleting collaborator:", error);
-      res.status(500).json({ message: "Erro ao excluir colaborador" });
+      console.error("Error reactivating collaborator:", error);
+      res.status(500).json({ message: "Erro ao reativar colaborador" });
     }
   });
 

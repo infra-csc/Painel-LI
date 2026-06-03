@@ -472,8 +472,11 @@ export class MemStorage implements IStorage {
       collaboratorNumber: insertCollaborator.collaboratorNumber || 1,
       approvalNotes: insertCollaborator.approvalNotes || null,
       approvedBy: insertCollaborator.approvedBy || null,
-      approvedAt: insertCollaborator.approvedAt || null
-    };
+      approvedAt: insertCollaborator.approvedAt || null,
+      active: insertCollaborator.active ?? true,
+      inactiveReason: insertCollaborator.inactiveReason ?? null,
+      inactivatedAt: null,
+    } as Collaborator;
     this.collaborators.set(id, collaborator);
     return collaborator;
   }

@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import {
   Check, X, Eye, UserPlus, Upload, FileText, Edit, Users,
   ChevronLeft, ChevronRight, Search, UserCheck, AlertCircle,
-  Briefcase, Home, LayoutList, Loader2, Trash2, AlertTriangle
+  Briefcase, Home, LayoutList, Loader2, Ban, AlertTriangle, RotateCcw
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -107,9 +107,10 @@ export default function CollaboratorManagement() {
   const [editCpf, setEditCpf] = useState("");
   const [editRg, setEditRg] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [inactivateReason, setInactivateReason] = useState("");
   const { toast } = useToast();
   const { user } = useAuth();
-  const canDelete = !!user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
+  const canManage = !!user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
 
   const { data: collaborators, isLoading } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
 
@@ -130,27 +131,41 @@ export default function CollaboratorManagement() {
     onError: () => toast({ title: "Erro ao atualizar colaborador", variant: "destructive" }),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => (await apiRequest("DELETE", `/api/collaborators/${id}`)).json(),
+  const parseErr = (err: any, fallback: string) => {
+    let msg = fallback;
+    const raw = err?.message as string | undefined;
+    if (raw) {
+      const jsonStart = raw.indexOf("{");
+      if (jsonStart >= 0) {
+        try { msg = JSON.parse(raw.slice(jsonStart))?.message || msg; } catch { msg = raw; }
+      } else {
+        msg = raw;
+      }
+    }
+    return msg;
+  };
+
+  const inactivateMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) =>
+      (await apiRequest("POST", `/api/collaborators/${id}/inactivate`, { reason })).json(),
     onSuccess: () => {
-      toast({ title: "Colaborador excluído com sucesso!" });
+      toast({ title: "Colaborador inativado com sucesso!" });
       queryClient.invalidateQueries({ queryKey: ["/api/collaborators"] });
       setShowDeleteModal(false);
       setSelectedCollaborator(null);
+      setInactivateReason("");
     },
-    onError: (err: any) => {
-      let msg = "Erro ao excluir colaborador";
-      const raw = err?.message as string | undefined;
-      if (raw) {
-        const jsonStart = raw.indexOf("{");
-        if (jsonStart >= 0) {
-          try { msg = JSON.parse(raw.slice(jsonStart))?.message || msg; } catch { msg = raw; }
-        } else {
-          msg = raw;
-        }
-      }
-      toast({ title: msg, variant: "destructive" });
+    onError: (err: any) => toast({ title: parseErr(err, "Erro ao inativar colaborador"), variant: "destructive" }),
+  });
+
+  const reactivateMutation = useMutation({
+    mutationFn: async (id: string) =>
+      (await apiRequest("POST", `/api/collaborators/${id}/reactivate`)).json(),
+    onSuccess: () => {
+      toast({ title: "Colaborador reativado com sucesso!" });
+      queryClient.invalidateQueries({ queryKey: ["/api/collaborators"] });
     },
+    onError: (err: any) => toast({ title: parseErr(err, "Erro ao reativar colaborador"), variant: "destructive" }),
   });
 
   const filtered = useMemo(() => {
@@ -369,6 +384,7 @@ export default function CollaboratorManagement() {
                 <tbody className="divide-y divide-gray-50">
                   {paginated.map(c => {
                     const isPending = c.status === "pendente";
+                    const isInactive = (c as any).active === false;
                     const typeCfg = TYPE_CFG[c.type] ?? TYPE_CFG.local;
                     const displayName = toTitleCase(c.fullName);
                     const [bgCls, textCls] = avatarClasses(c.fullName);
@@ -376,7 +392,7 @@ export default function CollaboratorManagement() {
                     return (
                       <tr
                         key={c.id}
-                        className={`group transition-colors ${isPending ? "hover:bg-amber-50/30" : "hover:bg-blue-50/30"}`}
+                        className={`group transition-colors ${isInactive ? "bg-slate-50/60 hover:bg-slate-100/60" : isPending ? "hover:bg-amber-50/30" : "hover:bg-blue-50/30"}`}
                       >
                         {/* Colaborador */}
                         <td className="px-5 py-3.5">
@@ -411,7 +427,21 @@ export default function CollaboratorManagement() {
 
                         {/* Status */}
                         <td className="px-5 py-3.5">
-                          <StatusBadge status={c.status} />
+                          <div className="flex flex-col items-start gap-1">
+                            <StatusBadge status={c.status} />
+                            {isInactive && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 border border-slate-300 cursor-default">
+                                    <Ban className="w-3 h-3" /> Inativo
+                                  </span>
+                                </TooltipTrigger>
+                                {(c as any).inactiveReason && (
+                                  <TooltipContent className="max-w-[240px]">{(c as any).inactiveReason}</TooltipContent>
+                                )}
+                              </Tooltip>
+                            )}
+                          </div>
                         </td>
 
                         {/* Ações */}
@@ -453,15 +483,26 @@ export default function CollaboratorManagement() {
                               </TooltipTrigger>
                               <TooltipContent>Editar</TooltipContent>
                             </Tooltip>
-                            {canDelete && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <button onClick={() => { setSelectedCollaborator(c); setShowDeleteModal(true); }} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors">
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </TooltipTrigger>
-                                <TooltipContent>Excluir</TooltipContent>
-                              </Tooltip>
+                            {canManage && (
+                              isInactive ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button onClick={() => reactivateMutation.mutate(c.id)} disabled={reactivateMutation.isPending} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-40 transition-colors">
+                                      <RotateCcw className="w-3.5 h-3.5" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Reativar</TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button onClick={() => { setSelectedCollaborator(c); setInactivateReason(""); setShowDeleteModal(true); }} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors">
+                                      <Ban className="w-3.5 h-3.5" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Inativar</TooltipContent>
+                                </Tooltip>
+                              )
                             )}
                           </div>
                         </td>
@@ -707,8 +748,8 @@ export default function CollaboratorManagement() {
           </DialogContent>
         </Dialog>
 
-        {/* ── Delete Confirmation Modal ── */}
-        <Dialog open={showDeleteModal} onOpenChange={(open) => { if (!deleteMutation.isPending) setShowDeleteModal(open); }}>
+        {/* ── Inactivate Confirmation Modal ── */}
+        <Dialog open={showDeleteModal} onOpenChange={(open) => { if (!inactivateMutation.isPending) { setShowDeleteModal(open); if (!open) setInactivateReason(""); } }}>
           <DialogContent className="max-w-[420px] rounded-2xl p-0 gap-0 border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden">
             <div className="px-6 py-6 space-y-4">
               <div className="flex items-start gap-3">
@@ -716,8 +757,8 @@ export default function CollaboratorManagement() {
                   <AlertTriangle className="w-5 h-5 text-red-500" />
                 </div>
                 <div>
-                  <h3 className="text-[15px] font-bold text-slate-900 leading-tight mb-1">Excluir colaborador?</h3>
-                  <p className="text-[12.5px] text-slate-500 leading-relaxed">Esta ação é permanente e não pode ser desfeita.</p>
+                  <h3 className="text-[15px] font-bold text-slate-900 leading-tight mb-1">Inativar colaborador?</h3>
+                  <p className="text-[12.5px] text-slate-500 leading-relaxed">Ele deixará de aparecer nas escalações, mas será mantido no histórico. Você pode reativá-lo depois.</p>
                 </div>
               </div>
 
@@ -736,23 +777,37 @@ export default function CollaboratorManagement() {
                 );
               })()}
 
+              <div>
+                <label className="block text-[12px] font-semibold text-slate-700 mb-1.5">
+                  Motivo da inativação <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={inactivateReason}
+                  onChange={e => setInactivateReason(e.target.value)}
+                  placeholder="Ex.: desligamento, encerramento de contrato..."
+                  rows={3}
+                  disabled={inactivateMutation.isPending}
+                  className="w-full text-[13px] rounded-lg border border-gray-200 px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-300 disabled:opacity-60"
+                />
+              </div>
+
               <div className="flex gap-2 pt-1">
                 <button
-                  onClick={() => setShowDeleteModal(false)}
-                  disabled={deleteMutation.isPending}
+                  onClick={() => { setShowDeleteModal(false); setInactivateReason(""); }}
+                  disabled={inactivateMutation.isPending}
                   className="flex-1 h-9 text-xs font-medium text-slate-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
                 >
                   Cancelar
                 </button>
                 <button
-                  onClick={() => { if (selectedCollaborator) deleteMutation.mutate(selectedCollaborator.id); }}
-                  disabled={deleteMutation.isPending}
-                  className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-semibold text-white rounded-lg transition-colors shadow-sm disabled:opacity-60"
+                  onClick={() => { if (selectedCollaborator && inactivateReason.trim()) inactivateMutation.mutate({ id: selectedCollaborator.id, reason: inactivateReason.trim() }); }}
+                  disabled={inactivateMutation.isPending || !inactivateReason.trim()}
+                  className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-semibold text-white rounded-lg transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   style={{ background: "#DC2626", boxShadow: "0 2px 8px #DC262640" }}
                 >
-                  {deleteMutation.isPending
+                  {inactivateMutation.isPending
                     ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    : <><Trash2 className="w-3.5 h-3.5" /> Excluir</>
+                    : <><Ban className="w-3.5 h-3.5" /> Inativar</>
                   }
                 </button>
               </div>
