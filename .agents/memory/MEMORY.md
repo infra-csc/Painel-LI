@@ -1,2 +1,3 @@
 - [DB migration convention](db-migration-convention.md) — schema changes go via manual ALTER TABLE (tsx+pg) + shared/schema.ts, NOT db:push/migrations; migration 0000 is stale.
 - [Swap badge & banner counts](swap-badge-counts.md) — pending-swap counts must derive from the displayed/deduped set; treat undefined status as "don't count"; keep filter memo deps complete.
+- [Route authz identity source](route-authz-identity.md) — derive identity from req.session.userId ONLY on destructive/role-gated routes; the `|| req.body._userId` fallback (in older routes) is spoofable.

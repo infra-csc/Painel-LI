@@ -139,7 +139,17 @@ export default function CollaboratorManagement() {
       setSelectedCollaborator(null);
     },
     onError: (err: any) => {
-      toast({ title: err?.message || "Erro ao excluir colaborador", variant: "destructive" });
+      let msg = "Erro ao excluir colaborador";
+      const raw = err?.message as string | undefined;
+      if (raw) {
+        const jsonStart = raw.indexOf("{");
+        if (jsonStart >= 0) {
+          try { msg = JSON.parse(raw.slice(jsonStart))?.message || msg; } catch { msg = raw; }
+        } else {
+          msg = raw;
+        }
+      }
+      toast({ title: msg, variant: "destructive" });
     },
   });
 
@@ -443,6 +453,16 @@ export default function CollaboratorManagement() {
                               </TooltipTrigger>
                               <TooltipContent>Editar</TooltipContent>
                             </Tooltip>
+                            {canDelete && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button onClick={() => { setSelectedCollaborator(c); setShowDeleteModal(true); }} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent>Excluir</TooltipContent>
+                              </Tooltip>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -684,6 +704,59 @@ export default function CollaboratorManagement() {
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Delete Confirmation Modal ── */}
+        <Dialog open={showDeleteModal} onOpenChange={(open) => { if (!deleteMutation.isPending) setShowDeleteModal(open); }}>
+          <DialogContent className="max-w-[420px] rounded-2xl p-0 gap-0 border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden">
+            <div className="px-6 py-6 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-bold text-slate-900 leading-tight mb-1">Excluir colaborador?</h3>
+                  <p className="text-[12.5px] text-slate-500 leading-relaxed">Esta ação é permanente e não pode ser desfeita.</p>
+                </div>
+              </div>
+
+              {selectedCollaborator && (() => {
+                const [bg, tx] = avatarClasses(selectedCollaborator.fullName);
+                return (
+                  <div className="flex items-center gap-3 px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${bg} ${tx}`}>
+                      {initials(selectedCollaborator.fullName)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold text-slate-700 truncate">{toTitleCase(selectedCollaborator.fullName)}</p>
+                      <p className="text-[11px] text-slate-400 font-mono">{formatDocument(selectedCollaborator.officialDocument, selectedCollaborator.documentType)}</p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={deleteMutation.isPending}
+                  className="flex-1 h-9 text-xs font-medium text-slate-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => { if (selectedCollaborator) deleteMutation.mutate(selectedCollaborator.id); }}
+                  disabled={deleteMutation.isPending}
+                  className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-semibold text-white rounded-lg transition-colors shadow-sm disabled:opacity-60"
+                  style={{ background: "#DC2626", boxShadow: "0 2px 8px #DC262640" }}
+                >
+                  {deleteMutation.isPending
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <><Trash2 className="w-3.5 h-3.5" /> Excluir</>
+                  }
+                </button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
 

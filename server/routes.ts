@@ -1524,7 +1524,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/collaborators/:id", async (req, res) => {
-    const userId = req.session.userId || req.body?._userId;
+    const userId = req.session?.userId;
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
     const currentUser = await storage.getUser(userId);
     const isAdminOrPurchasing = currentUser && ['admin', 'administrator', 'administrador', 'purchasing'].includes(currentUser.role);
