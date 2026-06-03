@@ -1523,6 +1523,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/collaborators/:id", async (req, res) => {
+    const userId = req.session.userId || req.body?._userId;
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+    const currentUser = await storage.getUser(userId);
+    const isAdminOrPurchasing = currentUser && ['admin', 'administrator', 'administrador', 'purchasing'].includes(currentUser.role);
+    if (!isAdminOrPurchasing) return res.status(403).json({ message: "Sem permissão para excluir colaboradores" });
+    try {
+      const { id } = req.params;
+      const collaborator = await storage.getCollaborator(id);
+      if (!collaborator) return res.status(404).json({ message: "Colaborador não encontrado" });
+      await storage.deleteCollaborator(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      if (error?.code === '23503') {
+        return res.status(409).json({ message: "Este colaborador está vinculado a escalações, orçamentos ou outros registros e não pode ser excluído." });
+      }
+      console.error("Error deleting collaborator:", error);
+      res.status(500).json({ message: "Erro ao excluir colaborador" });
+    }
+  });
+
 
   // Team Inclusions routes
   app.get("/api/team-inclusions", async (req, res) => {

@@ -72,6 +72,7 @@ export interface IStorage {
   getCollaborator(id: string): Promise<Collaborator | undefined>;
   createCollaborator(collaborator: InsertCollaborator): Promise<Collaborator>;
   updateCollaborator(id: string, collaborator: Partial<InsertCollaborator>): Promise<Collaborator>;
+  deleteCollaborator(id: string): Promise<void>;
   
   // Team Inclusions
   getTeamInclusions(includeDeleted?: boolean): Promise<TeamInclusion[]>;
@@ -483,6 +484,10 @@ export class MemStorage implements IStorage {
     const updated = { ...existing, ...collaboratorUpdate };
     this.collaborators.set(id, updated);
     return updated;
+  }
+
+  async deleteCollaborator(id: string): Promise<void> {
+    this.collaborators.delete(id);
   }
 
   // Team Inclusions
@@ -1015,6 +1020,10 @@ export class DatabaseStorage implements IStorage {
   async updateCollaborator(id: string, collaboratorData: Partial<InsertCollaborator>): Promise<Collaborator> {
     const [collaborator] = await db.update(collaborators).set(collaboratorData).where(eq(collaborators.id, id)).returning();
     return collaborator;
+  }
+
+  async deleteCollaborator(id: string): Promise<void> {
+    await db.delete(collaborators).where(eq(collaborators.id, id));
   }
 
   // Team Inclusions

@@ -9,10 +9,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import {
   Check, X, Eye, UserPlus, Upload, FileText, Edit, Users,
   ChevronLeft, ChevronRight, Search, UserCheck, AlertCircle,
-  Briefcase, Home, LayoutList, Loader2
+  Briefcase, Home, LayoutList, Loader2, Trash2, AlertTriangle
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import CollaboratorModal from "@/components/modals/collaborator-modal";
 import BulkUploadModal from "@/components/modals/bulk-upload-modal";
 import type { Collaborator } from "@shared/schema";
@@ -105,7 +106,10 @@ export default function CollaboratorManagement() {
   const [approvalNotes, setApprovalNotes] = useState("");
   const [editCpf, setEditCpf] = useState("");
   const [editRg, setEditRg] = useState("");
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
+  const canDelete = !!user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
 
   const { data: collaborators, isLoading } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
 
@@ -124,6 +128,19 @@ export default function CollaboratorManagement() {
       setApprovalNotes(""); setEditCpf(""); setEditRg("");
     },
     onError: () => toast({ title: "Erro ao atualizar colaborador", variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => (await apiRequest("DELETE", `/api/collaborators/${id}`)).json(),
+    onSuccess: () => {
+      toast({ title: "Colaborador excluído com sucesso!" });
+      queryClient.invalidateQueries({ queryKey: ["/api/collaborators"] });
+      setShowDeleteModal(false);
+      setSelectedCollaborator(null);
+    },
+    onError: (err: any) => {
+      toast({ title: err?.message || "Erro ao excluir colaborador", variant: "destructive" });
+    },
   });
 
   const filtered = useMemo(() => {
