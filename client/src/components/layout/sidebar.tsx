@@ -113,12 +113,23 @@ export default function Sidebar() {
     enabled: !!isPurchasing,
   });
 
-  // Mapa de teamInclusionId → status da inclusão
+  // Mapa de teamInclusionId → status da inclusão (fallback; o status já vem embutido no swap)
   const inclusionStatusMap = useMemo(() => {
     const map: Record<string, string> = {};
     (teamInclusions ?? []).forEach(ti => { map[ti.id] = ti.status; });
     return map;
   }, [teamInclusions]);
+
+  // Status da inclusão do swap: prioriza o status embutido na resposta da API
+  // (/api/swap-requests já faz JOIN com team_inclusions). Cai para o mapa só se
+  // o backend antigo não tiver enviado. Swaps de inclusões excluídas são ignorados.
+  const getSwapInclusionStatus = (s: any): string | undefined => {
+    if (s.inclusion_deleted_at || s.inclusionDeletedAt) return undefined;
+    const embedded = s.inclusion_status || s.inclusionStatus;
+    if (embedded) return embedded;
+    const inclId = s.team_inclusion_id || s.teamInclusionId;
+    return inclusionStatusMap[inclId];
+  };
 
   // Passagem: swaps de inclusões com passagem comprada (com ou sem hospedagem)
   const ticketSwapCount = useMemo(() => {
@@ -126,8 +137,8 @@ export default function Sidebar() {
     const ticketStatuses = ['passagem_comprada', 'hospedagem_passagem_comprada'];
     return swapRequests.filter(s => {
       if (s.status !== 'pendente') return false;
-      const inclId = (s as any).team_inclusion_id || s.teamInclusionId;
-      return ticketStatuses.includes(inclusionStatusMap[inclId]);
+      const st = getSwapInclusionStatus(s);
+      return !!st && ticketStatuses.includes(st);
     }).length;
   }, [swapRequests, isPurchasing, inclusionStatusMap]);
 
@@ -136,8 +147,7 @@ export default function Sidebar() {
     if (!isPurchasing || !swapRequests) return 0;
     return swapRequests.filter(s => {
       if (s.status !== 'pendente') return false;
-      const inclId = (s as any).team_inclusion_id || s.teamInclusionId;
-      return inclusionStatusMap[inclId] === 'hospedagem_comprada';
+      return getSwapInclusionStatus(s) === 'hospedagem_comprada';
     }).length;
   }, [swapRequests, isPurchasing, inclusionStatusMap]);
 
@@ -147,10 +157,9 @@ export default function Sidebar() {
     const alreadyHandledStatuses = new Set(['passagem_comprada', 'hospedagem_passagem_comprada', 'hospedagem_comprada']);
     return swapRequests.filter(s => {
       if (s.status !== 'pendente') return false;
-      const inclId = (s as any).team_inclusion_id || s.teamInclusionId;
-      const st = inclusionStatusMap[inclId];
-      // Só conta quando a inclusão já foi carregada e ainda não teve logística tratada.
-      // Sem este guard, status indefinido (inclusão não carregada/inexistente) gera badge fantasma.
+      const st = getSwapInclusionStatus(s);
+      // Só conta quando a inclusão existe e ainda não teve logística tratada.
+      // Sem este guard, status indefinido (inclusão excluída/não carregada) gera badge fantasma.
       return !!st && !alreadyHandledStatuses.has(st);
     }).length;
   }, [swapRequests, isPurchasing, inclusionStatusMap]);

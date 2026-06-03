@@ -27,3 +27,13 @@ array, or clicking the banner filter never recomputes the table (stale/empty row
 **How to apply:** any new swap badge/banner — count over the exact set the
 corresponding view renders, treat undefined/unloaded status as "don't count," and
 keep every value referenced inside a `useMemo` in its dependency array.
+
+**Sidebar routing must not depend on a second query.** The sidebar originally
+routed swap badges (Passagem / Hospedagem / Escalação) by joining swaps to a
+SEPARATE `/api/team-inclusions` query that was `enabled` only for purchasing roles.
+When that query was slow/unloaded the inclusion status was undefined and badges
+mis-routed. Fix: `/api/swap-requests` now embeds `inclusion_status` and
+`inclusion_deleted_at` (LEFT JOIN team_inclusions), and the sidebar reads the
+embedded status (helper falls back to the old map). Badge stage by inclusion status:
+`passagem_comprada`/`hospedagem_passagem_comprada` → Passagem; `hospedagem_comprada`
+→ Hospedagem; anything else still pending → Escalação; deleted inclusion → no badge.

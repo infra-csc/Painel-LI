@@ -3693,10 +3693,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rows = await db.execute(drizzleSql`
         SELECT sr.*, 
                cc.full_name as current_collaborator_name,
-               nc.full_name as new_collaborator_name
+               nc.full_name as new_collaborator_name,
+               ti.status as inclusion_status,
+               ti.deleted_at as inclusion_deleted_at
         FROM swap_requests sr
         LEFT JOIN collaborators cc ON sr.current_collaborator_id = cc.id
         LEFT JOIN collaborators nc ON sr.new_collaborator_id = nc.id
+        LEFT JOIN team_inclusions ti ON sr.team_inclusion_id = ti.id
         ORDER BY sr.created_at DESC
       `);
       res.json((rows as any).rows ?? rows);
