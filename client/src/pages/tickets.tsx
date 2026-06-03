@@ -142,18 +142,6 @@ export default function Tickets() {
 
   const isPurchasingRole = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
 
-  // Banner: trocas pendentes que exigem análise de Compras (qualquer status escalado)
-  const pendingTicketSwapsCount = useMemo(() => {
-    if (!isPurchasingRole || !allSwapRequests || !teamInclusions) return 0;
-    const escalatedStatuses = new Set(['escalado', 'passagem', 'passagem_comprada', 'hospedagem', 'hospedagem_comprada', 'hospedagem_passagem_comprada', 'aprovacao', 'aprovado']);
-    const inclStatusMap = new Map(teamInclusions.map(ti => [ti.id, ti.status]));
-    return allSwapRequests.filter(s => {
-      if (s.status !== 'pendente') return false;
-      const inclId = (s as any).team_inclusion_id || s.teamInclusionId;
-      return escalatedStatuses.has(inclStatusMap.get(inclId) ?? '');
-    }).length;
-  }, [isPurchasingRole, allSwapRequests, teamInclusions]);
-
   const approveSwapMutation = useMutation({
     mutationFn: async (id: string) => {
       const r = await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, {});
@@ -472,6 +460,14 @@ export default function Tickets() {
     return Array.from(deduplicationMap.values());
   }, [ticketInclusions, collaborators]);
 
+  // Banner: trocas pendentes que aparecem de fato na tabela de Passagem.
+  // Derivado do mesmo conjunto exibido (deduplicado), garantindo que o contador
+  // do banner sempre bata com o número de linhas mostradas ao ativar o filtro.
+  const pendingTicketSwapsCount = useMemo(() => {
+    if (!isPurchasingRole) return 0;
+    return deduplicatedInclusions.filter(inc => pendingSwapByInclusion.has(inc.id)).length;
+  }, [isPurchasingRole, deduplicatedInclusions, pendingSwapByInclusion]);
+
   // Apply ticket status filter to deduplicated inclusions and apply sorting
   const filteredTicketInclusions = useMemo(() => {
     const filtered = deduplicatedInclusions.filter(inclusion => {
@@ -519,7 +515,7 @@ export default function Tickets() {
     }
     
     return filtered;
-  }, [deduplicatedInclusions, filters.ticketStatus, tickets, sortConfig, events, functions, collaborators]);
+  }, [deduplicatedInclusions, filters.ticketStatus, showOnlyPendingSwaps, pendingSwapByInclusion, tickets, sortConfig, events, functions, collaborators]);
 
   const handleTicketDataChange = (inclusionId: string, field: string, value: any) => {
     setTicketData(prev => ({

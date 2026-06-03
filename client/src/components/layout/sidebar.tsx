@@ -148,7 +148,10 @@ export default function Sidebar() {
     return swapRequests.filter(s => {
       if (s.status !== 'pendente') return false;
       const inclId = (s as any).team_inclusion_id || s.teamInclusionId;
-      return !alreadyHandledStatuses.has(inclusionStatusMap[inclId]);
+      const st = inclusionStatusMap[inclId];
+      // Só conta quando a inclusão já foi carregada e ainda não teve logística tratada.
+      // Sem este guard, status indefinido (inclusão não carregada/inexistente) gera badge fantasma.
+      return !!st && !alreadyHandledStatuses.has(st);
     }).length;
   }, [swapRequests, isPurchasing, inclusionStatusMap]);
 
