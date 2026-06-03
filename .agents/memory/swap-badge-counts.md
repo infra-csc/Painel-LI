@@ -37,3 +37,17 @@ mis-routed. Fix: `/api/swap-requests` now embeds `inclusion_status` and
 embedded status (helper falls back to the old map). Badge stage by inclusion status:
 `passagem_comprada`/`hospedagem_passagem_comprada` → Passagem; `hospedagem_comprada`
 → Hospedagem; anything else still pending → Escalação; deleted inclusion → no badge.
+
+**Dev and prod swap data diverge — verify production when a count complaint can't be
+reproduced.** A "badge says 1 but I can't find it" report was unreproducible in dev
+(dev's pending swap was a `passagem_comprada` inclusion) but in prod the pending swap
+was on an `escalado` inclusion, so the Escalação badge was actually CORRECT. The real
+problem was findability among 1000+ rows. Use the database skill (environment:
+"production", read-only) to check the actual prod rows before assuming a logic bug.
+
+**Escalação page has a "Ver trocas pendentes" banner/shortcut** mirroring the
+tickets/passagem pattern: a banner appears when any rendered inclusion has a pending
+swap; clicking filters both tabs to swap-only and jumps to the tab holding the match.
+The filter auto-clears when the visible pending count hits 0 (otherwise the only
+"Mostrar todos" escape hatch disappears and the view gets stuck empty). The Escalação
+tabs are CONTROLLED state for this reason, not `defaultValue`.

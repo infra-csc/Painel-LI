@@ -4,7 +4,7 @@ import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
 import { markSwapSeen, getSeenState } from "@/lib/seenSwaps";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
-import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File, HelpCircle, ArrowLeftRight, AlertCircle, RotateCcw } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File, HelpCircle, ArrowLeftRight, ArrowRight, AlertCircle, RotateCcw } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -81,6 +81,11 @@ export default function Scaling() {
   const [swapSuccess, setSwapSuccess] = useState(false);
   const [swapSubmitAttempted, setSwapSubmitAttempted] = useState(false);
   const [showCancelSwapConfirm, setShowCancelSwapConfirm] = useState(false);
+
+  // Atalho para localizar trocas pendentes na lista de escalação
+  const [showOnlyPendingSwaps, setShowOnlyPendingSwaps] = useState(false);
+  const [scalingTab, setScalingTab] = useState<string>("without-ticket");
+  const tabInitialized = useRef(false);
 
   // Cache de metadados de anexos { [id]: { name, type, viewUrl, downloadUrl } }
   const [attachmentMeta, setAttachmentMeta] = useState<Record<string, { name?: string; type?: string; viewUrl?: string; downloadUrl?: string }>>({});
@@ -596,6 +601,45 @@ export default function Scaling() {
       return new Date(a.scheduleStartDate).getTime() - new Date(b.scheduleStartDate).getTime();
     });
   }, [filteredTeamInclusions, filters, sortConfig, events, functions, collaborators]);
+
+  // Inclusões visíveis com troca pendente — usado pelo atalho/banner
+  const pendingSwapInclusionsInView = useMemo(
+    () => scalingInclusions.filter(i => pendingSwapByInclusion.has(i.id)),
+    [scalingInclusions, pendingSwapByInclusion]
+  );
+
+  // Define a aba inicial assim que os dados carregam (preserva o comportamento antigo)
+  useEffect(() => {
+    if (tabInitialized.current) return;
+    if (scalingInclusions.length > 0) {
+      const hasWithout = scalingInclusions.some(i => !i.needsTicket);
+      setScalingTab(hasWithout ? "without-ticket" : "with-ticket");
+      tabInitialized.current = true;
+    }
+  }, [scalingInclusions]);
+
+  // Garante saída do filtro caso não haja mais trocas pendentes na visão atual
+  useEffect(() => {
+    if (showOnlyPendingSwaps && pendingSwapInclusionsInView.length === 0) {
+      setShowOnlyPendingSwaps(false);
+    }
+  }, [showOnlyPendingSwaps, pendingSwapInclusionsInView.length]);
+
+  // Enquanto filtrando, mantém o usuário numa aba que contém a troca pendente
+  useEffect(() => {
+    if (!showOnlyPendingSwaps) return;
+    const hasWithout = pendingSwapInclusionsInView.some(i => !i.needsTicket);
+    const hasWith = pendingSwapInclusionsInView.some(i => i.needsTicket);
+    if (scalingTab === "without-ticket" && !hasWithout && hasWith) setScalingTab("with-ticket");
+    else if (scalingTab === "with-ticket" && !hasWith && hasWithout) setScalingTab("without-ticket");
+  }, [showOnlyPendingSwaps, scalingTab, pendingSwapInclusionsInView]);
+
+  // Liga o filtro de trocas pendentes e leva o usuário à aba que contém a troca
+  const goToPendingSwaps = () => {
+    setShowOnlyPendingSwaps(true);
+    const match = pendingSwapInclusionsInView[0];
+    if (match) setScalingTab(match.needsTicket ? "with-ticket" : "without-ticket");
+  };
 
   const updateTeamInclusionMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
@@ -1287,15 +1331,52 @@ export default function Scaling() {
               </p>
             </div>
           ) : (() => {
-            const withoutTicket = scalingInclusions.filter(inclusion => !inclusion.needsTicket);
-            const withTicket = scalingInclusions.filter(inclusion => inclusion.needsTicket);
+            const withoutTicketBase = scalingInclusions.filter(inclusion => !inclusion.needsTicket);
+            const withTicketBase = scalingInclusions.filter(inclusion => inclusion.needsTicket);
+            const withoutTicket = showOnlyPendingSwaps
+              ? withoutTicketBase.filter(inclusion => pendingSwapByInclusion.has(inclusion.id))
+              : withoutTicketBase;
+            const withTicket = showOnlyPendingSwaps
+              ? withTicketBase.filter(inclusion => pendingSwapByInclusion.has(inclusion.id))
+              : withTicketBase;
             
             // Count pending escalations (excluding canceled ones)
             const withoutTicketPending = withoutTicket.filter(inclusion => !isEscalated(inclusion) && inclusion.status !== "cancelado").length;
             const withTicketPending = withTicket.filter(inclusion => !isEscalated(inclusion) && inclusion.status !== "cancelado").length;
             
             return (
-              <Tabs defaultValue={withoutTicket.length > 0 ? "without-ticket" : "with-ticket"} className="w-full">
+              <Tabs value={scalingTab} onValueChange={setScalingTab} className="w-full">
+                {pendingSwapInclusionsInView.length > 0 && (
+                  <div className="mb-3 flex items-center gap-3 rounded-xl border border-purple-200 bg-purple-50 px-4 py-3">
+                    <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
+                      <ArrowLeftRight className="w-4 h-4 text-purple-600" />
+                    </div>
+                    <p className="text-[13px] font-medium text-purple-800 flex-1 min-w-0">
+                      {pendingSwapInclusionsInView.length === 1
+                        ? "1 solicitação de troca de colaborador aguardando análise"
+                        : `${pendingSwapInclusionsInView.length} solicitações de troca de colaborador aguardando análise`}
+                    </p>
+                    {showOnlyPendingSwaps ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowOnlyPendingSwaps(false)}
+                        className="shrink-0 text-[12px] font-semibold text-purple-700 hover:text-purple-900 underline underline-offset-2"
+                        data-testid="button-clear-pending-swaps"
+                      >
+                        Mostrar todos
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={goToPendingSwaps}
+                        className="shrink-0 rounded-lg bg-purple-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-purple-700 transition-colors"
+                        data-testid="button-show-pending-swaps"
+                      >
+                        Ver trocas pendentes
+                      </button>
+                    )}
+                  </div>
+                )}
                 <TabsList className="grid grid-cols-2 gap-4 h-auto bg-transparent p-0 w-full mb-2">
                   {/* Card: Sem Passagem */}
                   <TabsTrigger
