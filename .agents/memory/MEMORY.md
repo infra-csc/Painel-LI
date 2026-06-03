@@ -1,3 +1,5 @@
 - [DB migration convention](db-migration-convention.md) — schema changes go via manual ALTER TABLE (tsx+pg) + shared/schema.ts, NOT db:push/migrations; migration 0000 is stale.
 - [Swap badge & banner counts](swap-badge-counts.md) — pending-swap counts must derive from the displayed/deduped set; treat undefined status as "don't count"; keep filter memo deps complete.
+- [Cross-site session cookie](cross-site-session-cookie.md) — app is SSO-launched from Portal Norte; prod cookie must be SameSite=None+Secure (dev: Lax); 401+new SessionID per request = Lax dropped cross-site; CSRF Origin guard added.
+- [apiRequest error shape](apirequest-error-shape.md) — thrown Error now carries .status/.body/.response shim so onError toasts show the real server message, not a generic fallback.
 - [Route authz identity source](route-authz-identity.md) — derive identity from req.session.userId ONLY on destructive/role-gated routes; the `|| req.body._userId` fallback (in older routes) is spoofable.

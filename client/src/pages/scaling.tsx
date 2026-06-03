@@ -258,6 +258,14 @@ export default function Scaling() {
       queryClient.invalidateQueries({ queryKey: ["/api/swap-requests"] });
     },
     onError: async (err: any) => {
+      if (err?.status === 401) {
+        toast({
+          title: "Sessão expirada",
+          description: "Sua sessão expirou. Atualize a página e entre novamente para solicitar a troca.",
+          variant: "destructive",
+        });
+        return;
+      }
       const msg = await err?.response?.json?.().catch(() => null);
       toast({ title: "Erro", description: msg?.message || "Erro ao criar solicitação", variant: "destructive" });
     },

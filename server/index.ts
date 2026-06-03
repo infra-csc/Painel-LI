@@ -36,9 +36,14 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false,
+    // Em produção o app roda sob HTTPS e é aberto a partir do Portal Norte
+    // (contexto cross-site/iframe). Cookies "Lax" são bloqueados nesse caso,
+    // o que derruba a sessão (cada request vira UserID: none → 401).
+    // "None" + "Secure" permite o cookie de sessão em contexto cross-site.
+    // Em desenvolvimento (http://localhost) mantemos Lax + secure:false.
+    secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
   },
   name: 'sessionId'
@@ -166,6 +171,31 @@ app.use((req, res, next) => {
     console.log(`[Session] ${req.method} ${req.path} - SessionID: ${req.sessionID || 'none'}, UserID: ${req.session?.userId || 'none'}`);
   }
   next();
+});
+
+// CSRF defense-in-depth — como em produção o cookie de sessão é SameSite=None
+// (necessário para o contexto cross-site do Portal Norte), validamos a origem
+// das requisições que alteram dados. Bloqueia apenas quando o Origin existe e é
+// claramente de outro site. Em caso de dúvida (sem Origin, host indeterminado,
+// chamadas server-to-server) deixa passar — fail-open para não derrubar fluxos
+// legítimos.
+app.use((req, res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  const origin = req.headers.origin;
+  if (!origin) return next();
+  let originHost: string;
+  try {
+    originHost = new URL(origin).host;
+  } catch {
+    return next();
+  }
+  const allowedHosts = [req.headers['x-forwarded-host'], req.headers.host]
+    .flatMap((h) => (typeof h === 'string' ? h.split(',') : []))
+    .map((h) => h.trim())
+    .filter(Boolean);
+  if (allowedHosts.length === 0 || allowedHosts.includes(originHost)) return next();
+  console.warn(`[CSRF] Bloqueado ${req.method} ${req.path} — origin=${originHost} hosts=${allowedHosts.join(',')}`);
+  return res.status(403).json({ message: 'Origem não permitida' });
 });
 
 app.use((req, res, next) => {
