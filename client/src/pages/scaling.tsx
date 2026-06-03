@@ -2073,7 +2073,7 @@ export default function Scaling() {
                                   if (!swap) return null;
 
                                   const isAdminOrPurchasing = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
-                                  const canCancel = swap.status === 'pendente' && (isAdminOrPurchasing || (swap as any).requested_by === user?.id);
+                                  const canCancel = swap.status === 'pendente' && (swap as any).requested_by === user?.id;
 
                                   const variants: Record<string, { bg: string; border: string; icon: React.ReactNode; title: string; badge: string; badgeClass: string; msg: string; textColor: string }> = {
                                     pendente: {
@@ -2340,7 +2340,7 @@ export default function Scaling() {
 
                       {/* ── Aprovação de Compras (sem passagem/hospedagem) ── */}
                       {(selectedInclusion.status === 'aprovacao' || selectedInclusion.status === 'escalado') &&
-                        !selectedInclusion.needsTicket && !selectedInclusion.needsAccommodation && (
+                        !selectedInclusion.needsTicket && !selectedInclusion.needsAccommodation && !pendingSwap && (
                         <div className="mt-5">
                           <div className="border border-blue-200 rounded-2xl overflow-hidden">
                             <div className="bg-blue-50 border-b border-blue-100 px-4 py-2.5 flex items-center gap-2">
