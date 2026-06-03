@@ -4,7 +4,7 @@ import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
 import { markSwapSeen, getSeenState } from "@/lib/seenSwaps";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
-import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File, HelpCircle, ArrowLeftRight, ArrowRight, AlertCircle, RotateCcw } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File, HelpCircle, ArrowLeftRight, ArrowRight, AlertCircle, RotateCcw, CheckCheck, XCircle } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -81,6 +81,8 @@ export default function Scaling() {
   const [swapSuccess, setSwapSuccess] = useState(false);
   const [swapSubmitAttempted, setSwapSubmitAttempted] = useState(false);
   const [showCancelSwapConfirm, setShowCancelSwapConfirm] = useState(false);
+  const [swapConfirmAction, setSwapConfirmAction] = useState<'approve' | 'reject' | null>(null);
+  const [swapRejectReason, setSwapRejectReason] = useState("");
 
   // Atalho para localizar trocas pendentes na lista de escalação
   const [showOnlyPendingSwaps, setShowOnlyPendingSwaps] = useState(false);
@@ -276,6 +278,41 @@ export default function Scaling() {
     onError: async (err: any) => {
       const msg = await err?.response?.json?.().catch(() => null);
       toast({ title: "Erro", description: msg?.message || "Erro ao cancelar solicitação", variant: "destructive" });
+    },
+  });
+
+  // Mutation para aprovar troca de colaborador (Compras/admin)
+  const approveSwapMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, {});
+      return r.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Troca aprovada", description: "O colaborador foi atualizado na escalação." });
+      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+    },
+    onError: async (err: any) => {
+      const msg = await err?.response?.json?.().catch(() => null);
+      toast({ title: "Erro", description: msg?.message || "Erro ao aprovar troca", variant: "destructive" });
+    },
+  });
+
+  // Mutation para rejeitar troca de colaborador (Compras/admin)
+  const rejectSwapMutation = useMutation({
+    mutationFn: async ({ id, comment }: { id: string; comment?: string }) => {
+      const r = await apiRequest("PATCH", `/api/swap-requests/${id}/reject`, { reviewComment: comment || "" });
+      return r.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Troca rejeitada", description: "A escala permanece com o colaborador atual." });
+      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests"] });
+    },
+    onError: async (err: any) => {
+      const msg = await err?.response?.json?.().catch(() => null);
+      toast({ title: "Erro", description: msg?.message || "Erro ao rejeitar troca", variant: "destructive" });
     },
   });
 
@@ -1776,7 +1813,7 @@ export default function Scaling() {
           })()}
 
       {/* Modal de Detalhes da Escalação — redesenhado com abas */}
-      <Dialog open={showModal} onOpenChange={setShowModal} modal={!showSuccessModal}>
+      <Dialog open={showModal} onOpenChange={(open) => { setShowModal(open); if (!open) { setSwapConfirmAction(null); setSwapRejectReason(''); setShowCancelSwapConfirm(false); } }} modal={!showSuccessModal}>
         <DialogContent className="!max-w-[1180px] w-[95vw] max-h-[88vh] !flex !flex-col p-0 gap-0 overflow-hidden">
           {/* ── Header ── */}
           <div className="px-6 pt-5 pb-4 border-b border-slate-100 shrink-0 flex items-center gap-4 pr-14" style={{ background: 'linear-gradient(to right, #f8faff 0%, #ffffff 60%)' }}>
@@ -2126,6 +2163,29 @@ export default function Scaling() {
                                             <span className="text-slate-400 shrink-0">Motivo:</span>
                                             <span className="text-slate-600 leading-snug">{swap.reason}</span>
                                           </div>
+                                          {/* Ações de Compras: aprovar / recusar troca */}
+                                          {isAdminOrPurchasing && (
+                                            <div className="flex gap-2 pt-1.5">
+                                              <button
+                                                type="button"
+                                                onClick={() => setSwapConfirmAction('approve')}
+                                                disabled={approveSwapMutation.isPending || rejectSwapMutation.isPending}
+                                                className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                                                data-testid="button-approve-swap"
+                                              >
+                                                <CheckCheck className="w-3.5 h-3.5" />Aprovar troca
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => { setSwapConfirmAction('reject'); setSwapRejectReason(''); }}
+                                                disabled={approveSwapMutation.isPending || rejectSwapMutation.isPending}
+                                                className="flex-1 flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                                                data-testid="button-reject-swap"
+                                              >
+                                                <XCircle className="w-3.5 h-3.5" />Recusar troca
+                                              </button>
+                                            </div>
+                                          )}
                                         </div>
                                       )}
 
@@ -3291,6 +3351,87 @@ export default function Scaling() {
                 disabled={cancelSwapMutation.isPending}
               >
                 {cancelSwapMutation.isPending ? "Cancelando..." : "Sim, cancelar"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Confirm: Aprovar troca de colaborador (Compras) ── */}
+      <Dialog open={swapConfirmAction === 'approve' && !!pendingSwap} onOpenChange={(open) => { if (!open) setSwapConfirmAction(null); }}>
+        <DialogContent className="max-w-[400px] p-0 gap-0 rounded-2xl overflow-hidden">
+          <div className="px-6 py-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
+                <CheckCheck className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-[14px] font-bold text-slate-900 leading-tight mb-0.5">Aprovar troca de colaborador?</DialogTitle>
+                <p className="text-[12px] text-slate-500 leading-relaxed">Ao confirmar, a alteração do colaborador será liberada para esta escala.</p>
+              </div>
+            </div>
+            {pendingSwap && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 text-[12px]">
+                <div className="flex items-start gap-2">
+                  <span className="text-slate-400 font-medium shrink-0">Atual:</span>
+                  <span className="font-semibold text-slate-700">{getCollaboratorName((pendingSwap as any).current_collaborator_id || (pendingSwap as any).currentCollaboratorId)}</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-slate-400 font-medium shrink-0">Solicitado:</span>
+                  <span className="font-semibold text-blue-700">{getCollaboratorName((pendingSwap as any).new_collaborator_id || (pendingSwap as any).newCollaboratorId)}</span>
+                </div>
+              </div>
+            )}
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1 rounded-xl h-9 text-[12px] border-slate-200 text-slate-600 hover:bg-slate-50" onClick={() => setSwapConfirmAction(null)} disabled={approveSwapMutation.isPending}>Cancelar</Button>
+              <Button
+                className="flex-1 rounded-xl h-9 text-[12px] bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => { if (pendingSwap) { approveSwapMutation.mutate(pendingSwap.id); setSwapConfirmAction(null); } }}
+                disabled={approveSwapMutation.isPending}
+              >
+                {approveSwapMutation.isPending ? "Aprovando..." : "Confirmar aprovação"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Confirm: Recusar troca de colaborador (Compras) ── */}
+      <Dialog open={swapConfirmAction === 'reject' && !!pendingSwap} onOpenChange={(open) => { if (!open) { setSwapConfirmAction(null); setSwapRejectReason(''); } }}>
+        <DialogContent className="max-w-[400px] p-0 gap-0 rounded-2xl overflow-hidden">
+          <div className="px-6 py-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
+                <XCircle className="w-4 h-4 text-red-500" />
+              </div>
+              <div>
+                <DialogTitle className="text-[14px] font-bold text-slate-900 leading-tight mb-0.5">Recusar troca de colaborador?</DialogTitle>
+                <p className="text-[12px] text-slate-500 leading-relaxed">A solicitação será recusada e a escala continuará com o colaborador atual.</p>
+              </div>
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Motivo da recusa <span className="text-red-400">*</span></label>
+              <textarea
+                value={swapRejectReason}
+                onChange={e => setSwapRejectReason(e.target.value)}
+                className="mt-1.5 w-full border border-slate-200 rounded-xl p-2.5 text-[13px] text-slate-700 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300"
+                rows={3}
+                placeholder="Descreva o motivo da recusa..."
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1 rounded-xl h-9 text-[12px] border-slate-200 text-slate-600 hover:bg-slate-50" onClick={() => { setSwapConfirmAction(null); setSwapRejectReason(''); }} disabled={rejectSwapMutation.isPending}>Cancelar</Button>
+              <Button
+                className="flex-1 rounded-xl h-9 text-[12px] bg-red-500 hover:bg-red-600 text-white"
+                onClick={() => {
+                  if (!swapRejectReason.trim() || !pendingSwap) return;
+                  rejectSwapMutation.mutate({ id: pendingSwap.id, comment: swapRejectReason });
+                  setSwapConfirmAction(null);
+                  setSwapRejectReason('');
+                }}
+                disabled={rejectSwapMutation.isPending || !swapRejectReason.trim()}
+              >
+                {rejectSwapMutation.isPending ? "Recusando..." : "Confirmar recusa"}
               </Button>
             </div>
           </div>
