@@ -27,7 +27,15 @@ import {
   insertSwapRequestSchema
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
-import { randomBytes } from "crypto";
+import { randomBytes, timingSafeEqual } from "crypto";
+
+// Comparação de tokens em tempo constante (defesa contra timing attacks)
+function safeTokenEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
 import { getOperationalMirror, recalculateLogisticsSuggestions, exportOperationalMirrorExcel, patchOperationalMirrorCell } from "./operational-mirror";
 import {
   uberGroups as uberGroupsTable,
@@ -191,7 +199,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(503).json({ message: "Integração não configurada" });
       return false;
     }
-    if (!token || token !== secret) {
+    if (!token || !safeTokenEqual(token, secret)) {
       res.status(401).json({ message: "Não autorizado" });
       return false;
     }
