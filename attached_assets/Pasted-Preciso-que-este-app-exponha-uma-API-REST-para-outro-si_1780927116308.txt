@@ -1,0 +1,58 @@
+Preciso que este app exponha uma API REST para outro sistema (a "Maratona") consumir. Crie 3 endpoints GET que devolvem JSON, todos protegidos por token.
+
+Autenticação (todos os endpoints):
+
+Toda requisição virá com o cabeçalho Authorization: Bearer <TOKEN>.
+Guarde um token secreto (ex.: numa variável de ambiente/secret chamada MARATONA_API_TOKEN) e compare com o valor recebido. Se não bater, responda 401.
+1. GET /api/integration/employees — todos os colaboradores:
+
+[
+  {
+    "externalId": "123",
+    "name": "João Silva",
+    "document": "000.000.000-00",
+    "email": "joao@email.com",
+    "phone": "11999990000",
+    "department": "Operações",
+    "functionName": "Cenotécnica",
+    "active": true
+  }
+]
+
+externalId (obrigatório): id único e estável do colaborador (sempre o mesmo entre sincronizações).
+name (obrigatório). Os demais campos são opcionais.
+2. GET /api/integration/events — todos os eventos:
+
+[
+  {
+    "externalId": "EV-2026-001",
+    "name": "Feira X 2026",
+    "clientName": "Cliente ABC",
+    "location": "Expo Center",
+    "city": "São Paulo",
+    "state": "SP",
+    "startDate": "2026-03-10",
+    "endDate": "2026-03-14"
+  }
+]
+
+externalId (obrigatório): id único e estável do evento.
+name (obrigatório); startDate no formato AAAA-MM-DD. Os demais são opcionais.
+3. GET /api/integration/participations — quem participou de cada evento e em qual função:
+
+[
+  {
+    "eventExternalId": "EV-2026-001",
+    "employeeExternalId": "123",
+    "functionName": "Cenotécnica",
+    "teamName": "Equipe A",
+    "confirmed": true
+  }
+]
+
+eventExternalId e employeeExternalId (obrigatórios): precisam bater exatamente com os externalId dos endpoints acima.
+functionName: a função da pessoa naquele evento (ex.: "Cenotécnica" ou "Cenotécnica Local").
+Observações importantes:
+
+Pode devolver todos os eventos/colaboradores/participações — a Maratona já filtra sozinha o que interessa (eventos de 2026 + funções Cenotécnica/Cenotécnica Local). Se preferir reduzir o tamanho da resposta, pode mandar só esses, mas não é obrigatório.
+Os externalId precisam ser sempre os mesmos a cada chamada — é por eles que a Maratona reconhece e atualiza os registros em vez de duplicar.

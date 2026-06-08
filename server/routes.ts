@@ -177,6 +177,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return true;
   };
 
+  // ── Maratona — API de Integração (somente leitura) ────────────────────────
+  // Endpoints GET consumidos server-to-server pelo sistema "Maratona".
+  // Autenticação: Authorization: Bearer <MARATONA_API_TOKEN>
+  // Os externalId são os IDs estáveis (uuid) das tabelas, garantindo que a
+  // Maratona reconheça e atualize registros em vez de duplicar.
+  const validateMaratonaToken = (req: any, res: any): boolean => {
+    const authHeader = req.headers["authorization"] as string | undefined;
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    const secret = process.env.MARATONA_API_TOKEN;
+    if (!secret) {
+      console.error("[Maratona API] MARATONA_API_TOKEN não configurado");
+      res.status(503).json({ message: "Integração não configurada" });
+      return false;
+    }
+    if (!token || token !== secret) {
+      res.status(401).json({ message: "Não autorizado" });
+      return false;
+    }
+    return true;
+  };
+
+  // 1. GET /api/integration/employees — todos os colaboradores
+  app.get("/api/integration/employees", async (req, res) => {
+    if (!validateMaratonaToken(req, res)) return;
+    try {
+      const collaborators = await storage.getCollaborators();
+      const payload = collaborators.map((c) => ({
+        externalId: c.id,
+        name: c.fullName,
+        document: c.officialDocument ?? undefined,
+        phone: c.phone ?? undefined,
+        active: c.active !== false && c.status !== "inativo",
+      }));
+      return res.json(payload);
+    } catch (err) {
+      console.error("[Maratona API] Erro ao listar colaboradores:", err);
+      return res.status(500).json({ message: "Erro interno" });
+    }
+  });
+
+  // 2. GET /api/integration/events — todos os eventos
+  app.get("/api/integration/events", async (req, res) => {
+    if (!validateMaratonaToken(req, res)) return;
+    try {
+      const events = await storage.getEvents();
+      const payload = events.map((e) => ({
+        externalId: e.id,
+        name: e.name,
+        location: e.location ?? undefined,
+        startDate: e.startDate ?? undefined,
+        endDate: e.endDate ?? undefined,
+      }));
+      return res.json(payload);
+    } catch (err) {
+      console.error("[Maratona API] Erro ao listar eventos:", err);
+      return res.status(500).json({ message: "Erro interno" });
+    }
+  });
+
+  // 3. GET /api/integration/participations — participações (colaborador x evento x função)
+  app.get("/api/integration/participations", async (req, res) => {
+    if (!validateMaratonaToken(req, res)) return;
+    try {
+      const [inclusions, functions] = await Promise.all([
+        storage.getTeamInclusions(),
+        storage.getFunctions(),
+      ]);
+      const functionNameById = new Map(functions.map((f) => [f.id, f.name]));
+      const payload = inclusions
+        .filter((ti) => ti.collaboratorId)
+        .map((ti) => ({
+          eventExternalId: ti.eventId,
+          employeeExternalId: ti.collaboratorId,
+          functionName: functionNameById.get(ti.functionId) ?? undefined,
+          teamName: ti.area ?? undefined,
+          // "confirmado" = qualquer status que não seja apenas planejado ou cancelado
+          confirmed: ti.status !== "planejado" && ti.status !== "cancelado",
+        }));
+      return res.json(payload);
+    } catch (err) {
+      console.error("[Maratona API] Erro ao listar participações:", err);
+      return res.status(500).json({ message: "Erro interno" });
+    }
+  });
+
   const normalizeRolePortal = (r?: string): string => {
     if (!r) return "production";
     const lower = r.toLowerCase().trim();
