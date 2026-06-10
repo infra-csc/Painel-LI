@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Edit, Key, Search, AlertCircle, X, UserPlus, Users,
   CheckCircle, XCircle, UserCheck, UserMinus,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, ShieldCheck
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -140,6 +140,17 @@ export default function AdminUsers() {
     mutationFn: async ({ userId, status }: { userId: string; status: "approved" | "rejected" }) =>
       (await apiRequest("PATCH", `/api/users/${userId}/approval`, { status })).json(),
     onSuccess: () => { toast({ title: "Sucesso", description: "Status do usuário atualizado" }); queryClient.invalidateQueries({ queryKey: ["/api/users"] }); },
+    onError: (e: Error) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+  });
+
+  const toggleCenotecnicaMutation = useMutation({
+    mutationFn: async (userId: string) =>
+      (await apiRequest("PATCH", `/api/users/${userId}/toggle-cenotecnica-approval`)).json(),
+    onSuccess: (data) => {
+      const label = data.canApproveCenotecnica ? "habilitada" : "desabilitada";
+      toast({ title: "Permissão atualizada", description: `Aprovação de cenotécnica ${label} para este usuário.` });
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+    },
     onError: (e: Error) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
   });
 
@@ -465,6 +476,31 @@ export default function AdminUsers() {
                                     {u.isActive !== false ? "Desativar Usuário" : "Reativar Usuário"}
                                   </TooltipContent>
                                 </Tooltip>
+
+                                {/* Admin-only: toggle cenotécnica approval permission */}
+                                {isAdmin && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <button
+                                        onClick={() => toggleCenotecnicaMutation.mutate(u.id)}
+                                        disabled={toggleCenotecnicaMutation.isPending}
+                                        className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors disabled:opacity-40 ${
+                                          (u as any).canApproveCenotecnica
+                                            ? "text-violet-600 bg-violet-50 hover:bg-violet-100"
+                                            : "text-slate-400 hover:text-violet-600 hover:bg-violet-50"
+                                        }`}
+                                        data-testid={`button-toggle-cenotecnica-${u.id}`}
+                                      >
+                                        <ShieldCheck className="w-3.5 h-3.5" />
+                                      </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      {(u as any).canApproveCenotecnica
+                                        ? "Remover permissão: aprovar cenotécnica"
+                                        : "Dar permissão: aprovar cenotécnica"}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
                               </>
                             )}
                           </div>

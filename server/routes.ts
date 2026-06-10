@@ -1009,6 +1009,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: Toggle can_approve_cenotecnica permission
+  app.patch("/api/users/:id/toggle-cenotecnica-approval", async (req, res) => {
+    try {
+      const adminId = req.session.userId;
+      if (!adminId) return res.status(401).json({ message: "Não autenticado" });
+
+      const admin = await storage.getUser(adminId);
+      const isAdmin = admin && ['admin', 'administrator', 'administrador'].includes(admin.role ?? '');
+      if (!isAdmin) return res.status(403).json({ message: "Apenas administradores podem alterar esta permissão" });
+
+      const { id } = req.params;
+      const targetUser = await storage.getUser(id);
+      if (!targetUser) return res.status(404).json({ message: "Usuário não encontrado" });
+
+      const newValue = !targetUser.canApproveCenotecnica;
+      const updated = await storage.updateUser(id, { canApproveCenotecnica: newValue });
+      res.json({ ...updated, password: undefined, resetToken: undefined, resetTokenExpiry: undefined });
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao atualizar permissão" });
+    }
+  });
+
   // Admin: Reset user password
   app.post("/api/users/:id/reset-password", async (req, res) => {
     try {
@@ -1878,10 +1900,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(userId);
       if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
 
-      const isProduction = user.role === 'production';
       const isAdmin = ['admin', 'administrator', 'administrador'].includes(user.role ?? '');
-      if (!isProduction && !isAdmin) {
-        return res.status(403).json({ message: "Apenas usuários de produção podem aprovar escalações de cenotécnica" });
+      const hasPermission = isAdmin || user.canApproveCenotecnica === true;
+      if (!hasPermission) {
+        return res.status(403).json({ message: "Você não tem permissão para aprovar escalações de cenotécnica" });
       }
 
       const inclusion = await storage.getTeamInclusion(id);

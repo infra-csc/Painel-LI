@@ -344,6 +344,26 @@ export default function Scaling() {
     },
   });
 
+  // Mutation para aprovação de cenotécnica pela Produção (Vinicius Alexandre)
+  const [showApproveProductionConfirm, setShowApproveProductionConfirm] = useState(false);
+  const approveProductionMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await apiRequest("PATCH", `/api/team-inclusions/${id}/approve-production`, {});
+      return r.json();
+    },
+    onSuccess: () => {
+      setShowApproveProductionConfirm(false);
+      setShowModal(false);
+      toast({ title: "Aprovado pela Produção", description: "Escalação de cenotécnica aprovada e enviada ao fluxo normal." });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+      queryClient.refetchQueries({ queryKey: ["/api/team-inclusions"] });
+    },
+    onError: async (err: any) => {
+      const msg = await err?.response?.json?.().catch(() => null);
+      toast({ title: "Erro ao aprovar", description: msg?.message || "Erro ao aprovar escalação", variant: "destructive" });
+    },
+  });
+
   // Mutation para reativar escalação cancelada (admin only)
   const [showReactivateConfirm, setShowReactivateConfirm] = useState(false);
   const reactivateMutation = useMutation({
@@ -2424,6 +2444,45 @@ export default function Scaling() {
                         </div>
                       )}
 
+                      {/* ── Aprovação da Produção (cenotécnica) ── */}
+                      {selectedInclusion.status === 'aguardando_producao' && (
+                        <div className="mt-5">
+                          <div className="border border-red-200 rounded-2xl overflow-hidden">
+                            <div className="bg-red-50 border-b border-red-100 px-4 py-2.5 flex items-center gap-2">
+                              <AlertCircle className="w-4 h-4 text-red-600" />
+                              <span className="text-[11px] font-black text-red-700 uppercase tracking-[0.12em]">Aprovação da Produção</span>
+                            </div>
+                            <div className="p-4">
+                              {((user as any)?.canApproveCenotecnica || user?.role === 'admin' || user?.role === 'administrator' || user?.role === 'administrador') ? (
+                                <div className="space-y-3">
+                                  <p className="text-[12px] text-slate-600 leading-relaxed">
+                                    Esta escalação de cenotécnica aguarda sua aprovação antes de seguir para as próximas etapas.
+                                  </p>
+                                  <Button
+                                    onClick={() => setShowApproveProductionConfirm(true)}
+                                    disabled={approveProductionMutation.isPending}
+                                    className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white rounded-xl h-9 text-[13px] font-semibold"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    {approveProductionMutation.isPending ? "Aprovando..." : "Aprovar escalação"}
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-3 py-2">
+                                  <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                                    <Clock className="w-4 h-4 text-red-500" />
+                                  </div>
+                                  <div>
+                                    <p className="text-[12px] font-semibold text-slate-700">Aguardando aprovação da Produção</p>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">A equipe de Produção precisa aprovar esta escalação de cenotécnica.</p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* ── Aprovação de Compras (sem passagem/hospedagem) ── */}
                       {(selectedInclusion.status === 'aprovacao' || selectedInclusion.status === 'escalado') &&
                         !selectedInclusion.needsTicket && !selectedInclusion.needsAccommodation && !pendingSwap && (
@@ -3554,6 +3613,42 @@ export default function Scaling() {
                 disabled={approveEscalationMutation.isPending}
               >
                 {approveEscalationMutation.isPending ? "Aprovando..." : "Sim, aprovar"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Confirm: Aprovação da Produção (cenotécnica) ── */}
+      <Dialog open={showApproveProductionConfirm} onOpenChange={(open) => { if (!open) setShowApproveProductionConfirm(false); }}>
+        <DialogContent className="max-w-[400px] p-0 gap-0 rounded-2xl overflow-hidden">
+          <div className="px-6 py-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
+                <Check className="w-4 h-4 text-red-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-[14px] font-bold text-slate-900 leading-tight mb-0.5">Aprovar escalação de cenotécnica?</DialogTitle>
+                <p className="text-[12px] text-slate-500 leading-relaxed">
+                  A escalação será aprovada pela Produção e seguirá para o fluxo normal (passagem, hospedagem ou compras).
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="outline"
+                className="flex-1 rounded-xl h-9 text-[12px] border-slate-200 text-slate-600 hover:bg-slate-50"
+                onClick={() => setShowApproveProductionConfirm(false)}
+                disabled={approveProductionMutation.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 rounded-xl h-9 text-[12px] bg-red-600 hover:bg-red-700 text-white"
+                onClick={() => { if (selectedInclusion) approveProductionMutation.mutate(selectedInclusion.id); }}
+                disabled={approveProductionMutation.isPending}
+              >
+                {approveProductionMutation.isPending ? "Aprovando..." : "Sim, aprovar"}
               </Button>
             </div>
           </div>

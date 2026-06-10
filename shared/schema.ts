@@ -16,6 +16,7 @@ export const users = pgTable("users", {
   status: text("status").notNull().default("pending"), // pending, approved, rejected
   isActive: boolean("is_active").default(true), // account status
   mustChangePassword: boolean("must_change_password").default(false), // force password change
+  canApproveCenotecnica: boolean("can_approve_cenotecnica").default(false), // permissão especial: aprovar escalações de cenotécnica
   createdAt: timestamp("created_at").defaultNow(),
 });
 
