@@ -1692,6 +1692,10 @@ export default function Scaling() {
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold">
                                           <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Cancelado
                                         </span>
+                                      ) : inclusion.status === "aguardando_producao" ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-100">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Aguard. Produção
+                                        </span>
                                       ) : isEscalated(inclusion) ? (
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold">
                                           <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Escalado
@@ -1867,6 +1871,10 @@ export default function Scaling() {
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold">
                                           <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Cancelado
                                         </span>
+                                      ) : inclusion.status === "aguardando_producao" ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-100">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Aguard. Produção
+                                        </span>
                                       ) : isEscalated(inclusion) ? (
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold">
                                           <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Escalado
@@ -1959,6 +1967,10 @@ export default function Scaling() {
               selectedInclusion.status === 'cancelado' ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-500 text-[11px] font-bold rounded-full shrink-0 border border-slate-200">
                   <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Cancelado
+                </span>
+              ) : selectedInclusion.status === 'aguardando_producao' ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 text-[11px] font-bold rounded-full shrink-0 border border-red-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Aguardando Produção
                 </span>
               ) : isEscalated(selectedInclusion) ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 text-[11px] font-bold rounded-full shrink-0 border border-green-200">
@@ -2074,6 +2086,10 @@ export default function Scaling() {
                               ) : selectedInclusion.status === 'aprovado' ? (
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 text-emerald-700 text-[11px] font-bold rounded-full">
                                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Aprovado
+                                </span>
+                              ) : selectedInclusion.status === 'aguardando_producao' ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-50 text-red-700 text-[11px] font-bold rounded-full border border-red-100">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Aguardando Produção
                                 </span>
                               ) : isEscalated(selectedInclusion) ? (
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 text-green-700 text-[11px] font-bold rounded-full">
