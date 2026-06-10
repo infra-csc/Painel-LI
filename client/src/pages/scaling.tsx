@@ -627,7 +627,8 @@ export default function Scaling() {
           const escalated = isEscalated(inclusion);
           const isCanceled = inclusion.status === "cancelado";
           if (filters.escalationStatus === "pending" && (escalated || isCanceled)) return false;
-          if (filters.escalationStatus === "escalated" && (!escalated || isCanceled)) return false;
+          if (filters.escalationStatus === "escalated" && (!escalated || isCanceled || inclusion.status === "aguardando_producao")) return false;
+          if (filters.escalationStatus === "aguardando_producao" && inclusion.status !== "aguardando_producao") return false;
           if (filters.escalationStatus === "cancelado" && !isCanceled) return false;
         }
 
