@@ -7,7 +7,7 @@ export interface Notification {
   id: string;
   title: string;
   description: string;
-  type: "approval" | "scaling" | "tickets" | "closure" | "inclusion";
+  type: "approval" | "scaling" | "tickets" | "closure" | "inclusion" | "accommodation" | "production";
   count: number;
   route: string;
 }
@@ -143,6 +143,25 @@ export function useNotifications() {
         type: "accommodation",
         count: pendingAccommodation.length,
         route: "/accommodations",
+      });
+    }
+  }
+
+  // Produção (cenotécnica) - pode ver escalações aguardando aprovação da produção
+  const canApproveProduction = (user as any).canApproveCenotecnica ||
+    ['admin', 'administrator', 'administrador'].includes(user.role);
+  if (canApproveProduction) {
+    const pendingProduction = teamInclusions.filter(
+      (inclusion) => inclusion.status === "aguardando_producao"
+    );
+    if (pendingProduction.length > 0) {
+      notifications.push({
+        id: "pending-cenotecnica",
+        title: "Aprovação de Cenotécnica",
+        description: `${pendingProduction.length} escalação(ões) aguardando aprovação da Produção`,
+        type: "production",
+        count: pendingProduction.length,
+        route: "/scaling",
       });
     }
   }

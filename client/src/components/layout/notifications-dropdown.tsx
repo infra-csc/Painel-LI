@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Bell, CheckCircle, Users, UserCheck, Plane, Calculator, FileText } from "lucide-react";
+import { Bell, CheckCircle, Users, UserCheck, Plane, Calculator, FileText, ShieldAlert } from "lucide-react";
 import { useNotifications } from "@/hooks/use-notifications";
 import {
   DropdownMenu,
@@ -18,6 +18,7 @@ const getNotificationIcon = (type: string) => {
     case "tickets": return Plane;
     case "closure": return Calculator;
     case "approval": return CheckCircle;
+    case "production": return ShieldAlert;
     default: return FileText;
   }
 };
