@@ -413,10 +413,11 @@ export default function Scaling() {
   // Helper function to determine if escalation is completed
   const isEscalated = (inclusion: TeamInclusion) => {
     return inclusion.collaboratorId && (
-      inclusion.status === "escalado" || 
-      inclusion.status === "passagem" || 
+      inclusion.status === "escalado" ||
+      inclusion.status === "aguardando_producao" ||
+      inclusion.status === "passagem" ||
       inclusion.status === "passagem_comprada" ||
-      inclusion.status === "hospedagem" || 
+      inclusion.status === "hospedagem" ||
       inclusion.status === "hospedagem_comprada" ||
       inclusion.status === "aprovacao" ||
       inclusion.status === "aprovado" ||
@@ -441,7 +442,7 @@ export default function Scaling() {
   // Detecta conflitos de escalação para um colaborador
   const getCollaboratorConflicts = (collaboratorId: string, excludeInclusionId?: string) => {
     if (!collaboratorId || !teamInclusions) return { sameEvent: [] as TeamInclusion[], dateOverlap: [] as TeamInclusion[] };
-    const active = ['escalado', 'passagem', 'passagem_comprada', 'hospedagem', 'hospedagem_comprada', 'aprovacao', 'aprovado'];
+    const active = ['escalado', 'aguardando_producao', 'passagem', 'passagem_comprada', 'hospedagem', 'hospedagem_comprada', 'aprovacao', 'aprovado'];
     const others = teamInclusions.filter(ti =>
       ti.collaboratorId === collaboratorId &&
       ti.id !== excludeInclusionId &&
@@ -1084,10 +1085,12 @@ export default function Scaling() {
       return;
     }
 
-    // Se não precisa de passagem nem hospedagem → vai direto para aprovação de Compras
+    // Se é cenotécnica → vai para aprovação da produção (Vinicius Alexandre)
+    const isCenotecnica = isCenotecnicaFunction(selectedInclusion.functionId);
     const noLogistics = !selectedInclusion.needsTicket && !selectedInclusion.needsAccommodation;
-    const nextStatus = noLogistics ? "aprovacao" : "escalado";
-    const nextPhase = noLogistics ? "aprovacao" : "escalacao";
+    // Para cenotécnica: sempre vai para aguardando_producao primeiro
+    const nextStatus = isCenotecnica ? "aguardando_producao" : (noLogistics ? "aprovacao" : "escalado");
+    const nextPhase = isCenotecnica ? "escalacao" : (noLogistics ? "aprovacao" : "escalacao");
 
     console.log("🔍 [CONFIRM DEBUG] Calculated next status:", nextStatus);
     console.log("🔍 [CONFIRM DEBUG] Calculated next phase:", nextPhase);

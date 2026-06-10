@@ -89,6 +89,7 @@
   .status-rejeitado              { @apply bg-red-50      text-red-600;     }
   .status-cancelado              { @apply bg-slate-100   text-slate-400;   }
   .status-escalado               { @apply bg-blue-50     text-blue-600;    }
+  .status-aguardando_producao    { @apply bg-red-50      text-red-700;     }
   .status-aguardando_passagem    { @apply bg-orange-50   text-orange-600;  }
   .status-aguardando_hospedagem  { @apply bg-purple-50   text-purple-600;  }
   

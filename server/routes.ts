@@ -1868,6 +1868,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Aprovação de Produção para cenotécnica
+  app.patch("/api/team-inclusions/:id/approve-production", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.session?.userId;
+      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
+
+      const isProduction = user.role === 'production';
+      const isAdmin = ['admin', 'administrator', 'administrador'].includes(user.role ?? '');
+      if (!isProduction && !isAdmin) {
+        return res.status(403).json({ message: "Apenas usuários de produção podem aprovar escalações de cenotécnica" });
+      }
+
+      const inclusion = await storage.getTeamInclusion(id);
+      if (!inclusion) return res.status(404).json({ message: "Escalação não encontrada" });
+      if (inclusion.status !== 'aguardando_producao') {
+        return res.status(400).json({ message: "Escalação não está aguardando aprovação da produção" });
+      }
+
+      // Verificar se é cenotécnica
+      const func = await storage.getFunction(inclusion.functionId);
+      const funcName = (func?.name || '').toLowerCase();
+      const isCenotecnica = funcName.includes('cenotecnica') || funcName.includes('cenotécnica');
+      if (!isCenotecnica) {
+        return res.status(400).json({ message: "Apenas funções cenotécnicas precisam de aprovação da produção" });
+      }
+
+      // Após aprovação, vai para o fluxo normal
+      const noLogistics = !inclusion.needsTicket && !inclusion.needsAccommodation;
+      const nextStatus = noLogistics ? 'aprovacao' : 'escalado';
+      const nextPhase = noLogistics ? 'aprovacao' : 'escalacao';
+
+      const updated = await storage.updateTeamInclusion(id, {
+        status: nextStatus,
+        phase: nextPhase,
+        approvedByProduction: userId,
+        approvedByProductionAt: new Date(),
+        updatedBy: userId,
+      });
+      await createAuditLog('approve_production', 'team_inclusion', id, updated, userId, user.name ?? 'Produção', inclusion, req);
+      res.json({ message: "Escalação aprovada pela produção", inclusion: updated });
+    } catch (error) {
+      console.error("Error approving production:", error);
+      res.status(500).json({ message: "Erro ao aprovar escalação" });
+    }
+  });
+
   // Reativar escalação cancelada (admin only)
   app.patch("/api/team-inclusions/:id/reactivate", async (req, res) => {
     try {

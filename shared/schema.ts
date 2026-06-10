@@ -133,6 +133,8 @@ export const teamInclusions = pgTable("team_inclusions", {
   updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
   deletedAt: timestamp("deleted_at"), // soft delete - quando foi excluído
   deletedBy: varchar("deleted_by").references(() => users.id), // quem excluiu
+  approvedByProduction: varchar("approved_by_production").references(() => users.id), // quem aprovou a cenotécnica (produção)
+  approvedByProductionAt: timestamp("approved_by_production_at"), // quando a produção aprovou
 });
 
 // Tickets table
