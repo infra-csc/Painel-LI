@@ -1695,7 +1695,7 @@ export default function Scaling() {
                                         </span>
                                       ) : inclusion.status === "aguardando_producao" ? (
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-100">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Aguard. Produção
+                                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Aguard. Gestor
                                         </span>
                                       ) : isEscalated(inclusion) ? (
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold">
@@ -1874,7 +1874,7 @@ export default function Scaling() {
                                         </span>
                                       ) : inclusion.status === "aguardando_producao" ? (
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-100">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Aguard. Produção
+                                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Aguard. Gestor
                                         </span>
                                       ) : isEscalated(inclusion) ? (
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold">
@@ -1971,7 +1971,7 @@ export default function Scaling() {
                 </span>
               ) : selectedInclusion.status === 'aguardando_producao' ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 text-[11px] font-bold rounded-full shrink-0 border border-red-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Aguardando Produção
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Aguardando Gestor
                 </span>
               ) : isEscalated(selectedInclusion) ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 text-[11px] font-bold rounded-full shrink-0 border border-green-200">
@@ -2090,7 +2090,7 @@ export default function Scaling() {
                                 </span>
                               ) : selectedInclusion.status === 'aguardando_producao' ? (
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-50 text-red-700 text-[11px] font-bold rounded-full border border-red-100">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Aguardando Produção
+                                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Aguardando Gestor
                                 </span>
                               ) : isEscalated(selectedInclusion) ? (
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 text-green-700 text-[11px] font-bold rounded-full">
@@ -2528,7 +2528,7 @@ export default function Scaling() {
                           <div className="border border-red-200 rounded-2xl overflow-hidden">
                             <div className="bg-red-50 border-b border-red-100 px-4 py-2.5 flex items-center gap-2">
                               <AlertCircle className="w-4 h-4 text-red-600" />
-                              <span className="text-[11px] font-black text-red-700 uppercase tracking-[0.12em]">Aprovação da Produção</span>
+                              <span className="text-[11px] font-black text-red-700 uppercase tracking-[0.12em]">Aprovação do Gestor</span>
                             </div>
                             <div className="p-4">
                               {((user as any)?.canApproveCenotecnica || user?.role === 'admin' || user?.role === 'administrator' || user?.role === 'administrador') ? (
@@ -2562,8 +2562,8 @@ export default function Scaling() {
                                     <Clock className="w-4 h-4 text-red-500" />
                                   </div>
                                   <div>
-                                    <p className="text-[12px] font-semibold text-slate-700">Aguardando aprovação da Produção</p>
-                                    <p className="text-[11px] text-slate-400 mt-0.5">A equipe de Produção precisa aprovar esta escalação de cenotécnica.</p>
+                                    <p className="text-[12px] font-semibold text-slate-700">Aguardando aprovação do Gestor</p>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">O gestor precisa aprovar esta escalação de cenotécnica.</p>
                                   </div>
                                 </div>
                               )}
@@ -3718,7 +3718,7 @@ export default function Scaling() {
                 <AlertCircle className="w-7 h-7 text-amber-500" />
               </div>
               <div>
-                <DialogTitle className="text-[17px] font-bold text-slate-900 leading-tight">Aguardando aprovação da Produção</DialogTitle>
+                <DialogTitle className="text-[17px] font-bold text-slate-900 leading-tight">Aguardando aprovação do Gestor</DialogTitle>
                 <p className="text-[13px] text-slate-500 mt-1">A escalação foi registrada e está em análise.</p>
               </div>
             </div>
@@ -3747,7 +3747,7 @@ export default function Scaling() {
 
             {/* Mensagem explicativa */}
             <p className="text-[12px] text-slate-500 leading-relaxed text-center">
-              Por ser uma função de <span className="font-semibold text-slate-700">cenotécnica</span>, esta escalação precisa ser aprovada pela equipe de Produção antes de seguir para as próximas etapas.
+              Por ser uma função de <span className="font-semibold text-slate-700">cenotécnica</span>, esta escalação precisa ser aprovada pelo gestor antes de seguir para as próximas etapas.
             </p>
 
             <Button
@@ -3771,7 +3771,7 @@ export default function Scaling() {
               <div>
                 <DialogTitle className="text-[14px] font-bold text-slate-900 leading-tight mb-0.5">Aprovar escalação de cenotécnica?</DialogTitle>
                 <p className="text-[12px] text-slate-500 leading-relaxed">
-                  A escalação será aprovada pela Produção e seguirá para o fluxo normal (passagem, hospedagem ou compras).
+                  A escalação será aprovada pelo Gestor e seguirá para o fluxo normal (passagem, hospedagem ou compras).
                 </p>
               </div>
             </div>
