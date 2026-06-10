@@ -2097,6 +2097,10 @@ export default function Tickets() {
                                 <div className={lbl}>Tipo</div>
                                 <div className={val}>{collaborator.type || '—'}</div>
                               </div>
+                              <div>
+                                <div className={lbl}>Cidade</div>
+                                <div className={val}>{collaborator.city || '—'}</div>
+                              </div>
                             </>)}
                             {/* Badge de status de troca — painel completo fica abaixo do grid */}
                             {(pendingSwap || latestSwap) && (() => {
