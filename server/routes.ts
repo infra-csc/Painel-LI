@@ -1940,6 +1940,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reprovar escalação de cenotécnica pela Produção (remove colaborador, volta p/ escalacao)
+  app.patch("/api/team-inclusions/:id/reject-production", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.session?.userId;
+      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
+
+      const isAdmin = ['admin', 'administrator', 'administrador'].includes(user.role ?? '');
+      const hasPermission = isAdmin || user.canApproveCenotecnica === true;
+      if (!hasPermission) {
+        return res.status(403).json({ message: "Você não tem permissão para reprovar escalações de cenotécnica" });
+      }
+
+      const inclusion = await storage.getTeamInclusion(id);
+      if (!inclusion) return res.status(404).json({ message: "Escalação não encontrada" });
+      if (inclusion.status !== 'aguardando_producao') {
+        return res.status(400).json({ message: "Escalação não está aguardando aprovação da produção" });
+      }
+
+      // Reprovar: remove colaborador e volta para fase de escalação
+      const updated = await storage.updateTeamInclusion(id, {
+        status: 'escalacao',
+        phase: 'escalacao',
+        collaboratorId: null,
+        updatedBy: userId,
+      });
+      await createAuditLog('reject_production', 'team_inclusion', id, updated, userId, user.name ?? 'Produção', inclusion, req);
+      res.json({ message: "Escalação reprovada pela produção — colaborador removido", inclusion: updated });
+    } catch (error) {
+      console.error("Error rejecting production:", error);
+      res.status(500).json({ message: "Erro ao reprovar escalação" });
+    }
+  });
+
   // Reativar escalação cancelada (admin only)
   app.patch("/api/team-inclusions/:id/reactivate", async (req, res) => {
     try {
