@@ -1654,8 +1654,8 @@ export default function Scaling() {
                                       <span className="text-[12px] italic text-slate-400">Não escalado</span>
                                     </div>
                                   )}
-                                  {/* Cidade do colaborador — só para cenotécnica */}
-                                  {isCenotecnicaFunction(inclusion.functionId) && (inclusion.city || getCollaboratorCity(inclusion.collaboratorId)) && (
+                                  {/* Cidade do colaborador */}
+                                  {(inclusion.city || getCollaboratorCity(inclusion.collaboratorId)) && (
                                     <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
                                       <MapPin className="w-3 h-3" />
                                       {inclusion.city || getCollaboratorCity(inclusion.collaboratorId)}
@@ -1829,8 +1829,8 @@ export default function Scaling() {
                                       <span className="text-[12px] italic text-slate-400">Não escalado</span>
                                     </div>
                                   )}
-                                  {/* Cidade do colaborador — só para cenotécnica */}
-                                  {isCenotecnicaFunction(inclusion.functionId) && (inclusion.city || getCollaboratorCity(inclusion.collaboratorId)) && (
+                                  {/* Cidade do colaborador */}
+                                  {(inclusion.city || getCollaboratorCity(inclusion.collaboratorId)) && (
                                     <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
                                       <MapPin className="w-3 h-3" />
                                       {inclusion.city || getCollaboratorCity(inclusion.collaboratorId)}
