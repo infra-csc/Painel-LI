@@ -704,8 +704,12 @@ export default function Scaling() {
   }, [filteredTeamInclusions, filters, sortConfig, events, functions, collaborators]);
 
   // Inclusões visíveis com troca pendente — usado pelo atalho/banner
+  // Exclui inclusões cujo swap já foi tratado por outra aba (Passagem/Hospedagem)
+  const _alreadyHandledSwapStatuses = new Set(['passagem_comprada', 'hospedagem_passagem_comprada', 'hospedagem_comprada']);
   const pendingSwapInclusionsInView = useMemo(
-    () => scalingInclusions.filter(i => pendingSwapByInclusion.has(i.id)),
+    () => scalingInclusions.filter(i =>
+      pendingSwapByInclusion.has(i.id) && !_alreadyHandledSwapStatuses.has(i.status ?? '')
+    ),
     [scalingInclusions, pendingSwapByInclusion]
   );
 
