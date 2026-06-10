@@ -4,7 +4,7 @@ import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
 import { markSwapSeen, getSeenState } from "@/lib/seenSwaps";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
-import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File, HelpCircle, ArrowLeftRight, ArrowRight, AlertCircle, RotateCcw, CheckCheck, XCircle } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File, HelpCircle, ArrowLeftRight, ArrowRight, AlertCircle, RotateCcw, CheckCheck, XCircle, MapPin } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -58,6 +58,7 @@ export default function Scaling() {
     collaboratorId: "",
     observations: "",
     dailyValue: 0,
+    city: "",
   });
   
   // Estados para o modal de comentários
@@ -467,6 +468,17 @@ export default function Scaling() {
   const getFunctionName = (functionId: string | null) => {
     if (!functionId) return "Função não encontrada";
     return functions?.find(f => f.id === functionId)?.name || "Função não encontrada";
+  };
+
+  const isCenotecnicaFunction = (functionId: string | null) => {
+    const name = getFunctionName(functionId).toLowerCase();
+    return name.includes('cenotecnica') || name.includes('cenotécnica');
+  };
+
+  const getCollaboratorCity = (collaboratorId?: string | null) => {
+    if (!collaboratorId) return null;
+    const collab = collaborators?.find(c => c.id === collaboratorId);
+    return collab?.city || null;
   };
 
   const getCollaboratorName = (collaboratorId?: string | null) => {
@@ -989,6 +1001,7 @@ export default function Scaling() {
       collaboratorId: inclusion.collaboratorId || "",
       observations: inclusion.observations || "",
       dailyValue: 0,
+      city: inclusion.city || "",
     });
     setShowModal(true);
     markInclusionSwapSeen(inclusion.id);
@@ -1001,6 +1014,7 @@ export default function Scaling() {
       collaboratorId: inclusion.collaboratorId || "",
       observations: inclusion.observations || "",
       dailyValue: 0,
+      city: inclusion.city || "",
     });
     setShowModal(true);
     markInclusionSwapSeen(inclusion.id);
@@ -1021,6 +1035,7 @@ export default function Scaling() {
     const updateData: any = {
       collaboratorId: modalData.collaboratorId,
       observations: modalData.observations,
+      city: modalData.city,
       // CRÍTICO: Preservar campos de necessidade de passagem/hospedagem
       needsTicket: selectedInclusion.needsTicket,
       needsAccommodation: selectedInclusion.needsAccommodation,
@@ -1080,6 +1095,7 @@ export default function Scaling() {
     const updateData: any = {
       collaboratorId: modalData.collaboratorId,
       observations: modalData.observations,
+      city: modalData.city,
       status: nextStatus,
       phase: nextPhase,
       // CRÍTICO: Preservar campos de necessidade de passagem/hospedagem
@@ -1568,6 +1584,13 @@ export default function Scaling() {
                                       <span className="text-[12px] italic text-slate-400">Não escalado</span>
                                     </div>
                                   )}
+                                  {/* Cidade do colaborador — só para cenotécnica */}
+                                  {isCenotecnicaFunction(inclusion.functionId) && (inclusion.city || getCollaboratorCity(inclusion.collaboratorId)) && (
+                                    <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                                      <MapPin className="w-3 h-3" />
+                                      {inclusion.city || getCollaboratorCity(inclusion.collaboratorId)}
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap">
                                   <div className="text-[12px] font-semibold text-slate-800 whitespace-nowrap">
@@ -1734,6 +1757,13 @@ export default function Scaling() {
                                     <div className="flex items-center gap-2">
                                       <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400 shrink-0">N/E</div>
                                       <span className="text-[12px] italic text-slate-400">Não escalado</span>
+                                    </div>
+                                  )}
+                                  {/* Cidade do colaborador — só para cenotécnica */}
+                                  {isCenotecnicaFunction(inclusion.functionId) && (inclusion.city || getCollaboratorCity(inclusion.collaboratorId)) && (
+                                    <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                                      <MapPin className="w-3 h-3" />
+                                      {inclusion.city || getCollaboratorCity(inclusion.collaboratorId)}
                                     </div>
                                   )}
                                 </td>
@@ -2074,6 +2104,16 @@ export default function Scaling() {
                               <div className="space-y-2">
                                 <div className="border border-slate-200 rounded-xl bg-white px-3 py-2.5">
                                   <div className="text-sm font-medium text-slate-700">{getCollaboratorName(modalData.collaboratorId)}</div>
+                                  {(() => {
+                                    const city = modalData.city || getCollaboratorCity(modalData.collaboratorId);
+                                    if (!city) return null;
+                                    return (
+                                      <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                                        <MapPin className="w-3 h-3" />
+                                        {city}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                                 {/* Card de status de troca */}
                                 {(() => {
@@ -2234,11 +2274,46 @@ export default function Scaling() {
                                 <CollaboratorCombobox
                                   collaborators={collaborators}
                                   value={modalData.collaboratorId}
-                                  onValueChange={(value) => setModalData(prev => ({ ...prev, collaboratorId: value }))}
+                                  onValueChange={(value) => {
+                                    const newCity = getCollaboratorCity(value);
+                                    setModalData(prev => ({ ...prev, collaboratorId: value, city: newCity || prev.city }));
+                                  }}
                                   placeholder="Selecione um colaborador"
                                   testId="select-collaborator-escalation"
                                   hideAll={true}
                                 />
+                                {/* Campo de cidade — só para funções cenotécnicas, editável antes de confirmar */}
+                                {isCenotecnicaFunction(selectedInclusion.functionId) && (
+                                  <div className="space-y-1.5">
+                                    <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                                      <MapPin className="w-3 h-3" />
+                                      Cidade do colaborador
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="text"
+                                        value={modalData.city || ''}
+                                        onChange={(e) => setModalData(prev => ({ ...prev, city: e.target.value }))}
+                                        placeholder="Cidade do colaborador"
+                                        className="w-full px-3 py-2 text-[13px] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
+                                      />
+                                      {modalData.city !== getCollaboratorCity(modalData.collaboratorId) && (
+                                        <button
+                                          type="button"
+                                          onClick={() => setModalData(prev => ({ ...prev, city: getCollaboratorCity(modalData.collaboratorId) || '' }))}
+                                          className="text-[10px] text-slate-400 hover:text-[#2563EB] underline whitespace-nowrap"
+                                        >
+                                          Restaurar
+                                        </button>
+                                      )}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400">
+                                      {modalData.city === getCollaboratorCity(modalData.collaboratorId)
+                                        ? "Cidade do cadastro do colaborador. Pode alterar se necessário."
+                                        : "Cidade alterada para este evento."}
+                                    </p>
+                                  </div>
+                                )}
                                 {/* Alerta de conflito de escalação */}
                                 {(() => {
                                   if (!modalData.collaboratorId) return null;

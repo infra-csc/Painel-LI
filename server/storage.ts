@@ -533,12 +533,17 @@ export class MemStorage implements IStorage {
       scheduleStartDate: insertInclusion.scheduleStartDate ?? null,
       scheduleEndDate: insertInclusion.scheduleEndDate ?? null,
       flightDepartureDate: insertInclusion.flightDepartureDate ?? null,
+      flightDepartureSuggestedTime: insertInclusion.flightDepartureSuggestedTime ?? null,
       flightArrivalSuggestedTime: insertInclusion.flightArrivalSuggestedTime ?? null,
       flightReturnDate: insertInclusion.flightReturnDate ?? null,
       flightReturnSuggestedTime: insertInclusion.flightReturnSuggestedTime ?? null,
       needsTicket: insertInclusion.needsTicket || false,
       needsAccommodation: insertInclusion.needsAccommodation || false,
-      rowOrder: insertInclusion.rowOrder ?? null
+      rowOrder: insertInclusion.rowOrder ?? null,
+      city: insertInclusion.city ?? null,
+      workDays: insertInclusion.workDays ?? null,
+      deletedAt: null,
+      deletedBy: null
     };
     this.teamInclusions.set(id, inclusion);
     return inclusion;
@@ -1057,6 +1062,7 @@ export class DatabaseStorage implements IStorage {
         observations: teamInclusions.observations,
         actualObservations: teamInclusions.actualObservations,
         emergencyRecord: teamInclusions.emergencyRecord,
+        city: teamInclusions.city,
         status: teamInclusions.status,
         previousStatus: teamInclusions.previousStatus,
         phase: teamInclusions.phase,

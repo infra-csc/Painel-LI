@@ -123,6 +123,7 @@ export const teamInclusions = pgTable("team_inclusions", {
   observations: text("observations"),
   actualObservations: text("actual_observations"), // observações do que realmente aconteceu
   emergencyRecord: boolean("emergency_record").default(false), // registro emergencial
+  city: text("city"), // cidade do colaborador no contexto deste evento (pode ser editada antes da confirmação)
   status: text("status").notNull().default("planejado"), // planejado, confirmado, reaberto, escalacao, passagem, passagem_comprada, hospedagem, hospedagem_comprada, hospedagem_passagem_comprada, aprovado, cancelado
   previousStatus: text("previous_status"), // armazena o status anterior quando cancelado
   phase: text("phase").notNull().default("inclusao"), // inclusao, escalacao, passagem, hospedagem, aprovacao
