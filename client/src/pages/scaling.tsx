@@ -366,6 +366,8 @@ export default function Scaling() {
 
   // Mutation para aprovação de cenotécnica pela Produção (Vinicius Alexandre)
   const [showApproveProductionConfirm, setShowApproveProductionConfirm] = useState(false);
+  const [showSentToProductionModal, setShowSentToProductionModal] = useState(false);
+  const [sentToProductionInfo, setSentToProductionInfo] = useState<{ collaboratorName: string; functionName: string; inclusionNumber: number | null } | null>(null);
   const approveProductionMutation = useMutation({
     mutationFn: async (id: string) => {
       const r = await apiRequest("PATCH", `/api/team-inclusions/${id}/approve-production`, {});
@@ -751,15 +753,27 @@ export default function Scaling() {
       }
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
       queryClient.refetchQueries({ queryKey: ["/api/team-inclusions"] });
+      const collabId = updatedInclusion.collaboratorId || modalData.collaboratorId || selectedInclusion?.collaboratorId;
+      const funcName = updatedInclusion.functionId ? getFunctionName(updatedInclusion.functionId) : (selectedInclusion?.functionId ? getFunctionName(selectedInclusion.functionId) : "—");
+      // Se foi confirmada como cenotécnica → mostrar modal de aprovação pendente
+      if (pendingScalingAction.current === 'confirm' && updatedInclusion.status === 'aguardando_producao') {
+        setSentToProductionInfo({
+          collaboratorName: collabId ? getCollaboratorName(collabId) : "—",
+          functionName: funcName,
+          inclusionNumber: updatedInclusion.inclusionNumber ?? selectedInclusion?.inclusionNumber ?? null,
+        });
+        setShowModal(false);
+        setShowSentToProductionModal(true);
+        return;
+      }
       // Show success modal instead of toast
       const msg = pendingScalingAction.current === 'confirm' ? "Escalação confirmada com sucesso!" : "Alterações salvas com sucesso!";
-      const collabId = updatedInclusion.collaboratorId || modalData.collaboratorId || selectedInclusion?.collaboratorId;
       setSuccessInfo({
         message: msg,
         inclusionNumber: updatedInclusion.inclusionNumber ?? selectedInclusion?.inclusionNumber ?? null,
         eventName: events?.find(e => e.id === (updatedInclusion.eventId || selectedInclusion?.eventId))?.name ?? "—",
         collaboratorName: collabId ? getCollaboratorName(collabId) : "—",
-        functionName: updatedInclusion.functionId ? getFunctionName(updatedInclusion.functionId) : (selectedInclusion?.functionId ? getFunctionName(selectedInclusion.functionId) : "—"),
+        functionName: funcName,
       });
       setShowModal(false);
       setShowSuccessModal(true);
@@ -3673,6 +3687,58 @@ export default function Scaling() {
                 {approveEscalationMutation.isPending ? "Aprovando..." : "Sim, aprovar"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Info: Escalação de cenotécnica enviada para aprovação da Produção ── */}
+      <Dialog open={showSentToProductionModal} onOpenChange={(open) => { if (!open) setShowSentToProductionModal(false); }}>
+        <DialogContent className="max-w-[420px] p-0 gap-0 rounded-2xl overflow-hidden">
+          <div className="px-6 pt-7 pb-6 space-y-5">
+            {/* Ícone + título */}
+            <div className="flex flex-col items-center text-center gap-3">
+              <div className="w-14 h-14 rounded-full bg-amber-50 border-2 border-amber-200 flex items-center justify-center">
+                <AlertCircle className="w-7 h-7 text-amber-500" />
+              </div>
+              <div>
+                <DialogTitle className="text-[17px] font-bold text-slate-900 leading-tight">Aguardando aprovação da Produção</DialogTitle>
+                <p className="text-[13px] text-slate-500 mt-1">A escalação foi registrada e está em análise.</p>
+              </div>
+            </div>
+
+            {/* Card de detalhes */}
+            <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3.5 space-y-2">
+              {sentToProductionInfo?.inclusionNumber && (
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Escalação</span>
+                  <span className="text-[12px] font-bold text-slate-700">#{sentToProductionInfo.inclusionNumber}</span>
+                </div>
+              )}
+              {sentToProductionInfo?.collaboratorName && (
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Colaborador</span>
+                  <span className="text-[12px] font-semibold text-slate-700">{sentToProductionInfo.collaboratorName}</span>
+                </div>
+              )}
+              {sentToProductionInfo?.functionName && (
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Função</span>
+                  <span className="text-[12px] font-semibold text-slate-700">{sentToProductionInfo.functionName}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Mensagem explicativa */}
+            <p className="text-[12px] text-slate-500 leading-relaxed text-center">
+              Por ser uma função de <span className="font-semibold text-slate-700">cenotécnica</span>, esta escalação precisa ser aprovada pela equipe de Produção antes de seguir para as próximas etapas.
+            </p>
+
+            <Button
+              className="w-full rounded-xl h-10 text-[13px] font-semibold bg-amber-500 hover:bg-amber-600 text-white"
+              onClick={() => setShowSentToProductionModal(false)}
+            >
+              Entendido
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
