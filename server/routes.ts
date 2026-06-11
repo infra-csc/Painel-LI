@@ -1874,6 +1874,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // BACKEND OVERRIDE: Se está confirmando escalação (enviando colaborador + status escalado),
+      // verificar se a função é cenotécnica e forçar aguardando_producao
+      const isConfirmingEscalation = bodyData.collaboratorId && 
+        bodyData.collaboratorId !== currentInclusion.collaboratorId &&
+        (bodyData.status === 'escalado' || bodyData.status === 'aprovacao');
+      
+      if (isConfirmingEscalation) {
+        const allFunctions = await storage.getFunctions();
+        const func = allFunctions.find(f => f.id === currentInclusion.functionId);
+        const funcName = func?.name?.toLowerCase() || '';
+        if (funcName.includes('cenotecnica') || funcName.includes('cenotécnica')) {
+          console.log("🎭 [CENOTECNICA OVERRIDE] Forcing aguardando_producao for function:", func?.name);
+          bodyData.status = 'aguardando_producao';
+          bodyData.phase = 'escalacao';
+        }
+      }
+
       const updates = { 
         ...bodyData, 
         updatedBy: userId // Use authenticated user ID
@@ -1978,6 +1995,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Reativar escalação cancelada (admin only)
+  // Admin: Fix cenotécnica inclusions stuck with wrong status
+  app.post("/api/admin/fix-cenotecnica-statuses", async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
+      const isAdmin = ['admin', 'administrator', 'administrador'].includes(user.role ?? '');
+      if (!isAdmin) return res.status(403).json({ message: "Apenas administradores podem executar esta correção" });
+
+      const allFunctions = await storage.getFunctions();
+      const cenotecnicaFunctionIds = new Set(
+        allFunctions
+          .filter(f => f.name.toLowerCase().includes('cenotecnica') || f.name.toLowerCase().includes('cenotécnica'))
+          .map(f => f.id)
+      );
+
+      const allInclusions = await storage.getTeamInclusions();
+      const toFix = allInclusions.filter(i =>
+        i.collaboratorId && // has a collaborator (was escalated)
+        i.status === 'escalado' &&
+        i.functionId &&
+        cenotecnicaFunctionIds.has(i.functionId)
+      );
+
+      const fixed = [];
+      for (const inc of toFix) {
+        const updated = await storage.updateTeamInclusion(inc.id, {
+          status: 'aguardando_producao',
+          phase: 'escalacao',
+          updatedBy: userId,
+        });
+        fixed.push({ id: inc.id, inclusionNumber: inc.inclusionNumber });
+      }
+
+      console.log(`✅ [ADMIN FIX] Fixed ${fixed.length} cenotecnica inclusions:`, fixed);
+      res.json({ message: `${fixed.length} escalação(ões) cenotécnica corrigida(s)`, fixed });
+    } catch (error) {
+      console.error("Error fixing cenotecnica statuses:", error);
+      res.status(500).json({ message: "Erro ao corrigir escalações" });
+    }
+  });
+
   app.patch("/api/team-inclusions/:id/reactivate", async (req, res) => {
     try {
       const { id } = req.params;
