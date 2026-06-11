@@ -1884,7 +1884,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const allFunctions = await storage.getFunctions();
         const func = allFunctions.find(f => f.id === currentInclusion.functionId);
         const funcName = func?.name?.toLowerCase() || '';
-        if (funcName.includes('cenotecnica') || funcName.includes('cenotécnica')) {
+        if (funcName.includes('cenotecnica') || funcName.includes('cenotécnica') || funcName.includes('sup ceno')) {
           console.log("🎭 [CENOTECNICA OVERRIDE] Forcing aguardando_producao for function:", func?.name);
           bodyData.status = 'aguardando_producao';
           bodyData.phase = 'escalacao';
@@ -1932,7 +1932,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Verificar se é cenotécnica
       const func = await storage.getFunction(inclusion.functionId);
       const funcName = (func?.name || '').toLowerCase();
-      const isCenotecnica = funcName.includes('cenotecnica') || funcName.includes('cenotécnica');
+      const isCenotecnica = funcName.includes('cenotecnica') || funcName.includes('cenotécnica') || funcName.includes('sup ceno');
       if (!isCenotecnica) {
         return res.status(400).json({ message: "Apenas funções cenotécnicas precisam de aprovação da produção" });
       }
@@ -2008,7 +2008,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allFunctions = await storage.getFunctions();
       const cenotecnicaFunctionIds = new Set(
         allFunctions
-          .filter(f => f.name.toLowerCase().includes('cenotecnica') || f.name.toLowerCase().includes('cenotécnica'))
+          .filter(f => f.name.toLowerCase().includes('cenotecnica') || f.name.toLowerCase().includes('cenotécnica') || f.name.toLowerCase().includes('sup ceno'))
           .map(f => f.id)
       );
 

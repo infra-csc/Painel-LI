@@ -515,7 +515,7 @@ export default function Scaling() {
 
   const isCenotecnicaFunction = (functionId: string | null) => {
     const name = getFunctionName(functionId).toLowerCase();
-    return name.includes('cenotecnica') || name.includes('cenotécnica');
+    return name.includes('cenotecnica') || name.includes('cenotécnica') || name.includes('sup ceno');
   };
 
   const getCollaboratorCity = (collaboratorId?: string | null) => {
