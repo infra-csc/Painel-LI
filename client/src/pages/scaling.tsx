@@ -59,6 +59,7 @@ export default function Scaling() {
     observations: "",
     dailyValue: 0,
     city: "",
+    departureFromSP: true,
   });
   
   // Estados para o modal de comentários
@@ -1055,13 +1056,20 @@ export default function Scaling() {
     }
   };
 
+  const isCityFromSP = (city: string | null | undefined) => {
+    if (!city) return true; // default SP
+    return city.toLowerCase().includes('paulo') || city.trim().toUpperCase() === 'SP';
+  };
+
   const handleRowClick = (inclusion: TeamInclusion) => {
     setSelectedInclusion(inclusion);
+    const city = inclusion.city || "";
     setModalData({
       collaboratorId: inclusion.collaboratorId || "",
       observations: inclusion.observations || "",
       dailyValue: 0,
-      city: inclusion.city || "",
+      city,
+      departureFromSP: isCityFromSP(city),
     });
     setShowModal(true);
     markInclusionSwapSeen(inclusion.id);
@@ -1070,11 +1078,13 @@ export default function Scaling() {
   const handleViewComments = (e: React.MouseEvent, inclusion: TeamInclusion) => {
     e.stopPropagation();
     setSelectedInclusion(inclusion);
+    const city = inclusion.city || "";
     setModalData({
       collaboratorId: inclusion.collaboratorId || "",
       observations: inclusion.observations || "",
       dailyValue: 0,
-      city: inclusion.city || "",
+      city,
+      departureFromSP: isCityFromSP(city),
     });
     setShowModal(true);
     markInclusionSwapSeen(inclusion.id);
@@ -1095,7 +1105,7 @@ export default function Scaling() {
     const updateData: any = {
       collaboratorId: modalData.collaboratorId,
       observations: modalData.observations,
-      city: modalData.city,
+      city: modalData.departureFromSP ? "São Paulo - SP" : (modalData.city || ""),
       // CRÍTICO: Preservar campos de necessidade de passagem/hospedagem
       needsTicket: selectedInclusion.needsTicket,
       needsAccommodation: selectedInclusion.needsAccommodation,
@@ -1144,6 +1154,22 @@ export default function Scaling() {
       return;
     }
 
+    // BLOQUEIO: verificar conflito de datas antes de confirmar
+    const { sameEvent: conflictSameEvent, dateOverlap: conflictDateOverlap } = getCollaboratorConflicts(modalData.collaboratorId, selectedInclusion.id);
+    if (conflictSameEvent.length > 0 || conflictDateOverlap.length > 0) {
+      const conflict = conflictSameEvent[0] || conflictDateOverlap[0];
+      const conflictEventName = getEventName(conflict.eventId);
+      const startStr = conflict.scheduleStartDate ? new Date(conflict.scheduleStartDate).toLocaleDateString('pt-BR') : '';
+      const endStr = conflict.scheduleEndDate ? new Date(conflict.scheduleEndDate).toLocaleDateString('pt-BR') : '';
+      const periodStr = startStr && endStr ? ` de ${startStr} a ${endStr}` : '';
+      toast({
+        title: "Escalação bloqueada",
+        description: `${getCollaboratorName(modalData.collaboratorId)} já está escalado em "${conflictEventName}"${periodStr}. Só é possível adicionar se o colaborador for inativado ou sair da outra prova.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Se é cenotécnica → vai para aprovação da produção (Vinicius Alexandre)
     const isCenotecnica = isCenotecnicaFunction(selectedInclusion.functionId);
     const noLogistics = !selectedInclusion.needsTicket && !selectedInclusion.needsAccommodation;
@@ -1157,7 +1183,7 @@ export default function Scaling() {
     const updateData: any = {
       collaboratorId: modalData.collaboratorId,
       observations: modalData.observations,
-      city: modalData.city,
+      city: modalData.departureFromSP ? "São Paulo - SP" : (modalData.city || ""),
       status: nextStatus,
       phase: nextPhase,
       // CRÍTICO: Preservar campos de necessidade de passagem/hospedagem
@@ -2381,59 +2407,73 @@ export default function Scaling() {
                                   value={modalData.collaboratorId}
                                   onValueChange={(value) => {
                                     const newCity = getCollaboratorCity(value);
-                                    setModalData(prev => ({ ...prev, collaboratorId: value, city: newCity || prev.city }));
+                                    const fromSP = isCityFromSP(newCity);
+                                    setModalData(prev => ({
+                                      ...prev,
+                                      collaboratorId: value,
+                                      city: fromSP ? "São Paulo - SP" : (newCity || ""),
+                                      departureFromSP: fromSP,
+                                    }));
                                   }}
                                   placeholder="Selecione um colaborador"
                                   testId="select-collaborator-escalation"
                                   hideAll={true}
                                 />
-                                {/* Campo de cidade — só para funções cenotécnicas, editável antes de confirmar */}
-                                {isCenotecnicaFunction(selectedInclusion.functionId) && (
-                                  <div className="space-y-1.5">
-                                    <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
-                                      <MapPin className="w-3 h-3" />
-                                      Cidade do colaborador
-                                    </label>
-                                    <div className="flex items-center gap-2">
-                                      <input
-                                        type="text"
-                                        value={modalData.city || ''}
-                                        onChange={(e) => setModalData(prev => ({ ...prev, city: e.target.value }))}
-                                        placeholder="Cidade do colaborador"
-                                        className="w-full px-3 py-2 text-[13px] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
-                                      />
-                                      {modalData.city !== getCollaboratorCity(modalData.collaboratorId) && (
-                                        <button
-                                          type="button"
-                                          onClick={() => setModalData(prev => ({ ...prev, city: getCollaboratorCity(modalData.collaboratorId) || '' }))}
-                                          className="text-[10px] text-slate-400 hover:text-[#2563EB] underline whitespace-nowrap"
-                                        >
-                                          Restaurar
-                                        </button>
-                                      )}
-                                    </div>
-                                    <p className="text-[10px] text-slate-400">
-                                      {modalData.city === getCollaboratorCity(modalData.collaboratorId)
-                                        ? "Cidade do cadastro do colaborador. Pode alterar se necessário."
-                                        : "Cidade alterada para este evento."}
-                                    </p>
+                                {/* Campo de cidade de saída — para todas as funções */}
+                                <div className="space-y-1.5">
+                                  <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                                    <MapPin className="w-3 h-3" />
+                                    Sai de
+                                  </label>
+                                  <div className="flex gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => setModalData(prev => ({ ...prev, departureFromSP: true, city: "São Paulo - SP" }))}
+                                      className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${modalData.departureFromSP ? 'bg-[#2563EB] text-white border-[#2563EB]' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}
+                                    >
+                                      São Paulo - SP
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setModalData(prev => ({ ...prev, departureFromSP: false, city: "" }))}
+                                      className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${!modalData.departureFromSP ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}
+                                    >
+                                      Outra cidade
+                                    </button>
                                   </div>
-                                )}
-                                {/* Alerta de conflito de escalação */}
+                                  {!modalData.departureFromSP && (
+                                    <input
+                                      type="text"
+                                      value={modalData.city || ''}
+                                      onChange={(e) => setModalData(prev => ({ ...prev, city: e.target.value }))}
+                                      placeholder="Ex: Rio de Janeiro - RJ"
+                                      autoFocus
+                                      className="w-full px-3 py-2 text-[13px] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
+                                    />
+                                  )}
+                                </div>
+                                {/* Bloqueio de conflito de datas */}
                                 {(() => {
                                   if (!modalData.collaboratorId) return null;
                                   const { sameEvent, dateOverlap } = getCollaboratorConflicts(modalData.collaboratorId, selectedInclusion?.id);
                                   if (!sameEvent.length && !dateOverlap.length) return null;
+                                  const conflicts = [...sameEvent, ...dateOverlap].filter((v, i, a) => a.findIndex(x => x.id === v.id) === i);
                                   return (
-                                    <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-                                      <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                                      <div className="text-[11px] text-amber-700 leading-snug">
-                                        <span className="font-semibold">Colaborador já escalado</span>
-                                        {sameEvent.length > 0 && <span> neste evento</span>}
-                                        {sameEvent.length > 0 && dateOverlap.length > 0 && <span> e</span>}
-                                        {dateOverlap.length > 0 && sameEvent.length === 0 && <span> em evento com datas sobrepostas</span>}
-                                        {dateOverlap.length > 0 && sameEvent.length > 0 && <span> em datas sobrepostas</span>}
-                                        .
+                                    <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
+                                      <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
+                                      <div className="text-[11px] text-red-700 leading-snug space-y-1">
+                                        <p className="font-bold">Escalação bloqueada — colaborador já escalado:</p>
+                                        {conflicts.map(inc => {
+                                          const startStr = inc.scheduleStartDate ? new Date(inc.scheduleStartDate).toLocaleDateString('pt-BR') : '';
+                                          const endStr = inc.scheduleEndDate ? new Date(inc.scheduleEndDate).toLocaleDateString('pt-BR') : '';
+                                          return (
+                                            <p key={inc.id}>
+                                              <span className="font-semibold">{getEventName(inc.eventId)}</span>
+                                              {startStr && endStr && <span className="text-red-500"> · {startStr} a {endStr}</span>}
+                                            </p>
+                                          );
+                                        })}
+                                        <p className="text-red-500 mt-0.5">Só é possível escalar se o colaborador for inativado ou sair da outra prova.</p>
                                       </div>
                                     </div>
                                   );
