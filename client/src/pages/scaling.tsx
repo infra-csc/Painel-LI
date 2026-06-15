@@ -933,6 +933,7 @@ export default function Scaling() {
         'Data Nascimento': collaborator?.birthDate ? formatDate(collaborator.birthDate) : 'N/A',
         'Telefone Colaborador': collaborator?.phone || 'N/A',
         'Cidade Colaborador': collaborator?.city || 'N/A',
+        'Sai de': inclusion.city || 'N/A',
         'Período Agendado - Início': inclusion.scheduleStartDate ? formatDate(inclusion.scheduleStartDate) : 'N/A',
         'Período Agendado - Fim': inclusion.scheduleEndDate ? formatDate(inclusion.scheduleEndDate) : 'N/A',
         'Período Real - Início': inclusion.actualStartDate ? formatDate(inclusion.actualStartDate) : 'N/A',
