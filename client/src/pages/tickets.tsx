@@ -2098,10 +2098,19 @@ export default function Tickets() {
                                 <div className={val}>{collaborator.type || '—'}</div>
                               </div>
                               <div>
-                                <div className={lbl}>Cidade</div>
+                                <div className={lbl}>Cidade (cadastro)</div>
                                 <div className={val}>{collaborator.city || '—'}</div>
                               </div>
                             </>)}
+                            {selectedInclusion.city && (
+                              <div>
+                                <div className={lbl}>Sai de</div>
+                                <div className="flex items-center gap-1 text-[13px] font-semibold text-slate-700">
+                                  <span>📍</span>
+                                  {selectedInclusion.city}
+                                </div>
+                              </div>
+                            )}
                             {/* Badge de status de troca — painel completo fica abaixo do grid */}
                             {(pendingSwap || latestSwap) && (() => {
                               const swap = pendingSwap || latestSwap!;
