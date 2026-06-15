@@ -2239,9 +2239,12 @@ export default function Scaling() {
                                     const city = modalData.city || getCollaboratorCity(modalData.collaboratorId);
                                     if (!city) return null;
                                     return (
-                                      <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
-                                        <MapPin className="w-3 h-3" />
-                                        {city}
+                                      <div className="mt-1.5 rounded-lg bg-blue-50 border border-blue-100 px-2 py-1.5 flex items-center gap-1.5">
+                                        <MapPin className="w-3 h-3 text-blue-500 shrink-0" />
+                                        <div>
+                                          <div className="text-[9px] font-semibold text-blue-400 uppercase tracking-wide leading-none">Sai de</div>
+                                          <div className="text-[12px] font-bold text-blue-700 leading-tight">{city}</div>
+                                        </div>
                                       </div>
                                     );
                                   })()}

@@ -404,7 +404,7 @@ export default function Accommodations() {
                       <div className={val}>{collaborator.birthDate ? formatDate(collaborator.birthDate) : 'N/A'}</div>
                     </div>
                     <div>
-                      <div className={lbl}>Cidade (cadastro)</div>
+                      <div className={lbl}>Cidade do colaborador</div>
                       <div className={val}>{collaborator.city || '—'}</div>
                     </div>
                     <div>
@@ -413,11 +413,11 @@ export default function Accommodations() {
                     </div>
                   </>)}
                   {selectedInclusion.city && (
-                    <div>
-                      <div className={lbl}>Sai de</div>
-                      <div className="flex items-center gap-1 text-[13px] font-semibold text-slate-700">
-                        <span>📍</span>
-                        {selectedInclusion.city}
+                    <div className="mt-1 rounded-xl bg-blue-50 border border-blue-100 px-3 py-2 flex items-center gap-2">
+                      <span className="text-blue-500 text-base">📍</span>
+                      <div>
+                        <div className="text-[10px] font-semibold text-blue-400 uppercase tracking-wide">Sai de</div>
+                        <div className="text-[13px] font-bold text-blue-700">{selectedInclusion.city}</div>
                       </div>
                     </div>
                   )}
