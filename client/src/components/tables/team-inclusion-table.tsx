@@ -36,6 +36,9 @@ export default function TeamInclusionTable() {
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingInclusion, setEditingInclusion] = useState<TeamInclusion | null>(null);
+  const [editStartDate, setEditStartDate] = useState("");
+  const [editEndDate, setEditEndDate] = useState("");
+  const [editSelectedDays, setEditSelectedDays] = useState<Set<string>>(new Set());
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState({
     eventId: "all",
@@ -117,9 +120,31 @@ export default function TeamInclusionTable() {
     setShowCommentsModal(true);
   };
 
+  const generateDaysInRange = (start: string, end: string): string[] => {
+    if (!start || !end) return [];
+    const days: string[] = [];
+    const cur = new Date(start + 'T12:00:00');
+    const endDate = new Date(end + 'T12:00:00');
+    while (cur <= endDate) {
+      days.push(cur.toISOString().split('T')[0]);
+      cur.setDate(cur.getDate() + 1);
+    }
+    return days;
+  };
+
   const handleEdit = (inclusionId: string) => {
     const inclusion = teamInclusions?.find(i => i.id === inclusionId);
     if (inclusion) {
+      const start = inclusion.scheduleStartDate || "";
+      const end = inclusion.scheduleEndDate || "";
+      setEditStartDate(start);
+      setEditEndDate(end);
+      // Use existing workDays if available, otherwise generate full range
+      if (inclusion.workDays && inclusion.workDays.length > 0) {
+        setEditSelectedDays(new Set(inclusion.workDays));
+      } else {
+        setEditSelectedDays(new Set(generateDaysInRange(start, end)));
+      }
       setEditingInclusion(inclusion);
       setShowEditModal(true);
     }
@@ -793,22 +818,16 @@ export default function TeamInclusionTable() {
             <form onSubmit={(e) => {
               e.preventDefault();
               const formData = new FormData(e.currentTarget);
-              const startDate = formData.get('scheduleStartDate') as string;
-              const endDate = formData.get('scheduleEndDate') as string;
-              
-              const start = new Date(startDate);
-              const end = new Date(endDate);
-              const timeDiff = end.getTime() - start.getTime();
-              const dailyRates = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
-              
+              const selectedDaysArr = Array.from(editSelectedDays).sort();
               const data = {
                 functionId: formData.get('functionId') as string,
                 status: formData.get('status') as string,
-                dailyRates: dailyRates,
+                dailyRates: selectedDaysArr.length || 1,
                 needsTicket: formData.get('needsTicket') === 'true',
                 needsAccommodation: formData.get('needsAccommodation') === 'true',
-                scheduleStartDate: startDate,
-                scheduleEndDate: endDate,
+                scheduleStartDate: editStartDate,
+                scheduleEndDate: editEndDate,
+                workDays: selectedDaysArr,
                 flightDepartureDate: formData.get('ida') as string || null,
                 flightArrivalSuggestedTime: formData.get('chegada') as string || null,
                 flightReturnDate: formData.get('retorno') as string || null,
@@ -857,63 +876,101 @@ export default function TeamInclusionTable() {
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Data Início *</label>
-                    <input
-                      type="date"
-                      name="scheduleStartDate"
-                      defaultValue={editingInclusion.scheduleStartDate || ""}
-                      className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
-                      onChange={(e) => {
-                        const startDate = e.target.value;
-                        const endDateInput = e.target.form?.querySelector('input[name="scheduleEndDate"]') as HTMLInputElement;
-                        const dailyRatesDisplay = e.target.form?.querySelector('#dailyRatesDisplay') as HTMLInputElement;
-                        if (startDate && endDateInput?.value && dailyRatesDisplay) {
-                          const start = new Date(startDate);
-                          const end = new Date(endDateInput.value);
-                          const timeDiff = end.getTime() - start.getTime();
-                          const days = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
-                          dailyRatesDisplay.value = days > 0 ? days.toString() : '1';
-                        }
-                      }}
-                      required
-                    />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Data Início *</label>
+                      <input
+                        type="date"
+                        value={editStartDate}
+                        onChange={(e) => {
+                          const newStart = e.target.value;
+                          setEditStartDate(newStart);
+                          if (newStart && editEndDate) {
+                            const allDays = generateDaysInRange(newStart, editEndDate);
+                            // Keep only days still in range
+                            setEditSelectedDays(prev => new Set(allDays.filter(d => prev.has(d)).length > 0
+                              ? allDays.filter(d => prev.has(d))
+                              : allDays));
+                          }
+                        }}
+                        className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Data Fim *</label>
+                      <input
+                        type="date"
+                        value={editEndDate}
+                        onChange={(e) => {
+                          const newEnd = e.target.value;
+                          setEditEndDate(newEnd);
+                          if (editStartDate && newEnd) {
+                            const allDays = generateDaysInRange(editStartDate, newEnd);
+                            setEditSelectedDays(prev => new Set(allDays.filter(d => prev.has(d)).length > 0
+                              ? allDays.filter(d => prev.has(d))
+                              : allDays));
+                          }
+                        }}
+                        className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
+                        required
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Data Fim *</label>
-                    <input
-                      type="date"
-                      name="scheduleEndDate"
-                      defaultValue={editingInclusion.scheduleEndDate || ""}
-                      className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
-                      onChange={(e) => {
-                        const endDate = e.target.value;
-                        const startDateInput = e.target.form?.querySelector('input[name="scheduleStartDate"]') as HTMLInputElement;
-                        const dailyRatesDisplay = e.target.form?.querySelector('#dailyRatesDisplay') as HTMLInputElement;
-                        if (endDate && startDateInput?.value && dailyRatesDisplay) {
-                          const start = new Date(startDateInput.value);
-                          const end = new Date(endDate);
-                          const timeDiff = end.getTime() - start.getTime();
-                          const days = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
-                          dailyRatesDisplay.value = days > 0 ? days.toString() : '1';
-                        }
-                      }}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Quantidade de Diárias</label>
-                    <input
-                      type="text"
-                      id="dailyRatesDisplay"
-                      defaultValue={editingInclusion.dailyRates.toString()}
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-500 cursor-not-allowed w-full"
-                      readOnly
-                    />
-                    <p className="text-xs text-slate-400 mt-1">Calculado automaticamente baseado nas datas</p>
-                  </div>
+                  {/* Seletor de dias individuais */}
+                  {editStartDate && editEndDate && (() => {
+                    const allDays = generateDaysInRange(editStartDate, editEndDate);
+                    if (allDays.length === 0) return null;
+                    const selectedCount = allDays.filter(d => editSelectedDays.has(d)).length;
+                    const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                    return (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
+                            Dias trabalhados
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-blue-700 bg-blue-50 rounded-lg px-2 py-0.5">{selectedCount} dia{selectedCount !== 1 ? 's' : ''}</span>
+                            <button type="button" onClick={() => setEditSelectedDays(new Set(allDays))}
+                              className="text-[10px] text-slate-400 hover:text-blue-600 underline">todos</button>
+                            <button type="button" onClick={() => setEditSelectedDays(new Set())}
+                              className="text-[10px] text-slate-400 hover:text-red-500 underline">nenhum</button>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {allDays.map(day => {
+                            const d = new Date(day + 'T12:00:00');
+                            const isSelected = editSelectedDays.has(day);
+                            const wd = weekdays[d.getDay()];
+                            const dayNum = d.getDate();
+                            const mon = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.','');
+                            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                            return (
+                              <button
+                                key={day}
+                                type="button"
+                                onClick={() => setEditSelectedDays(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(day)) next.delete(day); else next.add(day);
+                                  return next;
+                                })}
+                                className={`flex flex-col items-center px-2 py-1 rounded-lg border text-[11px] font-semibold transition-all min-w-[38px] ${
+                                  isSelected
+                                    ? isWeekend ? 'bg-orange-500 text-white border-orange-500' : 'bg-blue-600 text-white border-blue-600'
+                                    : 'bg-white text-slate-400 border-slate-200 line-through'
+                                }`}
+                              >
+                                <span className="text-[9px] font-normal">{wd}</span>
+                                <span>{dayNum}</span>
+                                <span className="text-[9px] font-normal">{mon}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Precisa de Passagem?</label>

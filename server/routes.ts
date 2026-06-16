@@ -1811,13 +1811,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Remove _userId from body (it's only for auth)
       const { _userId, ...bodyData } = req.body;
       
-      // Auto-recalculate workDays when schedule dates change
+      // Auto-recalculate workDays when schedule dates change (skip if workDays explicitly provided)
       const newStartDate = bodyData.scheduleStartDate || currentInclusion.scheduleStartDate;
       const newEndDate = bodyData.scheduleEndDate || currentInclusion.scheduleEndDate;
       const datesChanged = (bodyData.scheduleStartDate && bodyData.scheduleStartDate !== currentInclusion.scheduleStartDate) ||
                            (bodyData.scheduleEndDate && bodyData.scheduleEndDate !== currentInclusion.scheduleEndDate);
       
-      if (datesChanged && newStartDate && newEndDate) {
+      if (Array.isArray(bodyData.workDays)) {
+        // workDays explicitly sent — use as-is and update dailyRates from count
+        bodyData.dailyRates = bodyData.workDays.length || 1;
+      } else if (datesChanged && newStartDate && newEndDate) {
         const start = new Date(newStartDate);
         const end = new Date(newEndDate);
         const newWorkDays: string[] = [];
