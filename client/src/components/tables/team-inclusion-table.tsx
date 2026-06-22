@@ -120,13 +120,29 @@ export default function TeamInclusionTable() {
     setShowCommentsModal(true);
   };
 
+  // Normaliza qualquer valor de data para "YYYY-MM-DD"
+  const normDay = (d: any): string => {
+    if (!d) return '';
+    if (typeof d === 'string') return d.split('T')[0];
+    if (d instanceof Date) return d.toISOString().split('T')[0];
+    return String(d).split('T')[0];
+  };
+
   const generateDaysInRange = (start: string, end: string): string[] => {
-    if (!start || !end) return [];
+    const s = normDay(start);
+    const e = normDay(end);
+    if (!s || !e) return [];
     const days: string[] = [];
-    const cur = new Date(start + 'T12:00:00');
-    const endDate = new Date(end + 'T12:00:00');
+    // Usar split YYYY-MM-DD diretamente para evitar conversão UTC
+    const [sy, sm, sd] = s.split('-').map(Number);
+    const [ey, em, ed] = e.split('-').map(Number);
+    const cur = new Date(sy, sm - 1, sd);
+    const endDate = new Date(ey, em - 1, ed);
     while (cur <= endDate) {
-      days.push(cur.toISOString().split('T')[0]);
+      const yy = cur.getFullYear();
+      const mm = String(cur.getMonth() + 1).padStart(2, '0');
+      const dd = String(cur.getDate()).padStart(2, '0');
+      days.push(`${yy}-${mm}-${dd}`);
       cur.setDate(cur.getDate() + 1);
     }
     return days;
@@ -135,14 +151,16 @@ export default function TeamInclusionTable() {
   const handleEdit = (inclusionId: string) => {
     const inclusion = teamInclusions?.find(i => i.id === inclusionId);
     if (inclusion) {
-      const start = inclusion.scheduleStartDate || "";
-      const end = inclusion.scheduleEndDate || "";
+      const start = normDay(inclusion.scheduleStartDate) || "";
+      const end = normDay(inclusion.scheduleEndDate) || "";
       setEditStartDate(start);
       setEditEndDate(end);
-      // Use existing workDays if available, otherwise generate full range
-      if (inclusion.workDays && inclusion.workDays.length > 0) {
-        setEditSelectedDays(new Set(inclusion.workDays));
+      // Normalize workDays para garantir formato YYYY-MM-DD
+      const normalizedWorkDays = (inclusion.workDays || []).map(normDay).filter(Boolean);
+      if (normalizedWorkDays.length > 0) {
+        setEditSelectedDays(new Set(normalizedWorkDays));
       } else {
+        // Nenhum workDay salvo — seleciona o range completo
         setEditSelectedDays(new Set(generateDaysInRange(start, end)));
       }
       setEditingInclusion(inclusion);
@@ -885,13 +903,16 @@ export default function TeamInclusionTable() {
                         onChange={(e) => {
                           const newStart = e.target.value;
                           setEditStartDate(newStart);
-                          if (newStart && editEndDate) {
-                            const allDays = generateDaysInRange(newStart, editEndDate);
-                            // Keep only days still in range
-                            setEditSelectedDays(prev => new Set(allDays.filter(d => prev.has(d)).length > 0
-                              ? allDays.filter(d => prev.has(d))
-                              : allDays));
-                          }
+                          setEditEndDate(cur => {
+                            if (newStart && cur) {
+                              const allDays = generateDaysInRange(newStart, cur);
+                              setEditSelectedDays(prev => {
+                                const kept = allDays.filter(d => prev.has(d));
+                                return new Set(kept.length > 0 ? kept : allDays);
+                              });
+                            }
+                            return cur;
+                          });
                         }}
                         className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
                         required
@@ -905,12 +926,16 @@ export default function TeamInclusionTable() {
                         onChange={(e) => {
                           const newEnd = e.target.value;
                           setEditEndDate(newEnd);
-                          if (editStartDate && newEnd) {
-                            const allDays = generateDaysInRange(editStartDate, newEnd);
-                            setEditSelectedDays(prev => new Set(allDays.filter(d => prev.has(d)).length > 0
-                              ? allDays.filter(d => prev.has(d))
-                              : allDays));
-                          }
+                          setEditStartDate(cur => {
+                            if (cur && newEnd) {
+                              const allDays = generateDaysInRange(cur, newEnd);
+                              setEditSelectedDays(prev => {
+                                const kept = allDays.filter(d => prev.has(d));
+                                return new Set(kept.length > 0 ? kept : allDays);
+                              });
+                            }
+                            return cur;
+                          });
                         }}
                         className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
                         required
