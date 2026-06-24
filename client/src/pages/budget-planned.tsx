@@ -378,6 +378,8 @@ export default function BudgetPlannedPage() {
     return teamInclusions.filter(inc => 
       inc.status === "confirmado" || 
       inc.status === "escalacao" || 
+      inc.status === "escalado" ||
+      inc.status === "aprovacao" ||
       inc.status === "passagem" ||
       inc.status === "passagem_comprada" ||
       inc.status === "hospedagem" ||
