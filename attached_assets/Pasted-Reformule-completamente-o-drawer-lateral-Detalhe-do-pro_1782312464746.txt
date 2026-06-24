@@ -1,0 +1,554 @@
+Reformule completamente o drawer lateral “Detalhe do produto” da tela “Projeção de Estoque”.
+
+A estrutura atual está excessivamente resumida e não explica quais operações influenciaram o saldo. Quero transformar esse drawer em uma análise operacional completa do produto, mantendo a identidade visual atual do EventFlow e utilizando somente os dados já existentes no sistema.
+
+IMPORTANTE:
+- Não criar dados fictícios.
+- Não remover funcionalidades existentes da projeção.
+- Não alterar os cálculos gerais sem necessidade.
+- Aproveitar requisições, movimentações, ordens de carregamento, planos de viagens, eventos, datas, locais e status já cadastrados.
+- Garantir que os valores exibidos tenham origem rastreável.
+- O drawer deve ser atualizado conforme o dia ou a célula selecionada na matriz.
+
+==================================================
+1. OBJETIVO PRINCIPAL
+==================================================
+
+Ao clicar em uma célula da matriz ou em um produto, o administrador precisa conseguir entender imediatamente:
+
+- quanto existe fisicamente no CD;
+- quanto saiu no período;
+- quanto entrou ou retornou;
+- quanto está reservado;
+- quanto está em trânsito;
+- quanto está atualmente em evento;
+- em quais eventos o produto está;
+- qual requisição solicitou o produto;
+- qual movimentação retirou ou devolveu o produto;
+- qual plano de viagens realizou o transporte;
+- quando ocorreu a saída;
+- quando está previsto o retorno;
+- onde o material está neste momento;
+- como foi formado o saldo exibido.
+
+A tela não deve apresentar apenas números agregados sem contexto.
+
+==================================================
+2. TAMANHO E ESTRUTURA DO DRAWER
+==================================================
+
+Aumentar a largura do drawer para aproximadamente 480 a 540 px no desktop.
+
+Comportamento responsivo:
+- desktop: drawer lateral direito;
+- tablet: drawer com largura maior;
+- celular: abrir em tela cheia.
+
+O drawer deve possuir rolagem interna única, sem múltiplas barras de rolagem concorrentes.
+
+Manter cabeçalho e ações principais fixos quando possível.
+
+Estrutura:
+
+1. Cabeçalho do produto
+2. Posição atual
+3. Composição física do estoque
+4. Saídas
+5. Entradas e retornos
+6. Materiais em evento
+7. Linha do tempo
+8. Fontes que impactaram o cálculo
+9. Ações relacionadas
+
+==================================================
+3. CABEÇALHO DO PRODUTO
+==================================================
+
+Exibir no topo:
+
+- nome completo do produto;
+- SKU;
+- unidade de medida;
+- titularidade, quando disponível;
+- categoria, quando existir;
+- localização base;
+- status atual.
+
+Não cortar o nome do produto. Permitir até duas linhas e usar tooltip apenas como complemento.
+
+Exemplo:
+
+TINA 1000L
+ITEM_TINA_1000L
+
+Próprio · Unidade: unit · Base: CD Central
+
+Status:
+- Adequado
+- Abaixo do mínimo
+- Em falta
+- Sem estoque
+
+Não usar azul intenso como destaque principal do produto ou da data selecionada. Manter seleção com contraste sutil, borda clara ou fundo neutro.
+
+==================================================
+4. REMOVER INDICADORES POUCO ÚTEIS
+==================================================
+
+Remover do resumo principal:
+
+- Pior saldo
+- Déficit máximo
+- Mínimo
+
+O estoque mínimo pode continuar sendo utilizado internamente para determinar o status, mas não precisa ocupar um card principal nesse drawer.
+
+Substituir pelos indicadores operacionais:
+
+- Estoque físico no CD
+- Saídas no período
+- Entradas no período
+- Em trânsito
+- Em evento
+- Reservado
+- Retorno previsto
+
+==================================================
+5. POSIÇÃO ATUAL
+==================================================
+
+Criar no início do drawer uma seção chamada:
+
+“Posição em DD/MM/AAAA às HH:mm”
+
+Exibir cards ou linhas compactas:
+
+- Disponível no CD
+- Reservado
+- Em trânsito para evento
+- Em evento
+- Em retorno ao CD
+- Aguardando descarga
+- Total físico cadastrado
+
+Exemplo:
+
+Disponível no CD: 52 un.
+Reservado: 0 un.
+Em trânsito: 0 un.
+Em evento: 4 un.
+Em retorno: 0 un.
+Total físico cadastrado: 56 un.
+
+Adicionar abaixo uma explicação curta:
+
+“Das 56 unidades cadastradas, 52 estão disponíveis no CD e 4 estão alocadas fora do estoque físico.”
+
+==================================================
+6. REGRA DE CÁLCULO E NOMENCLATURA
+==================================================
+
+Evitar a confusão atual em que aparecem, por exemplo, 50 unidades de saldo e 20 em evento sem explicar se essas 20 já foram descontadas.
+
+Usar nomes claros:
+
+- “Total físico cadastrado”: total de unidades pertencentes à operação.
+- “Disponível no CD”: unidades realmente disponíveis para uma nova operação.
+- “Fora do CD”: unidades em trânsito, evento, retorno ou aguardando descarga.
+- “Saldo projetado disponível”: quantidade que poderá ser utilizada na data.
+- “Em evento”: quantidade já retirada do disponível e atualmente alocada em evento.
+
+Regra visual obrigatória:
+
+Total físico cadastrado =
+Disponível no CD
++ Reservado fora do disponível
++ Em trânsito
++ Em evento
++ Em retorno
++ Aguardando descarga
+
+Não somar “Em evento” novamente ao saldo disponível.
+
+Sempre mostrar uma linha de composição, por exemplo:
+
+56 total = 52 no CD + 4 em evento
+
+Quando algum valor não puder ser determinado, exibir:
+“Não identificado”
+e explicar qual informação está faltando.
+
+==================================================
+7. STATUS DO PRODUTO
+==================================================
+
+Corrigir as cores e regras:
+
+- saldo disponível maior que o mínimo: verde, “Adequado”;
+- saldo disponível maior que zero e menor ou igual ao mínimo: amarelo, “Abaixo do mínimo”;
+- saldo disponível igual a zero: vermelho ou vermelho discreto, “Sem estoque”;
+- saldo projetado negativo: vermelho forte, “Em falta”.
+
+Não usar bolinha verde para produto com saldo disponível igual a zero.
+
+Não criar dois conceitos visuais confusos como “Sem disponibilidade” e “Sem estoque”.
+
+Usar somente:
+
+- Adequado
+- Abaixo do mínimo
+- Sem estoque
+- Em falta
+
+==================================================
+8. SEÇÃO “SAÍDAS”
+==================================================
+
+Criar uma seção expansível chamada “Saídas”.
+
+No título, mostrar:
+
+“4 unidades em 2 operações”
+
+Cada saída deve exibir:
+
+- data e horário;
+- quantidade;
+- saldo disponível antes;
+- saldo disponível depois;
+- tipo da origem;
+- referência;
+- evento;
+- requisição;
+- plano de viagens;
+- movimentação ou ordem;
+- CD ou local de origem;
+- destino;
+- situação atual;
+- previsão de retorno.
+
+Exemplo:
+
+24/06/2026 às 09:00
+Saída de 2 unidades
+
+Disponível antes: 56
+Disponível depois: 54
+
+Evento:
+Desafio Energia Petrobras – Bike – São Paulo 2026
+
+Requisição:
+Arena
+
+Plano de viagens:
+Carreta 2
+
+Movimentação:
+Carga para evento
+
+Origem:
+CD Central
+
+Destino:
+Arena do evento
+
+Situação:
+Em evento
+
+Retorno previsto:
+29/06/2026 às 16:00
+
+Cada registro deve possuir ação “Abrir origem”.
+
+==================================================
+9. SEÇÃO “ENTRADAS E RETORNOS”
+==================================================
+
+Criar seção expansível “Entradas e retornos”.
+
+No título, mostrar:
+
+“4 unidades em 1 operação”
+
+Exibir:
+
+- data e horário;
+- quantidade;
+- tipo de entrada;
+- saldo antes;
+- saldo depois;
+- evento de origem;
+- viagem de retorno;
+- movimentação;
+- local de origem;
+- CD de destino;
+- situação.
+
+Diferenciar:
+
+- retorno de evento;
+- recebimento;
+- ajuste;
+- devolução;
+- descarga concluída.
+
+Exemplo:
+
+29/06/2026 às 16:00
+Retorno de 4 unidades
+
+Disponível antes: 52
+Disponível depois: 56
+
+Origem:
+Desafio Energia Petrobras – Bike – São Paulo 2026
+
+Plano:
+Carreta 2
+
+Destino:
+CD Central
+
+Situação:
+Retorno concluído
+
+==================================================
+10. SEÇÃO “EM EVENTO”
+==================================================
+
+Criar uma seção própria chamada “Em evento”.
+
+Não mostrar apenas um número agregado.
+
+Agrupar por evento e exibir:
+
+- nome completo do evento;
+- quantidade do produto;
+- requisição ou área solicitante;
+- plano de viagens;
+- movimentação de saída;
+- data e horário da saída;
+- local atual;
+- retorno previsto;
+- status operacional.
+
+Exemplo:
+
+Desafio Energia Petrobras – Bike – São Paulo 2026
+
+Quantidade: 4 un.
+Área/Requisição: Arena
+Plano de viagens: Carreta 2
+Saída do CD: 24/06/2026 às 09:00
+Local atual: Arena do evento
+Retorno previsto: 29/06/2026 às 16:00
+Status: Em evento
+
+Quando houver mais de um evento, exibir um card por evento.
+
+Adicionar um resumo:
+
+- Total em evento: 6 un.
+- Eventos envolvidos: 2
+- Com retorno definido: 4 un.
+- Sem retorno definido: 2 un.
+
+Destacar discretamente itens sem retorno definido.
+
+==================================================
+11. SEÇÃO “ONDE ESTÁ O MATERIAL”
+==================================================
+
+Criar uma representação clara da localização física:
+
+- CD Central — 52 un.
+- Em trânsito para o evento — 0 un.
+- Evento Desafio Energia Petrobras — 4 un.
+- Em retorno — 0 un.
+- Aguardando descarga — 0 un.
+
+Pode ser uma lista com ícones ou uma distribuição horizontal.
+
+Essa seção deve responder diretamente:
+
+“Onde estão todas as unidades deste produto?”
+
+==================================================
+12. LINHA DO TEMPO OPERACIONAL
+==================================================
+
+Substituir a linha do tempo atual, que mostra apenas números repetidos, por uma linha do tempo com marcos operacionais.
+
+Mostrar apenas datas em que houve alteração ou evento relevante.
+
+Cada marco deve conter:
+
+- data;
+- horário;
+- tipo;
+- quantidade;
+- saldo disponível após a ação;
+- local do material;
+- evento ou origem.
+
+Exemplo:
+
+24/06 · 09:00
+↓ Saída de 4 un.
+Disponível no CD: 52
+Destino: Desafio Energia Petrobras
+Plano: Carreta 2
+
+25/06
+Material em evento
+4 un. na Arena
+
+29/06 · 16:00
+↑ Retorno de 4 un.
+Disponível no CD: 56
+Destino: CD Central
+
+Cores:
+
+- saída: vermelho discreto;
+- entrada/retorno: verde;
+- em trânsito: azul moderado;
+- em evento: amarelo/âmbar;
+- sem alteração: neutro.
+
+Não mostrar dezenas de caixas idênticas quando o saldo não se altera. Consolidar intervalos estáveis:
+
+“Saldo permaneceu em 52 unidades de 25/06 a 28/06.”
+
+==================================================
+13. FONTES QUE IMPACTARAM O CÁLCULO
+==================================================
+
+Criar seção “Fontes do impacto”.
+
+Agrupar por tipo:
+
+Requisições:
+- Arena — 4 un.
+- Estrutura — 2 un.
+
+Ordens de carregamento:
+- Ordem #1234 — 4 un.
+
+Movimentações:
+- MVT-20260624-001 — saída de 4 un.
+- MVT-20260629-002 — retorno de 4 un.
+
+Planos de viagens:
+- Carreta 2 — ida e retorno
+
+Cada fonte deve mostrar se foi:
+
+- considerada no cálculo;
+- ignorada;
+- ambígua;
+- sem data;
+- já movimentada fisicamente.
+
+Quando ignorada, explicar o motivo.
+
+Exemplo:
+
+“Ignorada porque a requisição não possui data de montagem.”
+
+==================================================
+14. INTERAÇÕES
+==================================================
+
+Permitir:
+
+- expandir e recolher Saídas;
+- expandir e recolher Entradas;
+- abrir o evento;
+- abrir a requisição;
+- abrir a movimentação;
+- abrir o plano de viagens;
+- selecionar outra data;
+- abrir a análise completa do produto;
+- filtrar este produto na matriz.
+
+Ao selecionar outra data, atualizar:
+
+- posição atual;
+- disponível no CD;
+- em evento;
+- em trânsito;
+- retornos;
+- status.
+
+==================================================
+15. HIERARQUIA VISUAL
+==================================================
+
+Melhorar a hierarquia:
+
+- nome do produto com maior destaque;
+- números principais com bom contraste;
+- informações secundárias em texto menor;
+- seções separadas por divisores;
+- menos cards vazios;
+- evitar grandes espaços sem informação;
+- evitar excesso de bordas coloridas;
+- usar cor apenas para status e movimentações;
+- nomes longos devem quebrar linha;
+- tooltips não podem ficar sobrepostos ou cortados.
+
+Usar labels claras:
+
+- “Disponível no CD”
+- “Fora do CD”
+- “Em evento”
+- “Em trânsito”
+- “Retorno previsto”
+
+Evitar labels genéricas como apenas “Saldo” sem indicar qual saldo.
+
+==================================================
+16. ESTADOS VAZIOS
+==================================================
+
+Quando não houver saída:
+
+“Nenhuma saída prevista ou realizada no período selecionado.”
+
+Quando não houver entrada:
+
+“Nenhuma entrada ou retorno previsto no período selecionado.”
+
+Quando não houver material em evento:
+
+“Nenhuma unidade deste produto está atualmente em evento.”
+
+Quando não houver fonte de impacto:
+
+“Este produto não possui requisições, movimentações, ordens ou viagens impactando o período selecionado.”
+
+Não deixar seções grandes completamente vazias.
+
+==================================================
+17. CRITÉRIOS DE ACEITE
+==================================================
+
+A implementação só estará concluída quando:
+
+1. “Pior saldo”, “Déficit máx.” e “Mínimo” forem removidos do resumo principal.
+2. O usuário conseguir identificar quanto está disponível no CD.
+3. O usuário conseguir identificar quanto está em evento.
+4. O usuário conseguir saber em qual evento o produto está.
+5. Toda saída possuir origem, quantidade, data e destino.
+6. Toda entrada possuir origem, quantidade, data e destino.
+7. O saldo disponível não incluir novamente materiais já classificados como “Em evento”.
+8. Produtos com saldo zero não usarem indicador verde.
+9. A linha do tempo mostrar operações reais e não somente valores repetidos.
+10. Nomes de eventos, planos e requisições não ficarem cortados sem possibilidade de leitura.
+11. Cada fonte de impacto permitir rastrear a operação original.
+12. O drawer explicar claramente a composição do estoque.
+13. O layout ficar limpo, profissional, responsivo e consistente com o EventFlow.
+14. Nenhum dado fictício ser criado.
+15. Nenhuma informação existente ser perdida.
