@@ -1940,10 +1940,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Apenas funções cenotécnicas precisam de aprovação da produção" });
       }
 
-      // Após aprovação, vai para o fluxo normal
+      // Após aprovação da produção, vai direto para aprovado se sem logística
+      // (Compras só entra no fluxo de trocas, não na primeira escalação)
       const noLogistics = !inclusion.needsTicket && !inclusion.needsAccommodation;
-      const nextStatus = noLogistics ? 'aprovacao' : 'escalado';
-      const nextPhase = noLogistics ? 'aprovacao' : 'escalacao';
+      const nextStatus = noLogistics ? 'aprovado' : 'escalado';
+      const nextPhase = noLogistics ? 'aprovado' : 'escalacao';
 
       const updated = await storage.updateTeamInclusion(id, {
         status: nextStatus,

@@ -1175,8 +1175,9 @@ export default function Scaling() {
     const isCenotecnica = isCenotecnicaFunction(selectedInclusion.functionId);
     const noLogistics = !selectedInclusion.needsTicket && !selectedInclusion.needsAccommodation;
     // Para cenotécnica: sempre vai para aguardando_producao primeiro
-    const nextStatus = isCenotecnica ? "aguardando_producao" : (noLogistics ? "aprovacao" : "escalado");
-    const nextPhase = isCenotecnica ? "escalacao" : (noLogistics ? "aprovacao" : "escalacao");
+    // Sem logística: vai direto para aprovado (sem passar por Compras — Compras só entra em trocas)
+    const nextStatus = isCenotecnica ? "aguardando_producao" : (noLogistics ? "aprovado" : "escalado");
+    const nextPhase = isCenotecnica ? "escalacao" : (noLogistics ? "aprovado" : "escalacao");
 
     console.log("🔍 [CONFIRM DEBUG] Calculated next status:", nextStatus);
     console.log("🔍 [CONFIRM DEBUG] Calculated next phase:", nextPhase);
@@ -2620,45 +2621,6 @@ export default function Scaling() {
                         </div>
                       )}
 
-                      {/* ── Aprovação de Compras (sem passagem/hospedagem) ── */}
-                      {(selectedInclusion.status === 'aprovacao' || selectedInclusion.status === 'escalado') &&
-                        !selectedInclusion.needsTicket && !selectedInclusion.needsAccommodation && !pendingSwap && (
-                        <div className="mt-5">
-                          <div className="border border-blue-200 rounded-2xl overflow-hidden">
-                            <div className="bg-blue-50 border-b border-blue-100 px-4 py-2.5 flex items-center gap-2">
-                              <Check className="w-4 h-4 text-blue-600" />
-                              <span className="text-[11px] font-black text-blue-700 uppercase tracking-[0.12em]">Aprovação de Compras</span>
-                            </div>
-                            <div className="p-4">
-                              {(user?.role === 'purchasing' || user?.role === 'admin' || user?.role === 'administrator' || user?.role === 'administrador') ? (
-                                <div className="space-y-3">
-                                  <p className="text-[12px] text-slate-600 leading-relaxed">
-                                    Esta escalação não requer passagem nem hospedagem. Revise as informações e aprove para liberar o colaborador.
-                                  </p>
-                                  <Button
-                                    onClick={() => setShowApproveConfirm(true)}
-                                    disabled={approveEscalationMutation.isPending}
-                                    className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-9 text-[13px] font-semibold"
-                                  >
-                                    <Check className="w-3.5 h-3.5" />
-                                    {approveEscalationMutation.isPending ? "Aprovando..." : "Aprovar escalação"}
-                                  </Button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-3 py-2">
-                                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                                    <Clock className="w-4 h-4 text-blue-500" />
-                                  </div>
-                                  <div>
-                                    <p className="text-[12px] font-semibold text-slate-700">Aguardando aprovação de Compras</p>
-                                    <p className="text-[11px] text-slate-400 mt-0.5">O time de Compras precisa aprovar esta escalação.</p>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
 
                       {/* Seção de Anexos no Resumo */}
                       {(() => {
