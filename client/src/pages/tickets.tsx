@@ -140,6 +140,15 @@ export default function Tickets() {
     return map;
   }, [allSwapRequests]);
 
+  const approvedSwapInclusionIds = useMemo(() => {
+    const ids = new Set<string>();
+    allSwapRequests?.filter(s => s.status === 'aprovado').forEach(s => {
+      const id = (s as any).team_inclusion_id || s.teamInclusionId;
+      if (id) ids.add(id);
+    });
+    return ids;
+  }, [allSwapRequests]);
+
   const isPurchasingRole = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
 
   const approveSwapMutation = useMutation({
@@ -1771,6 +1780,11 @@ export default function Tickets() {
                                     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-100 mt-0.5">
                                       <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 animate-pulse" />
                                       <span className="text-[10px] font-medium text-amber-600">Troca pendente</span>
+                                    </span>
+                                  )}
+                                  {!pendingSwapByInclusion.has(inclusion.id) && approvedSwapInclusionIds.has(inclusion.id) && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[10px] font-bold border border-green-200 mt-0.5">
+                                      <ArrowLeftRight className="w-2.5 h-2.5" />Troca aprovada
                                     </span>
                                   )}
                                 </div>

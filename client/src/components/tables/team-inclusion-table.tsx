@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { formatDiarias, fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Edit, MessageCircle, History, Check, X, Trash2, Copy, Ban, LayoutGrid, Save } from "lucide-react";
+import { Edit, MessageCircle, History, Check, X, Trash2, Copy, Ban, LayoutGrid, Save, ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,7 +14,7 @@ import CommentsModal from "@/components/modals/comments-modal";
 import ConfirmModal, { type ConfirmVariant } from "@/components/common/confirm-modal";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
-import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
+import type { TeamInclusion, Event, Function, Collaborator, SwapRequest } from "@shared/schema";
 import { isReadOnly } from "@/lib/interactions";
 
 // Convert ALL CAPS names to Title Case for better readability
@@ -57,6 +57,24 @@ export default function TeamInclusionTable() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+
+  const { data: allSwapRequests } = useQuery<SwapRequest[]>({
+    queryKey: ["/api/swap-requests"],
+    queryFn: async () => {
+      const r = await fetch("/api/swap-requests");
+      if (!r.ok) return [];
+      return r.json();
+    },
+  });
+
+  const approvedSwapInclusionIds = useMemo(() => {
+    const ids = new Set<string>();
+    allSwapRequests?.filter(s => s.status === 'aprovado').forEach(s => {
+      const id = (s as any).team_inclusion_id || s.teamInclusionId;
+      if (id) ids.add(id);
+    });
+    return ids;
+  }, [allSwapRequests]);
 
   // Handle column sorting
   const handleSort = (field: SortField) => {
@@ -786,6 +804,11 @@ export default function TeamInclusionTable() {
                     </td>
                     <td className="px-2 py-3">
                       <StatusBadge status={getDisplayStatus(inclusion)} />
+                      {approvedSwapInclusionIds.has(inclusion.id) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[10px] font-bold border border-green-200 mt-1">
+                          <ArrowLeftRight className="w-2.5 h-2.5" />Troca aprovada
+                        </span>
+                      )}
                     </td>
                     <td className="px-2 py-3 text-center">
                       {inclusion.needsTicket ? (
