@@ -205,6 +205,15 @@ export default function Scaling() {
     return map;
   }, [allSwapRequests]);
 
+  const approvedSwapInclusionIds = useMemo(() => {
+    const ids = new Set<string>();
+    allSwapRequests?.filter(s => s.status === 'aprovado').forEach(s => {
+      const inclId = (s as any).team_inclusion_id || (s as any).teamInclusionId;
+      if (inclId) ids.add(inclId);
+    });
+    return ids;
+  }, [allSwapRequests]);
+
   // Query lazy — só busca quando o usuário clica em Exportar
   const { data: allComments, refetch: refetchAllComments } = useQuery<Comment[]>({
     queryKey: ["/api/all-comments"],
@@ -1785,6 +1794,11 @@ export default function Scaling() {
                                           </span>
                                         );
                                       })()}
+                                      {approvedSwapInclusionIds.has(inclusion.id) && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[10px] font-bold border border-green-200">
+                                          <ArrowLeftRight className="w-2.5 h-2.5" />Troca aprovada
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
                                 </td>
@@ -1960,6 +1974,11 @@ export default function Scaling() {
                                           </span>
                                         );
                                       })()}
+                                      {approvedSwapInclusionIds.has(inclusion.id) && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[10px] font-bold border border-green-200">
+                                          <ArrowLeftRight className="w-2.5 h-2.5" />Troca aprovada
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
                                 </td>
