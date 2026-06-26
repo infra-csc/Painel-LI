@@ -3118,7 +3118,7 @@ export default function Scaling() {
                                       'reject_production': '❌ Reprovado pela Produção',
                                       'daily_rates_changed': '📊 Diárias Alteradas',
                                       'daily_value_changed': '💰 Valor da Diária Alterado',
-                                      'work_days_changed': '📅 Dias de Trabalho Alterados',
+                                      'work_days_changed': '📅 Diárias Editadas',
                                       'city_changed': '📍 Cidade Alterada',
                                       'create': '✨ Criado',
                                       'update': '📝 Atualizado',

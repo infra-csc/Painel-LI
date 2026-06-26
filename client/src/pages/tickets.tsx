@@ -2854,6 +2854,10 @@ export default function Tickets() {
                                         'created': '✨ Criado',
                                         'confirmed': '✅ Confirmado',
                                         'reopened': '🔓 Reaberto',
+                                        'work_days_changed': '📅 Diárias Editadas',
+                                        'daily_rates_changed': '📊 Diárias Alteradas',
+                                        'daily_value_changed': '💰 Valor da Diária Alterado',
+                                        'city_changed': '📍 Cidade Alterada',
                                       };
                                       return (
                                         <div key={log.id} className="flex gap-3">

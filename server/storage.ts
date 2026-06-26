@@ -1166,15 +1166,29 @@ export class DatabaseStorage implements IStorage {
       });
     }
     
-    // Work dates change
-    if ((inclusionData.scheduleStartDate && inclusionData.scheduleStartDate !== oldInclusion.scheduleStartDate) ||
-        (inclusionData.scheduleEndDate && inclusionData.scheduleEndDate !== oldInclusion.scheduleEndDate)) {
+    // Work dates change — only log separately when workDays is NOT also changing
+    // (when workDays changes, the consolidated entry below handles period too)
+    const workDaysAlsoChanging = Array.isArray(inclusionData.workDays) && (() => {
+      const oldDays = (oldInclusion.workDays || []).slice().sort().join(',');
+      const newDays = inclusionData.workDays!.slice().sort().join(',');
+      return oldDays !== newDays;
+    })();
+    if (!workDaysAlsoChanging &&
+        ((inclusionData.scheduleStartDate && inclusionData.scheduleStartDate !== oldInclusion.scheduleStartDate) ||
+         (inclusionData.scheduleEndDate && inclusionData.scheduleEndDate !== oldInclusion.scheduleEndDate))) {
+      const fmtDate = (d: string | null | undefined) => {
+        if (!d) return 'N/A';
+        const [y, m, day] = d.split('-');
+        return `${day}/${m}/${y}`;
+      };
+      const prevPeriod = `${fmtDate(oldInclusion.scheduleStartDate)} a ${fmtDate(oldInclusion.scheduleEndDate)}`;
+      const newPeriod = `${fmtDate(inclusionData.scheduleStartDate || oldInclusion.scheduleStartDate)} a ${fmtDate(inclusionData.scheduleEndDate || oldInclusion.scheduleEndDate)}`;
       logsToCreate.push({
         teamInclusionId: id,
         action: 'dates_changed',
-        details: `Período de trabalho alterado`,
-        previousValue: `${oldInclusion.scheduleStartDate || 'N/A'} a ${oldInclusion.scheduleEndDate || 'N/A'}`,
-        newValue: `${inclusionData.scheduleStartDate || oldInclusion.scheduleStartDate || 'N/A'} a ${inclusionData.scheduleEndDate || oldInclusion.scheduleEndDate || 'N/A'}`,
+        details: `Período: ${prevPeriod} → ${newPeriod}`,
+        previousValue: prevPeriod,
+        newValue: newPeriod,
         userId: inclusionData.updatedBy || 'system',
         userName
       });
@@ -1207,8 +1221,8 @@ export class DatabaseStorage implements IStorage {
       });
     }
 
-    // Daily rates (quantidade de diárias)
-    if (inclusionData.dailyRates !== undefined && inclusionData.dailyRates !== oldInclusion.dailyRates) {
+    // Daily rates (quantidade de diárias) — skip when workDays is also changing (consolidated below)
+    if (!workDaysAlsoChanging && inclusionData.dailyRates !== undefined && inclusionData.dailyRates !== oldInclusion.dailyRates) {
       logsToCreate.push({
         teamInclusionId: id,
         action: 'daily_rates_changed',
@@ -1234,17 +1248,41 @@ export class DatabaseStorage implements IStorage {
       });
     }
 
-    // Work days (dias específicos de trabalho)
+    // Work days (dias específicos de trabalho) — consolidated entry with count and period
     if (Array.isArray(inclusionData.workDays)) {
-      const oldDays = (oldInclusion.workDays || []).slice().sort().join(', ') || 'nenhum';
-      const newDays = inclusionData.workDays.slice().sort().join(', ') || 'nenhum';
-      if (oldDays !== newDays) {
+      const oldDaysArr = (oldInclusion.workDays || []).slice().sort();
+      const newDaysArr = inclusionData.workDays.slice().sort();
+      if (oldDaysArr.join(',') !== newDaysArr.join(',')) {
+        const fmtDay = (d: string) => { const [, m, day] = d.split('-'); return `${day}/${m}`; };
+        const fmtDate = (d: string | null | undefined) => {
+          if (!d) return 'N/A';
+          const [y, m, day] = d.split('-');
+          return `${day}/${m}/${y}`;
+        };
+        const oldCount = oldDaysArr.length;
+        const newCount = newDaysArr.length;
+
+        // Period before/after (use selected days' min/max if available, else schedule dates)
+        const oldPeriodStart = oldDaysArr[0] || oldInclusion.scheduleStartDate;
+        const oldPeriodEnd = oldDaysArr[oldDaysArr.length - 1] || oldInclusion.scheduleEndDate;
+        const newPeriodStart = newDaysArr[0] || inclusionData.scheduleStartDate || oldInclusion.scheduleStartDate;
+        const newPeriodEnd = newDaysArr[newDaysArr.length - 1] || inclusionData.scheduleEndDate || oldInclusion.scheduleEndDate;
+
+        const oldDaysLabel = oldDaysArr.length > 0 ? oldDaysArr.map(fmtDay).join(', ') : 'nenhum';
+        const newDaysLabel = newDaysArr.length > 0 ? newDaysArr.map(fmtDay).join(', ') : 'nenhum';
+
+        const details = [
+          `${oldCount} dia(s) → ${newCount} dia(s)`,
+          `Período: ${fmtDate(oldPeriodStart)} a ${fmtDate(oldPeriodEnd)} → ${fmtDate(newPeriodStart)} a ${fmtDate(newPeriodEnd)}`,
+          `Dias: ${oldDaysLabel} → ${newDaysLabel}`,
+        ].join(' | ');
+
         logsToCreate.push({
           teamInclusionId: id,
           action: 'work_days_changed',
-          details: `Dias de trabalho alterados: ${inclusionData.workDays.length} dia(s) selecionado(s)`,
-          previousValue: oldDays,
-          newValue: newDays,
+          details,
+          previousValue: oldDaysArr.join(', ') || 'nenhum',
+          newValue: newDaysArr.join(', ') || 'nenhum',
           userId: inclusionData.updatedBy || 'system',
           userName
         });
