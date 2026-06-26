@@ -1169,8 +1169,8 @@ export class DatabaseStorage implements IStorage {
     // Work dates change — only log separately when workDays is NOT also changing
     // (when workDays changes, the consolidated entry below handles period too)
     const workDaysAlsoChanging = Array.isArray(inclusionData.workDays) && (() => {
-      const oldDays = (oldInclusion.workDays || []).slice().sort().join(',');
-      const newDays = inclusionData.workDays!.slice().sort().join(',');
+      const oldDays = (oldInclusion.workDays || []).map(d => String(d)).filter(Boolean).sort().join(',');
+      const newDays = inclusionData.workDays!.map(d => String(d)).filter(Boolean).sort().join(',');
       return oldDays !== newDays;
     })();
     if (!workDaysAlsoChanging &&
@@ -1250,10 +1250,10 @@ export class DatabaseStorage implements IStorage {
 
     // Work days (dias específicos de trabalho) — consolidated entry with count and period
     if (Array.isArray(inclusionData.workDays)) {
-      const oldDaysArr = (oldInclusion.workDays || []).slice().sort();
-      const newDaysArr = inclusionData.workDays.slice().sort();
+      const oldDaysArr = (oldInclusion.workDays || []).map(d => String(d)).filter(Boolean).sort();
+      const newDaysArr = inclusionData.workDays.map(d => String(d)).filter(Boolean).sort();
       if (oldDaysArr.join(',') !== newDaysArr.join(',')) {
-        const fmtDay = (d: string) => { const [, m, day] = d.split('-'); return `${day}/${m}`; };
+        const fmtDay = (d: string) => { const parts = String(d).split('-'); return parts.length >= 3 ? `${parts[2]}/${parts[1]}` : d; };
         const fmtDate = (d: string | null | undefined) => {
           if (!d) return 'N/A';
           const [y, m, day] = d.split('-');
