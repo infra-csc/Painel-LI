@@ -1168,9 +1168,20 @@ export class DatabaseStorage implements IStorage {
     
     // Work dates change — only log separately when workDays is NOT also changing
     // (when workDays changes, the consolidated entry below handles period too)
+    // Normalize any date value (Date object, ISO string, JS date string) → "YYYY-MM-DD"
+    const toIsoDate = (d: unknown): string => {
+      if (!d) return '';
+      if (d instanceof Date) return d.toISOString().slice(0, 10);
+      const s = String(d).trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+      const parsed = new Date(s);
+      if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+      return s;
+    };
+
     const workDaysAlsoChanging = Array.isArray(inclusionData.workDays) && (() => {
-      const oldDays = (oldInclusion.workDays || []).map(d => String(d)).filter(Boolean).sort().join(',');
-      const newDays = inclusionData.workDays!.map(d => String(d)).filter(Boolean).sort().join(',');
+      const oldDays = (oldInclusion.workDays || []).map(toIsoDate).filter(Boolean).sort().join(',');
+      const newDays = inclusionData.workDays!.map(toIsoDate).filter(Boolean).sort().join(',');
       return oldDays !== newDays;
     })();
     if (!workDaysAlsoChanging &&
@@ -1250,23 +1261,24 @@ export class DatabaseStorage implements IStorage {
 
     // Work days (dias específicos de trabalho) — consolidated entry with count and period
     if (Array.isArray(inclusionData.workDays)) {
-      const oldDaysArr = (oldInclusion.workDays || []).map(d => String(d)).filter(Boolean).sort();
-      const newDaysArr = inclusionData.workDays.map(d => String(d)).filter(Boolean).sort();
+      const oldDaysArr = (oldInclusion.workDays || []).map(toIsoDate).filter(Boolean).sort();
+      const newDaysArr = inclusionData.workDays.map(toIsoDate).filter(Boolean).sort();
       if (oldDaysArr.join(',') !== newDaysArr.join(',')) {
-        const fmtDay = (d: string) => { const parts = String(d).split('-'); return parts.length >= 3 ? `${parts[2]}/${parts[1]}` : d; };
-        const fmtDate = (d: string | null | undefined) => {
-          if (!d) return 'N/A';
-          const [y, m, day] = d.split('-');
-          return `${day}/${m}/${y}`;
+        const fmtDay = (d: string) => { const parts = toIsoDate(d).split('-'); return parts.length >= 3 ? `${parts[2]}/${parts[1]}` : d; };
+        const fmtDate = (d: unknown) => {
+          const iso = toIsoDate(d);
+          if (!iso) return 'N/A';
+          const parts = iso.split('-');
+          return parts.length >= 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : iso;
         };
         const oldCount = oldDaysArr.length;
         const newCount = newDaysArr.length;
 
         // Period before/after (use selected days' min/max if available, else schedule dates)
-        const oldPeriodStart = oldDaysArr[0] || oldInclusion.scheduleStartDate;
-        const oldPeriodEnd = oldDaysArr[oldDaysArr.length - 1] || oldInclusion.scheduleEndDate;
-        const newPeriodStart = newDaysArr[0] || inclusionData.scheduleStartDate || oldInclusion.scheduleStartDate;
-        const newPeriodEnd = newDaysArr[newDaysArr.length - 1] || inclusionData.scheduleEndDate || oldInclusion.scheduleEndDate;
+        const oldPeriodStart = oldDaysArr[0] || toIsoDate(oldInclusion.scheduleStartDate);
+        const oldPeriodEnd = oldDaysArr[oldDaysArr.length - 1] || toIsoDate(oldInclusion.scheduleEndDate);
+        const newPeriodStart = newDaysArr[0] || toIsoDate(inclusionData.scheduleStartDate) || toIsoDate(oldInclusion.scheduleStartDate);
+        const newPeriodEnd = newDaysArr[newDaysArr.length - 1] || toIsoDate(inclusionData.scheduleEndDate) || toIsoDate(oldInclusion.scheduleEndDate);
 
         const oldDaysLabel = oldDaysArr.length > 0 ? oldDaysArr.map(fmtDay).join(', ') : 'nenhum';
         const newDaysLabel = newDaysArr.length > 0 ? newDaysArr.map(fmtDay).join(', ') : 'nenhum';
