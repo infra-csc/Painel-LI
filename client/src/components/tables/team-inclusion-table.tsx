@@ -951,14 +951,16 @@ export default function TeamInclusionTable() {
               e.preventDefault();
               const formData = new FormData(e.currentTarget);
               const selectedDaysArr = Array.from(editSelectedDays).sort();
+              const derivedStart = selectedDaysArr.length > 0 ? selectedDaysArr[0] : editStartDate;
+              const derivedEnd = selectedDaysArr.length > 0 ? selectedDaysArr[selectedDaysArr.length - 1] : editEndDate;
               const data = {
                 functionId: formData.get('functionId') as string,
                 status: formData.get('status') as string,
                 dailyRates: selectedDaysArr.length,
                 needsTicket: formData.get('needsTicket') === 'true',
                 needsAccommodation: formData.get('needsAccommodation') === 'true',
-                scheduleStartDate: editStartDate,
-                scheduleEndDate: editEndDate,
+                scheduleStartDate: derivedStart,
+                scheduleEndDate: derivedEnd,
                 workDays: selectedDaysArr,
                 flightDepartureDate: formData.get('ida') as string || null,
                 flightArrivalSuggestedTime: formData.get('chegada') as string || null,
@@ -1071,7 +1073,13 @@ export default function TeamInclusionTable() {
                           </label>
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-blue-700 bg-blue-50 rounded-lg px-2 py-0.5">{selectedCount} dia{selectedCount !== 1 ? 's' : ''}</span>
-                            <button type="button" onClick={() => setEditSelectedDays(new Set(allDays))}
+                            <button type="button" onClick={() => {
+                              setEditSelectedDays(new Set(allDays));
+                              if (allDays.length > 0) {
+                                setEditStartDate(allDays[0]);
+                                setEditEndDate(allDays[allDays.length - 1]);
+                              }
+                            }}
                               className="text-[10px] text-slate-400 hover:text-blue-600 underline">todos</button>
                             <button type="button" onClick={() => setEditSelectedDays(new Set())}
                               className="text-[10px] text-slate-400 hover:text-red-500 underline">nenhum</button>
@@ -1092,6 +1100,11 @@ export default function TeamInclusionTable() {
                                 onClick={() => setEditSelectedDays(prev => {
                                   const next = new Set(prev);
                                   if (next.has(day)) next.delete(day); else next.add(day);
+                                  const sorted = Array.from(next).sort();
+                                  if (sorted.length > 0) {
+                                    setEditStartDate(sorted[0]);
+                                    setEditEndDate(sorted[sorted.length - 1]);
+                                  }
                                   return next;
                                 })}
                                 className={`flex flex-col items-center px-2 py-1 rounded-lg border text-[11px] font-semibold transition-all min-w-[38px] ${
