@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { formatDiarias, fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Edit, MessageCircle, History, Check, X, Trash2, Copy, Ban } from "lucide-react";
+import { Edit, MessageCircle, History, Check, X, Trash2, Copy, Ban, LayoutGrid, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -196,6 +196,61 @@ export default function TeamInclusionTable() {
     // Pode cancelar em qualquer status, exceto quando já está cancelado
     return inclusion.status !== 'cancelado';
   };
+
+  // ── Estado e lógica para grade de diárias em lote ──────────────────────────
+  const [showBatchDiarias, setShowBatchDiarias] = useState(false);
+  const [batchDiarias, setBatchDiarias] = useState<Record<string, { dailyRates: string; dailyValue: string }>>({});
+
+  const openBatchDiarias = () => {
+    const initial: Record<string, { dailyRates: string; dailyValue: string }> = {};
+    filteredAndSortedInclusions.forEach(inc => {
+      initial[inc.id] = {
+        dailyRates: inc.dailyRates != null ? String(inc.dailyRates) : '',
+        dailyValue: inc.dailyValue ? String((inc.dailyValue / 100).toFixed(2)) : '',
+      };
+    });
+    setBatchDiarias(initial);
+    setShowBatchDiarias(true);
+  };
+
+  const batchSaveDiariasMutation = useMutation({
+    mutationFn: async (changes: Array<{ id: string; dailyRates?: number; dailyValue?: number }>) => {
+      await Promise.all(
+        changes.map(({ id, ...data }) =>
+          apiRequest("PATCH", `/api/team-inclusions/${id}`, data).then(r => r.json())
+        )
+      );
+    },
+    onSuccess: () => {
+      toast({ title: "Diárias salvas", description: "Todas as alterações foram aplicadas." });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+      setShowBatchDiarias(false);
+    },
+    onError: () => {
+      toast({ title: "Erro", description: "Erro ao salvar as diárias.", variant: "destructive" });
+    },
+  });
+
+  const handleSaveBatchDiarias = () => {
+    const changes: Array<{ id: string; dailyRates?: number; dailyValue?: number }> = [];
+    filteredAndSortedInclusions.forEach(inc => {
+      const vals = batchDiarias[inc.id];
+      if (!vals) return;
+      const data: { id: string; dailyRates?: number; dailyValue?: number } = { id: inc.id };
+      let changed = false;
+      const dr = parseInt(vals.dailyRates);
+      const dv = Math.round(parseFloat(vals.dailyValue.replace(',', '.')) * 100);
+      if (!isNaN(dr) && dr !== (inc.dailyRates ?? 0)) { data.dailyRates = dr; changed = true; }
+      if (!isNaN(dv) && dv !== (inc.dailyValue ?? 0)) { data.dailyValue = dv; changed = true; }
+      if (changed) changes.push(data);
+    });
+    if (changes.length === 0) {
+      toast({ title: "Sem alterações", description: "Nenhum valor foi modificado." });
+      return;
+    }
+    batchSaveDiariasMutation.mutate(changes);
+  };
+  // ────────────────────────────────────────────────────────────────────────────
 
   const canDeleteInclusion = (inclusion: TeamInclusion) => {
     // Só pode excluir antes da escalação (não pode ter comprado nada)
@@ -582,6 +637,17 @@ export default function TeamInclusionTable() {
               <span className="text-xs text-slate-400">({filteredAndSortedInclusions.length})</span>
             )}
           </div>
+          {hasPermission(user, 'canEditScreen1') && filteredAndSortedInclusions.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openBatchDiarias}
+              className="h-7 px-2.5 text-[11px] font-semibold text-blue-700 border-blue-200 hover:bg-blue-50 gap-1.5"
+            >
+              <LayoutGrid className="w-3 h-3" />
+              Editar diárias em lote
+            </Button>
+          )}
         </div>
         
         <div>
@@ -1114,6 +1180,136 @@ export default function TeamInclusionTable() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Grade de edição de diárias em lote ── */}
+      {showBatchDiarias && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center">
+                  <LayoutGrid className="w-4 h-4 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-[14px] font-bold text-slate-900 leading-tight">Edição de Diárias em Lote</h2>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{filteredAndSortedInclusions.length} inclusão(ões) visível(is) — status não será alterado</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowBatchDiarias(false)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Grid */}
+            <div className="overflow-auto flex-1">
+              <table className="w-full text-sm border-collapse">
+                <thead className="sticky top-0 z-10">
+                  <tr style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400 w-[60px]">#</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Colaborador</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Função</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400 w-[110px]">Período</th>
+                    <th className="px-4 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-400 w-[90px]">Qtd Diárias</th>
+                    <th className="px-4 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-400 w-[110px]">Valor (R$)</th>
+                    <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-400 w-[100px]">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAndSortedInclusions.map((inc, idx) => {
+                    const vals = batchDiarias[inc.id] ?? { dailyRates: '', dailyValue: '' };
+                    const origDr = inc.dailyRates ?? 0;
+                    const origDv = inc.dailyValue ?? 0;
+                    const curDr = parseInt(vals.dailyRates);
+                    const curDv = Math.round(parseFloat(vals.dailyValue.replace(',', '.')) * 100);
+                    const changed = (!isNaN(curDr) && curDr !== origDr) || (!isNaN(curDv) && curDv !== origDv);
+                    const displayDr = isNaN(curDr) ? 0 : curDr;
+                    const displayDv = isNaN(curDv) ? 0 : curDv;
+                    const total = (displayDr * displayDv) / 100;
+                    const formatDate = (d: string | null | undefined) => {
+                      if (!d) return '—';
+                      const [y, m, day] = d.split('-');
+                      return `${day}/${m}`;
+                    };
+                    return (
+                      <tr
+                        key={inc.id}
+                        className={`border-b border-slate-100 transition-colors ${changed ? 'bg-blue-50/60' : idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
+                      >
+                        <td className="px-4 py-2 text-[11px] font-mono text-slate-400">#{inc.inclusionNumber ?? '—'}</td>
+                        <td className="px-4 py-2">
+                          <span className="text-[12px] font-medium text-slate-800 leading-snug">
+                            {inc.collaboratorId ? fixEncoding(getCollaboratorName(inc.collaboratorId)) : <span className="text-slate-400 italic">Não escalado</span>}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-[12px] text-slate-600 truncate max-w-[140px]">{getFunctionName(inc.functionId)}</td>
+                        <td className="px-4 py-2 text-[11px] text-slate-500 whitespace-nowrap">
+                          {inc.scheduleStartDate && inc.scheduleEndDate
+                            ? `${formatDate(inc.scheduleStartDate)} – ${formatDate(inc.scheduleEndDate)}`
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="number"
+                            min="0"
+                            value={vals.dailyRates}
+                            onChange={e => setBatchDiarias(prev => ({ ...prev, [inc.id]: { ...prev[inc.id], dailyRates: e.target.value } }))}
+                            className={`w-full text-center rounded-lg border px-2 py-1 text-[12px] font-semibold focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all ${changed && !isNaN(curDr) && curDr !== origDr ? 'border-blue-400 bg-blue-50' : 'border-slate-200 bg-white'}`}
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 pointer-events-none">R$</span>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={vals.dailyValue}
+                              onChange={e => setBatchDiarias(prev => ({ ...prev, [inc.id]: { ...prev[inc.id], dailyValue: e.target.value } }))}
+                              className={`w-full text-right rounded-lg border pl-7 pr-2 py-1 text-[12px] font-semibold focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all ${changed && !isNaN(curDv) && curDv !== origDv ? 'border-blue-400 bg-blue-50' : 'border-slate-200 bg-white'}`}
+                            />
+                          </div>
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          <span className={`text-[12px] font-bold ${changed ? 'text-blue-700' : 'text-slate-700'}`}>
+                            {total > 0 ? `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-slate-100 px-6 py-4 flex items-center justify-between">
+              <p className="text-[11px] text-slate-400">
+                Linhas em <span className="text-blue-600 font-semibold">azul</span> têm valores alterados. O status das escalações não será modificado.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowBatchDiarias(false)}
+                  className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl px-5 py-2 text-sm font-medium transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSaveBatchDiarias}
+                  disabled={batchSaveDiariasMutation.isPending}
+                  className="flex items-center gap-2 text-white rounded-xl px-5 py-2 text-sm font-semibold transition-all disabled:opacity-50"
+                  style={{ background: "#0033CC", boxShadow: "0 2px 8px #0033CC40" }}
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  {batchSaveDiariasMutation.isPending ? 'Salvando...' : 'Salvar alterações'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
