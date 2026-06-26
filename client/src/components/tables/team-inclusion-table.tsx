@@ -1075,10 +1075,6 @@ export default function TeamInclusionTable() {
                             <span className="text-xs font-bold text-blue-700 bg-blue-50 rounded-lg px-2 py-0.5">{selectedCount} dia{selectedCount !== 1 ? 's' : ''}</span>
                             <button type="button" onClick={() => {
                               setEditSelectedDays(new Set(allDays));
-                              if (allDays.length > 0) {
-                                setEditStartDate(allDays[0]);
-                                setEditEndDate(allDays[allDays.length - 1]);
-                              }
                             }}
                               className="text-[10px] text-slate-400 hover:text-blue-600 underline">todos</button>
                             <button type="button" onClick={() => setEditSelectedDays(new Set())}
@@ -1100,11 +1096,6 @@ export default function TeamInclusionTable() {
                                 onClick={() => setEditSelectedDays(prev => {
                                   const next = new Set(prev);
                                   if (next.has(day)) next.delete(day); else next.add(day);
-                                  const sorted = Array.from(next).sort();
-                                  if (sorted.length > 0) {
-                                    setEditStartDate(sorted[0]);
-                                    setEditEndDate(sorted[sorted.length - 1]);
-                                  }
                                   return next;
                                 })}
                                 className={`flex flex-col items-center px-2 py-1 rounded-lg border text-[11px] font-semibold transition-all min-w-[38px] ${
