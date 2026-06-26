@@ -931,7 +931,7 @@ export default function TeamInclusionTable() {
               const data = {
                 functionId: formData.get('functionId') as string,
                 status: formData.get('status') as string,
-                dailyRates: selectedDaysArr.length || 1,
+                dailyRates: selectedDaysArr.length,
                 needsTicket: formData.get('needsTicket') === 'true',
                 needsAccommodation: formData.get('needsAccommodation') === 'true',
                 scheduleStartDate: editStartDate,
