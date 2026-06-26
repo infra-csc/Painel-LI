@@ -197,24 +197,40 @@ export default function TeamInclusionTable() {
     return inclusion.status !== 'cancelado';
   };
 
-  // ── Estado e lógica para grade de diárias em lote ──────────────────────────
+  // ── Grade de diárias em lote ────────────────────────────────────────────────
   const [showBatchDiarias, setShowBatchDiarias] = useState(false);
-  const [batchDiarias, setBatchDiarias] = useState<Record<string, { dailyRates: string; dailyValue: string }>>({});
+  // inclusionId → array de dias selecionados (YYYY-MM-DD)
+  const [batchDiariasSelections, setBatchDiariasSelections] = useState<Record<string, string[]>>({});
+  const [batchTargetIds, setBatchTargetIds] = useState<string[]>([]);
 
   const openBatchDiarias = () => {
-    const initial: Record<string, { dailyRates: string; dailyValue: string }> = {};
-    filteredAndSortedInclusions.forEach(inc => {
-      initial[inc.id] = {
-        dailyRates: inc.dailyRates != null ? String(inc.dailyRates) : '',
-        dailyValue: inc.dailyValue ? String((inc.dailyValue / 100).toFixed(2)) : '',
-      };
+    // Usa as linhas selecionadas com checkbox; se nenhuma, usa todas as filtradas
+    const targets = selectedRows.size > 0
+      ? filteredAndSortedInclusions.filter(inc => selectedRows.has(inc.id))
+      : filteredAndSortedInclusions;
+
+    const initial: Record<string, string[]> = {};
+    targets.forEach(inc => {
+      const start = normDay(inc.scheduleStartDate);
+      const end = normDay(inc.scheduleEndDate);
+      const savedDays = (inc.workDays || []).map(normDay).filter(Boolean);
+      initial[inc.id] = savedDays.length > 0 ? savedDays : generateDaysInRange(start, end);
     });
-    setBatchDiarias(initial);
+    setBatchDiariasSelections(initial);
+    setBatchTargetIds(targets.map(i => i.id));
     setShowBatchDiarias(true);
   };
 
+  const toggleBatchDay = (inclusionId: string, day: string) => {
+    setBatchDiariasSelections(prev => {
+      const cur = prev[inclusionId] ?? [];
+      const next = cur.includes(day) ? cur.filter(d => d !== day) : [...cur, day];
+      return { ...prev, [inclusionId]: next };
+    });
+  };
+
   const batchSaveDiariasMutation = useMutation({
-    mutationFn: async (changes: Array<{ id: string; dailyRates?: number; dailyValue?: number }>) => {
+    mutationFn: async (changes: Array<{ id: string; dailyRates: number; workDays: string[] }>) => {
       await Promise.all(
         changes.map(({ id, ...data }) =>
           apiRequest("PATCH", `/api/team-inclusions/${id}`, data).then(r => r.json())
@@ -232,20 +248,19 @@ export default function TeamInclusionTable() {
   });
 
   const handleSaveBatchDiarias = () => {
-    const changes: Array<{ id: string; dailyRates?: number; dailyValue?: number }> = [];
-    filteredAndSortedInclusions.forEach(inc => {
-      const vals = batchDiarias[inc.id];
-      if (!vals) return;
-      const data: { id: string; dailyRates?: number; dailyValue?: number } = { id: inc.id };
-      let changed = false;
-      const dr = parseInt(vals.dailyRates);
-      const dv = Math.round(parseFloat(vals.dailyValue.replace(',', '.')) * 100);
-      if (!isNaN(dr) && dr !== (inc.dailyRates ?? 0)) { data.dailyRates = dr; changed = true; }
-      if (!isNaN(dv) && dv !== (inc.dailyValue ?? 0)) { data.dailyValue = dv; changed = true; }
-      if (changed) changes.push(data);
+    const changes: Array<{ id: string; dailyRates: number; workDays: string[] }> = [];
+    batchTargetIds.forEach(id => {
+      const inc = filteredAndSortedInclusions.find(i => i.id === id);
+      if (!inc) return;
+      const newDays = [...(batchDiariasSelections[id] ?? [])].sort();
+      const origDays = (inc.workDays || []).map(normDay).filter(Boolean).sort();
+      const origDr = inc.dailyRates ?? 0;
+      if (newDays.join(',') !== origDays.join(',') || newDays.length !== origDr) {
+        changes.push({ id, dailyRates: newDays.length, workDays: newDays });
+      }
     });
     if (changes.length === 0) {
-      toast({ title: "Sem alterações", description: "Nenhum valor foi modificado." });
+      toast({ title: "Sem alterações", description: "Nenhum dia foi modificado." });
       return;
     }
     batchSaveDiariasMutation.mutate(changes);
@@ -604,6 +619,16 @@ export default function TeamInclusionTable() {
               {selectedRows.size} inclusão(ões) selecionada(s)
             </div>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={openBatchDiarias}
+                className="border-blue-400 text-blue-700 hover:bg-blue-100 gap-1.5"
+                data-testid="button-bulk-diarias"
+              >
+                <LayoutGrid className="w-4 h-4" />
+                Editar diárias
+              </Button>
               <Button
                 variant="destructive"
                 size="sm"
@@ -1184,135 +1209,150 @@ export default function TeamInclusionTable() {
         </div>
       )}
 
-      {/* ── Grade de edição de diárias em lote ── */}
-      {showBatchDiarias && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh]">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center">
-                  <LayoutGrid className="w-4 h-4 text-blue-600" />
-                </div>
-                <div>
-                  <h2 className="text-[14px] font-bold text-slate-900 leading-tight">Edição de Diárias em Lote</h2>
-                  <p className="text-[11px] text-slate-400 mt-0.5">{filteredAndSortedInclusions.length} inclusão(ões) visível(is) — status não será alterado</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowBatchDiarias(false)}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {/* ── Grade de diárias em lote ── */}
+      {showBatchDiarias && (() => {
+        const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+        const targets = batchTargetIds
+          .map(id => filteredAndSortedInclusions.find(i => i.id === id))
+          .filter(Boolean) as typeof filteredAndSortedInclusions;
 
-            {/* Grid */}
-            <div className="overflow-auto flex-1">
-              <table className="w-full text-sm border-collapse">
-                <thead className="sticky top-0 z-10">
-                  <tr style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400 w-[60px]">#</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Colaborador</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Função</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400 w-[110px]">Período</th>
-                    <th className="px-4 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-400 w-[90px]">Qtd Diárias</th>
-                    <th className="px-4 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-400 w-[110px]">Valor (R$)</th>
-                    <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-400 w-[100px]">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAndSortedInclusions.map((inc, idx) => {
-                    const vals = batchDiarias[inc.id] ?? { dailyRates: '', dailyValue: '' };
-                    const origDr = inc.dailyRates ?? 0;
-                    const origDv = inc.dailyValue ?? 0;
-                    const curDr = parseInt(vals.dailyRates);
-                    const curDv = Math.round(parseFloat(vals.dailyValue.replace(',', '.')) * 100);
-                    const changed = (!isNaN(curDr) && curDr !== origDr) || (!isNaN(curDv) && curDv !== origDv);
-                    const displayDr = isNaN(curDr) ? 0 : curDr;
-                    const displayDv = isNaN(curDv) ? 0 : curDv;
-                    const total = (displayDr * displayDv) / 100;
-                    const formatDate = (d: string | null | undefined) => {
-                      if (!d) return '—';
-                      const [y, m, day] = d.split('-');
-                      return `${day}/${m}`;
-                    };
-                    return (
-                      <tr
-                        key={inc.id}
-                        className={`border-b border-slate-100 transition-colors ${changed ? 'bg-blue-50/60' : idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
-                      >
-                        <td className="px-4 py-2 text-[11px] font-mono text-slate-400">#{inc.inclusionNumber ?? '—'}</td>
-                        <td className="px-4 py-2">
-                          <span className="text-[12px] font-medium text-slate-800 leading-snug">
-                            {inc.collaboratorId ? fixEncoding(getCollaboratorName(inc.collaboratorId)) : <span className="text-slate-400 italic">Não escalado</span>}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2 text-[12px] text-slate-600 truncate max-w-[140px]">{getFunctionName(inc.functionId)}</td>
-                        <td className="px-4 py-2 text-[11px] text-slate-500 whitespace-nowrap">
-                          {inc.scheduleStartDate && inc.scheduleEndDate
-                            ? `${formatDate(inc.scheduleStartDate)} – ${formatDate(inc.scheduleEndDate)}`
-                            : '—'}
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="number"
-                            min="0"
-                            value={vals.dailyRates}
-                            onChange={e => setBatchDiarias(prev => ({ ...prev, [inc.id]: { ...prev[inc.id], dailyRates: e.target.value } }))}
-                            className={`w-full text-center rounded-lg border px-2 py-1 text-[12px] font-semibold focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all ${changed && !isNaN(curDr) && curDr !== origDr ? 'border-blue-400 bg-blue-50' : 'border-slate-200 bg-white'}`}
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <div className="relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 pointer-events-none">R$</span>
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={vals.dailyValue}
-                              onChange={e => setBatchDiarias(prev => ({ ...prev, [inc.id]: { ...prev[inc.id], dailyValue: e.target.value } }))}
-                              className={`w-full text-right rounded-lg border pl-7 pr-2 py-1 text-[12px] font-semibold focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all ${changed && !isNaN(curDv) && curDv !== origDv ? 'border-blue-400 bg-blue-50' : 'border-slate-200 bg-white'}`}
-                            />
-                          </div>
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          <span className={`text-[12px] font-bold ${changed ? 'text-blue-700' : 'text-slate-700'}`}>
-                            {total > 0 ? `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col max-h-[90vh]">
 
-            {/* Footer */}
-            <div className="border-t border-slate-100 px-6 py-4 flex items-center justify-between">
-              <p className="text-[11px] text-slate-400">
-                Linhas em <span className="text-blue-600 font-semibold">azul</span> têm valores alterados. O status das escalações não será modificado.
-              </p>
-              <div className="flex gap-2">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                    <LayoutGrid className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-[14px] font-bold text-slate-900 leading-tight">Edição de Diárias em Lote</h2>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {targets.length} inclusão(ões) — selecione os dias de cada uma; a quantidade será calculada automaticamente
+                    </p>
+                  </div>
+                </div>
                 <button
                   onClick={() => setShowBatchDiarias(false)}
-                  className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl px-5 py-2 text-sm font-medium transition-colors"
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
                 >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleSaveBatchDiarias}
-                  disabled={batchSaveDiariasMutation.isPending}
-                  className="flex items-center gap-2 text-white rounded-xl px-5 py-2 text-sm font-semibold transition-all disabled:opacity-50"
-                  style={{ background: "#0033CC", boxShadow: "0 2px 8px #0033CC40" }}
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  {batchSaveDiariasMutation.isPending ? 'Salvando...' : 'Salvar alterações'}
+                  <X className="w-4 h-4" />
                 </button>
               </div>
+
+              {/* Rows */}
+              <div className="overflow-y-auto flex-1 divide-y divide-slate-100">
+                {targets.map((inc, idx) => {
+                  const selectedDays = batchDiariasSelections[inc.id] ?? [];
+                  const start = normDay(inc.scheduleStartDate);
+                  const end = normDay(inc.scheduleEndDate);
+                  const allDays = generateDaysInRange(start, end);
+                  const origDays = (inc.workDays || []).map(normDay).filter(Boolean).sort();
+                  const newDays = [...selectedDays].sort();
+                  const changed = newDays.join(',') !== origDays.join(',') || newDays.length !== (inc.dailyRates ?? 0);
+
+                  return (
+                    <div
+                      key={inc.id}
+                      className={`px-6 py-4 transition-colors ${changed ? 'bg-blue-50/50' : idx % 2 === 1 ? 'bg-slate-50/30' : 'bg-white'}`}
+                    >
+                      {/* Info row */}
+                      <div className="flex items-center gap-4 mb-3">
+                        <span className="text-[10px] font-mono text-slate-400 w-10 shrink-0">#{inc.inclusionNumber ?? '—'}</span>
+                        <span className="text-[12px] font-semibold text-slate-800 w-40 shrink-0 truncate">
+                          {inc.collaboratorId
+                            ? fixEncoding(getCollaboratorName(inc.collaboratorId))
+                            : <span className="text-slate-400 italic font-normal">Não escalado</span>}
+                        </span>
+                        <span className="text-[12px] text-slate-500 w-32 shrink-0 truncate">{getFunctionName(inc.functionId)}</span>
+                        <div className="flex items-center gap-1.5 ml-auto shrink-0">
+                          <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${changed ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                            {selectedDays.length} dia{selectedDays.length !== 1 ? 's' : ''}
+                          </span>
+                          {allDays.length > 0 && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setBatchDiariasSelections(prev => ({ ...prev, [inc.id]: allDays }))}
+                                className="text-[10px] text-slate-400 hover:text-blue-600 underline"
+                              >todos</button>
+                              <button
+                                type="button"
+                                onClick={() => setBatchDiariasSelections(prev => ({ ...prev, [inc.id]: [] }))}
+                                className="text-[10px] text-slate-400 hover:text-red-500 underline"
+                              >nenhum</button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Day picker */}
+                      {allDays.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5 ml-14">
+                          {allDays.map(day => {
+                            const d = new Date(day + 'T12:00:00');
+                            const isSelected = selectedDays.includes(day);
+                            const wd = weekdays[d.getDay()];
+                            const dayNum = d.getDate();
+                            const mon = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+                            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                            return (
+                              <button
+                                key={day}
+                                type="button"
+                                onClick={() => toggleBatchDay(inc.id, day)}
+                                className={`flex flex-col items-center px-2 py-1 rounded-lg border text-[11px] font-semibold transition-all min-w-[38px] ${
+                                  isSelected
+                                    ? isWeekend
+                                      ? 'bg-orange-500 text-white border-orange-500'
+                                      : 'bg-blue-600 text-white border-blue-600'
+                                    : 'bg-white text-slate-400 border-slate-200 line-through'
+                                }`}
+                              >
+                                <span className="text-[9px] font-normal">{wd}</span>
+                                <span>{dayNum}</span>
+                                <span className="text-[9px] font-normal">{mon}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="ml-14 text-[11px] text-slate-400 italic">Sem período definido nesta inclusão</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-slate-100 px-6 py-4 flex items-center justify-between shrink-0">
+                <p className="text-[11px] text-slate-400">
+                  Linhas em <span className="text-blue-600 font-semibold">azul</span> têm dias alterados. Status das escalações não será modificado.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowBatchDiarias(false)}
+                    className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl px-5 py-2 text-sm font-medium transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleSaveBatchDiarias}
+                    disabled={batchSaveDiariasMutation.isPending}
+                    className="flex items-center gap-2 text-white rounded-xl px-5 py-2 text-sm font-semibold transition-all disabled:opacity-50"
+                    style={{ background: "#0033CC", boxShadow: "0 2px 8px #0033CC40" }}
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    {batchSaveDiariasMutation.isPending ? 'Salvando...' : 'Salvar alterações'}
+                  </button>
+                </div>
+              </div>
+
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <ConfirmModal
         open={confirmState.open}
