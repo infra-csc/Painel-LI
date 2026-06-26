@@ -1954,6 +1954,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updatedBy: userId,
       });
       await createAuditLog('approve_production', 'team_inclusion', id, updated, userId, user.name ?? 'Produção', inclusion, req);
+      await storage.createTeamInclusionLog({
+        teamInclusionId: id,
+        action: 'approve_production',
+        details: `Escalação aprovada pela produção → status: ${nextStatus === 'aprovado' ? 'Aprovado' : 'Escalado'}`,
+        previousValue: 'aguardando_producao',
+        newValue: nextStatus,
+        userId,
+        userName: user.name ?? 'Produção',
+      });
       res.json({ message: "Escalação aprovada pela produção", inclusion: updated });
     } catch (error) {
       console.error("Error approving production:", error);
@@ -1991,6 +2000,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updatedBy: userId,
       });
       await createAuditLog('reject_production', 'team_inclusion', id, updated, userId, user.name ?? 'Produção', inclusion, req);
+      await storage.createTeamInclusionLog({
+        teamInclusionId: id,
+        action: 'reject_production',
+        details: `Escalação reprovada pela produção — colaborador removido, voltou para escalação`,
+        previousValue: 'aguardando_producao',
+        newValue: 'escalacao',
+        userId,
+        userName: user.name ?? 'Produção',
+      });
       res.json({ message: "Escalação reprovada pela produção — colaborador removido", inclusion: updated });
     } catch (error) {
       console.error("Error rejecting production:", error);

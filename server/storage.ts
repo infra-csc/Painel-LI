@@ -1206,7 +1206,64 @@ export class DatabaseStorage implements IStorage {
         userName
       });
     }
-    
+
+    // Daily rates (quantidade de diárias)
+    if (inclusionData.dailyRates !== undefined && inclusionData.dailyRates !== oldInclusion.dailyRates) {
+      logsToCreate.push({
+        teamInclusionId: id,
+        action: 'daily_rates_changed',
+        details: `Quantidade de diárias alterada de ${oldInclusion.dailyRates ?? 0} para ${inclusionData.dailyRates}`,
+        previousValue: String(oldInclusion.dailyRates ?? 0),
+        newValue: String(inclusionData.dailyRates),
+        userId: inclusionData.updatedBy || 'system',
+        userName
+      });
+    }
+
+    // Daily value (valor da diária em centavos)
+    if (inclusionData.dailyValue !== undefined && inclusionData.dailyValue !== oldInclusion.dailyValue) {
+      const fmtCents = (v: number) => `R$ ${(v / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      logsToCreate.push({
+        teamInclusionId: id,
+        action: 'daily_value_changed',
+        details: `Valor da diária alterado de ${fmtCents(oldInclusion.dailyValue ?? 0)} para ${fmtCents(inclusionData.dailyValue)}`,
+        previousValue: String(oldInclusion.dailyValue ?? 0),
+        newValue: String(inclusionData.dailyValue),
+        userId: inclusionData.updatedBy || 'system',
+        userName
+      });
+    }
+
+    // Work days (dias específicos de trabalho)
+    if (Array.isArray(inclusionData.workDays)) {
+      const oldDays = (oldInclusion.workDays || []).slice().sort().join(', ') || 'nenhum';
+      const newDays = inclusionData.workDays.slice().sort().join(', ') || 'nenhum';
+      if (oldDays !== newDays) {
+        logsToCreate.push({
+          teamInclusionId: id,
+          action: 'work_days_changed',
+          details: `Dias de trabalho alterados: ${inclusionData.workDays.length} dia(s) selecionado(s)`,
+          previousValue: oldDays,
+          newValue: newDays,
+          userId: inclusionData.updatedBy || 'system',
+          userName
+        });
+      }
+    }
+
+    // City change
+    if (inclusionData.city !== undefined && inclusionData.city !== oldInclusion.city) {
+      logsToCreate.push({
+        teamInclusionId: id,
+        action: 'city_changed',
+        details: `Cidade alterada de "${oldInclusion.city || 'Não informada'}" para "${inclusionData.city || 'Não informada'}"`,
+        previousValue: oldInclusion.city || '',
+        newValue: inclusionData.city || '',
+        userId: inclusionData.updatedBy || 'system',
+        userName
+      });
+    }
+
     // Salvar todos os logs
     if (logsToCreate.length > 0) {
       await db.insert(teamInclusionLogs).values(logsToCreate);

@@ -3116,9 +3116,14 @@ export default function Scaling() {
                                       'reopened': '🔓 Reaberto',
                                       'approve_production': '✅ Aprovado pela Produção',
                                       'reject_production': '❌ Reprovado pela Produção',
+                                      'daily_rates_changed': '📊 Diárias Alteradas',
+                                      'daily_value_changed': '💰 Valor da Diária Alterado',
+                                      'work_days_changed': '📅 Dias de Trabalho Alterados',
+                                      'city_changed': '📍 Cidade Alterada',
                                       'create': '✨ Criado',
                                       'update': '📝 Atualizado',
                                       'delete': '🗑️ Excluído',
+                                      'deleted': '🗑️ Excluído',
                                       'reactivate': '🔓 Reativado',
                                     };
                                     return (
