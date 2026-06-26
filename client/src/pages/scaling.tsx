@@ -3095,6 +3095,12 @@ export default function Scaling() {
                                       'created': '✨ Criado',
                                       'confirmed': '✅ Confirmado',
                                       'reopened': '🔓 Reaberto',
+                                      'approve_production': '✅ Aprovado pela Produção',
+                                      'reject_production': '❌ Reprovado pela Produção',
+                                      'create': '✨ Criado',
+                                      'update': '📝 Atualizado',
+                                      'delete': '🗑️ Excluído',
+                                      'reactivate': '🔓 Reativado',
                                     };
                                     return (
                                       <div key={log.id} className="flex gap-3">
