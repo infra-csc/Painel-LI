@@ -1819,7 +1819,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (Array.isArray(bodyData.workDays)) {
         // workDays explicitly sent — use as-is and update dailyRates from count
-        bodyData.dailyRates = bodyData.workDays.length || 1;
+        bodyData.dailyRates = bodyData.workDays.length;
       } else if (datesChanged && newStartDate && newEndDate) {
         const start = new Date(newStartDate);
         const end = new Date(newEndDate);
