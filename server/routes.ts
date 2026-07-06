@@ -217,6 +217,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         document: c.officialDocument ?? undefined,
         phone: c.phone ?? undefined,
         active: c.active !== false && c.status !== "inativo",
+        // "freela" → Freela; "casa"/"local" → Casa (colaborador fixo/local é tratado como Casa)
+        employmentType: c.type === "freela" ? "Freela" : "Casa",
       }));
       return res.json(payload);
     } catch (err) {
