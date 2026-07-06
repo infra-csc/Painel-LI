@@ -246,6 +246,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Normaliza qualquer valor de data (Date, string ISO, etc.) → "YYYY-MM-DD"
+  const toIsoDateStr = (d: unknown): string | undefined => {
+    if (!d) return undefined;
+    if (d instanceof Date) return d.toISOString().slice(0, 10);
+    const s = String(d).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    const parsed = new Date(s);
+    if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+    return undefined;
+  };
+
   // 3. GET /api/integration/participations — participações (colaborador x evento x função)
   app.get("/api/integration/participations", async (req, res) => {
     if (!validateMaratonaToken(req, res)) return;
@@ -257,14 +268,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const functionNameById = new Map(functions.map((f) => [f.id, f.name]));
       const payload = inclusions
         .filter((ti) => ti.collaboratorId)
-        .map((ti) => ({
-          eventExternalId: ti.eventId,
-          employeeExternalId: ti.collaboratorId,
-          functionName: functionNameById.get(ti.functionId) ?? undefined,
-          teamName: ti.area ?? undefined,
-          // "confirmado" = qualquer status que não seja apenas planejado ou cancelado
-          confirmed: ti.status !== "planejado" && ti.status !== "cancelado",
-        }));
+        .map((ti) => {
+          // Dias de trabalho específicos (não consecutivos) têm prioridade sobre o período agendado
+          const workDaysIso = (ti.workDays || [])
+            .map(toIsoDateStr)
+            .filter((d): d is string => !!d)
+            .sort();
+
+          const diariaCount = workDaysIso.length > 0 ? workDaysIso.length : (ti.dailyRates ?? undefined);
+          const diariaStartDate = workDaysIso.length > 0 ? workDaysIso[0] : toIsoDateStr(ti.scheduleStartDate);
+          const diariaEndDate = workDaysIso.length > 0 ? workDaysIso[workDaysIso.length - 1] : toIsoDateStr(ti.scheduleEndDate);
+
+          return {
+            eventExternalId: ti.eventId,
+            employeeExternalId: ti.collaboratorId,
+            functionName: functionNameById.get(ti.functionId) ?? undefined,
+            teamName: ti.area ?? undefined,
+            // "confirmado" = qualquer status que não seja apenas planejado ou cancelado
+            confirmed: ti.status !== "planejado" && ti.status !== "cancelado",
+            diariaCount,
+            diariaStartDate,
+            diariaEndDate,
+          };
+        });
       return res.json(payload);
     } catch (err) {
       console.error("[Maratona API] Erro ao listar participações:", err);
