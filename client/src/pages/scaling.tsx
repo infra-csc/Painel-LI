@@ -2309,6 +2309,7 @@ export default function Scaling() {
 
                                   const reviewedAt = (swap as any).reviewed_at || swap.reviewedAt;
                                   const reviewedByName = (swap as any).reviewed_by_name || swap.reviewedByName;
+                                  const requestedByName = (swap as any).requested_by_name || swap.requestedByName;
                                   const currentCollabName = getCollaboratorName((swap as any).current_collaborator_id || (swap as any).currentCollaboratorId);
                                   const newCollabName = getCollaboratorName((swap as any).new_collaborator_id || (swap as any).newCollaboratorId);
                                   const isResolved = swap.status === 'aprovado' || swap.status === 'rejeitado';
@@ -2333,6 +2334,13 @@ export default function Scaling() {
                                             <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
                                             <span className={`font-semibold ${swap.status === 'aprovado' ? 'text-green-700' : 'text-slate-500'}`}>{newCollabName || '—'}</span>
                                           </div>
+                                          {/* Quem solicitou */}
+                                          {requestedByName && (
+                                            <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                                              <ArrowLeftRight className="w-2.5 h-2.5 shrink-0" />
+                                              <span>Solicitado por <span className="font-medium text-slate-600">{requestedByName}</span></span>
+                                            </div>
+                                          )}
                                           {/* Quem resolveu e quando */}
                                           {reviewedByName && (
                                             <div className="flex items-center gap-1 text-[10px] text-slate-400">
@@ -2358,6 +2366,12 @@ export default function Scaling() {
                                       ) : (
                                         <div className="space-y-1">
                                           <p className="text-[10.5px] text-slate-500 leading-snug">Aguardando análise do time de Compras.</p>
+                                          {requestedByName && (
+                                            <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                                              <ArrowLeftRight className="w-2.5 h-2.5 shrink-0" />
+                                              <span>Solicitado por <span className="font-medium text-slate-600">{requestedByName}</span></span>
+                                            </div>
+                                          )}
                                           <div className="flex items-start gap-1.5 text-[11px]">
                                             <span className="text-slate-400 shrink-0">Novo colaborador:</span>
                                             <span className="font-medium text-slate-700">{newCollabName}</span>
