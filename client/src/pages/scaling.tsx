@@ -2310,6 +2310,13 @@ export default function Scaling() {
                                   const reviewedAt = (swap as any).reviewed_at || swap.reviewedAt;
                                   const reviewedByName = (swap as any).reviewed_by_name || swap.reviewedByName;
                                   const requestedByName = (swap as any).requested_by_name || swap.requestedByName;
+                                  const swapCreatedAt = (swap as any).created_at || swap.createdAt;
+                                  const fmtDT = (d: unknown) => {
+                                    if (!d) return '';
+                                    const dt = new Date(d as string);
+                                    if (isNaN(dt.getTime())) return '';
+                                    return dt.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+                                  };
                                   const currentCollabName = getCollaboratorName((swap as any).current_collaborator_id || (swap as any).currentCollaboratorId);
                                   const newCollabName = getCollaboratorName((swap as any).new_collaborator_id || (swap as any).newCollaboratorId);
                                   const isResolved = swap.status === 'aprovado' || swap.status === 'rejeitado';
@@ -2338,16 +2345,14 @@ export default function Scaling() {
                                           {requestedByName && (
                                             <div className="flex items-center gap-1 text-[10px] text-slate-400">
                                               <ArrowLeftRight className="w-2.5 h-2.5 shrink-0" />
-                                              <span>Solicitado por <span className="font-medium text-slate-600">{requestedByName}</span></span>
+                                              <span>Solicitado por <span className="font-medium text-slate-600">{requestedByName}</span>{swapCreatedAt && <> · {fmtDT(swapCreatedAt)}</>}</span>
                                             </div>
                                           )}
                                           {/* Quem resolveu e quando */}
                                           {reviewedByName && (
                                             <div className="flex items-center gap-1 text-[10px] text-slate-400">
                                               <Check className="w-2.5 h-2.5 shrink-0" />
-                                              <span>{swap.status === 'aprovado' ? 'Aprovado' : 'Recusado'} por <span className="font-medium text-slate-600">{reviewedByName}</span>
-                                              {reviewedAt && <> · {new Date(reviewedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}</>}
-                                              </span>
+                                              <span>{swap.status === 'aprovado' ? 'Aprovado' : 'Recusado'} por <span className="font-medium text-slate-600">{reviewedByName}</span>{reviewedAt && <> · {fmtDT(reviewedAt)}</>}</span>
                                             </div>
                                           )}
                                           {/* Motivo da solicitação */}
@@ -2369,7 +2374,7 @@ export default function Scaling() {
                                           {requestedByName && (
                                             <div className="flex items-center gap-1 text-[10px] text-slate-400">
                                               <ArrowLeftRight className="w-2.5 h-2.5 shrink-0" />
-                                              <span>Solicitado por <span className="font-medium text-slate-600">{requestedByName}</span></span>
+                                              <span>Solicitado por <span className="font-medium text-slate-600">{requestedByName}</span>{swapCreatedAt && <> · {fmtDT(swapCreatedAt)}</>}</span>
                                             </div>
                                           )}
                                           <div className="flex items-start gap-1.5 text-[11px]">
