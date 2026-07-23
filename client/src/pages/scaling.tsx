@@ -942,7 +942,7 @@ export default function Scaling() {
         'Data Nascimento': collaborator?.birthDate ? formatDate(collaborator.birthDate) : 'N/A',
         'Telefone Colaborador': collaborator?.phone || 'N/A',
         'Cidade Colaborador': collaborator?.city || 'N/A',
-        'Cidade de origem da passagem': inclusion.city || 'N/A',
+        'Sai de': inclusion.city || 'N/A',
         'Período Agendado - Início': inclusion.scheduleStartDate ? formatDate(inclusion.scheduleStartDate) : 'N/A',
         'Período Agendado - Fim': inclusion.scheduleEndDate ? formatDate(inclusion.scheduleEndDate) : 'N/A',
         'Período Real - Início': inclusion.actualStartDate ? formatDate(inclusion.actualStartDate) : 'N/A',
@@ -2263,7 +2263,7 @@ export default function Scaling() {
                                       <div className="mt-1.5 rounded-lg bg-blue-50 border border-blue-100 px-2 py-1.5 flex items-center gap-1.5">
                                         <MapPin className="w-3 h-3 text-blue-500 shrink-0" />
                                         <div>
-                                          <div className="text-[9px] font-semibold text-blue-400 uppercase tracking-wide leading-none">Cidade de origem da passagem</div>
+                                          <div className="text-[9px] font-semibold text-blue-400 uppercase tracking-wide leading-none">Sai de</div>
                                           <div className="text-[12px] font-bold text-blue-700 leading-tight">{city}</div>
                                         </div>
                                       </div>
@@ -2447,7 +2447,7 @@ export default function Scaling() {
                                 <div className="space-y-1.5">
                                   <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
                                     <MapPin className="w-3 h-3" />
-                                    Cidade de origem da passagem
+                                    Sai de
                                   </label>
                                   <div className="flex gap-1.5">
                                     <button
