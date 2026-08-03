@@ -4,3 +4,20 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Segredos e credenciais
+.env
+.env.*
+!.env.example
+cookies.txt
+
+# Dumps de banco — contêm PII (CPF, e-mail, hashes de senha)
+scripts/exports/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Arquivos temporários de editor
+*~
+.*.sw?

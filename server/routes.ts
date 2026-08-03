@@ -178,7 +178,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const authHeader = req.headers["authorization"] as string | undefined;
     const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
     const secret = process.env.SSO_SECRET;
-    if (!secret || !token || token !== secret) {
+    if (!secret || !token || !safeTokenEqual(token, secret)) {
       res.status(401).json({ message: "Não autorizado" });
       return false;
     }
@@ -337,7 +337,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existing = await storage.getUserByEmail(email);
       if (existing) return res.status(409).json({ message: "Usuário já existe", user: { id: existing.id, email: existing.email } });
 
-      const bcrypt = await import("bcrypt");
       const tempPassword = await bcrypt.hash(Math.random().toString(36) + Date.now(), 10);
 
       const user = await storage.createUser({
@@ -468,7 +467,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!user) {
         // Usuário não existe ainda — auto-registrar com dados do token
-        const bcrypt = await import("bcrypt");
         const tempPassword = await bcrypt.hash(Math.random().toString(36), 10);
         user = await storage.createUser({
           email,
@@ -586,8 +584,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      console.log('[Login] Session saved - SessionID:', req.sessionID, 'UserID:', req.session.userId);
-      
       // Log successful login
       try {
         await createAuditLog(
@@ -678,12 +674,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resetTokenExpiry,
       });
       
-      // In a real app, you'd send an email here
-      // For demo purposes, we'll return the token
-      res.json({ 
-        message: "Token de redefinição gerado",
-        resetToken // Remove this in production!
-      });
+      // O token NUNCA pode voltar na resposta HTTP — quem chama esta rota é
+      // anônimo, então devolvê-lo permite takeover de qualquer conta.
+      // O envio por e-mail ainda não está implementado; até lá o reset é feito
+      // por um admin via POST /api/users/:id/reset-password.
+      console.log(`[ForgotPassword] Token gerado para o usuário ${user.id}`);
+
+      res.json({ message: "Se o e-mail existir, você receberá instruções de redefinição" });
     } catch (error) {
       res.status(500).json({ message: "Erro interno do servidor" });
     }
@@ -1520,15 +1517,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/collaborators", async (req, res) => {
     try {
-      console.log("POST /api/collaborators - Dados recebidos:", JSON.stringify(req.body, null, 2));
-      
       // Extrair informações do usuário (não fazem parte do schema)
       const { _userId, _userRole, ...bodyData } = req.body;
-      
+
       // Validar dados do colaborador
+      // (não logar o corpo: contém CPF/telefone do colaborador)
       let collaboratorData: any = insertCollaboratorSchema.parse(bodyData);
-      console.log("Dados validados com sucesso:", JSON.stringify(collaboratorData, null, 2));
-      
+
       // Auto-aprovar colaboradores criados por usuários "Área de Função"
       if (_userRole === 'function_area') {
         console.log("Auto-aprovando colaborador criado por usuário Área de Função");

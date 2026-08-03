@@ -112,7 +112,7 @@ app.use(async (req, res, next) => {
     if (!user) {
       // Usuário não encontrado — auto-criar a partir do token do Portal Norte
       console.log(`[SSO Middleware] Auto-criando usuário: ${email} (role: ${tokenRole})`);
-      const bcrypt = await import("bcrypt");
+      const bcrypt = (await import("bcryptjs")).default;
       const randomPw = await bcrypt.hash(Math.random().toString(36) + Date.now(), 10);
       user = await storage.createUser({
         email,
@@ -165,13 +165,6 @@ app.use(async (req, res, next) => {
   }
 });
 
-// Debug middleware to log session info
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api')) {
-    console.log(`[Session] ${req.method} ${req.path} - SessionID: ${req.sessionID || 'none'}, UserID: ${req.session?.userId || 'none'}`);
-  }
-  next();
-});
 
 // CSRF defense-in-depth — como em produção o cookie de sessão é SameSite=None
 // (necessário para o contexto cross-site do Portal Norte), validamos a origem
@@ -201,27 +194,13 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
 
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
+      // Não serializar o corpo da resposta: rotas como /api/collaborators e
+      // /api/users devolvem PII (CPF, telefone, e-mail) que acabaria no log.
+      log(`${req.method} ${path} ${res.statusCode} in ${duration}ms`);
     }
   });
 
@@ -231,12 +210,15 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
+    // Relançar aqui vira uncaughtException e derruba o processo — apenas logar.
+    console.error(`[Error] ${req.method} ${req.path} → ${status}:`, err);
+
+    if (res.headersSent) return;
     res.status(status).json({ message });
-    throw err;
   });
 
   // importantly only setup vite in development and after
