@@ -2,12 +2,30 @@ import express, { type Request, Response, NextFunction } from "express";
 import compression from "compression";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import rateLimit from "express-rate-limit";
 import { jwtVerify } from "jose";
 import { pool } from "./db";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const PgSession = connectPgSimple(session);
+
+// ── Checagem de configuração no boot ──────────────────────────────────────
+// Não interrompe a inicialização (para não derrubar o deploy), mas deixa o
+// problema visível no log. Se SESSION_SECRET não estiver definido, o segredo
+// usado é o literal que está versionado neste repositório — e como o mesmo
+// valor assina o JWT do SSO, qualquer pessoa consegue forjar um token com
+// role "admin".
+const SECRET_FALLBACK = 'dev-session-secret-change-in-production';
+for (const varName of ['SESSION_SECRET', 'SSO_SECRET'] as const) {
+  if (!process.env[varName]) {
+    console.error(
+      `[Config] ATENÇÃO: ${varName} não está definido — usando o valor padrão ` +
+      `público do repositório. Configure essa variável nos Secrets antes de ` +
+      `expor a aplicação.`
+    );
+  }
+}
 
 // Session interface extension
 declare module 'express-session' {
@@ -24,6 +42,19 @@ app.set('trust proxy', 1);
 
 // Gzip compression — reduz tamanho das respostas JSON em ~70-80%
 app.use(compression());
+
+// Headers de segurança.
+// Deliberadamente NÃO definimos X-Frame-Options / CSP frame-ancestors aqui:
+// a aplicação é aberta dentro de um iframe do Portal Norte e qualquer um dos
+// dois quebraria esse embed.
+// "no-referrer" importa em especial porque o token de SSO trafega na query
+// string (?portal_sso=...) — sem isso ele vaza no header Referer para
+// qualquer recurso externo carregado pela página.
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  next();
+});
 
 // Configure session middleware with PostgreSQL store
 app.use(session({
@@ -51,6 +82,31 @@ app.use(session({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// ── Rate limiting nas rotas de credencial ─────────────────────────────────
+// Limites propositalmente folgados: em produção o login é via SSO do Portal
+// Norte, então essas rotas quase não têm uso legítimo. O objetivo é apenas
+// impedir brute force e enumeração de contas, sem atrapalhar ninguém.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Muitas tentativas. Tente novamente em alguns minutos." },
+});
+
+const passwordResetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Muitas tentativas. Tente novamente mais tarde." },
+});
+
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/forgot-password', passwordResetLimiter);
+app.use('/api/auth/reset-password', passwordResetLimiter);
 
 // ── SSO Middleware (server-side) ──────────────────────────────────────────
 // Intercepta ?portal_sso=<JWT> ANTES de qualquer renderização do React.
@@ -165,6 +221,37 @@ app.use(async (req, res, next) => {
   }
 });
 
+
+// ── Auditoria de autenticação (SOMENTE LOG — não bloqueia nada) ───────────
+// Passo preparatório para o requireAuth global. Hoje a maior parte das rotas
+// não verifica sessão, e 21 delas aceitam `_userId` vindo do corpo como se
+// fosse identidade — o que permite agir como qualquer usuário sem autenticar.
+//
+// Este middleware não altera comportamento: apenas marca no log quais
+// requisições SERIAM bloqueadas se a autenticação passasse a ser exigida.
+// Rode por alguns dias e depois filtre o log por "[AuthAudit]":
+//
+//   - linhas com bypass=SIM  → a rota só funciona hoje por causa do `_userId`;
+//                              é exatamente o buraco a fechar.
+//   - linhas com bypass=nao  → chamada realmente anônima. Se vier de uma tela
+//                              legítima, essa tela precisa de ajuste antes de
+//                              ligar o bloqueio.
+//
+// Se após o período de observação não aparecer nenhuma linha inesperada, dá
+// para trocar o console.warn por `return res.status(401)` com segurança.
+const AUTH_AUDIT_EXEMPT = ['/api/auth/', '/api/integration/', '/api/portal/'];
+
+app.use((req, _res, next) => {
+  if (!req.path.startsWith('/api')) return next();
+  if (AUTH_AUDIT_EXEMPT.some((prefix) => req.path.startsWith(prefix))) return next();
+  if (req.session?.userId) return next();
+
+  const usouBypass = Boolean(req.body && typeof req.body === 'object' && req.body._userId);
+  console.warn(
+    `[AuthAudit] ${req.method} ${req.path} — sem sessão, bypass=${usouBypass ? 'SIM' : 'nao'}`
+  );
+  next();
+});
 
 // CSRF defense-in-depth — como em produção o cookie de sessão é SameSite=None
 // (necessário para o contexto cross-site do Portal Norte), validamos a origem
