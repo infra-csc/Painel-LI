@@ -127,7 +127,7 @@ export default function Scaling() {
     });
   };
 
-  const { data: teamInclusions, isLoading } = useQuery<TeamInclusion[]>({
+  const { data: teamInclusions, isLoading: isLoadingInclusions } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions", filters.showDeleted],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -140,16 +140,16 @@ export default function Scaling() {
     },
   });
 
-  const { data: events } = useQuery<Event[]>({
+  const { data: events, isLoading: isLoadingEvents } = useQuery<Event[]>({
     queryKey: ["/api/events"],
   });
 
-  const { data: functions } = useQuery<Function[]>({
+  const { data: functions, isLoading: isLoadingFunctions } = useQuery<Function[]>({
     queryKey: ["/api/functions"],
   });
 
   // Query para buscar managers de todas as funções — uma única requisição
-  const { data: allFunctionManagers } = useQuery<{ functionId: string; userId: string }[]>({
+  const { data: allFunctionManagers, isLoading: isLoadingManagers } = useQuery<{ functionId: string; userId: string }[]>({
     queryKey: ["/api/function-managers/all"],
   });
 
@@ -173,9 +173,25 @@ export default function Scaling() {
     return userFunctionIds.includes(ti.functionId);
   }) || [];
 
-  const { data: collaborators } = useQuery<Collaborator[]>({
+  const { data: collaborators, isLoading: isLoadingCollaborators } = useQuery<Collaborator[]>({
     queryKey: ["/api/collaborators"],
   });
+
+  // O esqueleto espera TODAS as consultas que alimentam o conteúdo principal
+  // da tabela, não só as inclusões. Antes ele saía assim que /api/team-inclusions
+  // respondia e as demais iam preenchendo as células depois — a tabela aparecia
+  // "pronta" e continuava se mexendo sozinha por mais alguns segundos.
+  // Consultas secundárias (passagens, hospedagens, trocas, comentários) seguem
+  // fora daqui de propósito: alimentam apenas badges e não valem atrasar a
+  // primeira renderização.
+  // Em caso de erro o React Query zera isLoading, então não há risco de o
+  // esqueleto ficar preso na tela.
+  const isLoading =
+    isLoadingInclusions ||
+    isLoadingEvents ||
+    isLoadingFunctions ||
+    isLoadingManagers ||
+    isLoadingCollaborators;
 
   const { data: accommodations } = useQuery<Accommodation[]>({
     queryKey: ["/api/accommodations"],

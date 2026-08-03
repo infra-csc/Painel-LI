@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -7,32 +8,56 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { SidebarProvider } from "@/contexts/sidebar-context";
 import { ThemeProvider } from "@/contexts/theme-context";
 import MainLayout from "@/components/layout/main-layout";
-import Events from "@/pages/events";
-import Functions from "@/pages/functions";
-import TeamInclusion from "@/pages/team-inclusion";
-import Scaling from "@/pages/scaling";
-import Tickets from "@/pages/tickets";
-import Accommodations from "@/pages/accommodations";
-import OperationalMirror from "@/pages/operational-mirror";
-import Approval from "@/pages/approval";
-import Consultation from "@/pages/consultation";
-import AdminUsers from "@/pages/admin-users";
-import CollaboratorManagement from "@/pages/collaborator-management";
+
+// Carregadas de imediato: são o caminho crítico de entrada e são pequenas.
 import AuthPage from "@/pages/auth-page";
-import ResetPasswordPage from "@/pages/reset-password-page";
-import UserRegistration from "@/pages/user-registration";
-import BudgetPlanned from "@/pages/budget-planned";
-import BudgetActual from "@/pages/budget-actual";
-import BudgetComparison from "@/pages/budget-comparison";
-import RhControl from "@/pages/rh-control";
-import InvoicesPage from "@/pages/invoices";
-import SystemSettings from "@/pages/system-settings";
-import CalendarPage from "@/pages/calendar";
 import NotFound from "@/pages/not-found";
+
+// Demais páginas sob demanda. Antes, as 21 telas eram importadas de forma
+// estática e o build gerava um único bundle de ~2 MB — quem abria Passagens
+// baixava e parseava Orçamento, Espelho Operacional e Configurações antes de
+// ver qualquer coisa, inclusive telas que o papel dela nem acessa.
+const Events                 = lazy(() => import("@/pages/events"));
+const Functions              = lazy(() => import("@/pages/functions"));
+const TeamInclusion          = lazy(() => import("@/pages/team-inclusion"));
+const Scaling                = lazy(() => import("@/pages/scaling"));
+const Tickets                = lazy(() => import("@/pages/tickets"));
+const Accommodations         = lazy(() => import("@/pages/accommodations"));
+const OperationalMirror      = lazy(() => import("@/pages/operational-mirror"));
+const Approval               = lazy(() => import("@/pages/approval"));
+const Consultation           = lazy(() => import("@/pages/consultation"));
+const AdminUsers             = lazy(() => import("@/pages/admin-users"));
+const CollaboratorManagement = lazy(() => import("@/pages/collaborator-management"));
+const ResetPasswordPage      = lazy(() => import("@/pages/reset-password-page"));
+const UserRegistration       = lazy(() => import("@/pages/user-registration"));
+const BudgetPlanned          = lazy(() => import("@/pages/budget-planned"));
+const BudgetActual           = lazy(() => import("@/pages/budget-actual"));
+const BudgetComparison       = lazy(() => import("@/pages/budget-comparison"));
+const RhControl              = lazy(() => import("@/pages/rh-control"));
+const InvoicesPage           = lazy(() => import("@/pages/invoices"));
+const SystemSettings         = lazy(() => import("@/pages/system-settings"));
+const CalendarPage           = lazy(() => import("@/pages/calendar"));
+
 import ProtectedRoute from "@/components/layout/protected-route";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission, getRoleLabel } from "@/lib/role-utils";
 import type { RolePermissions, UserRole } from "@/lib/role-utils";
+
+// Placeholder enquanto o chunk da página é baixado. Fica dentro do
+// MainLayout, então a sidebar continua visível e navegável durante a troca —
+// só a área de conteúdo mostra o esqueleto.
+function PageFallback() {
+  return (
+    <div className="bg-card rounded-lg shadow-sm border border-border p-6 animate-pulse">
+      <div className="h-8 bg-muted rounded mb-4 w-1/3"></div>
+      <div className="space-y-3">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="h-12 bg-muted rounded"></div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // Primeira página acessível na ordem do sidebar
 const ORDERED_ROUTES: { path: string; permission: keyof RolePermissions }[] = [
@@ -95,6 +120,16 @@ function Router() {
   }
 
   return (
+    // Limite externo: cobre as rotas públicas (o /reset-password também é
+    // carregado sob demanda). Para as telas protegidas quem responde primeiro
+    // é o Suspense de dentro do MainLayout, preservando a sidebar.
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="animate-pulse text-lg text-muted-foreground">Carregando...</div>
+        </div>
+      }
+    >
     <Switch>
       {/* Public routes */}
       <Route path="/auth" component={AuthPage} />
@@ -103,6 +138,7 @@ function Router() {
       {/* Protected routes */}
       {user ? (
         <MainLayout>
+          <Suspense fallback={<PageFallback />}>
           <Switch>
             <Route path="/" component={HomeRedirect} />
             <Route path="/events">
@@ -198,6 +234,7 @@ function Router() {
             <Route path="/calendar" component={CalendarPage} />
             <Route component={NotFound} />
           </Switch>
+          </Suspense>
         </MainLayout>
       ) : (
         <>
@@ -206,6 +243,7 @@ function Router() {
         </>
       )}
     </Switch>
+    </Suspense>
   );
 }
 

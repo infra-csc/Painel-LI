@@ -182,7 +182,7 @@ export default function Accommodations() {
 
   const isPurchasingRole = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
 
-  const { data: teamInclusions, isLoading } = useQuery<TeamInclusion[]>({
+  const { data: teamInclusions, isLoading: isLoadingInclusions } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions"],
   });
 
@@ -874,21 +874,31 @@ export default function Accommodations() {
     }
   };
 
-  const { data: events } = useQuery<Event[]>({
+  const { data: events, isLoading: isLoadingEvents } = useQuery<Event[]>({
     queryKey: ["/api/events"],
   });
 
-  const { data: functions } = useQuery<Function[]>({
+  const { data: functions, isLoading: isLoadingFunctions } = useQuery<Function[]>({
     queryKey: ["/api/functions"],
   });
 
-  const { data: collaborators } = useQuery<Collaborator[]>({
+  const { data: collaborators, isLoading: isLoadingCollaborators } = useQuery<Collaborator[]>({
     queryKey: ["/api/collaborators"],
   });
 
-  const { data: accommodations } = useQuery<Accommodation[]>({
+  const { data: accommodations, isLoading: isLoadingAccommodations } = useQuery<Accommodation[]>({
     queryKey: ["/api/accommodations"],
   });
+
+  // Esqueleto espera o conteúdo principal da tabela — inclusões, evento,
+  // função, colaborador e a própria hospedagem. Antes saía só com as inclusões
+  // e as demais colunas iam se preenchendo com a tabela já na tela.
+  const isLoading =
+    isLoadingInclusions ||
+    isLoadingEvents ||
+    isLoadingFunctions ||
+    isLoadingCollaborators ||
+    isLoadingAccommodations;
 
   const { data: tickets } = useQuery<any[]>({
     queryKey: ["/api/tickets"],
