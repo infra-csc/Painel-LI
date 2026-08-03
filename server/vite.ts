@@ -76,10 +76,27 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  // Os arquivos em /assets levam hash no nome (index-DfbWovUE.js) — o conteúdo
+  // de um nome nunca muda, então podem ser cacheados agressivamente. Cada
+  // deploy gera nomes novos, que o index.html passa a referenciar.
+  app.use(
+    "/assets",
+    express.static(path.join(distPath, "assets"), {
+      maxAge: "1y",
+      immutable: true,
+    }),
+  );
 
-  // fall through to index.html if the file doesn't exist
+  // Demais arquivos da raiz (favicon, robots.txt). index:false para que "/"
+  // caia no fallback abaixo e receba o index.html com os headers corretos.
+  app.use(express.static(distPath, { index: false }));
+
+  // fall through to index.html if the file doesn't exist.
+  // O index.html NUNCA pode ser cacheado: é ele que aponta para os assets com
+  // hash. Se o navegador guardar uma versão antiga, o usuário fica preso na
+  // build anterior mesmo depois do deploy.
   app.use("*", (_req, res) => {
+    res.set("Cache-Control", "no-cache");
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
