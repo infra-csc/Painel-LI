@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { formatDias, formatDiarias, formatDiasUteis, formatFds, fixEncoding } from "@/lib/utils";
+import { formatDias, formatDiarias, formatDiasUteis, formatFds, fixEncoding, parseBrNumber } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -842,7 +842,10 @@ export default function BudgetPlannedPage() {
 
   // Handler para edição inline na planilha
   const handleSheetEdit = (budget: CalculatedBudget, field: 'qtdDiarias' | 'valorDia' | 'valorDiaFds' | 'alimentacao' | 'alimentacaoUtil' | 'alimentacaoFds' | 'mobilidade', rawValue: string) => {
-    const val = parseFloat(rawValue) || 0;
+    const parsed = parseBrNumber(rawValue);
+    // qtdDiarias é contagem de dias — não faz sentido fracionária. Antes o
+    // parseFloat truncava na vírgula por acidente; agora é explícito.
+    const val = field === 'qtdDiarias' ? Math.max(0, Math.round(parsed)) : parsed;
     const valCents = Math.round(val * 100);
     const existingOvr = budgetOverrides[budget.inclusion.id];
 
@@ -949,7 +952,9 @@ export default function BudgetPlannedPage() {
   };
 
   const applyBatchEdit = (field: 'vdia'|'alim'|'mob', rawValue: string, onlyPending: boolean) => {
-    const val = parseFloat(rawValue) || 0;
+    // Precisa do mesmo parser do handleSheetEdit: com parseFloat, um "0,50"
+    // virava 0 e a edição em lote saía daqui sem aplicar nada, em silêncio.
+    const val = parseBrNumber(rawValue);
     if (val <= 0) return;
     const domainField = field === 'vdia' ? 'valorDia' : field === 'alim' ? 'alimentacao' : 'mobilidade';
     const prevOverrides = { ...budgetOverrides };
@@ -979,7 +984,8 @@ export default function BudgetPlannedPage() {
   const applyAdvancedBatch = () => {
     if (!advancedBatch) return;
     const { target, field, value } = advancedBatch;
-    const val = parseFloat(value) || 0;
+    // Mesmo motivo do applyBatchEdit: guarda precisa entender vírgula.
+    const val = parseBrNumber(value);
     if (val <= 0) return;
     const domainField =
       field === 'vdiaUtil' ? 'valorDia' :

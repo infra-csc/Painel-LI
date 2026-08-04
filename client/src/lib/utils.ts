@@ -26,6 +26,32 @@ export function normalizeId(val: string | number | null | undefined): string {
   return String(val ?? '').replace(/#/g, '').trim().toLowerCase();
 }
 
+/**
+ * Converte texto digitado em número, aceitando o formato brasileiro.
+ *
+ * parseFloat("40,50") devolve 40 — ele para na vírgula e descarta os centavos
+ * sem avisar. Como os campos monetários são type="text" inputMode="decimal"
+ * com placeholder "0,00", a interface pede vírgula e o valor era perdido.
+ *
+ * Regra: se houver vírgula, ela é o separador decimal e os pontos são de
+ * milhar ("1.234,56" → 1234.56). Sem vírgula, o ponto continua sendo tratado
+ * como decimal ("1234.56" → 1234.56), preservando o comportamento de quem
+ * digita no teclado numérico.
+ *
+ * Usar apenas em inputs de texto. Em type="number" o navegador já entrega
+ * ponto decimal e parseFloat basta.
+ */
+export function parseBrNumber(raw: string | number | null | undefined): number {
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : 0;
+  const s = String(raw ?? '').trim();
+  if (!s) return 0;
+  const normalized = s.includes(',')
+    ? s.replace(/\./g, '').replace(',', '.')
+    : s;
+  const n = parseFloat(normalized);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export function formatDias(n: number): string {
   return `${n} ${n === 1 ? 'dia' : 'dias'}`;
 }
