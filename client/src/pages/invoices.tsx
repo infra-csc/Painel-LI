@@ -11,7 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   FileText, Upload, CheckCircle2, RotateCcw, Clock,
   ChevronDown, ChevronUp, Paperclip, Calendar, Building2,
-  FileCheck, AlertCircle, AlertTriangle, Send, Eye, ExternalLink, Info, X, CheckCheck, CircleDot
+  FileCheck, AlertCircle, AlertTriangle, Send, Eye, ExternalLink, Info, X, CheckCheck, CircleDot,
+  Wallet, Check
 } from "lucide-react";
 import { Link } from "wouter";
 import type { Event, Invoice } from "@shared/schema";
@@ -30,10 +31,17 @@ function fmtDate(d?: string | null) {
 }
 
 // Effective status for display (aprovada splits into checkin-pendente / checkin-realizado)
-type EffStatus = "pendente" | "enviada" | "devolvida" | "aprovada" | "checkin-pendente" | "checkin-realizado";
+type EffStatus = "pendente" | "enviada" | "devolvida" | "aprovada" | "checkin-pendente" | "checkin-realizado" | "pago-caju";
+
+// Quem recebe via Caju não emite nota. O registro sai da fila do RH direto para
+// pago — por isso "pago_caju" é terminal e não passa por aprovada/check-in.
+export function isCajuPayment(actual: any): boolean {
+  return actual?.paymentMethod === "caju";
+}
 
 function getEffectiveStatus(inv: any): EffStatus {
   if (!inv) return "pendente";
+  if (inv.status === "pago_caju") return "pago-caju";
   if (inv.status === "aprovada") {
     // "Concluído" = checkin realizado (checkinAt set); otherwise waiting for physical check-in
     return inv.checkinAt ? "checkin-realizado" : "checkin-pendente";
@@ -48,6 +56,7 @@ const STATUS_CFG: Record<EffStatus, { label: string; pill: string; border: strin
   aprovada:          { label: "Aprovada",             pill: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200", border: "#10b981", avatarCls: "bg-emerald-100 text-emerald-700" },
   "checkin-pendente":{ label: "Aguard. Check-in",    pill: "bg-blue-50 text-[#0033CC] ring-1 ring-blue-200",         border: "#0033CC", avatarCls: "bg-blue-100 text-[#0033CC]" },
   "checkin-realizado":{ label: "Check-in Realizado", pill: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-300", border: "#059669", avatarCls: "bg-emerald-100 text-emerald-700" },
+  "pago-caju":       { label: "Pago via Caju",       pill: "bg-orange-50 text-orange-700 ring-1 ring-orange-200",    border: "#f97316", avatarCls: "bg-orange-100 text-orange-700" },
 };
 
 // ── Stepper compacto ─────────────────────────────────────────────────────────
@@ -466,6 +475,7 @@ const LANC_FILTERS = [
   { id: "devolvida",         label: "Devolvida",          activeBg: "bg-orange-500 text-white" },
   { id: "checkin-pendente",  label: "Aguard. Check-in",   activeBg: "bg-[#0033CC] text-white" },
   { id: "checkin-realizado", label: "Check-in Realizado", activeBg: "bg-emerald-600 text-white" },
+  { id: "pago-caju",         label: "Pago via Caju",      activeBg: "bg-orange-500 text-white" },
 ];
 
 function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast, initialFilter, highlightActualId }: any) {
@@ -633,6 +643,9 @@ function CheckinSection({ invoice, selectedEventId, qc, toast }: any) {
 function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: any) {
   const effStatus = getEffectiveStatus(invoice);
   const cfg = STATUS_CFG[effStatus];
+  // Definido na escalação e copiado para o realizado. Nulo nos registros
+  // anteriores ao campo — tratados como "emite NF", mantendo o fluxo atual.
+  const isCaju = isCajuPayment(actual);
 
   const [oc, setOc] = useState(invoice?.oc || "");
   const [file, setFile] = useState<File | null>(null);
@@ -659,6 +672,33 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
     setClearedAttachment(true);
     if (fileRef.current) fileRef.current.value = "";
   }
+
+  // Caju: não há nota nem OC. O lançamento já nasce quitado — não passa pela
+  // aprovação do RH nem pelo check-in, que existem para conferir a nota.
+  const cajuMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        eventId: selectedEventId,
+        collaboratorId: actual.collaboratorId,
+        functionId: actual.functionId,
+        budgetActualId: actual.id,
+        status: "pago_caju",
+        paymentText,
+      };
+      if (invoice) {
+        return apiRequest("PATCH", `/api/invoices/${invoice.id}`, { status: "pago_caju" }).then(r => r.json());
+      }
+      return apiRequest("POST", "/api/invoices", payload).then(r => r.json());
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
+      qc.invalidateQueries({ queryKey: ["/api/invoices"] });
+      toast({ title: "Pago via Caju", description: `${displayName} foi marcado como pago via Caju.` });
+    },
+    onError: (e: any) => {
+      toast({ title: "Erro", description: e.message || "Erro ao marcar pagamento", variant: "destructive" });
+    },
+  });
 
   const submitMutation = useMutation({
     mutationFn: async () => {
@@ -747,8 +787,41 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
 
       {/* Body */}
       <div className="px-5 pb-4">
-        {/* Editable (pendente / devolvida) */}
-        {canEdit && (
+        {/* Caju: não emite nota, então não há OC nem anexo a preencher.
+            Um clique encerra o lançamento como pago. */}
+        {isCaju && canEdit && (
+          <div className="flex items-center justify-between gap-3 mb-3 px-3 py-2.5 rounded-xl bg-orange-50/60 border border-orange-200">
+            <div className="flex items-center gap-2 min-w-0">
+              <Wallet className="w-4 h-4 text-orange-600 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[13px] font-semibold text-orange-800">Recebe via Caju</p>
+                <p className="text-[11px] text-orange-700/80">Não emite nota fiscal — não é necessário OC nem anexo.</p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              className="rounded-xl text-white px-4 h-9 text-sm shadow-sm shrink-0"
+              style={{ background: "#F97316" }}
+              onClick={() => cajuMutation.mutate()}
+              disabled={cajuMutation.isPending}
+            >
+              <Check className="w-3.5 h-3.5 mr-1.5" />
+              {cajuMutation.isPending ? "Marcando..." : "Marcar como pago via Caju"}
+            </Button>
+          </div>
+        )}
+
+        {isCaju && !canEdit && (
+          <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-xl bg-orange-50/60 border border-orange-200">
+            <Wallet className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+            <p className="text-[12px] text-orange-800">
+              Pago via Caju — sem nota fiscal.
+            </p>
+          </div>
+        )}
+
+        {/* Editable (pendente / devolvida) — só para quem emite nota */}
+        {canEdit && !isCaju && (
           <div className="flex items-end gap-3 mb-3">
             <div className="flex-1">
               <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">
@@ -1112,9 +1185,14 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
     return invoices.filter((i: any) => i.status === "enviada" && daysSince(i) > 3).length;
   };
 
+  // Pagamentos via Caju não passam por aprovação do RH: não há nota para
+  // conferir e o lançamento já nasce quitado. Ficam de fora desta aba,
+  // inclusive do filtro "Todos", que antes traria tudo.
+  const aprovacaoInvoices = invoices.filter((i: any) => i.status !== "pago_caju");
+
   const filteredInvoices = filterStatus === "all"
-    ? invoices
-    : invoices.filter((i: any) => getEffectiveStatus(i) === filterStatus);
+    ? aprovacaoInvoices
+    : aprovacaoInvoices.filter((i: any) => getEffectiveStatus(i) === filterStatus);
 
   // Totals footer
   const approvedTotal = invoices.reduce((sum: number, inv: any) => {
