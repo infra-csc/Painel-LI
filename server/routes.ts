@@ -3068,8 +3068,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           inc?.scheduleEndDate ?? null,
           planned.dailyQuantity
         );
-        const weekdays = dayList.filter(isWe => !isWe).length;
-        const weekends = dayList.filter(isWe => isWe).length;
 
         const collaborator = allCollaborators.find(c => c.id === planned.collaboratorId);
         const isFreela = !collaborator || collaborator.type === 'freela';
@@ -3307,12 +3305,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // possível é por (evento + colaborador + função). Copiamos o valor uma
       // vez, em vez de resolver esse join toda vez que a tela de Notas Fiscais
       // carrega, que além de custoso ficaria ambíguo com divisão de vaga.
+      //
+      // O trio não é único: em produção há 15 trios com mais de uma inclusão
+      // (31 inclusões no total), tipicamente por divisão de vaga. Um Map simples
+      // sobrescreveria e escolheria uma forma de pagamento arbitrária — errar
+      // aqui manda alguém para a fila errada de pagamento.
+      //
+      // Por isso só propagamos quando as inclusões do trio CONCORDAM. Havendo
+      // divergência, deixa nulo: a tela de Notas Fiscais trata nulo como "nf",
+      // que é o fluxo atual, e alguém decide manualmente em vez de o sistema
+      // escolher no escuro.
       const inclusions = await storage.getTeamInclusions();
-      const paymentMethodByKey = new Map<string, string>();
+      const methodsByKey = new Map<string, Set<string>>();
       for (const ti of inclusions) {
         const method = (ti as any).paymentMethod;
         if (!method || !ti.collaboratorId) continue;
-        paymentMethodByKey.set(`${ti.eventId}|${ti.collaboratorId}|${ti.functionId}`, method);
+        const key = `${ti.eventId}|${ti.collaboratorId}|${ti.functionId}`;
+        const set = methodsByKey.get(key) ?? new Set<string>();
+        set.add(method);
+        methodsByKey.set(key, set);
+      }
+      const paymentMethodByKey = new Map<string, string>();
+      for (const [key, methods] of Array.from(methodsByKey.entries())) {
+        if (methods.size === 1) {
+          paymentMethodByKey.set(key, Array.from(methods)[0]);
+        } else {
+          console.warn(`[PaymentMethod] Formas de pagamento divergentes em ${key} — deixando nulo para decisão manual`);
+        }
       }
 
       const duplicated = await Promise.all(
@@ -3741,10 +3760,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── Conta corrente Caju ────────────────────────────────────────────────────
 
+  // Saldo e extrato são dado financeiro pessoal de 832 colaboradores. Exigir só
+  // sessão deixaria qualquer usuário logado ver a conta de todo mundo, o que
+  // não bate nem com a restrição do POST logo abaixo.
+  const requireCajuAccess = async (req: any, res: any): Promise<boolean> => {
+    const userId = req.session?.userId;
+    if (!userId) {
+      res.status(401).json({ message: "Não autenticado" });
+      return false;
+    }
+    const currentUser = await storage.getUser(userId);
+    const allowed = currentUser && ['admin', 'administrator', 'administrador', 'financial'].includes(currentUser.role);
+    if (!allowed) {
+      res.status(403).json({ message: "Apenas RH e administradores acessam a conta corrente" });
+      return false;
+    }
+    return true;
+  };
+
   // Saldos por colaborador. Saldo = SUM(amount) — nunca lido de coluna
   // materializada, para não divergir do extrato.
   app.get("/api/caju/balances", async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    if (!(await requireCajuAccess(req, res))) return;
     try {
       const rows = await db
         .select({
@@ -3778,7 +3815,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Extrato de uma pessoa — equivalente à aba individual da planilha.
   app.get("/api/caju/statement/:collaboratorId", async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    if (!(await requireCajuAccess(req, res))) return;
     try {
       const entries = await db
         .select()
@@ -3807,12 +3844,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Lançamento manual: saldo de abertura, crédito complementar e ajustes.
   // Débito de evento não entra aqui — ele é derivado do realizado aprovado.
   app.post("/api/caju/entries", async (req, res) => {
-    const userId = req.session?.userId;
-    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+    if (!(await requireCajuAccess(req, res))) return;
     try {
+      const userId = req.session!.userId!;
       const currentUser = await storage.getUser(userId);
-      const canManage = currentUser && ['admin', 'administrator', 'administrador', 'financial'].includes(currentUser.role);
-      if (!canManage) return res.status(403).json({ message: "Apenas RH e administradores podem lançar na conta corrente" });
 
       const data = insertCajuLedgerEntrySchema.parse({ ...req.body, createdBy: userId });
       if (data.kind === "debito_evento") {
