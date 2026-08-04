@@ -613,7 +613,7 @@ export default function RhControlPage() {
     "Equipe definida e confirmada para o evento",
     "Valores planejados pelo RH",
     "Valores realizados preenchidos pelo responsável da função",
-    "Análise do comparativo pelo RH para liberação de pagamento",
+    "Aprovação do realizado pelo RH — libera o envio da nota fiscal",
     "Nota fiscal enviada pelo colaborador e aprovada pelo RH",
     "Check-in financeiro realizado pelo RH — encerra o processo",
   ];
@@ -647,7 +647,16 @@ export default function RhControlPage() {
       : nfEligible ? "Aguardando envio da nota fiscal"
       : "Disponível após aprovação do comparativo";
 
-    const mainSteps = ["Escalação", "Planejado", "Realizado", "Comparativo"];
+    // O 4º passo se chamava "Comparativo", mas nunca foi o budget_comparison:
+    // getTimelineStep e getStepDate leem rhActionAt/rhStatus, ou seja, é a
+    // aprovação do realizado pelo RH — o que de fato libera a nota fiscal
+    // (nfEligible = status "aprovada_faturamento").
+    //
+    // O rótulo dava a impressão de existir uma etapa de comparativo entre o
+    // realizado e a nota, que o pedido do slide 3 queria eliminar. Ela nunca
+    // esteve no caminho: em produção há 33 realizados e 18 notas emitidas
+    // contra apenas 2 comparativos, ambos parados em "pendente".
+    const mainSteps = ["Escalação", "Planejado", "Realizado", "Aprovação RH"];
 
     return (
       <TooltipProvider delayDuration={200}>
