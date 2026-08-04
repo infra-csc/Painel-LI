@@ -735,7 +735,14 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
     },
     onError: (e: any) => {
       setUploading(false);
-      toast({ title: "Erro", description: e.message || "Erro ao enviar nota", variant: "destructive" });
+      // O apiRequest embute a resposta em err.body; sem isso a mensagem sairia
+      // como '409: {"message":"..."}' na tela.
+      const serverMsg = e?.body?.message;
+      toast({
+        title: serverMsg ? "Nota não confere com a OC" : "Erro",
+        description: serverMsg || e.message || "Erro ao enviar nota",
+        variant: "destructive",
+      });
     },
   });
 

@@ -3963,10 +3963,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return JSON.stringify(arr);
   }
 
+  // Slide 5 do deck: lançamentos que compartilham a mesma OC precisam ter a
+  // mesma nota anexada. Uma OC é uma ordem de compra só — se ela cobre várias
+  // pessoas, o documento fiscal é o mesmo para todas. Divergir aí significa
+  // nota errada anexada em alguém.
+  //
+  // A comparação é pelo nome do arquivo, que é o que o usuário enxerga. Escopo:
+  // dentro do mesmo evento, que é como a tela apresenta os lançamentos.
+  // Devolve mensagem de erro, ou null se estiver tudo certo.
+  async function validateOcAttachment(
+    eventId: string,
+    oc: string | null | undefined,
+    attachmentName: string | null | undefined,
+    ignoreInvoiceId?: string,
+  ): Promise<string | null> {
+    const ocTrim = (oc || "").trim();
+    if (!ocTrim) return null; // sem OC não há o que comparar
+
+    const sameEvent = await storage.getInvoices(eventId);
+    const sameOc = sameEvent.filter(
+      (inv) => inv.id !== ignoreInvoiceId && (inv.oc || "").trim().toLowerCase() === ocTrim.toLowerCase() && (inv.attachmentName || "").trim() !== "",
+    );
+    if (sameOc.length === 0) return null;
+
+    const existingName = (sameOc[0].attachmentName || "").trim();
+    const incomingName = (attachmentName || "").trim();
+    if (!incomingName) {
+      return `A OC ${ocTrim} já foi usada em outro lançamento com a nota "${existingName}". Anexe a mesma nota.`;
+    }
+    if (incomingName.toLowerCase() !== existingName.toLowerCase()) {
+      return `A OC ${ocTrim} já está vinculada à nota "${existingName}". Lançamentos com a mesma OC precisam ter a mesma nota anexada — verifique se a OC ou o arquivo estão corretos.`;
+    }
+    return null;
+  }
+
   app.post("/api/invoices", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
     try {
       const data = insertInvoiceSchema.parse(req.body);
+
+      // Pagamento via Caju não tem nota nem OC — a regra não se aplica.
+      if (data.status !== "pago_caju") {
+        const ocError = await validateOcAttachment(data.eventId, data.oc, data.attachmentName);
+        if (ocError) return res.status(409).json({ message: ocError });
+      }
+
       const firstEvent = { type: "enviado", oc: data.oc || null, attachmentName: data.attachmentName || null, at: new Date().toISOString() };
       const invoice = await storage.createInvoice({ ...data, history: JSON.stringify([firstEvent]) });
       res.json(invoice);
@@ -3980,6 +4021,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
     try {
       const body = req.body;
+
+      // Mesma regra de OC × nota do POST, agora no reenvio. Só checa quando a
+      // OC ou o anexo estão sendo mexidos — um PATCH de check-in ou de data de
+      // pagamento não precisa revalidar.
+      if (body.status !== "pago_caju" && (body.oc !== undefined || body.attachmentName !== undefined)) {
+        const current = await storage.getInvoice(req.params.id);
+        if (current) {
+          const ocError = await validateOcAttachment(
+            current.eventId,
+            body.oc !== undefined ? body.oc : current.oc,
+            body.attachmentName !== undefined ? body.attachmentName : current.attachmentName,
+            req.params.id,
+          );
+          if (ocError) return res.status(409).json({ message: ocError });
+        }
+      }
+
       let historyStr: string | undefined;
       // If resubmitting (setting status back to enviada), record a "reenviado" event
       if (body.status === "enviada") {
