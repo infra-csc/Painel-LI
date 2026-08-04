@@ -67,6 +67,15 @@ function formatDocument(doc: string, type: string) {
   if (type === "cpf") return doc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
   return doc;
 }
+// createdAt/updatedAt são timestamps ISO ("2025-10-03T14:36:57.021Z"), não
+// datas puras — o formatDate abaixo faz split("-") e só serve para birthDate,
+// que vem como YYYY-MM-DD.
+function formatTimestamp(value: string | Date | null | undefined): string {
+  if (!value) return "";
+  const d = new Date(value as any);
+  return isNaN(d.getTime()) ? "" : d.toLocaleDateString("pt-BR");
+}
+
 function formatDate(dateStr: string) {
   const [y, m, d] = dateStr.split("-");
   return `${d}/${m}/${y}`;
@@ -635,6 +644,31 @@ export default function CollaboratorManagement() {
                     <p className="text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2 border border-gray-100">{selectedCollaborator.approvalNotes}</p>
                   </div>
                 )}
+
+                {/* Autoria do cadastro — permite cobrar de quem preencheu quando
+                    faltam dados como o telefone. Cadastros anteriores a esta
+                    mudança não têm autor registrado e mostram "—". */}
+                <div className="border-t border-gray-100 pt-4">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Responsáveis</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <DetailRow
+                      label="Cadastrado por"
+                      value={
+                        (selectedCollaborator as any).createdByName
+                          ? [toTitleCase((selectedCollaborator as any).createdByName), formatTimestamp(selectedCollaborator.createdAt)].filter(Boolean).join(" · ")
+                          : "—"
+                      }
+                    />
+                    <DetailRow
+                      label="Última edição por"
+                      value={
+                        (selectedCollaborator as any).updatedByName
+                          ? [toTitleCase((selectedCollaborator as any).updatedByName), formatTimestamp((selectedCollaborator as any).updatedAt)].filter(Boolean).join(" · ")
+                          : "—"
+                      }
+                    />
+                  </div>
+                </div>
 
                 {selectedCollaborator.status === "pendente" && (
                   <div className="flex gap-2 justify-end pt-2 border-t border-gray-100">

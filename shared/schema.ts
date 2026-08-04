@@ -95,6 +95,9 @@ export const collaborators = pgTable("collaborators", {
   inactiveReason: text("inactive_reason"), // motivo obrigatório da inativação
   inactivatedAt: timestamp("inactivated_at"), // quando foi inativado
   createdAt: timestamp("created_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id), // quem cadastrou — para cobrar o preenchimento correto
+  updatedBy: varchar("updated_by").references(() => users.id), // quem editou por último
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Team inclusions table
@@ -418,6 +421,10 @@ export const insertCollaboratorSchema = createInsertSchema(collaborators).omit({
   id: true,
   createdAt: true,
   inactivatedAt: true,
+  // Autoria é definida pelo servidor a partir da sessão — nunca pelo cliente.
+  createdBy: true,
+  updatedBy: true,
+  updatedAt: true,
 }).extend({
   birthDate: z.string().optional(), // Força string para birthDate
 });

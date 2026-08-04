@@ -1509,7 +1509,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/collaborators", async (req, res) => {
     try {
       const collaborators = await storage.getCollaborators();
-      res.json(collaborators);
+
+      // Resolve os nomes de quem cadastrou/editou aqui, e não no cliente:
+      // /api/users é restrito a alguns papéis, então uma tela aberta a
+      // "Área de Função" não conseguiria traduzir o UUID e mostraria o id cru.
+      // Uma consulta a mais no total (a tabela de usuários é pequena), não uma
+      // por colaborador.
+      const needsAuthor = collaborators.some(c => (c as any).createdBy || (c as any).updatedBy);
+      if (!needsAuthor) return res.json(collaborators);
+
+      const users = await storage.getUsers();
+      const nameById = new Map(users.map(u => [u.id, u.name]));
+      const enriched = collaborators.map(c => ({
+        ...c,
+        createdByName: (c as any).createdBy ? nameById.get((c as any).createdBy) ?? null : null,
+        updatedByName: (c as any).updatedBy ? nameById.get((c as any).updatedBy) ?? null : null,
+      }));
+      res.json(enriched);
     } catch (error) {
       res.status(500).json({ message: "Erro ao buscar colaboradores" });
     }
@@ -1523,6 +1539,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validar dados do colaborador
       // (não logar o corpo: contém CPF/telefone do colaborador)
       let collaboratorData: any = insertCollaboratorSchema.parse(bodyData);
+
+      // Autoria do cadastro. Prefere a sessão; cai para o _userId do corpo
+      // apenas porque esta rota ainda não exige autenticação — quando o
+      // requireAuth global entrar, o fallback deve sair junto.
+      const authorId = req.session?.userId || _userId || null;
+      collaboratorData = { ...collaboratorData, createdBy: authorId, updatedBy: authorId };
 
       // Auto-aprovar colaboradores criados por usuários "Área de Função"
       if (_userRole === 'function_area') {
@@ -1630,7 +1652,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             continue;
           }
 
-          await storage.createCollaborator(validatedData);
+          // Autoria também na importação em lote — é justamente aí que entram
+          // os cadastros incompletos que se quer conseguir cobrar depois.
+          const bulkAuthorId = req.session?.userId || _userId || null;
+          await storage.createCollaborator({
+            ...validatedData,
+            createdBy: bulkAuthorId,
+            updatedBy: bulkAuthorId,
+          } as any);
           result.successful++;
           
         } catch (error) {
@@ -1660,7 +1689,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       delete (collaboratorData as any).active;
       delete (collaboratorData as any).inactiveReason;
       delete (collaboratorData as any).inactivatedAt;
-      const collaborator = await storage.updateCollaborator(id, collaboratorData);
+
+      // Registra quem editou por último. Mesmo fallback da rota de criação.
+      const editorId = req.session?.userId || req.body?._userId || null;
+      const collaborator = await storage.updateCollaborator(id, {
+        ...collaboratorData,
+        updatedBy: editorId,
+        updatedAt: new Date(),
+      } as any);
       res.json(collaborator);
     } catch (error) {
       res.status(400).json({ message: "Erro ao atualizar colaborador" });
