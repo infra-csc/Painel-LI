@@ -24,7 +24,7 @@ import {
   type Invoice, type InsertInvoice,
   type PaymentCompany, type InsertPaymentCompany
 } from "@shared/schema";
-import { eq, and, sql, isNull, ne, exists } from "drizzle-orm";
+import { eq, and, sql, isNull, ne, exists, asc } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -1012,7 +1012,14 @@ export class DatabaseStorage implements IStorage {
 
   // Collaborators
   async getCollaborators(): Promise<Collaborator[]> {
-    return await db.select().from(collaborators);
+    // Sem ORDER BY o Postgres devolve na ordem física das linhas, que muda
+    // conforme os registros são atualizados — a lista parecia embaralhar
+    // sozinha. lower() para "ana" e "Ana" ficarem juntos independentemente da
+    // collation do banco.
+    return await db
+      .select()
+      .from(collaborators)
+      .orderBy(asc(sql`lower(${collaborators.fullName})`));
   }
 
   async getCollaborator(id: string): Promise<Collaborator | undefined> {
