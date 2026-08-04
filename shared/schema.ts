@@ -139,6 +139,13 @@ export const teamInclusions = pgTable("team_inclusions", {
   deletedBy: varchar("deleted_by").references(() => users.id), // quem excluiu
   approvedByProduction: varchar("approved_by_production").references(() => users.id), // quem aprovou a cenotécnica (produção)
   approvedByProductionAt: timestamp("approved_by_production_at"), // quando a produção aprovou
+  // Como esta participação será paga. Definido na escalação, obrigatório antes
+  // de confirmar. "nf" = o colaborador emite nota fiscal e segue o fluxo de
+  // Notas Fiscais; "caju" = recebe pelo Caju e não emite nota.
+  // Não é atributo do colaborador: um CLT pode fazer freela, então isso muda de
+  // evento para evento. Texto e não boolean para comportar outros meios depois.
+  // Nulo nos registros anteriores a este campo — tratados como "nf".
+  paymentMethod: text("payment_method"), // nf | caju
 });
 
 // Tickets table
@@ -354,6 +361,11 @@ export const budgetActual = pgTable("budget_actual", {
   rhAdjusted: boolean("rh_adjusted").notNull().default(false), // RH editou valores do realizado
   rhAdjustedFields: text("rh_adjusted_fields"), // JSON: {field: {from, to, label}} dos campos alterados pelo RH
   rhAdjustNote: text("rh_adjust_note"), // observação do RH ao fazer ajuste nos valores
+  // Cópia do paymentMethod da escalação, feita quando o realizado é gerado.
+  // A tela de Notas Fiscais lê daqui, e não há FK de budget_actual para
+  // team_inclusions — a ligação seria por (evento + colaborador + função), que
+  // é ambígua quando há divisão de vaga (splitParentId).
+  paymentMethod: text("payment_method"), // nf | caju
 });
 
 // Comparativo e aprovação do RH

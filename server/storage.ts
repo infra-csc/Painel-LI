@@ -1081,6 +1081,7 @@ export class DatabaseStorage implements IStorage {
         deletedBy: teamInclusions.deletedBy,
         approvedByProduction: teamInclusions.approvedByProduction,
         approvedByProductionAt: teamInclusions.approvedByProductionAt,
+        paymentMethod: teamInclusions.paymentMethod,
         functionName: functions.name,
         eventName: events.name,
         rowOrder: teamInclusions.rowOrder,

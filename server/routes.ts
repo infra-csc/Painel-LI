@@ -3204,7 +3204,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const planned = await storage.getBudgetPlanned(eventId);
       const actorId = req.session?.userId || req.body.userId;
       const actor = actorId ? await storage.getUser(actorId) : null;
-      
+
+      // Carrega a forma de pagamento definida na escalação para copiar no
+      // realizado. budget_actual não tem FK para team_inclusions — a ligação
+      // possível é por (evento + colaborador + função). Copiamos o valor uma
+      // vez, em vez de resolver esse join toda vez que a tela de Notas Fiscais
+      // carrega, que além de custoso ficaria ambíguo com divisão de vaga.
+      const inclusions = await storage.getTeamInclusions();
+      const paymentMethodByKey = new Map<string, string>();
+      for (const ti of inclusions) {
+        const method = (ti as any).paymentMethod;
+        if (!method || !ti.collaboratorId) continue;
+        paymentMethodByKey.set(`${ti.eventId}|${ti.collaboratorId}|${ti.functionId}`, method);
+      }
+
       const duplicated = await Promise.all(
         planned.map(async (p) => {
           const actualData = {
@@ -3212,6 +3225,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             eventId: p.eventId,
             collaboratorId: p.collaboratorId,
             functionId: p.functionId,
+            // Nulo quando a escalação é anterior a este campo — a tela de Notas
+            // Fiscais trata nulo como "nf", mantendo o fluxo atual.
+            paymentMethod: paymentMethodByKey.get(`${p.eventId}|${p.collaboratorId}|${p.functionId}`) ?? null,
             collaboratorType: p.collaboratorType,
             dailyQuantity: p.dailyQuantity,
             dailyValue: p.dailyValue,

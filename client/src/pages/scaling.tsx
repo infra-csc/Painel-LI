@@ -4,7 +4,7 @@ import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
 import { markSwapSeen, getSeenState } from "@/lib/seenSwaps";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
-import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File, HelpCircle, ArrowLeftRight, ArrowRight, AlertCircle, RotateCcw, CheckCheck, XCircle, MapPin } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File, HelpCircle, ArrowLeftRight, ArrowRight, AlertCircle, RotateCcw, CheckCheck, XCircle, MapPin, DollarSign } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -60,6 +60,7 @@ export default function Scaling() {
     dailyValue: 0,
     city: "",
     departureFromSP: true,
+    paymentMethod: "" as "" | "nf" | "caju",
   });
   
   // Estados para o modal de comentários
@@ -1096,6 +1097,7 @@ export default function Scaling() {
       dailyValue: 0,
       city,
       departureFromSP: isCityFromSP(city),
+      paymentMethod: ((inclusion as any).paymentMethod || "") as "" | "nf" | "caju",
     });
     setShowModal(true);
     markInclusionSwapSeen(inclusion.id);
@@ -1111,6 +1113,7 @@ export default function Scaling() {
       dailyValue: 0,
       city,
       departureFromSP: isCityFromSP(city),
+      paymentMethod: ((inclusion as any).paymentMethod || "") as "" | "nf" | "caju",
     });
     setShowModal(true);
     markInclusionSwapSeen(inclusion.id);
@@ -1136,12 +1139,18 @@ export default function Scaling() {
       needsTicket: selectedInclusion.needsTicket,
       needsAccommodation: selectedInclusion.needsAccommodation,
     };
-    
+
+    // Ao salvar (sem confirmar) a forma de pagamento é opcional — só é enviada
+    // se já tiver sido escolhida. A obrigatoriedade vale para confirmar.
+    if (modalData.paymentMethod) {
+      updateData.paymentMethod = modalData.paymentMethod;
+    }
+
     // Só incluir dailyValue se foi especificamente editado
     if (modalData.dailyValue && modalData.dailyValue > 0) {
       updateData.dailyValue = Math.round(modalData.dailyValue * 100); // Store in cents
     }
-    
+
     pendingScalingAction.current = 'save';
     updateTeamInclusionMutation.mutate({
       id: selectedInclusion.id,
@@ -1175,6 +1184,18 @@ export default function Scaling() {
       toast({
         title: "Erro",
         description: "Selecione um colaborador antes de confirmar a escalação",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Forma de pagamento é obrigatória para confirmar. Não tem valor padrão de
+    // propósito: quem escala precisa decidir se a pessoa emite nota ou recebe
+    // pelo Caju. Não dá para deduzir do cadastro — um CLT pode fazer freela.
+    if (!modalData.paymentMethod) {
+      toast({
+        title: "Erro",
+        description: "Informe se o colaborador emite nota fiscal ou recebe via Caju antes de confirmar",
         variant: "destructive",
       });
       return;
@@ -1216,6 +1237,7 @@ export default function Scaling() {
       // CRÍTICO: Preservar campos de necessidade de passagem/hospedagem
       needsTicket: selectedInclusion.needsTicket,
       needsAccommodation: selectedInclusion.needsAccommodation,
+      paymentMethod: modalData.paymentMethod,
       _userId: user?.id // Add userId for backend authentication
     };
     
@@ -2511,6 +2533,39 @@ export default function Scaling() {
                                     />
                                   )}
                                 </div>
+
+                                {/* Forma de pagamento — obrigatória para confirmar.
+                                    Fica na escalação e não no cadastro do colaborador
+                                    porque varia por evento: um CLT pode fazer freela. */}
+                                <div className="space-y-1.5">
+                                  <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                                    <DollarSign className="w-3 h-3" />
+                                    Emite nota fiscal?
+                                    <span className="text-red-500">*</span>
+                                  </label>
+                                  <div className="flex gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => setModalData(prev => ({ ...prev, paymentMethod: "nf" }))}
+                                      className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${modalData.paymentMethod === "nf" ? 'bg-[#059669] text-white border-[#059669]' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}
+                                    >
+                                      Sim, emite NF
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setModalData(prev => ({ ...prev, paymentMethod: "caju" }))}
+                                      className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${modalData.paymentMethod === "caju" ? 'bg-[#F97316] text-white border-[#F97316]' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}
+                                    >
+                                      Não, recebe via Caju
+                                    </button>
+                                  </div>
+                                  {!modalData.paymentMethod && (
+                                    <p className="text-[10px] text-slate-400">
+                                      Obrigatório para confirmar a escalação.
+                                    </p>
+                                  )}
+                                </div>
+
                                 {/* Bloqueio de conflito de datas */}
                                 {(() => {
                                   if (!modalData.collaboratorId) return null;
