@@ -3021,16 +3021,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sentKeys = new Set<string>();
       for (const a of allActual) sentKeys.add(`${a.eventId}|${a.collaboratorId}|${a.functionId}`);
 
-      function countDays(start: string | null, end: string | null, fallback: number) {
+      // Sequência de dias do período. A deflação depende da POSIÇÃO do dia
+      // (1º, 5º, 9º...), então não basta contar quantos são úteis e quantos são
+      // de fim de semana — é preciso saber a ordem.
+      const listDays = (start: string | null, end: string | null, fallback: number): boolean[] => {
         if (start && end) {
           const s = new Date(start + 'T12:00:00'), e = new Date(end + 'T12:00:00');
-          let wd = 0, we = 0;
+          const days: boolean[] = [];
           const cur = new Date(s);
-          while (cur <= e) { const d = cur.getDay(); (d === 0 || d === 6) ? we++ : wd++; cur.setDate(cur.getDate() + 1); }
-          return { weekdays: wd, weekends: we };
+          while (cur <= e) {
+            const d = cur.getDay();
+            days.push(d === 0 || d === 6); // true = fim de semana
+            cur.setDate(cur.getDate() + 1);
+          }
+          return days;
         }
-        return { weekdays: fallback, weekends: 0 };
-      }
+        // Sem datas, cai no fallback da quantidade de diárias, todas como dia útil.
+        return Array.from({ length: Math.max(0, fallback) }, () => false);
+      };
+
+      // Regra de deflação (slide 7 do deck de melhorias):
+      //   até 4 dias      100%
+      //   a partir do 5º   90%
+      //   a partir do 9º   80%
+      // É MARGINAL, não um fator único sobre o total: cada dia paga conforme a
+      // faixa em que ele cai. Num evento de 10 dias, os 4 primeiros valem
+      // integral, do 5º ao 8º valem 90% e o 9º e 10º valem 80%.
+      const deflationFactor = (dayNumber: number): number => {
+        if (dayNumber <= 4) return 1;
+        if (dayNumber <= 8) return 0.9;
+        return 0.8;
+      };
 
       // Calcular todos os updates necessários primeiro, depois executar em paralelo
       const updates: Promise<any>[] = [];
@@ -3042,11 +3063,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           i.collaboratorId === planned.collaboratorId &&
           i.functionId === planned.functionId
         );
-        const { weekdays, weekends } = countDays(
+        const dayList = listDays(
           inc?.scheduleStartDate ?? null,
           inc?.scheduleEndDate ?? null,
           planned.dailyQuantity
         );
+        const weekdays = dayList.filter(isWe => !isWe).length;
+        const weekends = dayList.filter(isWe => isWe).length;
 
         const collaborator = allCollaborators.find(c => c.id === planned.collaboratorId);
         const isFreela = !collaborator || collaborator.type === 'freela';
@@ -3060,18 +3083,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
           : (fv?.dailyValueWeekend || fv?.dailyValue || D.dailyWe);
         const mobIda   = isFreela ? D.mobIdaFreela   : D.mobIda;
         const mobVolta  = isFreela ? D.mobVoltaFreela  : D.mobVolta;
-        const mob       = mobIda + mobVolta;
         const almSem    = isFreela ? D.almSemFreela    : D.almSem;
         const janSem    = isFreela ? D.janSemFreela    : D.janSem;
         const almFds    = isFreela ? D.almFdsFreela    : D.almFds;
         const janFds    = isFreela ? D.janFdsFreela    : D.janFds;
 
-        const wdLunch   = almSem * weekdays;
-        const wdDinner  = janSem * weekdays;
-        const weLunch   = almFds * weekends;
-        const weDinner  = janFds * weekends;
-        const costAssistance = mob + wdLunch + wdDinner + weLunch + weDinner;
-        const subtotalDiarias = dailyWd * weekdays + dailyWe * weekends;
+        // Percorre o período dia a dia aplicando, em cada um, a tarifa daquele
+        // tipo de dia (útil ou fim de semana) e o fator de deflação da posição.
+        // A deflação incide sobre diária e alimentação, que são por dia.
+        let subtotalDiariasRaw = 0;
+        let wdLunchRaw = 0, wdDinnerRaw = 0, weLunchRaw = 0, weDinnerRaw = 0;
+        dayList.forEach((isWeekend, idx) => {
+          const f = deflationFactor(idx + 1);
+          if (isWeekend) {
+            subtotalDiariasRaw += dailyWe * f;
+            weLunchRaw  += almFds * f;
+            weDinnerRaw += janFds * f;
+          } else {
+            subtotalDiariasRaw += dailyWd * f;
+            wdLunchRaw  += almSem * f;
+            wdDinnerRaw += janSem * f;
+          }
+        });
+
+        const wdLunch   = Math.round(wdLunchRaw);
+        const wdDinner  = Math.round(wdDinnerRaw);
+        const weLunch   = Math.round(weLunchRaw);
+        const weDinner  = Math.round(weDinnerRaw);
+        const subtotalDiarias = Math.round(subtotalDiariasRaw);
+
+        // Mobilidade não é por dia: são dois trechos (ida e volta),
+        // independentes da duração. Um fator indexado por dia não tem leitura
+        // natural aqui, então tratamos a ida como o dia 1 (sempre integral) e a
+        // volta pelo fator do último dia do período.
+        const lastDayFactor = dayList.length > 0 ? deflationFactor(dayList.length) : 1;
+        const mobIdaDefl   = Math.round(mobIda * deflationFactor(1));
+        const mobVoltaDefl = Math.round(mobVolta * lastDayFactor);
+        const mobDefl      = mobIdaDefl + mobVoltaDefl;
+
+        const costAssistance = mobDefl + wdLunch + wdDinner + weLunch + weDinner;
         const totalValue = subtotalDiarias + costAssistance;
 
         updates.push(storage.updateBudgetPlanned(planned.id, {
@@ -3080,9 +3130,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           weekdayDinner: wdDinner,
           weekendLunch: weLunch,
           weekendDinner: weDinner,
-          mobilityIda: mobIda,
-          mobilityVolta: mobVolta,
-          mobility: mob,
+          mobilityIda: mobIdaDefl,
+          mobilityVolta: mobVoltaDefl,
+          mobility: mobDefl,
           costAssistance,
           totalValue,
         }));
