@@ -849,42 +849,19 @@ export default function BudgetPlannedPage() {
     const valCents = Math.round(val * 100);
     const existingOvr = budgetOverrides[budget.inclusion.id];
 
-    // Calcula o valor atual padrão (sem override) para comparar
-    // Alimentação e Mobilidade: o input agora é por dia, então comparamos em centavos/dia
-    const foodDefault = budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds;
     const dias = Math.max(1, budget.qtdDiarias);
-    const foodDefaultPerDay = Math.round(foodDefault / dias);
-    const wdFoodDefault = Math.round((budget.almocoSemana + budget.jantarSemana) / Math.max(1, budget.weekdays));
-    const weFoodDefault = Math.round((budget.almocoFds + budget.jantarFds) / Math.max(1, budget.weekends));
-    const isUnchanged =
-      (field === 'valorDia'       && valCents === budget.valorDiariaUtil) ||
-      (field === 'valorDiaFds'    && valCents === budget.valorDiariaFds) ||
-      (field === 'alimentacao'    && valCents === foodDefaultPerDay) ||
-      (field === 'alimentacaoUtil'&& valCents === wdFoodDefault) ||
-      (field === 'alimentacaoFds' && valCents === weFoodDefault) ||
-      (field === 'mobilidade'     && valCents === budget.mobilidade) ||
-      (field === 'qtdDiarias'     && val === budget.qtdDiarias);
 
-    if (isUnchanged) {
-      // Valor não mudou — se havia override só nesse campo, limpa
-      if (existingOvr) {
-        const cleaned = { ...existingOvr };
-        if (field === 'valorDia') { delete (cleaned as any).valorDiariaUtil; delete (cleaned as any).valorDiariaFds; }
-        else if (field === 'valorDiaFds') { delete (cleaned as any).valorDiariaFds; }
-        else if (field === 'alimentacao') { delete (cleaned as any).almocoSemana; delete (cleaned as any).jantarSemana; delete (cleaned as any).almocoFds; delete (cleaned as any).jantarFds; }
-        else if (field === 'alimentacaoUtil') { delete (cleaned as any).almocoSemana; delete (cleaned as any).jantarSemana; }
-        else if (field === 'alimentacaoFds') { delete (cleaned as any).almocoFds; delete (cleaned as any).jantarFds; }
-        else if (field === 'mobilidade') { delete (cleaned as any).mobilidade; delete (cleaned as any).mobilidadeIda; delete (cleaned as any).mobilidadeVolta; }
-        else if (field === 'qtdDiarias') { delete (cleaned as any).qtdDiarias; }
-        const remainingKeys = Object.keys(cleaned).filter(k => k !== 'inclusionId');
-        if (remainingKeys.length === 0) {
-          setBudgetOverrides(prev => { const n = { ...prev }; delete n[budget.inclusion.id]; return n; });
-        } else {
-          setBudgetOverrides(prev => ({ ...prev, [budget.inclusion.id]: cleaned }));
-        }
-      }
-      return;
-    }
+    // NÃO limpar o override quando o valor digitado coincide com o padrão.
+    //
+    // Antes, digitar um valor igual ao padrão calculado apagava o override e a
+    // célula voltava sozinha ao valor de origem. O caso mais visível era zerar
+    // um campo: valCents = 0 e, quando o padrão daquele campo também era 0, a
+    // edição era descartada como "não mudou nada". Daí o relato de que os
+    // valores de alimentação e mobilidade "não estabilizam" e voltam ao zerar.
+    //
+    // Zerar é uma decisão legítima do usuário e precisa ser gravada como
+    // override. Para voltar ao padrão já existem três caminhos explícitos: o
+    // ↩ de cada célula, o "Restaurar" da linha e o "Restaurar Padrão em Todos".
 
     const base: BudgetEdit = existingOvr || {
       inclusionId: budget.inclusion.id,
