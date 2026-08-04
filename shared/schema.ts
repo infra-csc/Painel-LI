@@ -555,6 +555,36 @@ export const invoices = pgTable("invoices", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// ── Conta corrente Caju ─────────────────────────────────────────────────────
+// Razão de alimentação e mobilidade por colaborador, substituindo a planilha
+// "Conta Corrente - Alimentação Eventos.xlsx" (uma aba por pessoa, com duas
+// tabelas lado a lado).
+//
+// O saldo NÃO é materializado: é sempre SUM(amount) por (colaborador, conta).
+// Guardar saldo em coluna é o jeito mais fácil de ele dessincronizar do
+// extrato, e a planilha atual já sofre disso.
+export const cajuLedgerEntries = pgTable("caju_ledger_entries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  collaboratorId: varchar("collaborator_id").notNull().references(() => collaborators.id),
+  // Duas contas independentes por pessoa, como na planilha.
+  account: text("account").notNull(), // alimentacao | mobilidade
+  // Centavos, com sinal: crédito positivo, débito negativo.
+  amount: integer("amount").notNull(),
+  referenceDate: date("reference_date").notNull(), // "Data Saída" na planilha
+  description: text("description").notNull(),      // "Evento/Referência"
+  notes: text("notes"),                            // "Observação" ("1 complemento + 5 refeições")
+  // abertura | debito_evento | credito_complementar | ajuste
+  kind: text("kind").notNull(),
+  eventId: varchar("event_id").references(() => events.id),
+  // Origem do débito automático. A restrição única abaixo garante que aprovar
+  // o mesmo realizado duas vezes não lance o débito em duplicidade.
+  budgetActualId: varchar("budget_actual_id"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  uniqueAutoDebit: unique("caju_ledger_unique_auto_debit").on(table.budgetActualId, table.account),
+}));
+
 export const insertInvoiceSchema = createInsertSchema(invoices).omit({
   id: true,
   createdAt: true,
@@ -563,6 +593,24 @@ export const insertInvoiceSchema = createInsertSchema(invoices).omit({
 
 export type Invoice = typeof invoices.$inferSelect;
 export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
+
+// Conta corrente Caju
+export const CAJU_ACCOUNTS = ["alimentacao", "mobilidade"] as const;
+export const CAJU_ENTRY_KINDS = ["abertura", "debito_evento", "credito_complementar", "ajuste"] as const;
+
+export const insertCajuLedgerEntrySchema = createInsertSchema(cajuLedgerEntries).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  account: z.enum(CAJU_ACCOUNTS),
+  kind: z.enum(CAJU_ENTRY_KINDS),
+  // Zero não é lançamento: só polui o extrato sem mover saldo.
+  amount: z.number().int().refine((v) => v !== 0, "O valor não pode ser zero"),
+});
+
+export type CajuLedgerEntry = typeof cajuLedgerEntries.$inferSelect;
+export type InsertCajuLedgerEntry = z.infer<typeof insertCajuLedgerEntrySchema>;
+export type CajuAccount = (typeof CAJU_ACCOUNTS)[number];
 
 // Types
 export type User = typeof users.$inferSelect;

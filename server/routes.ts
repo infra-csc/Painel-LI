@@ -4,7 +4,7 @@ import multer from "multer";
 import { z } from "zod";
 import { storage } from "./storage";
 import { db } from "./db";
-import { budgetNotes, functionManagers as functionManagersTable, budgetPlanned as budgetPlannedTable, events as eventsTable, swapRequests as swapRequestsTable, teamInclusions as teamInclusionsTable, collaborators as collaboratorsTable } from "@shared/schema";
+import { budgetNotes, functionManagers as functionManagersTable, budgetPlanned as budgetPlannedTable, events as eventsTable, swapRequests as swapRequestsTable, teamInclusions as teamInclusionsTable, collaborators as collaboratorsTable, cajuLedgerEntries } from "@shared/schema";
 import { eq, and, inArray, desc, sql as drizzleSql } from "drizzle-orm";
 import { 
   insertEventSchema,
@@ -24,7 +24,8 @@ import {
   insertBudgetComparisonSchema,
   insertInvoiceSchema,
   insertBudgetNoteSchema,
-  insertSwapRequestSchema
+  insertSwapRequestSchema,
+  insertCajuLedgerEntrySchema
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import { randomBytes, timingSafeEqual } from "crypto";
@@ -153,6 +154,52 @@ async function createAuditLog(
   } catch (error) {
     console.error('Failed to create audit log:', error);
   }
+}
+
+// ── Conta corrente Caju ──────────────────────────────────────────────────────
+// Lança na conta corrente os débitos de alimentação e mobilidade de um
+// realizado que acabou de ser aprovado pelo RH.
+//
+// A planilha atual faz isso à mão, uma aba por pessoa. Os valores já existem no
+// budget_actual, então o débito é derivado — não digitado.
+//
+// Idempotente: a restrição única (budget_actual_id, account) faz a segunda
+// tentativa falhar, e o onConflictDoNothing a transforma em no-op. Aprovar o
+// mesmo realizado de novo (ou devolver e reaprovar) não duplica o lançamento.
+async function postCajuDebitsForActual(actualId: string, actorId?: string): Promise<void> {
+  const actual = await storage.getBudgetActualById(actualId);
+  if (!actual || !actual.collaboratorId) return;
+
+  const event = actual.eventId ? await storage.getEvent(actual.eventId) : null;
+  const referenceDate = event?.startDate || new Date().toISOString().slice(0, 10);
+  const description = event?.name || "Evento";
+
+  const alimentacao =
+    (actual.weekdayLunch ?? 0) + (actual.weekdayDinner ?? 0) +
+    (actual.weekendLunch ?? 0) + (actual.weekendDinner ?? 0);
+  const mobilidade = actual.mobility ?? 0;
+
+  const rows = [
+    { account: "alimentacao" as const, value: alimentacao },
+    { account: "mobilidade" as const, value: mobilidade },
+  ]
+    // Sem valor não há consumo — não polui o extrato com linhas de zero.
+    .filter((r) => r.value > 0)
+    .map((r) => ({
+      collaboratorId: actual.collaboratorId as string,
+      account: r.account,
+      amount: -r.value, // débito
+      referenceDate,
+      description,
+      kind: "debito_evento",
+      eventId: actual.eventId ?? null,
+      budgetActualId: actualId,
+      createdBy: actorId ?? null,
+      notes: null,
+    }));
+
+  if (rows.length === 0) return;
+  await db.insert(cajuLedgerEntries).values(rows as any).onConflictDoNothing();
 }
 
 // Configure multer for file uploads
@@ -3642,6 +3689,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Conta corrente Caju ────────────────────────────────────────────────────
+
+  // Saldos por colaborador. Saldo = SUM(amount) — nunca lido de coluna
+  // materializada, para não divergir do extrato.
+  app.get("/api/caju/balances", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    try {
+      const rows = await db
+        .select({
+          collaboratorId: cajuLedgerEntries.collaboratorId,
+          account: cajuLedgerEntries.account,
+          balance: drizzleSql<number>`sum(${cajuLedgerEntries.amount})::int`,
+          lastEntry: drizzleSql<string>`max(${cajuLedgerEntries.referenceDate})`,
+        })
+        .from(cajuLedgerEntries)
+        .groupBy(cajuLedgerEntries.collaboratorId, cajuLedgerEntries.account);
+
+      const byCollaborator = new Map<string, any>();
+      for (const r of rows) {
+        const entry = byCollaborator.get(r.collaboratorId) ?? {
+          collaboratorId: r.collaboratorId,
+          alimentacao: 0,
+          mobilidade: 0,
+          lastEntry: null as string | null,
+        };
+        if (r.account === "alimentacao") entry.alimentacao = Number(r.balance) || 0;
+        if (r.account === "mobilidade") entry.mobilidade = Number(r.balance) || 0;
+        if (!entry.lastEntry || (r.lastEntry && r.lastEntry > entry.lastEntry)) entry.lastEntry = r.lastEntry;
+        byCollaborator.set(r.collaboratorId, entry);
+      }
+      return res.json(Array.from(byCollaborator.values()));
+    } catch (error) {
+      console.error("[Caju] Erro ao calcular saldos:", error);
+      return res.status(500).json({ message: "Erro ao calcular saldos" });
+    }
+  });
+
+  // Extrato de uma pessoa — equivalente à aba individual da planilha.
+  app.get("/api/caju/statement/:collaboratorId", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    try {
+      const entries = await db
+        .select()
+        .from(cajuLedgerEntries)
+        .where(eq(cajuLedgerEntries.collaboratorId, req.params.collaboratorId))
+        .orderBy(cajuLedgerEntries.referenceDate, cajuLedgerEntries.createdAt);
+
+      // Saldo corrente por conta, calculado na ordem do extrato — é a coluna
+      // "Saldo" da planilha.
+      const running: Record<string, number> = { alimentacao: 0, mobilidade: 0 };
+      const withBalance = entries.map((e) => {
+        running[e.account] = (running[e.account] ?? 0) + e.amount;
+        return { ...e, balanceAfter: running[e.account] };
+      });
+
+      return res.json({
+        entries: withBalance,
+        balances: { alimentacao: running.alimentacao, mobilidade: running.mobilidade },
+      });
+    } catch (error) {
+      console.error("[Caju] Erro ao montar extrato:", error);
+      return res.status(500).json({ message: "Erro ao montar extrato" });
+    }
+  });
+
+  // Lançamento manual: saldo de abertura, crédito complementar e ajustes.
+  // Débito de evento não entra aqui — ele é derivado do realizado aprovado.
+  app.post("/api/caju/entries", async (req, res) => {
+    const userId = req.session?.userId;
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+    try {
+      const currentUser = await storage.getUser(userId);
+      const canManage = currentUser && ['admin', 'administrator', 'administrador', 'financial'].includes(currentUser.role);
+      if (!canManage) return res.status(403).json({ message: "Apenas RH e administradores podem lançar na conta corrente" });
+
+      const data = insertCajuLedgerEntrySchema.parse({ ...req.body, createdBy: userId });
+      if (data.kind === "debito_evento") {
+        return res.status(400).json({ message: "Débito de evento é lançado automaticamente na aprovação do realizado" });
+      }
+
+      const [created] = await db.insert(cajuLedgerEntries).values({ ...data, budgetActualId: null } as any).returning();
+      await createAuditLog('create', 'caju_ledger', created.id, created, userId, currentUser?.name, undefined, req);
+      return res.status(201).json(created);
+    } catch (error) {
+      console.error("[Caju] Erro ao criar lançamento:", error);
+      return res.status(400).json({ message: error instanceof Error ? error.message : "Dados inválidos" });
+    }
+  });
+
   app.post("/api/budget-actual/rh-action", async (req, res) => {
     try {
       const { itemIds, action, comment, actionBy } = req.body;
@@ -3666,6 +3802,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             : {}),
         });
         results.push(updated);
+
+        // Aprovar o realizado baixa alimentação e mobilidade na conta corrente
+        // Caju. Falha aqui não derruba a aprovação: o RH não pode ficar
+        // travado por causa do razão, e o lançamento pode ser refeito depois
+        // sem duplicar (a restrição única cuida disso).
+        if (action === 'aprovado') {
+          try {
+            await postCajuDebitsForActual(id, actorId);
+          } catch (ledgerError) {
+            console.error(`[Caju] Falha ao lançar débito do realizado ${id}:`, ledgerError);
+          }
+        }
       }
 
       const logAction = action === 'aprovado' ? 'approve' : action === 'rejeitado' ? 'reject' : 'update';
