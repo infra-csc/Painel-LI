@@ -216,6 +216,46 @@ const upload = multer({
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
+  // ── Autorização da área financeira ───────────────────────────────────────
+  // Antes da revisão, 19 das 51 rotas financeiras não checavam nada, e as de
+  // aprovação aceitavam a identidade pelo corpo (actionBy, approvedBy). Na
+  // prática, dois POSTs sem credencial aprovavam pagamento.
+  //
+  // Dois níveis, de propósito:
+  //   requireFinancialRead  — só exige estar autenticado. Fecha o acesso
+  //                           anônimo sem entrar no mérito de qual papel vê
+  //                           cada tela, que já é tratado no cliente.
+  //   requireFinancialWrite — exige admin ou financial (RH). Vale para
+  //                           aprovar, rejeitar, devolver e para mexer na
+  //                           tabela de valores, raiz de todo o cálculo.
+  //
+  // Ambos devolvem o usuário, para a rota não buscá-lo de novo.
+  const requireFinancialRead = async (req: any, res: any) => {
+    const userId = req.session?.userId;
+    if (!userId) {
+      res.status(401).json({ message: "Não autenticado" });
+      return null;
+    }
+    const user = await storage.getUser(userId);
+    if (!user) {
+      res.status(401).json({ message: "Sessão inválida" });
+      return null;
+    }
+    return user;
+  };
+
+  const FINANCIAL_ROLES = ['admin', 'administrator', 'administrador', 'financial'];
+
+  const requireFinancialWrite = async (req: any, res: any) => {
+    const user = await requireFinancialRead(req, res);
+    if (!user) return null;
+    if (!FINANCIAL_ROLES.includes(user.role)) {
+      res.status(403).json({ message: "Apenas RH e administradores podem executar esta ação" });
+      return null;
+    }
+    return user;
+  };
+
   // ── Portal Norte — API de Gestão de Usuários ──────────────────────────────
   // Endpoints chamados server-to-server pelo Portal Norte para gerenciar usuários.
   // Autenticação: Authorization: Bearer <SSO_SECRET>
@@ -2489,6 +2529,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Financial routes
   app.get("/api/financial", async (req, res) => {
+    if (!(await requireFinancialRead(req, res))) return;
     try {
       const financial = await storage.getFinancials();
       res.json(financial);
@@ -2498,6 +2539,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/financial", async (req, res) => {
+    if (!(await requireFinancialRead(req, res))) return;
     try {
       const financialData = insertFinancialSchema.parse(req.body);
       const financial = await storage.createFinancial(financialData);
@@ -2508,6 +2550,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/financial/:id", async (req, res) => {
+    if (!(await requireFinancialRead(req, res))) return;
     try {
       const { id } = req.params;
       const updates = { 
@@ -2882,6 +2925,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Function Values (valores automáticos por função)
   app.get("/api/function-values", async (req, res) => {
+    if (!(await requireFinancialRead(req, res))) return;
     try {
       const values = await storage.getAllFunctionValues();
       res.json(values);
@@ -2892,6 +2936,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/function-values/:functionId", async (req, res) => {
+    if (!(await requireFinancialRead(req, res))) return;
     try {
       const value = await storage.getFunctionValues(req.params.functionId);
       res.json(value || null);
@@ -2901,7 +2946,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // A tabela de valores é a raiz de todo o cálculo financeiro — sem checagem,
+  // qualquer requisição reescrevia quanto cada função paga.
   app.post("/api/function-values", async (req, res) => {
+    if (!(await requireFinancialWrite(req, res))) return;
     try {
       const data = insertFunctionValuesSchema.parse(req.body);
       const value = await storage.createFunctionValue(data);
@@ -2913,8 +2961,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/function-values/:id", async (req, res) => {
+    if (!(await requireFinancialWrite(req, res))) return;
     try {
-      const value = await storage.updateFunctionValue(req.params.id, req.body);
+      // Antes o req.body ia cru para o storage, sem schema — qualquer coluna
+      // podia ser escrita. O partial() valida os campos e descarta o resto.
+      const data = insertFunctionValuesSchema.partial().parse(req.body);
+      const value = await storage.updateFunctionValue(req.params.id, data);
       res.json(value);
     } catch (error) {
       console.error("Error updating function value:", error);
@@ -2924,6 +2976,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Gerar valores padrão para funções sem configuração
   app.post("/api/function-values/generate-defaults", async (req, res) => {
+    if (!(await requireFinancialWrite(req, res))) return;
     try {
       const functions = await storage.getFunctions();
       const existingValues = await storage.getAllFunctionValues();
@@ -3159,6 +3212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Budget Planned (Planejado)
   app.get("/api/budget-planned", async (req, res) => {
+    if (!(await requireFinancialRead(req, res))) return;
     try {
       const { eventId } = req.query;
       if (eventId) {
@@ -3175,6 +3229,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/budget-planned/:id", async (req, res) => {
+    if (!(await requireFinancialRead(req, res))) return;
     try {
       const planned = await storage.getBudgetPlannedById(req.params.id);
       if (!planned) {
@@ -3251,6 +3306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Budget Actual (Realizado)
   app.get("/api/budget-actual", async (req, res) => {
+    if (!(await requireFinancialRead(req, res))) return;
     try {
       const { eventId } = req.query;
       if (eventId) {
@@ -3267,6 +3323,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/budget-actual/:id", async (req, res) => {
+    if (!(await requireFinancialRead(req, res))) return;
     try {
       const actual = await storage.getBudgetActualById(req.params.id);
       if (!actual) {
@@ -3371,6 +3428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-actual/:id/duplicate", async (req, res) => {
+    if (!(await requireFinancialRead(req, res))) return;
     try {
       const original = await storage.getBudgetActualById(req.params.id);
       if (!original) {
@@ -3408,6 +3466,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── Split vacancy endpoint ────────────────────────────────────────────────
   app.post("/api/budget-actual/:id/split", async (req, res) => {
+    if (!(await requireFinancialRead(req, res))) return;
     try {
       const parent = await storage.getBudgetActualById(req.params.id);
       if (!parent) return res.status(404).json({ message: "Item não encontrado" });
@@ -3431,6 +3490,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const childWeekendDinner = typeof weekendDinner === 'number' ? weekendDinner : 0;
       const childTotal = typeof totalValue === 'number' ? totalValue :
         (childDailyQty * childDailyValue + childWeekdayLunch + childWeekdayDinner + childWeekendLunch + childWeekendDinner + childMobility);
+
+      // O cliente manda os totais já calculados e o servidor aceitava sem
+      // conferir. O total precisa bater com os próprios componentes enviados —
+      // é a mesma fórmula que a tela de Realizado usa. Sem isso, um total
+      // arbitrário entra no lugar do valor devido.
+      const childEsperado = childDailyQty * childDailyValue + childWeekdayLunch
+        + childWeekdayDinner + childWeekendLunch + childWeekendDinner + childMobility;
+      if (childTotal !== childEsperado) {
+        return res.status(400).json({
+          message: `Total da divisão não confere com os componentes: recebido ${childTotal}, esperado ${childEsperado} (em centavos).`,
+        });
+      }
+      if (childTotal < 0) {
+        return res.status(400).json({ message: "Total da divisão não pode ser negativo" });
+      }
 
       const splitData = {
         splitParentId: parent.id,
@@ -3486,7 +3560,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Marca alguém como ausente e o tira do pagamento — exige estar autenticado.
   app.post("/api/budget-actual/:id/toggle-not-attended", async (req, res) => {
+    if (!(await requireFinancialRead(req, res))) return;
     try {
       const { reason } = req.body as { reason?: string };
       const item = await storage.getBudgetActualById(req.params.id);
@@ -3571,6 +3647,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-actual/send-for-review", async (req, res) => {
+    if (!(await requireFinancialRead(req, res))) return;
     try {
       const { eventId, itemIds } = req.body;
       if (!eventId) {
@@ -3604,6 +3681,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Budget Comparison (Comparativo)
   app.get("/api/budget-comparison", async (req, res) => {
+    if (!(await requireFinancialRead(req, res))) return;
     try {
       const { eventId } = req.query;
       if (eventId) {
@@ -3620,6 +3698,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-comparison", async (req, res) => {
+    if (!(await requireFinancialRead(req, res))) return;
     try {
       const data = insertBudgetComparisonSchema.parse(req.body);
       const comparison = await storage.createBudgetComparison(data);
@@ -3631,6 +3710,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-comparison/calculate/:eventId", async (req, res) => {
+    if (!(await requireFinancialRead(req, res))) return;
     try {
       const { eventId } = req.params;
       
@@ -3693,6 +3773,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/budget-comparison/:id", async (req, res) => {
+    if (!(await requireFinancialRead(req, res))) return;
     try {
       const comparison = await storage.updateBudgetComparison(req.params.id, req.body);
       res.json(comparison);
@@ -3702,18 +3783,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // approvedBy vinha do corpo nas três ações abaixo — passa a ser sempre quem
+  // está na sessão, para ninguém aprovar em nome de outra pessoa.
   app.post("/api/budget-comparison/:id/approve", async (req, res) => {
+    const actor = await requireFinancialWrite(req, res);
+    if (!actor) return;
     try {
-      const { approvedBy, approvalObservation } = req.body;
+      const { approvalObservation } = req.body;
       const comparison = await storage.updateBudgetComparison(req.params.id, {
         status: 'aprovado',
-        approvedBy,
+        approvedBy: actor.id,
         approvalObservation,
         approvedAt: new Date(),
       });
-      const actorId = req.session?.userId || approvedBy;
-      const actor = actorId ? await storage.getUser(actorId) : null;
-      await createAuditLog('approve', 'budget_comparison', req.params.id, comparison, actorId, actor?.name || 'Sistema', undefined, req);
+      await createAuditLog('approve', 'budget_comparison', req.params.id, comparison, actor.id, actor.name || 'Sistema', undefined, req);
       res.json(comparison);
     } catch (error) {
       console.error("Error approving budget comparison:", error);
@@ -3722,17 +3805,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-comparison/:id/reject", async (req, res) => {
+    const actor = await requireFinancialWrite(req, res);
+    if (!actor) return;
     try {
-      const { approvedBy, rejectionReason } = req.body;
+      const { rejectionReason } = req.body;
       const comparison = await storage.updateBudgetComparison(req.params.id, {
         status: 'rejeitado',
-        approvedBy,
+        approvedBy: actor.id,
         rejectionReason,
         approvedAt: new Date(),
       });
-      const actorId = req.session?.userId || approvedBy;
-      const actor = actorId ? await storage.getUser(actorId) : null;
-      await createAuditLog('reject', 'budget_comparison', req.params.id, comparison, actorId, actor?.name || 'Sistema', undefined, req);
+      await createAuditLog('reject', 'budget_comparison', req.params.id, comparison, actor.id, actor.name || 'Sistema', undefined, req);
       res.json(comparison);
     } catch (error) {
       console.error("Error rejecting budget comparison:", error);
@@ -3741,16 +3824,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-comparison/:id/return", async (req, res) => {
+    const actor = await requireFinancialWrite(req, res);
+    if (!actor) return;
     try {
-      const { approvedBy, returnReason } = req.body;
+      const { returnReason } = req.body;
       const comparison = await storage.updateBudgetComparison(req.params.id, {
         status: 'devolvido',
-        approvedBy,
+        approvedBy: actor.id,
         returnReason,
       });
-      const actorId = req.session?.userId || approvedBy;
-      const actor = actorId ? await storage.getUser(actorId) : null;
-      await createAuditLog('update', 'budget_comparison', req.params.id, comparison, actorId, actor?.name || 'Sistema', undefined, req);
+      await createAuditLog('update', 'budget_comparison', req.params.id, comparison, actor.id, actor.name || 'Sistema', undefined, req);
       res.json(comparison);
     } catch (error) {
       console.error("Error returning budget comparison:", error);
@@ -3864,17 +3947,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-actual/rh-action", async (req, res) => {
+    // Esta é a rota que libera pagamento: marca rhStatus e, com isso, destrava
+    // o envio da nota fiscal. Antes não checava nada e usava como identidade o
+    // actionBy vindo do corpo — um POST anônimo aprovava lotes.
+    const actor = await requireFinancialWrite(req, res);
+    if (!actor) return;
     try {
-      const { itemIds, action, comment, actionBy } = req.body;
-      if (!itemIds?.length || !action || !actionBy) {
+      const { itemIds, action, comment } = req.body;
+      if (!itemIds?.length || !action) {
         return res.status(400).json({ message: "Dados incompletos" });
       }
       if (!['aprovado', 'rejeitado', 'devolvido'].includes(action)) {
         return res.status(400).json({ message: "Ação inválida" });
       }
 
-      const actor = actionBy ? await storage.getUser(actionBy) : null;
-      const actorId = req.session?.userId || actionBy;
+      // Quem aprovou é sempre quem está na sessão. O actionBy do corpo é
+      // ignorado — era ele que permitia agir em nome de outra pessoa.
+      const actionBy = actor.id;
+      const actorId = actor.id;
       const results = [];
       for (const id of itemIds) {
         const updated = await storage.updateBudgetActual(id, {
@@ -3912,6 +4002,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ─── System Settings ──────────────────────────────────────────────
   app.get("/api/system-settings", async (req, res) => {
+    if (!(await requireFinancialRead(req, res))) return;
     try {
       const settings = await storage.getSystemSettings();
       const defaults: Record<string, number> = {
@@ -3945,10 +4036,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.put("/api/system-settings", async (req, res) => {
-    const userId = req.session?.userId || req.body?._userId;
-    if (!userId) return res.status(401).json({ message: "Não autenticado" });
-    const user = await storage.getUser(userId);
-    if (!user || (user.role !== "admin" && user.role !== "financial")) return res.status(403).json({ message: "Acesso não autorizado" });
+    // Antes aceitava _userId do corpo para autorizar, mas gravava a auditoria
+    // com req.session.userId — quem usava o bypass alterava os defaults do
+    // cálculo sem deixar autor registrado.
+    const user = await requireFinancialWrite(req, res);
+    if (!user) return;
+    const userId = user.id;
 
     try {
       const allowed = [
@@ -3962,12 +4055,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "default_weekend_lunch_freela", "default_weekend_dinner_freela",
       ];
       for (const key of allowed) {
-        if (req.body[key] !== undefined) {
-          const val = Math.round(parseFloat(req.body[key]) * 100);
-          await storage.upsertSystemSetting(key, String(val), req.session.userId);
+        if (req.body[key] === undefined) continue;
+        // parseFloat aceitava "abc" e gravava a string "NaN" no banco, além de
+        // deixar passar negativo e notação científica. Estes são os defaults de
+        // todo o cálculo — um valor inválido aqui contamina o sistema inteiro.
+        const raw = req.body[key];
+        const num = typeof raw === 'number' ? raw : Number(String(raw).trim().replace(',', '.'));
+        if (!Number.isFinite(num) || num < 0) {
+          return res.status(400).json({ message: `Valor inválido para ${key}: informe um número não negativo.` });
         }
+        await storage.upsertSystemSetting(key, String(Math.round(num * 100)), userId);
       }
-      await createAuditLog('update', 'system_settings', 'global', req.body, req.session.userId, user.name || 'Sistema', undefined, req);
+      await createAuditLog('update', 'system_settings', 'global', req.body, userId, user.name || 'Sistema', undefined, req);
       res.json({ message: "Configurações salvas com sucesso" });
     } catch (error) {
       console.error("Error updating system settings:", error);
