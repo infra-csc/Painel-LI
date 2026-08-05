@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { fixEncoding } from "@/lib/utils";
+import { fixEncoding, parseBrNumber } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plane, Bus, Truck, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit, CheckCircle, Clock, Ticket as TicketIcon, CreditCard, Paperclip, NotebookPen, ClipboardCheck, History, AlertCircle, ArrowLeftRight, ArrowRight, CheckCheck, XCircle } from "lucide-react";
 import EventCombobox from "@/components/ui/event-combobox";
@@ -654,7 +654,10 @@ export default function Tickets() {
           await createTicketMutation.mutateAsync({
             teamInclusionId: inclusion.id,
             transportType: quickData.transportType || "aereo",
-            value: isVanQuick ? null : Math.round(parseFloat(quickData.value) * 100),
+            // parseBrNumber entende "1.234,56"; o parseFloat com replace da
+            // vírgula gravava R$ 1,23 nesse caso — é a origem das 109
+            // passagens com valor entre R$ 1 e R$ 5 no banco.
+            value: isVanQuick ? null : Math.round(parseBrNumber(quickData.value) * 100),
             purchaseDate: quickData.purchaseDate || new Date().toISOString().split('T')[0],
             actualDepartureDate: isVanQuick ? null : (quickData.actualDepartureDate || null),
             actualDepartureTime: isVanQuick ? null : quickData.actualDepartureTime,
@@ -1006,7 +1009,7 @@ export default function Tickets() {
                         <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Valor da Passagem</Label>
                         <Input placeholder="0,00" type="text" inputMode="decimal"
                           value={ticketData["quick"]?.value || ""}
-                          onChange={(e) => handleTicketDataChange("quick", "value", e.target.value.replace(',', '.'))}
+                          onChange={(e) => handleTicketDataChange("quick", "value", e.target.value)}
                           className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                           data-testid="input-quick-ticket-value"
                         />
@@ -2614,7 +2617,7 @@ export default function Tickets() {
                                       type="text"
                                       inputMode="decimal"
                                       value={data.value || ""}
-                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "value", e.target.value.replace(',', '.'))}
+                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "value", e.target.value)}
                                       className="max-w-[160px]"
                                       data-testid={`input-ticket-value-${selectedInclusion.id}`}
                                       disabled={roMode || !canEditTicket}
@@ -2980,7 +2983,7 @@ export default function Tickets() {
                                         id: ticketToUpdate.id,
                                         data: {
                                           transportType: data.transportType || ticketToUpdate.transportType || "aereo",
-                                          value: data.value ? Math.round(parseFloat(data.value) * 100) : ticketToUpdate.value,
+                                          value: data.value ? Math.round(parseBrNumber(data.value) * 100) : ticketToUpdate.value,
                                           purchaseDate: data.purchaseDate || ticketToUpdate.purchaseDate,
                                           actualDepartureDate: data.actualDepartureDate || ticketToUpdate.actualDepartureDate,
                                           actualDepartureTime: data.actualDepartureTime || ticketToUpdate.actualDepartureTime,
@@ -3005,7 +3008,7 @@ export default function Tickets() {
                                     await createTicketMutation.mutateAsync({
                                       teamInclusionId: selectedInclusion.id,
                                       transportType: data.transportType || "aereo",
-                                      value: data.value ? Math.round(parseFloat(data.value) * 100) : 0,
+                                      value: data.value ? Math.round(parseBrNumber(data.value) * 100) : 0,
                                       purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
                                       actualDepartureDate: data.actualDepartureDate || null,
                                       actualDepartureTime: data.actualDepartureTime || null,
@@ -3076,7 +3079,7 @@ export default function Tickets() {
                                         id: ticketEx.id,
                                         data: {
                                           transportType: data.transportType || "aereo",
-                                          value: isVanModal ? null : Math.round(parseFloat(data.value) * 100),
+                                          value: isVanModal ? null : Math.round(parseBrNumber(data.value) * 100),
                                           actualDepartureDate: isVanModal ? null : data.actualDepartureDate,
                                           actualDepartureTime: isVanModal ? null : data.actualDepartureTime,
                                           actualReturnDate: isVanModal ? null : (data.isOneWay ? null : data.actualReturnDate),
@@ -3098,7 +3101,7 @@ export default function Tickets() {
                                     await createTicketMutation.mutateAsync({
                                       teamInclusionId: selectedInclusion.id,
                                       transportType: data.transportType || "aereo",
-                                      value: isVanModal ? null : Math.round(parseFloat(data.value) * 100),
+                                      value: isVanModal ? null : Math.round(parseBrNumber(data.value) * 100),
                                       purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
                                       actualDepartureDate: isVanModal ? null : data.actualDepartureDate,
                                       actualDepartureTime: isVanModal ? null : data.actualDepartureTime,

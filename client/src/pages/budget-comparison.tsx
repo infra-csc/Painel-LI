@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { fixEncoding } from "@/lib/utils";
+import { fixEncoding, parseBrNumber } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -211,7 +211,9 @@ export default function BudgetComparisonPage() {
 
   const saveEditModal = () => {
     if (!editingActual) return;
-    const toCents = (v: string) => Math.round(parseFloat(v.replace(',', '.')) * 100) || 0;
+    // parseBrNumber trata o separador de milhar; o replace(',', '.') anterior
+    // transformava "1.234,56" em 1.234 e gravava R$ 1,23.
+    const toCents = (v: string) => Math.round(parseBrNumber(v) * 100);
     const data: Record<string, any> = {
       dailyQuantity: parseInt(editForm.dailyQuantity) || 0,
       dailyValue: toCents(editForm.dailyValue),

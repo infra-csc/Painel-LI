@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { fixEncoding } from "@/lib/utils";
+import { fixEncoding, parseBrNumberOrNull } from "@/lib/utils";
 import type { BudgetActual, Collaborator, TeamInclusion } from "@shared/schema";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -97,12 +97,14 @@ function ModalCurrencyInput({ value, onChange, disabled, className }: {
       onChange={e => {
         const raw = e.target.value;
         setDisplay(raw);
-        const parsed = parseFloat(raw.replace(",", "."));
-        if (!isNaN(parsed)) onChange(Math.round(parsed * 100));
+        // Ver comentário em lib/utils: replace(",", ".") quebra com separador
+        // de milhar e dividia o valor por mil.
+        const parsed = parseBrNumberOrNull(raw);
+        if (parsed !== null) onChange(Math.round(parsed * 100));
       }}
       onBlur={() => {
-        const parsed = parseFloat(display.replace(",", "."));
-        if (!isNaN(parsed)) {
+        const parsed = parseBrNumberOrNull(display);
+        if (parsed !== null) {
           const cents = Math.round(parsed * 100);
           onChange(cents);
           setDisplay((cents / 100).toFixed(2).replace(".", ","));

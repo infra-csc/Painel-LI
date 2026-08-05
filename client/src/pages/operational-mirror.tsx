@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useSearch } from "wouter";
+import { parseBrNumberOrNull } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import EventCombobox from "@/components/ui/event-combobox";
 import { Button } from "@/components/ui/button";
@@ -88,7 +89,9 @@ function EditableCell({
   function parseDraft(raw: string): any {
     const t = raw.trim();
     if (t === "") return type === "money" || type === "int" ? null : "";
-    if (type === "money") { const n = parseFloat(t.replace(",", ".")); return Number.isFinite(n) ? Math.round(n * 100) : null; }
+    // parseBrNumberOrNull entende o separador de milhar; o replace(",", ".")
+    // anterior transformava "1.234,56" em 1.234 e gravava R$ 1,23.
+    if (type === "money") { const n = parseBrNumberOrNull(t); return n !== null ? Math.round(n * 100) : null; }
     if (type === "int") { const n = parseInt(t, 10); return Number.isFinite(n) ? n : null; }
     return t;
   }

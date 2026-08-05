@@ -42,14 +42,29 @@ export function normalizeId(val: string | number | null | undefined): string {
  * ponto decimal e parseFloat basta.
  */
 export function parseBrNumber(raw: string | number | null | undefined): number {
-  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : 0;
+  return parseBrNumberOrNull(raw) ?? 0;
+}
+
+/**
+ * Igual ao parseBrNumber, mas devolve null quando não há número válido em vez
+ * de 0.
+ *
+ * Os campos de moeda só chamam onChange quando o texto é um número — sem isso,
+ * apagar o conteúdo para digitar de novo zeraria o valor a cada tecla. Zero e
+ * "vazio" precisam ser distinguíveis, e por isso este existe separado.
+ */
+export function parseBrNumberOrNull(raw: string | number | null | undefined): number | null {
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
   const s = String(raw ?? '').trim();
-  if (!s) return 0;
+  if (!s) return null;
+  // Com vírgula, ela é o decimal e os pontos são separador de milhar
+  // ("1.234,56" → 1234.56). Sem vírgula, o ponto é decimal ("40.50" → 40.5),
+  // preservando quem digita no teclado numérico.
   const normalized = s.includes(',')
     ? s.replace(/\./g, '').replace(',', '.')
     : s;
   const n = parseFloat(normalized);
-  return Number.isFinite(n) ? n : 0;
+  return Number.isFinite(n) ? n : null;
 }
 
 export function formatDias(n: number): string {

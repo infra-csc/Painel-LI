@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { parseBrNumberOrNull } from "@/lib/utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -75,8 +76,10 @@ function parseInput(raw: string, type: FieldType): any {
   const t = (raw ?? "").trim();
   if (type === "money") {
     if (t === "") return null;
-    const n = parseFloat(t.replace(",", "."));
-    return Number.isFinite(n) ? Math.round(n * 100) : null;
+    // parseBrNumberOrNull entende o separador de milhar; o replace(",", ".")
+    // anterior transformava "1.234,56" em 1.234 e gravava R$ 1,23.
+    const n = parseBrNumberOrNull(t);
+    return n !== null ? Math.round(n * 100) : null;
   }
   if (type === "int") {
     if (t === "") return null;

@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { formatDias, formatDiasUteis, formatFds, fixEncoding } from "@/lib/utils";
+import { formatDias, formatDiasUteis, formatFds, fixEncoding, parseBrNumberOrNull } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,20 +36,21 @@ function CurrencyInput({ value, onChange, className, disabled }: {
     }
   }, [value]);
 
+  // replace(',', '.') trocava só a PRIMEIRA vírgula e deixava o ponto de
+  // milhar: "1.234,56" virava "1.234.56" e o parseFloat parava em 1.234,
+  // gravando R$ 1,23 no lugar de R$ 1.234,56.
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
     setDisplay(raw);
-    const normalized = raw.replace(',', '.');
-    const parsed = parseFloat(normalized);
-    if (!isNaN(parsed)) {
+    const parsed = parseBrNumberOrNull(raw);
+    if (parsed !== null) {
       onChange(Math.round(parsed * 100));
     }
   };
 
   const handleBlur = () => {
-    const normalized = display.replace(',', '.');
-    const parsed = parseFloat(normalized);
-    if (!isNaN(parsed)) {
+    const parsed = parseBrNumberOrNull(display);
+    if (parsed !== null) {
       const cents = Math.round(parsed * 100);
       onChange(cents);
       setDisplay((cents / 100).toFixed(2).replace('.', ','));
