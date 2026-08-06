@@ -37,6 +37,7 @@ const RhControl              = lazy(() => import("@/pages/rh-control"));
 const InvoicesPage           = lazy(() => import("@/pages/invoices"));
 const SystemSettings         = lazy(() => import("@/pages/system-settings"));
 const CalendarPage           = lazy(() => import("@/pages/calendar"));
+const FlashAccount           = lazy(() => import("@/pages/flash-account"));
 
 import ProtectedRoute from "@/components/layout/protected-route";
 import { useAuth } from "@/hooks/use-auth";
@@ -229,6 +230,11 @@ function Router() {
             <Route path="/invoices">
               <ProtectedRoute permission="canAccessFinanceiro">
                 <InvoicesPage />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/flash-account">
+              <ProtectedRoute permission="canAccessFinanceiro">
+                <FlashAccount />
               </ProtectedRoute>
             </Route>
             <Route path="/calendar" component={CalendarPage} />
