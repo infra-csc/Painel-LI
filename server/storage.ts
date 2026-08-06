@@ -1082,7 +1082,7 @@ export class DatabaseStorage implements IStorage {
         approvedByProduction: teamInclusions.approvedByProduction,
         approvedByProductionAt: teamInclusions.approvedByProductionAt,
         paymentMethod: teamInclusions.paymentMethod,
-        cenotecnicaLevel: teamInclusions.cenotecnicaLevel,
+        rateLevel: teamInclusions.rateLevel,
         functionName: functions.name,
         eventName: events.name,
         rowOrder: teamInclusions.rowOrder,

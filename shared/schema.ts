@@ -146,12 +146,16 @@ export const teamInclusions = pgTable("team_inclusions", {
   // evento para evento. Texto e não boolean para comportar outros meios depois.
   // Nulo nos registros anteriores a este campo — tratados como "nf".
   paymentMethod: text("payment_method"), // nf | caju
-  // Nível do cenotécnico empreita (slide 8): as tabelas de valor fechado
-  // separam FREELA LOCAL (A) de (B), e nada no sistema distinguia os dois — na
-  // prática a diferença era digitada na diária, à mão.
-  // "a" é o padrão; "b" é escolhido na escalação. Só se aplica a funções de
-  // cenotécnica; nas demais fica nulo.
-  cenotecnicaLevel: text("cenotecnica_level"), // a | b
+  // Faixa de valor da função, quando ela tem mais de uma.
+  //
+  // Duas funções do deck precisam disso e a estrutura é a mesma nas duas:
+  //   cenotécnica (slide 8) — FREELA LOCAL (A) R$ 315/dia · (B) R$ 250/dia
+  //   percurseiro (slide 10) — tipo 1 R$ 1.129,26 · tipo 2 R$ 1.266,67
+  //
+  // Por isso um campo só, e não um por função. "a" é sempre o padrão; o rótulo
+  // exibido muda conforme a função (Nível A/B ou Tipo 1/2). Nas funções sem
+  // faixa o campo fica nulo, e escalações anteriores a ele valem como "a".
+  rateLevel: text("rate_level"), // a | b
 });
 
 // Tickets table

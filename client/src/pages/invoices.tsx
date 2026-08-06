@@ -8,6 +8,7 @@ import { EventSearchSelect } from "@/components/event-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   FileText, Upload, CheckCircle2, RotateCcw, Clock,
   ChevronDown, ChevronUp, Paperclip, Calendar, Building2,
@@ -480,6 +481,8 @@ const LANC_FILTERS = [
 
 function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast, initialFilter, highlightActualId }: any) {
   const [filterStatus, setFilterStatus] = useState(initialFilter || "all");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showBulk, setShowBulk] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string>(highlightActualId || "");
 
   // When initialFilter changes (e.g. navigating from another page), apply it
@@ -536,9 +539,62 @@ function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, sele
     );
   }
 
+  // Uma OC costuma cobrir várias pessoas com a mesma nota. Sem seleção
+  // múltipla, o usuário precisa anexar o mesmo arquivo uma vez por lançamento —
+  // e é justamente aí que ele erra e anexa notas diferentes sob a mesma OC, que
+  // é o que a validação do slide 5 passou a barrar.
+  const selectable = filtered.filter((a: any) => {
+    const inv = getInvoice(a.id);
+    const editable = !inv || inv.status === "pendente" || inv.status === "devolvida";
+    return editable && !isCajuPayment(a);
+  });
+  const allSelected = selectable.length > 0 && selectable.every((a: any) => selected.has(a.id));
+
+  const toggle = (id: string) =>
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
   return (
     <div className="space-y-3">
       <FilterPills filters={LANC_FILTERS} active={filterStatus} countFor={countFor} onChange={setFilterStatus} />
+
+      {selectable.length > 1 && (
+        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white border border-slate-200">
+          <input
+            type="checkbox"
+            id="lanc-select-all"
+            checked={allSelected}
+            onChange={() => setSelected(allSelected ? new Set() : new Set(selectable.map((a: any) => a.id)))}
+            className="w-4 h-4 rounded border-slate-300 text-[#3B4FE4] focus-visible:ring-2 focus-visible:ring-[#3B4FE4]"
+          />
+          <label htmlFor="lanc-select-all" className="text-[13px] text-slate-600 cursor-pointer select-none">
+            {selected.size > 0
+              ? `${selected.size} selecionado${selected.size > 1 ? "s" : ""}`
+              : "Selecionar para enviar uma nota a vários"}
+          </label>
+          {selected.size > 0 && (
+            <>
+              <Button
+                size="sm"
+                onClick={() => setShowBulk(true)}
+                className="ml-auto rounded-xl text-white h-9 px-4 text-[13px] font-semibold"
+                style={{ background: "#059669" }}
+              >
+                <Send className="w-3.5 h-3.5 mr-1.5" aria-hidden /> Enviar nota para {selected.size}
+              </Button>
+              <button
+                onClick={() => setSelected(new Set())}
+                className="text-[12px] text-slate-400 hover:text-slate-600 px-2"
+              >
+                Limpar
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
@@ -548,28 +604,223 @@ function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, sele
         <div className="grid grid-cols-1 gap-3">
           {filtered.map((actual: any) => {
             const isTarget = actual.id === highlightedId;
+            const canSelect = selectable.some((s: any) => s.id === actual.id);
             return (
               <div
                 key={actual.id}
                 data-actual-id={actual.id}
-                className={`rounded-2xl transition-all duration-700 ${isTarget ? "ring-2 ring-violet-400 ring-offset-2 shadow-lg shadow-violet-100" : ""}`}
+                className={`rounded-2xl transition-all duration-700 flex items-start gap-2 ${isTarget ? "ring-2 ring-violet-400 ring-offset-2 shadow-lg shadow-violet-100" : ""}`}
               >
-                <InvoiceCard
-                  actual={actual}
-                  invoice={getInvoice(actual.id)}
-                  getName={getName}
-                  getFuncName={getFuncName}
-                  selectedEvent={selectedEvent}
-                  selectedEventId={selectedEventId}
-                  qc={qc}
-                  toast={toast}
-                />
+                {selectable.length > 1 && (
+                  <div className="pt-6 pl-1 shrink-0">
+                    <input
+                      type="checkbox"
+                      aria-label={`Selecionar ${getName(actual.collaboratorId)}`}
+                      disabled={!canSelect}
+                      checked={selected.has(actual.id)}
+                      onChange={() => toggle(actual.id)}
+                      className="w-4 h-4 rounded border-slate-300 text-[#3B4FE4] disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-[#3B4FE4]"
+                    />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <InvoiceCard
+                    actual={actual}
+                    invoice={getInvoice(actual.id)}
+                    getName={getName}
+                    getFuncName={getFuncName}
+                    selectedEvent={selectedEvent}
+                    selectedEventId={selectedEventId}
+                    qc={qc}
+                    toast={toast}
+                  />
+                </div>
               </div>
             );
           })}
         </div>
       )}
+
+      <BulkInvoiceDialog
+        open={showBulk}
+        onClose={() => setShowBulk(false)}
+        actuals={filtered.filter((a: any) => selected.has(a.id))}
+        getName={getName}
+        selectedEvent={selectedEvent}
+        selectedEventId={selectedEventId}
+        getInvoice={getInvoice}
+        qc={qc}
+        toast={toast}
+        onDone={() => { setSelected(new Set()); setShowBulk(false); }}
+      />
     </div>
+  );
+}
+
+// ── Envio de uma nota para vários lançamentos ────────────────────────────────
+// Uma OC costuma cobrir várias pessoas com a mesma nota. Sem isto, o usuário
+// anexa o mesmo arquivo uma vez por lançamento — e é aí que ele erra e manda
+// notas diferentes sob a mesma OC, que é o que a validação do slide 5 barra.
+//
+// O upload acontece UMA vez e a URL resultante é reaproveitada em todos os
+// lançamentos, então todos ficam com exatamente o mesmo arquivo, e não com
+// cópias distintas do mesmo PDF.
+function BulkInvoiceDialog({ open, onClose, actuals, getName, selectedEvent, selectedEventId, getInvoice, qc, toast, onDone }: any) {
+  const [oc, setOc] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const total = actuals.reduce((s: number, a: any) => s + (a.totalValue || 0), 0);
+  const canSubmit = oc.trim().length > 0 && !!file && actuals.length > 0;
+
+  const reset = () => { setOc(""); setFile(null); setProgress(null); if (fileRef.current) fileRef.current.value = ""; };
+  const close = () => { reset(); onClose(); };
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      // Upload único — a mesma URL vai para todos.
+      const fd = new FormData();
+      fd.append("files", file as File);
+      const resp = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
+      if (!resp.ok) throw new Error("Falha ao enviar o arquivo");
+      const uploaded = await resp.json();
+      const attachmentUrl = uploaded?.[0]?.url;
+      if (!attachmentUrl) throw new Error("O arquivo não retornou URL");
+      const attachmentName = (file as File).name;
+
+      // Sequencial de propósito: a validação de OC × nota do servidor compara
+      // com o que já está gravado. Em paralelo, duas requisições poderiam
+      // passar antes de qualquer uma gravar.
+      const falhas: string[] = [];
+      let done = 0;
+      for (const actual of actuals) {
+        const existing = getInvoice(actual.id);
+        const paymentText = (selectedEvent?.paymentCompanyName && actual.collaboratorId)
+          ? `Este pagamento deve ser realizado de ${getName(actual.collaboratorId)} para ${selectedEvent.paymentCompanyName}${selectedEvent.paymentCompanyCnpj ? ` / CNPJ: ${selectedEvent.paymentCompanyCnpj}` : ""}.`
+          : "";
+        try {
+          if (existing) {
+            await apiRequest("PATCH", `/api/invoices/${existing.id}`, {
+              oc, attachmentUrl, attachmentName, paymentText, status: "enviada",
+            });
+          } else {
+            await apiRequest("POST", "/api/invoices", {
+              eventId: selectedEventId, collaboratorId: actual.collaboratorId,
+              functionId: actual.functionId, budgetActualId: actual.id,
+              oc, attachmentUrl, attachmentName, paymentText, status: "enviada",
+            });
+          }
+        } catch (e: any) {
+          falhas.push(`${getName(actual.collaboratorId)}: ${e?.body?.message || e.message}`);
+        }
+        setProgress({ done: ++done, total: actuals.length });
+      }
+      return falhas;
+    },
+    onSuccess: (falhas: string[]) => {
+      qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
+      qc.invalidateQueries({ queryKey: ["/api/invoices"] });
+      if (falhas.length === 0) {
+        toast({ title: "Nota enviada", description: `${actuals.length} lançamento(s) atualizados.` });
+        reset(); onDone();
+      } else {
+        // Parcial não é sucesso silencioso: diz quantos e quais falharam.
+        toast({
+          title: `${actuals.length - falhas.length} de ${actuals.length} enviados`,
+          description: falhas.slice(0, 3).join(" · ") + (falhas.length > 3 ? ` · e mais ${falhas.length - 3}` : ""),
+          variant: "destructive",
+        });
+        setProgress(null);
+      }
+    },
+    onError: (e: any) => {
+      setProgress(null);
+      toast({ title: "Erro", description: e?.body?.message || e.message, variant: "destructive" });
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(o: boolean) => !o && close()}>
+      <DialogContent className="max-w-lg rounded-2xl p-0 gap-0 border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden">
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100">
+          <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0" aria-hidden>
+            <Send className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-[14px] font-bold text-slate-900 leading-tight">Enviar uma nota para vários</h3>
+            <p className="text-[12px] text-slate-500 mt-0.5">
+              {actuals.length} lançamento{actuals.length > 1 ? "s" : ""} · {formatCurrency(total)}
+            </p>
+          </div>
+          <button onClick={close} aria-label="Fechar"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="px-5 py-5 space-y-4">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/60 max-h-40 overflow-y-auto divide-y divide-slate-100">
+            {actuals.map((a: any) => (
+              <div key={a.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                <span className="text-[12px] text-slate-700 truncate">{toTitleCase(getName(a.collaboratorId))}</span>
+                <span className="text-[12px] text-slate-500 tabular-nums shrink-0">{formatCurrency(a.totalValue)}</span>
+              </div>
+            ))}
+          </div>
+
+          <div>
+            <label htmlFor="bulk-oc" className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">
+              Número OC <span className="text-red-400">*</span>
+            </label>
+            <Input id="bulk-oc" value={oc} onChange={e => setOc(e.target.value)} placeholder="OC-0000"
+              className="h-10 text-sm rounded-xl border-slate-200" />
+          </div>
+
+          <div>
+            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">
+              Nota fiscal <span className="text-red-400">*</span>
+            </label>
+            <button type="button" onClick={() => fileRef.current?.click()}
+              className="w-full h-10 flex items-center gap-2 px-3 border border-dashed border-slate-300 rounded-xl text-[13px] text-slate-500 hover:border-emerald-400 hover:bg-emerald-50/40 transition-colors">
+              {file
+                ? <><FileCheck className="w-4 h-4 text-emerald-600 shrink-0" /><span className="truncate text-emerald-700 font-medium">{file.name}</span></>
+                : <><Upload className="w-4 h-4 shrink-0" /><span>Anexar nota</span></>}
+            </button>
+            <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+              onChange={e => setFile(e.target.files?.[0] || null)} />
+            <p className="text-[11px] text-slate-400 mt-1.5">
+              O arquivo é enviado uma vez e vinculado a todos os lançamentos selecionados.
+            </p>
+          </div>
+
+          {progress && (
+            <div className="rounded-xl bg-slate-50 border border-slate-100 px-3.5 py-2.5">
+              <div className="flex items-center justify-between text-[12px] text-slate-600 mb-1.5">
+                <span>Enviando…</span>
+                <span className="tabular-nums">{progress.done} de {progress.total}</span>
+              </div>
+              <div className="h-1 rounded-full bg-slate-200 overflow-hidden">
+                <div className="h-full bg-emerald-500 transition-all duration-300"
+                  style={{ width: `${(progress.done / progress.total) * 100}%` }} />
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2 justify-end pt-1">
+            <button onClick={close}
+              className="h-10 px-4 text-[13px] font-medium text-slate-600 border border-slate-200 rounded-xl bg-white hover:bg-slate-50">
+              Cancelar
+            </button>
+            <Button onClick={() => mutation.mutate()} disabled={!canSubmit || mutation.isPending}
+              className="rounded-xl text-white h-10 px-5 text-[13px] font-semibold disabled:opacity-40"
+              style={{ background: "#059669" }}>
+              {mutation.isPending ? "Enviando…" : `Enviar para ${actuals.length}`}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

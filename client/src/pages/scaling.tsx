@@ -61,7 +61,7 @@ export default function Scaling() {
     city: "",
     departureFromSP: true,
     paymentMethod: "" as "" | "nf" | "caju",
-    cenotecnicaLevel: "a" as "a" | "b",
+    rateLevel: "a" as "a" | "b",
   });
   
   // Estados para o modal de comentários
@@ -544,6 +544,20 @@ export default function Scaling() {
   const isCenotecnicaFunction = (functionId: string | null) => {
     const name = getFunctionName(functionId).toLowerCase();
     return name.includes('cenotecnica') || name.includes('cenotécnica') || name.includes('sup ceno');
+  };
+
+  // Funções que têm mais de uma faixa de valor. O dado é o mesmo (rateLevel),
+  // só o rótulo muda: cenotécnica usa Nível A/B (slide 8) e percurseiro usa
+  // Tipo 1/2 (slide 10).
+  const getRateLevelLabels = (functionId: string | null): { title: string; options: [string, string] } | null => {
+    const name = getFunctionName(functionId).toLowerCase();
+    if (name.includes('percurso') || name.includes('percurseiro') || name.includes('motoqueiro')) {
+      return { title: "Tipo do percurseiro", options: ["Tipo 1", "Tipo 2"] };
+    }
+    if (isCenotecnicaFunction(functionId)) {
+      return { title: "Nível do cenotécnico", options: ["Nível A", "Nível B"] };
+    }
+    return null;
   };
 
   const getCollaboratorCity = (collaboratorId?: string | null) => {
@@ -1100,7 +1114,7 @@ export default function Scaling() {
       departureFromSP: isCityFromSP(city),
       paymentMethod: ((inclusion as any).paymentMethod || "") as "" | "nf" | "caju",
       // A é o padrão — escalações anteriores ao campo ficam com nulo e valem A.
-      cenotecnicaLevel: ((inclusion as any).cenotecnicaLevel || "a") as "a" | "b",
+      rateLevel: ((inclusion as any).rateLevel || "a") as "a" | "b",
     });
     setShowModal(true);
     markInclusionSwapSeen(inclusion.id);
@@ -1118,7 +1132,7 @@ export default function Scaling() {
       departureFromSP: isCityFromSP(city),
       paymentMethod: ((inclusion as any).paymentMethod || "") as "" | "nf" | "caju",
       // A é o padrão — escalações anteriores ao campo ficam com nulo e valem A.
-      cenotecnicaLevel: ((inclusion as any).cenotecnicaLevel || "a") as "a" | "b",
+      rateLevel: ((inclusion as any).rateLevel || "a") as "a" | "b",
     });
     setShowModal(true);
     markInclusionSwapSeen(inclusion.id);
@@ -1150,8 +1164,8 @@ export default function Scaling() {
     if (modalData.paymentMethod) {
       updateData.paymentMethod = modalData.paymentMethod;
     }
-    if (isCenotecnicaFunction(selectedInclusion.functionId)) {
-      updateData.cenotecnicaLevel = modalData.cenotecnicaLevel;
+    if (getRateLevelLabels(selectedInclusion.functionId)) {
+      updateData.rateLevel = modalData.rateLevel;
     }
 
     // Só incluir dailyValue se foi especificamente editado
@@ -1246,8 +1260,8 @@ export default function Scaling() {
       needsTicket: selectedInclusion.needsTicket,
       needsAccommodation: selectedInclusion.needsAccommodation,
       paymentMethod: modalData.paymentMethod,
-      // Só faz sentido em cenotécnica; nas demais funções fica nulo.
-      cenotecnicaLevel: isCenotecnicaFunction(selectedInclusion.functionId) ? modalData.cenotecnicaLevel : null,
+      // Só faz sentido nas funções com mais de uma faixa; nas demais fica nulo.
+      rateLevel: getRateLevelLabels(selectedInclusion.functionId) ? modalData.rateLevel : null,
       _userId: user?.id // Add userId for backend authentication
     };
     
@@ -2576,36 +2590,40 @@ export default function Scaling() {
                                   )}
                                 </div>
 
-                                {/* Nível do cenotécnico empreita (slide 8). Só
-                                    aparece em funções de cenotécnica — nas demais
-                                    não existe essa distinção de tabela. */}
-                                {isCenotecnicaFunction(selectedInclusion.functionId) && (
-                                  <div className="space-y-1.5">
-                                    <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
-                                      <Users className="w-3 h-3" />
-                                      Nível do cenotécnico
-                                    </label>
-                                    <div className="flex gap-1.5">
-                                      {(["a", "b"] as const).map(nivel => (
-                                        <button
-                                          key={nivel}
-                                          type="button"
-                                          onClick={() => setModalData(prev => ({ ...prev, cenotecnicaLevel: nivel }))}
-                                          className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
-                                            modalData.cenotecnicaLevel === nivel
-                                              ? 'bg-[#2563EB] text-white border-[#2563EB]'
-                                              : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-                                          }`}
-                                        >
-                                          Nível {nivel.toUpperCase()}
-                                          {nivel === "a" && modalData.cenotecnicaLevel !== "a" && (
-                                            <span className="ml-1 text-slate-400 font-normal">(padrão)</span>
-                                          )}
-                                        </button>
-                                      ))}
+                                {/* Faixa de valor — só aparece nas funções que
+                                    têm mais de uma (cenotécnica e percurseiro).
+                                    O dado é o mesmo; o rótulo muda. */}
+                                {(() => {
+                                  const faixa = getRateLevelLabels(selectedInclusion.functionId);
+                                  if (!faixa) return null;
+                                  return (
+                                    <div className="space-y-1.5">
+                                      <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                                        <Users className="w-3 h-3" />
+                                        {faixa.title}
+                                      </label>
+                                      <div className="flex gap-1.5">
+                                        {([["a", faixa.options[0]], ["b", faixa.options[1]]] as const).map(([valor, rotulo]) => (
+                                          <button
+                                            key={valor}
+                                            type="button"
+                                            onClick={() => setModalData(prev => ({ ...prev, rateLevel: valor }))}
+                                            className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
+                                              modalData.rateLevel === valor
+                                                ? 'bg-[#2563EB] text-white border-[#2563EB]'
+                                                : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                                            }`}
+                                          >
+                                            {rotulo}
+                                            {valor === "a" && modalData.rateLevel !== "a" && (
+                                              <span className="ml-1 text-slate-400 font-normal">(padrão)</span>
+                                            )}
+                                          </button>
+                                        ))}
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
+                                  );
+                                })()}
 
                                 {/* Bloqueio de conflito de datas */}
                                 {(() => {
