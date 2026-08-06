@@ -61,6 +61,7 @@ export default function Scaling() {
     city: "",
     departureFromSP: true,
     paymentMethod: "" as "" | "nf" | "caju",
+    cenotecnicaLevel: "a" as "a" | "b",
   });
   
   // Estados para o modal de comentários
@@ -1098,6 +1099,8 @@ export default function Scaling() {
       city,
       departureFromSP: isCityFromSP(city),
       paymentMethod: ((inclusion as any).paymentMethod || "") as "" | "nf" | "caju",
+      // A é o padrão — escalações anteriores ao campo ficam com nulo e valem A.
+      cenotecnicaLevel: ((inclusion as any).cenotecnicaLevel || "a") as "a" | "b",
     });
     setShowModal(true);
     markInclusionSwapSeen(inclusion.id);
@@ -1114,6 +1117,8 @@ export default function Scaling() {
       city,
       departureFromSP: isCityFromSP(city),
       paymentMethod: ((inclusion as any).paymentMethod || "") as "" | "nf" | "caju",
+      // A é o padrão — escalações anteriores ao campo ficam com nulo e valem A.
+      cenotecnicaLevel: ((inclusion as any).cenotecnicaLevel || "a") as "a" | "b",
     });
     setShowModal(true);
     markInclusionSwapSeen(inclusion.id);
@@ -1144,6 +1149,9 @@ export default function Scaling() {
     // se já tiver sido escolhida. A obrigatoriedade vale para confirmar.
     if (modalData.paymentMethod) {
       updateData.paymentMethod = modalData.paymentMethod;
+    }
+    if (isCenotecnicaFunction(selectedInclusion.functionId)) {
+      updateData.cenotecnicaLevel = modalData.cenotecnicaLevel;
     }
 
     // Só incluir dailyValue se foi especificamente editado
@@ -1238,6 +1246,8 @@ export default function Scaling() {
       needsTicket: selectedInclusion.needsTicket,
       needsAccommodation: selectedInclusion.needsAccommodation,
       paymentMethod: modalData.paymentMethod,
+      // Só faz sentido em cenotécnica; nas demais funções fica nulo.
+      cenotecnicaLevel: isCenotecnicaFunction(selectedInclusion.functionId) ? modalData.cenotecnicaLevel : null,
       _userId: user?.id // Add userId for backend authentication
     };
     
@@ -2565,6 +2575,37 @@ export default function Scaling() {
                                     </p>
                                   )}
                                 </div>
+
+                                {/* Nível do cenotécnico empreita (slide 8). Só
+                                    aparece em funções de cenotécnica — nas demais
+                                    não existe essa distinção de tabela. */}
+                                {isCenotecnicaFunction(selectedInclusion.functionId) && (
+                                  <div className="space-y-1.5">
+                                    <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                                      <Users className="w-3 h-3" />
+                                      Nível do cenotécnico
+                                    </label>
+                                    <div className="flex gap-1.5">
+                                      {(["a", "b"] as const).map(nivel => (
+                                        <button
+                                          key={nivel}
+                                          type="button"
+                                          onClick={() => setModalData(prev => ({ ...prev, cenotecnicaLevel: nivel }))}
+                                          className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
+                                            modalData.cenotecnicaLevel === nivel
+                                              ? 'bg-[#2563EB] text-white border-[#2563EB]'
+                                              : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                                          }`}
+                                        >
+                                          Nível {nivel.toUpperCase()}
+                                          {nivel === "a" && modalData.cenotecnicaLevel !== "a" && (
+                                            <span className="ml-1 text-slate-400 font-normal">(padrão)</span>
+                                          )}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
 
                                 {/* Bloqueio de conflito de datas */}
                                 {(() => {

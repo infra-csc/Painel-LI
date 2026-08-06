@@ -146,6 +146,12 @@ export const teamInclusions = pgTable("team_inclusions", {
   // evento para evento. Texto e não boolean para comportar outros meios depois.
   // Nulo nos registros anteriores a este campo — tratados como "nf".
   paymentMethod: text("payment_method"), // nf | caju
+  // Nível do cenotécnico empreita (slide 8): as tabelas de valor fechado
+  // separam FREELA LOCAL (A) de (B), e nada no sistema distinguia os dois — na
+  // prática a diferença era digitada na diária, à mão.
+  // "a" é o padrão; "b" é escolhido na escalação. Só se aplica a funções de
+  // cenotécnica; nas demais fica nulo.
+  cenotecnicaLevel: text("cenotecnica_level"), // a | b
 });
 
 // Tickets table

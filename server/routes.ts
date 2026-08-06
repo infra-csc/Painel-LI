@@ -3037,14 +3037,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(403).json({ message: "Acesso negado" });
 
     try {
-      const [allPlanned, allActual, allInclusions, allFunctionValues, rawSettings, allCollaborators] = await Promise.all([
+      const [allPlanned, allActual, allInclusions, allFunctionValues, rawSettings, allCollaborators, allTickets] = await Promise.all([
         storage.getAllBudgetPlanned(),
         storage.getAllBudgetActual(),
         storage.getTeamInclusions(),
         storage.getAllFunctionValues(),
         storage.getSystemSettings(),
         storage.getCollaborators(),
+        storage.getTickets(),
       ]);
+
+      // Horário real da passagem tem precedência sobre o sugerido da escalação.
+      // Quando o orçamento é calculado antes da compra, a passagem ainda não
+      // existe e o sugerido é o que há.
+      const ticketByInclusion = new Map<string, any>();
+      for (const t of allTickets) {
+        if (t.teamInclusionId) ticketByInclusion.set(t.teamInclusionId, t);
+      }
 
       const cfg: Record<string, number> = {};
       for (const s of rawSettings) cfg[s.key] = parseInt(s.value);
@@ -3118,6 +3127,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return 1;
       };
 
+      // ── Mobilidade por faixa de horário de voo (slides 7 e 9) ──────────────
+      //   deslocamento aeroporto por trecho, demais horários  R$ 29,00
+      //   voo partindo das 23h30 até 9h30                     R$ 58,00
+      //   voo chegando das 20h00 até as 5h00                  R$ 58,00
+      //
+      // Antes a mobilidade era um valor fixo, sem noção de horário. Agora cada
+      // trecho é avaliado pelo horário do voo correspondente.
+      //
+      // Tudo configurável para a regra poder mudar sem deploy. Janelas em
+      // minutos desde a meia-noite, que é o que permite expressar faixas que
+      // cruzam o dia (23h30 às 9h30) com dois inteiros.
+      const mobStandard = cfg.mobility_leg_standard ?? 2900;
+      const mobUnsocial = cfg.mobility_leg_unsocial ?? 5800;
+      const depWinStart = cfg.mobility_departure_window_start ?? 1410; // 23:30
+      const depWinEnd   = cfg.mobility_departure_window_end   ?? 570;  // 09:30
+      const arrWinStart = cfg.mobility_arrival_window_start   ?? 1200; // 20:00
+      const arrWinEnd   = cfg.mobility_arrival_window_end     ?? 300;  // 05:00
+
+      // "23:30", "23h30", "2330" → 1410. Devolve null quando não dá para ler,
+      // e nesse caso o trecho mantém o valor atual em vez de chutar faixa.
+      const toMinutes = (raw: string | null | undefined): number | null => {
+        if (!raw) return null;
+        const m = String(raw).trim().match(/^(\d{1,2})[:h.]?(\d{2})/);
+        if (!m) return null;
+        const h = Number(m[1]), min = Number(m[2]);
+        if (!Number.isFinite(h) || !Number.isFinite(min) || h > 23 || min > 59) return null;
+        return h * 60 + min;
+      };
+
+      // As duas janelas cruzam a meia-noite, então "dentro" é start..24h ou 0..end.
+      const inWindow = (minutes: number, start: number, end: number): boolean =>
+        start <= end ? minutes >= start && minutes <= end : minutes >= start || minutes <= end;
+
       // Calcular todos os updates necessários primeiro, depois executar em paralelo
       const updates: Promise<any>[] = [];
       for (const planned of allPlanned) {
@@ -3157,8 +3199,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const prefer = (fromFunction: number | null | undefined, fallback: number) =>
           fromFunction && fromFunction > 0 ? fromFunction : fallback;
 
-        const mobIda   = prefer(fv?.mobility, isFreela ? D.mobIdaFreela : D.mobIda);
-        const mobVolta = prefer(fv?.transport, isFreela ? D.mobVoltaFreela : D.mobVolta);
+        // Mobilidade por trecho. Precedência:
+        //   1. Se há horário de voo conhecido, vale a tabela por faixa de
+        //      horário — ela é global e trata do traslado de aeroporto, que só
+        //      existe quando há voo.
+        //   2. Sem horário, cai no valor da função.
+        //   3. Sem valor na função, no default global.
+        const ticket = inc ? ticketByInclusion.get(inc.id) : null;
+
+        // Ida: traslado até o aeroporto — vale o horário de PARTIDA do voo.
+        const idaDepartureMin = toMinutes(ticket?.actualDepartureTime ?? inc?.flightDepartureSuggestedTime);
+        // Chegada do voo de ida encarece o traslado no destino, quando conhecida.
+        const idaArrivalMin = toMinutes(inc?.flightArrivalSuggestedTime);
+        // Volta: o sistema registra a partida do voo de volta. Não há campo de
+        // chegada em casa, então a janela "voo chegando" não é avaliável aqui.
+        const voltaDepartureMin = toMinutes(ticket?.actualReturnTime ?? inc?.flightReturnSuggestedTime);
+
+        const mobIdaBase   = prefer(fv?.mobility, isFreela ? D.mobIdaFreela : D.mobIda);
+        const mobVoltaBase = prefer(fv?.transport, isFreela ? D.mobVoltaFreela : D.mobVolta);
+
+        const mobIda = (idaDepartureMin === null && idaArrivalMin === null)
+          ? mobIdaBase
+          : ((idaDepartureMin !== null && inWindow(idaDepartureMin, depWinStart, depWinEnd)) ||
+             (idaArrivalMin   !== null && inWindow(idaArrivalMin,   arrWinStart, arrWinEnd)))
+            ? mobUnsocial
+            : mobStandard;
+
+        const mobVolta = voltaDepartureMin === null
+          ? mobVoltaBase
+          : inWindow(voltaDepartureMin, depWinStart, depWinEnd)
+            ? mobUnsocial
+            : mobStandard;
         const almSem   = prefer(fv?.weekdayLunch,  isFreela ? D.almSemFreela : D.almSem);
         const janSem   = prefer(fv?.weekdayDinner, isFreela ? D.janSemFreela : D.janSem);
         const almFds   = prefer(fv?.weekendLunch,  isFreela ? D.almFdsFreela : D.almFds);
@@ -4054,6 +4125,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         deflation_tier2_start_day: 9,
         deflation_tier1_percent: 9000,
         deflation_tier2_percent: 8000,
+        // Mobilidade por faixa de horário de voo (slides 7 e 9). Valores em
+        // centavos; janelas em minutos desde a meia-noite, o que permite
+        // expressar faixas que cruzam o dia com dois inteiros.
+        mobility_leg_standard: 2900,            // R$ 29,00
+        mobility_leg_unsocial: 5800,            // R$ 58,00
+        mobility_departure_window_start: 1410,  // 23:30
+        mobility_departure_window_end: 570,     // 09:30
+        mobility_arrival_window_start: 1200,    // 20:00
+        mobility_arrival_window_end: 300,       // 05:00
       };
       const result: Record<string, number> = { ...defaults };
       for (const s of settings) {
@@ -4092,6 +4172,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allowedRaw = [
         "deflation_tier1_start_day", "deflation_tier2_start_day",
         "deflation_tier1_percent", "deflation_tier2_percent",
+        "mobility_leg_standard", "mobility_leg_unsocial",
+        "mobility_departure_window_start", "mobility_departure_window_end",
+        "mobility_arrival_window_start", "mobility_arrival_window_end",
       ];
       for (const key of allowedRaw) {
         if (req.body[key] === undefined) continue;
@@ -4099,12 +4182,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!Number.isFinite(num) || num < 0) {
           return res.status(400).json({ message: `Valor inválido para ${key}: informe um número não negativo.` });
         }
-        const isPercent = key.endsWith("_percent");
-        if (isPercent && num > 10000) {
+        if (key.endsWith("_percent") && num > 10000) {
           return res.status(400).json({ message: `${key} não pode passar de 10000 (100%).` });
         }
-        if (!isPercent && num < 1) {
+        if (key.endsWith("_start_day") && num < 1) {
           return res.status(400).json({ message: `${key} precisa ser pelo menos 1 (primeiro dia da faixa).` });
+        }
+        // Janelas são minutos desde a meia-noite: 0 (00:00) é válido, 1440 não.
+        if (key.includes("_window_") && num > 1439) {
+          return res.status(400).json({ message: `${key} precisa estar entre 0 e 1439 (minutos desde a meia-noite).` });
         }
         await storage.upsertSystemSetting(key, String(Math.round(num)), userId);
       }
