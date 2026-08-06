@@ -1,7 +1,13 @@
--- Conta corrente Caju: razão de alimentação e mobilidade por colaborador
+-- Conta corrente Flash: razão de alimentação e mobilidade por colaborador
 -- Pedido: slide 6 do deck "Ações de melhoria APP LI".
 -- Substitui a planilha "Conta Corrente - Alimentação Eventos.xlsx", que hoje
 -- tem 188 abas individuais mantidas à mão.
+--
+-- Flash Benefícios é a ferramenta do adiantamento de alimentação e mobilidade
+-- ("adiantamos um valor no Flash Benefícios: R$ 350,00 de alimentação e
+-- R$ 150,00 para Mobilidade"). NÃO confundir com o Caju de
+-- team_inclusions.payment_method, que é como o freela recebe o cachê — são
+-- duas ferramentas distintas e a planilha menciona as duas.
 --
 -- Tabela nova — não altera nada existente, então pode ser aplicada antes do
 -- deploy sem risco para o que já está no ar.
@@ -11,7 +17,7 @@
 
 BEGIN;
 
-CREATE TABLE IF NOT EXISTS caju_ledger_entries (
+CREATE TABLE IF NOT EXISTS flash_ledger_entries (
   id               varchar PRIMARY KEY DEFAULT gen_random_uuid(),
   collaborator_id  varchar NOT NULL REFERENCES collaborators(id),
   account          text    NOT NULL,   -- alimentacao | mobilidade
@@ -29,14 +35,14 @@ CREATE TABLE IF NOT EXISTS caju_ledger_entries (
 -- Impede que aprovar o mesmo realizado duas vezes lance o débito em
 -- duplicidade. Em Postgres, NULLs não conflitam entre si, então lançamentos
 -- manuais (budget_actual_id nulo) não são afetados por esta restrição.
-ALTER TABLE caju_ledger_entries
-  DROP CONSTRAINT IF EXISTS caju_ledger_unique_auto_debit;
-ALTER TABLE caju_ledger_entries
-  ADD CONSTRAINT caju_ledger_unique_auto_debit UNIQUE (budget_actual_id, account);
+ALTER TABLE flash_ledger_entries
+  DROP CONSTRAINT IF EXISTS flash_ledger_unique_auto_debit;
+ALTER TABLE flash_ledger_entries
+  ADD CONSTRAINT flash_ledger_unique_auto_debit UNIQUE (budget_actual_id, account);
 
 -- O extrato é sempre consultado por pessoa e ordenado por data.
-CREATE INDEX IF NOT EXISTS caju_ledger_collab_idx
-  ON caju_ledger_entries (collaborator_id, account, reference_date);
+CREATE INDEX IF NOT EXISTS flash_ledger_collab_idx
+  ON flash_ledger_entries (collaborator_id, account, reference_date);
 
 COMMIT;
 
@@ -46,4 +52,4 @@ COMMIT;
 
 -- Conferência:
 --   SELECT column_name, data_type FROM information_schema.columns
---    WHERE table_name = 'caju_ledger_entries' ORDER BY ordinal_position;
+--    WHERE table_name = 'flash_ledger_entries' ORDER BY ordinal_position;

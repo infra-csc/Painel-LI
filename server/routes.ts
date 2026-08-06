@@ -4,7 +4,7 @@ import multer from "multer";
 import { z } from "zod";
 import { storage } from "./storage";
 import { db } from "./db";
-import { budgetNotes, functionManagers as functionManagersTable, budgetPlanned as budgetPlannedTable, events as eventsTable, swapRequests as swapRequestsTable, teamInclusions as teamInclusionsTable, collaborators as collaboratorsTable, cajuLedgerEntries } from "@shared/schema";
+import { budgetNotes, functionManagers as functionManagersTable, budgetPlanned as budgetPlannedTable, events as eventsTable, swapRequests as swapRequestsTable, teamInclusions as teamInclusionsTable, collaborators as collaboratorsTable, flashLedgerEntries } from "@shared/schema";
 import { eq, and, inArray, desc, sql as drizzleSql } from "drizzle-orm";
 import { 
   insertEventSchema,
@@ -25,7 +25,7 @@ import {
   insertInvoiceSchema,
   insertBudgetNoteSchema,
   insertSwapRequestSchema,
-  insertCajuLedgerEntrySchema
+  insertFlashLedgerEntrySchema
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import { randomBytes, timingSafeEqual } from "crypto";
@@ -156,7 +156,7 @@ async function createAuditLog(
   }
 }
 
-// ── Conta corrente Caju ──────────────────────────────────────────────────────
+// ── Conta corrente Flash ─────────────────────────────────────────────────────
 // Lança na conta corrente os débitos de alimentação e mobilidade de um
 // realizado que acabou de ser aprovado pelo RH.
 //
@@ -166,7 +166,7 @@ async function createAuditLog(
 // Idempotente: a restrição única (budget_actual_id, account) faz a segunda
 // tentativa falhar, e o onConflictDoNothing a transforma em no-op. Aprovar o
 // mesmo realizado de novo (ou devolver e reaprovar) não duplica o lançamento.
-async function postCajuDebitsForActual(actualId: string, actorId?: string): Promise<void> {
+async function postFlashDebitsForActual(actualId: string, actorId?: string): Promise<void> {
   const actual = await storage.getBudgetActualById(actualId);
   if (!actual || !actual.collaboratorId) return;
 
@@ -199,7 +199,7 @@ async function postCajuDebitsForActual(actualId: string, actorId?: string): Prom
     }));
 
   if (rows.length === 0) return;
-  await db.insert(cajuLedgerEntries).values(rows as any).onConflictDoNothing();
+  await db.insert(flashLedgerEntries).values(rows as any).onConflictDoNothing();
 }
 
 // Configure multer for file uploads
@@ -3097,13 +3097,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       //   até 4 dias      100%
       //   a partir do 5º   90%
       //   a partir do 9º   80%
+      //
       // É MARGINAL, não um fator único sobre o total: cada dia paga conforme a
       // faixa em que ele cai. Num evento de 10 dias, os 4 primeiros valem
       // integral, do 5º ao 8º valem 90% e o 9º e 10º valem 80%.
+      //
+      // Os limites e percentuais vêm das configurações do sistema para poderem
+      // ser ajustados quando a regra mudar, sem depender de deploy. Os valores
+      // abaixo são o fallback e correspondem à regra vigente do slide 7.
+      // Guardados em centésimos de ponto percentual (9000 = 90%) para manter a
+      // mesma convenção inteira do resto das configurações.
+      const deflTier1Day = cfg.deflation_tier1_start_day ?? 5;   // 1º dia da faixa reduzida
+      const deflTier2Day = cfg.deflation_tier2_start_day ?? 9;   // 1º dia da faixa mais reduzida
+      const deflTier1Pct = (cfg.deflation_tier1_percent ?? 9000) / 10000;
+      const deflTier2Pct = (cfg.deflation_tier2_percent ?? 8000) / 10000;
+
       const deflationFactor = (dayNumber: number): number => {
-        if (dayNumber <= 4) return 1;
-        if (dayNumber <= 8) return 0.9;
-        return 0.8;
+        if (dayNumber >= deflTier2Day) return deflTier2Pct;
+        if (dayNumber >= deflTier1Day) return deflTier1Pct;
+        return 1;
       };
 
       // Calcular todos os updates necessários primeiro, depois executar em paralelo
@@ -3132,12 +3144,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const dailyWe = isFreela
           ? (fv?.dailyValueFreelaWeekend || fv?.dailyValueFreela || D.dailyWeFreela)
           : (fv?.dailyValueWeekend || fv?.dailyValue || D.dailyWe);
-        const mobIda   = isFreela ? D.mobIdaFreela   : D.mobIda;
-        const mobVolta  = isFreela ? D.mobVoltaFreela  : D.mobVolta;
-        const almSem    = isFreela ? D.almSemFreela    : D.almSem;
-        const janSem    = isFreela ? D.janSemFreela    : D.janSem;
-        const almFds    = isFreela ? D.almFdsFreela    : D.almFds;
-        const janFds    = isFreela ? D.janFdsFreela    : D.janFds;
+        // Alimentação e mobilidade vinham EXCLUSIVAMENTE do default global —
+        // as colunas correspondentes de function_values nunca eram lidas, o
+        // que tornava impossível ter valor por função (ex.: a coluna
+        // "Cenotécnica" do slide 7, com R$ 35 contra R$ 40 das demais).
+        //
+        // Agora o valor da função tem precedência e o default global é o
+        // fallback. Zero conta como "não configurado" — é a mesma convenção já
+        // usada acima para dailyValue, onde `fv?.dailyValue || D.dailyWd`
+        // trata 0 como ausente. Manter a convenção evita que a mesma função se
+        // comporte de um jeito na diária e de outro na alimentação.
+        const prefer = (fromFunction: number | null | undefined, fallback: number) =>
+          fromFunction && fromFunction > 0 ? fromFunction : fallback;
+
+        const mobIda   = prefer(fv?.mobility, isFreela ? D.mobIdaFreela : D.mobIda);
+        const mobVolta = prefer(fv?.transport, isFreela ? D.mobVoltaFreela : D.mobVolta);
+        const almSem   = prefer(fv?.weekdayLunch,  isFreela ? D.almSemFreela : D.almSem);
+        const janSem   = prefer(fv?.weekdayDinner, isFreela ? D.janSemFreela : D.janSem);
+        const almFds   = prefer(fv?.weekendLunch,  isFreela ? D.almFdsFreela : D.almFds);
+        const janFds   = prefer(fv?.weekendDinner, isFreela ? D.janFdsFreela : D.janFds);
 
         // Percorre o período dia a dia aplicando, em cada um, a tarifa daquele
         // tipo de dia (útil ou fim de semana) e o fator de deflação da posição.
@@ -3841,12 +3866,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ── Conta corrente Caju ────────────────────────────────────────────────────
+  // ── Conta corrente Flash ───────────────────────────────────────────────────
 
   // Saldo e extrato são dado financeiro pessoal de 832 colaboradores. Exigir só
   // sessão deixaria qualquer usuário logado ver a conta de todo mundo, o que
   // não bate nem com a restrição do POST logo abaixo.
-  const requireCajuAccess = async (req: any, res: any): Promise<boolean> => {
+  const requireFlashAccess = async (req: any, res: any): Promise<boolean> => {
     const userId = req.session?.userId;
     if (!userId) {
       res.status(401).json({ message: "Não autenticado" });
@@ -3863,18 +3888,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Saldos por colaborador. Saldo = SUM(amount) — nunca lido de coluna
   // materializada, para não divergir do extrato.
-  app.get("/api/caju/balances", async (req, res) => {
-    if (!(await requireCajuAccess(req, res))) return;
+  app.get("/api/flash/balances", async (req, res) => {
+    if (!(await requireFlashAccess(req, res))) return;
     try {
       const rows = await db
         .select({
-          collaboratorId: cajuLedgerEntries.collaboratorId,
-          account: cajuLedgerEntries.account,
-          balance: drizzleSql<number>`sum(${cajuLedgerEntries.amount})::int`,
-          lastEntry: drizzleSql<string>`max(${cajuLedgerEntries.referenceDate})`,
+          collaboratorId: flashLedgerEntries.collaboratorId,
+          account: flashLedgerEntries.account,
+          balance: drizzleSql<number>`sum(${flashLedgerEntries.amount})::int`,
+          lastEntry: drizzleSql<string>`max(${flashLedgerEntries.referenceDate})`,
         })
-        .from(cajuLedgerEntries)
-        .groupBy(cajuLedgerEntries.collaboratorId, cajuLedgerEntries.account);
+        .from(flashLedgerEntries)
+        .groupBy(flashLedgerEntries.collaboratorId, flashLedgerEntries.account);
 
       const byCollaborator = new Map<string, any>();
       for (const r of rows) {
@@ -3891,20 +3916,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       return res.json(Array.from(byCollaborator.values()));
     } catch (error) {
-      console.error("[Caju] Erro ao calcular saldos:", error);
+      console.error("[Flash]Erro ao calcular saldos:", error);
       return res.status(500).json({ message: "Erro ao calcular saldos" });
     }
   });
 
   // Extrato de uma pessoa — equivalente à aba individual da planilha.
-  app.get("/api/caju/statement/:collaboratorId", async (req, res) => {
-    if (!(await requireCajuAccess(req, res))) return;
+  app.get("/api/flash/statement/:collaboratorId", async (req, res) => {
+    if (!(await requireFlashAccess(req, res))) return;
     try {
       const entries = await db
         .select()
-        .from(cajuLedgerEntries)
-        .where(eq(cajuLedgerEntries.collaboratorId, req.params.collaboratorId))
-        .orderBy(cajuLedgerEntries.referenceDate, cajuLedgerEntries.createdAt);
+        .from(flashLedgerEntries)
+        .where(eq(flashLedgerEntries.collaboratorId, req.params.collaboratorId))
+        .orderBy(flashLedgerEntries.referenceDate, flashLedgerEntries.createdAt);
 
       // Saldo corrente por conta, calculado na ordem do extrato — é a coluna
       // "Saldo" da planilha.
@@ -3919,29 +3944,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         balances: { alimentacao: running.alimentacao, mobilidade: running.mobilidade },
       });
     } catch (error) {
-      console.error("[Caju] Erro ao montar extrato:", error);
+      console.error("[Flash]Erro ao montar extrato:", error);
       return res.status(500).json({ message: "Erro ao montar extrato" });
     }
   });
 
   // Lançamento manual: saldo de abertura, crédito complementar e ajustes.
   // Débito de evento não entra aqui — ele é derivado do realizado aprovado.
-  app.post("/api/caju/entries", async (req, res) => {
-    if (!(await requireCajuAccess(req, res))) return;
+  app.post("/api/flash/entries", async (req, res) => {
+    if (!(await requireFlashAccess(req, res))) return;
     try {
       const userId = req.session!.userId!;
       const currentUser = await storage.getUser(userId);
 
-      const data = insertCajuLedgerEntrySchema.parse({ ...req.body, createdBy: userId });
+      const data = insertFlashLedgerEntrySchema.parse({ ...req.body, createdBy: userId });
       if (data.kind === "debito_evento") {
         return res.status(400).json({ message: "Débito de evento é lançado automaticamente na aprovação do realizado" });
       }
 
-      const [created] = await db.insert(cajuLedgerEntries).values({ ...data, budgetActualId: null } as any).returning();
-      await createAuditLog('create', 'caju_ledger', created.id, created, userId, currentUser?.name, undefined, req);
+      const [created] = await db.insert(flashLedgerEntries).values({ ...data, budgetActualId: null } as any).returning();
+      await createAuditLog('create', 'flash_ledger', created.id, created, userId, currentUser?.name, undefined, req);
       return res.status(201).json(created);
     } catch (error) {
-      console.error("[Caju] Erro ao criar lançamento:", error);
+      console.error("[Flash]Erro ao criar lançamento:", error);
       return res.status(400).json({ message: error instanceof Error ? error.message : "Dados inválidos" });
     }
   });
@@ -3979,14 +4004,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         results.push(updated);
 
         // Aprovar o realizado baixa alimentação e mobilidade na conta corrente
-        // Caju. Falha aqui não derruba a aprovação: o RH não pode ficar
+        // Flash. Falha aqui não derruba a aprovação: o RH não pode ficar
         // travado por causa do razão, e o lançamento pode ser refeito depois
         // sem duplicar (a restrição única cuida disso).
         if (action === 'aprovado') {
           try {
-            await postCajuDebitsForActual(id, actorId);
+            await postFlashDebitsForActual(id, actorId);
           } catch (ledgerError) {
-            console.error(`[Caju] Falha ao lançar débito do realizado ${id}:`, ledgerError);
+            console.error(`[Flash]Falha ao lançar débito do realizado ${id}:`, ledgerError);
           }
         }
       }
@@ -4023,6 +4048,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         default_weekday_dinner_freela: 4000,
         default_weekend_lunch_freela: 4000,
         default_weekend_dinner_freela: 4500,
+        // Deflação por faixa de dias (slide 7). Percentuais em centésimos de
+        // ponto: 9000 = 90%. Editáveis para a regra mudar sem deploy.
+        deflation_tier1_start_day: 5,
+        deflation_tier2_start_day: 9,
+        deflation_tier1_percent: 9000,
+        deflation_tier2_percent: 8000,
       };
       const result: Record<string, number> = { ...defaults };
       for (const s of settings) {
@@ -4054,6 +4085,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "default_weekday_lunch_freela", "default_weekday_dinner_freela",
         "default_weekend_lunch_freela", "default_weekend_dinner_freela",
       ];
+
+      // Regra de deflação — dias são inteiros e percentuais vêm em centésimos
+      // de ponto (9000 = 90%), então não passam pelo × 100 dos valores
+      // monetários. Ficam editáveis para a regra poder mudar sem deploy.
+      const allowedRaw = [
+        "deflation_tier1_start_day", "deflation_tier2_start_day",
+        "deflation_tier1_percent", "deflation_tier2_percent",
+      ];
+      for (const key of allowedRaw) {
+        if (req.body[key] === undefined) continue;
+        const num = Number(String(req.body[key]).trim().replace(',', '.'));
+        if (!Number.isFinite(num) || num < 0) {
+          return res.status(400).json({ message: `Valor inválido para ${key}: informe um número não negativo.` });
+        }
+        const isPercent = key.endsWith("_percent");
+        if (isPercent && num > 10000) {
+          return res.status(400).json({ message: `${key} não pode passar de 10000 (100%).` });
+        }
+        if (!isPercent && num < 1) {
+          return res.status(400).json({ message: `${key} precisa ser pelo menos 1 (primeiro dia da faixa).` });
+        }
+        await storage.upsertSystemSetting(key, String(Math.round(num)), userId);
+      }
       for (const key of allowed) {
         if (req.body[key] === undefined) continue;
         // parseFloat aceitava "abc" e gravava a string "NaN" no banco, além de

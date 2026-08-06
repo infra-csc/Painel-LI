@@ -555,15 +555,20 @@ export const invoices = pgTable("invoices", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// ── Conta corrente Caju ─────────────────────────────────────────────────────
+// ── Conta corrente Flash ────────────────────────────────────────────────────
 // Razão de alimentação e mobilidade por colaborador, substituindo a planilha
 // "Conta Corrente - Alimentação Eventos.xlsx" (uma aba por pessoa, com duas
 // tabelas lado a lado).
 //
+// Flash Benefícios é a ferramenta do adiantamento de alimentação e mobilidade
+// (slide 6: "adiantamos um valor no Flash Benefícios"). Não confundir com o
+// Caju de team_inclusions.paymentMethod, que é como o freela recebe o cachê —
+// são duas ferramentas distintas, e a planilha menciona as duas.
+//
 // O saldo NÃO é materializado: é sempre SUM(amount) por (colaborador, conta).
 // Guardar saldo em coluna é o jeito mais fácil de ele dessincronizar do
 // extrato, e a planilha atual já sofre disso.
-export const cajuLedgerEntries = pgTable("caju_ledger_entries", {
+export const flashLedgerEntries = pgTable("flash_ledger_entries", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   collaboratorId: varchar("collaborator_id").notNull().references(() => collaborators.id),
   // Duas contas independentes por pessoa, como na planilha.
@@ -582,7 +587,7 @@ export const cajuLedgerEntries = pgTable("caju_ledger_entries", {
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
-  uniqueAutoDebit: unique("caju_ledger_unique_auto_debit").on(table.budgetActualId, table.account),
+  uniqueAutoDebit: unique("flash_ledger_unique_auto_debit").on(table.budgetActualId, table.account),
 }));
 
 export const insertInvoiceSchema = createInsertSchema(invoices).omit({
@@ -594,23 +599,23 @@ export const insertInvoiceSchema = createInsertSchema(invoices).omit({
 export type Invoice = typeof invoices.$inferSelect;
 export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 
-// Conta corrente Caju
-export const CAJU_ACCOUNTS = ["alimentacao", "mobilidade"] as const;
-export const CAJU_ENTRY_KINDS = ["abertura", "debito_evento", "credito_complementar", "ajuste"] as const;
+// Conta corrente Flash
+export const FLASH_ACCOUNTS = ["alimentacao", "mobilidade"] as const;
+export const FLASH_ENTRY_KINDS = ["abertura", "debito_evento", "credito_complementar", "ajuste"] as const;
 
-export const insertCajuLedgerEntrySchema = createInsertSchema(cajuLedgerEntries).omit({
+export const insertFlashLedgerEntrySchema = createInsertSchema(flashLedgerEntries).omit({
   id: true,
   createdAt: true,
 }).extend({
-  account: z.enum(CAJU_ACCOUNTS),
-  kind: z.enum(CAJU_ENTRY_KINDS),
+  account: z.enum(FLASH_ACCOUNTS),
+  kind: z.enum(FLASH_ENTRY_KINDS),
   // Zero não é lançamento: só polui o extrato sem mover saldo.
   amount: z.number().int().refine((v) => v !== 0, "O valor não pode ser zero"),
 });
 
-export type CajuLedgerEntry = typeof cajuLedgerEntries.$inferSelect;
-export type InsertCajuLedgerEntry = z.infer<typeof insertCajuLedgerEntrySchema>;
-export type CajuAccount = (typeof CAJU_ACCOUNTS)[number];
+export type FlashLedgerEntry = typeof flashLedgerEntries.$inferSelect;
+export type InsertFlashLedgerEntry = z.infer<typeof insertFlashLedgerEntrySchema>;
+export type FlashAccount = (typeof FLASH_ACCOUNTS)[number];
 
 // Types
 export type User = typeof users.$inferSelect;
