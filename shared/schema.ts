@@ -284,6 +284,11 @@ export const functionValues = pgTable("function_values", {
   dailyValueWeekend: integer("daily_value_weekend").notNull().default(0), // diária casa - fim de semana (centavos)
   dailyValueFreela: integer("daily_value_freela").notNull().default(0), // diária freela - dia útil (centavos)
   dailyValueFreelaWeekend: integer("daily_value_freela_weekend").notNull().default(0), // diária freela - fim de semana (centavos)
+  // Sobre "local × em viagem" do slide 9: NÃO há colunas para isso, e é
+  // proposital. O app já modela a distinção como funções separadas — existem os
+  // pares "cenotecnica"/"cenotecnica local", "produção"/"produção local",
+  // "kit"/"kit local", "sup ceno"/"sup ceno local", "percurso"/"percurso local".
+  // Basta configurar R$ 540 na função de viagem e R$ 465 na função local.
   costAssistance: integer("cost_assistance").notNull().default(0), // ajuda de custo em centavos
   weekdayLunch: integer("weekday_lunch").notNull().default(0), // almoço semana em centavos
   weekdayDinner: integer("weekday_dinner").notNull().default(0), // jantar semana em centavos
