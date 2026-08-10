@@ -288,6 +288,15 @@ export const functionValues = pgTable("function_values", {
   dailyValueWeekend: integer("daily_value_weekend").notNull().default(0), // diária casa - fim de semana (centavos)
   dailyValueFreela: integer("daily_value_freela").notNull().default(0), // diária freela - dia útil (centavos)
   dailyValueFreelaWeekend: integer("daily_value_freela_weekend").notNull().default(0), // diária freela - fim de semana (centavos)
+  // Faixa B — funções com mais de um valor (slides 8 e 10). O rótulo muda
+  // conforme a função (Nível B do cenotécnico / Tipo 2 do percurseiro), mas o
+  // mecanismo é o mesmo: team_inclusions.rate_level = 'b' faz o cálculo ler
+  // daqui em vez das colunas acima. Zerado cai na faixa A (mesma convenção
+  // "0 = não configurado" das demais colunas desta tabela).
+  dailyValueB: integer("daily_value_b").notNull().default(0),
+  dailyValueWeekendB: integer("daily_value_weekend_b").notNull().default(0),
+  dailyValueFreelaB: integer("daily_value_freela_b").notNull().default(0),
+  dailyValueFreelaWeekendB: integer("daily_value_freela_weekend_b").notNull().default(0),
   // Sobre "local × em viagem" do slide 9: NÃO há colunas para isso, e é
   // proposital. O app já modela a distinção como funções separadas — existem os
   // pares "cenotecnica"/"cenotecnica local", "produção"/"produção local",

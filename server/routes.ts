@@ -3180,12 +3180,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const isFreela = !collaborator || collaborator.type === 'freela';
 
         const fv = allFunctionValues.find(f => f.functionId === planned.functionId);
+
+        // Faixa B (slides 8 e 10: Nível B do cenotécnico, Tipo 2 do
+        // percurseiro). rate_level = 'b' faz ler as colunas *_b em vez das
+        // colunas normais; qualquer outro valor (incluindo nulo) usa a faixa
+        // A, que é o comportamento de sempre.
+        const useFaixaB = inc?.rateLevel === 'b';
+        const fvDailyValue = useFaixaB ? fv?.dailyValueB : fv?.dailyValue;
+        const fvDailyValueWeekend = useFaixaB ? fv?.dailyValueWeekendB : fv?.dailyValueWeekend;
+        const fvDailyValueFreela = useFaixaB ? fv?.dailyValueFreelaB : fv?.dailyValueFreela;
+        const fvDailyValueFreelaWeekend = useFaixaB ? fv?.dailyValueFreelaWeekendB : fv?.dailyValueFreelaWeekend;
+
         const dailyWd = isFreela
-          ? (fv?.dailyValueFreela || D.dailyWdFreela)
-          : (fv?.dailyValue || D.dailyWd);
+          ? (fvDailyValueFreela || D.dailyWdFreela)
+          : (fvDailyValue || D.dailyWd);
         const dailyWe = isFreela
-          ? (fv?.dailyValueFreelaWeekend || fv?.dailyValueFreela || D.dailyWeFreela)
-          : (fv?.dailyValueWeekend || fv?.dailyValue || D.dailyWe);
+          ? (fvDailyValueFreelaWeekend || fvDailyValueFreela || D.dailyWeFreela)
+          : (fvDailyValueWeekend || fvDailyValue || D.dailyWe);
         // Alimentação e mobilidade vinham EXCLUSIVAMENTE do default global —
         // as colunas correspondentes de function_values nunca eram lidas, o
         // que tornava impossível ter valor por função (ex.: a coluna
