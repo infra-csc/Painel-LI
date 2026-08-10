@@ -454,6 +454,11 @@ export const insertCollaboratorSchema = createInsertSchema(collaborators).omit({
   updatedAt: true,
 }).extend({
   birthDate: z.string().optional(), // Força string para birthDate
+  // Espaço no início do nome empurra o registro para o topo da lista, já que
+  // espaço (código 32) ordena antes de qualquer letra — foi assim que um
+  // colaborador de teste ("Teste Yan", com espaço na frente) apareceu antes de
+  // tudo mesmo com a ordenação alfabética funcionando corretamente.
+  fullName: z.string().trim().min(1, "Nome é obrigatório"),
 });
 
 export const insertTeamInclusionSchema = createInsertSchema(teamInclusions).omit({
