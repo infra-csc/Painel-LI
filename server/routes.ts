@@ -4,7 +4,7 @@ import multer from "multer";
 import { z } from "zod";
 import { storage } from "./storage";
 import { db } from "./db";
-import { budgetNotes, functionManagers as functionManagersTable, budgetPlanned as budgetPlannedTable, events as eventsTable, swapRequests as swapRequestsTable, teamInclusions as teamInclusionsTable, collaborators as collaboratorsTable, flashLedgerEntries } from "@shared/schema";
+import { budgetNotes, functionManagers as functionManagersTable, budgetPlanned as budgetPlannedTable, budgetActual as budgetActualTable, events as eventsTable, swapRequests as swapRequestsTable, teamInclusions as teamInclusionsTable, collaborators as collaboratorsTable, flashLedgerEntries } from "@shared/schema";
 import { eq, and, inArray, desc, sql as drizzleSql } from "drizzle-orm";
 import { 
   insertEventSchema,
@@ -3647,14 +3647,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdBy: req.session?.userId || null,
       };
 
-      const created = await storage.createBudgetActual(splitData as any);
-
-      // Update parent's workedDays AND recalculate financial values for remaining days
+      // Build parent update before entering the transaction
       const remainingDays: string[] = Array.isArray(parentWorkedDays) ? parentWorkedDays : [];
       const { parentValues } = req.body;
       let parentUpdate: Record<string, unknown> = { workedDays: remainingDays };
       if (parentValues && typeof parentValues === 'object') {
-        // Frontend sent pre-computed parent values for remaining days
         parentUpdate = {
           ...parentUpdate,
           weekdayLunch: parentValues.weekdayLunch ?? parent.weekdayLunch,
@@ -3666,7 +3663,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalValue: parentValues.totalValue ?? parent.totalValue,
         };
       }
-      await storage.updateBudgetActual(parent.id, parentUpdate as any);
+
+      // Transação: child insert + parent update são atômicos
+      // Se o update do pai falhar, o filho não fica órfão no banco.
+      const [created] = await db.transaction(async (tx) => {
+        const inserted = await tx.insert(budgetActualTable).values(splitData as any).returning();
+        await tx.update(budgetActualTable)
+          .set(parentUpdate as any)
+          .where(eq(budgetActualTable.id, parent.id));
+        return inserted;
+      });
 
       const actorId = req.session?.userId;
       const actor = actorId ? await storage.getUser(actorId) : null;
@@ -3781,14 +3787,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const actorId = req.session?.userId;
       const actor = actorId ? await storage.getUser(actorId) : null;
 
-      for (const item of toUpdate) {
-        const wasRejectedOrReturned = item.rhStatus === 'rejeitado' || item.rhStatus === 'devolvido';
-        await storage.updateBudgetActual(item.id, {
-          sentForReview: true,
-          rhStatus: 'pendente',
-          ...(wasRejectedOrReturned ? { resubmitted: true } : {}),
-        });
-      }
+      // Transação: enviar para revisão é all-or-nothing para o lote.
+      await db.transaction(async (tx) => {
+        for (const item of toUpdate) {
+          const wasRejectedOrReturned = item.rhStatus === 'rejeitado' || item.rhStatus === 'devolvido';
+          await tx.update(budgetActualTable)
+            .set({
+              sentForReview: true,
+              rhStatus: 'pendente',
+              ...(wasRejectedOrReturned ? { resubmitted: true } : {}),
+            })
+            .where(eq(budgetActualTable.id, item.id));
+        }
+      });
 
       await createAuditLog('send_review', 'budget_actual', eventId, { eventId, count: toUpdate.length }, actorId, actor?.name || 'Sistema', undefined, req);
       res.json({ updated: toUpdate.length });
@@ -4084,24 +4095,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // ignorado — era ele que permitia agir em nome de outra pessoa.
       const actionBy = actor.id;
       const actorId = actor.id;
-      const results = [];
-      for (const id of itemIds) {
-        const updated = await storage.updateBudgetActual(id, {
-          rhStatus: action,
-          rhComment: comment || null,
-          rhActionBy: actionBy,
-          rhActionAt: new Date(),
-          ...(action === 'devolvido' || action === 'rejeitado'
-            ? { sentForReview: false }
-            : {}),
-        });
-        results.push(updated);
+      // Todos os updates do lote são atômicos: ou aprovamos tudo ou nada.
+      const results = await db.transaction(async (tx) => {
+        const updated = [];
+        for (const id of itemIds) {
+          const [row] = await tx.update(budgetActualTable)
+            .set({
+              rhStatus: action,
+              rhComment: comment || null,
+              rhActionBy: actionBy,
+              rhActionAt: new Date(),
+              ...(action === 'devolvido' || action === 'rejeitado'
+                ? { sentForReview: false }
+                : {}),
+            })
+            .where(eq(budgetActualTable.id, id))
+            .returning();
+          if (row) updated.push(row);
+        }
+        return updated;
+      });
 
-        // Aprovar o realizado baixa alimentação e mobilidade na conta corrente
-        // Flash. Falha aqui não derruba a aprovação: o RH não pode ficar
-        // travado por causa do razão, e o lançamento pode ser refeito depois
-        // sem duplicar (a restrição única cuida disso).
-        if (action === 'aprovado') {
+      // Lançamentos Flash ficam FORA da transação por design: falha no razão
+      // não deve reverter a aprovação do RH. A restrição única impede duplicatas.
+      if (action === 'aprovado') {
+        for (const id of itemIds) {
           try {
             await postFlashDebitsForActual(id, actorId);
           } catch (ledgerError) {
@@ -4752,16 +4770,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!sr) return res.status(404).json({ message: "Solicitação não encontrada" });
       if (sr.status !== 'pendente') return res.status(400).json({ message: "Solicitação não está pendente" });
 
-      // Atualizar colaborador na team_inclusion
-      await db.execute(drizzleSql`
-        UPDATE team_inclusions SET collaborator_id = ${sr.new_collaborator_id}, updated_at = NOW() WHERE id = ${sr.team_inclusion_id}
-      `);
-
-      // Marcar swap request como aprovado
-      await db.execute(drizzleSql`
-        UPDATE swap_requests SET status = 'aprovado', reviewed_by = ${currentUser.id}, reviewed_by_name = ${currentUser.name}, review_comment = ${reviewComment ?? null}, reviewed_at = NOW()
-        WHERE id = ${id}
-      `);
+      // Transação: a troca de colaborador e a marcação do swap como aprovado
+      // devem ser atômicas — se uma falhar, a outra reverte.
+      await db.transaction(async (tx) => {
+        await tx.execute(drizzleSql`
+          UPDATE team_inclusions SET collaborator_id = ${sr.new_collaborator_id}, updated_at = NOW() WHERE id = ${sr.team_inclusion_id}
+        `);
+        await tx.execute(drizzleSql`
+          UPDATE swap_requests SET status = 'aprovado', reviewed_by = ${currentUser.id}, reviewed_by_name = ${currentUser.name}, review_comment = ${reviewComment ?? null}, reviewed_at = NOW()
+          WHERE id = ${id}
+        `);
+      });
 
       res.json({ message: "Troca aprovada com sucesso" });
     } catch (error) {

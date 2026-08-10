@@ -5,3 +5,4 @@
 - [Maratona integration API](maratona-integration.md) — read-only /api/integration/* (Bearer token); externalId MUST stay the stable uuid PK; CPF/phone exposed on purpose per contract.
 - [Route authz identity source](route-authz-identity.md) — derive identity from req.session.userId ONLY on destructive/role-gated routes; the `|| req.body._userId` fallback (in older routes) is spoofable.
 - [Phase 1 security fixes](phase1-security.md) — requireAuth global middleware active; _userId body fallbacks removed; isActive checks added; MIME allowlist on upload; Content-Disposition: attachment.
+- [Phase 2 quality & stability](phase2-quality.md) — 9 DB indexes applied (dev only, prod SQL in file); 4 operations wrapped in db.transaction(); validateBody/validateQuery middleware created.
