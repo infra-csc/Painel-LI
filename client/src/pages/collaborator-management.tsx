@@ -9,7 +9,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import {
   Check, X, Eye, UserPlus, Upload, FileText, Edit, Users,
   ChevronLeft, ChevronRight, Search, UserCheck, AlertCircle,
-  Briefcase, Home, LayoutList, Loader2, Ban, AlertTriangle, RotateCcw
+  Briefcase, Home, LayoutList, Loader2, Ban, AlertTriangle, RotateCcw,
+  ArrowUp, ArrowDown,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -177,16 +178,29 @@ export default function CollaboratorManagement() {
     onError: (err: any) => toast({ title: parseErr(err, "Erro ao reativar colaborador"), variant: "destructive" }),
   });
 
+  // A API já devolve ordenado A→Z (server/storage.ts getCollaborators). O
+  // estado aqui só cobre o clique no cabeçalho para inverter — sem clique
+  // nenhum, "asc" reproduz exatamente o que o servidor já manda, então não há
+  // reordenação redundante no caso comum.
+  const [nameSort, setNameSort] = useState<"asc" | "desc">("asc");
+  const toggleNameSort = () => setNameSort(prev => (prev === "asc" ? "desc" : "asc"));
+
   const filtered = useMemo(() => {
     if (!collaborators) return [];
-    return collaborators.filter(c => {
+    const rows = collaborators.filter(c => {
       const statusMatch = filters.status === "all" || c.status === filters.status;
       const typeMatch = filters.type === "all" || c.type === filters.type;
       const q = filters.search.toLowerCase();
       const searchMatch = !q || c.fullName.toLowerCase().includes(q) || c.officialDocument.includes(q);
       return statusMatch && typeMatch && searchMatch;
     });
-  }, [collaborators, filters]);
+    if (nameSort === "desc") {
+      // localeCompare com 'pt-BR' trata acento e é a mesma comparação prática
+      // que lower() no Postgres — evita um Z→A que ignore acentuação.
+      rows.sort((a, b) => b.fullName.trim().localeCompare(a.fullName.trim(), "pt-BR", { sensitivity: "base" }));
+    }
+    return rows;
+  }, [collaborators, filters, nameSort]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -382,7 +396,22 @@ export default function CollaboratorManagement() {
               <table className="w-full text-left">
                 <thead>
                   <tr style={{ borderBottom: "2px solid #E2E8F0", background: "#F8FAFC" }}>
-                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Colaborador</th>
+                    <th
+                      onClick={toggleNameSort}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleNameSort(); } }}
+                      aria-sort={nameSort === "asc" ? "ascending" : "descending"}
+                      title={nameSort === "asc" ? "Ordenado A→Z — clique para inverter" : "Ordenado Z→A — clique para inverter"}
+                      className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase cursor-pointer select-none hover:text-slate-600 hover:bg-slate-100/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#0033CC]"
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        Colaborador
+                        {nameSort === "asc"
+                          ? <ArrowUp className="w-3 h-3" aria-hidden />
+                          : <ArrowDown className="w-3 h-3" aria-hidden />}
+                      </span>
+                    </th>
                     <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Documento</th>
                     <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Tipo</th>
                     <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Cidade</th>
