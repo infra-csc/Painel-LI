@@ -202,15 +202,29 @@ async function postFlashDebitsForActual(actualId: string, actorId?: string): Pro
   await db.insert(flashLedgerEntries).values(rows as any).onConflictDoNothing();
 }
 
+// Tipos de arquivo permitidos em upload — bloqueia HTML/SVG que executam JS
+const ALLOWED_MIME_TYPES = new Set([
+  "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/plain",
+]);
+
 // Configure multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
-  fileFilter: (req, file, cb) => {
-    // Accept all file types for now
-    cb(null, true);
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Tipo de arquivo não permitido: ${file.mimetype}. Envie imagens, PDF ou documentos Office.`));
+    }
   }
 });
 
@@ -565,9 +579,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           isActive: true,
         } as any);
         console.log(`[SSO] Usuário auto-registrado via Norte Portal: ${email}`);
-      } else if (user.status !== "approved") {
-        // Usuário existe mas não está aprovado — aprovar via SSO
-        user = await storage.updateUser(user.id, { status: "approved" }) || user;
+      } else if (user.status !== "approved" || user.isActive === false) {
+        // Conta não aprovada ou desativada — negar SSO
+        return res.status(403).json({ message: "Conta inativa ou não aprovada." });
       }
 
       // Sincronizar nome do token.
@@ -626,7 +640,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const user = await storage.getUser(userId);
-      if (!user) {
+      if (!user || user.status !== 'approved' || user.isActive === false) {
         req.session.destroy(() => {});
         return res.status(401).json({ message: "Sessão inválida" });
       }
@@ -649,7 +663,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const user = await storage.getUserByEmail(email);
       
-      if (!user || user.status !== 'approved') {
+      if (!user || user.status !== 'approved' || user.isActive === false) {
         return res.status(401).json({ message: "Credenciais inválidas ou conta não aprovada" });
       }
       
@@ -819,7 +833,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/users", async (req, res) => {
     try {
       // Check authentication and authorization
-      const userId = req.session.userId || req.body?._userId;
+      const userId = req.session.userId;
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
@@ -915,7 +929,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/users/:id", async (req, res) => {
     try {
       // Check authentication
-      const currentUserId = req.session.userId || req.body?._userId;
+      const currentUserId = req.session.userId;
       if (!currentUserId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
@@ -1032,7 +1046,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/users/:id/approval", async (req, res) => {
     try {
       // Check authentication and authorization
-      const userId = req.session.userId || req.body?._userId;
+      const userId = req.session.userId;
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
@@ -1083,7 +1097,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin: Toggle user active status (Reactivação)
   app.patch("/api/users/:id/toggle-active", async (req, res) => {
     try {
-      const adminId = req.session.userId || req.body?._userId;
+      const adminId = req.session.userId;
       if (!adminId) return res.status(401).json({ message: "Não autenticado" });
       
       const admin = await storage.getUser(adminId);
@@ -1146,7 +1160,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin: Reset user password
   app.post("/api/users/:id/reset-password", async (req, res) => {
     try {
-      const adminId = req.session.userId || req.body?._userId;
+      const adminId = req.session.userId;
       if (!adminId) return res.status(401).json({ message: "Não autenticado" });
       
       const admin = await storage.getUser(adminId);
@@ -1243,7 +1257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Dedicated endpoint for updating payment company (accessible to admin + financial roles)
   app.patch("/api/events/:id/payment-company", async (req, res) => {
     try {
-      const actorId = req.session?.userId || req.body?._userId;
+      const actorId = req.session?.userId;
       const actor = actorId ? await storage.getUser(actorId) : null;
       if (!actor || !['admin', 'financial'].includes(actor.role)) {
         return res.status(403).json({ message: "Sem permissão para configurar empresa pagadora" });
@@ -1621,16 +1635,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/collaborators", async (req, res) => {
     try {
       // Extrair informações do usuário (não fazem parte do schema)
-      const { _userId, _userRole, ...bodyData } = req.body;
+      const { _userId: _ignoredUserId, _userRole, ...bodyData } = req.body;
 
       // Validar dados do colaborador
       // (não logar o corpo: contém CPF/telefone do colaborador)
       let collaboratorData: any = insertCollaboratorSchema.parse(bodyData);
 
-      // Autoria do cadastro. Prefere a sessão; cai para o _userId do corpo
-      // apenas porque esta rota ainda não exige autenticação — quando o
-      // requireAuth global entrar, o fallback deve sair junto.
-      const authorId = req.session?.userId || _userId || null;
+      // Autoria sempre deriva da sessão (requireAuth garante que está definido)
+      const authorId = req.session?.userId || null;
       collaboratorData = { ...collaboratorData, createdBy: authorId, updatedBy: authorId };
 
       // Auto-aprovar colaboradores criados por usuários "Área de Função"
@@ -1640,7 +1652,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...collaboratorData,
           status: 'aprovado',
           approvedAt: new Date(),
-          approvedBy: _userId
+          approvedBy: authorId
         };
       }
       
@@ -1671,7 +1683,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/collaborators/bulk", async (req, res) => {
     try {
-      const { collaborators, _userId, _userRole } = req.body;
+      const { collaborators, _userId: _ignoredBulkUserId, _userRole } = req.body;
+      const bulkActorId = req.session?.userId || null;
       
       if (!Array.isArray(collaborators) || collaborators.length === 0) {
         return res.status(400).json({ message: "Lista de colaboradores é obrigatória" });
@@ -1718,9 +1731,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             type: collaboratorData.type || 'freela',
             city: collaboratorData.city || 'Não informado',
             area: collaboratorData.area || 'Geral',
-            status: autoApprove ? "aprovado" : "pendente", // Auto-aprovar apenas para function_area
-            ...(autoApprove && _userId ? {
-              approvedBy: _userId,
+            status: autoApprove ? "aprovado" : "pendente",
+            ...(autoApprove && bulkActorId ? {
+              approvedBy: bulkActorId,
               approvedAt: new Date().toISOString()
             } : {})
           });
@@ -1739,9 +1752,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             continue;
           }
 
-          // Autoria também na importação em lote — é justamente aí que entram
-          // os cadastros incompletos que se quer conseguir cobrar depois.
-          const bulkAuthorId = req.session?.userId || _userId || null;
+          // Autoria deriva da sessão (requireAuth garante que está definido)
+          const bulkAuthorId = bulkActorId;
           await storage.createCollaborator({
             ...validatedData,
             createdBy: bulkAuthorId,
@@ -1778,7 +1790,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       delete (collaboratorData as any).inactivatedAt;
 
       // Registra quem editou por último. Mesmo fallback da rota de criação.
-      const editorId = req.session?.userId || req.body?._userId || null;
+      const editorId = req.session?.userId || null;
       const collaborator = await storage.updateCollaborator(id, {
         ...collaboratorData,
         updatedBy: editorId,
@@ -1904,8 +1916,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("📝 [EDIT DEBUG] PATCH request received for inclusion ID:", id);
       console.log("📝 [EDIT DEBUG] Request body:", JSON.stringify(req.body, null, 2));
       
-      // Get userId from request body (frontend sends it)
-      const userId = req.body._userId || req.session?.userId;
+      // Identidade sempre da sessão (requireAuth garante)
+      const userId = req.session?.userId;
       console.log("📝 [EDIT DEBUG] User ID:", userId);
       
       if (!userId) {
@@ -1954,8 +1966,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log("🔍 [CONFIRM DEBUG - BACKEND] Received collaboratorId:", req.body.collaboratorId);
       }
       
-      // Remove _userId from body (it's only for auth)
-      const { _userId, ...bodyData } = req.body;
+      // Remover _userId do body — identidade sempre vem da sessão
+      const { _userId: _ignoredPatchUserId, ...bodyData } = req.body;
       
       // Auto-recalculate workDays when schedule dates change (skip if workDays explicitly provided)
       const newStartDate = bodyData.scheduleStartDate || currentInclusion.scheduleStartDate;
@@ -2329,14 +2341,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/tickets/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      const actorId = req.session?.userId || null;
       const updates = { 
         ...req.body, 
         updatedAt: new Date(),
-        updatedBy: req.body.updatedBy || null
+        updatedBy: actorId
       };
       const prev = await storage.getTicket(id);
       const ticket = await storage.updateTicket(id, updates);
-      const actorId = req.session?.userId || req.body.updatedBy;
       const actor = actorId ? await storage.getUser(actorId) : null;
       await createAuditLog('update', 'ticket', id, ticket, actorId, actor?.name || 'Sistema', prev, req);
       res.json(ticket);
@@ -2375,14 +2387,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/accommodations/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      const actorId = req.session?.userId || null;
       const updates = { 
         ...req.body, 
         updatedAt: new Date(),
-        updatedBy: req.body.updatedBy || null
+        updatedBy: actorId
       };
       const prev = await storage.getAccommodation(id);
       const accommodation = await storage.updateAccommodation(id, updates);
-      const actorId = req.session?.userId || req.body.updatedBy;
       const actor = actorId ? await storage.getUser(actorId) : null;
       await createAuditLog('update', 'accommodation', id, accommodation, actorId, actor?.name || 'Sistema', prev, req);
       res.json(accommodation);
@@ -2556,7 +2568,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updates = { 
         ...req.body, 
         updatedAt: new Date(),
-        updatedBy: req.body.updatedBy || null // frontend deve enviar o ID do usuário que está editando
+        updatedBy: req.session?.userId || null
       };
       const financial = await storage.updateFinancial(id, updates);
       res.json(financial);
@@ -2840,8 +2852,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const bucket = objectStorageClient.bucket(bucketName);
       const objectFile = bucket.file(objectName);
       
-      // Adicionar header para visualização inline
-      res.set('Content-Disposition', 'inline');
+      // Forçar download — impede execução de HTML/SVG no browser (XSS)
+      res.set('Content-Disposition', 'attachment');
       
       await objectStorageService.downloadObject(objectFile, res);
     } catch (error) {
@@ -3030,7 +3042,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Budget Planned — Apply system defaults to all pending (not-yet-sent) records
   app.post("/api/budget-planned/apply-defaults", async (req, res) => {
-    const userId = req.session?.userId || req.body?._userId;
+    const userId = req.session?.userId;
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
     const user = await storage.getUser(userId);
     if (!user || (user.role !== "admin" && user.role !== "financial"))
@@ -3461,7 +3473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { eventId } = req.params;
       const planned = await storage.getBudgetPlanned(eventId);
-      const actorId = req.session?.userId || req.body.userId;
+      const actorId = req.session?.userId || null;
       const actor = actorId ? await storage.getUser(actorId) : null;
 
       // Carrega a forma de pagamento definida na escalação para copiar no
@@ -3520,7 +3532,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             transport: p.transport,
             totalValue: p.totalValue,
             observations: p.observations,
-            createdBy: req.body.userId,
+            createdBy: actorId,
           };
           return await storage.createBudgetActual(actualData);
         })
@@ -3558,10 +3570,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         transport: original.transport,
         totalValue: original.totalValue,
         observations: "Duplicado no Realizado",
-        createdBy: req.body.userId,
+        createdBy: req.session?.userId || null,
       };
       const duplicated = await storage.createBudgetActual(duplicateData);
-      const actorId = req.session?.userId || req.body.userId;
+      const actorId = req.session?.userId || null;
       const actor = actorId ? await storage.getUser(actorId) : null;
       await createAuditLog('create', 'budget_actual', duplicated.id, duplicated, actorId, actor?.name || 'Sistema', undefined, req);
       res.status(201).json(duplicated);
@@ -3692,7 +3704,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/budget-actual/:id", async (req, res) => {
     try {
       const prev = await storage.getBudgetActualById(req.params.id);
-      const actorId = req.session?.userId || req.body?._userId;
+      const actorId = req.session?.userId;
       const actor = actorId ? await storage.getUser(actorId) : null;
       const isRhAdmin = actor?.role === 'admin' || actor?.role === 'financial';
 
@@ -4414,7 +4426,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/invoices/:id/checkin", async (req, res) => {
-    const actorId = req.session?.userId || req.body?._userId;
+    const actorId = req.session?.userId;
     if (!actorId) return res.status(401).json({ message: "Não autenticado" });
     const user = await storage.getUser(actorId);
     if (!user || (user.role !== "admin" && user.role !== "financial")) {
@@ -4436,7 +4448,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Payment Companies
   app.get("/api/payment-companies", async (req, res) => {
-    const userId = req.session.userId || req.body?._userId;
+    const userId = req.session.userId;
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
     try {
       const companies = await storage.getPaymentCompanies();
@@ -4448,7 +4460,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/payment-companies", async (req, res) => {
-    const userId = req.session.userId || req.body?._userId;
+    const userId = req.session.userId;
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
     try {
       const { name, cnpj } = req.body;
@@ -4462,7 +4474,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/payment-companies/:id", async (req, res) => {
-    const userId = req.session.userId || req.body?._userId;
+    const userId = req.session.userId;
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
     const user = await storage.getUser(userId);
     if (!user || !["admin"].includes(user.role)) return res.status(403).json({ message: "Sem permissão" });
@@ -4498,7 +4510,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // POST /api/budget-notes
   app.post("/api/budget-notes", async (req, res) => {
-    const userId = req.session.userId || req.body?._userId;
+    const userId = req.session.userId;
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
     const user = await storage.getUser(userId);
     if (!user) return res.status(401).json({ message: "Usuário não encontrado" });

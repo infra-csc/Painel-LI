@@ -6,6 +6,7 @@ import rateLimit from "express-rate-limit";
 import { jwtVerify } from "jose";
 import { pool } from "./db";
 import { registerRoutes } from "./routes";
+import { requireAuth } from "./middleware/requireAuth";
 import { setupVite, serveStatic, log } from "./vite";
 
 const PgSession = connectPgSimple(session);
@@ -222,36 +223,10 @@ app.use(async (req, res, next) => {
 });
 
 
-// ── Auditoria de autenticação (SOMENTE LOG — não bloqueia nada) ───────────
-// Passo preparatório para o requireAuth global. Hoje a maior parte das rotas
-// não verifica sessão, e 21 delas aceitam `_userId` vindo do corpo como se
-// fosse identidade — o que permite agir como qualquer usuário sem autenticar.
-//
-// Este middleware não altera comportamento: apenas marca no log quais
-// requisições SERIAM bloqueadas se a autenticação passasse a ser exigida.
-// Rode por alguns dias e depois filtre o log por "[AuthAudit]":
-//
-//   - linhas com bypass=SIM  → a rota só funciona hoje por causa do `_userId`;
-//                              é exatamente o buraco a fechar.
-//   - linhas com bypass=nao  → chamada realmente anônima. Se vier de uma tela
-//                              legítima, essa tela precisa de ajuste antes de
-//                              ligar o bloqueio.
-//
-// Se após o período de observação não aparecer nenhuma linha inesperada, dá
-// para trocar o console.warn por `return res.status(401)` com segurança.
-const AUTH_AUDIT_EXEMPT = ['/api/auth/', '/api/integration/', '/api/portal/'];
-
-app.use((req, _res, next) => {
-  if (!req.path.startsWith('/api')) return next();
-  if (AUTH_AUDIT_EXEMPT.some((prefix) => req.path.startsWith(prefix))) return next();
-  if (req.session?.userId) return next();
-
-  const usouBypass = Boolean(req.body && typeof req.body === 'object' && req.body._userId);
-  console.warn(
-    `[AuthAudit] ${req.method} ${req.path} — sem sessão, bypass=${usouBypass ? 'SIM' : 'nao'}`
-  );
-  next();
-});
+// ── Autenticação global ───────────────────────────────────────────────────
+// Bloqueia qualquer rota /api/* sem sessão ativa.
+// Rotas públicas (auth, integration) estão isentas — ver middleware/requireAuth.ts
+app.use(requireAuth);
 
 // CSRF defense-in-depth — como em produção o cookie de sessão é SameSite=None
 // (necessário para o contexto cross-site do Portal Norte), validamos a origem
