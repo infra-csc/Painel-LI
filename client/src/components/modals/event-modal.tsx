@@ -260,9 +260,10 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                           <label style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", display: "block", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em" }}>Nome da Empresa</label>
                           <FormControl>
                             <div style={{ position: "relative" }}>
-                              <input ref={nameRef} placeholder="Digite para buscar..." autoComplete="off"
+                              <input placeholder="Digite para buscar..." autoComplete="off"
                                 style={{ height: 38, fontSize: 13, width: "100%", padding: "0 12px", border: "1px solid #E2E8F0", borderRadius: 8, background: "white", color: "#1E293B", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
                                 {...field}
+                                ref={nameRef}
                                 onFocus={() => setShowSugg(true)}
                                 onChange={e => { field.onChange(e); setShowSugg(true); }} />
                               {showSugg && filtered.length > 0 && (

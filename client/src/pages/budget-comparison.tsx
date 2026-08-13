@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { fixEncoding } from "@/lib/utils";
+import { fixEncoding, parseBrNumber } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -59,13 +59,14 @@ export default function BudgetComparisonPage() {
   });
   const [actionModal, setActionModal] = useState<{ type: 'approve' | 'reject' | 'return' } | null>(null);
   const [actionNote, setActionNote] = useState("");
-  const [applyCommentToAll, setApplyCommentToAll] = useState(true);
   const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set());
   const [sortBy, setSortBy] = useState<'difference' | 'total'>('difference');
   const [searchTerm, setSearchTerm] = useState("");
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
-  const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
+  // Seleção por id do BudgetActual (não por índice): filtrar/ordenar deslocava os índices
+  // e o RH acabava aprovando itens errados
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [confirmAdjustOpen, setConfirmAdjustOpen] = useState(false);
   const [editingActual, setEditingActual] = useState<BudgetActual | null>(null);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
@@ -86,7 +87,7 @@ export default function BudgetComparisonPage() {
   const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
   const { data: allTeamInclusions = [] } = useQuery<TeamInclusion[]>({ queryKey: ["/api/team-inclusions"] });
 
-  const { data: comparison } = useQuery<BudgetComparison | null>({
+  const { data: comparison, isLoading: isLoadingComparison } = useQuery<BudgetComparison | null>({
     queryKey: ["/api/budget-comparison", selectedEventId],
     queryFn: async () => {
       if (!selectedEventId) return null;
@@ -118,7 +119,7 @@ export default function BudgetComparisonPage() {
     staleTime: 60_000,
   });
 
-  const { data: budgetPlanned } = useQuery<BudgetPlanned[]>({
+  const { data: budgetPlanned, isLoading: isLoadingPlanned } = useQuery<BudgetPlanned[]>({
     queryKey: ["/api/budget-planned", selectedEventId],
     queryFn: async () => {
       const res = await fetch(`/api/budget-planned?eventId=${selectedEventId}`, { credentials: "include" });
@@ -128,7 +129,7 @@ export default function BudgetComparisonPage() {
     enabled: !!selectedEventId,
   });
 
-  const { data: budgetActual } = useQuery<BudgetActual[]>({
+  const { data: budgetActual, isLoading: isLoadingActual } = useQuery<BudgetActual[]>({
     queryKey: ["/api/budget-actual", selectedEventId],
     queryFn: async () => {
       const res = await fetch(`/api/budget-actual?eventId=${selectedEventId}`, { credentials: "include" });
@@ -174,8 +175,14 @@ export default function BudgetComparisonPage() {
       qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
       setActionModal(null);
       setActionNote("");
-      setApplyCommentToAll(true);
       setSelectedItems(new Set());
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Erro ao processar a ação",
+        description: err?.body?.message || "Não foi possível concluir a ação do RH. Tente novamente.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -211,8 +218,10 @@ export default function BudgetComparisonPage() {
 
   const saveEditModal = () => {
     if (!editingActual) return;
-    const toCents = (v: string) => Math.round(parseFloat(v.replace(',', '.')) * 100) || 0;
-    const data: Record<string, any> = {
+    const orig = editingActual;
+    // parseBrNumber trata "1.500,00" como 1500 (ponto de milhar + vírgula decimal)
+    const toCents = (v: string) => Math.round(parseBrNumber(v) * 100);
+    const parsed = {
       dailyQuantity: parseInt(editForm.dailyQuantity) || 0,
       dailyValue: toCents(editForm.dailyValue),
       weekdayLunch: toCents(editForm.weekdayLunch),
@@ -220,25 +229,38 @@ export default function BudgetComparisonPage() {
       weekendLunch: toCents(editForm.weekendLunch),
       weekendDinner: toCents(editForm.weekendDinner),
       mobility: toCents(editForm.mobility),
-      rhAdjustNote: editForm.rhAdjustNote?.trim() || null,
     };
-    const dailyTotal = data.dailyQuantity * data.dailyValue;
-    const mealTotal = data.weekdayLunch + data.weekdayDinner + data.weekendLunch + data.weekendDinner;
-    data.totalValue = dailyTotal + mealTotal + data.mobility;
-    patchActualMutation.mutate({ id: editingActual.id, data });
+    // Envia apenas o que foi realmente editado. Recalcular tudo alterava o total em centavos
+    // sem o usuário mudar nada (dailyValue é uma média arredondada — qty×dailyValue não
+    // reproduz o subtotal de diárias gravado dia a dia).
+    const data: Record<string, any> = { rhAdjustNote: editForm.rhAdjustNote?.trim() || null };
+    (Object.keys(parsed) as Array<keyof typeof parsed>).forEach(k => {
+      if (parsed[k] !== (orig as any)[k]) data[k] = parsed[k];
+    });
+    const anyNumericChange = Object.keys(data).some(k => k !== 'rhAdjustNote');
+    if (anyNumericChange) {
+      const origMeals = orig.weekdayLunch + orig.weekdayDinner + orig.weekendLunch + orig.weekendDinner;
+      const storedDiarias = orig.totalValue - origMeals - orig.mobility - orig.transport;
+      const dailyChanged = parsed.dailyQuantity !== orig.dailyQuantity || parsed.dailyValue !== orig.dailyValue;
+      const newDaily = dailyChanged ? parsed.dailyQuantity * parsed.dailyValue : storedDiarias;
+      const newMeals = parsed.weekdayLunch + parsed.weekdayDinner + parsed.weekendLunch + parsed.weekendDinner;
+      data.totalValue = newDaily + newMeals + parsed.mobility + orig.transport;
+    }
+    // Sem mudança numérica: totalValue original é preservado (não é enviado no PATCH)
+    patchActualMutation.mutate({ id: orig.id, data });
   };
 
   const handleAction = () => {
     if (!actionModal) return;
     const actionMap: Record<string, string> = { approve: 'aprovado', reject: 'rejeitado', return: 'devolvido' };
     const rhAction = actionMap[actionModal.type];
-    const selectedActualIds = Array.from(selectedItems).flatMap(idx => {
-      const row = sortedData[idx];
-      if (!row) return [];
-      const ids: string[] = [row.actual.id];
-      if (row.isSplit) ids.push(...row.splitChildren.map(c => c.id));
-      return ids;
-    }).filter(Boolean) as string[];
+    const selectedActualIds = sortedData
+      .filter(row => selectedItems.has(row.actual.id))
+      .flatMap(row => {
+        const ids: string[] = [row.actual.id];
+        if (row.isSplit) ids.push(...row.splitChildren.map(c => c.id));
+        return ids;
+      });
     if (selectedActualIds.length === 0) return;
     rhActionMutation.mutate({ itemIds: selectedActualIds, action: rhAction, comment: actionNote });
   };
@@ -366,11 +388,25 @@ export default function BudgetComparisonPage() {
     return data;
   }, [budgetPlanned, budgetActual]);
 
+  // Guarda contra POSTs de recálculo desnecessários ao navegar: hash simples de
+  // [eventId, nº de prestações enviadas, soma dos totalValue enviados]
+  const lastCalcHashRef = useRef<string>("");
   useEffect(() => {
-    if (selectedEventId && !comparison && comparisonData.length > 0 && !calculateMutation.isPending) {
+    if (!selectedEventId || isLoadingComparison || comparisonData.length === 0 || calculateMutation.isPending) return;
+    const hash = `${selectedEventId}|${comparisonData.length}|${comparisonData.reduce((s, r) => s + r.groupActualTotal, 0)}`;
+    if (hash === lastCalcHashRef.current) return; // nada mudou desde a última observação
+    const isFirstObservationForEvent = !lastCalcHashRef.current.startsWith(`${selectedEventId}|`);
+    lastCalcHashRef.current = hash;
+    // Calcula quando ainda não existe comparativo; recalcula apenas se os actuals mudaram de fato
+    if (!comparison || !isFirstObservationForEvent) {
       calculateMutation.mutate(selectedEventId);
     }
-  }, [selectedEventId, comparison, comparisonData.length]);
+  }, [selectedEventId, comparison, isLoadingComparison, comparisonData]);
+
+  // Limpa a seleção quando busca/filtro/ordenação mudam — itens selecionados podem sair da lista visível
+  useEffect(() => {
+    setSelectedItems(new Set());
+  }, [searchTerm, filterFunction, filterType, sortBy]);
 
   const filteredData = useMemo(() => {
     let data = [...comparisonData];
@@ -425,20 +461,6 @@ export default function BudgetComparisonPage() {
 
   const rhComment = comparison?.approvalObservation || comparison?.rejectionReason || comparison?.returnReason;
   const isReadOnly = false;
-
-  const countMealDays = (startDate: string | null | undefined, totalDays: number): { weekdays: number; weekends: number } => {
-    if (!startDate || totalDays <= 0) return { weekdays: 0, weekends: 0 };
-    const start = new Date(startDate + "T12:00:00");
-    if (isNaN(start.getTime())) return { weekdays: 0, weekends: 0 };
-    let weekdays = 0, weekends = 0;
-    const cur = new Date(start);
-    for (let i = 0; i < totalDays; i++) {
-      const d = cur.getDay();
-      if (d === 0 || d === 6) weekends++; else weekdays++;
-      cur.setDate(cur.getDate() + 1);
-    }
-    return { weekdays, weekends };
-  };
 
   const CategoryBlock = ({ title, icon: Icon, iconColor, bgColor, stripColor, rows, badge }: {
     title: string;
@@ -759,16 +781,16 @@ export default function BudgetComparisonPage() {
                     {expandedCards.size === sortedData.length ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                     {expandedCards.size === sortedData.length ? 'Recolher todos' : 'Expandir todos'}
                   </Button>
-                  {!isReadOnly && (
+                  {isRhOrAdmin && !isReadOnly && (
                     <Button
                       size="sm" variant="ghost"
                       className="text-xs h-7 gap-1 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100"
                       onClick={() => {
-                        const selectableIndices = sortedData
-                          .map((row, i) => ({ i, status: row.actual.rhStatus || 'pendente' }))
-                          .filter(x => x.status === 'pendente').map(x => x.i);
+                        const selectableIds = sortedData
+                          .filter(row => (row.actual.rhStatus || 'pendente') === 'pendente')
+                          .map(row => row.actual.id);
                         if (selectedItems.size > 0) setSelectedItems(new Set());
-                        else setSelectedItems(new Set(selectableIndices));
+                        else setSelectedItems(new Set(selectableIds));
                       }}
                     >
                       {selectedItems.size > 0 ? <><CheckSquare className="w-3 h-3" /> Limpar</> : <><Square className="w-3 h-3" /> Selecionar todos</>}
@@ -795,7 +817,7 @@ export default function BudgetComparisonPage() {
                   <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[140px]">
                     <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos</SelectItem>
                     <SelectItem value="casa" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Casa</SelectItem>
-                    <SelectItem value="freelancer" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Freela</SelectItem>
+                    <SelectItem value="freela" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Freela</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={sortBy} onValueChange={(v: 'difference' | 'total') => setSortBy(v)}>
@@ -809,7 +831,12 @@ export default function BudgetComparisonPage() {
             </div>
 
             {/* Cards */}
-            {sortedData.length === 0 ? (
+            {(isLoadingPlanned || isLoadingActual) ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-slate-400">Carregando prestações...</p>
+              </div>
+            ) : sortedData.length === 0 ? (
               <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-12 text-center">
                 <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
                   <BarChart3 className="w-6 h-6 text-slate-300" />
@@ -874,7 +901,7 @@ export default function BudgetComparisonPage() {
                         isNotAttended ? 'bg-slate-50 border-slate-300 border-dashed opacity-75' :
                         highlightCardId === cardKey ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-100' :
                         isDecided ? `${decidedStyle.cardBg} ${decidedStyle.cardBorder}` :
-                        selectedItems.has(idx) ? 'bg-white border-emerald-400 ring-1 ring-emerald-300/60 shadow-md shadow-emerald-100/60' :
+                        selectedItems.has(a.id) ? 'bg-white border-emerald-400 ring-1 ring-emerald-300/60 shadow-md shadow-emerald-100/60' :
                         'bg-white border-slate-200 hover:border-slate-300'
                       }`}
                     >
@@ -887,14 +914,22 @@ export default function BudgetComparisonPage() {
                       <div
                         className="flex items-center justify-between px-4 py-3 cursor-pointer"
                         onClick={() => toggleExpand(idx)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            toggleExpand(idx);
+                          }
+                        }}
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          {!isReadOnly && !isDecided && (
+                          {isRhOrAdmin && !isReadOnly && !isDecided && (
                             <Checkbox
-                              checked={selectedItems.has(idx)}
+                              checked={selectedItems.has(a.id)}
                               onCheckedChange={(checked) => {
                                 const next = new Set(selectedItems);
-                                if (checked) next.add(idx); else next.delete(idx);
+                                if (checked) next.add(a.id); else next.delete(a.id);
                                 setSelectedItems(next);
                               }}
                               onClick={(e) => e.stopPropagation()}
@@ -1311,8 +1346,8 @@ export default function BudgetComparisonPage() {
         </>
       )}
 
-      {/* ── Fixed RH Decision footer ── */}
-      {comparison && !isReadOnly && comparisonData.length > 0 && sortedData.some(r => (r.actual.rhStatus || 'pendente') === 'pendente') && (
+      {/* ── Fixed RH Decision footer — apenas RH/admin decide ── */}
+      {isRhOrAdmin && comparison && !isReadOnly && comparisonData.length > 0 && sortedData.some(r => (r.actual.rhStatus || 'pendente') === 'pendente') && (
         <div className={`fixed bottom-0 right-0 z-40 px-6 pb-4 pt-3 bg-white/95 backdrop-blur-sm border-t border-slate-200 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.08)] transition-all duration-300 ${(isCollapsed || isFocusMode) ? 'left-0' : isCompact ? 'left-14' : 'left-[260px]'}`}>
           <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
             <div>
@@ -1362,15 +1397,15 @@ export default function BudgetComparisonPage() {
               <div className="w-px h-6 bg-slate-200 mx-1" />
               {/* Primary approve action */}
               {(() => {
-                const selectedRhAdjustedFields = Array.from(selectedItems).reduce((total, idx) => {
-                  const row = sortedData[idx];
-                  if (!row) return total;
-                  const allActuals = [row.actual, ...(row.isSplit ? row.splitChildren : [])];
-                  return total + allActuals.reduce((n, a) => {
-                    const f = (a as any).rhAdjustedFields;
-                    return n + (f ? Object.keys(JSON.parse(f)).length : 0);
+                const selectedRhAdjustedFields = sortedData
+                  .filter(row => selectedItems.has(row.actual.id))
+                  .reduce((total, row) => {
+                    const allActuals = [row.actual, ...(row.isSplit ? row.splitChildren : [])];
+                    return total + allActuals.reduce((n, a) => {
+                      const f = (a as any).rhAdjustedFields;
+                      return n + (f ? Object.keys(JSON.parse(f)).length : 0);
+                    }, 0);
                   }, 0);
-                }, 0);
                 const hasAdjusted = selectedRhAdjustedFields > 0;
                 return (
                   <TooltipProvider>
@@ -1832,7 +1867,7 @@ export default function BudgetComparisonPage() {
       </Dialog>
 
       {/* ── Action confirmation modal ── */}
-      <Dialog open={!!actionModal} onOpenChange={() => { setActionModal(null); setActionNote(""); setApplyCommentToAll(true); }}>
+      <Dialog open={!!actionModal} onOpenChange={() => { setActionModal(null); setActionNote(""); }}>
         <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
@@ -1847,7 +1882,7 @@ export default function BudgetComparisonPage() {
               )}
             </DialogTitle>
             <p className="text-[11px] text-slate-500 mt-1 pl-1 leading-relaxed">
-              {Array.from(selectedItems).map(idx => sortedData[idx]).filter(Boolean).map(row => getCollaboratorName(row!.collaboratorId).split(' ')[0]).join(', ')}
+              {sortedData.filter(row => selectedItems.has(row.actual.id)).map(row => getCollaboratorName(row.collaboratorId).split(' ')[0]).join(', ')}
             </p>
           </DialogHeader>
           <div className="space-y-4">
@@ -1857,12 +1892,10 @@ export default function BudgetComparisonPage() {
                 {selectedItems.size} colaborador{selectedItems.size !== 1 ? 'es' : ''} afetado{selectedItems.size !== 1 ? 's' : ''}
               </p>
               <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
-                {Array.from(selectedItems).map(idx => {
-                  const row = sortedData[idx];
-                  if (!row) return null;
+                {sortedData.filter(row => selectedItems.has(row.actual.id)).map(row => {
                   const n = getCollaboratorName(row.collaboratorId);
                   return (
-                    <div key={idx} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-semibold text-white ${avatarColor(n)}`}>
+                    <div key={row.actual.id} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-semibold text-white ${avatarColor(n)}`}>
                       {initials(n)} <span className="opacity-90">{n}</span>
                     </div>
                   );
@@ -1870,10 +1903,13 @@ export default function BudgetComparisonPage() {
               </div>
             </div>
 
-            {/* Comment field */}
+            {/* Comment field — o comentário é aplicado a todos os itens selecionados */}
             <div>
               <label className="text-sm font-medium text-slate-700">
-                Comentário <span className="text-slate-400 font-normal">(opcional)</span>
+                Comentário{' '}
+                <span className="text-slate-400 font-normal">
+                  (opcional{selectedItems.size > 1 ? ` — será aplicado a todos os ${selectedItems.size} colaboradores selecionados` : ''})
+                </span>
               </label>
               <Textarea
                 className="mt-1.5 rounded-xl text-sm resize-none"
@@ -1895,24 +1931,10 @@ export default function BudgetComparisonPage() {
                 </p>
               )}
             </div>
-
-            {/* "Apply to all" checkbox — only shown for multiple collaborators on reject/return */}
-            {selectedItems.size > 1 && actionModal?.type !== 'approve' && (
-              <label className="flex items-center gap-2.5 cursor-pointer group select-none">
-                <Checkbox
-                  checked={applyCommentToAll}
-                  onCheckedChange={v => setApplyCommentToAll(!!v)}
-                  className="border-gray-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
-                />
-                <span className="text-sm text-slate-600 group-hover:text-slate-800 transition-colors">
-                  Aplicar o mesmo comentário para todos os {selectedItems.size} colaboradores
-                </span>
-              </label>
-            )}
           </div>
 
           <DialogFooter className="gap-2 mt-1">
-            <Button variant="ghost" className="rounded-xl" onClick={() => { setActionModal(null); setActionNote(""); setApplyCommentToAll(true); }}>Cancelar</Button>
+            <Button variant="ghost" className="rounded-xl" onClick={() => { setActionModal(null); setActionNote(""); }}>Cancelar</Button>
             <Button
               onClick={handleAction}
               disabled={rhActionMutation.isPending}

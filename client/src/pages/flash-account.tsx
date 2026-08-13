@@ -9,6 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Wallet, Search, Plus, Download, Trash2, X, UtensilsCrossed, Bus,
   AlertTriangle, CheckCircle2, ArrowUpCircle, ArrowDownCircle, Sparkles,
 } from "lucide-react";
@@ -46,6 +50,7 @@ export default function FlashAccountPage() {
   const [search, setSearch] = useState("");
   const [selectedCollabId, setSelectedCollabId] = useState<string>("");
   const [showForm, setShowForm] = useState(false);
+  const [movementToDelete, setMovementToDelete] = useState<any | null>(null);
 
   const { data: collaborators = [] } = useQuery<any[]>({ queryKey: ["/api/collaborators"] });
   const { data: events = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
@@ -58,6 +63,8 @@ export default function FlashAccountPage() {
   const balances = useMemo(() => {
     const map = new Map<string, Balance>();
     for (const m of movements) {
+      // Categoria desconhecida (dado legado/manual) não pode corromper o saldo
+      if (m.category !== "alimentacao" && m.category !== "mobilidade") continue;
       const b = map.get(m.collaboratorId) || { food: 0, mobility: 0, count: 0 };
       const signed = (m.type === "credito" ? 1 : -1) * (m.amountCents || 0);
       if (m.category === "alimentacao") b.food += signed; else b.mobility += signed;
@@ -287,7 +294,8 @@ export default function FlashAccountPage() {
                               <td className="px-2 py-2.5 text-right">
                                 <button
                                   title="Excluir lançamento"
-                                  onClick={() => { if (window.confirm("Excluir este lançamento? O saldo será recalculado.")) deleteMutation.mutate(m.id); }}
+                                  aria-label="Excluir lançamento"
+                                  onClick={() => setMovementToDelete(m)}
                                   className="w-6 h-6 inline-flex items-center justify-center rounded-md text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
                                 >
                                   <Trash2 className="w-3 h-3" />
@@ -304,6 +312,33 @@ export default function FlashAccountPage() {
             )}
           </div>
         </div>
+
+        {/* Confirmação de exclusão (padrão do app — sem window.confirm) */}
+        <AlertDialog open={!!movementToDelete} onOpenChange={open => { if (!open) setMovementToDelete(null); }}>
+          <AlertDialogContent className="rounded-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir lançamento?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {movementToDelete && (
+                  <>
+                    {movementToDelete.type === "credito" ? "Crédito" : "Débito"} de {formatCurrency(movementToDelete.amountCents || 0)} em{" "}
+                    {movementToDelete.category === "alimentacao" ? "alimentação" : "mobilidade"} ({fmtDate(movementToDelete.movementDate)}).
+                    {" "}O saldo do colaborador será recalculado e a exclusão fica registrada na auditoria.
+                  </>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-lg">Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="rounded-lg bg-red-600 hover:bg-red-700"
+                onClick={() => { if (movementToDelete) deleteMutation.mutate(movementToDelete.id); setMovementToDelete(null); }}
+              >
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {canManage && (
           <NewMovementDialog
@@ -377,9 +412,9 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
     try {
       setSaving(true);
       if (initialCredit) {
-        // Crédito inicial da admissão: R$ 350 alimentação + R$ 150 mobilidade
-        await post({ collaboratorId, category: "alimentacao", type: "credito", amountCents: 35000, movementDate, description: "Crédito inicial — admissão" });
-        await post({ collaboratorId, category: "mobilidade", type: "credito", amountCents: 15000, movementDate, description: "Crédito inicial — admissão" });
+        // Endpoint transacional: os dois créditos (R$ 350 + R$ 150) nunca
+        // ficam pela metade se algo falhar no meio
+        await apiRequest("POST", "/api/flash-movements/initial-credit", { collaboratorId, movementDate }).then(r => r.json());
         toast({ title: "Crédito inicial lançado", description: "R$ 350,00 de alimentação e R$ 150,00 de mobilidade." });
       } else {
         const cents = Math.round(parseBrNumber(amount) * 100);

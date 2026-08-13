@@ -68,11 +68,18 @@ interface CalculatedBudget {
   hasOverride: boolean;
 }
 
-const CARD_BORDER_COLORS = {
-  default: "border-l-4 border-l-blue-500",
-  selected: "border-l-4 border-l-green-500",
-  sent: "border-l-4 border-l-green-500",
-};
+// Rascunho de edições persistido por evento — sobrevive a F5 e à troca de evento
+const draftStorageKey = (eventId: string) => `budget-overrides-draft:${eventId}`;
+function readDraft(eventId: string): Record<string, BudgetEdit> {
+  if (!eventId) return {};
+  try {
+    const raw = localStorage.getItem(draftStorageKey(eventId));
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    // rascunho corrompido ou localStorage indisponível — começa vazio
+    return {};
+  }
+}
 
 export default function BudgetPlannedPage() {
   const searchString = useSearch();
@@ -92,7 +99,10 @@ export default function BudgetPlannedPage() {
   const [editingBudget, setEditingBudget] = useState<BudgetEdit | null>(null);
   const [editingBudgetInfo, setEditingBudgetInfo] = useState<{ name: string; functionName: string; type: string; weekdays: number; weekends: number; period: string } | null>(null);
   const [editingBudgetPlannedId, setEditingBudgetPlannedId] = useState<string | null>(null);
-  const [budgetOverrides, setBudgetOverrides] = useState<Record<string, BudgetEdit>>({});
+  const [budgetOverrides, setBudgetOverrides] = useState<Record<string, BudgetEdit>>(() => readDraft(selectedEventId));
+  // Evento dono do rascunho em memória — impede salvar o rascunho de um evento
+  // na chave de outro durante a troca de evento.
+  const draftEventRef = useRef(selectedEventId);
   const [sentToActual, setSentToActual] = useState<Set<string>>(new Set());
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
   const [confirmSendOpen, setConfirmSendOpen] = useState(false);
@@ -130,6 +140,37 @@ export default function BudgetPlannedPage() {
 
   const canEdit = user?.role === "admin" || user?.role === "production";
   const canMarkNotAttended = isRhOrAdmin(user);
+
+  // Carrega o rascunho salvo ao trocar de evento
+  useEffect(() => {
+    if (draftEventRef.current === selectedEventId) return;
+    draftEventRef.current = selectedEventId;
+    setBudgetOverrides(readDraft(selectedEventId));
+  }, [selectedEventId]);
+
+  // Salva o rascunho a cada mudança, sempre na chave do evento dono do rascunho
+  useEffect(() => {
+    const eventId = draftEventRef.current;
+    if (!eventId) return;
+    try {
+      if (Object.keys(budgetOverrides).length === 0) {
+        localStorage.removeItem(draftStorageKey(eventId));
+      } else {
+        localStorage.setItem(draftStorageKey(eventId), JSON.stringify(budgetOverrides));
+      }
+    } catch {
+      // localStorage cheio ou indisponível — o rascunho segue apenas em memória
+    }
+  }, [budgetOverrides]);
+
+  // Remove do rascunho os itens já enviados com sucesso para o Realizado
+  const clearDraftEntries = (ids: string[]) => {
+    setBudgetOverrides(prev => {
+      const next = { ...prev };
+      ids.forEach(id => delete next[id]);
+      return next;
+    });
+  };
 
   const toggleCardSelection = (id: string) => {
     setSelectedCards(prev => {
@@ -169,7 +210,7 @@ export default function BudgetPlannedPage() {
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
   const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
-  const { data: functionValues, isLoading: isLoadingFunctionValues } = useQuery<FunctionValue[]>({ queryKey: ["/api/function-values"] });
+  const { data: functionValues, isLoading: isLoadingFunctionValues, isError: isErrorFunctionValues, refetch: refetchFunctionValues } = useQuery<FunctionValue[]>({ queryKey: ["/api/function-values"] });
   const { data: systemSettings } = useQuery<Record<string, number>>({
     queryKey: ["/api/system-settings"],
     queryFn: async () => {
@@ -274,7 +315,7 @@ export default function BudgetPlannedPage() {
     queryKey: ["/api/events-with-inclusions"],
   });
 
-  const { data: teamInclusions, isLoading: isLoadingInclusions } = useQuery<TeamInclusion[]>({
+  const { data: teamInclusions, isLoading: isLoadingInclusions, isError: isErrorInclusions, refetch: refetchInclusions } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions", selectedEventId],
     queryFn: async () => {
       const url = selectedEventId ? `/api/team-inclusions?eventId=${selectedEventId}` : "/api/team-inclusions";
@@ -317,9 +358,23 @@ export default function BudgetPlannedPage() {
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Math.round(cents) / 100);
   };
 
+  // Maps id→nome pré-computados: os getters eram Array.find O(n) chamados
+  // dentro do comparador de ordenação e por card, O(n²) com listas grandes.
+  const collaboratorNamesById = useMemo(() => {
+    const m = new Map<string, string>();
+    collaborators?.forEach(c => m.set(c.id, fixEncoding(c.fullName) || "Não definido"));
+    return m;
+  }, [collaborators]);
+
+  const functionNamesById = useMemo(() => {
+    const m = new Map<string, string>();
+    functions?.forEach(f => m.set(f.id, f.name));
+    return m;
+  }, [functions]);
+
   const getCollaboratorName = (id?: string | null) => {
     if (!id) return "Não definido";
-    return fixEncoding(collaborators?.find(c => c.id === id)?.fullName) || "Não definido";
+    return collaboratorNamesById.get(id) || "Não definido";
   };
 
   const toTitleCase = (str: string) => {
@@ -331,7 +386,7 @@ export default function BudgetPlannedPage() {
 
   const getFunctionName = (id?: string | null) => {
     if (!id) return "-";
-    return functions?.find(f => f.id === id)?.name || "-";
+    return functionNamesById.get(id) || "-";
   };
 
   const getFunctionValue = (functionId: string | null) => {
@@ -549,6 +604,27 @@ export default function BudgetPlannedPage() {
   const isCardNotAttended = (b: typeof calculatedBudgets[0]) =>
     notAttendedKeys.has(`${b.inclusion.collaboratorId}|${b.inclusion.functionId}`);
 
+  // Registros indexados por "colaborador|função" — evita .find() O(n) por card/linha.
+  // O primeiro registro vence, preservando a semântica do Array.find original.
+  const plannedByCollabFunc = useMemo(() => {
+    const m = new Map<string, any>();
+    (allBudgetPlanned || []).forEach((p: any) => {
+      const key = `${p.collaboratorId}|${p.functionId}`;
+      if (!m.has(key)) m.set(key, p);
+    });
+    return m;
+  }, [allBudgetPlanned]);
+
+  const actualsByCollabFunc = useMemo(() => {
+    const m = new Map<string, any>();
+    (existingActuals || []).forEach((a: any) => {
+      if (a.splitParentId) return;
+      const key = `${a.collaboratorId}|${a.functionId}`;
+      if (!m.has(key)) m.set(key, a);
+    });
+    return m;
+  }, [existingActuals]);
+
   const totalGeral = useMemo(() => {
     return calculatedBudgets
       .filter(b => !notAttendedKeys.has(`${b.inclusion.collaboratorId}|${b.inclusion.functionId}`))
@@ -574,8 +650,10 @@ export default function BudgetPlannedPage() {
     const media = total > 0 ? totalGeral / total : 0;
     const totalDias = activeBudgets.reduce((sum, b) => sum + b.qtdDiarias, 0);
     const mediaPorDia = totalDias > 0 ? totalGeral / totalDias : 0;
-    const enviados = calculatedBudgets.filter(b => sentToActual.has(b.inclusion.id)).length;
-    const progressoEnvio = calculatedBudgets.length > 0 ? (enviados / calculatedBudgets.length) * 100 : 0;
+    // Mesmo denominador de `total` (só ativos) — incluir "não participou" aqui
+    // impedia o progresso de chegar a 100%.
+    const enviados = activeBudgets.filter(b => sentToActual.has(b.inclusion.id)).length;
+    const progressoEnvio = total > 0 ? (enviados / total) * 100 : 0;
     
     return { total, totalCasa, totalFreela, valorCasa, valorFreela, media, mediaPorDia, enviados, progressoEnvio };
   }, [calculatedBudgets, totalGeral, sentToActual, notAttendedKeys]);
@@ -637,18 +715,13 @@ export default function BudgetPlannedPage() {
     });
     
     return result;
-  }, [calculatedBudgets, searchTerm, filterFunction, filterType, sortBy]);
-
-  // Obter cor da função
-  const getCardBorderColor = (inclusionId: string) => {
-    if (selectedCards.has(inclusionId) || sentToActual.has(inclusionId)) {
-      return CARD_BORDER_COLORS.selected;
-    }
-    return CARD_BORDER_COLORS.default;
-  };
+  }, [calculatedBudgets, searchTerm, filterFunction, filterType, sortBy, collaboratorNamesById, functionNamesById]);
 
 
   const [originalModalTotal, setOriginalModalTotal] = useState<number>(0);
+  // Valores originais campo a campo — comparar só o total esconderia edições
+  // que se compensam (ex.: +50 no almoço e -50 no jantar).
+  const [originalModalValues, setOriginalModalValues] = useState<BudgetEdit | null>(null);
   const [defaultBudgetValues, setDefaultBudgetValues] = useState<BudgetEdit | null>(null);
 
   const openEditModal = (budget: typeof calculatedBudgets[0], viewMode = false) => {
@@ -700,6 +773,7 @@ export default function BudgetPlannedPage() {
       jantarFds: budget.jantarFds,
     };
     setEditingBudget(editVals);
+    setOriginalModalValues(editVals);
     setOriginalModalTotal(budget.totalFinal);
     const planRec = allBudgetPlanned?.find(
       (p: any) => p.collaboratorId === budget.inclusion.collaboratorId && p.functionId === budget.inclusion.functionId
@@ -717,7 +791,7 @@ export default function BudgetPlannedPage() {
     }));
     setEditingBudget(null);
     setEditingBudgetPlannedId(null);
-    toast({ title: "Sucesso", description: "Valores atualizados" });
+    toast({ title: "Valores ajustados", description: "As alterações serão aplicadas no envio para o Realizado." });
   };
 
   const savePlannedAndSendToActual = async (budget: typeof calculatedBudgets[0], obsLabel: string) => {
@@ -777,6 +851,7 @@ export default function BudgetPlannedPage() {
     },
     onSuccess: (data, variables) => {
       setSentToActual(prev => { const s = new Set(Array.from(prev)); s.add(data.id); return s; });
+      clearDraftEntries([data.id]);
       setConfirmSendSingle(null);
       const wasEdited = !!(variables as any).hasOverride;
       toast({
@@ -795,26 +870,52 @@ export default function BudgetPlannedPage() {
 
   const sendSelectedToActualMutation = useMutation({
     mutationFn: async () => {
-      const toSend = calculatedBudgets.filter(b => 
+      const toSend = calculatedBudgets.filter(b =>
         selectedCards.has(b.inclusion.id) && !sentToActual.has(b.inclusion.id)
       );
-      const results = [];
+      const results: { id: string; result: any }[] = [];
+      let failedCount = 0;
       for (const budget of toSend) {
-        const result = await savePlannedAndSendToActual(budget, "Enviado do planejado (lote)");
-        results.push(result);
+        try {
+          results.push(await savePlannedAndSendToActual(budget, "Enviado do planejado (lote)"));
+        } catch {
+          failedCount++;
+        }
+      }
+      if (failedCount > 0) {
+        // Propaga os sucessos parciais para o onError registrá-los mesmo com falhas
+        throw Object.assign(new Error("Envio parcial"), { sent: results, failedCount });
       }
       return results;
     },
     onSuccess: (data) => {
       setSentToActual(prev => { const s = new Set(Array.from(prev)); data.forEach(d => s.add(d.id)); return s; });
+      clearDraftEntries(data.map(d => d.id));
       setSelectedCards(new Set());
       setConfirmSendOpen(false);
       toast({ title: "Planejamento enviado com sucesso!", description: `${data.length} ${data.length === 1 ? 'colaborador enviado' : 'colaboradores enviados'} para o Realizado.` });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
       qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
     },
-    onError: () => {
-      toast({ title: "Erro ao enviar", description: "Não foi possível enviar para o Realizado.", variant: "destructive" });
+    onError: (err) => {
+      const sent = ((err as any)?.sent ?? []) as { id: string }[];
+      const failedCount = ((err as any)?.failedCount ?? 0) as number;
+      if (sent.length > 0) {
+        // Sucessos parciais contam: marca como enviados e tira da seleção para
+        // que uma nova tentativa reenvie apenas os que falharam.
+        setSentToActual(prev => { const s = new Set(Array.from(prev)); sent.forEach(d => s.add(d.id)); return s; });
+        clearDraftEntries(sent.map(d => d.id));
+        setSelectedCards(prev => { const s = new Set(Array.from(prev)); sent.forEach(d => s.delete(d.id)); return s; });
+        qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
+        qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
+      }
+      toast({
+        title: "Erro ao enviar",
+        description: sent.length > 0
+          ? `${sent.length} de ${sent.length + failedCount} enviados com sucesso; ${failedCount} ${failedCount === 1 ? 'falhou' : 'falharam'}. Tente novamente para reenviar os pendentes.`
+          : "Não foi possível enviar para o Realizado.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -889,11 +990,13 @@ export default function BudgetPlannedPage() {
         const q = Math.round(totalCents / 4);
         updated.almocoSemana = q; updated.jantarSemana = q; updated.almocoFds = q; updated.jantarFds = totalCents - q * 3;
       } else {
+        // Resto do arredondamento vai no último componente para a soma bater
+        // exatamente com o total digitado (mesma técnica dos ramos Útil/FDS).
         const f = totalCents / existingTotal;
         updated.almocoSemana = Math.round(budget.almocoSemana * f);
         updated.jantarSemana = Math.round(budget.jantarSemana * f);
         updated.almocoFds = Math.round(budget.almocoFds * f);
-        updated.jantarFds = Math.round(budget.jantarFds * f);
+        updated.jantarFds = totalCents - updated.almocoSemana - updated.jantarSemana - updated.almocoFds;
       }
     } else if (field === 'alimentacaoUtil') {
       // valCents é por dia útil → propaga sobre almocoSemana + jantarSemana
@@ -932,7 +1035,12 @@ export default function BudgetPlannedPage() {
     // Precisa do mesmo parser do handleSheetEdit: com parseFloat, um "0,50"
     // virava 0 e a edição em lote saía daqui sem aplicar nada, em silêncio.
     const val = parseBrNumber(rawValue);
-    if (val <= 0) return;
+    // Zerar é decisão legítima (ver comentário no handleSheetEdit) — rejeita
+    // apenas negativo ou não numérico.
+    if (!Number.isFinite(val) || val < 0) {
+      toast({ title: "Valor inválido", description: "Informe um valor igual ou maior que zero.", variant: "destructive" });
+      return;
+    }
     const domainField = field === 'vdia' ? 'valorDia' : field === 'alim' ? 'alimentacao' : 'mobilidade';
     const prevOverrides = { ...budgetOverrides };
     const targets = filteredBudgets.filter(b => {
@@ -961,9 +1069,13 @@ export default function BudgetPlannedPage() {
   const applyAdvancedBatch = () => {
     if (!advancedBatch) return;
     const { target, field, value } = advancedBatch;
-    // Mesmo motivo do applyBatchEdit: guarda precisa entender vírgula.
+    // Mesmo motivo do applyBatchEdit: guarda precisa entender vírgula e
+    // aceitar zero — rejeita apenas negativo ou não numérico.
     const val = parseBrNumber(value);
-    if (val <= 0) return;
+    if (!Number.isFinite(val) || val < 0) {
+      toast({ title: "Valor inválido", description: "Informe um valor igual ou maior que zero.", variant: "destructive" });
+      return;
+    }
     const domainField =
       field === 'vdiaUtil' ? 'valorDia' :
       field === 'vdiaFds' ? 'valorDiaFds' :
@@ -981,8 +1093,13 @@ export default function BudgetPlannedPage() {
     if (targets.length === 0) return;
     const prevOverrides = { ...budgetOverrides };
     targets.forEach(b => handleSheetEdit(b, domainField as any, value));
-    setBatchApplied(prev => { const next = new Set(prev); next.add('vdia'); return next; });
-    setBatchHistory({ fields: ['vdia'], prev: prevOverrides });
+    // Marca o flag do campo realmente editado — antes era sempre 'vdia',
+    // mesmo em edições de alimentação/mobilidade.
+    const batchFlag: 'vdia' | 'alim' | 'mob' =
+      field === 'vdiaUtil' || field === 'vdiaFds' ? 'vdia' :
+      field === 'mob' ? 'mob' : 'alim';
+    setBatchApplied(prev => { const next = new Set(prev); next.add(batchFlag); return next; });
+    setBatchHistory({ fields: [batchFlag], prev: prevOverrides });
     setAdvancedBatch(null);
     toast({ title: `Lote aplicado`, description: `${targets.length} colaborador${targets.length !== 1 ? 'es' : ''} atualizados` });
   };
@@ -1190,7 +1307,9 @@ export default function BudgetPlannedPage() {
 
             {/* ── Timeline de etapas ── */}
             {(() => {
-              const currentStep = 1;
+              // Etapa derivada do progresso real: com tudo enviado, o RH concluiu
+              // o planejamento e a bola passa para a Prestação.
+              const currentStep = stats.total > 0 && stats.progressoEnvio >= 100 ? 2 : 1;
               const steps = [
                 { label: "Escalação", desc: "Inclusões confirmadas" },
                 { label: "Planejamento RH", desc: "Valores previstos" },
@@ -1482,6 +1601,20 @@ export default function BudgetPlannedPage() {
               <div className="flex items-center justify-center py-20">
                 <RefreshCw className="w-8 h-8 animate-spin text-indigo-600" />
               </div>
+            ) : (isErrorInclusions || isErrorFunctionValues) ? (
+              <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
+                <RefreshCw className="w-16 h-16 text-gray-200 dark:text-gray-700 mb-4" />
+                <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300">Erro ao carregar os dados</h3>
+                <p className="text-sm text-gray-400 mt-1">Não foi possível buscar as escalações deste evento</p>
+                <Button
+                  variant="outline"
+                  className="mt-4 gap-2"
+                  onClick={() => { if (isErrorInclusions) refetchInclusions(); if (isErrorFunctionValues) refetchFunctionValues(); }}
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Tentar novamente
+                </Button>
+              </div>
             ) : filteredBudgets.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
                 <Users className="w-16 h-16 text-gray-200 dark:text-gray-700 mb-4" />
@@ -1501,15 +1634,10 @@ export default function BudgetPlannedPage() {
                   const isCasa = budget.collaborator?.type === 'casa' || budget.collaborator?.type === 'local';
                   const name = getCollaboratorName(budget.inclusion.collaboratorId);
                   const initials = name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase();
-                  const planRecord = allBudgetPlanned?.find(
-                    p => p.collaboratorId === budget.inclusion.collaboratorId && p.functionId === budget.inclusion.functionId
-                  );
+                  const collabFuncKey = `${budget.inclusion.collaboratorId}|${budget.inclusion.functionId}`;
+                  const planRecord = plannedByCollabFunc.get(collabFuncKey);
                   const isNotAttended = !!planRecord?.didNotAttend;
-                  const cardActual = existingActuals?.find((a: any) =>
-                    a.collaboratorId === budget.inclusion.collaboratorId &&
-                    a.functionId === budget.inclusion.functionId &&
-                    !a.splitParentId
-                  );
+                  const cardActual = actualsByCollabFunc.get(collabFuncKey);
                   
                   return (
                     <div 
@@ -1976,7 +2104,6 @@ export default function BudgetPlannedPage() {
 
               {/* Tabela */}
               {(() => {
-                const allSameMob = false;
                 const colSpanTotal = 7;
 
                 return (
@@ -2086,8 +2213,7 @@ export default function BudgetPlannedPage() {
                           </th>
 
                           {/* Mobilidade — batch edit */}
-                          {!allSameMob && (
-                            <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{background:'#F8FAFC', color:'#374151'}}>
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{background:'#F8FAFC', color:'#374151'}}>
                               <div className="flex items-center justify-end gap-1">
                                 <span className="text-slate-600">Mob. R$ total</span>
                                 <button
@@ -2117,7 +2243,6 @@ export default function BudgetPlannedPage() {
                                 </div>
                               )}
                             </th>
-                          )}
                           <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 bg-blue-50/60 text-[#3B4FE4]">Subtotal</th>
                         </tr>
 
@@ -2126,7 +2251,7 @@ export default function BudgetPlannedPage() {
                           <tr>
                             <td colSpan={colSpanTotal} style={{background:'#EEF2FF', padding:'4px 16px'}}>
                               <div className="flex items-center gap-2 text-[11px]" style={{color:'#3B4FE4'}}>
-                                <span>✏ {[...batchApplied].map(f => f === 'vdia' ? 'R$/dia' : f === 'alim' ? 'Alimentação' : 'Mobilidade').join(' e ')} editado{batchApplied.size > 1 ? 's' : ''} em lote</span>
+                                <span>✏ {Array.from(batchApplied).map(f => f === 'vdia' ? 'R$/dia' : f === 'alim' ? 'Alimentação' : 'Mobilidade').join(' e ')} editado{batchApplied.size > 1 ? 's' : ''} em lote</span>
                                 {batchHistory && (
                                   <>
                                     <span style={{color:'#a5b4fc'}}>·</span>
@@ -2143,7 +2268,7 @@ export default function BudgetPlannedPage() {
                           <tr>
                             <td colSpan={colSpanTotal} className="px-4 py-12 text-center text-sm text-slate-400">Nenhum colaborador encontrado</td>
                           </tr>
-                        ) : filteredBudgets.flatMap((budget, rowIdx) => {
+                        ) : filteredBudgets.map((budget, rowIdx) => {
                           const isSent = sentToActual.has(budget.inclusion.id);
                           const isNotAttended = isCardNotAttended(budget);
                           const hasOvr = budget.hasOverride;
@@ -2156,11 +2281,7 @@ export default function BudgetPlannedPage() {
                           const foodPerDay = foodTotal / Math.max(1, budget.qtdDiarias);
                           const mobTotal = budget.mobilidade / 100;
                           const disabled = isSent || isNotAttended;
-                          const matchingActual = existingActuals?.find((a: any) =>
-                            a.collaboratorId === budget.inclusion.collaboratorId &&
-                            a.functionId === budget.inclusion.functionId &&
-                            !a.splitParentId
-                          );
+                          const matchingActual = actualsByCollabFunc.get(`${budget.inclusion.collaboratorId}|${budget.inclusion.functionId}`);
                           const sid = budget.inclusion.id;
                           const prevBudget = rowIdx > 0 ? filteredBudgets[rowIdx - 1] : null;
                           const isSameCollab = prevBudget?.inclusion.collaboratorId === budget.inclusion.collaboratorId;
@@ -2224,9 +2345,7 @@ export default function BudgetPlannedPage() {
                             }
                           };
 
-                          const headerRow = null;
-
-                          const dataRow = (
+                          return (
                             <tr
                               key={budget.inclusion.id}
                               style={{
@@ -2354,7 +2473,6 @@ export default function BudgetPlannedPage() {
                                       <TooltipTrigger asChild>
                                         <input
                                           type="text" inputMode="decimal"
-                                          tabIndex={rowIdx * 4 + 2}
                                           disabled={disabled}
                                           value={buf('vdia', (budget.valorDiariaUtil / 100).toFixed(2))}
                                           onChange={e => setbuf('vdia', e.target.value)}
@@ -2394,7 +2512,6 @@ export default function BudgetPlannedPage() {
                                       <TooltipTrigger asChild>
                                         <input
                                           type="text" inputMode="decimal"
-                                          tabIndex={rowIdx * 4 + 3}
                                           disabled={disabled}
                                           value={buf('vdiaFds', (budget.valorDiariaFds / 100).toFixed(2))}
                                           onChange={e => setbuf('vdiaFds', e.target.value)}
@@ -2438,7 +2555,6 @@ export default function BudgetPlannedPage() {
                                       <TooltipTrigger asChild>
                                         <input
                                           type="text" inputMode="decimal"
-                                          tabIndex={rowIdx * 4 + 4}
                                           disabled={disabled || budget.weekdays === 0}
                                           value={budget.weekdays === 0 ? '—' : buf('alimUtil', ((budget.almocoSemana + budget.jantarSemana) / Math.max(1, budget.weekdays) / 100).toFixed(2))}
                                           onChange={e => setbuf('alimUtil', e.target.value)}
@@ -2480,7 +2596,6 @@ export default function BudgetPlannedPage() {
                                       <TooltipTrigger asChild>
                                         <input
                                           type="text" inputMode="decimal"
-                                          tabIndex={rowIdx * 4 + 5}
                                           disabled={disabled || budget.weekends === 0}
                                           value={budget.weekends === 0 ? '—' : buf('alimFds', ((budget.almocoFds + budget.jantarFds) / Math.max(1, budget.weekends) / 100).toFixed(2))}
                                           onChange={e => setbuf('alimFds', e.target.value)}
@@ -2517,16 +2632,14 @@ export default function BudgetPlannedPage() {
                                 </div>
                               </td>
 
-                              {/* Mobilidade — coluna individual (só quando não é global) */}
-                              {!allSameMob && (
-                                <td className="px-4 py-3 text-right" style={{verticalAlign:'middle'}}>
+                              {/* Mobilidade — coluna individual */}
+                              <td className="px-4 py-3 text-right" style={{verticalAlign:'middle'}}>
                                   <div className="flex items-center justify-end gap-1">
                                     <TooltipProvider delayDuration={150}>
                                       <Tooltip>
                                         <TooltipTrigger asChild>
                                           <input
                                             type="text" inputMode="decimal"
-                                            tabIndex={rowIdx * 3 + 4}
                                             disabled={disabled}
                                             value={buf('mob', mobTotal.toFixed(2))}
                                             onChange={e => setbuf('mob', e.target.value)}
@@ -2569,7 +2682,6 @@ export default function BudgetPlannedPage() {
                                     })()}
                                   </div>
                                 </td>
-                              )}
 
                               {/* Subtotal — clicável → Memória de Cálculo */}
                               <td className="px-4 py-3 text-right bg-blue-50/20" style={{position:'relative', verticalAlign:'middle'}}>
@@ -2609,7 +2721,7 @@ export default function BudgetPlannedPage() {
                                       </div>
                                       <div style={{fontSize:11, color:'#64748B', marginBottom:8}}>
                                         {budget.qtdDiarias} {budget.qtdDiarias === 1 ? 'dia' : 'dias'}
-                                        {budget.inclusion.startDate && budget.inclusion.endDate && ` · ${new Date(budget.inclusion.startDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})} → ${new Date(budget.inclusion.endDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}`}
+                                        {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && ` · ${new Date(budget.inclusion.scheduleStartDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})} → ${new Date(budget.inclusion.scheduleEndDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}`}
                                       </div>
                                       <table style={{width:'100%', borderCollapse:'collapse', fontSize:12}}>
                                         <tbody>
@@ -2663,7 +2775,6 @@ export default function BudgetPlannedPage() {
                               </td>
                             </tr>
                           );
-                          return [headerRow, dataRow].filter(Boolean) as JSX.Element[];
                         })}
                       </tbody>
                       {filteredBudgets.length > 0 && (() => {
@@ -2694,13 +2805,11 @@ export default function BudgetPlannedPage() {
                                   {formatCurrency(totalAlimCols)}
                                 </span>
                               </td>
-                              {!allSameMob && (
-                                <td className="px-3 py-2.5 text-right">
-                                  <span className="text-[12px] font-mono font-semibold text-slate-500 tabular-nums">
-                                    {formatCurrency(totalMobCols)}
-                                  </span>
-                                </td>
-                              )}
+                              <td className="px-3 py-2.5 text-right">
+                                <span className="text-[12px] font-mono font-semibold text-slate-500 tabular-nums">
+                                  {formatCurrency(totalMobCols)}
+                                </span>
+                              </td>
                               <td className="px-4 py-2.5 text-right">
                                 <span className="text-[15px] font-extrabold font-mono tabular-nums" style={{color:'#3B4FE4'}}>{formatCurrency(totalGeral)}</span>
                               </td>
@@ -2831,7 +2940,9 @@ export default function BudgetPlannedPage() {
               effectiveAlmocoFds + effectiveJantarFds;
             const totalAlimentacao = effectiveAlmocoSemana + effectiveJantarSemana + effectiveAlmocoFds + effectiveJantarFds;
             const diff = modalTotal - originalModalTotal;
-            const hasChanges = diff !== 0;
+            // Campo a campo: edições que se compensam no total também contam
+            const hasChanges = !!originalModalValues && (Object.keys(editingBudget) as (keyof BudgetEdit)[])
+              .some(k => editingBudget[k] !== originalModalValues![k]);
             const modalInitials = editingBudgetInfo.name.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase();
 
             const restoreDefaults = () => {
@@ -3035,8 +3146,8 @@ export default function BudgetPlannedPage() {
                         <div className="flex items-center gap-1.5">
                           <span className="text-[10px] text-slate-400">R$</span>
                           <Input
-                            type="number" step="1" className={inputCls}
-                            value={noWeekdays ? 0 : Math.round(editingBudget.almocoSemana / 100)}
+                            type="number" step="0.01" className={inputCls}
+                            value={noWeekdays ? 0 : editingBudget.almocoSemana / 100}
                             disabled={noWeekdays || modalViewMode}
                             onChange={e => setEditingBudget({...editingBudget, almocoSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
                           />
@@ -3051,8 +3162,8 @@ export default function BudgetPlannedPage() {
                         <div className="flex items-center gap-1.5">
                           <span className="text-[10px] text-slate-400">R$</span>
                           <Input
-                            type="number" step="1" className={inputCls}
-                            value={noWeekdays ? 0 : Math.round(editingBudget.jantarSemana / 100)}
+                            type="number" step="0.01" className={inputCls}
+                            value={noWeekdays ? 0 : editingBudget.jantarSemana / 100}
                             disabled={noWeekdays || modalViewMode}
                             onChange={e => setEditingBudget({...editingBudget, jantarSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
                           />
@@ -3079,8 +3190,8 @@ export default function BudgetPlannedPage() {
                         <div className="flex items-center gap-1.5">
                           <span className="text-[10px] text-slate-400">R$</span>
                           <Input
-                            type="number" step="1" className={inputCls}
-                            value={noWeekends ? 0 : Math.round(editingBudget.almocoFds / 100)}
+                            type="number" step="0.01" className={inputCls}
+                            value={noWeekends ? 0 : editingBudget.almocoFds / 100}
                             disabled={noWeekends || modalViewMode}
                             onChange={e => setEditingBudget({...editingBudget, almocoFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
                           />
@@ -3095,8 +3206,8 @@ export default function BudgetPlannedPage() {
                         <div className="flex items-center gap-1.5">
                           <span className="text-[10px] text-slate-400">R$</span>
                           <Input
-                            type="number" step="1" className={inputCls}
-                            value={noWeekends ? 0 : Math.round(editingBudget.jantarFds / 100)}
+                            type="number" step="0.01" className={inputCls}
+                            value={noWeekends ? 0 : editingBudget.jantarFds / 100}
                             disabled={noWeekends || modalViewMode}
                             onChange={e => setEditingBudget({...editingBudget, jantarFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
                           />
@@ -3161,7 +3272,7 @@ export default function BudgetPlannedPage() {
                     <div className="text-[11px] text-slate-500 mt-0.5 leading-tight">
                       Mobilidade <span className="font-semibold text-slate-600">{formatCurrency(editingBudget.mobilidade)}</span>
                     </div>
-                    {hasChanges && (
+                    {diff !== 0 && (
                       <div className={`text-[10px] font-bold mt-1 ${diff > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
                         {diff > 0 ? '▲' : '▼'} {formatCurrency(Math.abs(diff))} vs original
                       </div>
@@ -3197,7 +3308,7 @@ export default function BudgetPlannedPage() {
                         style={{background: hasChanges ? '#0033CC' : undefined, boxShadow: hasChanges ? '0 4px 12px #0033CC40' : 'none'}}
                       >
                         <CheckCheck className="w-4 h-4" />
-                        {hasChanges ? `Salvar (${diff > 0 ? '+' : ''}${formatCurrency(diff)})` : 'Salvar'}
+                        {hasChanges && diff !== 0 ? `Salvar (${diff > 0 ? '+' : ''}${formatCurrency(diff)})` : 'Salvar'}
                       </Button>
                     )}
                   </div>
@@ -3500,11 +3611,13 @@ export default function BudgetPlannedPage() {
       {/* ── Sticky Footer — Barra de Progresso do Envio ── */}
       {selectedEventId && calculatedBudgets.length > 0 && (
         <div style={{
-          position: 'fixed',
+          // sticky no container da página: acompanha a largura do conteúdo e o
+          // recuo do layout em qualquer estado do sidebar (expandido/compacto/oculto),
+          // ao contrário do antigo `position: fixed; left: 256` hardcoded.
+          position: 'sticky',
           bottom: 0,
-          left: 256,
-          right: 0,
           zIndex: 40,
+          borderRadius: '14px 14px 0 0',
           background: 'rgba(255,255,255,0.82)',
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',

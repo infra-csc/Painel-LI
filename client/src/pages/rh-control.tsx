@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { isRhOrAdmin } from "@/lib/permissions";
 import { useLocation } from "wouter";
 import {
   Shield, Search, CheckCircle, XCircle, RotateCcw, Clock,
@@ -128,9 +129,6 @@ export default function RhControlPage() {
   const [approvingInvoiceId, setApprovingInvoiceId] = useState<string | null>(null);
   const [nfApprovalDate, setNfApprovalDate] = useState("");
   const [nfApproving, setNfApproving] = useState(false);
-  const [checkinInvoiceId, setCheckinInvoiceId] = useState<string | null>(null);
-  const [checkinPaymentDate, setCheckinPaymentDate] = useState("");
-  const [doingCheckin, setDoingCheckin] = useState(false);
   const [expandedDetails, setExpandedDetails] = useState<Set<string>>(new Set());
   const toggleDetails = (id: string) => setExpandedDetails(prev => {
     const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next;
@@ -161,14 +159,50 @@ export default function RhControlPage() {
 
   const isLoading = loadingPlanned || loadingActual || loadingInclusions;
 
+  const canRh = isRhOrAdmin(user);
+
+  // Maps memoizados — evita Array.find O(n) repetido dezenas de vezes por render
+  const invoiceByActualId = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const inv of allInvoices as any[]) {
+      if (inv?.budgetActualId) map.set(inv.budgetActualId, inv);
+    }
+    return map;
+  }, [allInvoices]);
+
+  const collaboratorNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of collaborators || []) map.set(c.id, c.fullName);
+    return map;
+  }, [collaborators]);
+
+  const functionNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const f of functions || []) map.set(f.id, f.name);
+    return map;
+  }, [functions]);
+
   const getInvoiceForActual = (actualId: string | undefined): any | undefined =>
-    actualId ? (allInvoices as any[]).find((inv: any) => inv.budgetActualId === actualId) : undefined;
+    actualId ? invoiceByActualId.get(actualId) : undefined;
 
   const getCollaboratorName = (id?: string | null) =>
-    id ? collaborators?.find(c => c.id === id)?.fullName || "-" : "-";
+    id ? collaboratorNameById.get(id) || "-" : "-";
 
   const getFunctionName = (id?: string | null) =>
-    id ? functions?.find(f => f.id === id)?.name || "-" : "-";
+    id ? functionNameById.get(id) || "-" : "-";
+
+  // Definido na escalação: se emitsNf === false, o colaborador não emite NF.
+  // Mesma regra da tela de Notas Fiscais: match por colaborador+função na
+  // escalação do evento; sem match exato, assume que emite (cobra NF).
+  const emitsNfFor = (actual: { eventId?: string | null; collaboratorId?: string | null; functionId?: string | null }): boolean => {
+    const matches = (allTeamInclusions || []).filter(ti =>
+      !ti.deletedAt && ti.collaboratorId && ti.collaboratorId === actual.collaboratorId && ti.eventId === actual.eventId
+    );
+    if (matches.length === 0) return true;
+    const byFunction = matches.find(ti => ti.functionId === actual.functionId);
+    if (!byFunction) return true;
+    return byFunction.emitsNf !== false;
+  };
 
   const getUserName = (id?: string | null) =>
     id ? users?.find(u => u.id === id)?.name || "-" : "-";
@@ -225,8 +259,10 @@ export default function RhControlPage() {
       processedPlannedIds.add(matchingPlanned.id);
 
       const matchingActual = allActual?.find(a =>
-        (a.plannedId === matchingPlanned.id) ||
-        (a.collaboratorId === matchingPlanned.collaboratorId && a.functionId === matchingPlanned.functionId && a.eventId === matchingPlanned.eventId)
+        !a.splitParentId && (
+          (a.plannedId === matchingPlanned.id) ||
+          (a.collaboratorId === matchingPlanned.collaboratorId && a.functionId === matchingPlanned.functionId && a.eventId === matchingPlanned.eventId)
+        )
       ) || null;
 
       let status: PrestacaoStatus = "aguardando_prestacao";
@@ -284,8 +320,10 @@ export default function RhControlPage() {
       seenKeys.add(itemKey);
 
       const matchingActual = allActual?.find(a =>
-        (a.plannedId === planned.id) ||
-        (a.collaboratorId === planned.collaboratorId && a.functionId === planned.functionId && a.eventId === planned.eventId)
+        !a.splitParentId && (
+          (a.plannedId === planned.id) ||
+          (a.collaboratorId === planned.collaboratorId && a.functionId === planned.functionId && a.eventId === planned.eventId)
+        )
       ) || null;
 
       let status: PrestacaoStatus = "aguardando_prestacao";
@@ -342,11 +380,12 @@ export default function RhControlPage() {
     const devolvida = relevant.filter(inv => inv.status === "devolvida").length;
     const aprovada  = relevant.filter(inv => inv.status === "aprovada").length;
     const sentIds   = new Set(relevant.filter(inv => inv.status !== "pendente").map(inv => inv.budgetActualId));
-    const pending   = approvedActuals.filter(a => !sentIds.has(a.id)).length;
+    // Exclui os "não emite NF" (definido na escalação) — alinha com a tela de Notas Fiscais
+    const pending   = approvedActuals.filter(a => !sentIds.has(a.id) && emitsNfFor(a)).length;
     const checkinPending = relevant.filter(inv => inv.status === "aprovada" && !inv.checkinAt).length;
     const checkinDone    = relevant.filter(inv => inv.status === "aprovada" && !!inv.checkinAt).length;
     return { pending, enviada, devolvida, aprovada, checkinPending, checkinDone };
-  }, [allActual, allInvoices]);
+  }, [allActual, allInvoices, allTeamInclusions]);
 
   const RH_STATUSES: PrestacaoStatus[] = ["prestacao_recebida", "planejamento_pendente"];
 
@@ -380,7 +419,12 @@ export default function RhControlPage() {
       if (filterCollaborator === "a_definir" && item.collaboratorId) return false;
       if (filterCollaborator === "definido" && !item.collaboratorId) return false;
       if (filterInvoiceStatus !== "all") {
-        if (!item.actual || item.actual.rhStatus !== "aprovado") return false;
+        // Mesma regra de elegibilidade dos contadores: NF liberada com o envio do
+        // Realizado (aprovado OU enviado e ainda pendente de análise)
+        if (!item.actual) return false;
+        const rhSt = item.actual.rhStatus || "pendente";
+        const nfEligivel = rhSt === "aprovado" || (item.actual.sentForReview && rhSt === "pendente");
+        if (!nfEligivel) return false;
         const inv = getInvoiceForActual(item.actual.id);
         const invStatus = inv?.status || "pendente";
         if (invStatus !== filterInvoiceStatus) return false;
@@ -615,8 +659,8 @@ export default function RhControlPage() {
     "Equipe definida e confirmada para o evento",
     "Valores planejados pelo RH",
     "Valores realizados preenchidos pelo responsável da função",
-    "Análise do comparativo pelo RH para liberação de pagamento",
-    "Nota fiscal enviada pelo colaborador e aprovada pelo RH",
+    "Análise do comparativo pelo RH",
+    "Nota fiscal liberada com o envio do Realizado — enviada pelo colaborador e aprovada pelo RH",
     "Check-in financeiro realizado pelo RH — encerra o processo",
   ];
 
@@ -855,7 +899,16 @@ export default function RhControlPage() {
         {/* Card row */}
         <div
           className="flex items-center gap-3 px-4 py-2.5 cursor-pointer"
+          role="button"
+          tabIndex={0}
+          aria-expanded={isExpanded}
           onClick={() => toggleExpand(item.id)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              toggleExpand(item.id);
+            }
+          }}
         >
           {/* Avatar */}
           <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${avatarColorRh(colName)}`}>
@@ -903,8 +956,15 @@ export default function RhControlPage() {
               {(() => {
                 if (item.status === "aprovada_faturamento") return null;
                 const today = new Date(); today.setHours(0, 0, 0, 0);
-                const evEnd = item.event.endDate ? new Date(item.event.endDate) : null;
-                const evStart = item.event.startDate ? new Date(item.event.startDate) : null;
+                // Parse local de "YYYY-MM-DD" — new Date(string) interpretaria como UTC
+                const parseLocalDate = (s: any): Date | null => {
+                  if (!s) return null;
+                  const [y, m, d] = String(s).split("T")[0].split("-").map(Number);
+                  if (!y || !m || !d) return null;
+                  return new Date(y, m - 1, d);
+                };
+                const evEnd = parseLocalDate(item.event.endDate);
+                const evStart = parseLocalDate(item.event.startDate);
                 const isPending = item.status === "planejamento_pendente" || item.status === "prestacao_recebida";
                 if (isPending) {
                   if (evEnd && evEnd < today) {
@@ -974,6 +1034,14 @@ export default function RhControlPage() {
                 );
               }
               if (nfStatus === "enviada") {
+                // Ações de aprovação de NF são exclusivas do RH/admin
+                if (!canRh) {
+                  return (
+                    <span className="text-[10px] font-medium text-violet-600 bg-violet-50 border border-violet-200 rounded-md px-2 py-1">
+                      NF em análise
+                    </span>
+                  );
+                }
                 const isApprovingThis = approvingInvoiceId === nfInvCard?.id;
                 if (isApprovingThis) {
                   return (
@@ -996,6 +1064,12 @@ export default function RhControlPage() {
                             await queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
                             setApprovingInvoiceId(null);
                             setNfApprovalDate("");
+                          } catch (err: any) {
+                            toast({
+                              title: "Erro ao aprovar nota",
+                              description: err?.body?.message || err?.message || "Tente novamente",
+                              variant: "destructive",
+                            });
                           } finally {
                             setNfApproving(false);
                           }
@@ -1006,6 +1080,7 @@ export default function RhControlPage() {
                         {nfApproving ? "..." : "Confirmar"}
                       </button>
                       <button
+                        aria-label="Cancelar aprovação"
                         onClick={(e) => { e.stopPropagation(); setApprovingInvoiceId(null); setNfApprovalDate(""); }}
                         className="text-[11px] h-7 px-2 rounded-md border border-gray-200 text-slate-500 hover:bg-gray-50 transition-colors"
                       >✕</button>
@@ -1019,60 +1094,6 @@ export default function RhControlPage() {
                     onClick={(e) => { e.stopPropagation(); setApprovingInvoiceId(nfInvCard?.id || null); setNfApprovalDate(""); }}
                   >
                     Aprovar NF
-                  </button>
-                );
-              }
-              if (nfStatus === "aprovada" && !hasCheckin) {
-                const isDoingThis = checkinInvoiceId === nfInvCard?.id;
-                if (isDoingThis) {
-                  return (
-                    <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-                      <input
-                        type="date"
-                        value={checkinPaymentDate}
-                        onChange={e => setCheckinPaymentDate(e.target.value)}
-                        className="text-[11px] h-7 px-2 rounded-md border border-slate-200 text-slate-700 focus:outline-none focus:border-emerald-400 bg-white"
-                        placeholder="Data pgto."
-                      />
-                      <button
-                        disabled={doingCheckin}
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          if (!nfInvCard?.id) return;
-                          setDoingCheckin(true);
-                          try {
-                            await apiRequest("POST", `/api/invoices/${nfInvCard.id}/checkin`, {
-                              _userId: (user as any)?.id,
-                              ...(checkinPaymentDate ? { paymentDate: checkinPaymentDate } : {}),
-                            });
-                            await queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
-                            setCheckinInvoiceId(null);
-                            setCheckinPaymentDate("");
-                            toast({ title: "Check-in registrado com sucesso" });
-                          } catch (err: any) {
-                            toast({ title: "Erro ao registrar check-in", description: err?.message || "Tente novamente", variant: "destructive" });
-                          } finally { setDoingCheckin(false); }
-                        }}
-                        className="text-[11px] font-semibold h-7 px-3 rounded-md disabled:opacity-50 text-white transition-colors"
-                        style={{ background: '#059669' }}
-                      >
-                        {doingCheckin ? "..." : "Confirmar"}
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setCheckinInvoiceId(null); setCheckinPaymentDate(""); }}
-                        className="text-[11px] h-7 px-2 rounded-md border border-gray-200 text-slate-500 hover:bg-gray-50"
-                      >✕</button>
-                    </div>
-                  );
-                }
-                return (
-                  <button
-                    className="text-[11px] font-semibold h-7 px-3 rounded-md text-white transition-colors flex items-center gap-1.5 shadow-sm"
-                    style={{ background: '#7C3AED' }}
-                    onClick={(e) => { e.stopPropagation(); setCheckinInvoiceId(nfInvCard?.id || null); setCheckinPaymentDate(""); }}
-                  >
-                    <CircleDot className="w-3 h-3" />
-                    Fazer Check-in
                   </button>
                 );
               }
@@ -1682,7 +1703,17 @@ export default function RhControlPage() {
               const inv = getInvoiceForActual(i.actual.id);
               return inv?.status === "aprovada" && !inv?.checkinAt;
             }).length;
-            const agNfCount = (statuses.aprovada_faturamento || 0) - nfApprovedCount - checkinPendingGroupCount;
+            // "Ag. NF" exclui concluídos, check-ins pendentes e quem não emite NF
+            // (definido na escalação) — alinha com a tela de Notas Fiscais
+            const agNfCount = group.items.filter(i => {
+              if (i.status !== "aprovada_faturamento") return false;
+              if (i.actual && !emitsNfFor(i.actual)) return false;
+              if (!i.actual) return true;
+              const inv = getInvoiceForActual(i.actual.id);
+              const isDone = inv?.status === "aprovada" && !!inv?.checkinAt;
+              const isChkPending = inv?.status === "aprovada" && !inv?.checkinAt;
+              return !isDone && !isChkPending;
+            }).length;
             return (
               <div key={group.event.id} className="rounded-xl bg-white border border-slate-200 overflow-hidden shadow-sm">
                 <button

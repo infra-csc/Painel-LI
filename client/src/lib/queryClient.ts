@@ -91,8 +91,12 @@ export const queryClient = new QueryClient({
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      // O app é multiusuário (RH aprova ↔ produção reenvia): com
+      // staleTime: Infinity as ações do outro usuário nunca apareciam sem F5.
+      // 60s de frescor + refetch ao focar a janela mantém as telas vivas sem
+      // rajadas de requisições.
+      refetchOnWindowFocus: true,
+      staleTime: 60_000,
       retry: false,
     },
     mutations: {

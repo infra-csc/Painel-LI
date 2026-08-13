@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { formatDias, formatDiasUteis, formatFds, fixEncoding } from "@/lib/utils";
+import { formatDias, formatDiasUteis, formatFds, fixEncoding, parseBrNumber } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,11 +21,12 @@ import { useAuth } from "@/hooks/use-auth";
 import { useSidebar } from "@/contexts/sidebar-context";
 import { Link, useSearch } from "wouter";
 
-function CurrencyInput({ value, onChange, className, disabled }: {
+function CurrencyInput({ value, onChange, className, disabled, style }: {
   value: number;
   onChange: (cents: number) => void;
   className?: string;
   disabled?: boolean;
+  style?: React.CSSProperties;
 }) {
   const [display, setDisplay] = useState(() => (value / 100).toFixed(2).replace('.', ','));
   const inputRef = useRef<HTMLInputElement>(null);
@@ -39,23 +40,19 @@ function CurrencyInput({ value, onChange, className, disabled }: {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
     setDisplay(raw);
-    const normalized = raw.replace(',', '.');
-    const parsed = parseFloat(normalized);
-    if (!isNaN(parsed)) {
-      onChange(Math.round(parsed * 100));
-    }
+    if (raw.trim() === '') return;
+    // parseBrNumber trata "1.500,00" como 1500 (ponto de milhar + vírgula decimal)
+    onChange(Math.round(parseBrNumber(raw) * 100));
   };
 
   const handleBlur = () => {
-    const normalized = display.replace(',', '.');
-    const parsed = parseFloat(normalized);
-    if (!isNaN(parsed)) {
-      const cents = Math.round(parsed * 100);
-      onChange(cents);
-      setDisplay((cents / 100).toFixed(2).replace('.', ','));
-    } else {
+    if (display.trim() === '') {
       setDisplay((value / 100).toFixed(2).replace('.', ','));
+      return;
     }
+    const cents = Math.round(parseBrNumber(display) * 100);
+    onChange(cents);
+    setDisplay((cents / 100).toFixed(2).replace('.', ','));
   };
 
   const handleFocus = () => {
@@ -67,6 +64,7 @@ function CurrencyInput({ value, onChange, className, disabled }: {
       ref={inputRef}
       type="text"
       inputMode="decimal"
+      style={style}
       className={`bg-slate-50 border-slate-200 rounded-lg font-medium focus-visible:ring-2 focus-visible:ring-violet-300/60 focus-visible:border-violet-300 transition-colors ${className ?? ''}`}
       value={display}
       onChange={handleChange}
@@ -75,6 +73,20 @@ function CurrencyInput({ value, onChange, className, disabled }: {
       disabled={disabled}
     />
   );
+}
+
+// Reconstrói os valores de diária útil/fds a partir do subtotal gravado.
+// Fórmula única (antes o modal e o card divergiam): média simples subtotal/(úteis+fds)
+// para o dia útil e o restante distribuído no fds — a MESMA base do saveEdit
+// (dailyValue = Math.round(subtotal/qtdDiarias)), então reabrir o modal ou renderizar
+// o card reproduz o valor efetivamente gravado. A antiga fórmula do card usava peso 2×
+// para fds e não batia com a gravação.
+function reconstructDailyValues(subtotal: number, weekdays: number, weekends: number): { valorUtil: number; valorFds: number } {
+  if (subtotal <= 0 || weekdays + weekends === 0) return { valorUtil: 0, valorFds: 0 };
+  if (weekdays === 0) return { valorUtil: 0, valorFds: Math.round(subtotal / weekends) };
+  if (weekends === 0) return { valorUtil: Math.round(subtotal / weekdays), valorFds: 0 };
+  const valorUtil = Math.round(subtotal / (weekdays + weekends));
+  return { valorUtil, valorFds: Math.round((subtotal - weekdays * valorUtil) / weekends) };
 }
 
 export default function BudgetActualPage() {
@@ -414,7 +426,7 @@ export default function BudgetActualPage() {
     setModalActualTab('custos');
     setEditingItem(item);
     const days = getItemDayCounts(item);
-    const storedSubtotalDiarias = item.totalValue - item.weekdayLunch - item.weekdayDinner - item.weekendLunch - item.weekendDinner - item.mobility;
+    const storedSubtotalDiarias = item.totalValue - item.weekdayLunch - item.weekdayDinner - item.weekendLunch - item.weekendDinner - item.mobility - item.transport;
     const totalDays = days.weekdays + days.weekends;
 
     let valorUtil = 0;
@@ -424,59 +436,34 @@ export default function BudgetActualPage() {
 
     if (!isUnfilled) {
       // Restore from saved actual values
-      if (days.weekdays === 0) {
-        valorUtil = 0;
-        valorFds = Math.round(storedSubtotalDiarias / days.weekends);
-      } else if (days.weekends === 0) {
-        valorFds = 0;
-        valorUtil = Math.round(storedSubtotalDiarias / days.weekdays);
-      } else {
-        // Use dailyValue approach: util rate = stored/weekdays, fds = remainder
-        valorUtil = Math.round(storedSubtotalDiarias / (days.weekdays + days.weekends));
-        valorFds = Math.round((storedSubtotalDiarias - days.weekdays * valorUtil) / days.weekends);
-      }
+      ({ valorUtil, valorFds } = reconstructDailyValues(storedSubtotalDiarias, days.weekdays, days.weekends));
     } else {
-      // Actual not yet filled — pre-fill from planned values so user has a starting point
+      // Actual not yet filled — pre-fill DIÁRIAS from planned values so user has a starting point
       const plannedRef = getPlannedRef(item);
       if (plannedRef && plannedRef.dailyValue > 0) {
-        const plannedSub = plannedRef.totalValue - plannedRef.weekdayLunch - plannedRef.weekdayDinner - plannedRef.weekendLunch - plannedRef.weekendDinner - plannedRef.mobility;
-        if (days.weekdays === 0 && days.weekends > 0) {
-          valorUtil = 0;
-          valorFds = Math.round(plannedSub / days.weekends);
-        } else if (days.weekends === 0 && days.weekdays > 0) {
-          valorFds = 0;
-          valorUtil = Math.round(plannedSub / days.weekdays);
-        } else if (days.weekdays > 0 && days.weekends > 0) {
-          valorUtil = plannedRef.dailyValue;
-          valorFds = Math.round((plannedSub - days.weekdays * valorUtil) / days.weekends);
-        }
+        const plannedSub = plannedRef.totalValue - plannedRef.weekdayLunch - plannedRef.weekdayDinner - plannedRef.weekendLunch - plannedRef.weekendDinner - plannedRef.mobility - plannedRef.transport;
+        ({ valorUtil, valorFds } = reconstructDailyValues(plannedSub, days.weekdays, days.weekends));
       }
     }
 
-    // Mobility and food: ALWAYS use planned values when a planned reference exists
-    const plannedRef = getPlannedRef(item);
-    let initIda: number;
-    let initVolta: number;
-    if (plannedRef) {
-      initIda = (plannedRef as any).mobilityIda ?? Math.ceil(plannedRef.mobility / 2);
-      initVolta = (plannedRef as any).mobilityVolta ?? Math.floor(plannedRef.mobility / 2);
-    } else if (item.mobility > 0) {
+    // Alimentação e mobilidade: SEMPRE inicializa com os valores do próprio item.
+    // Usar o planejado aqui fazia reabrir+salvar reverter ajustes feitos pelo RH.
+    let initIda = 0;
+    let initVolta = 0;
+    if (item.mobility > 0) {
       const storedIda = (item as any).mobilityIda;
       initIda = typeof storedIda === 'number' ? storedIda : Math.ceil(item.mobility / 2);
       const storedVolta = (item as any).mobilityVolta;
       initVolta = typeof storedVolta === 'number' ? storedVolta : Math.floor(item.mobility / 2);
-    } else {
-      initIda = 0;
-      initVolta = 0;
     }
 
     setEditFormData({
       valorDiariaUtil: valorUtil,
       valorDiariaFds: valorFds,
-      weekdayLunch:   plannedRef ? plannedRef.weekdayLunch   : item.weekdayLunch,
-      weekdayDinner:  plannedRef ? plannedRef.weekdayDinner  : item.weekdayDinner,
-      weekendLunch:   plannedRef ? plannedRef.weekendLunch   : item.weekendLunch,
-      weekendDinner:  plannedRef ? plannedRef.weekendDinner  : item.weekendDinner,
+      weekdayLunch:   item.weekdayLunch,
+      weekdayDinner:  item.weekdayDinner,
+      weekendLunch:   item.weekendLunch,
+      weekendDinner:  item.weekendDinner,
       mobilityIda:    initIda,
       mobilityVolta:  initVolta,
     });
@@ -488,7 +475,8 @@ export default function BudgetActualPage() {
       const cur = new Date(days.startDate + 'T00:00:00');
       const endD = new Date(days.endDate + 'T00:00:00');
       while (cur <= endD) {
-        const dateStr = cur.toISOString().split('T')[0];
+        // Formatação local (não UTC): toISOString deslocava o dia em fusos negativos como o do Brasil
+        const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
         const isWknd = isWeekendDate(dateStr);
         const active = !workedDaysList || workedDaysList.length === 0 || workedDaysList.includes(dateStr);
         dayEntries.push({ date: dateStr, valueCents: isWknd ? valorFds : valorUtil, active, isWeekend: isWknd });
@@ -505,13 +493,16 @@ export default function BudgetActualPage() {
     const qtdDiarias = activeDays.length;
     const dailyValue = qtdDiarias > 0 ? Math.round(subtotalDiarias / qtdDiarias) : editFormData.valorDiariaUtil;
     const totalMobility = editFormData.mobilityIda + editFormData.mobilityVolta;
+    // Translado (transport) faz parte do total gravado — sem ele o totalValue encolhia a cada salvamento
     const totalValue = subtotalDiarias + editFormData.weekdayLunch + editFormData.weekdayDinner +
-      editFormData.weekendLunch + editFormData.weekendDinner + totalMobility;
+      editFormData.weekendLunch + editFormData.weekendDinner + totalMobility + editingItem.transport;
     updateMutation.mutate({
       id: editingItem.id,
       data: {
         dailyQuantity: qtdDiarias,
         dailyValue,
+        // Persiste os dias ativos — sem isso, dias desativados/extras entravam no total mas sumiam ao reabrir
+        workedDays: activeDays.map(d => d.date),
         weekdayLunch: editFormData.weekdayLunch,
         weekdayDinner: editFormData.weekdayDinner,
         weekendLunch: editFormData.weekendLunch,
@@ -595,15 +586,20 @@ export default function BudgetActualPage() {
     return result;
   }, [filteredItems, splitGroupsMap]);
 
-  const totalRealizado = filteredItems.reduce((sum, item) => sum + item.totalValue, 0);
-  const totalCasa = filteredItems.filter(i => i.collaboratorType === 'casa').reduce((s, i) => s + i.totalValue, 0);
-  const totalFreela = filteredItems.filter(i => i.collaboratorType === 'freela').reduce((s, i) => s + i.totalValue, 0);
+  // Itens marcados como "não participou" são excluídos das somas do banner (o Comparativo também os zera)
+  const isDidNotAttend = (item: BudgetActual): boolean =>
+    !!item.didNotAttend || !!getPlannedRef(item)?.didNotAttend;
+  const attendedItems = filteredItems.filter(i => !isDidNotAttend(i));
+  const totalRealizado = attendedItems.reduce((sum, item) => sum + item.totalValue, 0);
+  const totalCasa = attendedItems.filter(i => i.collaboratorType === 'casa').reduce((s, i) => s + i.totalValue, 0);
+  const totalFreela = attendedItems.filter(i => i.collaboratorType === 'freela').reduce((s, i) => s + i.totalValue, 0);
   const totalPlanejado = useMemo(() => {
     return filteredItems
       .filter(item => !item.splitParentId)
       .reduce((sum, item) => {
         const planned = getPlannedRef(item);
-        return sum + (planned ? planned.totalValue : item.totalValue);
+        // Sem planejado correspondente soma 0 — usar item.totalValue inflava o planejado
+        return sum + (planned ? planned.totalValue : 0);
       }, 0);
   }, [filteredItems, budgetPlanned]);
   const prestacaoCount = filteredItems.filter(item => !item.splitParentId).length;
@@ -655,18 +651,9 @@ export default function BudgetActualPage() {
     const isDuplicated = cardItem.observations?.includes('Duplicado no Realizado');
     const diverges = isGChild ? false : hasItemDivergence(cardItem);
     const cardDays = getItemDayCounts(cardItem);
-    const cardSubtotalDiarias = cardItem.totalValue - cardItem.weekdayLunch - cardItem.weekdayDinner - cardItem.weekendLunch - cardItem.weekendDinner - cardItem.mobility;
-    const cardTotalDays = cardDays.weekdays + cardDays.weekends;
-    let cardValorUtil = 0; let cardValorFds = 0;
-    if (cardTotalDays > 0 && cardSubtotalDiarias > 0) {
-      if (cardDays.weekdays === 0) { cardValorFds = Math.round(cardSubtotalDiarias / cardDays.weekends); }
-      else if (cardDays.weekends === 0) { cardValorUtil = Math.round(cardSubtotalDiarias / cardDays.weekdays); }
-      else {
-        const tw = cardDays.weekdays + cardDays.weekends * 2;
-        cardValorUtil = Math.round(cardSubtotalDiarias / tw);
-        cardValorFds = Math.round((cardSubtotalDiarias - cardDays.weekdays * cardValorUtil) / cardDays.weekends);
-      }
-    }
+    // Translado (transport) não é diária — subtraído para o subtotal do card não misturar as verbas
+    const cardSubtotalDiarias = cardItem.totalValue - cardItem.weekdayLunch - cardItem.weekdayDinner - cardItem.weekendLunch - cardItem.weekendDinner - cardItem.mobility - cardItem.transport;
+    const { valorUtil: cardValorUtil, valorFds: cardValorFds } = reconstructDailyValues(cardSubtotalDiarias, cardDays.weekdays, cardDays.weekends);
     const isSelected = selectedCards.has(cardItem.id);
     const isItemLocked = !!cardItem.sentForReview;
     const isItemEditable = !cardItem.sentForReview;
@@ -675,11 +662,12 @@ export default function BudgetActualPage() {
       const dt = new Date(d);
       return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     };
-    const statusBadge = cardItem.sentForReview
-      ? cardItem.rhStatus === "aprovado" ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200"><CheckCheck className="w-2.5 h-2.5" /> Aprovado</span>
-        : cardItem.rhStatus === "devolvido" ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 border border-amber-200"><AlertCircle className="w-2.5 h-2.5" /> Devolvido</span>
-        : cardItem.rhStatus === "rejeitado" ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700 border border-red-200"><AlertCircle className="w-2.5 h-2.5" /> Recusado</span>
-        : <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700 border border-blue-200"><Clock className="w-2.5 h-2.5" /> Em revisão</span>
+    // Badge baseado diretamente em rhStatus: o rh-action zera sentForReview ao devolver/recusar,
+    // então condicionar Devolvido/Recusado a sentForReview tornava esses ramos inalcançáveis
+    const statusBadge = cardItem.rhStatus === "aprovado" ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200"><CheckCheck className="w-2.5 h-2.5" /> Aprovado</span>
+      : cardItem.rhStatus === "devolvido" ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 border border-amber-200"><AlertCircle className="w-2.5 h-2.5" /> Devolvido</span>
+      : cardItem.rhStatus === "rejeitado" ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700 border border-red-200"><AlertCircle className="w-2.5 h-2.5" /> Recusado</span>
+      : cardItem.sentForReview ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700 border border-blue-200"><Clock className="w-2.5 h-2.5" /> Em revisão</span>
       : isDuplicated ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-violet-100 text-violet-700 border border-violet-200"><Copy className="w-2.5 h-2.5" /> Duplicado</span>
       : hasBeenEdited ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200"><CheckCircle2 className="w-2.5 h-2.5" /> Salvo {fmtDT(cardItem.updatedAt!)}</span>
       : <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-gray-100 text-gray-500 border border-gray-200">Não preenchido</span>;
@@ -705,7 +693,7 @@ export default function BudgetActualPage() {
       // Collect all worked days for the entire split group
       const parentId = cardItem.splitParentId || cardItem.id;
       const allGroupItems = budgetActual?.filter(a => a.id === parentId || a.splitParentId === parentId) || [];
-      const allGroupDays = [...new Set(allGroupItems.flatMap(a => (a.workedDays as string[] | null) || []))].sort();
+      const allGroupDays = Array.from(new Set(allGroupItems.flatMap(a => (a.workedDays as string[] | null) || []))).sort();
       const myDays = (cardItem.workedDays as string[] | null) || [];
 
       if (myDays.length === 0 || allGroupDays.length === 0 || myDays.length >= allGroupDays.length) return rawPlan;
@@ -833,7 +821,7 @@ export default function BudgetActualPage() {
           {!isCollapsed && (() => {
             const planned = cardPlanned;
             const plannedAlim = planned ? (planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner) : 0;
-            const plannedDiarias = planned ? (planned.totalValue - plannedAlim - planned.mobility) : 0;
+            const plannedDiarias = planned ? (planned.totalValue - plannedAlim - planned.mobility - planned.transport) : 0;
             const rhFields: Record<string, {from: number; to: number; label: string}> =
               cardItem.rhAdjustedFields ? JSON.parse(cardItem.rhAdjustedFields as string) : {};
             const diffInline = (actual: number, plan: number) => {
@@ -1293,7 +1281,13 @@ export default function BudgetActualPage() {
                 : 0;
               const groupPlannedTotal = isGroupParent ? getPlannedRef(item)?.totalValue : undefined;
 
-              if (isGroupChild) return null;
+              if (isGroupChild) {
+                // Filho cujo pai está na lista já é renderizado dentro do grupo do pai
+                const parentPresent = filteredItems.some(p => !p.splitParentId && p.id === item.splitParentId);
+                if (parentPresent) return null;
+                // Órfão (pai filtrado/apagado): renderiza como card avulso para não virar valor invisível nos totais
+                return <div key={item.id}>{renderSingleCard(item)}</div>;
+              }
 
               if (!isGroupParent) {
                 return <div key={item.id}>{renderSingleCard(item)}</div>;
@@ -1428,8 +1422,9 @@ export default function BudgetActualPage() {
             const activeDayEntries = editDayEntries.filter(d => d.active);
             const subtotalDiariasRaw = activeDayEntries.reduce((sum, d) => sum + d.valueCents, 0);
             const modalMobility = editFormData.mobilityIda + editFormData.mobilityVolta;
+            // Inclui transport para o total exibido bater com o totalValue gravado pelo saveEdit
             const modalTotalRaw = subtotalDiariasRaw + modalMobility + editFormData.weekdayLunch + editFormData.weekdayDinner +
-              editFormData.weekendLunch + editFormData.weekendDinner;
+              editFormData.weekendLunch + editFormData.weekendDinner + editingItem.transport;
             const modalTotal = Math.abs(modalTotalRaw - editingItem.totalValue) <= 1 ? editingItem.totalValue : modalTotalRaw;
             const totalAlimentacao = editFormData.weekdayLunch + editFormData.weekdayDinner + editFormData.weekendLunch + editFormData.weekendDinner;
             const isFromPlanned = !!editingItem.plannedId || editingItem.observations?.includes('Enviado do planejado');
@@ -1450,7 +1445,7 @@ export default function BudgetActualPage() {
 
               const parentId = editingItem.splitParentId;
               const allGroupItems = budgetActual?.filter(a => a.id === parentId || a.splitParentId === parentId) || [];
-              const allGroupDays = [...new Set(allGroupItems.flatMap(a => (a.workedDays as string[] | null) || []))].sort();
+              const allGroupDays = Array.from(new Set(allGroupItems.flatMap(a => (a.workedDays as string[] | null) || []))).sort();
               const myDays = (editingItem.workedDays as string[] | null) || [];
 
               if (myDays.length === 0 || allGroupDays.length === 0 || myDays.length >= allGroupDays.length) return rawPlannedModal;
@@ -1484,20 +1479,9 @@ export default function BudgetActualPage() {
                 totalValue:    propDiarias + propWkdayLunch + propWkdayDinner + propWkndLunch + propWkndDinner + propMobility + propTransport,
               } as BudgetPlanned;
             })();
-            const plannedSubDiarias = planned ? planned.totalValue - planned.weekdayLunch - planned.weekdayDinner - planned.weekendLunch - planned.weekendDinner - planned.mobility : 0;
-            let plannedValorUtil = 0;
-            let plannedValorFds = 0;
-            if (planned && plannedSubDiarias > 0) {
-              if (itemDays.weekdays === 0 && itemDays.weekends > 0) {
-                plannedValorFds = Math.round(plannedSubDiarias / itemDays.weekends);
-              } else if (itemDays.weekdays > 0 && itemDays.weekends === 0) {
-                plannedValorUtil = Math.round(plannedSubDiarias / itemDays.weekdays);
-              } else if (itemDays.weekdays > 0 && itemDays.weekends > 0) {
-                const tw = itemDays.weekdays + itemDays.weekends * 2;
-                plannedValorUtil = Math.round(plannedSubDiarias / tw);
-                plannedValorFds = Math.round((plannedSubDiarias - itemDays.weekdays * plannedValorUtil) / itemDays.weekends);
-              }
-            }
+            const plannedSubDiarias = planned ? planned.totalValue - planned.weekdayLunch - planned.weekdayDinner - planned.weekendLunch - planned.weekendDinner - planned.mobility - planned.transport : 0;
+            const { valorUtil: plannedValorUtil, valorFds: plannedValorFds } =
+              reconstructDailyValues(plannedSubDiarias, itemDays.weekdays, itemDays.weekends);
             const plannedTotal = planned ? planned.totalValue : 0;
             const rawDifference = modalTotal - plannedTotal;
             const hasDivergence = planned && Math.abs(rawDifference) > 1;

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { Fragment, useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -11,9 +11,9 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   FileText, Upload, CheckCircle2, RotateCcw, Clock,
   ChevronDown, ChevronUp, Paperclip, Calendar, Building2,
-  FileCheck, AlertCircle, AlertTriangle, Send, Eye, ExternalLink, Info, X, CheckCheck, CircleDot
+  FileCheck, AlertCircle, AlertTriangle, Send, Eye, ExternalLink, Info, X, CircleDot
 } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import type { Event, Invoice } from "@shared/schema";
 
 function toTitleCase(str: string) {
@@ -25,7 +25,8 @@ function formatCurrency(v: number) {
 }
 function fmtDate(d?: string | null) {
   if (!d) return "—";
-  const [y, m, day] = d.split("-");
+  // Aceita "YYYY-MM-DD" e timestamps ISO ("YYYY-MM-DDTHH:mm:ss...")
+  const [y, m, day] = d.split("T")[0].split("-");
   return `${day}/${m}/${y}`;
 }
 
@@ -136,8 +137,9 @@ export default function InvoicesPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  // Read URL params via window.location.search (wouter's useLocation only returns pathname)
-  const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  // Read URL params via wouter's useSearch — reprocessa quando a querystring muda
+  const search = useSearch();
+  const urlParams = useMemo(() => new URLSearchParams(search), [search]);
   const paramEvent  = urlParams.get("event") || "";
   const paramTab    = urlParams.get("tab") as "lancamento" | "aprovacao" | null;
   const paramFilter = urlParams.get("filter") || "";
@@ -233,8 +235,9 @@ export default function InvoicesPage() {
     const matches = (teamInclusions as any[]).filter(ti => ti.collaboratorId && ti.collaboratorId === actual.collaboratorId);
     if (matches.length === 0) return true;
     const byFunction = matches.find(ti => ti.functionId === actual.functionId);
-    const inclusion = byFunction || matches[0];
-    return inclusion.emitsNf !== false;
+    // Sem match exato colaborador+função na escalação, assume que emite (cobra NF)
+    if (!byFunction) return true;
+    return byFunction.emitsNf !== false;
   };
 
   // NF fica disponível assim que o Realizado é enviado (sem esperar a análise
@@ -274,7 +277,7 @@ export default function InvoicesPage() {
                 Notas Fiscais
                 <span
                   className="group relative cursor-default"
-                  title="Todos os eventos com itens aprovados no Comparativo aparecem aqui. Para geração automática do texto de pagamento, cadastre a empresa pagadora no evento."
+                  title="A nota fiscal é liberada assim que o Realizado é enviado — itens devolvidos ou rejeitados pausam a NF até a regularização. Para geração automática do texto de pagamento, cadastre a empresa pagadora no evento."
                 >
                   <Info className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 transition-colors" />
                 </span>
@@ -543,8 +546,8 @@ function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFu
     return (
       <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
         <AlertCircle className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-        <p className="text-sm text-gray-400">Nenhum colaborador aprovado no Comparativo para este evento.</p>
-        <p className="text-xs text-gray-300 mt-1">A aprovação no Comparativo é necessária para habilitar o lançamento de notas.</p>
+        <p className="text-sm text-gray-400">Nenhum colaborador com Realizado enviado para este evento.</p>
+        <p className="text-xs text-gray-300 mt-1">O lançamento de notas é liberado assim que o Realizado é enviado. Itens devolvidos ou rejeitados ficam pausados até a regularização.</p>
       </div>
     );
   }
@@ -607,72 +610,6 @@ function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFu
   );
 }
 
-// ── Check-in Section ─────────────────────────────────────────────────────────
-function CheckinSection({ invoice, selectedEventId, qc, toast }: any) {
-  const { user } = useAuth();
-  const canCheckin = isRhOrAdmin(user);
-  const [payDate, setPayDate] = useState("");
-  const [open, setOpen] = useState(false);
-
-  const checkinMut = useMutation({
-    mutationFn: () => apiRequest("POST", `/api/invoices/${invoice?.id}/checkin`, {
-      _userId: user?.id,
-      ...(payDate ? { paymentDate: payDate } : {}),
-    }).then(r => r.json()),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
-      qc.invalidateQueries({ queryKey: ["/api/invoices"] });
-      setOpen(false);
-      setPayDate("");
-      toast({ title: "Check-in realizado!", description: "Item marcado como concluído." });
-    },
-    onError: () => toast({ title: "Erro ao registrar check-in", variant: "destructive" }),
-  });
-
-  return (
-    <div className="flex items-center gap-3 flex-wrap">
-      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-blue-50 text-[#0033CC] border border-blue-200">
-        <Clock className="w-3.5 h-3.5" />
-        Aprovada · Aguardando Check-in Financeiro
-      </div>
-      {canCheckin && invoice && !open && (
-        <Button
-          size="sm"
-          className="rounded-xl text-white px-4 h-8 text-xs shadow-sm shrink-0"
-          style={{ background: "#059669" }}
-          onClick={() => setOpen(true)}
-        >
-          <CheckCheck className="w-3.5 h-3.5 mr-1.5" />
-          Fazer Check-in
-        </Button>
-      )}
-      {canCheckin && invoice && open && (
-        <div className="flex items-center gap-2">
-          <input
-            type="date"
-            value={payDate}
-            onChange={e => setPayDate(e.target.value)}
-            className="text-xs h-8 px-2 rounded-lg border border-slate-200 text-slate-700 focus:outline-none focus:border-emerald-400 bg-white"
-          />
-          <Button
-            size="sm"
-            className="rounded-lg text-white px-3 h-8 text-xs shadow-sm shrink-0"
-            style={{ background: "#059669" }}
-            onClick={() => checkinMut.mutate()}
-            disabled={checkinMut.isPending}
-          >
-            {checkinMut.isPending ? "..." : "Confirmar"}
-          </Button>
-          <button
-            onClick={() => { setOpen(false); setPayDate(""); }}
-            className="text-xs h-8 px-2 rounded-lg border border-gray-200 text-slate-500 hover:bg-gray-50"
-          >✕</button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Invoice Card (collaborator view) ─────────────────────────────────────────
 function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: any) {
   const effStatus = getEffectiveStatus(invoice);
@@ -715,8 +652,18 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
         const fd = new FormData();
         fd.append("files", file);
         const resp = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
+        if (!resp.ok) {
+          setUploading(false);
+          throw new Error("Falha ao enviar o arquivo da nota. Verifique sua conexão e tente novamente.");
+        }
         const uploaded = await resp.json();
-        if (uploaded?.[0]?.url) { attachmentUrl = uploaded[0].url; attachmentName = file.name; }
+        if (uploaded?.[0]?.url) {
+          attachmentUrl = uploaded[0].url;
+          attachmentName = file.name;
+        } else {
+          setUploading(false);
+          throw new Error("Falha ao enviar o arquivo da nota. Tente novamente.");
+        }
         setUploading(false);
       }
 
@@ -826,7 +773,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
                   )}
                 </button>
                 {(file || (invoice?.attachmentUrl && !clearedAttachment)) && (
-                  <button type="button" onClick={removeAttachment}
+                  <button type="button" onClick={removeAttachment} aria-label="Remover anexo"
                     className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
                     <X className="w-3 h-3" />
                   </button>
@@ -1146,7 +1093,20 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
   const getActual = (id: string) => budgetActuals.find((a: any) => a.id === id);
 
   function daysSince(inv: any) {
-    return Math.floor((Date.now() - Date.parse(inv.createdAt)) / (1000 * 60 * 60 * 24));
+    // Conta a partir do último envio/reenvio registrado no histórico
+    // (após uma devolução + reenvio, o prazo reinicia). Fallback: createdAt.
+    let ref: string | null = inv.createdAt || null;
+    if (inv.history) {
+      try {
+        const stored: any[] = JSON.parse(inv.history);
+        for (const e of stored) {
+          if ((e?.type === "enviado" || e?.type === "reenviado") && e?.at) ref = e.at;
+        }
+      } catch { /* histórico inválido — mantém createdAt */ }
+    }
+    const t = ref ? Date.parse(ref) : NaN;
+    if (isNaN(t)) return 0;
+    return Math.floor((Date.now() - t) / (1000 * 60 * 60 * 24));
   }
 
   const aprovCountFor = (id: string) => {
@@ -1220,11 +1180,12 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
               const history      = buildHistory(inv, name);
               const hasReturn    = !!inv.returnComment;
               const borderColor  = isHistOpen ? "#3B4FE4" : cfg.border;
+              // Realizado devolvido/rejeitado pausa a aprovação da NF até o reenvio
+              const actualBlocked = !!actual && (actual.rhStatus === "devolvido" || actual.rhStatus === "rejeitado");
 
               return (
-                <>
+                <Fragment key={inv.id}>
                   <tr
-                    key={inv.id}
                     className={`hover:bg-gray-50/60 transition-colors ${
                       isActive && active?.type === "approve"
                         ? "bg-white"
@@ -1307,10 +1268,22 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                       <div className="flex items-center justify-end gap-1.5">
                         {effSt === "enviada" && (
                           <>
+                            {actualBlocked && (
+                              <span
+                                className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full bg-orange-50 text-orange-600 border border-orange-200 whitespace-nowrap"
+                                title="Realizado devolvido — aguarde o reenvio"
+                              >
+                                <AlertTriangle className="w-3 h-3" /> Realizado devolvido
+                              </span>
+                            )}
                             <button
                               onClick={() => openAction(inv.id, "approve")}
+                              disabled={actualBlocked}
+                              title={actualBlocked ? "Realizado devolvido — aguarde o reenvio" : undefined}
                               className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap border ${
-                                isActive && active?.type === "approve"
+                                actualBlocked
+                                  ? "text-slate-400 bg-slate-50 border-slate-200 cursor-not-allowed opacity-60"
+                                  : isActive && active?.type === "approve"
                                   ? "bg-emerald-600 text-white border-emerald-600"
                                   : "text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100"
                               }`}
@@ -1490,7 +1463,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               );
             })}
           </tbody>

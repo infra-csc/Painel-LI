@@ -144,12 +144,17 @@ export default function SystemSettingsPage() {
     } catch {}
   }, []);
 
+  // Sem permissão, nada é baixado — o gate de render sozinho ainda deixava
+  // as 5 queries rodarem e entregarem os dados ao navegador
+  const allowed = isRhOrAdmin(user);
+
   const { data: settings } = useQuery<Record<string, number>>({
     queryKey: ["/api/system-settings"],
     queryFn: async () => {
       const res = await fetch("/api/system-settings", { credentials: "include" });
       return res.json();
     },
+    enabled: allowed,
   });
 
   const { data: allFunctions = [] } = useQuery<FunctionType[]>({
@@ -158,6 +163,7 @@ export default function SystemSettingsPage() {
       const res = await fetch("/api/functions", { credentials: "include" });
       return res.json();
     },
+    enabled: allowed,
   });
 
   const { data: fnCollaboratorTypes = {} } = useQuery<Record<string, string[]>>({
@@ -167,6 +173,7 @@ export default function SystemSettingsPage() {
       return res.json();
     },
     staleTime: 0,
+    enabled: allowed,
   });
 
   const { data: allFunctionValues = [] } = useQuery<FunctionValue[]>({
@@ -175,10 +182,12 @@ export default function SystemSettingsPage() {
       const res = await fetch("/api/function-values", { credentials: "include" });
       return res.json();
     },
+    enabled: allowed,
   });
 
   const { data: paymentCompanies = [] } = useQuery<PaymentCompany[]>({
     queryKey: ["/api/payment-companies"],
+    enabled: allowed,
   });
 
   const createCompanyMutation = useMutation({
@@ -203,26 +212,31 @@ export default function SystemSettingsPage() {
     onError: () => toast({ title: "Erro ao remover empresa.", variant: "destructive" }),
   });
 
-  useEffect(() => {
-    if (allFunctions.length > 0) {
-      const mapCasaWd: Record<string, string> = {};
-      const mapCasaWe: Record<string, string> = {};
-      const mapFreelaWd: Record<string, string> = {};
-      const mapFreelaWe: Record<string, string> = {};
-      for (const fn of allFunctions) {
-        const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
-        mapCasaWd[fn.id] = fv ? centavosToReais(fv.dailyValue) : "0.00";
-        mapCasaWe[fn.id] = fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00";
-        const freelaWd = fv?.dailyValueFreela ?? 0;
-        const freelaWe = fv?.dailyValueFreelaWeekend ?? 0;
-        mapFreelaWd[fn.id] = fv ? centavosToReais(freelaWd !== 0 ? freelaWd : (fv.dailyValue ?? 0)) : "0.00";
-        mapFreelaWe[fn.id] = fv ? centavosToReais(freelaWe !== 0 ? freelaWe : (fv.dailyValueWeekend ?? 0)) : "0.00";
-      }
-      setFunctionDailyValues(mapCasaWd);
-      setFnWeekendValues(mapCasaWe);
-      setFnFreelaValues(mapFreelaWd);
-      setFnFreelaWeekendValues(mapFreelaWe);
+  // Reconstrói os 4 mapas de valores por função a partir do que está salvo.
+  // Usado no carregamento e também pelo "Descartar" do rodapé.
+  const resetFunctionValueStates = () => {
+    if (allFunctions.length === 0) return;
+    const mapCasaWd: Record<string, string> = {};
+    const mapCasaWe: Record<string, string> = {};
+    const mapFreelaWd: Record<string, string> = {};
+    const mapFreelaWe: Record<string, string> = {};
+    for (const fn of allFunctions) {
+      const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
+      mapCasaWd[fn.id] = fv ? centavosToReais(fv.dailyValue) : "0.00";
+      mapCasaWe[fn.id] = fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00";
+      const freelaWd = fv?.dailyValueFreela ?? 0;
+      const freelaWe = fv?.dailyValueFreelaWeekend ?? 0;
+      mapFreelaWd[fn.id] = fv ? centavosToReais(freelaWd !== 0 ? freelaWd : (fv.dailyValue ?? 0)) : "0.00";
+      mapFreelaWe[fn.id] = fv ? centavosToReais(freelaWe !== 0 ? freelaWe : (fv.dailyValueWeekend ?? 0)) : "0.00";
     }
+    setFunctionDailyValues(mapCasaWd);
+    setFnWeekendValues(mapCasaWe);
+    setFnFreelaValues(mapFreelaWd);
+    setFnFreelaWeekendValues(mapFreelaWe);
+  };
+
+  useEffect(() => {
+    resetFunctionValueStates();
   }, [allFunctions, allFunctionValues]);
 
   useEffect(() => {
@@ -232,23 +246,27 @@ export default function SystemSettingsPage() {
     }
   }, [editingFunctionId]);
 
+  // Predicado único de "função com valor alterado" — antes estava duplicado
+  // verbatim aqui e no contador do rodapé, e as cópias já tinham divergido
+  const isFunctionDirty = (fn: FunctionType): boolean => {
+    const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
+    const savedCasaWd = fv ? centavosToReais(fv.dailyValue) : "0.00";
+    const savedCasaWe = fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00";
+    const freeWdDb = fv?.dailyValueFreela ?? 0;
+    const freeWeDb = fv?.dailyValueFreelaWeekend ?? 0;
+    const savedFreelaWd = fv ? centavosToReais(freeWdDb !== 0 ? freeWdDb : (fv.dailyValue ?? 0)) : "0.00";
+    const savedFreelaWe = fv ? centavosToReais(freeWeDb !== 0 ? freeWeDb : (fv.dailyValueWeekend ?? 0)) : "0.00";
+    return (
+      parseFloat(functionDailyValues[fn.id] ?? "0") !== parseFloat(savedCasaWd) ||
+      parseFloat(fnWeekendValues[fn.id] ?? "0") !== parseFloat(savedCasaWe) ||
+      parseFloat(fnFreelaValues[fn.id] ?? "0") !== parseFloat(savedFreelaWd) ||
+      parseFloat(fnFreelaWeekendValues[fn.id] ?? "0") !== parseFloat(savedFreelaWe)
+    );
+  };
+
   const saveFunctionValuesMutation = useMutation({
     mutationFn: async () => {
-      const dirtyFns = allFunctions.filter(fn => {
-        const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
-        const savedCasaWd = fv ? centavosToReais(fv.dailyValue) : "0.00";
-        const savedCasaWe = fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00";
-        const freeWdDb = fv?.dailyValueFreela ?? 0;
-        const freeWeDb = fv?.dailyValueFreelaWeekend ?? 0;
-        const savedFreelaWd = fv ? centavosToReais(freeWdDb !== 0 ? freeWdDb : (fv.dailyValue ?? 0)) : "0.00";
-        const savedFreelaWe = fv ? centavosToReais(freeWeDb !== 0 ? freeWeDb : (fv.dailyValueWeekend ?? 0)) : "0.00";
-        return (
-          parseFloat(functionDailyValues[fn.id] ?? "0") !== parseFloat(savedCasaWd) ||
-          parseFloat(fnWeekendValues[fn.id] ?? "0") !== parseFloat(savedCasaWe) ||
-          parseFloat(fnFreelaValues[fn.id] ?? "0") !== parseFloat(savedFreelaWd) ||
-          parseFloat(fnFreelaWeekendValues[fn.id] ?? "0") !== parseFloat(savedFreelaWe)
-        );
-      });
+      const dirtyFns = allFunctions.filter(isFunctionDirty);
       const promises = dirtyFns.map(async fn => {
         const fv = allFunctionValues.find(v => v.functionId === fn.id);
         const casaWd = Math.round(parseFloat(functionDailyValues[fn.id] || "0") * 100);
@@ -338,21 +356,7 @@ export default function SystemSettingsPage() {
   const mobilityTotalFreela = isNaN(mobilityIdaFreela + mobilityVoltaFreela) ? 0 : mobilityIdaFreela + mobilityVoltaFreela;
 
   const dirtyFormFields = Object.keys(form.formState.dirtyFields).length;
-  const dirtyFunctionCount = allFunctions.filter(fn => {
-    const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
-    const savedCasaWd = fv ? centavosToReais(fv.dailyValue) : "0.00";
-    const savedCasaWe = fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00";
-    const freeWdDb2 = fv?.dailyValueFreela ?? 0;
-    const freeWeDb2 = fv?.dailyValueFreelaWeekend ?? 0;
-    const savedFreelaWd = fv ? centavosToReais(freeWdDb2 !== 0 ? freeWdDb2 : (fv.dailyValue ?? 0)) : "0.00";
-    const savedFreelaWe = fv ? centavosToReais(freeWeDb2 !== 0 ? freeWeDb2 : (fv.dailyValueWeekend ?? 0)) : "0.00";
-    return (
-      parseFloat(functionDailyValues[fn.id] ?? "0") !== parseFloat(savedCasaWd) ||
-      parseFloat(fnWeekendValues[fn.id] ?? "0") !== parseFloat(savedCasaWe) ||
-      parseFloat(fnFreelaValues[fn.id] ?? "0") !== parseFloat(savedFreelaWd) ||
-      parseFloat(fnFreelaWeekendValues[fn.id] ?? "0") !== parseFloat(savedFreelaWe)
-    );
-  }).length;
+  const dirtyFunctionCount = allFunctions.filter(isFunctionDirty).length;
   const totalUnsaved = dirtyFormFields + dirtyFunctionCount;
   const hasAnyChanges = totalUnsaved > 0;
   const isSavingAny = saveFunctionValuesMutation.isPending;
@@ -558,9 +562,10 @@ export default function SystemSettingsPage() {
           </button>
           <button
             type="button"
-            onClick={() => { form.reset(); }}
+            onClick={() => { form.reset(); resetFunctionValueStates(); }}
             style={{ background: 'transparent', border: 'none', color: '#94A3B8', cursor: 'pointer', padding: '4px 6px', borderRadius: 6, fontSize: 12 }}
             title="Descartar alterações"
+            aria-label="Descartar alterações"
           >
             <X style={{ width: 14, height: 14 }} />
           </button>

@@ -252,8 +252,13 @@ export default function UserRegistration() {
                   transition: "border-color 0.15s, background 0.15s",
                 }}
                 onFocus={e => { e.currentTarget.style.borderColor = PRIMARY; e.currentTarget.style.background = "white"; }}
-                onBlur={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#f1f3ff"; }}
                 {...register("area")}
+                onBlur={e => {
+                  // preserva o onBlur do register (validação/touched) e o efeito visual
+                  register("area").onBlur(e);
+                  e.currentTarget.style.borderColor = "#E2E8F0";
+                  e.currentTarget.style.background = "#f1f3ff";
+                }}
               />
             </div>
 

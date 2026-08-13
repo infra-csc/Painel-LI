@@ -1829,7 +1829,7 @@ export default function Tickets() {
                                     <span className="text-[11px] font-medium text-[#6B7280]">{ticket.departureCityDestination || '—'}</span>
                                   </div>
                                 )}
-                                {(ticket.returnCityOrigin || ticket.returnCityDestination) && !ticket.isOneWay && (
+                                {(ticket.returnCityOrigin || ticket.returnCityDestination) && !(ticket as any).isOneWay && (
                                   <div className="flex items-center gap-1">
                                     <span className="material-symbols-outlined text-slate-400" style={{fontSize:12}}>directions_bus</span>
                                     <span className="text-[11px] font-medium text-[#6B7280]">{ticket.returnCityOrigin || '—'}</span>
@@ -1850,7 +1850,7 @@ export default function Tickets() {
                                       <span className="text-[10px] text-slate-300">→</span>
                                       <span className="text-[11px] font-medium text-[#6B7280] uppercase">{ticket.destinationAirport || '—'}</span>
                                     </div>
-                                    {!ticket.isOneWay && (
+                                    {!(ticket as any).isOneWay && (
                                       <div className="flex items-center gap-1">
                                         <span className="material-symbols-outlined text-slate-400" style={{fontSize:12}}>flight_land</span>
                                         <span className="text-[11px] font-medium text-[#6B7280] uppercase">{ticket.destinationAirport || '—'}</span>
@@ -1892,7 +1892,7 @@ export default function Tickets() {
                                   <span className="font-bold text-slate-700">{ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : '—'}</span>
                                   {ticket.actualDepartureTime && <span className="text-slate-400 font-medium">{ticket.actualDepartureTime}</span>}
                                 </div>
-                                {!ticket.isOneWay && (
+                                {!(ticket as any).isOneWay && (
                                   <div className="flex items-center gap-2 text-xs">
                                     {ticket.transportType === 'rodoviario'
                                       ? <span className="material-symbols-outlined text-[#22C55E]" style={{fontSize:13}}>directions_bus</span>
