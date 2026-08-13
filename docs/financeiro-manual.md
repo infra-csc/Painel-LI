@@ -200,6 +200,32 @@ Os itens são ordenados por urgência:
 
 ---
 
+## Nota Fiscal (atualizado em 13/08/2026)
+
+A NF é **liberada assim que o Realizado é enviado** — não é mais necessário
+esperar a aprovação do Comparativo. Regras:
+
+- Prestação **devolvida ou recusada** pausa a NF até o reenvio; nesse estado a
+  aba Aprovação **bloqueia o Aprovar** da nota (o Devolver continua ativo)
+- Escalados marcados como **"Não emite NF"** (definido no modal Detalhes da
+  Escalação) não são cobrados — aparecem num card informativo próprio
+- Lançamentos com a **mesma OC no evento** precisam ter a **mesma nota anexada**
+- Fluxo da nota: `pendente → enviada → aprovada → check-in` (com devolvida/
+  recusada como desvios); o servidor valida cada transição — aprovar exige
+  status "enviada", check-in exige "aprovada" + data de pagamento
+
+## Telas novas do módulo (13/08/2026)
+
+- **Conta Corrente Flash** — saldo de Flash Benefícios por colaborador (alvo
+  R$ 350 alimentação + R$ 150 mobilidade), extrato com saldo acumulado,
+  crédito inicial de admissão em um clique e exportação CSV. Lançar/excluir é
+  restrito a RH/admin; exclusões ficam na auditoria.
+- **Regras de Cálculo** — tabelas 2026 de referência (Casa, Freela,
+  Cenotécnicos Empreita, Percurseiro) e calculadora de diárias com a régua de
+  deflação (até 4 dias 100% · 5º–8º 90% · 9º+ 80%). **Os valores desta tela
+  são informativos** — o cálculo do Planejado usa os Valores Padrão e os
+  valores por função.
+
 ## Perfis de Acesso
 
 | Tela | RH | Responsável de Função | Outros |
@@ -208,6 +234,11 @@ Os itens são ordenados por urgência:
 | Realizado | ✅ Visualizar | ✅ Preencher e enviar | ❌ |
 | Comparativo | ✅ Aprovar/Devolver/Recusar | ✅ Visualizar resultado | ❌ |
 | Controle RH | ✅ Acesso total | ❌ | ❌ |
+| Notas Fiscais | ✅ Aprovar/Devolver/Check-in | ✅ Enviar nota | ❌ |
+| Conta Corrente Flash | ✅ Lançar/excluir | 👁 Consultar | ❌ |
+
+> Desde 13/08/2026 essas permissões são **verificadas também no servidor**
+> (sessão obrigatória + papel nas ações de decisão), não apenas na interface.
 
 ---
 
