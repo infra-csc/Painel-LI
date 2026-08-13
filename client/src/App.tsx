@@ -36,6 +36,7 @@ const BudgetComparison       = lazy(() => import("@/pages/budget-comparison"));
 const RhControl              = lazy(() => import("@/pages/rh-control"));
 const InvoicesPage           = lazy(() => import("@/pages/invoices"));
 const FlashAccountPage       = lazy(() => import("@/pages/flash-account"));
+const CalculationRulesPage   = lazy(() => import("@/pages/calculation-rules"));
 const SystemSettings         = lazy(() => import("@/pages/system-settings"));
 const CalendarPage           = lazy(() => import("@/pages/calendar"));
 
@@ -77,6 +78,7 @@ const ORDERED_ROUTES: { path: string; permission: keyof RolePermissions }[] = [
   { path: "/rh-control",        permission: "canAccessScreen5"       },
   { path: "/invoices",          permission: "canAccessFinanceiro"    },
   { path: "/flash-account",     permission: "canAccessFinanceiro"    },
+  { path: "/calculation-rules", permission: "canAccessFinanceiro"    },
   { path: "/system-settings",   permission: "canAccessFinanceiro"    },
   { path: "/consultation",      permission: "canAccessScreen6"       },
   { path: "/admin-users",       permission: "canAccessAdminUsers"    },
@@ -236,6 +238,11 @@ function Router() {
             <Route path="/flash-account">
               <ProtectedRoute permission="canAccessFinanceiro">
                 <FlashAccountPage />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/calculation-rules">
+              <ProtectedRoute permission="canAccessFinanceiro">
+                <CalculationRulesPage />
               </ProtectedRoute>
             </Route>
             <Route path="/calendar" component={CalendarPage} />
