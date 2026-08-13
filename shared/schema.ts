@@ -548,6 +548,36 @@ export const insertInvoiceSchema = createInsertSchema(invoices).omit({
 export type Invoice = typeof invoices.$inferSelect;
 export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 
+// Conta Corrente Flash (slide 6 do deck de melhorias) — controle do saldo de
+// Flash Benefícios por colaborador. Crédito inicial na admissão (R$ 350
+// alimentação + R$ 150 mobilidade) e reembolsos por evento para manter o
+// colaborador sempre com esses valores disponíveis.
+export const flashMovements = pgTable("flash_movements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  collaboratorId: varchar("collaborator_id").notNull().references(() => collaborators.id),
+  eventId: varchar("event_id").references(() => events.id), // reembolso ligado a um evento (opcional)
+  category: text("category").notNull(), // alimentacao, mobilidade
+  type: text("type").notNull(), // credito, debito
+  amountCents: integer("amount_cents").notNull(), // sempre positivo; o sinal vem do type
+  movementDate: date("movement_date").notNull(),
+  description: text("description"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertFlashMovementSchema = createInsertSchema(flashMovements).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  category: z.enum(["alimentacao", "mobilidade"]),
+  type: z.enum(["credito", "debito"]),
+  amountCents: z.number().int().positive(),
+});
+
+export type FlashMovement = typeof flashMovements.$inferSelect;
+export type InsertFlashMovement = z.infer<typeof insertFlashMovementSchema>;
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;

@@ -22,7 +22,9 @@ import {
   type BudgetComparison, type InsertBudgetComparison,
   type SystemSetting,
   type Invoice, type InsertInvoice,
-  type PaymentCompany, type InsertPaymentCompany
+  type PaymentCompany, type InsertPaymentCompany,
+  flashMovements,
+  type FlashMovement, type InsertFlashMovement
 } from "@shared/schema";
 import { eq, and, sql, isNull, ne, exists, asc } from "drizzle-orm";
 
@@ -154,6 +156,11 @@ export interface IStorage {
   getPaymentCompanies(): Promise<PaymentCompany[]>;
   createPaymentCompany(company: InsertPaymentCompany): Promise<PaymentCompany>;
   deletePaymentCompany(id: number): Promise<void>;
+
+  // Flash Movements (Conta Corrente Flash)
+  getFlashMovements(collaboratorId?: string): Promise<FlashMovement[]>;
+  createFlashMovement(movement: InsertFlashMovement): Promise<FlashMovement>;
+  deleteFlashMovement(id: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -806,6 +813,10 @@ export class MemStorage implements IStorage {
   async getPaymentCompanies(): Promise<PaymentCompany[]> { return []; }
   async createPaymentCompany(company: InsertPaymentCompany): Promise<PaymentCompany> { throw new Error("Not implemented"); }
   async deletePaymentCompany(id: number): Promise<void> { throw new Error("Not implemented"); }
+
+  async getFlashMovements(collaboratorId?: string): Promise<FlashMovement[]> { return []; }
+  async createFlashMovement(movement: InsertFlashMovement): Promise<FlashMovement> { throw new Error("Not implemented"); }
+  async deleteFlashMovement(id: string): Promise<void> { throw new Error("Not implemented"); }
 }
 
 // Database storage implementation using PostgreSQL + Drizzle
@@ -1675,6 +1686,23 @@ export class DatabaseStorage implements IStorage {
   async createPaymentCompany(company: InsertPaymentCompany): Promise<PaymentCompany> {
     const [created] = await db.insert(paymentCompanies).values(company).returning();
     return created;
+  }
+
+  async getFlashMovements(collaboratorId?: string): Promise<FlashMovement[]> {
+    const base = db.select().from(flashMovements);
+    const ordered = collaboratorId
+      ? base.where(eq(flashMovements.collaboratorId, collaboratorId))
+      : base;
+    return await ordered.orderBy(asc(flashMovements.movementDate), asc(flashMovements.createdAt));
+  }
+
+  async createFlashMovement(movement: InsertFlashMovement): Promise<FlashMovement> {
+    const [created] = await db.insert(flashMovements).values(movement).returning();
+    return created;
+  }
+
+  async deleteFlashMovement(id: string): Promise<void> {
+    await db.delete(flashMovements).where(eq(flashMovements.id, id));
   }
 
   async deletePaymentCompany(id: number): Promise<void> {

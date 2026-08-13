@@ -23,6 +23,7 @@ import {
   insertBudgetActualSchema,
   insertBudgetComparisonSchema,
   insertInvoiceSchema,
+  insertFlashMovementSchema,
   insertBudgetNoteSchema,
   insertSwapRequestSchema
 } from "@shared/schema";
@@ -3936,6 +3937,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting payment company:", error);
       res.status(500).json({ message: "Erro ao excluir empresa" });
+    }
+  });
+
+  // ─── Conta Corrente Flash (slide 6 do deck de melhorias) ────────────────────
+
+  const FLASH_MANAGER_ROLES = ["admin", "administrator", "administrador", "financial"];
+
+  app.get("/api/flash-movements", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    try {
+      const collaboratorId = req.query.collaboratorId as string | undefined;
+      const movements = await storage.getFlashMovements(collaboratorId);
+      res.json(movements);
+    } catch (error) {
+      console.error("Error fetching flash movements:", error);
+      res.status(500).json({ message: "Erro ao buscar lançamentos da conta corrente" });
+    }
+  });
+
+  app.post("/api/flash-movements", async (req, res) => {
+    const userId = req.session?.userId;
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+    const user = await storage.getUser(userId);
+    if (!user || !FLASH_MANAGER_ROLES.includes(user.role)) {
+      return res.status(403).json({ message: "Sem permissão para lançar na conta corrente Flash" });
+    }
+    try {
+      const data = insertFlashMovementSchema.parse(req.body);
+      const movement = await storage.createFlashMovement({
+        ...data,
+        createdBy: user.id,
+        createdByName: user.name,
+      });
+      res.status(201).json(movement);
+    } catch (error) {
+      console.error("Error creating flash movement:", error);
+      res.status(400).json({ message: "Dados inválidos. Verifique categoria, tipo, valor e data." });
+    }
+  });
+
+  app.delete("/api/flash-movements/:id", async (req, res) => {
+    const userId = req.session?.userId;
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+    const user = await storage.getUser(userId);
+    if (!user || !FLASH_MANAGER_ROLES.includes(user.role)) {
+      return res.status(403).json({ message: "Sem permissão para excluir lançamentos" });
+    }
+    try {
+      await storage.deleteFlashMovement(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting flash movement:", error);
+      res.status(500).json({ message: "Erro ao excluir lançamento" });
     }
   });
 
