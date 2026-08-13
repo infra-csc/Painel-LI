@@ -33,6 +33,7 @@ function toTitleCase(str: string): string {
   return str.toLowerCase().replace(/(?:^|\s)\S/g, a => a.toUpperCase());
 }
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, User, TeamInclusion } from "@shared/schema";
+import { isNfEligible } from "@shared/prestacao-rules";
 
 type PrestacaoStatus =
   | "planejamento_pendente"
@@ -371,9 +372,9 @@ export default function RhControlPage() {
   }, [prestacaoItems]);
 
   const invoiceCounts = useMemo(() => {
-    // Espelha a regra da tela de Notas Fiscais: NF é liberada com o envio do
-    // Realizado (comparativo aprovado não é mais pré-requisito).
-    const approvedActuals = (allActual || []).filter(a => (a.rhStatus === "aprovado" || (a.sentForReview && a.rhStatus === "pendente")) && !a.splitParentId);
+    // Mesma função de elegibilidade usada pela tela de Notas Fiscais e pelo
+    // servidor (@shared/prestacao-rules) — não há mais cópia para divergir.
+    const approvedActuals = (allActual || []).filter(a => isNfEligible(a) && !a.splitParentId);
     const approvedIds = new Set(approvedActuals.map(a => a.id));
     const relevant = (allInvoices as any[]).filter(inv => approvedIds.has(inv.budgetActualId));
     const enviada   = relevant.filter(inv => inv.status === "enviada").length;

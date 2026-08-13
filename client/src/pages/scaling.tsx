@@ -3,28 +3,49 @@ import { createPortal } from "react-dom";
 import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
 import { markSwapSeen, getSeenState } from "@/lib/seenSwaps";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import StatusBadge from "@/components/common/status-badge";
-import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File, HelpCircle, ArrowLeftRight, ArrowRight, AlertCircle, RotateCcw, CheckCheck, XCircle, MapPin } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, FileText, File, HelpCircle, ArrowLeftRight, ArrowRight, AlertCircle, RotateCcw, CheckCheck, XCircle, MapPin } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { TeamInclusion, Event, Function, Collaborator, Comment, Ticket, Accommodation, TeamInclusionLog, SwapRequest } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
-import CommentsModal from "@/components/modals/comments-modal";
 import { isReadOnly } from "@/lib/interactions";
-import { canView, canEdit } from "@/lib/permissions";
+import { canView } from "@/lib/permissions";
 import * as XLSX from 'xlsx';
-import { eachDayOfInterval, parseISO, format, isSameDay } from 'date-fns';
+import { eachDayOfInterval, parseISO, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+// Trocas já resolvidas por outra aba (Passagem/Hospedagem) não entram no atalho
+// de "trocas pendentes". Fora do componente para manter identidade estável.
+const ALREADY_HANDLED_SWAP_STATUSES = new Set([
+  'passagem_comprada',
+  'hospedagem_passagem_comprada',
+  'hospedagem_comprada',
+]);
+
+// Converte "YYYY-MM-DD" (ou ISO com timestamp) em Date LOCAL de meia-noite.
+// parseISO de um ISO completo devolve UTC e, em Brasília, joga a data um dia
+// para trás. Retorna null quando a data é inválida.
+const parseDay = (value: string | null | undefined): Date | null => {
+  if (!value) return null;
+  const clean = String(value).split('T')[0];
+  const d = parseISO(clean);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+// Mensagem de erro amigável para falhas de carregamento (distingue sessão expirada
+// de "não há dados": uma falha de rede nunca pode virar estado vazio).
+const describeLoadError = (err: any): string => {
+  if (err?.status === 401) return "Sua sessão expirou. Atualize a página e entre novamente.";
+  if (err?.status === 403) return "Você não tem permissão para ver estes registros.";
+  return err?.body?.message || "Não foi possível carregar os dados. Verifique sua conexão e tente novamente.";
+};
 
 export default function Scaling() {
   const [filters, setFilters] = useState<{
@@ -61,10 +82,6 @@ export default function Scaling() {
     city: "",
     departureFromSP: true,
   });
-  
-  // Estados para o modal de comentários
-  const [showCommentsModal, setShowCommentsModal] = useState(false);
-  const [selectedInclusionForComments, setSelectedInclusionForComments] = useState<string | null>(null);
   
   // Estado para novo comentário inline
   const [newComment, setNewComment] = useState("");
@@ -127,15 +144,16 @@ export default function Scaling() {
     });
   };
 
-  const { data: teamInclusions, isLoading: isLoadingInclusions } = useQuery<TeamInclusion[]>({
+  const {
+    data: teamInclusions,
+    isLoading: isLoadingInclusions,
+    isError: isErrorInclusions,
+    error: inclusionsError,
+  } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions", filters.showDeleted],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (filters.showDeleted) {
-        params.append('includeDeleted', 'true');
-      }
-      const response = await fetch(`/api/team-inclusions?${params.toString()}`);
-      if (!response.ok) throw new Error('Failed to fetch team inclusions');
+      const suffix = filters.showDeleted ? '?includeDeleted=true' : '';
+      const response = await apiRequest("GET", `/api/team-inclusions${suffix}`);
       return response.json();
     },
   });
@@ -153,11 +171,41 @@ export default function Scaling() {
     queryKey: ["/api/function-managers/all"],
   });
 
+  const { data: collaborators, isLoading: isLoadingCollaborators } = useQuery<Collaborator[]>({
+    queryKey: ["/api/collaborators"],
+  });
+
+  // ── Índices O(1) para as listas usadas em map/sort/render ────────────────
+  // Todos preservam a semântica de Array.find: o PRIMEIRO registro vence.
+  const eventById = useMemo(() => {
+    const m = new Map<string, Event>();
+    (events || []).forEach(e => { if (!m.has(e.id)) m.set(e.id, e); });
+    return m;
+  }, [events]);
+
+  const functionById = useMemo(() => {
+    const m = new Map<string, Function>();
+    (functions || []).forEach(f => { if (!m.has(f.id)) m.set(f.id, f); });
+    return m;
+  }, [functions]);
+
+  const collaboratorById = useMemo(() => {
+    const m = new Map<string, Collaborator>();
+    (collaborators || []).forEach(c => { if (!m.has(c.id)) m.set(c.id, c); });
+    return m;
+  }, [collaborators]);
+
   // Filtrar teamInclusions baseado nas permissões de visualização
-  const userFunctionIds = allFunctionManagers?.filter(m => m.userId === user?.id).map(m => m.functionId) || [];
-  const filteredTeamInclusions = teamInclusions?.filter(ti => {
+  const userFunctionIds = useMemo(
+    () => new Set((allFunctionManagers || []).filter(m => m.userId === user?.id).map(m => m.functionId)),
+    [allFunctionManagers, user?.id],
+  );
+
+  // Memoizado: sem isso a lista ganhava identidade nova a cada render e o
+  // useMemo de filtro/ordenação abaixo era recalculado a cada tecla digitada.
+  const filteredTeamInclusions = useMemo(() => (teamInclusions || []).filter(ti => {
     // Ocultar escalações vinculadas a eventos excluídos
-    const linkedEvent = events?.find(e => e.id === ti.eventId);
+    const linkedEvent = eventById.get(ti.eventId);
     if (!linkedEvent || linkedEvent.status === 'excluído') return false;
     // Administradores veem todas as inclusões (verificando diferentes formatos de role)
     if (user?.role === 'administrador' || user?.role === 'admin' || user?.role === 'administrator') return true;
@@ -170,12 +218,8 @@ export default function Scaling() {
     // Usuários "RH/Financeiro" (financial) veem todas as inclusões
     if (user?.role === 'financial') return true;
     // Outros usuários veem apenas suas funções atribuídas como managers
-    return userFunctionIds.includes(ti.functionId);
-  }) || [];
-
-  const { data: collaborators, isLoading: isLoadingCollaborators } = useQuery<Collaborator[]>({
-    queryKey: ["/api/collaborators"],
-  });
+    return userFunctionIds.has(ti.functionId);
+  }), [teamInclusions, eventById, user?.role, userFunctionIds]);
 
   // O esqueleto espera TODAS as consultas que alimentam o conteúdo principal
   // da tabela, não só as inclusões. Antes ele saía assim que /api/team-inclusions
@@ -202,12 +246,37 @@ export default function Scaling() {
     queryKey: ["/api/tickets"],
   });
 
+  // Índices por inclusão — primeiro registro vence, como o find original.
+  const ticketByInclusion = useMemo(() => {
+    const m = new Map<string, Ticket>();
+    (tickets || []).forEach(t => {
+      if (t.teamInclusionId && !m.has(t.teamInclusionId)) m.set(t.teamInclusionId, t);
+    });
+    return m;
+  }, [tickets]);
+
+  // Inclusões com pelo menos uma passagem efetivamente comprada
+  const purchasedTicketInclusionIds = useMemo(() => {
+    const s = new Set<string>();
+    (tickets || []).forEach(t => {
+      if (t.teamInclusionId && t.purchaseDate !== null && t.purchaseDate !== undefined) s.add(t.teamInclusionId);
+    });
+    return s;
+  }, [tickets]);
+
+  const accommodationByInclusion = useMemo(() => {
+    const m = new Map<string, Accommodation>();
+    (accommodations || []).forEach(a => {
+      if (a.teamInclusionId && !m.has(a.teamInclusionId)) m.set(a.teamInclusionId, a);
+    });
+    return m;
+  }, [accommodations]);
+
   // Query global de swap requests — para badges nas linhas da tabela
   const { data: allSwapRequests } = useQuery<SwapRequest[]>({
     queryKey: ["/api/swap-requests"],
     queryFn: async () => {
-      const r = await fetch("/api/swap-requests");
-      if (!r.ok) return [];
+      const r = await apiRequest("GET", "/api/swap-requests");
       return r.json();
     },
   });
@@ -231,11 +300,10 @@ export default function Scaling() {
   }, [allSwapRequests]);
 
   // Query lazy — só busca quando o usuário clica em Exportar
-  const { data: allComments, refetch: refetchAllComments } = useQuery<Comment[]>({
+  const { refetch: refetchAllComments } = useQuery<Comment[]>({
     queryKey: ["/api/all-comments"],
     queryFn: async () => {
-      const response = await fetch('/api/all-comments');
-      if (!response.ok) return [];
+      const response = await apiRequest("GET", "/api/all-comments");
       return response.json();
     },
     enabled: false,
@@ -243,8 +311,8 @@ export default function Scaling() {
 
   // Definir selectedTicket no nível do componente
   const selectedTicket = useMemo(() => (
-    selectedInclusion && tickets ? tickets.find(t => t.teamInclusionId === selectedInclusion.id) : undefined
-  ), [selectedInclusion?.id, tickets]);
+    selectedInclusion ? ticketByInclusion.get(selectedInclusion.id) : undefined
+  ), [selectedInclusion?.id, ticketByInclusion]);
 
   // Query para buscar comentários da inclusão selecionada
   const { data: comments } = useQuery<Comment[]>({
@@ -263,8 +331,7 @@ export default function Scaling() {
     queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id],
     queryFn: async () => {
       if (!selectedInclusion?.id) return [];
-      const r = await fetch(`/api/swap-requests/inclusion/${selectedInclusion.id}`);
-      if (!r.ok) return [];
+      const r = await apiRequest("GET", `/api/swap-requests/inclusion/${selectedInclusion.id}`);
       return r.json();
     },
     enabled: !!selectedInclusion?.id,
@@ -348,25 +415,6 @@ export default function Scaling() {
     onError: async (err: any) => {
       const msg = await err?.response?.json?.().catch(() => null);
       toast({ title: "Erro", description: msg?.message || "Erro ao rejeitar troca", variant: "destructive" });
-    },
-  });
-
-  // Mutation para aprovar escalação sem passagem/hospedagem (Compras/admin)
-  const [showApproveConfirm, setShowApproveConfirm] = useState(false);
-  const approveEscalationMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const r = await apiRequest("PATCH", `/api/team-inclusions/${id}`, { status: "aprovado", phase: "aprovado" });
-      return r.json();
-    },
-    onSuccess: () => {
-      setShowApproveConfirm(false);
-      setShowModal(false);
-      toast({ title: "Escalação aprovada", description: "A escalação foi aprovada com sucesso." });
-      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-    },
-    onError: async (err: any) => {
-      const msg = await err?.response?.json?.().catch(() => null);
-      toast({ title: "Erro", description: msg?.message || "Erro ao aprovar escalação", variant: "destructive" });
     },
   });
 
@@ -476,10 +524,12 @@ export default function Scaling() {
       setNewComment("");
       queryClient.invalidateQueries({ queryKey: ["/api/comments", selectedInclusion?.id] });
     },
-    onError: () => {
+    onError: (err: any) => {
       toast({
-        title: "Erro", 
-        description: "Erro ao adicionar comentário",
+        title: err?.status === 401 ? "Sessão expirada" : "Erro",
+        description: err?.status === 401
+          ? "Sua sessão expirou. Atualize a página e entre novamente para comentar."
+          : (err?.body?.message || "Erro ao adicionar comentário"),
         variant: "destructive",
       });
     },
@@ -493,7 +543,7 @@ export default function Scaling() {
 
   // Função para buscar ticket de uma inclusão
   const getTicket = (inclusionId: string): Ticket | undefined => {
-    return tickets?.find(ticket => ticket.teamInclusionId === inclusionId);
+    return ticketByInclusion.get(inclusionId);
   };
 
   const { data: users } = useQuery<any[]>({
@@ -543,8 +593,8 @@ export default function Scaling() {
     const dateOverlap = others.filter(ti => {
       if (!ref?.scheduleStartDate || !ref?.scheduleEndDate) return false;
       if (!ti.scheduleStartDate || !ti.scheduleEndDate) return false;
+      // Sobreposição clássica: início de A <= fim de B E início de B <= fim de A
       return new Date(ti.scheduleStartDate) <= new Date(ref.scheduleEndDate) &&
-             new Date(ti.scheduleStartDate) <= new Date(ref.scheduleEndDate) &&
              new Date(ref.scheduleStartDate) <= new Date(ti.scheduleEndDate);
     });
     return { sameEvent, dateOverlap };
@@ -553,12 +603,12 @@ export default function Scaling() {
   // Helper functions for getting names
   const getEventName = (eventId: string | null) => {
     if (!eventId) return "Evento não encontrado";
-    return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
+    return eventById.get(eventId)?.name || "Evento não encontrado";
   };
 
   const getFunctionName = (functionId: string | null) => {
     if (!functionId) return "Função não encontrada";
-    return functions?.find(f => f.id === functionId)?.name || "Função não encontrada";
+    return functionById.get(functionId)?.name || "Função não encontrada";
   };
 
   const isCenotecnicaFunction = (functionId: string | null) => {
@@ -568,18 +618,17 @@ export default function Scaling() {
 
   const getCollaboratorCity = (collaboratorId?: string | null) => {
     if (!collaboratorId) return null;
-    const collab = collaborators?.find(c => c.id === collaboratorId);
-    return collab?.city || null;
+    return collaboratorById.get(collaboratorId)?.city || null;
   };
 
   const getCollaboratorName = (collaboratorId?: string | null) => {
     if (!collaboratorId) return "Não escalado";
-    return fixEncoding(collaborators?.find(c => c.id === collaboratorId)?.fullName) || "Colaborador não encontrado";
+    return fixEncoding(collaboratorById.get(collaboratorId)?.fullName) || "Colaborador não encontrado";
   };
 
   // Helper function to get accommodation for an inclusion
   const getAccommodation = (inclusionId: string) => {
-    return accommodations?.find(a => a.teamInclusionId === inclusionId);
+    return accommodationByInclusion.get(inclusionId);
   };
 
   // Helper function to format accommodation data
@@ -629,11 +678,11 @@ export default function Scaling() {
     
     // BLOQUEIA SE HÁ COMPRA EFETIVA (passagem OU hospedagem):
     const ticketPurchased = inclusion.needsTicket
-      ? tickets?.some(t => t.teamInclusionId === inclusion.id && t.purchaseDate !== null)
+      ? purchasedTicketInclusionIds.has(inclusion.id)
       : false;
 
     const accommodationReserved = inclusion.needsAccommodation
-      ? accommodations?.some(a => a.teamInclusionId === inclusion.id)
+      ? accommodationByInclusion.has(inclusion.id)
       : false;
 
     if (ticketPurchased || accommodationReserved) return false;
@@ -641,22 +690,17 @@ export default function Scaling() {
     return true;
   };
 
-  // Check if user can access this screen
-  if (!canView(user, 'scaling')) {
-    return (
-      <div className="bg-card rounded-lg shadow-sm border border-border p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
-        <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
-      </div>
-    );
-  }
+  // Permissão de acesso à tela. O return antecipado fica DEPOIS de todos os
+  // hooks (logo antes do JSX) — sair daqui mudava a quantidade de hooks entre
+  // renders (usuário ainda carregando → sem permissão) e quebrava o React.
+  const canViewScaling = canView(user, 'scaling');
 
   // Filter and sort inclusions using memoization
   const scalingInclusions = useMemo(() => {
+    // Busca por ID, nome de colaborador ou função (normalizada uma única vez)
+    const q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
     const filtered = filteredTeamInclusions?.filter(
       inclusion => {
-        // Busca por ID, nome de colaborador ou função
-        const q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
         const collaboratorName = inclusion.collaboratorId ? getCollaboratorName(inclusion.collaboratorId).toLowerCase() : '';
         const functionName = getFunctionName(inclusion.functionId).toLowerCase();
         const idMatch = !filters.searchId || (
@@ -749,14 +793,13 @@ export default function Scaling() {
       if (!b.scheduleStartDate) return -1;
       return new Date(a.scheduleStartDate).getTime() - new Date(b.scheduleStartDate).getTime();
     });
-  }, [filteredTeamInclusions, filters, sortConfig, events, functions, collaborators]);
+  }, [filteredTeamInclusions, filters, sortConfig, eventById, functionById, collaboratorById, ticketByInclusion, accommodationByInclusion]);
 
   // Inclusões visíveis com troca pendente — usado pelo atalho/banner
   // Exclui inclusões cujo swap já foi tratado por outra aba (Passagem/Hospedagem)
-  const _alreadyHandledSwapStatuses = new Set(['passagem_comprada', 'hospedagem_passagem_comprada', 'hospedagem_comprada']);
   const pendingSwapInclusionsInView = useMemo(
     () => scalingInclusions.filter(i =>
-      pendingSwapByInclusion.has(i.id) && !_alreadyHandledSwapStatuses.has(i.status ?? '')
+      pendingSwapByInclusion.has(i.id) && !ALREADY_HANDLED_SWAP_STATUSES.has(i.status ?? '')
     ),
     [scalingInclusions, pendingSwapByInclusion]
   );
@@ -831,21 +874,16 @@ export default function Scaling() {
       setShowModal(false);
       setShowSuccessModal(true);
     },
-    onError: () => {
+    onError: (err: any) => {
       toast({
-        title: "Erro",
-        description: "Erro ao atualizar escalação",
+        title: err?.status === 401 ? "Sessão expirada" : "Erro",
+        description: err?.status === 401
+          ? "Sua sessão expirou. Atualize a página e entre novamente — nada foi salvo."
+          : (err?.body?.message || "Erro ao atualizar escalação"),
         variant: "destructive",
       });
     },
   });
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
-  };
 
   const handleExportToExcel = async () => {
     if (!scalingInclusions || scalingInclusions.length === 0) {
@@ -871,13 +909,31 @@ export default function Scaling() {
     }
 
     // Buscar comentários sob demanda (lazy) só agora que o usuário clicou em exportar
-    const { data: freshComments } = await refetchAllComments();
+    const { data: freshComments, isError: commentsFailed } = await refetchAllComments();
+    if (commentsFailed) {
+      // Não bloqueia a exportação, mas o usuário precisa saber que a coluna virá vazia
+      toast({
+        title: "Comentários indisponíveis",
+        description: "Não foi possível carregar os comentários; a planilha será gerada sem essa coluna preenchida.",
+        variant: "destructive",
+      });
+    }
+
+    // Índice por id do comentário → evita varrer a lista inteira por linha exportada
+    const commentsByInclusion = new Map<string, Comment[]>();
+    (freshComments || []).forEach(c => {
+      if (!c.teamInclusionId) return;
+      const list = commentsByInclusion.get(c.teamInclusionId);
+      if (list) list.push(c); else commentsByInclusion.set(c.teamInclusionId, [c]);
+    });
+    const userById = new Map<string, any>();
+    (users || []).forEach(u => { if (u?.id && !userById.has(u.id)) userById.set(u.id, u); });
 
     const exportData = activeInclusions.map(inclusion => {
-      const event = events?.find(e => e.id === inclusion.eventId);
-      const func = functions?.find(f => f.id === inclusion.functionId);
-      const collaborator = collaborators?.find(c => c.id === inclusion.collaboratorId);
-      
+      const event = eventById.get(inclusion.eventId);
+      const func = functionById.get(inclusion.functionId);
+      const collaborator = inclusion.collaboratorId ? collaboratorById.get(inclusion.collaboratorId) : undefined;
+
       const confirmationStatus = inclusion.status === "cancelado" 
         ? "Cancelado" 
         : isEscalated(inclusion) 
@@ -889,10 +945,10 @@ export default function Scaling() {
       const totalValue = dailyValueInReais * (inclusion.dailyRates || 0);
 
       // Buscar comentários desta inclusão
-      const inclusionComments = freshComments?.filter(c => c.teamInclusionId === inclusion.id) || [];
+      const inclusionComments = commentsByInclusion.get(inclusion.id) || [];
       const commentsText = inclusionComments.length > 0
         ? inclusionComments.map(c => {
-            const commentUser = users?.find(u => u.id === c.userId);
+            const commentUser = userById.get(c.userId);
             const userName = commentUser?.name || 'Usuário';
             const date = c.createdAt ? new Date(c.createdAt).toLocaleDateString('pt-BR') : '';
             return `[${date} - ${userName}] ${c.content}`;
@@ -940,9 +996,9 @@ export default function Scaling() {
         }
       }
 
-      // Dados reais da passagem (se existir)
-      const ticket = tickets?.find(t => t.teamInclusionId === inclusion.id && t.purchaseDate !== null)
-        || tickets?.find(t => t.teamInclusionId === inclusion.id);
+      // Dados reais da passagem (se existir) — prioriza a passagem já comprada
+      const ticket = (tickets || []).find(t => t.teamInclusionId === inclusion.id && t.purchaseDate !== null)
+        || ticketByInclusion.get(inclusion.id);
       const ticketAny = ticket as any;
 
       const tipoTransporte = ticket?.transportType
@@ -1140,7 +1196,8 @@ export default function Scaling() {
 
   const handleSave = () => {
     if (!selectedInclusion) return;
-    
+    if (updateTeamInclusionMutation.isPending) return; // trava duplo clique
+
     if (!canConfirmEscalation(selectedInclusion)) {
       toast({
         title: "Erro",
@@ -1173,17 +1230,8 @@ export default function Scaling() {
 
   const handleConfirmEscalation = () => {
     if (!selectedInclusion) return;
-    
-    console.log("🔍 [CONFIRM DEBUG] Starting confirmation process");
-    console.log("🔍 [CONFIRM DEBUG] selectedInclusion:", {
-      id: selectedInclusion.id,
-      status: selectedInclusion.status,
-      needsTicket: selectedInclusion.needsTicket,
-      needsAccommodation: selectedInclusion.needsAccommodation,
-      collaboratorId: selectedInclusion.collaboratorId
-    });
-    console.log("🔍 [CONFIRM DEBUG] modalData.collaboratorId:", modalData.collaboratorId);
-    
+    if (updateTeamInclusionMutation.isPending) return; // trava duplo clique
+
     if (!canConfirmEscalation(selectedInclusion)) {
       toast({
         title: "Erro",
@@ -1226,9 +1274,6 @@ export default function Scaling() {
     const nextStatus = isCenotecnica ? "aguardando_producao" : (noLogistics ? "aprovado" : "escalado");
     const nextPhase = isCenotecnica ? "escalacao" : (noLogistics ? "aprovado" : "escalacao");
 
-    console.log("🔍 [CONFIRM DEBUG] Calculated next status:", nextStatus);
-    console.log("🔍 [CONFIRM DEBUG] Calculated next phase:", nextPhase);
-
     const updateData: any = {
       collaboratorId: modalData.collaboratorId,
       observations: modalData.observations,
@@ -1238,16 +1283,14 @@ export default function Scaling() {
       // CRÍTICO: Preservar campos de necessidade de passagem/hospedagem
       needsTicket: selectedInclusion.needsTicket,
       needsAccommodation: selectedInclusion.needsAccommodation,
-      _userId: user?.id // Add userId for backend authentication
+      // A identidade vem da sessão no servidor — nada de _userId no corpo.
     };
-    
+
     // Só incluir dailyValue se foi especificamente editado
     if (modalData.dailyValue && modalData.dailyValue > 0) {
       updateData.dailyValue = Math.round(modalData.dailyValue * 100); // Store in cents
     }
-    
-    console.log("🔍 [CONFIRM DEBUG] Update data being sent:", updateData);
-    
+
     pendingScalingAction.current = 'confirm';
     updateTeamInclusionMutation.mutate({
       id: selectedInclusion.id,
@@ -1256,42 +1299,30 @@ export default function Scaling() {
   };
 
 
-  const getCollaborator = (collaboratorId?: string | null) => {
-    if (!collaboratorId) return null;
-    return collaborators?.find(c => c.id === collaboratorId) || null;
-  };
-
-
   // Formata data com dia da semana
   const formatDateWithWeekday = (dateStr: string | null | undefined) => {
     if (!dateStr) return "N/A";
-    try {
-      const date = new Date(dateStr + 'T00:00:00'); // Adiciona hora para evitar problemas de timezone
-      return new Intl.DateTimeFormat("pt-BR", {
-        weekday: "short",
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      }).format(date);
-    } catch {
-      return dateStr;
-    }
+    // Recorta qualquer timestamp ("2025-11-06T00:00:00.000Z" -> "2025-11-06") antes
+    // de fixar meia-noite local: sem isso a data vinha em UTC e caía um dia atrás
+    // em Brasília (ou virava Invalid Date, exibindo o ISO cru na tela).
+    const cleanDate = String(dateStr).split('T')[0];
+    const date = new Date(cleanDate + 'T00:00:00');
+    if (isNaN(date.getTime())) return String(dateStr);
+    return new Intl.DateTimeFormat("pt-BR", {
+      weekday: "short",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(date);
   };
 
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return "N/A";
     // Remove timestamp se houver (ex: "2025-11-06T00:00:00.000Z" -> "2025-11-06")
-    const cleanDate = dateStr.split('T')[0];
+    const cleanDate = String(dateStr).split('T')[0];
     const [year, month, day] = cleanDate.split('-');
+    if (!year || !month || !day) return String(dateStr);
     return `${day}/${month}/${year}`;
-  };
-
-  // Função para obter o período de trabalho baseado nas datas de agendamento
-  const getWorkPeriod = (inclusion: TeamInclusion) => {
-    return {
-      start: formatDate(inclusion.scheduleStartDate),
-      end: formatDate(inclusion.scheduleEndDate)
-    };
   };
 
   // Função específica para formatar datas nas sugestões de viagem com dia da semana
@@ -1399,40 +1430,24 @@ export default function Scaling() {
     if (!showModal || !selectedInclusion) return;
     setModalActiveTab("resumo");
     setShowAllLogs(false);
-    const acc = accommodations?.find(a => a.teamInclusionId === selectedInclusion.id);
-    const ticket = tickets?.find(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null);
+    const acc = accommodationByInclusion.get(selectedInclusion.id);
+    const ticket = (tickets || []).find(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null);
     const ids = [
       ...(acc?.attachmentIds || []),
       ...(ticket?.attachmentIds || []),
     ].filter(id => !attachmentMeta[id]);
+    let active = true;
     ids.forEach(async (id) => {
       try {
-        const res = await fetch(`/api/attachments/${id}`);
+        const res = await fetch(`/api/attachments/${id}`, { credentials: "include" });
         if (res.ok) {
           const data = await res.json();
-          setAttachmentMeta(prev => ({ ...prev, [id]: data }));
+          if (active) setAttachmentMeta(prev => ({ ...prev, [id]: data }));
         }
       } catch (_) {}
     });
+    return () => { active = false; };
   }, [showModal, selectedInclusion]);
-
-  // Detecta tipo de arquivo pelo nome/mimetype e retorna badge info
-  const getFileBadge = (name?: string, type?: string) => {
-    const n = (name || '').toLowerCase();
-    if (n.match(/\.(jpe?g|png|gif|webp|bmp|svg)$/) || (type || '').includes('image')) {
-      const ext = (name?.split('.').pop() || 'IMG').toUpperCase();
-      return { ext, cls: 'bg-blue-100 text-blue-600' };
-    }
-    if (n.match(/\.pdf$/) || (type || '').includes('pdf')) {
-      return { ext: 'PDF', cls: 'bg-red-100 text-red-600' };
-    }
-    if (n.match(/\.(xlsx?|csv|ods)$/) || (type || '').includes('spreadsheet') || (type || '').includes('excel') || (type || '').includes('csv')) {
-      const ext = (name?.split('.').pop() || 'XLS').toUpperCase();
-      return { ext, cls: 'bg-green-100 text-green-600' };
-    }
-    const ext = (name?.split('.').pop() || 'ARQ').toUpperCase();
-    return { ext, cls: 'bg-slate-100 text-slate-600' };
-  };
 
   const isImageFile = (name?: string, type?: string) => {
     return (name || '').toLowerCase().match(/\.(jpe?g|png|gif|webp|bmp)$/) || (type || '').includes('image/');
@@ -1447,7 +1462,8 @@ export default function Scaling() {
     try {
       let data = attachmentMeta[attachmentId];
       if (!data) {
-        const res = await fetch(`/api/attachments/${attachmentId}`);
+        const res = await fetch(`/api/attachments/${attachmentId}`, { credentials: "include" });
+        if (res.status === 401) throw new Error('Sua sessão expirou. Atualize a página e entre novamente.');
         if (!res.ok) throw new Error('Erro ao buscar anexo');
         data = await res.json();
         setAttachmentMeta(prev => ({ ...prev, [attachmentId]: data! }));
@@ -1475,6 +1491,16 @@ export default function Scaling() {
   const canApproveProduction = (user as any)?.canApproveCenotecnica ||
     ['admin', 'administrator', 'administrador'].includes(user?.role ?? '');
   const pendingProductionApprovals = scalingInclusions.filter(i => i.status === 'aguardando_producao');
+
+  // Check if user can access this screen (depois de todos os hooks)
+  if (!canViewScaling) {
+    return (
+      <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+        <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
+        <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -1543,7 +1569,20 @@ export default function Scaling() {
       />
 
 
-          {scalingInclusions.length === 0 ? (
+          {isErrorInclusions && !teamInclusions ? (
+            /* Falha de rede/sessão NÃO pode virar "nenhum dado" */
+            <div className="bg-white rounded-2xl border border-red-200 p-12 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-7 h-7 text-red-400" />
+              </div>
+              <h3 className="text-[15px] font-bold text-slate-700 mb-1">
+                Não foi possível carregar as escalações
+              </h3>
+              <p className="text-[13px] text-slate-500">
+                {describeLoadError(inclusionsError)}
+              </p>
+            </div>
+          ) : scalingInclusions.length === 0 ? (
             <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-12 text-center">
               <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
                 <Users className="w-7 h-7 text-slate-300" />
@@ -1627,7 +1666,7 @@ export default function Scaling() {
                           </span>
                         </div>
                         <p className="text-[11px] font-medium leading-tight text-orange-400 group-[&:not([data-state=active])]:text-slate-400">
-                          {withoutTicketPending > 0 && filters.escalationStatus !== "pending"
+                          {withoutTicketPending > 0
                             ? `${withoutTicketPending} pendente${withoutTicketPending !== 1 ? 's' : ''} de escalação`
                             : 'Nenhum pendente'}
                         </p>
@@ -1658,7 +1697,7 @@ export default function Scaling() {
                         </div>
                         <p className="text-[11px] font-medium text-slate-400 leading-tight">Aéreo · Rodoviário · Van</p>
                         <p className="text-[11px] font-medium text-green-500 group-[&:not([data-state=active])]:text-slate-400 leading-tight">
-                          {withTicketPending > 0 && filters.escalationStatus !== "pending"
+                          {withTicketPending > 0
                             ? `${withTicketPending} pendente${withTicketPending !== 1 ? 's' : ''} de escalação`
                             : 'Todos escalados'}
                         </p>
@@ -1705,8 +1744,16 @@ export default function Scaling() {
                             {withoutTicket.map((inclusion, rowIdx) => (
                               <tr
                                 key={inclusion.id}
-                                className={`group/row transition-colors cursor-pointer ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'} hover:bg-blue-50/50 ${inclusion.status === 'cancelado' ? 'opacity-50' : ''}`}
+                                className={`group/row transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'} hover:bg-blue-50/50 ${inclusion.status === 'cancelado' ? 'opacity-50' : ''}`}
                                 onClick={() => handleRowClick(inclusion)}
+                                tabIndex={0}
+                                aria-label={`Abrir detalhes da escalação #${inclusion.inclusionNumber ?? ''}`}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    handleRowClick(inclusion);
+                                  }
+                                }}
                               >
                                 <td className="px-4 py-3 whitespace-nowrap">
                                   <div className="flex items-center gap-2">
@@ -1714,9 +1761,11 @@ export default function Scaling() {
                                       #{inclusion.inclusionNumber || 'N/A'}
                                     </span>
                                     <button
+                                      type="button"
                                       className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 bg-slate-50 border border-slate-200 hover:bg-[#2563EB] hover:text-white hover:border-[#2563EB] transition-all duration-150"
                                       onClick={(e) => handleViewComments(e, inclusion)}
                                       title="Ver detalhes"
+                                      aria-label={`Ver detalhes da escalação #${inclusion.inclusionNumber ?? ''}`}
                                     >
                                       <Eye className="w-3.5 h-3.5" />
                                     </button>
@@ -1889,8 +1938,16 @@ export default function Scaling() {
                             {withTicket.map((inclusion, rowIdx) => (
                               <tr
                                 key={inclusion.id}
-                                className={`group/row transition-colors cursor-pointer ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'} hover:bg-blue-50/50 ${inclusion.status === 'cancelado' ? 'opacity-50' : ''}`}
+                                className={`group/row transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'} hover:bg-blue-50/50 ${inclusion.status === 'cancelado' ? 'opacity-50' : ''}`}
                                 onClick={() => handleRowClick(inclusion)}
+                                tabIndex={0}
+                                aria-label={`Abrir detalhes da escalação #${inclusion.inclusionNumber ?? ''}`}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    handleRowClick(inclusion);
+                                  }
+                                }}
                               >
                                 <td className="px-4 py-3 whitespace-nowrap">
                                   <div className="flex items-center gap-2">
@@ -1898,9 +1955,11 @@ export default function Scaling() {
                                       #{inclusion.inclusionNumber || 'N/A'}
                                     </span>
                                     <button
+                                      type="button"
                                       className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 bg-slate-50 border border-slate-200 hover:bg-[#2563EB] hover:text-white hover:border-[#2563EB] transition-all duration-150"
                                       onClick={(e) => handleViewComments(e, inclusion)}
                                       title="Ver detalhes"
+                                      aria-label={`Ver detalhes da escalação #${inclusion.inclusionNumber ?? ''}`}
                                     >
                                       <Eye className="w-3.5 h-3.5" />
                                     </button>
@@ -2093,8 +2152,17 @@ export default function Scaling() {
                   {ids.map((attachmentId, index) => (
                     <div
                       key={attachmentId}
-                      className="flex items-center gap-3 bg-white border border-slate-200 hover:border-[#2563EB] hover:bg-blue-50 rounded-xl px-4 py-3 cursor-pointer transition-all group"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Abrir ${label} ${index + 1}`}
+                      className="flex items-center gap-3 bg-white border border-slate-200 hover:border-[#2563EB] hover:bg-blue-50 rounded-xl px-4 py-3 cursor-pointer transition-all group focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
                       onClick={() => openAttachment(attachmentId, `${label} ${index + 1}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openAttachment(attachmentId, `${label} ${index + 1}`);
+                        }
+                      }}
                     >
                       <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
                         <FileText className="w-4 h-4 text-[#2563EB]" />
@@ -2331,7 +2399,10 @@ export default function Scaling() {
                                   if (!swap) return null;
 
                                   const isAdminOrPurchasing = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
-                                  const canCancel = swap.status === 'pendente' && (swap as any).requested_by === user?.id;
+                                  // O backend pode devolver snake_case ou camelCase — sem os dois o
+                                  // botão "Cancelar solicitação" nunca aparecia para quem pediu a troca.
+                                  const swapRequestedBy = (swap as any).requested_by ?? (swap as any).requestedBy;
+                                  const canCancel = swap.status === 'pendente' && !!user?.id && swapRequestedBy === user.id;
 
                                   const variants: Record<string, { bg: string; border: string; icon: React.ReactNode; title: string; badge: string; badgeClass: string; msg: string; textColor: string }> = {
                                     pendente: {
@@ -2615,8 +2686,13 @@ export default function Scaling() {
                                 </div>
                               </div>
                               {selectedInclusion.scheduleStartDate && selectedInclusion.scheduleEndDate && (() => {
-                                const startDate = parseISO(selectedInclusion.scheduleStartDate);
-                                const endDate = parseISO(selectedInclusion.scheduleEndDate);
+                                // parseDay: corta o timestamp e parseia como data LOCAL — com o ISO
+                                // completo o parseISO devolvia UTC e a grade caía um dia para trás.
+                                const startDate = parseDay(selectedInclusion.scheduleStartDate);
+                                const endDate = parseDay(selectedInclusion.scheduleEndDate);
+                                // eachDayOfInterval lança RangeError com data inválida ou fim < início
+                                // (derrubaria o modal inteiro).
+                                if (!startDate || !endDate || startDate > endDate) return null;
                                 const allDays = eachDayOfInterval({ start: startDate, end: endDate });
                                 const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
                                 return (
@@ -2738,8 +2814,17 @@ export default function Scaling() {
                                 {visible.map(({ id, label }, index) => (
                                   <div
                                     key={id}
-                                    className="flex items-center gap-3 bg-white border border-slate-200 hover:border-[#2563EB] hover:bg-blue-50 rounded-xl px-3 py-2.5 cursor-pointer transition-all group"
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-label={`Abrir ${label} · Anexo ${index + 1}`}
+                                    className="flex items-center gap-3 bg-white border border-slate-200 hover:border-[#2563EB] hover:bg-blue-50 rounded-xl px-3 py-2.5 cursor-pointer transition-all group focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
                                     onClick={() => openAttachment(id, `${label} · Anexo ${index + 1}`)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        openAttachment(id, `${label} · Anexo ${index + 1}`);
+                                      }
+                                    }}
                                   >
                                     <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
                                       <FileText className="w-3.5 h-3.5 text-[#2563EB]" />
@@ -3175,7 +3260,8 @@ export default function Scaling() {
                           ) : (
                             <div>
                               <div className="border-l-2 border-slate-100 ml-3 pl-4 space-y-2 max-h-72 overflow-y-auto">
-                                {inclusionLogs
+                                {/* cópia antes do sort: .sort() mutaria o array do cache do React Query */}
+                                {[...inclusionLogs]
                                   .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
                                   .slice(0, showAllLogs ? undefined : 5)
                                   .map((log) => {
@@ -3368,7 +3454,10 @@ export default function Scaling() {
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={async () => {
                     try {
-                      const res = await fetch(lightbox.url);
+                      // Sem checar res.ok, um 401/404 era baixado como se
+                      // fosse o documento (arquivo com o corpo do erro dentro).
+                      const res = await fetch(lightbox.url, { credentials: "include" });
+                      if (!res.ok) throw new Error(res.status === 401 ? "Sessão expirada" : "Não foi possível baixar o anexo");
                       const blob = await res.blob();
                       const blobUrl = URL.createObjectURL(blob);
                       const a = document.createElement('a');
@@ -3396,6 +3485,9 @@ export default function Scaling() {
                   Abrir em outra aba
                 </button>
                 <button
+                  type="button"
+                  aria-label="Fechar visualização do anexo"
+                  title="Fechar"
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={() => setLightbox(null)}
                   className="hover:bg-slate-100 rounded-lg p-1.5 text-slate-400 transition-colors"
@@ -3416,18 +3508,6 @@ export default function Scaling() {
           </div>
         </div>,
         document.body
-      )}
-
-      {/* Modal de Comentários */}
-      {selectedInclusionForComments && (
-        <CommentsModal
-          open={showCommentsModal}
-          onClose={() => {
-            setShowCommentsModal(false);
-            setSelectedInclusionForComments(null);
-          }}
-          teamInclusionId={selectedInclusionForComments}
-        />
       )}
 
       {/* ── Modal formulário de troca ── */}
@@ -3451,10 +3531,10 @@ export default function Scaling() {
               aprovacao: "Em aprovação", aprovado: "Aprovado", cancelado: "Cancelado",
             };
             const statusLabel = statusLabels[selectedInclusion.status] || selectedInclusion.status;
-            const hasTicket = selectedInclusion.needsTicket;
-            const hasAccommodation = selectedInclusion.needsAccommodation;
-            const startDate = selectedInclusion.scheduleStartDate ? format(parseISO(selectedInclusion.scheduleStartDate), "dd/MM/yyyy", { locale: ptBR }) : null;
-            const endDate = selectedInclusion.scheduleEndDate ? format(parseISO(selectedInclusion.scheduleEndDate), "dd/MM/yyyy", { locale: ptBR }) : null;
+            const startDay = parseDay(selectedInclusion.scheduleStartDate);
+            const endDay = parseDay(selectedInclusion.scheduleEndDate);
+            const startDate = startDay ? format(startDay, "dd/MM/yyyy", { locale: ptBR }) : null;
+            const endDate = endDay ? format(endDay, "dd/MM/yyyy", { locale: ptBR }) : null;
             const periodo = startDate && endDate ? `${startDate} a ${endDate}` : startDate || endDate || "—";
 
             return (
@@ -3549,10 +3629,11 @@ export default function Scaling() {
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-[10px] uppercase tracking-wide font-semibold text-slate-500">Motivo da troca <span className="text-red-500">*</span></label>
+                        <label htmlFor="swap-reason" className="text-[10px] uppercase tracking-wide font-semibold text-slate-500">Motivo da troca <span className="text-red-500">*</span></label>
                         <span className={`text-[10px] ${swapReason.trim().length >= 10 ? "text-green-500" : "text-slate-300"}`}>{swapReason.trim().length}/10</span>
                       </div>
                       <Textarea
+                        id="swap-reason"
                         value={swapReason}
                         onChange={(e) => { setSwapReason(e.target.value); setSwapSubmitAttempted(false); }}
                         placeholder="Informe o motivo da troca. Ex: colaborador indisponível, ajuste operacional ou substituição solicitada."
@@ -3607,8 +3688,6 @@ export default function Scaling() {
           {selectedInclusion && (() => {
             const currentCollabName = getCollaboratorName(selectedInclusion.collaboratorId || undefined);
             const newCollabName = swapNewCollaboratorId ? getCollaboratorName(swapNewCollaboratorId) : null;
-            const hasTicket = selectedInclusion.needsTicket;
-            const hasAccommodation = selectedInclusion.needsAccommodation;
             return (
               <div className="px-8 py-8">
                 {/* Ícone de sucesso */}
@@ -3758,8 +3837,9 @@ export default function Scaling() {
               </div>
             </div>
             <div>
-              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Motivo da recusa <span className="text-red-400">*</span></label>
+              <label htmlFor="swap-reject-reason" className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Motivo da recusa <span className="text-red-400">*</span></label>
               <textarea
+                id="swap-reject-reason"
                 value={swapRejectReason}
                 onChange={e => setSwapRejectReason(e.target.value)}
                 className="mt-1.5 w-full border border-slate-200 rounded-xl p-2.5 text-[13px] text-slate-700 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300"
@@ -3780,42 +3860,6 @@ export default function Scaling() {
                 disabled={rejectSwapMutation.isPending || !swapRejectReason.trim()}
               >
                 {rejectSwapMutation.isPending ? "Recusando..." : "Confirmar recusa"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Confirm: Aprovar escalação (sem passagem/hospedagem) ── */}
-      <Dialog open={showApproveConfirm} onOpenChange={(open) => { if (!open) setShowApproveConfirm(false); }}>
-        <DialogContent className="max-w-[400px] p-0 gap-0 rounded-2xl overflow-hidden">
-          <div className="px-6 py-6 space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
-                <Check className="w-4 h-4 text-emerald-600" />
-              </div>
-              <div>
-                <DialogTitle className="text-[14px] font-bold text-slate-900 leading-tight mb-0.5">Aprovar escalação?</DialogTitle>
-                <p className="text-[12px] text-slate-500 leading-relaxed">
-                  A escalação será marcada como <span className="font-semibold text-slate-700">Aprovada</span>. Essa ação não pode ser desfeita sem cancelar a escalação.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2 pt-1">
-              <Button
-                variant="outline"
-                className="flex-1 rounded-xl h-9 text-[12px] border-slate-200 text-slate-600 hover:bg-slate-50"
-                onClick={() => setShowApproveConfirm(false)}
-                disabled={approveEscalationMutation.isPending}
-              >
-                Cancelar
-              </Button>
-              <Button
-                className="flex-1 rounded-xl h-9 text-[12px] bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => { if (selectedInclusion) approveEscalationMutation.mutate(selectedInclusion.id); }}
-                disabled={approveEscalationMutation.isPending}
-              >
-                {approveEscalationMutation.isPending ? "Aprovando..." : "Sim, aprovar"}
               </Button>
             </div>
           </div>

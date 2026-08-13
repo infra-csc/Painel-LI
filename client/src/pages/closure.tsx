@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { formatDias, formatDiarias, fixEncoding } from "@/lib/utils";
+import { formatDias, formatDiarias, fixEncoding, parseBrNumber } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +11,32 @@ import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
 import CollaboratorModal from "@/components/modals/collaborator-modal";
 import SimpleFilters from "@/components/common/simple-filters";
-import { Calculator, Save, DollarSign, Plus, Copy } from "lucide-react";
+import { Calculator, Save, DollarSign, Plus, Copy, AlertTriangle } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Financial, Ticket } from "@shared/schema";
+
+// Preserva a semântica de Array.find (o primeiro registro vence) trocando
+// buscas O(n) dentro do render por um índice O(1).
+function indexBy<T>(rows: T[] | undefined, key: (row: T) => string | null | undefined) {
+  const map = new Map<string, T>();
+  for (const row of rows || []) {
+    const k = key(row);
+    if (k && !map.has(k)) map.set(k, row);
+  }
+  return map;
+}
+
+// Divide um total em centavos entre N registros sem perder nem inventar
+// centavo: a sobra da divisão vai para os primeiros da lista.
+function splitCents(totalCents: number, parts: number): number[] {
+  if (parts <= 0) return [];
+  const base = Math.floor(totalCents / parts);
+  let rest = totalCents - base * parts;
+  return Array.from({ length: parts }, () => {
+    const extra = rest > 0 ? 1 : 0;
+    if (rest > 0) rest--;
+    return base + extra;
+  });
+}
 
 // Helper: Mostrar "Escalado" apenas quando não precisa passagem nem hospedagem
 const getDisplayStatus = (inclusion: TeamInclusion) => {
@@ -58,6 +82,7 @@ const getGroupDateRange = (inclusions: TeamInclusion[]) => {
 export default function Closure() {
   const [financialData, setFinancialData] = useState<Record<string, any>>({});
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
+  const [submittingGroup, setSubmittingGroup] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     eventId: "all",
     functionId: [] as string[],
@@ -67,7 +92,7 @@ export default function Closure() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: teamInclusions, isLoading } = useQuery<TeamInclusion[]>({
+  const { data: teamInclusions, isLoading, isError, error, refetch, isFetching } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions"],
   });
 
@@ -113,10 +138,12 @@ export default function Closure() {
   });
 
   // Filter inclusions that need financial closure
-  const closureInclusions = teamInclusions?.filter(
+  // (memoizado: sem isto o array mudava de identidade a cada render e o
+  // useMemo do agrupamento abaixo recalculava sempre)
+  const closureInclusions = useMemo(() => teamInclusions?.filter(
     inclusion => {
       const statusMatch = inclusion.status === "fechamento" && inclusion.collaboratorId;
-      
+
       // Apply simple filters (event, function, collaborator, and search ID)
       if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
       if (filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;
@@ -126,10 +153,10 @@ export default function Closure() {
         if (!(String(inclusion.inclusionNumber ?? '').toLowerCase().includes(q) ||
           inclusion.id.toLowerCase().includes(q))) return false;
       }
-      
+
       return statusMatch;
     }
-  ) || [];
+  ) || [], [teamInclusions, filters]);
 
 
   // Group inclusions by collaborator + event for unified closure
@@ -152,18 +179,20 @@ export default function Closure() {
       const firstInclusion = inclusions[0];
       // Calculate daily rates based on actual date range
       const dateRange = getGroupDateRange(inclusions);
-      const groupDailyRates = dateRange.startDate && dateRange.endDate 
+      const groupDailyRates = dateRange.startDate && dateRange.endDate
         ? calculateDailyRates(dateRange.startDate, dateRange.endDate)
         : inclusions.reduce((sum, inc) => sum + inc.dailyRates, 0);
       const totalDailyValue = inclusions.reduce((sum, inc) => sum + (inc.dailyValue * inc.dailyRates), 0);
-      
+
       return {
         groupKey,
         inclusions,
         representative: {
           ...firstInclusion,
           dailyRates: groupDailyRates,
-          dailyValue: Math.round(totalDailyValue / groupDailyRates), // Average daily value
+          // Guarda contra divisão por zero (datas ausentes/invertidas geram
+          // groupDailyRates 0, o que exibia "R$ ∞" ou "R$ NaN").
+          dailyValue: groupDailyRates > 0 ? Math.round(totalDailyValue / groupDailyRates) : 0, // Average daily value
         },
         totalDailyValue,
         ids: inclusions.map(inc => inc.id),
@@ -172,25 +201,42 @@ export default function Closure() {
     });
   }, [closureInclusions]);
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast({
-      title: "Copiado",
-      description: `${label} copiado para a área de transferência`,
-    });
+  const copyToClipboard = async (text: string, label: string) => {
+    // writeText pode falhar (contexto não-seguro, permissão negada); avisar
+    // "Copiado" sem ter copiado é feedback enganoso.
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({
+        title: "Copiado",
+        description: `${label} copiado para a área de transferência`,
+      });
+    } catch {
+      toast({
+        title: "Não foi possível copiar",
+        description: `Copie manualmente: ${text}`,
+        variant: "destructive",
+      });
+    }
   };
 
+  // Índices O(1) — antes cada card refazia finds nas listas inteiras.
+  const eventById = useMemo(() => indexBy(events, e => e.id), [events]);
+  const functionById = useMemo(() => indexBy(functions, f => f.id), [functions]);
+  const collaboratorById = useMemo(() => indexBy(collaborators, c => c.id), [collaborators]);
+  const ticketByInclusion = useMemo(() => indexBy(tickets, t => t.teamInclusionId), [tickets]);
+  const financialByInclusion = useMemo(() => indexBy(financials, f => f.teamInclusionId), [financials]);
+
   const getEventName = (eventId: string) => {
-    return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
+    return eventById.get(eventId)?.name || "Evento não encontrado";
   };
 
   const getFunctionName = (functionId: string) => {
-    return functions?.find(f => f.id === functionId)?.name || "Função não encontrada";
+    return functionById.get(functionId)?.name || "Função não encontrada";
   };
 
   const getCollaboratorName = (collaboratorId?: string) => {
     if (!collaboratorId) return "Não escalado";
-    return fixEncoding(collaborators?.find(c => c.id === collaboratorId)?.fullName) || "Colaborador não encontrado";
+    return fixEncoding(collaboratorById.get(collaboratorId)?.fullName) || "Colaborador não encontrado";
   };
 
   const formatCurrency = (value: number) => {
@@ -200,28 +246,18 @@ export default function Closure() {
     }).format(value);
   };
 
-  const formatDate = (dateStr: string) => {
+  const formatDate = (dateStr?: string | null) => {
     // Parse manual para evitar problemas de timezone
-    const [year, month, day] = dateStr.split('-');
-    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-    return date.toLocaleDateString("pt-BR");
+    if (!dateStr) return "—";
+    const [year, month, day] = String(dateStr).slice(0, 10).split('-').map(Number);
+    if (!year || !month || !day) return "—";
+    return new Date(year, month - 1, day).toLocaleDateString("pt-BR");
   };
 
 
-  const getTicket = (inclusionId: string) => {
-    return tickets?.find(ticket => ticket.teamInclusionId === inclusionId);
-  };
+  const getTicket = (inclusionId: string) => ticketByInclusion.get(inclusionId);
 
-  const getFinancial = (inclusionId: string) => {
-    return financials?.find(financial => financial.teamInclusionId === inclusionId);
-  };
-
-  const calculateTotalValue = (inclusion: TeamInclusion) => {
-    const ticket = getTicket(inclusion.id);
-    const ticketValue = ticket?.value || 0;
-    const plannedDailyValue = inclusion.dailyValue * inclusion.dailyRates;
-    return (ticketValue / 100) + (plannedDailyValue / 100);
-  };
+  const getFinancial = (inclusionId: string) => financialByInclusion.get(inclusionId);
 
 
   const handleFinancialDataChange = (groupKey: string, field: string, value: any) => {
@@ -257,78 +293,21 @@ export default function Closure() {
     });
   };
 
-  const calculateProgress = (inclusion: TeamInclusion) => {
-    const data = financialData[inclusion.id] || {};
-    let completed = 0;
-    let total = 4; // start date, end date, daily count, daily value
-    
-    // Check required fields
-    if (data.actualStartDate) completed++;
-    if (data.actualEndDate) completed++;
-    if (data.actualDailyRatesCount) completed++;
-    if (data.actualDailyRates) completed++;
-    
-    return { completed, total };
+  const mutationErrorText = (e: any, fallback: string) => {
+    if (e?.status === 401) return "Sua sessão expirou. Entre novamente para continuar.";
+    if (e?.status === 403) return "Você não tem permissão para registrar o fechamento.";
+    return e?.body?.message || e?.message || fallback;
   };
 
-  const handleFinancialClosure = async (inclusion: TeamInclusion) => {
-    const data = financialData[inclusion.id] || {};
-    
-    if (!data.actualDailyRates) {
-      toast({
-        title: "Erro",
-        description: "Preencha o valor total das diárias realizadas",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      // First create the financial record
-      await createFinancialMutation.mutateAsync({
-        teamInclusionId: inclusion.id,
-        actualDailyRates: parseInt(data.actualDailyRatesCount || "0"), // Quantity of daily rates
-        actualValue: Math.round(parseFloat(data.actualDailyRates) * 100), // Total value in cents
-        actualFee: 0, // Fee field removed as per user request
-        observations: data.observations || null
-      });
-
-      // Then update team inclusion status to approved
-      await updateTeamInclusionMutation.mutateAsync({
-        id: inclusion.id,
-        data: {
-          status: "aprovado",
-          phase: "aprovado"
-        }
-      });
-
-      // Show success message only if both operations succeed
-      toast({
-        title: "Sucesso",
-        description: "Fechamento financeiro registrado com sucesso",
-      });
-
-      // Clear the form data for this inclusion
-      setFinancialData(prev => {
-        const newData = { ...prev };
-        delete newData[inclusion.id];
-        return newData;
-      });
-
-    } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao registrar fechamento financeiro",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // New function for handling grouped closure
+  // Fechamento agrupado (o único usado pela tela — a versão por inclusão
+  // isolada era código morto e lia financialData por um id que nunca existe,
+  // já que o formulário é indexado por groupKey).
   const handleFinancialClosureGroup = async (group: any) => {
+    if (submittingGroup) return; // trava de duplo clique
     const data = financialData[group.groupKey] || {};
-    
-    if (!data.actualDailyRates) {
+
+    const totalValue = parseBrNumber(data.actualDailyRates);
+    if (!data.actualDailyRates || !(totalValue > 0)) {
       toast({
         title: "Erro",
         description: "Preencha o valor total das diárias realizadas",
@@ -337,17 +316,36 @@ export default function Closure() {
       return;
     }
 
+    // A quantidade de diárias só é preenchida quando as duas datas existem.
+    // Sem esta validação o fechamento era gravado com 0 diárias — número que
+    // depois alimenta o Planejado e o comparativo.
+    const dailyRatesCount = parseInt(data.actualDailyRatesCount || "0", 10);
+    if (!Number.isFinite(dailyRatesCount) || dailyRatesCount <= 0) {
+      toast({
+        title: "Informe o período trabalhado",
+        description: "Preencha as datas de início e fim para calcular a quantidade de diárias.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSubmittingGroup(group.groupKey);
+
+    // O valor por pessoa precisa ser inteiro em centavos: a divisão simples
+    // gerava frações (ex.: 10000/3) que o servidor rejeitava como inválidas.
+    const totalCents = Math.round(totalValue * 100);
+    const perPerson = splitCents(totalCents, group.inclusions.length);
+
+    let processed = 0;
     try {
-      // Calculate the actual daily rate amount per person for the group
-      const totalValuePerPerson = Math.round(parseFloat(data.actualDailyRates) * 100) / group.inclusions.length;
-      
       // Process all inclusions in the group
-      for (const inclusion of group.inclusions) {
+      for (let i = 0; i < group.inclusions.length; i++) {
+        const inclusion = group.inclusions[i];
         // Create the financial record for each inclusion
         await createFinancialMutation.mutateAsync({
           teamInclusionId: inclusion.id,
-          actualDailyRates: parseInt(data.actualDailyRatesCount || "0"), // Actual quantity of daily rates calculated from dates
-          actualValue: totalValuePerPerson, // Value per person in cents
+          actualDailyRates: dailyRatesCount, // Actual quantity of daily rates calculated from dates
+          actualValue: perPerson[i], // Value per person in cents
           actualFee: 0, // Fee field removed as per user request
           observations: data.observations || null
         });
@@ -360,6 +358,7 @@ export default function Closure() {
             phase: "aprovado"
           }
         });
+        processed++;
       }
 
       toast({
@@ -377,9 +376,14 @@ export default function Closure() {
     } catch (error) {
       toast({
         title: "Erro",
-        description: "Erro ao registrar fechamento financeiro",
+        // Fechamento parcial precisa ser dito: parte do grupo já foi gravada.
+        description: processed > 0
+          ? `${processed} de ${group.inclusions.length} escalações foram fechadas antes da falha. ${mutationErrorText(error, "Confira a lista antes de tentar de novo.")}`
+          : mutationErrorText(error, "Erro ao registrar fechamento financeiro"),
         variant: "destructive",
       });
+    } finally {
+      setSubmittingGroup(null);
     }
   };
 
@@ -392,6 +396,26 @@ export default function Closure() {
             <div key={i} className="h-32 bg-muted rounded"></div>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  // Falha de rede/sessão não pode virar "nenhum fechamento pendente".
+  if (isError) {
+    return (
+      <div className="bg-card rounded-lg shadow-sm border border-border p-12 text-center">
+        <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-foreground mb-2">Não foi possível carregar os fechamentos</h3>
+        <p className="text-muted-foreground mb-4">
+          {(error as any)?.status === 401
+            ? "Sua sessão expirou. Entre novamente para continuar."
+            : (error as any)?.status === 403
+            ? "Você não tem permissão para acessar esta tela."
+            : (error as any)?.body?.message || "Verifique sua conexão e tente novamente."}
+        </p>
+        <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
+          {isFetching ? "Tentando..." : "Tentar novamente"}
+        </Button>
       </div>
     );
   }
@@ -460,6 +484,7 @@ export default function Closure() {
                                     size="sm"
                                     variant="ghost"
                                     className="p-1 h-6 w-6 hover:bg-amber-200 dark:hover:bg-amber-800"
+                                    aria-label="Copiar IDs do fechamento agrupado"
                                     onClick={() => copyToClipboard(group.inclusionNumbers.join(', '), "IDs")}
                                     data-testid={`button-copy-id-${group.groupKey}`}
                                   >
@@ -485,6 +510,7 @@ export default function Closure() {
                                   size="sm"
                                   variant="ghost"
                                   className="p-1 h-6 w-6"
+                                  aria-label={`Copiar ID #${group.inclusionNumbers[0] ?? ''}`}
                                   onClick={() => copyToClipboard(group.inclusionNumbers.join(', '), "IDs")}
                                   data-testid={`button-copy-id-${group.groupKey}`}
                                 >
@@ -666,11 +692,13 @@ export default function Closure() {
                             <div className="md:col-span-2 flex justify-end">
                               <Button
                                 onClick={() => handleFinancialClosureGroup(group)}
-                                disabled={createFinancialMutation.isPending}
+                                // Antes o botão reabilitava entre as duas
+                                // mutações do fluxo, permitindo duplo envio.
+                                disabled={submittingGroup !== null}
                                 data-testid={`button-close-${group.groupKey}`}
                               >
                                 <Save className="w-4 h-4 mr-2" />
-                                {createFinancialMutation.isPending ? "Registrando..." : "Registrar Fechamento"}
+                                {submittingGroup === group.groupKey ? "Registrando..." : "Registrar Fechamento"}
                               </Button>
                             </div>
                           </div>

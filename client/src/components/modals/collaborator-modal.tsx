@@ -139,8 +139,6 @@ export default function CollaboratorModal({
         type: data.type,
         phone: data.phone,
         city: data.city,
-        _userId: user?.id,
-        _userRole: user?.role,
       };
 
       const response = isEdit && collaborator

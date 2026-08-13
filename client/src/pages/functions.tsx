@@ -1,10 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +37,13 @@ function initials(name: string) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+/** Mensagem legível a partir do erro enriquecido pelo apiRequest (.status/.body). */
+function fnErrMsg(err: any, fallback: string) {
+  if (err?.status === 401) return "Sua sessão expirou. Entre novamente para continuar.";
+  if (err?.status === 403) return "Você não tem permissão para esta ação.";
+  return err?.body?.message || fallback;
+}
+
 // ─── Schemas ───────────────────────────────────────────────────────────────
 const functionFormSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -47,11 +54,11 @@ type FunctionFormData = z.infer<typeof functionFormSchema>;
 const MGPOP_W = 260;
 
 function ManagersPopover({
-  functionName, managers, users, x, y, onRemove, onClose,
+  functionName, managers, usersById, x, y, onRemove, onClose,
 }: {
   functionName: string;
   managers: (FunctionManager & { user?: UserType })[];
-  users: UserType[];
+  usersById: Map<string, UserType>;
   x: number; y: number;
   onRemove: (userId: string) => void;
   onClose: () => void;
@@ -64,9 +71,17 @@ function ManagersPopover({
   const left = Math.max(8, Math.min(window.innerWidth - MGPOP_W - 8, rawLeft));
   const top  = Math.max(8, Math.min(window.innerHeight - popH - 8, y - popH / 2));
 
+  // Só era possível fechar clicando fora — Esc não fazia nada.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-[70]" onClick={onClose}>
+    <div className="fixed inset-0 z-[70]" role="presentation" onClick={onClose}>
       <div className="absolute bg-white overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        role="dialog" aria-label={`Responsáveis por ${functionName}`}
         style={{ width: MGPOP_W, left, top, borderRadius: 12, border: "1px solid #E9EDFF", boxShadow: "0 8px 32px -4px rgba(20,27,43,0.15), 0 2px 8px -1px rgba(0,0,0,0.06)" }}
         onClick={e => e.stopPropagation()}>
         <div style={{ padding: "12px 14px 10px", borderBottom: "1px solid #F1F3FF" }}>
@@ -75,7 +90,7 @@ function ManagersPopover({
         </div>
         <div className="py-1 divide-y divide-[#F8FAFC] max-h-72 overflow-y-auto">
           {managers.map(fm => {
-            const u = users.find(uid => uid.id === fm.userId);
+            const u = usersById.get(fm.userId);
             const displayName = u?.name || u?.email || "Usuário";
             const [bg, txt] = avatarColor(fm.userId);
             const isConfirming = confirmId === fm.userId;
@@ -95,7 +110,8 @@ function ManagersPopover({
                   </div>
                 ) : (
                   <button onClick={e => { e.stopPropagation(); setConfirmId(fm.userId); }}
-                    className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-red-500 p-1 rounded hover:bg-red-50">
+                    aria-label={`Remover ${displayName} dos responsáveis`}
+                    className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-slate-300 hover:text-red-500 p-1 rounded hover:bg-red-50">
                     <span className="material-symbols-outlined" style={{ fontSize: 18 }}>person_remove</span>
                   </button>
                 )}
@@ -129,18 +145,30 @@ function FunctionManagersCell({ functionId, functionName }: { functionId: string
       setSelectedUserId(""); setIsOpen(false);
       toast({ title: "Responsável adicionado!" });
     },
-    onError: () => toast({ title: "Erro ao adicionar responsável", variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Erro ao adicionar responsável", description: fnErrMsg(err, "Tente novamente."), variant: "destructive" }),
   });
   const removeManagerMutation = useMutation({
     mutationFn: async (userId: string) => (await apiRequest("DELETE", `/api/functions/${functionId}/managers/${userId}`)).json(),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: [`/api/functions/${functionId}/managers`] }); toast({ title: "Responsável removido." }); },
-    onError: () => toast({ title: "Erro ao remover", variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Erro ao remover responsável", description: fnErrMsg(err, "Tente novamente."), variant: "destructive" }),
   });
 
-  const managers = functionManagers ?? [];
+  const managers = useMemo(() => functionManagers ?? [], [functionManagers]);
   const visible  = managers.slice(0, 3);
   const overflow = managers.length > 3 ? managers.length - 3 : 0;
-  const availableUsers = users?.filter(u => !managers.some(fm => fm.userId === u.id)) || [];
+
+  // find() por usuário dentro do map rodava a cada linha da tabela × responsável.
+  // O Map preserva a semântica de "primeiro registro vence" do find original.
+  const usersById = useMemo(() => {
+    const m = new Map<string, UserType>();
+    for (const u of users ?? []) if (!m.has(u.id)) m.set(u.id, u);
+    return m;
+  }, [users]);
+
+  const availableUsers = useMemo(() => {
+    const taken = new Set(managers.map(fm => fm.userId));
+    return (users ?? []).filter(u => !taken.has(u.id));
+  }, [users, managers]);
 
   return (
     <div className="flex items-center gap-2">
@@ -154,10 +182,18 @@ function FunctionManagersCell({ functionId, functionName }: { functionId: string
       {managers.length > 0 && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex items-center cursor-pointer"
-              onClick={e => { e.stopPropagation(); setPopover({ x: e.clientX, y: e.clientY }); }}>
+            <div className="flex items-center cursor-pointer rounded focus:outline-none focus:ring-2 focus:ring-blue-600/30"
+              role="button" tabIndex={0}
+              aria-label={`Ver os ${managers.length} responsáveis por ${functionName}`}
+              onClick={e => { e.stopPropagation(); setPopover({ x: e.clientX, y: e.clientY }); }}
+              onKeyDown={(e: ReactKeyboardEvent<HTMLDivElement>) => {
+                if (e.key !== "Enter" && e.key !== " ") return;
+                e.preventDefault(); e.stopPropagation();
+                const r = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                setPopover({ x: r.right, y: r.top + r.height / 2 });
+              }}>
               {visible.map((fm, i) => {
-                const u = users?.find(uid => uid.id === fm.userId);
+                const u = usersById.get(fm.userId);
                 const displayName = u?.name || u?.email || "Usuário";
                 const [bg, txt] = avatarColor(fm.userId);
                 return (
@@ -165,8 +201,10 @@ function FunctionManagersCell({ functionId, functionName }: { functionId: string
                     style={{ marginLeft: i === 0 ? 0 : -8, zIndex: visible.length - i }}>
                     <span className={`text-[10px] font-bold ${txt}`}>{initials(displayName)}</span>
                     <button
-                      className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-white shadow border border-gray-100 hidden group-hover:flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 z-20 transition-colors"
+                      className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-white shadow border border-gray-100 hidden group-hover:flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 z-20 transition-colors disabled:opacity-40"
                       onClick={e => { e.stopPropagation(); removeManagerMutation.mutate(fm.userId); }}
+                      disabled={removeManagerMutation.isPending}
+                      aria-label={`Remover ${displayName} dos responsáveis`}
                       data-testid={`button-remove-function-manager-${fm.userId}`}
                     >
                       <X className="w-2 h-2" />
@@ -190,7 +228,7 @@ function FunctionManagersCell({ functionId, functionName }: { functionId: string
       )}
 
       {popover && (
-        <ManagersPopover functionName={functionName} managers={managers} users={users ?? []}
+        <ManagersPopover functionName={functionName} managers={managers} usersById={usersById}
           x={popover.x} y={popover.y}
           onRemove={userId => removeManagerMutation.mutate(userId)}
           onClose={() => setPopover(null)} />
@@ -199,7 +237,8 @@ function FunctionManagersCell({ functionId, functionName }: { functionId: string
       {/* Add button */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
-          <button className="w-7 h-7 rounded-full border border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-[#004ac6] hover:text-[#004ac6] transition-colors"
+          <button type="button" aria-label={`Adicionar responsável a ${functionName}`}
+            className="w-7 h-7 rounded-full border border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-[#004ac6] hover:text-[#004ac6] transition-colors"
             data-testid={`button-add-function-manager-${functionId}`}>
             <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
           </button>
@@ -210,16 +249,16 @@ function FunctionManagersCell({ functionId, functionName }: { functionId: string
               <h3 style={{ fontSize: 16, fontWeight: 800, color: "#141b2b", margin: 0, fontFamily: "Manrope, sans-serif" }}>Adicionar Responsável</h3>
               <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 3, textTransform: "capitalize" }}>{functionName}</p>
             </div>
-            <button onClick={() => setIsOpen(false)} style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
+            <button type="button" onClick={() => setIsOpen(false)} aria-label="Fechar" style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
               className="hover:bg-slate-100 transition-colors">
               <X className="w-4 h-4" />
             </button>
           </div>
 
           <div style={{ padding: "20px 24px" }}>
-            <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Usuário</label>
+            <label htmlFor={`select-function-manager-${functionId}`} style={{ display: "block", fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Usuário</label>
             <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-              <SelectTrigger className="h-10 text-sm border-0 bg-[#f1f3ff] rounded-lg focus:ring-2 focus:ring-blue-600/20" data-testid={`select-function-manager-${functionId}`}>
+              <SelectTrigger id={`select-function-manager-${functionId}`} aria-label="Selecionar usuário responsável" className="h-10 text-sm border-0 bg-[#f1f3ff] rounded-lg focus:ring-2 focus:ring-blue-600/20" data-testid={`select-function-manager-${functionId}`}>
                 <SelectValue placeholder="Selecione um usuário..." />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
@@ -277,7 +316,7 @@ export default function Functions() {
     defaultValues: { name: "" },
   });
 
-  const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
+  const { data: functions, isLoading, isError, error, refetch } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
 
   const sortedFunctions = useMemo(() => {
     if (!functions) return [];
@@ -291,17 +330,17 @@ export default function Functions() {
   const updateFunctionMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: FunctionFormData }) => (await apiRequest("PATCH", `/api/functions/${id}`, data)).json(),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/functions"] }); toast({ title: "Função atualizada!" }); handleCloseDialog(); },
-    onError: () => toast({ title: "Erro ao atualizar função", variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Erro ao atualizar função", description: fnErrMsg(err, "Tente novamente."), variant: "destructive" }),
   });
   const createFunctionMutation = useMutation({
     mutationFn: async (data: FunctionFormData) => (await apiRequest("POST", "/api/functions", data)).json(),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/functions"] }); toast({ title: "Função criada!" }); handleCloseDialog(); },
-    onError: () => toast({ title: "Erro ao salvar função", variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Erro ao salvar função", description: fnErrMsg(err, "Tente novamente."), variant: "destructive" }),
   });
   const deleteFunctionMutation = useMutation({
     mutationFn: async (id: string) => (await apiRequest("DELETE", `/api/functions/${id}`)).json(),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/functions"] }); toast({ title: "Função removida." }); },
-    onError: () => toast({ title: "Erro ao remover função. Pode haver escalações vinculadas.", variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Erro ao remover função", description: fnErrMsg(err, "Pode haver escalações vinculadas."), variant: "destructive" }),
   });
 
   const handleOpenDialog = (fn?: Function) => { setEditingFunction(fn ?? null); form.reset({ name: fn?.name ?? "" }); setIsDialogOpen(true); };
@@ -312,7 +351,11 @@ export default function Functions() {
   };
   const handleDelete = (id: string) => {
     setConfirmState({ open: true, title: 'Remover função?', message: 'Esta ação não pode ser desfeita.', confirmLabel: 'Remover',
-      onConfirm: () => { setConfirmState(p => ({ ...p, open: false })); deleteFunctionMutation.mutate(id); } });
+      onConfirm: () => {
+        setConfirmState(p => ({ ...p, open: false }));
+        if (deleteFunctionMutation.isPending) return;
+        deleteFunctionMutation.mutate(id);
+      } });
   };
 
   const isPending = createFunctionMutation.isPending || updateFunctionMutation.isPending;
@@ -340,7 +383,9 @@ export default function Functions() {
             </div>
           </div>
 
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          {/* Fechar por Esc/overlay precisa limpar editingFunction — senão a próxima
+              abertura reaproveitava o estado de edição anterior. */}
+          <Dialog open={isDialogOpen} onOpenChange={v => { if (v) setIsDialogOpen(true); else handleCloseDialog(); }}>
             <DialogTrigger asChild>
               <button onClick={() => handleOpenDialog()} data-testid="button-add-function"
                 style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", background: "#0033CC", color: "white", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 12px rgba(0,51,204,0.3)" }}
@@ -356,7 +401,7 @@ export default function Functions() {
                 <h3 style={{ fontSize: 18, fontWeight: 800, color: "#141b2b", margin: 0, fontFamily: "Manrope, sans-serif" }}>
                   {editingFunction ? "Editar Função" : "Nova Função"}
                 </h3>
-                <button onClick={handleCloseDialog} style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
+                <button type="button" onClick={handleCloseDialog} aria-label="Fechar" style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
                   className="hover:bg-slate-100 transition-colors">
                   <span className="material-symbols-outlined" style={{ fontSize: 20 }}>close</span>
                 </button>
@@ -367,11 +412,11 @@ export default function Functions() {
                   <form onSubmit={form.handleSubmit(handleSubmit)} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                     <FormField control={form.control} name="name" render={({ field }) => (
                       <div>
-                        <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
+                        <label htmlFor="function-name" style={{ display: "block", fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
                           Nome da Função <span style={{ color: "#EF4444" }}>*</span>
                         </label>
                         <FormControl>
-                          <input placeholder="Ex: Atendimento, Palco, Som..."
+                          <input id="function-name" placeholder="Ex: Atendimento, Palco, Som..."
                             data-testid="input-function-name"
                             style={{ width: "100%", height: 42, fontSize: 14, padding: "0 16px", border: "none", borderRadius: 10, background: "#f1f3ff", color: "#141b2b", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
                             className="focus:ring-2 focus:ring-blue-600/20"
@@ -411,22 +456,21 @@ export default function Functions() {
           <div style={{ padding: "16px 24px", borderBottom: "1px solid #E9EDFF", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
             <div style={{ position: "relative", flex: 1, maxWidth: 400 }}>
               <span className="material-symbols-outlined" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 18, color: "#94A3B8", pointerEvents: "none" }}>search</span>
-              <input placeholder="Buscar por função ou responsável..." value={search} onChange={e => setSearch(e.target.value)}
+              {/* A busca filtra apenas o nome da função; o texto antigo prometia
+                  também "responsável", que não é filtrado aqui. */}
+              <input id="functions-search" aria-label="Buscar função pelo nome"
+                placeholder="Buscar função pelo nome..." value={search} onChange={e => setSearch(e.target.value)}
                 style={{ width: "100%", height: 40, fontSize: 13, paddingLeft: 40, paddingRight: search ? 36 : 14, border: "none", borderRadius: 10, background: "#f1f3ff", color: "#374151", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
                 className="focus:ring-2 focus:ring-blue-600/20 transition-shadow" />
               {search && (
-                <button onClick={() => setSearch("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94A3B8", display: "flex" }}
+                <button onClick={() => setSearch("")} aria-label="Limpar busca" style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94A3B8", display: "flex" }}
                   className="hover:text-slate-600 transition-colors"><X className="w-3.5 h-3.5" /></button>
               )}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               {search && sortedFunctions.length > 0 && (
-                <span style={{ fontSize: 11, color: "#94A3B8", marginRight: 8 }}>{sortedFunctions.length} resultado{sortedFunctions.length !== 1 ? "s" : ""}</span>
+                <span style={{ fontSize: 11, color: "#94A3B8", marginRight: 8 }} aria-live="polite">{sortedFunctions.length} resultado{sortedFunctions.length !== 1 ? "s" : ""}</span>
               )}
-              <button style={{ width: 38, height: 38, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
-                className="hover:bg-[#f1f3ff] hover:text-slate-700 transition-colors">
-                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>filter_list</span>
-              </button>
             </div>
           </div>
 
@@ -459,10 +503,11 @@ export default function Functions() {
                     </td>
                     <td style={{ padding: "18px 24px" }}>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity">
+                        className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <button onClick={() => handleOpenDialog(func)} data-testid={`button-edit-function-${func.id}`}
+                            <button type="button" onClick={() => handleOpenDialog(func)} data-testid={`button-edit-function-${func.id}`}
+                              aria-label={`Editar função ${func.name}`}
                               style={{ padding: 8, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#94A3B8" }}
                               className="hover:text-[#004ac6] hover:bg-[#EEF2FF] transition-colors">
                               <span className="material-symbols-outlined" style={{ fontSize: 20 }}>edit</span>
@@ -472,9 +517,11 @@ export default function Functions() {
                         </Tooltip>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <button onClick={() => handleDelete(func.id)} data-testid={`button-delete-function-${func.id}`}
-                              style={{ padding: 8, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#94A3B8" }}
-                              className="hover:text-red-500 hover:bg-red-50 transition-colors">
+                            <button type="button" onClick={() => handleDelete(func.id)} data-testid={`button-delete-function-${func.id}`}
+                              disabled={deleteFunctionMutation.isPending}
+                              aria-label={`Excluir função ${func.name}`}
+                              style={{ padding: 8, borderRadius: 8, border: "none", background: "transparent", cursor: deleteFunctionMutation.isPending ? "not-allowed" : "pointer", color: "#94A3B8" }}
+                              className="hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40">
                               <span className="material-symbols-outlined" style={{ fontSize: 20 }}>delete</span>
                             </button>
                           </TooltipTrigger>
@@ -485,7 +532,40 @@ export default function Functions() {
                   </tr>
                 ))}
 
-                {sortedFunctions.length === 0 && (
+                {/* Carregando e erro precisam de ramos próprios: sem eles, uma sessão
+                    expirada ou queda de rede aparecia como "Nenhuma função cadastrada". */}
+                {isLoading && (
+                  <tr>
+                    <td colSpan={4} style={{ padding: "64px 24px", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
+                      <Loader2 className="w-6 h-6 animate-spin" style={{ margin: "0 auto 10px" }} />
+                      Carregando funções...
+                    </td>
+                  </tr>
+                )}
+
+                {!isLoading && isError && !functions && (
+                  <tr>
+                    <td colSpan={4} style={{ padding: "56px 24px", textAlign: "center" }} role="alert">
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <AlertTriangle className="w-6 h-6 text-red-500" />
+                        </div>
+                        <h4 style={{ fontSize: 15, fontWeight: 800, color: "#141b2b", margin: 0, fontFamily: "Manrope, sans-serif" }}>
+                          Não foi possível carregar as funções
+                        </h4>
+                        <p style={{ fontSize: 13, color: "#64748B", margin: 0, maxWidth: 320, lineHeight: 1.5 }}>
+                          {fnErrMsg(error, "Verifique sua conexão e tente novamente.")}
+                        </p>
+                        <button onClick={() => refetch()} style={{ marginTop: 6, height: 34, padding: "0 16px", borderRadius: 8, border: "1px solid #E9EDFF", background: "white", fontSize: 12, fontWeight: 700, color: "#141b2b", cursor: "pointer", fontFamily: "inherit" }}
+                          className="hover:bg-[#f1f3ff] transition-colors">
+                          Tentar novamente
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+
+                {!isLoading && !(isError && !functions) && sortedFunctions.length === 0 && (
                   <tr>
                     <td colSpan={4} style={{ padding: "64px 24px", textAlign: "center" }}>
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>

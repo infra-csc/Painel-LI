@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import {
   CalendarDays, ChevronLeft, ChevronRight, X, MapPin, Clock,
-  CheckCircle, Play, List, LayoutGrid, ChevronDown,
+  CheckCircle, Play, List, LayoutGrid, AlertTriangle,
   Users, Tag, Search,
 } from "lucide-react";
 import type { Event, TeamInclusion } from "@shared/schema";
@@ -13,7 +13,7 @@ import type { Event, TeamInclusion } from "@shared/schema";
 const STATUS_CFG: Record<string, {
   label: string; bg: string; text: string; border: string;
   bar: string; barText: string; iconText: string;
-  panelBg: string; panelBorder: string; topBar: string; icon: any; strikethrough?: boolean;
+  panelBg: string; panelBorder: string; topBar: string; icon: any;
   dot: string;
 }> = {
   concluido: {
@@ -232,9 +232,16 @@ function EventPanel({
   const StatusIcon = cfg.icon;
   const days = dayCount(event.startDate, event.endDate);
 
-  const { data: teamInclusions = [] } = useQuery<TeamInclusion[]>({
+  const { data: teamInclusions = [], isLoading: loadingTeam, isError: teamError } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions"],
   });
+
+  // Close on ESC
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => { window.removeEventListener("keydown", onKey); };
+  }, [onClose]);
 
   const eventInclusions = useMemo(() =>
     teamInclusions.filter(ti => ti.eventId === event.id && !ti.deletedAt),
@@ -260,8 +267,11 @@ function EventPanel({
 
   return (
     <div className="fixed inset-0 z-[1000]">
-      <div className="absolute inset-0" onClick={onClose} />
+      <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="event-panel-title"
         className="absolute bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         style={{
           width: PANEL_W,
@@ -279,12 +289,13 @@ function EventPanel({
             </Badge>
             <button
               onClick={onClose}
+              aria-label="Fechar detalhes do evento"
               className="w-5 h-5 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"
             >
               <X className="w-3 h-3 text-gray-500" />
             </button>
           </div>
-          <h2 className={`text-[14px] font-bold text-gray-900 dark:text-gray-100 leading-snug ${cfg.strikethrough ? "line-through text-gray-400" : ""}`}>
+          <h2 id="event-panel-title" className="text-[14px] font-bold text-gray-900 dark:text-gray-100 leading-snug">
             {event.name}
           </h2>
         </div>
@@ -310,20 +321,31 @@ function EventPanel({
           <div className="border-t border-dashed border-gray-200 dark:border-gray-700" />
 
           <div className="space-y-2.5">
-            <div className="flex items-center gap-2.5">
-              <Users className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
-              <span className="text-[12.5px] text-gray-700 dark:text-gray-300">
-                <span className="font-semibold text-gray-900 dark:text-gray-100">{collaboratorCount}</span>
-                {" "}{collaboratorCount === 1 ? "colaborador escalado" : "colaboradores escalados"}
-              </span>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <Tag className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
-              <span className="text-[12.5px] text-gray-700 dark:text-gray-300">
-                <span className="font-semibold text-gray-900 dark:text-gray-100">{functionCount}</span>
-                {" "}{functionCount === 1 ? "função envolvida" : "funções envolvidas"}
-              </span>
-            </div>
+            {/* Nunca mostrar "0 colaboradores" quando na verdade a escala não foi carregada */}
+            {loadingTeam ? (
+              <p className="text-[12.5px] text-gray-400">Carregando escala…</p>
+            ) : teamError ? (
+              <p className="text-[12.5px] text-amber-600">
+                Não foi possível carregar a escala deste evento.
+              </p>
+            ) : (
+              <>
+                <div className="flex items-center gap-2.5">
+                  <Users className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
+                  <span className="text-[12.5px] text-gray-700 dark:text-gray-300">
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">{collaboratorCount}</span>
+                    {" "}{collaboratorCount === 1 ? "colaborador escalado" : "colaboradores escalados"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <Tag className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
+                  <span className="text-[12.5px] text-gray-700 dark:text-gray-300">
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">{functionCount}</span>
+                    {" "}{functionCount === 1 ? "função envolvida" : "funções envolvidas"}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -394,8 +416,11 @@ function HiddenEventsPopover({ dayEvents, title, x, y, onSelectEvent, onClose }:
 
   return (
     <div className="fixed inset-0 z-[1000]">
-      <div className="absolute inset-0" onClick={onClose} />
+      <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         className="absolute bg-white animate-in fade-in zoom-in-95 duration-150 flex flex-col"
         style={{
           width: POPOVER_W,
@@ -436,7 +461,7 @@ function HiddenEventsPopover({ dayEvents, title, x, y, onSelectEvent, onClose }:
                 </div>
                 <div className="flex-1 min-w-0">
                   <p
-                    className={`text-[12.5px] font-semibold text-gray-800 leading-snug ${cfg.strikethrough ? "line-through text-gray-400" : ""}`}
+                    className="text-[12.5px] font-semibold text-gray-800 leading-snug"
                     style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
                   >
                     {ev.name}
@@ -540,36 +565,43 @@ function MonthView({
     return `${day.getDate()} de ${MONTH_NAMES_LOWER[day.getMonth()]} · ${count} ${count === 1 ? "evento" : "eventos"}`;
   }
 
-  const firstDay = new Date(year, month, 1);
-  const startPad = firstDay.getDay();
-  const lastDayNum = new Date(year, month + 1, 0).getDate();
+  // Grade + barras são caras (ordenação e parse de datas por semana). Sem memo elas
+  // eram recalculadas a cada render — inclusive ao abrir/fechar o popover de overflow.
+  const weeks = useMemo(() => {
+    const firstDay = new Date(year, month, 1);
+    const startPad = firstDay.getDay();
+    const lastDayNum = new Date(year, month + 1, 0).getDate();
 
-  const allDays: Date[] = [];
-  for (let i = 0; i < startPad; i++) {
-    allDays.push(new Date(year, month, 1 - startPad + i));
-  }
-  for (let d = 1; d <= lastDayNum; d++) {
-    allDays.push(new Date(year, month, d));
-  }
-  while (allDays.length % 7 !== 0) {
-    const prev = allDays[allDays.length - 1];
-    allDays.push(new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 1));
-  }
+    const allDays: Date[] = [];
+    for (let i = 0; i < startPad; i++) {
+      allDays.push(new Date(year, month, 1 - startPad + i));
+    }
+    for (let d = 1; d <= lastDayNum; d++) {
+      allDays.push(new Date(year, month, d));
+    }
+    while (allDays.length % 7 !== 0) {
+      const prev = allDays[allDays.length - 1];
+      allDays.push(new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 1));
+    }
 
-  // Trim last row if all are next-month days with no events
-  const lastRow = allDays.slice(-7);
-  const lastRowAllOtherMonth = lastRow.every(d => d.getMonth() !== month);
-  const lastRowHasEvents = lastRow.some(day =>
-    events.some(ev => isInRange(day, parseLocalDate(ev.startDate), parseLocalDate(ev.endDate)))
-  );
-  const trimmedDays = (lastRowAllOtherMonth && !lastRowHasEvents)
-    ? allDays.slice(0, -7)
-    : allDays;
+    // Trim last row if all are next-month days with no events
+    const lastRow = allDays.slice(-7);
+    const lastRowAllOtherMonth = lastRow.every(d => d.getMonth() !== month);
+    const lastRowHasEvents = lastRow.some(day =>
+      events.some(ev => isInRange(day, parseLocalDate(ev.startDate), parseLocalDate(ev.endDate)))
+    );
+    const trimmedDays = (lastRowAllOtherMonth && !lastRowHasEvents)
+      ? allDays.slice(0, -7)
+      : allDays;
 
-  const weeks: Date[][] = [];
-  for (let i = 0; i < trimmedDays.length; i += 7) {
-    weeks.push(trimmedDays.slice(i, i + 7));
-  }
+    const out: Date[][] = [];
+    for (let i = 0; i < trimmedDays.length; i += 7) {
+      out.push(trimmedDays.slice(i, i + 7));
+    }
+    return out;
+  }, [year, month, events]);
+
+  const weekBars = useMemo(() => weeks.map(week => computeWeekBars(week, events)), [weeks, events]);
 
   return (
     <>
@@ -589,7 +621,7 @@ function MonthView({
           style={{ display: "grid", gridTemplateRows: `repeat(${weeks.length}, minmax(112px, 1fr))` }}
         >
           {weeks.map((week, wi) => {
-            const bars = computeWeekBars(week, events);
+            const bars = weekBars[wi];
             const maxLane = bars.length > 0 ? Math.max(...bars.map(b => b.lane)) : -1;
             const visibleLanes = Math.min(maxLane + 1, MAX_VISIBLE_LANES);
             const hasOverflow = bars.some(b => b.lane >= MAX_VISIBLE_LANES);
@@ -713,7 +745,7 @@ function getListCfg(status: string) {
 
 // ─── List view ────────────────────────────────────────────────────────────────
 
-function ListView({ events, onSelectEvent }: { events: Event[]; onSelectEvent: SelectEventFn }) {
+function ListView({ events, onSelectEvent, hasFilters }: { events: Event[]; onSelectEvent: SelectEventFn; hasFilters: boolean }) {
   const today = new Date();
   const currentMonthNum = today.getFullYear() * 12 + today.getMonth();
   const currentMonthKey = `${today.getFullYear()}-${today.getMonth()}`;
@@ -756,7 +788,11 @@ function ListView({ events, onSelectEvent }: { events: Event[]; onSelectEvent: S
           <CalendarDays className="w-7 h-7 text-slate-400" />
         </div>
         <p className="text-sm font-semibold text-slate-600">Nenhum evento encontrado</p>
-        <p className="text-xs text-slate-400">Tente remover ou alterar os filtros aplicados</p>
+        <p className="text-xs text-slate-400">
+          {hasFilters
+            ? "Tente remover ou alterar os filtros aplicados"
+            : "Ainda não há eventos cadastrados"}
+        </p>
       </div>
     );
   }
@@ -819,7 +855,7 @@ function ListView({ events, onSelectEvent }: { events: Event[]; onSelectEvent: S
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <h4 className={`font-bold text-sm group-hover:underline underline-offset-2 truncate ${cfg.strikethrough ? "line-through text-slate-400" : "text-[#0033CC]"}`}>
+                      <h4 className="font-bold text-sm group-hover:underline underline-offset-2 truncate text-[#0033CC]">
                         {ev.name}
                       </h4>
                       <div className="flex items-center gap-4 mt-1 flex-wrap">
@@ -890,14 +926,14 @@ function WeekView({ weekStart, events, onSelectEvent }: {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
 
-  const eventsPerDay = days.map(day => {
+  const eventsPerDay = useMemo(() => days.map(day => {
     const dayStr = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
     return events.filter(ev => {
       return ev.startDate <= dayStr && ev.endDate >= dayStr;
     });
-  });
+  }), [days, events]);
 
   const isWeekend = (i: number) => i === 0 || i === 6;
 
@@ -966,7 +1002,7 @@ function WeekView({ weekStart, events, onSelectEvent }: {
                           </p>
                         </div>
                       )}
-                      <p className={`text-[11px] font-black leading-snug ${cfg.strikethrough ? "line-through text-slate-400" : "text-slate-900"}`}>
+                      <p className="text-[11px] font-black leading-snug text-slate-900">
                         {ev.name}
                       </p>
                       {ev.location && (
@@ -1004,7 +1040,17 @@ export default function CalendarPage() {
     setSelectedEvent(e);
   }
 
-  const { data: events = [], isLoading } = useQuery<Event[]>({ queryKey: ["/api/events"] });
+  const { data: events = [], isLoading, isError, error } = useQuery<Event[]>({ queryKey: ["/api/events"] });
+
+  // Sem isso, uma sessão expirada ou queda de rede viravam "0 eventos" —
+  // um calendário vazio indistinguível de uma agenda realmente vazia.
+  const loadErrorMessage = (() => {
+    if (!isError) return null;
+    const err = error as any;
+    if (err?.status === 401) return "Sua sessão expirou. Entre novamente para ver os eventos.";
+    if (err?.status === 403) return "Você não tem permissão para consultar os eventos.";
+    return err?.body?.message || "Não foi possível carregar os eventos. Verifique sua conexão e tente novamente.";
+  })();
 
   // Only show concluido / em_andamento / planejado — never cancelled/deleted/inactive
   const visibleEvents = useMemo(() =>
@@ -1074,7 +1120,11 @@ export default function CalendarPage() {
             <div>
               <h1 className="text-base font-bold text-slate-900 leading-tight">Calendário de Eventos</h1>
               <p className="text-[11px] text-slate-400 leading-tight">
-                {visibleEvents.length} {visibleEvents.length === 1 ? "evento" : "eventos"} ativos
+                {isLoading
+                  ? "Carregando eventos…"
+                  : loadErrorMessage
+                    ? "Contagem indisponível"
+                    : `${visibleEvents.length} ${visibleEvents.length === 1 ? "evento" : "eventos"} ativos`}
               </p>
             </div>
           </div>
@@ -1147,10 +1197,11 @@ export default function CalendarPage() {
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Buscar evento…"
+              aria-label="Buscar evento por nome ou local"
               className="h-8 pl-8 pr-3 text-xs rounded-xl border border-slate-200 bg-slate-50 text-slate-700 placeholder-slate-400 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition-all w-40"
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <button onClick={() => setSearchQuery("")} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                 <X className="w-3 h-3" />
               </button>
             )}
@@ -1166,6 +1217,7 @@ export default function CalendarPage() {
                 <button
                   key={item.key}
                   onClick={() => setStatusFilter(isActive ? "all" : item.key)}
+                  aria-pressed={isActive}
                   className={`flex items-center gap-1.5 text-[11px] font-bold transition-all px-2 py-0.5 rounded-lg ${
                     isActive ? `${item.bg} ${item.text}` : "text-slate-500 hover:bg-slate-100"
                   }`}
@@ -1177,7 +1229,7 @@ export default function CalendarPage() {
               );
             })}
             {statusFilter !== "all" && (
-              <button onClick={() => setStatusFilter("all")} className="text-[10px] text-slate-400 hover:text-red-500 font-bold ml-1">
+              <button onClick={() => setStatusFilter("all")} aria-label="Limpar filtro de status" className="text-[10px] text-slate-400 hover:text-red-500 font-bold ml-1">
                 <X className="w-3 h-3" />
               </button>
             )}
@@ -1223,6 +1275,17 @@ export default function CalendarPage() {
           <div className="h-full bg-white rounded-[32px] border border-slate-200 flex items-center justify-center">
             <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: "#0033CC", borderTopColor: "transparent" }} />
           </div>
+        ) : loadErrorMessage ? (
+          <div
+            role="alert"
+            className="h-full bg-white rounded-[32px] border border-amber-200 flex flex-col items-center justify-center gap-3 text-center px-6"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center">
+              <AlertTriangle className="w-7 h-7 text-amber-500" />
+            </div>
+            <p className="text-sm font-semibold text-slate-700">Não foi possível carregar o calendário</p>
+            <p className="text-xs text-slate-500 max-w-sm">{loadErrorMessage}</p>
+          </div>
         ) : view === "month" ? (
           <MonthView
             year={viewYear}
@@ -1238,7 +1301,11 @@ export default function CalendarPage() {
           />
         ) : (
           <div className="h-full overflow-y-auto">
-            <ListView events={filteredEvents} onSelectEvent={handleSelectEvent} />
+            <ListView
+              events={filteredEvents}
+              onSelectEvent={handleSelectEvent}
+              hasFilters={statusFilter !== "all" || searchQuery.trim() !== ""}
+            />
           </div>
         )}
       </div>

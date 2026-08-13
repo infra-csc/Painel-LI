@@ -1,14 +1,10 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { Hotel, Save, Eye, ChevronDown, ChevronRight, MessageCircle, Edit, FileText, History, AlertCircle, CheckCheck, XCircle, ArrowLeftRight, ArrowRight } from "lucide-react";
+import { Hotel, Save, Eye, ChevronDown, ChevronRight, MessageCircle, FileText, History, AlertCircle, CheckCheck, XCircle, ArrowLeftRight, ArrowRight } from "lucide-react";
 import AttachmentUpload from "@/components/ui/attachment-upload";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import StatusBadge from "@/components/common/status-badge";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import EventCombobox from "@/components/ui/event-combobox";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -19,29 +15,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { isReadOnly, canEdit, canPerformActions } from "@/lib/interactions";
+import { canEdit } from "@/lib/interactions";
 import { canView, canEdit as canEditScreen } from "@/lib/permissions";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import type { TeamInclusion, Event, Function, Collaborator, Accommodation, Comment, TeamInclusionLog, SwapRequest } from "@shared/schema";
-
-// Helper: Mostrar "Escalado" apenas quando não precisa passagem nem hospedagem
-const getDisplayStatus = (inclusion: TeamInclusion) => {
-  if (inclusion.status === "escalado" && (inclusion.needsTicket || inclusion.needsAccommodation)) {
-    // Se está escalado mas precisa de passagem ou hospedagem, mostrar "Aguardando Passagem" ou similar
-    if (inclusion.needsTicket) return "aguardando_passagem";
-    if (inclusion.needsAccommodation) return "aguardando_hospedagem";
-  }
-  return inclusion.status;
-};
-
 
 export default function Accommodations() {
   const { user } = useAuth();
@@ -60,8 +39,6 @@ export default function Accommodations() {
   const [showModal, setShowModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successInfo, setSuccessInfo] = useState<{message:string;inclusionNumber:number|null;eventName:string;collaboratorName:string;functionName:string}|null>(null);
-  const pendingAccomAction = useRef<'create'|'update'>('create');
-  const [editingAccommodationId, setEditingAccommodationId] = useState<string | null>(null); // ID da accommodation sendo editado
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     basic: false,
     dates: true,
@@ -114,17 +91,14 @@ export default function Accommodations() {
     });
   };
 
-  // Selecionar/deselecionar todos os pendentes
+  // Selecionar/deselecionar todos os pendentes.
+  // Antes marcava também inclusões canceladas (que nem têm checkbox na linha) e
+  // comparava só o tamanho da seleção, o que travava o "marcar todos".
   const toggleAllInclusions = () => {
-    const pendingInclusions = filteredData.filter(inclusion => 
-      !accommodationMap.get(inclusion.id)
-    );
-    const allPendingIds = pendingInclusions.map(inclusion => inclusion.id);
-    
-    if (selectedInclusionsForBatch.length === allPendingIds.length) {
+    if (allSelectableSelected) {
       setSelectedInclusionsForBatch([]); // Deselecionar todos
     } else {
-      setSelectedInclusionsForBatch(allPendingIds); // Selecionar todos pendentes
+      setSelectedInclusionsForBatch(Array.from(selectableInclusionIds)); // Selecionar todos pendentes
     }
   };
 
@@ -182,20 +156,9 @@ export default function Accommodations() {
 
   const isPurchasingRole = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
 
-  const { data: teamInclusions, isLoading: isLoadingInclusions } = useQuery<TeamInclusion[]>({
+  const { data: teamInclusions, isLoading: isLoadingInclusions, error: inclusionsError } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions"],
   });
-
-  // Banner: trocas pendentes que exigem análise de Compras (hospedagem comprada)
-  const pendingAccommodationSwapsCount = useMemo(() => {
-    if (!isPurchasingRole || !allSwapRequests || !teamInclusions) return 0;
-    const inclStatusMap = new Map((teamInclusions as any[]).map(ti => [ti.id, ti.status]));
-    return allSwapRequests.filter(s => {
-      if (s.status !== 'pendente') return false;
-      const inclId = (s as any).team_inclusion_id || s.teamInclusionId;
-      return inclStatusMap.get(inclId) === 'hospedagem_comprada';
-    }).length;
-  }, [isPurchasingRole, allSwapRequests, teamInclusions]);
 
   const approveSwapMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -205,11 +168,13 @@ export default function Accommodations() {
     onSuccess: () => {
       toast({ title: "Troca aprovada", description: "O colaborador foi atualizado na escalação." });
       queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id] });
+      // A lista global alimenta o banner e o selo "Troca pendente" das linhas;
+      // sem invalidar, a troca continuava aparecendo como pendente.
+      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
-    onError: async (err: any) => {
-      const msg = await err?.response?.json?.().catch(() => null);
-      toast({ title: "Erro", description: msg?.message || "Erro ao aprovar troca", variant: "destructive" });
+    onError: (err: any) => {
+      toast({ title: "Erro", description: err?.body?.message || "Erro ao aprovar troca", variant: "destructive" });
     },
   });
 
@@ -221,10 +186,10 @@ export default function Accommodations() {
     onSuccess: () => {
       toast({ title: "Troca rejeitada" });
       queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests"] });
     },
-    onError: async (err: any) => {
-      const msg = await err?.response?.json?.().catch(() => null);
-      toast({ title: "Erro", description: msg?.message || "Erro ao rejeitar troca", variant: "destructive" });
+    onError: (err: any) => {
+      toast({ title: "Erro", description: err?.body?.message || "Erro ao rejeitar troca", variant: "destructive" });
     },
   });
 
@@ -261,9 +226,9 @@ export default function Accommodations() {
     if (!selectedInclusion) return null;
 
     const data = accommodationData[selectedInclusion.id] || {};
-    const event = events?.find(e => e.id === selectedInclusion.eventId);
-    const func = functions?.find(f => f.id === selectedInclusion.functionId);
-    const collaborator = collaborators?.find(c => c.id === selectedInclusion.collaboratorId);
+    const event = eventById.get(selectedInclusion.eventId);
+    const func = functionById.get(selectedInclusion.functionId);
+    const collaborator = selectedInclusion.collaboratorId ? collaboratorById.get(selectedInclusion.collaboratorId) : undefined;
 
     const lbl = "text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400 mb-0.5";
     const val = "text-[13px] font-semibold text-slate-700";
@@ -271,7 +236,9 @@ export default function Accommodations() {
 
     const handleSave = async () => {
       if (!selectedInclusion) return;
-      if (!data.hotelName || !data.hotelLocation) {
+      // Guarda contra duplo clique enquanto a requisição está em voo.
+      if (createAccommodationMutation.isPending || updateAccommodationMutation.isPending) return;
+      if (!data.hotelName?.trim() || !data.hotelLocation?.trim()) {
         toast({ title: "Campos obrigatórios", description: "Nome do hotel e localização são obrigatórios", variant: "destructive" });
         return;
       }
@@ -287,23 +254,22 @@ export default function Accommodations() {
         };
         const msg = accommodation ? "Hospedagem atualizada com sucesso!" : "Hospedagem registrada com sucesso!";
         if (accommodation) {
-          pendingAccomAction.current = 'update';
           await updateAccommodationMutation.mutateAsync({ id: accommodation.id, data: payload });
         } else {
-          pendingAccomAction.current = 'create';
           await createAccommodationMutation.mutateAsync(payload);
         }
         setSuccessInfo({
           message: msg,
           inclusionNumber: selectedInclusion?.inclusionNumber ?? null,
-          eventName: events?.find(e => e.id === selectedInclusion?.eventId)?.name ?? "—",
+          eventName: event?.name ?? "—",
           collaboratorName: collaborator ? (fixEncoding(collaborator.fullName) || "—") : "—",
           functionName: func?.name ?? "—",
         });
         setShowModal(false);
         setShowSuccessModal(true);
       } catch (error) {
-        console.error('Erro ao salvar hospedagem:', error);
+        // O toast destrutivo já vem do onError da mutação; aqui só evitamos que
+        // o modal feche e o "Sucesso" apareça sem nada ter sido gravado.
       }
     };
 
@@ -425,9 +391,9 @@ export default function Accommodations() {
                   {selectedInclusion.status === 'hospedagem_comprada' && (pendingSwap || latestSwap) && (() => {
                     const swap = pendingSwap || latestSwap!;
                     const swapStatus = (swap as any).status || swap.status;
-                    const currentCollabName = toTitleCase(fixEncoding(collaborators?.find(c => c.id === selectedInclusion.collaboratorId)?.fullName) || '—');
+                    const currentCollabName = toTitleCase(fixEncoding((selectedInclusion.collaboratorId ? collaboratorById.get(selectedInclusion.collaboratorId) : undefined)?.fullName) || '—');
                     const requestedCollabId = (swap as any).new_collaborator_id;
-                    const requestedCollabName = toTitleCase(fixEncoding(collaborators?.find(c => c.id === requestedCollabId)?.fullName) || '—');
+                    const requestedCollabName = toTitleCase(fixEncoding((requestedCollabId ? collaboratorById.get(requestedCollabId) : undefined)?.fullName) || '—');
                     const requestedByName = (swap as any).requested_by_name || '—';
                     const reviewComment = (swap as any).review_comment || swap.reviewComment;
 
@@ -596,8 +562,9 @@ export default function Accommodations() {
                   <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 mb-3">Dados do Hotel</div>
                   <div className="grid grid-cols-2 gap-4 mb-3">
                     <div>
-                      <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Nome do Hotel *</Label>
+                      <Label htmlFor={`hotelName-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Nome do Hotel *</Label>
                       <Input
+                        id={`hotelName-${selectedInclusion.id}`}
                         placeholder="Ex: Hotel Copacabana Palace"
                         value={data.hotelName || ""}
                         onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "hotelName", e.target.value)}
@@ -606,8 +573,9 @@ export default function Accommodations() {
                       />
                     </div>
                     <div>
-                      <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Localização *</Label>
+                      <Label htmlFor={`hotelLocation-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Localização *</Label>
                       <Input
+                        id={`hotelLocation-${selectedInclusion.id}`}
                         placeholder="Ex: Copacabana, Rio de Janeiro"
                         value={data.hotelLocation || ""}
                         onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "hotelLocation", e.target.value)}
@@ -617,8 +585,9 @@ export default function Accommodations() {
                     </div>
                   </div>
                   <div>
-                    <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Número da Reserva</Label>
+                    <Label htmlFor={`reservationNumber-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Número da Reserva</Label>
                     <Input
+                      id={`reservationNumber-${selectedInclusion.id}`}
                       placeholder="Ex: RES-123456"
                       value={data.reservationNumber || ""}
                       onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "reservationNumber", e.target.value)}
@@ -630,8 +599,9 @@ export default function Accommodations() {
 
                 {/* Observações */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-4">
-                  <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Observações</Label>
+                  <Label htmlFor={`accommodationObservations-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Observações</Label>
                   <Textarea
+                    id={`accommodationObservations-${selectedInclusion.id}`}
                     placeholder="Informações adicionais sobre a hospedagem..."
                     value={data.accommodationObservations || ""}
                     onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "accommodationObservations", e.target.value)}
@@ -803,17 +773,22 @@ export default function Accommodations() {
     );
   };
 
-  // Formatação de data no padrão brasileiro
+  // Formatação de data no padrão brasileiro.
+  // Sem passar por new Date(): "YYYY-MM-DD" no construtor é lido como UTC e
+  // volta um dia atrás em Brasília. O slice(0,10) protege contra ISO completo.
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return "N/A";
-    const [year, month, day] = dateStr.split('-');
+    const [year, month, day] = String(dateStr).slice(0, 10).split('-');
+    if (!year || !month || !day) return String(dateStr);
     return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
   };
 
   // Aplicar dados do registro rápido às hospedagens selecionadas
   const handleApplyToSelected = async () => {
     const quickData = accommodationData["quick"];
-    if (!quickData || selectedInclusionsForBatch.length === 0) return;
+    // Guarda contra duplo clique: sem o isPending o mesmo lote podia ser
+    // disparado duas vezes e criar hospedagens repetidas.
+    if (!quickData || effectiveSelectedForBatch.length === 0 || createAccommodationMutation.isPending) return;
 
     if (!quickData.hotelName || !quickData.hotelLocation) {
       toast({
@@ -827,8 +802,9 @@ export default function Accommodations() {
     try {
       let successCount = 0;
       const errors: string[] = [];
+      const processedIds: string[] = [];
 
-      for (const inclusionId of selectedInclusionsForBatch) {
+      for (const inclusionId of effectiveSelectedForBatch) {
         const inclusion = filteredData.find(inc => inc.id === inclusionId);
         if (!inclusion) continue;
 
@@ -843,10 +819,12 @@ export default function Accommodations() {
             hotelName: quickData.hotelName,
             hotelLocation: quickData.hotelLocation,
             accommodationObservations: quickData.accommodationObservations || null,
+            updatedBy: user?.id,
           });
           successCount++;
-        } catch (error) {
-          errors.push(`Erro na hospedagem #${inclusion.inclusionNumber}`);
+          processedIds.push(inclusion.id);
+        } catch (error: any) {
+          errors.push(`#${inclusion.inclusionNumber}: ${error?.body?.message || 'falha ao registrar'}`);
         }
       }
 
@@ -855,15 +833,20 @@ export default function Accommodations() {
           title: "Sucesso",
           description: `${successCount} hospedagem(ns) registrada(s) com sucesso!`,
         });
-        setSelectedInclusionsForBatch([]);
       }
 
       if (errors.length > 0) {
         toast({
           title: "Alguns erros ocorreram",
-          description: errors.join(", "),
+          description: errors.join(" · "),
           variant: "destructive",
         });
+      }
+
+      // Tira da fila só o que realmente foi registrado — limpar tudo apagava a
+      // seleção do usuário mesmo quando nenhuma hospedagem tinha sido criada.
+      if (processedIds.length > 0) {
+        setSelectedInclusionsForBatch(prev => prev.filter(id => !processedIds.includes(id)));
       }
     } catch (error) {
       toast({
@@ -874,19 +857,19 @@ export default function Accommodations() {
     }
   };
 
-  const { data: events, isLoading: isLoadingEvents } = useQuery<Event[]>({
+  const { data: events, isLoading: isLoadingEvents, error: eventsError } = useQuery<Event[]>({
     queryKey: ["/api/events"],
   });
 
-  const { data: functions, isLoading: isLoadingFunctions } = useQuery<Function[]>({
+  const { data: functions, isLoading: isLoadingFunctions, error: functionsError } = useQuery<Function[]>({
     queryKey: ["/api/functions"],
   });
 
-  const { data: collaborators, isLoading: isLoadingCollaborators } = useQuery<Collaborator[]>({
+  const { data: collaborators, isLoading: isLoadingCollaborators, error: collaboratorsError } = useQuery<Collaborator[]>({
     queryKey: ["/api/collaborators"],
   });
 
-  const { data: accommodations, isLoading: isLoadingAccommodations } = useQuery<Accommodation[]>({
+  const { data: accommodations, isLoading: isLoadingAccommodations, error: accommodationsError } = useQuery<Accommodation[]>({
     queryKey: ["/api/accommodations"],
   });
 
@@ -899,6 +882,15 @@ export default function Accommodations() {
     isLoadingFunctions ||
     isLoadingCollaborators ||
     isLoadingAccommodations;
+
+  // Falha de carregamento NÃO pode virar "nenhuma inclusão encontrada": uma
+  // sessão expirada (401) aparecia como lista vazia.
+  // Só bloqueia a tela quando ainda não há dados: com refetchOnWindowFocus
+  // ligado, um refetch falho em segundo plano não pode apagar a lista que o
+  // usuário está usando.
+  const loadError: any = teamInclusions
+    ? null
+    : (inclusionsError || eventsError || functionsError || collaboratorsError || accommodationsError);
 
   const { data: tickets } = useQuery<any[]>({
     queryKey: ["/api/tickets"],
@@ -915,10 +907,11 @@ export default function Accommodations() {
     const filtered = teamInclusions.filter(inclusion => {
       // Deve precisar de hospedagem
       if (inclusion.needsAccommodation !== true) return false;
-      
-      // Não pode estar cancelado
-      if (inclusion.status === "cancelado") return false;
-      
+
+      // Canceladas: quem decide é o filtro "Status Inclusão" (abaixo, em
+      // filteredData). Descartar aqui tornava as opções "Todas" e "Canceladas"
+      // do seletor sempre vazias, e a linha "Cancelado" da tabela inalcançável.
+
       // Se tem colaborador escalado, aparece INDEPENDENTE do status (workflow flexível)
       if (inclusion.collaboratorId) {
         // OK - Colaborador já foi atribuído, pode registrar hospedagem
@@ -928,29 +921,54 @@ export default function Accommodations() {
       // Se NÃO tem colaborador, só mostra se estiver nos status específicos
       const validStatusesWithoutCollaborator = [
         "reaberto", "escalado",
-        "aguardando_passagem", "aguardando_hospedagem", 
+        "aguardando_passagem", "aguardando_hospedagem",
         "passagem", "passagem_comprada",
         "hospedagem", "hospedagem_comprada", "hospedagem_passagem_comprada",
-        "aprovado"
+        "aprovado", "cancelado"
       ];
-      
+
       return validStatusesWithoutCollaborator.includes(inclusion.status);
     });
     return filtered;
   }, [teamInclusions]);
 
-  // Criar map de accommodations por teamInclusionId
+  // Criar map de accommodations por teamInclusionId.
+  // Havendo mais de um registro para a mesma inclusão, o ÚLTIMO vence — é a
+  // semântica original (new Map(entries)) e representa a hospedagem mais
+  // recente. Trocar para "primeiro vence" mudaria o registro exibido.
   const accommodationMap = useMemo(() => {
-    if (!accommodations) return new Map();
-    return new Map(accommodations.map(acc => [acc.teamInclusionId, acc]));
+    const map = new Map<string, Accommodation>();
+    accommodations?.forEach(acc => {
+      if (acc.teamInclusionId) map.set(acc.teamInclusionId, acc);
+    });
+    return map;
   }, [accommodations]);
 
+  // Índices O(1): antes cada linha da tabela e cada comparação da ordenação
+  // faziam .find() nas listas completas de eventos, funções e colaboradores.
+  const eventById = useMemo(() => {
+    const map = new Map<string, Event>();
+    events?.forEach(e => { if (!map.has(e.id)) map.set(e.id, e); });
+    return map;
+  }, [events]);
+
+  const functionById = useMemo(() => {
+    const map = new Map<string, Function>();
+    functions?.forEach(f => { if (!map.has(f.id)) map.set(f.id, f); });
+    return map;
+  }, [functions]);
+
+  const collaboratorById = useMemo(() => {
+    const map = new Map<string, Collaborator>();
+    collaborators?.forEach(c => { if (!map.has(c.id)) map.set(c.id, c); });
+    return map;
+  }, [collaborators]);
 
   // Função auxiliar para obter valor de campo para ordenação
   const getFieldValue = (inclusion: TeamInclusion, field: string) => {
-    const event = events?.find(e => e.id === inclusion.eventId);
-    const func = functions?.find(f => f.id === inclusion.functionId);
-    const collaborator = collaborators?.find(c => c.id === inclusion.collaboratorId);
+    const event = eventById.get(inclusion.eventId);
+    const func = functionById.get(inclusion.functionId);
+    const collaborator = inclusion.collaboratorId ? collaboratorById.get(inclusion.collaboratorId) : undefined;
     const accommodation = accommodationMap.get(inclusion.id);
 
     switch (field) {
@@ -979,20 +997,25 @@ export default function Accommodations() {
       const matchesCollaborator = filters.collaboratorId === "all" || inclusion.collaboratorId === filters.collaboratorId;
       
       const _q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
-      const _colName = (collaborators?.find(c => c.id === inclusion.collaboratorId)?.fullName ?? '').toLowerCase();
+      const _colName = (inclusion.collaboratorId ? collaboratorById.get(inclusion.collaboratorId)?.fullName ?? '' : '').toLowerCase();
       const matchesSearchId = filters.searchId === "" ||
         String(inclusion.inclusionNumber ?? '').toLowerCase().includes(_q) ||
         _colName.includes(_q);
 
       const accommodation = accommodationMap.get(inclusion.id);
       const accommodationStatus = accommodation ? "processed" : "pending";
-      const matchesAccommodationStatus = filters.accommodationStatus === "all" || 
+      const matchesAccommodationStatus = filters.accommodationStatus === "all" ||
         filters.accommodationStatus === accommodationStatus;
 
-      const matchesInclusionStatus = filters.inclusionStatus === "all" || 
-        (filters.inclusionStatus === "active" && inclusion.status !== "cancelado");
+      // "Canceladas" só canceladas; "Todas" mostra tudo; "ativas" esconde as
+      // canceladas. Antes a opção "Canceladas" caía no else e devolvia false
+      // para todo mundo — a lista ficava sempre vazia.
+      const matchesInclusionStatus =
+        filters.inclusionStatus === "all" ? true
+        : filters.inclusionStatus === "cancelado" ? inclusion.status === "cancelado"
+        : inclusion.status !== "cancelado";
 
-      return matchesEvent && matchesFunction && matchesCollaborator && matchesSearchId && 
+      return matchesEvent && matchesFunction && matchesCollaborator && matchesSearchId &&
              matchesAccommodationStatus && matchesInclusionStatus;
     });
 
@@ -1001,10 +1024,21 @@ export default function Accommodations() {
       data = data.sort((a, b) => {
         const aValue = getFieldValue(a, sortConfig.field);
         const bValue = getFieldValue(b, sortConfig.field);
-        
-        if (aValue === null || aValue === undefined) return 1;
-        if (bValue === null || bValue === undefined) return -1;
-        
+
+        // Vazios sempre por último — antes, com os dois nulos, o comparador
+        // devolvia 1 nos dois sentidos (comparador inconsistente).
+        const aEmpty = aValue === null || aValue === undefined || aValue === '';
+        const bEmpty = bValue === null || bValue === undefined || bValue === '';
+        if (aEmpty && bEmpty) return 0;
+        if (aEmpty) return 1;
+        if (bEmpty) return -1;
+
+        // Texto em pt-BR: sem localeCompare, nomes acentuados iam para o fim.
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          const cmp = aValue.localeCompare(bValue, 'pt-BR');
+          return sortConfig.direction === 'asc' ? cmp : -cmp;
+        }
+
         if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
         if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
@@ -1012,7 +1046,38 @@ export default function Accommodations() {
     }
 
     return data;
-  }, [teamInclusionsWithAccommodation, accommodationMap, filters, sortConfig]);
+  }, [teamInclusionsWithAccommodation, accommodationMap, eventById, functionById, collaboratorById,
+      filters, sortConfig, showOnlyPendingSwaps, pendingSwapByInclusion]);
+
+  // Banner: trocas pendentes que exigem análise de Compras. Derivado da MESMA
+  // lista renderizada — com o filtro ligado, toda linha visível tem troca
+  // pendente, então o contador nunca diverge do que está na tabela.
+  const pendingAccommodationSwapsCount = useMemo(() => {
+    if (!isPurchasingRole) return 0;
+    if (showOnlyPendingSwaps) return filteredData.length;
+    return filteredData.filter(inc => pendingSwapByInclusion.has(inc.id)).length;
+  }, [isPurchasingRole, showOnlyPendingSwaps, filteredData, pendingSwapByInclusion]);
+
+  // Linhas elegíveis ao lote: pendentes, não canceladas e visíveis agora.
+  const selectableInclusionIds = useMemo(() => {
+    const ids = new Set<string>();
+    filteredData.forEach(inc => {
+      if (!accommodationMap.get(inc.id) && inc.status !== 'cancelado') ids.add(inc.id);
+    });
+    return ids;
+  }, [filteredData, accommodationMap]);
+
+  // A seleção sobrevive à troca de filtros e a registros feitos em outra aba; o
+  // contador e o botão de lote usam só o que ainda é aplicável, senão o número
+  // prometido no rodapé não batia com o que era processado.
+  const effectiveSelectedForBatch = useMemo(
+    () => selectedInclusionsForBatch.filter(id => selectableInclusionIds.has(id)),
+    [selectedInclusionsForBatch, selectableInclusionIds]
+  );
+
+  const allSelectableSelected =
+    selectableInclusionIds.size > 0 &&
+    Array.from(selectableInclusionIds).every(id => selectedInclusionsForBatch.includes(id));
 
   // Mutations
   const createAccommodationMutation = useMutation({
@@ -1036,24 +1101,36 @@ export default function Accommodations() {
       }
       // Senão, apenas marcar hospedagem como comprada (independente se precisa ou não de passagem)
       
-      await apiRequest("PATCH", `/api/team-inclusions/${accommodationData.teamInclusionId}`, {
-        status: newStatus,
-        phase: newPhase,
-        updatedBy: user?.id
-      });
-      
+      try {
+        await apiRequest("PATCH", `/api/team-inclusions/${accommodationData.teamInclusionId}`, {
+          status: newStatus,
+          phase: newPhase,
+          updatedBy: user?.id
+        });
+      } catch (err: any) {
+        // A hospedagem JÁ foi criada aqui: o toast genérico "Erro ao registrar
+        // hospedagem" fazia o usuário tentar de novo e duplicar o registro.
+        err.body = {
+          message: err?.body?.message
+            ? `Hospedagem registrada, mas o status da inclusão não foi atualizado: ${err.body.message}`
+            : "Hospedagem registrada, mas não foi possível atualizar o status da inclusão.",
+        };
+        throw err;
+      }
+
       return accommodation;
     },
-    onSuccess: () => {
+    // onSettled: mesmo quando o PATCH de status falha a hospedagem já existe no
+    // servidor, então a tela precisa recarregar de qualquer forma.
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/accommodations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
     onError: (error: any) => {
-      console.error("Erro ao criar hospedagem:", error);
       toast({
         variant: "destructive",
-        title: "❌ Erro",
-        description: error?.message || "Erro ao registrar hospedagem",
+        title: "Erro",
+        description: error?.body?.message || "Erro ao registrar hospedagem",
       });
     },
   });
@@ -1062,80 +1139,15 @@ export default function Accommodations() {
     mutationFn: ({ id, data }: { id: string, data: any }) => apiRequest("PATCH", `/api/accommodations/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/accommodations"] });
-      setEditingAccommodationId(null);
     },
     onError: (error: any) => {
-      console.error("Erro ao atualizar hospedagem:", error);
       toast({
         variant: "destructive",
-        title: "❌ Erro",
-        description: error?.message || "Erro ao atualizar hospedagem",
+        title: "Erro",
+        description: error?.body?.message || "Erro ao atualizar hospedagem",
       });
     },
   });
-
-  const updateTeamInclusionMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string, data: any }) => apiRequest("PATCH", `/api/team-inclusions/${id}`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-    },
-    onError: (error: any) => {
-      console.error("Erro ao atualizar inclusão de equipe:", error);
-    },
-  });
-
-  // Funções auxiliares
-  const handleCreateAccommodation = (inclusion: TeamInclusion) => {
-    if (!canPerformActions(inclusion)) {
-      toast({
-        variant: "destructive",
-        title: "❌ Acesso Negado",
-        description: "Você não tem permissão para criar hospedagem.",
-      });
-      return;
-    }
-
-    const accommodationData = {
-      teamInclusionId: inclusion.id,
-      updatedBy: user?.id,
-    };
-
-    createAccommodationMutation.mutate(accommodationData);
-  };
-
-  const handleUpdateAccommodation = (accommodationId: string, formData: FormData) => {
-    const accommodation = accommodations?.find(acc => acc.id === accommodationId);
-    const inclusion = accommodation ? teamInclusions?.find(inc => inc.id === accommodation.teamInclusionId) : null;
-    
-    if (!inclusion || !canPerformActions(inclusion)) {
-      toast({
-        variant: "destructive",
-        title: "❌ Acesso Negado",  
-        description: "Você não tem permissão para atualizar hospedagem.",
-      });
-      return;
-    }
-
-    const data = Object.fromEntries(formData.entries());
-    
-    // Converter campos de data vazios para null
-    const cleanedData = {
-      ...data,
-      checkInDate: data.checkInDate || null,
-      checkInTime: data.checkInTime || null,
-      checkOutDate: data.checkOutDate || null,
-      checkOutTime: data.checkOutTime || null,
-      hotelLocation: data.hotelLocation || null,
-      hotelName: data.hotelName || null,
-      accommodationObservations: data.accommodationObservations || null,
-      updatedBy: user?.id,
-    };
-
-    updateAccommodationMutation.mutate({
-      id: accommodationId,
-      data: cleanedData
-    });
-  };
 
   if (isLoading) {
     return (
@@ -1155,11 +1167,47 @@ export default function Accommodations() {
     );
   }
 
+  // Sessão expirada ou rede fora: mostrar o motivo em vez de "nenhuma inclusão
+  // com hospedagem encontrada", que sugeria que simplesmente não há trabalho.
+  if (loadError) {
+    const isAuthError = loadError?.status === 401 || loadError?.status === 403;
+    return (
+      <div className="bg-white rounded-xl border border-red-200 shadow-sm p-8 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+          <AlertCircle className="w-7 h-7 text-red-400" />
+        </div>
+        <h3 className="text-[15px] font-bold text-slate-700 mb-1">
+          {isAuthError ? "Sessão expirada ou sem permissão" : "Não foi possível carregar as hospedagens"}
+        </h3>
+        <p className="text-[13px] text-slate-400 mb-4">
+          {isAuthError
+            ? "Entre novamente para continuar. Nenhum dado foi perdido."
+            : (loadError?.body?.message || "Verifique sua conexão e tente novamente.")}
+        </p>
+        <Button
+          variant="outline"
+          onClick={() => {
+            queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/functions"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/collaborators"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/accommodations"] });
+          }}
+          className="rounded-lg"
+        >
+          Tentar novamente
+        </Button>
+      </div>
+    );
+  }
+
   const canEditField = canEditScreen(user, "accommodations");
 
   const totalCount = filteredData.length;
   const purchasedCount = filteredData.filter(inc => accommodationMap.get(inc.id)).length;
-  const pendingCount = filteredData.filter(inc => !accommodationMap.get(inc.id)).length;
+  // Inclusão cancelada não é "pendente" — contá-la inflava a fila de trabalho
+  // quando o filtro mostrava canceladas.
+  const pendingCount = filteredData.filter(inc => !accommodationMap.get(inc.id) && inc.status !== 'cancelado').length;
 
   const toTitleCase = (str: string | null | undefined): string => {
     if (!str) return '';
@@ -1202,8 +1250,10 @@ export default function Accommodations() {
         ))}
       </div>
 
-      {/* Banner: trocas pendentes aguardando análise de Compras */}
-      {isPurchasingRole && pendingAccommodationSwapsCount > 0 && (
+      {/* Banner: trocas pendentes aguardando análise de Compras.
+          Com o filtro ligado o banner continua visível mesmo sem resultados —
+          ele é o único controle do toggle e sumir deixaria o filtro travado. */}
+      {isPurchasingRole && (pendingAccommodationSwapsCount > 0 || showOnlyPendingSwaps) && (
         <button
           onClick={() => setShowOnlyPendingSwaps(v => !v)}
           className={`w-full flex items-center gap-3 rounded-xl px-4 py-3 border text-left transition-colors ${showOnlyPendingSwaps ? 'bg-amber-100 border-amber-400' : 'bg-amber-50 border-amber-200 hover:bg-amber-100'}`}
@@ -1213,9 +1263,11 @@ export default function Accommodations() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[13px] font-semibold text-amber-800 leading-snug">
-              {pendingAccommodationSwapsCount === 1
-                ? '1 solicitação de troca de colaborador aguarda sua análise'
-                : `${pendingAccommodationSwapsCount} solicitações de troca de colaborador aguardam sua análise`}
+              {pendingAccommodationSwapsCount === 0
+                ? 'Nenhuma troca pendente nos filtros atuais'
+                : pendingAccommodationSwapsCount === 1
+                  ? '1 solicitação de troca de colaborador aguarda sua análise'
+                  : `${pendingAccommodationSwapsCount} solicitações de troca de colaborador aguardam sua análise`}
             </p>
             <p className="text-[11px] text-amber-600 mt-0.5">
               {showOnlyPendingSwaps
@@ -1233,6 +1285,13 @@ export default function Accommodations() {
       <div
         className="bg-white rounded-xl shadow-sm border border-slate-200 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors overflow-hidden"
         onClick={() => toggleSection('basic')}
+        role="button"
+        tabIndex={0}
+        aria-expanded={expandedSections.basic}
+        aria-label="Aplicar em lote — expandir ou recolher"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSection('basic'); }
+        }}
         data-testid="button-toggle-quick-register"
       >
         <div className="flex items-center gap-3 px-4 py-3">
@@ -1281,8 +1340,9 @@ export default function Accommodations() {
                 <div className="p-4 bg-white space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Nome do Hotel *</Label>
+                      <Label htmlFor="quick-hotel-name" className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Nome do Hotel *</Label>
                       <Input
+                        id="quick-hotel-name"
                         placeholder="Hotel Copacabana"
                         value={accommodationData["quick"]?.hotelName || ""}
                         onChange={(e) => handleAccommodationDataChange("quick", "hotelName", e.target.value)}
@@ -1291,8 +1351,9 @@ export default function Accommodations() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Localização *</Label>
+                      <Label htmlFor="quick-hotel-location" className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Localização *</Label>
                       <Input
+                        id="quick-hotel-location"
                         placeholder="Rio de Janeiro, RJ"
                         value={accommodationData["quick"]?.hotelLocation || ""}
                         onChange={(e) => handleAccommodationDataChange("quick", "hotelLocation", e.target.value)}
@@ -1302,8 +1363,9 @@ export default function Accommodations() {
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Observações <span className="text-slate-300 normal-case">(opcional)</span></Label>
+                    <Label htmlFor="quick-accommodation-observations" className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Observações <span className="text-slate-300 normal-case">(opcional)</span></Label>
                     <Textarea
+                      id="quick-accommodation-observations"
                       placeholder="Informações adicionais..."
                       value={accommodationData["quick"]?.accommodationObservations || ""}
                       onChange={(e) => handleAccommodationDataChange("quick", "accommodationObservations", e.target.value)}
@@ -1323,7 +1385,7 @@ export default function Accommodations() {
               {(() => {
                 const q = accommodationData["quick"];
                 const hotelStatus = !!(q?.hotelName) && !!(q?.hotelLocation) ? 'done' : !!(q?.hotelName || q?.hotelLocation) ? 'partial' : 'empty';
-                const selectionStatus = selectedInclusionsForBatch.length > 0 ? 'done' : 'empty';
+                const selectionStatus = effectiveSelectedForBatch.length > 0 ? 'done' : 'empty';
 
                 const dot = (status: 'done'|'partial'|'empty') => {
                   const map = { done: 'bg-green-500', partial: 'bg-yellow-400', empty: 'bg-red-400' };
@@ -1353,7 +1415,7 @@ export default function Accommodations() {
                         {dot(selectionStatus)}
                         <div className="flex-1 min-w-0">
                           <p className={`text-[12px] font-semibold ${textColor(selectionStatus)}`}>Hospedagens selecionadas</p>
-                          <p className="text-[11px] text-slate-400">{selectedInclusionsForBatch.length > 0 ? `${selectedInclusionsForBatch.length} na fila` : 'Selecione na tabela'}</p>
+                          <p className="text-[11px] text-slate-400">{effectiveSelectedForBatch.length > 0 ? `${effectiveSelectedForBatch.length} na fila` : 'Selecione na tabela'}</p>
                         </div>
                       </li>
                     </ul>
@@ -1366,17 +1428,17 @@ export default function Accommodations() {
           {/* Rodapé de ação */}
           <div className="border-t border-slate-100 px-5 py-3 bg-slate-50 flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className={`flex items-center gap-3 px-4 py-2 rounded-2xl transition-all ${selectedInclusionsForBatch.length > 0 ? 'bg-[#0033CC] text-white shadow-lg shadow-blue-200' : 'bg-slate-200 text-slate-400'}`}>
+              <div className={`flex items-center gap-3 px-4 py-2 rounded-2xl transition-all ${effectiveSelectedForBatch.length > 0 ? 'bg-[#0033CC] text-white shadow-lg shadow-blue-200' : 'bg-slate-200 text-slate-400'}`}>
                 <span className="material-symbols-outlined" style={{fontSize:18}}>bed</span>
                 <div>
                   <p className="text-[9px] font-bold uppercase tracking-widest opacity-70 leading-none mb-0.5">Hospedagens</p>
-                  <p className="text-lg font-black leading-none">{selectedInclusionsForBatch.length}</p>
+                  <p className="text-lg font-black leading-none">{effectiveSelectedForBatch.length}</p>
                 </div>
               </div>
               {(() => {
                 const q = accommodationData["quick"];
-                const ready = selectedInclusionsForBatch.length > 0 && !!(q?.hotelName) && !!(q?.hotelLocation);
-                const partial = !ready && (selectedInclusionsForBatch.length > 0 || !!(q?.hotelName));
+                const ready = effectiveSelectedForBatch.length > 0 && !!(q?.hotelName) && !!(q?.hotelLocation);
+                const partial = !ready && (effectiveSelectedForBatch.length > 0 || !!(q?.hotelName));
                 if (ready) return (
                   <span className="flex items-center gap-1.5 px-4 py-1.5 bg-green-100 text-green-700 rounded-full text-[11px] font-bold uppercase tracking-wide">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
@@ -1417,18 +1479,18 @@ export default function Accommodations() {
                 </Button>
                 <Button
                   onClick={handleApplyToSelected}
-                  disabled={selectedInclusionsForBatch.length === 0 || createAccommodationMutation.isPending}
+                  disabled={effectiveSelectedForBatch.length === 0 || createAccommodationMutation.isPending}
                   data-testid="button-apply-to-selected"
                   className="h-[38px] px-6 font-bold rounded-xl flex items-center gap-2 transition-all"
                   style={{
-                    background: selectedInclusionsForBatch.length === 0 ? '#E2E8F0' : '#0033CC',
-                    color: selectedInclusionsForBatch.length === 0 ? '#94A3B8' : 'white',
-                    boxShadow: selectedInclusionsForBatch.length > 0 ? '0 4px 14px rgba(0,51,204,0.3)' : 'none',
-                    cursor: selectedInclusionsForBatch.length === 0 ? 'not-allowed' : 'pointer',
+                    background: effectiveSelectedForBatch.length === 0 ? '#E2E8F0' : '#0033CC',
+                    color: effectiveSelectedForBatch.length === 0 ? '#94A3B8' : 'white',
+                    boxShadow: effectiveSelectedForBatch.length > 0 ? '0 4px 14px rgba(0,51,204,0.3)' : 'none',
+                    cursor: effectiveSelectedForBatch.length === 0 ? 'not-allowed' : 'pointer',
                   }}
                 >
                   <Save className="w-4 h-4" />
-                  {createAccommodationMutation.isPending ? "Aplicando..." : `Aplicar a ${selectedInclusionsForBatch.length} Hospedagens`}
+                  {createAccommodationMutation.isPending ? "Aplicando..." : `Aplicar a ${effectiveSelectedForBatch.length} Hospedagens`}
                 </Button>
               </div>
             )}
@@ -1534,11 +1596,10 @@ export default function Accommodations() {
                     <input
                       type="checkbox"
                       title="Selecionar todos pendentes"
+                      aria-label="Selecionar todas as hospedagens pendentes"
                       style={{width:16,height:16,cursor:'pointer',accentColor:'#0033CC'}}
-                      checked={(() => {
-                        const pendingIds = filteredData.filter(i => !accommodationMap.get(i.id) && i.status !== 'cancelado').map(i => i.id);
-                        return pendingIds.length > 0 && pendingIds.every(id => selectedInclusionsForBatch.includes(id));
-                      })()}
+                      checked={allSelectableSelected}
+                      disabled={selectableInclusionIds.size === 0}
                       onChange={toggleAllInclusions}
                     />
                   </th>
@@ -1555,9 +1616,9 @@ export default function Accommodations() {
             </thead>
             <tbody className="divide-y divide-slate-100">
                 {filteredData.map((inclusion, idx) => {
-                  const event = events?.find(e => e.id === inclusion.eventId);
-                  const func = functions?.find(f => f.id === inclusion.functionId);
-                  const collaborator = collaborators?.find(c => c.id === inclusion.collaboratorId);
+                  const event = eventById.get(inclusion.eventId);
+                  const func = functionById.get(inclusion.functionId);
+                  const collaborator = (inclusion.collaboratorId ? collaboratorById.get(inclusion.collaboratorId) : undefined);
                   const accommodation = accommodationMap.get(inclusion.id);
                   const hasAccommodation = !!accommodation;
                   const isCanceled = inclusion.status === 'cancelado';
@@ -1592,6 +1653,7 @@ export default function Accommodations() {
                               type="checkbox"
                               checked={isSelectedForBatch}
                               onChange={() => toggleInclusionSelection(inclusion.id)}
+                              aria-label={`Selecionar hospedagem da inclusão #${inclusion.inclusionNumber ?? ''}`}
                               style={{width:16,height:16,cursor:'pointer',accentColor:'#0033CC'}}
                               data-testid={`checkbox-batch-${inclusion.inclusionNumber}`}
                             />
@@ -1693,6 +1755,7 @@ export default function Accommodations() {
                               onClick={() => handleViewAccommodationDetails(inclusion)}
                               data-testid={`view-accommodation-${inclusion.inclusionNumber}`}
                               title="Visualizar hospedagem"
+                              aria-label={`Visualizar hospedagem da inclusão #${inclusion.inclusionNumber ?? ''}`}
                               style={{width:32,height:32,borderRadius:'50%',background:'#F1F5F9',color:'#94A3B8',display:'inline-flex',alignItems:'center',justifyContent:'center',border:'none',cursor:'pointer',transition:'all 0.15s'}}
                               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background='#EEF2FF'; (e.currentTarget as HTMLButtonElement).style.color='#3B4FE4'; }}
                               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background='#F1F5F9'; (e.currentTarget as HTMLButtonElement).style.color='#94A3B8'; }}
@@ -1704,6 +1767,7 @@ export default function Accommodations() {
                               onClick={() => handleViewAccommodationDetails(inclusion)}
                               data-testid={`buy-accommodation-${inclusion.inclusionNumber}`}
                               title="Registrar hospedagem"
+                              aria-label={`Registrar hospedagem da inclusão #${inclusion.inclusionNumber ?? ''}`}
                               style={{width:32,height:32,borderRadius:8,background:'#EEF2FF',color:'#3B4FE4',border:'none',display:'inline-flex',alignItems:'center',justifyContent:'center',cursor:'pointer',transition:'all 0.15s'}}
                               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background='#3B4FE4'; (e.currentTarget as HTMLButtonElement).style.color='#fff'; }}
                               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background='#EEF2FF'; (e.currentTarget as HTMLButtonElement).style.color='#3B4FE4'; }}
@@ -1754,11 +1818,11 @@ export default function Accommodations() {
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 text-[12px]">
               <div className="flex items-start gap-2">
                 <span className="text-slate-400 font-medium shrink-0">Colaborador atual:</span>
-                <span className="font-semibold text-slate-700">{toTitleCase(fixEncoding(collaborators?.find(c => c.id === selectedInclusion?.collaboratorId)?.fullName) || '—')}</span>
+                <span className="font-semibold text-slate-700">{toTitleCase(fixEncoding((selectedInclusion?.collaboratorId ? collaboratorById.get(selectedInclusion.collaboratorId) : undefined)?.fullName) || '—')}</span>
               </div>
               <div className="flex items-start gap-2">
                 <span className="text-slate-400 font-medium shrink-0">Colaborador solicitado:</span>
-                <span className="font-semibold text-blue-700">{toTitleCase(fixEncoding(collaborators?.find(c => c.id === (pendingSwap as any).new_collaborator_id)?.fullName) || '—')}</span>
+                <span className="font-semibold text-blue-700">{toTitleCase(fixEncoding(collaboratorById.get((pendingSwap as any).new_collaborator_id)?.fullName) || '—')}</span>
               </div>
             </div>
             <div className="flex gap-2 justify-end">
@@ -1839,7 +1903,7 @@ export default function Accommodations() {
               </div>
             </div>
             <button
-              onClick={() => { setShowSuccessModal(false); setSuccessInfo(null); setEditingAccommodationId(null); }}
+              onClick={() => { setShowSuccessModal(false); setSuccessInfo(null); }}
               className="w-full py-2.5 rounded-xl font-semibold text-white text-sm"
               style={{background:'#2563EB'}}
             >
@@ -1860,253 +1924,5 @@ export default function Accommodations() {
       )}
       </div>
     </>
-  );
-}
-
-// Componente separado para o formulário de detalhes
-function AccommodationDetailForm({
-  inclusion,
-  accommodation,
-  events,
-  functions,
-  collaborators,
-  users,
-  canEditField,
-  editingAccommodationId,
-  setEditingAccommodationId,
-  onSubmit,
-  expandedSections,
-  setExpandedSections,
-  isUpdating
-}: {
-  inclusion: TeamInclusion;
-  accommodation?: Accommodation;
-  events?: Event[];
-  functions?: Function[];
-  collaborators?: Collaborator[];
-  users?: any[];
-  canEditField: boolean;
-  editingAccommodationId: string | null;
-  setEditingAccommodationId: (id: string | null) => void;
-  onSubmit: (accommodationId: string, formData: FormData) => void;
-  expandedSections: Record<string, boolean>;
-  setExpandedSections: (sections: Record<string, boolean>) => void;
-  isUpdating: boolean;
-}) {
-  const event = events?.find(e => e.id === inclusion.eventId);
-  const func = functions?.find(f => f.id === inclusion.functionId);
-  const collaborator = collaborators?.find(c => c.id === inclusion.collaboratorId);
-  const isEditing = accommodation && editingAccommodationId === accommodation.id;
-  const isReadOnlyMode = isReadOnly(inclusion);
-
-  const toggleSection = (section: string) => {
-    setExpandedSections({
-      ...expandedSections,
-      [section]: !expandedSections[section]
-    });
-  };
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!accommodation) return;
-    
-    const formData = new FormData(e.currentTarget);
-    onSubmit(accommodation.id, formData);
-  };
-
-  if (!accommodation) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-gray-500">Nenhuma hospedagem encontrada para esta inclusão.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Informações da Inclusão */}
-      <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-        <h3 className="font-semibold mb-2">Informações da Inclusão</h3>
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div><strong>ID:</strong> {inclusion.inclusionNumber}</div>
-          <div><strong>Evento:</strong> {event?.name}</div>
-          <div><strong>Função:</strong> {func?.name}</div>
-          <div><strong>Colaborador:</strong> {fixEncoding(collaborator?.fullName)}</div>
-        </div>
-      </div>
-
-      {/* Formulário de Hospedagem */}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Seção Básica */}
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
-          <button
-            type="button"
-            onClick={() => toggleSection('basic')}
-            className="flex items-center justify-between w-full p-3 text-left bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-t-lg"
-          >
-            <span className="font-medium">Informações Básicas</span>
-            {expandedSections.basic ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          </button>
-          
-          {expandedSections.basic && (
-            <div className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="hotelName">Nome do Hotel</Label>
-                  <Input
-                    id="hotelName"
-                    name="hotelName"
-                    defaultValue={accommodation.hotelName || ""}
-                    disabled={!canEditField || (!isEditing && !isReadOnlyMode)}
-                    data-testid="input-hotel-name"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="hotelLocation">Localização do Hotel</Label>
-                  <Input
-                    id="hotelLocation"
-                    name="hotelLocation"
-                    defaultValue={accommodation.hotelLocation || ""}
-                    disabled={!canEditField || (!isEditing && !isReadOnlyMode)}
-                    data-testid="input-hotel-location"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Seção Datas */}
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
-          <button
-            type="button"
-            onClick={() => toggleSection('dates')}
-            className="flex items-center justify-between w-full p-3 text-left bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-t-lg"
-          >
-            <span className="font-medium">Datas e Horários</span>
-            {expandedSections.dates ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          </button>
-          
-          {expandedSections.dates && (
-            <div className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="checkInDate">Data Check-in</Label>
-                  <Input
-                    id="checkInDate"
-                    name="checkInDate"
-                    type="date"
-                    defaultValue={accommodation.checkInDate || ""}
-                    disabled={!canEditField || (!isEditing && !isReadOnlyMode)}
-                    data-testid="input-checkin-date"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="checkInTime">Hora Check-in</Label>
-                  <Input
-                    id="checkInTime"
-                    name="checkInTime"
-                    type="time"
-                    defaultValue={accommodation.checkInTime || ""}
-                    disabled={!canEditField || (!isEditing && !isReadOnlyMode)}
-                    data-testid="input-checkin-time"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="checkOutDate">Data Check-out</Label>
-                  <Input
-                    id="checkOutDate"
-                    name="checkOutDate"
-                    type="date"
-                    defaultValue={accommodation.checkOutDate || ""}
-                    disabled={!canEditField || (!isEditing && !isReadOnlyMode)}
-                    data-testid="input-checkout-date"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="checkOutTime">Hora Check-out</Label>
-                  <Input
-                    id="checkOutTime"
-                    name="checkOutTime"
-                    type="time"
-                    defaultValue={accommodation.checkOutTime || ""}
-                    disabled={!canEditField || (!isEditing && !isReadOnlyMode)}
-                    data-testid="input-checkout-time"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Seção Adicional */}
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
-          <button
-            type="button"
-            onClick={() => toggleSection('additional')}
-            className="flex items-center justify-between w-full p-3 text-left bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-t-lg"
-          >
-            <span className="font-medium">Informações Adicionais</span>
-            {expandedSections.additional ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          </button>
-          
-          {expandedSections.additional && (
-            <div className="p-4 space-y-4">
-              <div>
-                <Label htmlFor="accommodationObservations">Observações</Label>
-                <Textarea
-                  id="accommodationObservations"
-                  name="accommodationObservations"
-                  rows={3}
-                  defaultValue={accommodation.accommodationObservations || ""}
-                  disabled={!canEdit || (!isEditing && !isReadOnlyMode)}
-                  data-testid="textarea-observations"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Botões de Ação */}
-        <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
-          {canEditField && !isReadOnlyMode && (
-            <>
-              {!isEditing ? (
-                <Button
-                  type="button"
-                  onClick={() => setEditingAccommodationId(accommodation.id)}
-                  data-testid="button-edit-accommodation"
-                >
-                  <Edit className="w-4 h-4 mr-2" />
-                  Editar
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setEditingAccommodationId(null)}
-                    disabled={isUpdating}
-                    data-testid="button-cancel-edit"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={isUpdating}
-                    data-testid="button-save-accommodation"
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    {isUpdating ? "Salvando..." : "Salvar"}
-                  </Button>
-                </>
-              )}
-            </>
-          )}
-        </div>
-      </form>
-    </div>
   );
 }

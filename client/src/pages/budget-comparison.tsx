@@ -190,7 +190,7 @@ export default function BudgetComparisonPage() {
 
   const patchActualMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Record<string, number> }) => {
-      const res = await apiRequest("PATCH", `/api/budget-actual/${id}`, { ...data, _userId: user?.id });
+      const res = await apiRequest("PATCH", `/api/budget-actual/${id}`, data);
       return res.json();
     },
     onSuccess: () => {

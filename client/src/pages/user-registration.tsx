@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -58,13 +58,21 @@ const FieldError = ({ msg }: { msg?: string }) =>
 
 export default function UserRegistration() {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", email: "", area: "" },
   });
+
+  // O spread do register já traz onBlur; declarar onBlur depois dele
+  // sobrescrevia o handler do react-hook-form e a validação no blur parava
+  // de rodar. Estes wrappers preservam os dois comportamentos.
+  const nameField  = register("name");
+  const emailField = register("email");
+  const areaField  = register("area");
 
   const nameVal  = watch("name") || "";
   const emailVal = watch("email") || "";
@@ -75,22 +83,35 @@ export default function UserRegistration() {
   const selectedRole = ROLES.find(r => r.value === roleVal);
 
   const mutation = useMutation({
+    // apiRequest já lança em resposta não-ok (com .status e .body no erro),
+    // então o antigo bloco "if (!r.ok)" era inalcançável.
     mutationFn: async (data: FormData) => {
       const r = await apiRequest("POST", "/api/users", data);
-      if (!r.ok) {
-        const err = await r.json();
-        throw new Error(err.message || "Erro ao criar usuário");
-      }
       return r.json();
     },
     onSuccess: () => {
       toast({ title: "Usuário criado", description: "Conta criada com sucesso. O acesso será feito pelo Portal Norte." });
+      // Sem isto a tela de Gerenciamento de Usuários continuava mostrando a
+      // lista antiga (sem o usuário recém-criado) até um F5.
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       reset();
     },
-    onError: (e: Error) => {
-      toast({ title: "Erro ao criar usuário", description: e.message || "Tente novamente.", variant: "destructive" });
+    onError: (e: any) => {
+      const description =
+        e?.status === 401 ? "Sua sessão expirou. Entre novamente para continuar." :
+        e?.status === 403 ? "Você não tem permissão para cadastrar usuários." :
+        e?.body?.message || e?.message || "Tente novamente.";
+      toast({ title: "Erro ao criar usuário", description, variant: "destructive" });
     },
   });
+
+  if (authLoading) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <p style={{ fontSize: 13, color: "#94A3B8" }}>Carregando…</p>
+      </div>
+    );
+  }
 
   if (!hasPermission(user, 'canAccessAdminUsers')) {
     return (
@@ -142,7 +163,7 @@ export default function UserRegistration() {
       <div style={{ display: "flex", gap: 12, alignItems: "start", flexWrap: "wrap" }}>
 
         {/* ── Form card ── */}
-        <form onSubmit={handleSubmit(d => mutation.mutate(d))} style={{ flex: 1, minWidth: 0 }}>
+        <form onSubmit={handleSubmit(d => { if (mutation.isPending) return; mutation.mutate(d); })} style={{ flex: 1, minWidth: 0 }}>
           <div style={{ background: "white", borderRadius: 12, border: "1px solid #E8ECF8", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden" }}>
 
             {/* Section 1: Dados Pessoais */}
@@ -155,18 +176,20 @@ export default function UserRegistration() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 {/* Nome */}
                 <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#434655", marginBottom: 6, marginLeft: 2 }}>
+                  <label htmlFor="user-name" style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#434655", marginBottom: 6, marginLeft: 2 }}>
                     Nome completo <span style={{ color: "#EF4444" }}>*</span>
                   </label>
                   <div style={{ position: "relative" }}>
-                    <span className="material-symbols-outlined" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 18, color: "#94A3B8" }}>person</span>
+                    <span className="material-symbols-outlined" aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 18, color: "#94A3B8" }}>person</span>
                     <input
+                      id="user-name"
                       placeholder="Ex: Ana Silva"
                       data-testid="input-name"
+                      aria-invalid={!!errors.name}
                       style={inputStyle("name", !!errors.name)}
-                      {...register("name")}
+                      {...nameField}
                       onFocus={() => setFocusedField("name")}
-                      onBlur={() => setFocusedField(null)}
+                      onBlur={(e) => { nameField.onBlur(e); setFocusedField(null); }}
                     />
                   </div>
                   <FieldError msg={errors.name?.message} />
@@ -174,22 +197,24 @@ export default function UserRegistration() {
 
                 {/* Email */}
                 <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#434655", marginBottom: 6, marginLeft: 2 }}>
+                  <label htmlFor="user-email" style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#434655", marginBottom: 6, marginLeft: 2 }}>
                     E-mail corporativo <span style={{ color: "#EF4444" }}>*</span>
                   </label>
                   <div style={{ position: "relative" }}>
-                    <span className="material-symbols-outlined" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 18, color: emailVal && isEmailValid ? "#22C55E" : "#94A3B8" }}>mail</span>
+                    <span className="material-symbols-outlined" aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 18, color: emailVal && isEmailValid ? "#22C55E" : "#94A3B8" }}>mail</span>
                     <input
+                      id="user-email"
                       type="email"
                       placeholder="ana.silva@empresa.com"
                       data-testid="input-email"
+                      aria-invalid={!!errors.email}
                       style={{ ...inputStyle("email", !!errors.email, emailVal ? isEmailValid : undefined), paddingRight: 36 }}
-                      {...register("email")}
+                      {...emailField}
                       onFocus={() => setFocusedField("email")}
-                      onBlur={() => setFocusedField(null)}
+                      onBlur={(e) => { emailField.onBlur(e); setFocusedField(null); }}
                     />
                     {emailVal && (
-                      <span className="material-symbols-outlined" style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 15, color: isEmailValid ? "#22C55E" : "#CBD5E1", fontVariationSettings: "'FILL' 1" }}>
+                      <span className="material-symbols-outlined" aria-hidden="true" style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 15, color: isEmailValid ? "#22C55E" : "#CBD5E1", fontVariationSettings: "'FILL' 1" }}>
                         {isEmailValid ? "check_circle" : "radio_button_unchecked"}
                       </span>
                     )}
@@ -211,6 +236,7 @@ export default function UserRegistration() {
                   const isSelected = roleVal === role.value;
                   return (
                     <button key={role.value} type="button"
+                      aria-pressed={isSelected}
                       onClick={() => setValue("role", role.value as FormData["role"], { shouldValidate: true })}
                       style={{
                         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
@@ -220,12 +246,12 @@ export default function UserRegistration() {
                         transition: "all 0.15s", position: "relative",
                       }}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: 20, color: PRIMARY, fontVariationSettings: "'FILL' 1" }}>
+                      <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 20, color: PRIMARY, fontVariationSettings: "'FILL' 1" }}>
                         {role.icon}
                       </span>
                       <span style={{ fontSize: 11, fontWeight: 700, color: "#141b2b", lineHeight: 1.3 }}>{role.label}</span>
                       {isSelected && (
-                        <span className="material-symbols-outlined" style={{ position: "absolute", top: 8, right: 8, fontSize: 14, color: PRIMARY, fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                        <span className="material-symbols-outlined" aria-hidden="true" style={{ position: "absolute", top: 8, right: 8, fontSize: 14, color: PRIMARY, fontVariationSettings: "'FILL' 1" }}>check_circle</span>
                       )}
                     </button>
                   );
@@ -241,8 +267,10 @@ export default function UserRegistration() {
                 <span style={{ marginLeft: "auto", fontSize: 10, color: "#CBD5E1" }}>{areaVal.length}/80 · opcional</span>
               </div>
               <textarea
+                id="user-area"
                 placeholder="Descreva o setor ou filial de atuação do colaborador..."
                 data-testid="input-area"
+                aria-label="Área específica do colaborador"
                 maxLength={80}
                 rows={1}
                 style={{
@@ -252,10 +280,10 @@ export default function UserRegistration() {
                   transition: "border-color 0.15s, background 0.15s",
                 }}
                 onFocus={e => { e.currentTarget.style.borderColor = PRIMARY; e.currentTarget.style.background = "white"; }}
-                {...register("area")}
+                {...areaField}
                 onBlur={e => {
                   // preserva o onBlur do register (validação/touched) e o efeito visual
-                  register("area").onBlur(e);
+                  areaField.onBlur(e);
                   e.currentTarget.style.borderColor = "#E2E8F0";
                   e.currentTarget.style.background = "#f1f3ff";
                 }}
@@ -264,8 +292,8 @@ export default function UserRegistration() {
 
             {/* Footer */}
             <div style={{ padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, background: "#FAFBFF", borderTop: "1px solid rgba(233,237,255,0.5)" }}>
-              <button type="button" onClick={() => reset()} data-testid="button-clear"
-                style={{ height: 34, padding: "0 16px", borderRadius: 8, fontSize: 12, fontWeight: 600, border: "1px solid #E2E8F0", background: "white", color: "#64748B", cursor: "pointer", fontFamily: "inherit", transition: "background 0.15s" }}
+              <button type="button" onClick={() => reset()} data-testid="button-clear" disabled={mutation.isPending}
+                style={{ height: 34, padding: "0 16px", borderRadius: 8, fontSize: 12, fontWeight: 600, border: "1px solid #E2E8F0", background: "white", color: "#64748B", cursor: mutation.isPending ? "not-allowed" : "pointer", opacity: mutation.isPending ? 0.6 : 1, fontFamily: "inherit", transition: "background 0.15s" }}
                 onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
                 onMouseLeave={e => e.currentTarget.style.background = "white"}
               >

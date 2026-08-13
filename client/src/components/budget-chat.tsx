@@ -73,7 +73,6 @@ export function BudgetChat({ entityType, entityId, eventId, linkedEntityType, li
         entityType,
         entityId,
         content,
-        _userId: user?.id,
       });
       return res.json();
     },

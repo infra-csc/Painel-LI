@@ -99,25 +99,30 @@ export interface EditDrawerProps {
 export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, onSaveMany }: EditDrawerProps) {
   const { toast } = useToast();
   const fields = kind === "ticket" ? TICKET_FIELDS : kind === "accommodation" ? ACC_FIELDS : EXTRAS_FIELDS;
+  // O rascunho guarda o TEXTO digitado (e boolean para switches). Antes ele guardava
+  // centavos e o input relia toInput(): digitar "10," / "10." era desfeito a cada tecla,
+  // impossibilitando informar centavos. A conversão acontece só no salvamento.
   const [draft, setDraft] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open || !kind) return;
     const init: Record<string, any> = {};
-    for (const f of fields) init[f.field] = readVal(f, source);
+    for (const f of fields) {
+      const v = readVal(f, source);
+      init[f.field] = f.type === "bool" ? !!v : toInput(v, f.type);
+    }
     setDraft(init);
   }, [open, kind, rowId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSave() {
-    if (!rowId) return;
+    if (!rowId || saving) return;
     const changes: Record<string, any> = {};
     for (const f of fields) {
       const orig = readVal(f, source);
-      const next = draft[f.field];
+      const next = f.type === "bool" ? !!draft[f.field] : parseInput(draft[f.field] ?? "", f.type);
       const a = f.type === "money" || f.type === "int" ? (orig ?? null) : f.type === "bool" ? !!orig : (orig ?? "");
-      const b = f.type === "bool" ? !!next : next;
-      if (String(a) !== String(b)) changes[f.field] = b;
+      if (String(a) !== String(next)) changes[f.field] = next;
     }
     if (Object.keys(changes).length === 0) { onOpenChange(false); return; }
     setSaving(true);
@@ -125,15 +130,23 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
       await onSaveMany(rowId, changes);
       toast({ title: "Salvo", description: `${Object.keys(changes).length} campo(s) atualizado(s).` });
       onOpenChange(false);
-    } catch {
-      toast({ title: "Erro ao salvar", description: "Tente novamente.", variant: "destructive" });
+    } catch (err: any) {
+      // Os campos são gravados um a um, então a falha pode ser parcial: não afirmar
+      // que nada foi salvo. O painel fica aberto com os valores digitados para revisão.
+      toast({
+        title: "Erro ao salvar",
+        description: err?.status === 401
+          ? "Sua sessão expirou. Entre novamente — parte dos campos pode não ter sido gravada."
+          : (err?.body?.message || "Parte dos campos pode não ter sido gravada. Confira os valores e tente novamente."),
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={(o) => { if (!saving) onOpenChange(o); }}>
       <SheetContent className="w-full sm:max-w-md overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
@@ -144,29 +157,34 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
         </SheetHeader>
 
         <div className="grid grid-cols-2 gap-3 py-5">
-          {fields.map((f) => (
-            <div key={f.field} className={f.span === 2 ? "col-span-2" : "col-span-1"}>
-              <Label className="text-xs text-muted-foreground">{f.label}</Label>
-              {f.type === "bool" ? (
-                <div className="flex items-center gap-2 mt-1.5">
-                  <Switch
-                    checked={!!draft[f.field]}
-                    onCheckedChange={(v) => setDraft((d) => ({ ...d, [f.field]: v }))}
+          {fields.map((f) => {
+            const inputId = `drawer-${f.field.replace(/\./g, "-")}`;
+            return (
+              <div key={f.field} className={f.span === 2 ? "col-span-2" : "col-span-1"}>
+                <Label htmlFor={inputId} className="text-xs text-muted-foreground">{f.label}</Label>
+                {f.type === "bool" ? (
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <Switch
+                      id={inputId}
+                      checked={!!draft[f.field]}
+                      onCheckedChange={(v) => setDraft((d) => ({ ...d, [f.field]: v }))}
+                    />
+                    <span className="text-sm">{draft[f.field] ? "Sim" : "Não"}</span>
+                  </div>
+                ) : (
+                  <Input
+                    id={inputId}
+                    className="mt-1"
+                    type={f.type === "time" ? "time" : f.type === "money" || f.type === "int" ? "number" : "text"}
+                    step={f.type === "money" ? "0.01" : undefined}
+                    value={draft[f.field] ?? ""}
+                    placeholder={f.placeholder}
+                    onChange={(e) => setDraft((d) => ({ ...d, [f.field]: e.target.value }))}
                   />
-                  <span className="text-sm">{draft[f.field] ? "Sim" : "Não"}</span>
-                </div>
-              ) : (
-                <Input
-                  className="mt-1"
-                  type={f.type === "time" ? "time" : f.type === "money" || f.type === "int" ? "number" : "text"}
-                  step={f.type === "money" ? "0.01" : undefined}
-                  value={toInput(draft[f.field], f.type)}
-                  placeholder={f.placeholder}
-                  onChange={(e) => setDraft((d) => ({ ...d, [f.field]: parseInput(e.target.value, f.type) }))}
-                />
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
         </div>
 
         <SheetFooter>

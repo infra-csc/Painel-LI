@@ -164,10 +164,9 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
   const bulkUploadMutation = useMutation({
     mutationFn: async (collaborators: ParsedCollaborator[]) => {
       const validCollaborators = collaborators.filter(c => c.isValid);
+      // Identidade e papel vêm da sessão no servidor (não do corpo)
       const response = await apiRequest("POST", "/api/collaborators/bulk", {
         collaborators: validCollaborators,
-        _userId: user?.id,
-        _userRole: user?.role
       });
       return response.json();
     },

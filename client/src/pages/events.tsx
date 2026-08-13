@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
@@ -13,7 +13,7 @@ import type { Event, TeamInclusion } from "@shared/schema";
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval,
   startOfWeek, endOfWeek, isSameMonth, isSameDay, isWithinInterval,
-  addMonths, subMonths, addWeeks, subWeeks, parseISO, startOfDay, endOfDay,
+  addMonths, subMonths, addWeeks, subWeeks, startOfDay, endOfDay,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -31,30 +31,46 @@ const MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","A
 const WEEK_SHORT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
+/**
+ * startDate/endDate vêm do backend como "YYYY-MM-DD" (coluna `date`).
+ * `new Date("2025-01-01")` é interpretado como UTC — em Brasília (UTC-3) isso
+ * vira 31/12/2024 21:00 e todo cálculo de dia/mês/ano volta um dia.
+ * Aqui a data é montada no fuso local, sem deslocamento.
+ */
+function parseLocalDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value).trim());
+  const d = m
+    ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+    : new Date(value as string);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 function getEventStatus(ev: Event): string {
   if (ev.status === "excluído") return "excluído";
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const end   = new Date(ev.endDate);   end.setHours(0, 0, 0, 0);
-  const start = new Date(ev.startDate); start.setHours(0, 0, 0, 0);
+  const end   = parseLocalDate(ev.endDate);
+  const start = parseLocalDate(ev.startDate);
+  if (!end || !start) return ev.status;
   if (end < today)    return "concluído";
   if (start <= today) return "em andamento";
   return ev.status;
 }
 
 function formatPeriod(s: string, e: string) {
-  try {
-    const d1 = new Date(s), d2 = new Date(e);
-    if (d1.toDateString() === d2.toDateString()) return format(d1, "dd/MM/yy");
-    const sm = d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
-    return sm ? `${format(d1, "dd")}–${format(d2, "dd/MM/yy")}` : `${format(d1, "dd/MM")} – ${format(d2, "dd/MM/yy")}`;
-  } catch { return `${s} – ${e}`; }
+  const d1 = parseLocalDate(s), d2 = parseLocalDate(e);
+  if (!d1 || !d2) return `${s} – ${e}`;
+  if (d1.toDateString() === d2.toDateString()) return format(d1, "dd/MM/yy");
+  const sm = d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
+  return sm ? `${format(d1, "dd")}–${format(d2, "dd/MM/yy")}` : `${format(d1, "dd/MM")} – ${format(d2, "dd/MM/yy")}`;
 }
 
 function eventsOnDay(events: Event[], day: Date) {
   return events.filter(ev => {
-    try {
-      return isWithinInterval(day, { start: startOfDay(parseISO(ev.startDate)), end: endOfDay(parseISO(ev.endDate)) });
-    } catch { return false; }
+    const start = parseLocalDate(ev.startDate);
+    const end   = parseLocalDate(ev.endDate);
+    if (!start || !end || end < start) return false;
+    return isWithinInterval(day, { start: startOfDay(start), end: endOfDay(end) });
   });
 }
 
@@ -125,9 +141,9 @@ function CalendarView({ events, onEdit, currentDate, setCurrentDate }: {
             {format(currentDate, "MMMM yyyy", { locale: ptBR })}
           </h2>
           <div style={{ display: "flex", gap: 2 }}>
-            <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#141b2b" }}
+            <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} aria-label="Mês anterior" style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#141b2b" }}
               className="hover:bg-[#e9edff] transition-colors"><ChevronLeft size={16} /></button>
-            <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#141b2b" }}
+            <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} aria-label="Próximo mês" style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#141b2b" }}
               className="hover:bg-[#e9edff] transition-colors"><ChevronRight size={16} /></button>
           </div>
         </div>
@@ -216,9 +232,9 @@ function WeekView({ events, onEdit, currentDate, setCurrentDate }: {
             {rangeLabel}
           </h2>
           <div style={{ display: "flex", gap: 2 }}>
-            <button onClick={() => setCurrentDate(subWeeks(currentDate, 1))} style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#141b2b" }}
+            <button onClick={() => setCurrentDate(subWeeks(currentDate, 1))} aria-label="Semana anterior" style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#141b2b" }}
               className="hover:bg-[#e9edff] transition-colors"><ChevronLeft size={16} /></button>
-            <button onClick={() => setCurrentDate(addWeeks(currentDate, 1))} style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#141b2b" }}
+            <button onClick={() => setCurrentDate(addWeeks(currentDate, 1))} aria-label="Próxima semana" style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#141b2b" }}
               className="hover:bg-[#e9edff] transition-colors"><ChevronRight size={16} /></button>
           </div>
         </div>
@@ -266,15 +282,16 @@ function WeekView({ events, onEdit, currentDate, setCurrentDate }: {
 }
 
 // ─── ActionBtns ───────────────────────────────────────────────────────────────
-function ActionBtns({ event, onEdit, onDelete, onRestore }: {
-  event: Event; onEdit: (e: Event) => void; onDelete: (e: Event) => void; onRestore: (e: Event) => void;
+function ActionBtns({ event, onEdit, onDelete, onRestore, busy }: {
+  event: Event; onEdit: (e: Event) => void; onDelete: (e: Event) => void; onRestore: (e: Event) => void; busy?: boolean;
 }) {
   const ds = getEventStatus(event);
   if (ds === "excluído") return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button onClick={() => onRestore(event)} style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
-          className="hover:bg-emerald-50 hover:!text-emerald-600 transition-colors"><RotateCcw size={13} /></button>
+        <button onClick={() => onRestore(event)} disabled={busy} aria-label={`Restaurar evento ${event.name}`}
+          style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: busy ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
+          className="hover:bg-emerald-50 hover:!text-emerald-600 transition-colors disabled:opacity-40"><RotateCcw size={13} /></button>
       </TooltipTrigger><TooltipContent>Restaurar</TooltipContent>
     </Tooltip>
   );
@@ -282,14 +299,16 @@ function ActionBtns({ event, onEdit, onDelete, onRestore }: {
     <>
       <Tooltip>
         <TooltipTrigger asChild>
-          <button onClick={() => onEdit(event)} style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
+          <button onClick={() => onEdit(event)} aria-label={`Editar evento ${event.name}`}
+            style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
             className="hover:bg-blue-50 hover:!text-[#0033CC] transition-colors"><Edit size={13} /></button>
         </TooltipTrigger><TooltipContent>Editar</TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
-          <button onClick={() => onDelete(event)} style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
-            className="hover:bg-red-50 hover:!text-red-500 transition-colors"><Trash2 size={13} /></button>
+          <button onClick={() => onDelete(event)} disabled={busy} aria-label={`Excluir evento ${event.name}`}
+            style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: busy ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
+            className="hover:bg-red-50 hover:!text-red-500 transition-colors disabled:opacity-40"><Trash2 size={13} /></button>
         </TooltipTrigger><TooltipContent>Excluir</TooltipContent>
       </Tooltip>
     </>
@@ -297,9 +316,9 @@ function ActionBtns({ event, onEdit, onDelete, onRestore }: {
 }
 
 // ─── ListView ─────────────────────────────────────────────────────────────────
-function ListView({ events, onEdit, onDelete, onRestore, escalacoes }: {
+function ListView({ events, onEdit, onDelete, onRestore, escalacoes, busy }: {
   events: Event[]; onEdit: (e: Event) => void; onDelete: (e: Event) => void;
-  onRestore: (e: Event) => void; escalacoes: Record<string, number>;
+  onRestore: (e: Event) => void; escalacoes: Record<string, number>; busy?: boolean;
 }) {
   if (events.length === 0) return <EmptyState />;
   return (
@@ -342,7 +361,7 @@ function ListView({ events, onEdit, onDelete, onRestore, escalacoes }: {
               </div>
               <StatusBadge ds={ds} />
               <div style={{ display: "flex", gap: 1, flexShrink: 0 }}>
-                <ActionBtns event={ev} onEdit={onEdit} onDelete={onDelete} onRestore={onRestore} />
+                <ActionBtns event={ev} onEdit={onEdit} onDelete={onDelete} onRestore={onRestore} busy={busy} />
               </div>
             </div>
           </div>
@@ -353,9 +372,9 @@ function ListView({ events, onEdit, onDelete, onRestore, escalacoes }: {
 }
 
 // ─── TableView ────────────────────────────────────────────────────────────────
-function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, sortDir, handleSort }: {
+function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, sortDir, handleSort, busy }: {
   events: Event[]; onEdit: (e: Event) => void; onDelete: (e: Event) => void; onRestore: (e: Event) => void;
-  escalacoes: Record<string, number>; sortKey: SortKey; sortDir: SortDir; handleSort: (k: SortKey) => void;
+  escalacoes: Record<string, number>; sortKey: SortKey; sortDir: SortDir; handleSort: (k: SortKey) => void; busy?: boolean;
 }) {
   return (
     <div style={{ background: "white", borderRadius: 12, border: "1px solid #F1F5F9", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
@@ -372,7 +391,16 @@ function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, s
                 { key: null,          label: "Escal.",       w: 65,  center: true, tip: "Escalações ativas" },
                 { key: null,          label: "",             w: 75,  right: true },
               ] as any[]).map((col, i) => (
-                <th key={i} onClick={() => col.key && handleSort(col.key)} style={{
+                <th key={i}
+                  onClick={() => col.key && handleSort(col.key)}
+                  onKeyDown={col.key ? (e: ReactKeyboardEvent) => {
+                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSort(col.key); }
+                  } : undefined}
+                  role={col.key ? "button" : undefined}
+                  tabIndex={col.key ? 0 : undefined}
+                  aria-label={col.key ? `Ordenar por ${col.label}` : undefined}
+                  aria-sort={col.key ? (col.key === sortKey ? (sortDir === "asc" ? "ascending" : "descending") : "none") : undefined}
+                  style={{
                   padding: "10px 14px", fontSize: 10, fontWeight: 700, color: "#94A3B8",
                   textTransform: "uppercase", letterSpacing: "0.08em",
                   textAlign: col.center ? "center" : col.right ? "right" : "left",
@@ -424,8 +452,8 @@ function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, s
                   </td>
                   <td style={{ padding: "12px 14px" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1 }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                      <ActionBtns event={ev} onEdit={onEdit} onDelete={onDelete} onRestore={onRestore} />
+                      className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
+                      <ActionBtns event={ev} onEdit={onEdit} onDelete={onDelete} onRestore={onRestore} busy={busy} />
                     </div>
                   </td>
                 </tr>
@@ -470,8 +498,13 @@ export default function Events() {
 
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { data: events, isLoading } = useQuery<Event[]>({ queryKey: ["/api/events?includeDeleted=true"] });
+  const { data: events, isLoading, isError, error, refetch } = useQuery<Event[]>({ queryKey: ["/api/events?includeDeleted=true"] });
   const { data: inclusions }        = useQuery<TeamInclusion[]>({ queryKey: ["/api/team-inclusions"] });
+
+  const loadErrorMsg = (err: any) =>
+    err?.status === 401 ? "Sua sessão expirou. Entre novamente para ver os eventos."
+    : err?.status === 403 ? "Você não tem permissão para ver os eventos."
+    : err?.body?.message || "Não foi possível carregar os eventos. Verifique sua conexão e tente novamente.";
 
   const escalacoes = useMemo(() => {
     const map: Record<string, number> = {};
@@ -491,7 +524,7 @@ export default function Events() {
 
   const availableYears = useMemo(() => {
     const yrs = new Set<number>();
-    (events ?? []).forEach(e => { try { yrs.add(new Date(e.startDate).getFullYear()); } catch {} });
+    (events ?? []).forEach(e => { const d = parseLocalDate(e.startDate); if (d) yrs.add(d.getFullYear()); });
     return Array.from(yrs).sort((a, b) => b - a);
   }, [events]);
 
@@ -509,13 +542,14 @@ export default function Events() {
     if (statusFilter === "default")      list = list.filter(e => ["planejado","em andamento"].includes(getEventStatus(e)));
     else if (statusFilter === "active")  list = list.filter(e => e.status !== "excluído");
     else if (statusFilter !== "all")     list = list.filter(e => getEventStatus(e) === statusFilter);
-    if (monthFilter !== "all") list = list.filter(e => { try { return new Date(e.startDate).getMonth() + 1 === Number(monthFilter); } catch { return false; } });
-    if (yearFilter  !== "all") list = list.filter(e => { try { return new Date(e.startDate).getFullYear() === Number(yearFilter); } catch { return false; } });
+    if (monthFilter !== "all") list = list.filter(e => { const d = parseLocalDate(e.startDate); return !!d && d.getMonth() + 1 === Number(monthFilter); });
+    if (yearFilter  !== "all") list = list.filter(e => { const d = parseLocalDate(e.startDate); return !!d && d.getFullYear() === Number(yearFilter); });
     if (defaultSort) {
       const order = ["em andamento","planejado","concluído","excluído"];
       list.sort((a, b) => {
         const d = order.indexOf(getEventStatus(a)) - order.indexOf(getEventStatus(b));
-        return d !== 0 ? d : new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+        if (d !== 0) return d;
+        return (parseLocalDate(a.startDate)?.getTime() ?? 0) - (parseLocalDate(b.startDate)?.getTime() ?? 0);
       });
     } else {
       list.sort((a, b) => {
@@ -537,22 +571,28 @@ export default function Events() {
     await qc.invalidateQueries({ queryKey: ["/api/events?includeDeleted=true"] });
   };
 
+  const mutationErrorMsg = (err: any, fallback: string) =>
+    err?.status === 401 ? "Sua sessão expirou. Entre novamente para continuar."
+    : err?.status === 403 ? "Você não tem permissão para esta ação."
+    : err?.body?.message || fallback;
+
   const deleteMutation = useMutation({
     mutationFn: async (ev: Event) => (await apiRequest("PUT", `/api/events/${ev.id}`, { status: "excluído" })).json(),
     onSuccess: async () => { await invalidate(); toast({ title: "Evento marcado como excluído." }); },
-    onError: () => toast({ title: "Erro ao excluir.", variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Erro ao excluir", description: mutationErrorMsg(err, "Tente novamente."), variant: "destructive" }),
   });
   const restoreMutation = useMutation({
     mutationFn: async (ev: Event) => (await apiRequest("PUT", `/api/events/${ev.id}`, { status: "planejado" })).json(),
     onSuccess: async () => { await invalidate(); toast({ title: "Evento restaurado." }); },
-    onError: () => toast({ title: "Erro ao restaurar.", variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Erro ao restaurar", description: mutationErrorMsg(err, "Tente novamente."), variant: "destructive" }),
   });
+  const isMutating = deleteMutation.isPending || restoreMutation.isPending;
 
   const openModal    = (ev?: Event) => { setEditingEvent(ev ?? null); setIsModalOpen(true); };
   const closeModal   = () => { setIsModalOpen(false); setEditingEvent(null); };
 
-  const confirmDelete  = (ev: Event) => setConfirmState({ open: true, title: "Excluir evento?", message: `"${ev.name}" será marcado como excluído.`, confirmLabel: "Excluir", variant: "delete", onConfirm: () => { setConfirmState(p => ({ ...p, open: false })); deleteMutation.mutate(ev); } });
-  const confirmRestore = (ev: Event) => setConfirmState({ open: true, title: "Restaurar evento?", message: `"${ev.name}" voltará ao status Planejado.`, confirmLabel: "Restaurar", variant: "confirm", onConfirm: () => { setConfirmState(p => ({ ...p, open: false })); restoreMutation.mutate(ev); } });
+  const confirmDelete  = (ev: Event) => setConfirmState({ open: true, title: "Excluir evento?", message: `"${ev.name}" será marcado como excluído.`, confirmLabel: "Excluir", variant: "delete", onConfirm: () => { setConfirmState(p => ({ ...p, open: false })); if (!deleteMutation.isPending) deleteMutation.mutate(ev); } });
+  const confirmRestore = (ev: Event) => setConfirmState({ open: true, title: "Restaurar evento?", message: `"${ev.name}" voltará ao status Planejado.`, confirmLabel: "Restaurar", variant: "confirm", onConfirm: () => { setConfirmState(p => ({ ...p, open: false })); if (!restoreMutation.isPending) restoreMutation.mutate(ev); } });
 
   const hasFilters = !!(search || statusFilter !== "default" || monthFilter !== "all" || yearFilter !== "all");
   const clearFilters = () => { setSearch(""); setStatusFilter("default"); setMonthFilter("all"); setYearFilter("all"); setSortKey("eventNumber"); setSortDir("desc"); setDefaultSort(true); };
@@ -564,7 +604,11 @@ export default function Events() {
     { key: "calendar" as ViewMode, icon: <span className="material-symbols-outlined" style={{ fontSize: 16 }}>calendar_month</span>,       title: "Mês"     },
   ];
 
-  const activeEvents = (events ?? []).filter(e => e.status !== "excluído");
+  const activeEvents = useMemo(() => (events ?? []).filter(e => e.status !== "excluído"), [events]);
+  // Calendário e semana mostram todos os eventos ativos (não passam pelos filtros
+  // da barra), então o contador precisa refletir a lista realmente exibida.
+  const isCalendarLike = viewMode === "calendar" || viewMode === "week";
+  const visibleCount = isCalendarLike ? activeEvents.length : filteredAndSorted.length;
 
   return (
     <TooltipProvider>
@@ -590,8 +634,8 @@ export default function Events() {
           </button>
         </div>
 
-        {/* ── Stat cards ── */}
-        {!isLoading && (
+        {/* ── Stat cards ── (escondidos em erro: zeros dariam a impressão de "não há eventos") */}
+        {!isLoading && !(isError && !events) && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
             {([
               { label: "Total",        value: stats.total,       icon: "view_list",        color: "#3B82F6", filter: "active"       },
@@ -601,7 +645,7 @@ export default function Events() {
             ] as { label: string; value: number; icon: string; color: string; filter: string }[]).map(c => {
               const isActive = statusFilter === c.filter;
               return (
-                <button key={c.label} onClick={() => {
+                <button key={c.label} aria-pressed={isActive} aria-label={`Filtrar por ${c.label}: ${c.value}`} onClick={() => {
                   setStatusFilter(c.filter);
                   setDefaultSort(false);
                 }} style={{
@@ -637,11 +681,12 @@ export default function Events() {
             {/* Search */}
             <div style={{ position: "relative", flex: "1 1 180px", minWidth: 150 }}>
               <Search size={12} style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "#CBD5E1" }} />
-              <input placeholder="Buscar evento ou cidade..." value={search} onChange={e => setSearch(e.target.value)}
+              <input id="events-search" aria-label="Buscar evento ou cidade"
+                placeholder="Buscar evento ou cidade..." value={search} onChange={e => setSearch(e.target.value)}
                 data-testid="input-search-event"
                 style={{ height: 32, fontSize: 12, paddingLeft: 28, paddingRight: search ? 28 : 8, border: "1px solid #E2E8F0", borderRadius: 7, background: "#FAFBFF", color: "#374151", fontFamily: "inherit", cursor: "text", outline: "none", width: "100%", boxSizing: "border-box" }} />
               {search && (
-                <button onClick={() => setSearch("")} style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#CBD5E1", display: "flex" }}><X size={11} /></button>
+                <button onClick={() => setSearch("")} aria-label="Limpar busca" style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#CBD5E1", display: "flex" }}><X size={11} /></button>
               )}
             </div>
 
@@ -649,15 +694,15 @@ export default function Events() {
             {([
               { val: statusFilter, set: (v: string) => { setStatusFilter(v); if (v === "default") { setDefaultSort(true); setSortKey("eventNumber"); setSortDir("desc"); } },
                 opts: [["default","Planejado + Em andamento"],["all","Todos os status"],["active","Ativos"],["planejado","Planejado"],["em andamento","Em andamento"],["concluído","Concluído"],["excluído","Excluído"]],
-                test: "select-status-filter" },
+                test: "select-status-filter", label: "Filtrar por status" },
               { val: monthFilter, set: setMonthFilter,
                 opts: [["all","Todos os meses"], ...MONTHS.map((m,i) => [String(i+1), m])],
-                test: undefined },
+                test: undefined, label: "Filtrar por mês" },
               { val: yearFilter, set: setYearFilter,
                 opts: [["all","Todos os anos"], ...availableYears.map(y => [String(y), String(y)])],
-                test: undefined },
+                test: undefined, label: "Filtrar por ano" },
             ] as any[]).map((s, i) => (
-              <select key={i} value={s.val} onChange={e => s.set(e.target.value)} data-testid={s.test}
+              <select key={i} value={s.val} onChange={e => s.set(e.target.value)} data-testid={s.test} aria-label={s.label}
                 style={{ height: 32, fontSize: 12, padding: "0 8px", border: "1px solid #E2E8F0", borderRadius: 7, background: "#FAFBFF", color: "#374151", fontFamily: "inherit", cursor: "pointer", outline: "none" }}>
                 {s.opts.map(([v, l]: [string, string]) => <option key={v} value={v}>{l}</option>)}
               </select>
@@ -672,8 +717,9 @@ export default function Events() {
               </button>
             )}
 
-            <span style={{ fontSize: 11, color: "#CBD5E1", marginLeft: "auto", whiteSpace: "nowrap" }}>
-              {filteredAndSorted.length} evento{filteredAndSorted.length !== 1 ? "s" : ""}
+            <span style={{ fontSize: 11, color: "#CBD5E1", marginLeft: "auto", whiteSpace: "nowrap" }} aria-live="polite">
+              {visibleCount} evento{visibleCount !== 1 ? "s" : ""}
+              {isCalendarLike && " (todos os ativos)"}
             </span>
 
             <div style={{ width: 1, height: 18, background: "#F1F5F9" }} />
@@ -685,7 +731,7 @@ export default function Events() {
                 return (
                   <Tooltip key={v.key}>
                     <TooltipTrigger asChild>
-                      <button onClick={() => setViewMode(v.key)} style={{
+                      <button onClick={() => setViewMode(v.key)} aria-label={`Visualização: ${v.title}`} aria-pressed={active} style={{
                         width: 28, height: 28, borderRadius: 5, border: "none", cursor: "pointer",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         background: active ? "white" : "transparent",
@@ -708,12 +754,21 @@ export default function Events() {
             <span className="material-symbols-outlined" style={{ fontSize: 28, display: "block", marginBottom: 10, animation: "pulse 1.5s infinite" }}>sync</span>
             Carregando eventos...
           </div>
+        ) : (isError && !events) ? (
+          /* Sem este ramo, uma falha de rede/sessão expirada aparecia como "nenhum evento". */
+          <div role="alert" style={{ background: "white", borderRadius: 12, border: "1px solid #FECACA", padding: "48px 24px", textAlign: "center" }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 32, color: "#F87171", display: "block", marginBottom: 10 }}>cloud_off</span>
+            <p style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", margin: "0 0 4px" }}>Não foi possível carregar os eventos</p>
+            <p style={{ fontSize: 12, color: "#64748B", margin: "0 0 16px" }}>{loadErrorMsg(error)}</p>
+            <button onClick={() => refetch()} style={{ height: 34, padding: "0 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#0F172A", fontFamily: "inherit" }}
+              className="hover:bg-slate-50 transition-colors">Tentar novamente</button>
+          </div>
         ) : viewMode === "table" ? (
           <TableView events={filteredAndSorted} onEdit={openModal} onDelete={confirmDelete} onRestore={confirmRestore}
-            escalacoes={escalacoes} sortKey={sortKey} sortDir={sortDir} handleSort={handleSort} />
+            escalacoes={escalacoes} sortKey={sortKey} sortDir={sortDir} handleSort={handleSort} busy={isMutating} />
         ) : viewMode === "list" ? (
           <ListView events={filteredAndSorted} onEdit={openModal} onDelete={confirmDelete} onRestore={confirmRestore}
-            escalacoes={escalacoes} />
+            escalacoes={escalacoes} busy={isMutating} />
         ) : viewMode === "calendar" ? (
           <CalendarView events={activeEvents} onEdit={openModal} currentDate={calDate} setCurrentDate={setCalDate} />
         ) : (

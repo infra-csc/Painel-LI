@@ -1,7 +1,7 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Search, Calendar, User, ChevronDown, ChevronRight, Filter,
+  Search, Calendar, User, ChevronDown, ChevronRight,
   Activity, ShieldAlert, Clock, LogIn, LogOut, UserPlus, UserCheck,
   Edit, Trash2, Plus, Send, CheckCircle, XCircle, RotateCcw,
   DollarSign, Users, Settings, FileText, X, Download
@@ -9,10 +9,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
+
+// Campos de CSV precisam ser escapados: "details" pode conter ; e aspas,
+// o que quebrava as colunas do arquivo exportado.
+function csvCell(value: unknown): string {
+  const s = value === null || value === undefined ? "" : String(value);
+  return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
 
 interface SystemLog {
   id: string;
@@ -189,6 +195,19 @@ function LogCard({ log }: { log: SystemLog }) {
       <div
         className={`flex items-start gap-3 px-4 py-3 ${hasDiff ? "cursor-pointer" : ""}`}
         onClick={() => hasDiff && setOpen(!open)}
+        {...(hasDiff
+          ? {
+              role: "button" as const,
+              tabIndex: 0,
+              "aria-expanded": open,
+              onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setOpen((v) => !v);
+                }
+              },
+            }
+          : {})}
       >
         {/* Action icon */}
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${actionCfg.bg}`}>
@@ -256,11 +275,28 @@ export default function SystemLogsPage() {
   const [filters, setFilters] = useState({ entityType: "all", action: "all", days: "30" });
   const [page, setPage] = useState(1);
 
+  // O timer precisa viver fora do callback: antes, cada tecla agendava um
+  // timeout novo sem cancelar o anterior (o "cleanup" retornado nunca era
+  // chamado), disparando uma requisição por caractere digitado.
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current); }, []);
+
+  const applySearch = useCallback((val: string) => {
+    setDebouncedSearch(val);
+    setPage(1); // busca nova sempre volta para a primeira página
+  }, []);
+
   const debounceSearch = useCallback((val: string) => {
     setSearch(val);
-    const t = setTimeout(() => setDebouncedSearch(val), 400);
-    return () => clearTimeout(t);
-  }, []);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => applySearch(val), 400);
+  }, [applySearch]);
+
+  const clearSearch = useCallback(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    setSearch("");
+    applySearch("");
+  }, [applySearch]);
 
   const queryUrl = useMemo(() => {
     const params = new URLSearchParams({ page: page.toString(), limit: "25" });
@@ -271,19 +307,32 @@ export default function SystemLogsPage() {
     return `/api/system-logs?${params}`;
   }, [filters, page, debouncedSearch]);
 
-  const { data: logsResponse, isLoading } = useQuery<LogsResponse>({
+  const { data: logsResponse, isLoading, isError, error, refetch, isFetching } = useQuery<LogsResponse>({
     queryKey: [queryUrl],
     enabled: !authLoading && !!user,
   });
 
   const clearFilters = () => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
     setSearch("");
     setDebouncedSearch("");
     setFilters({ entityType: "all", action: "all", days: "30" });
     setPage(1);
   };
 
-  const hasActiveFilters = filters.entityType !== "all" || filters.action !== "all" || filters.days !== "30" || debouncedSearch;
+  const hasActiveFilters = filters.entityType !== "all" || filters.action !== "all" || filters.days !== "30" || !!debouncedSearch;
+
+  // Enquanto a sessão está sendo verificada não dá para saber o perfil —
+  // mostrar "Acesso restrito" aqui piscava a tela de erro para o admin.
+  if (authLoading) {
+    return (
+      <div className="p-6 space-y-2">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-16 w-full rounded-xl" />
+        ))}
+      </div>
+    );
+  }
 
   if (!hasPermission(user, "canAccessScreen6")) {
     return (
@@ -317,20 +366,24 @@ export default function SystemLogsPage() {
               variant="outline"
               size="sm"
               className="h-8 text-xs gap-1.5"
+              disabled={logsResponse.logs.length === 0}
+              title="Exporta os registros exibidos nesta página"
               onClick={() => {
                 const rows = logsResponse.logs.map(l => [
                   l.logNumber, l.action, l.entityType, l.entityName, l.userName,
                   new Date(l.createdAt).toLocaleString("pt-BR"), l.details || ""
-                ].join(";")).join("\n");
-                const header = "Nº;Ação;Módulo;Entidade;Usuário;Data;Detalhes\n";
-                const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8;" });
+                ].map(csvCell).join(";")).join("\r\n");
+                const header = "Nº;Ação;Módulo;Entidade;Usuário;Data;Detalhes\r\n";
+                // BOM para o Excel pt-BR abrir os acentos corretamente
+                const blob = new Blob(["﻿" + header + rows], { type: "text/csv;charset=utf-8;" });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");
                 a.href = url; a.download = `logs-${new Date().toISOString().slice(0, 10)}.csv`;
-                a.click(); URL.revokeObjectURL(url);
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
               }}
             >
-              <Download className="w-3.5 h-3.5" /> Exportar
+              <Download className="w-3.5 h-3.5" /> Exportar página
             </Button>
           </div>
         )}
@@ -349,7 +402,7 @@ export default function SystemLogsPage() {
               className="pl-9 pr-8"
             />
             {search && (
-              <button onClick={() => { setSearch(""); setDebouncedSearch(""); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <button type="button" aria-label="Limpar busca" onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
@@ -426,25 +479,25 @@ export default function SystemLogsPage() {
           {debouncedSearch && (
             <span className="flex items-center gap-1 text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full">
               <Search className="w-2.5 h-2.5" /> "{debouncedSearch}"
-              <button onClick={() => { setSearch(""); setDebouncedSearch(""); }} className="ml-0.5 hover:text-indigo-900"><X className="w-2.5 h-2.5" /></button>
+              <button type="button" aria-label="Remover filtro de busca" onClick={clearSearch} className="ml-0.5 hover:text-indigo-900"><X className="w-2.5 h-2.5" /></button>
             </span>
           )}
           {filters.entityType !== "all" && (
             <span className="flex items-center gap-1 text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
               {ENTITY_CONFIG[filters.entityType]?.label || filters.entityType}
-              <button onClick={() => setFilters(f => ({ ...f, entityType: "all" }))} className="ml-0.5 hover:text-blue-900"><X className="w-2.5 h-2.5" /></button>
+              <button type="button" aria-label="Remover filtro de módulo" onClick={() => { setFilters(f => ({ ...f, entityType: "all" })); setPage(1); }} className="ml-0.5 hover:text-blue-900"><X className="w-2.5 h-2.5" /></button>
             </span>
           )}
           {filters.action !== "all" && (
             <span className="flex items-center gap-1 text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full">
               {ACTION_CONFIG[filters.action]?.label || filters.action}
-              <button onClick={() => setFilters(f => ({ ...f, action: "all" }))} className="ml-0.5 hover:text-purple-900"><X className="w-2.5 h-2.5" /></button>
+              <button type="button" aria-label="Remover filtro de ação" onClick={() => { setFilters(f => ({ ...f, action: "all" })); setPage(1); }} className="ml-0.5 hover:text-purple-900"><X className="w-2.5 h-2.5" /></button>
             </span>
           )}
           {filters.days !== "30" && (
             <span className="flex items-center gap-1 text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
               {filters.days === "1" ? "Últimas 24h" : filters.days === "7" ? "Últimos 7 dias" : filters.days === "90" ? "Últimos 90 dias" : "Último ano"}
-              <button onClick={() => setFilters(f => ({ ...f, days: "30" }))} className="ml-0.5 hover:text-amber-900"><X className="w-2.5 h-2.5" /></button>
+              <button type="button" aria-label="Remover filtro de período" onClick={() => { setFilters(f => ({ ...f, days: "30" })); setPage(1); }} className="ml-0.5 hover:text-amber-900"><X className="w-2.5 h-2.5" /></button>
             </span>
           )}
         </div>
@@ -462,6 +515,23 @@ export default function SystemLogsPage() {
               </div>
             </div>
           ))}
+        </div>
+      ) : isError ? (
+        <div className="bg-white dark:bg-gray-800 border border-red-200 dark:border-red-900 rounded-xl flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
+          <ShieldAlert className="w-10 h-10 text-red-400" />
+          <p className="text-gray-700 dark:text-gray-200 font-medium">
+            {(error as any)?.status === 401
+              ? "Sua sessão expirou. Entre novamente para consultar os logs."
+              : (error as any)?.status === 403
+              ? "Você não tem permissão para consultar os logs do sistema."
+              : "Não foi possível carregar os registros."}
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
+            {(error as any)?.body?.message || "Verifique sua conexão e tente novamente. Isto não significa que não existam registros."}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            {isFetching ? "Tentando..." : "Tentar novamente"}
+          </Button>
         </div>
       ) : logsResponse?.logs.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl flex flex-col items-center justify-center py-16 gap-3">

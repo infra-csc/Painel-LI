@@ -1,10 +1,9 @@
 import { useState, useMemo } from "react";
 import { formatDiarias, fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Edit, MessageCircle, History, Check, X, Trash2, Copy, Ban, LayoutGrid, Save, ArrowLeftRight } from "lucide-react";
+import { Edit, MessageCircle, Check, X, Trash2, Copy, Ban, LayoutGrid, Save, ArrowLeftRight, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -16,6 +15,14 @@ import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import type { TeamInclusion, Event, Function, Collaborator, SwapRequest } from "@shared/schema";
 import { isReadOnly } from "@/lib/interactions";
+
+// Mensagem amigável de falha de carregamento/gravação. Distingue sessão expirada
+// de "não há dados" — falha de rede não pode virar estado vazio nem toast genérico.
+const describeError = (err: any, fallback: string): string => {
+  if (err?.status === 401) return "Sua sessão expirou. Atualize a página e entre novamente.";
+  if (err?.status === 403) return "Você não tem permissão para esta ação.";
+  return err?.body?.message || fallback;
+};
 
 // Convert ALL CAPS names to Title Case for better readability
 // Uses split-by-space to avoid issues with accented chars (ã, ç, etc.)
@@ -61,8 +68,7 @@ export default function TeamInclusionTable() {
   const { data: allSwapRequests } = useQuery<SwapRequest[]>({
     queryKey: ["/api/swap-requests"],
     queryFn: async () => {
-      const r = await fetch("/api/swap-requests");
-      if (!r.ok) return [];
+      const r = await apiRequest("GET", "/api/swap-requests");
       return r.json();
     },
   });
@@ -89,7 +95,7 @@ export default function TeamInclusionTable() {
     });
   };
 
-  const { data: teamInclusions, isLoading } = useQuery<TeamInclusion[]>({
+  const { data: teamInclusions, isLoading, isError, error } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions"],
   });
 
@@ -105,31 +111,54 @@ export default function TeamInclusionTable() {
     queryKey: ["/api/collaborators"],
   });
 
+  // Índices O(1) — antes cada célula e cada comparação de ordenação varria a
+  // lista inteira. O primeiro registro vence, exatamente como o Array.find.
+  const eventById = useMemo(() => {
+    const m = new Map<string, Event>();
+    (events || []).forEach(e => { if (!m.has(e.id)) m.set(e.id, e); });
+    return m;
+  }, [events]);
+
+  const functionById = useMemo(() => {
+    const m = new Map<string, Function>();
+    (functions || []).forEach(f => { if (!m.has(f.id)) m.set(f.id, f); });
+    return m;
+  }, [functions]);
+
+  const collaboratorById = useMemo(() => {
+    const m = new Map<string, Collaborator>();
+    (collaborators || []).forEach(c => { if (!m.has(c.id)) m.set(c.id, c); });
+    return m;
+  }, [collaborators]);
+
+  const inclusionById = useMemo(() => {
+    const m = new Map<string, TeamInclusion>();
+    (teamInclusions || []).forEach(i => { if (!m.has(i.id)) m.set(i.id, i); });
+    return m;
+  }, [teamInclusions]);
+
   const getEventName = (eventId: string) => {
-    return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
+    return eventById.get(eventId)?.name || "Evento não encontrado";
   };
 
   const getEventLocation = (eventId: string) => {
-    return events?.find(e => e.id === eventId)?.location || "";
+    return eventById.get(eventId)?.location || "";
   };
 
   const getFunctionName = (functionId: string) => {
-    return functions?.find(f => f.id === functionId)?.name || "Função não encontrada";
-  };
-
-  const getFunctionArea = (functionId: string) => {
-    return "Área definida no cadastro"; // Simplified since responsibleArea was removed
+    return functionById.get(functionId)?.name || "Função não encontrada";
   };
 
   const getCollaboratorName = (collaboratorId?: string) => {
     if (!collaboratorId) return "Não escalado";
-    return fixEncoding(collaborators?.find(c => c.id === collaboratorId)?.fullName) || "Colaborador não encontrado";
+    return fixEncoding(collaboratorById.get(collaboratorId)?.fullName) || "Colaborador não encontrado";
   };
 
   const formatDate = (dateStr: string) => {
-    // Parse manual para evitar problemas de timezone
-    const [year, month, day] = dateStr.split('-');
+    // Parse manual para evitar problemas de timezone (e recorta timestamp se houver)
+    const [year, month, day] = String(dateStr).split('T')[0].split('-');
     const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    if (isNaN(date.getTime())) return String(dateStr);
     return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
   };
 
@@ -167,7 +196,7 @@ export default function TeamInclusionTable() {
   };
 
   const handleEdit = (inclusionId: string) => {
-    const inclusion = teamInclusions?.find(i => i.id === inclusionId);
+    const inclusion = inclusionById.get(inclusionId);
     if (inclusion) {
       const start = normDay(inclusion.scheduleStartDate) || "";
       const end = normDay(inclusion.scheduleEndDate) || "";
@@ -200,10 +229,10 @@ export default function TeamInclusionTable() {
       setShowEditModal(false);
       setEditingInclusion(null);
     },
-    onError: () => {
+    onError: (err: any) => {
       toast({
-        title: "Erro",
-        description: "Erro ao atualizar inclusão",
+        title: err?.status === 401 ? "Sessão expirada" : "Erro",
+        description: describeError(err, "Erro ao atualizar inclusão"),
         variant: "destructive",
       });
     },
@@ -257,18 +286,28 @@ export default function TeamInclusionTable() {
     },
     onSuccess: () => {
       toast({ title: "Diárias salvas", description: "Todas as alterações foram aplicadas." });
-      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
       setShowBatchDiarias(false);
     },
-    onError: () => {
-      toast({ title: "Erro", description: "Erro ao salvar as diárias.", variant: "destructive" });
+    onError: (err: any) => {
+      toast({
+        title: err?.status === 401 ? "Sessão expirada" : "Erro",
+        // Promise.all: parte das linhas pode ter sido gravada antes da falha
+        description: describeError(err, "Erro ao salvar as diárias. Algumas linhas podem ter sido gravadas — confira a lista."),
+        variant: "destructive",
+      });
+    },
+    // Invalida em qualquer desfecho: no erro parcial a tela ficava com dados velhos
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
   });
 
   const handleSaveBatchDiarias = () => {
     const changes: Array<{ id: string; dailyRates: number; workDays: string[] }> = [];
     batchTargetIds.forEach(id => {
-      const inc = filteredAndSortedInclusions.find(i => i.id === id);
+      // Resolve na lista completa: mudar o filtro com o modal aberto descartava
+      // silenciosamente as linhas que saíam da visão.
+      const inc = inclusionById.get(id);
       if (!inc) return;
       const newDays = [...(batchDiariasSelections[id] ?? [])].sort();
       const origDays = (inc.workDays || []).map(normDay).filter(Boolean).sort();
@@ -293,11 +332,9 @@ export default function TeamInclusionTable() {
 
   const deleteTeamInclusionMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await apiRequest("DELETE", `/api/team-inclusions/${id}`);
-      if (response.ok) {
-        return { success: true };
-      }
-      throw new Error("Erro ao remover inclusão");
+      // apiRequest já lança em resposta não-ok (com .status/.body)
+      await apiRequest("DELETE", `/api/team-inclusions/${id}`);
+      return { success: true };
     },
     onSuccess: () => {
       toast({
@@ -306,10 +343,10 @@ export default function TeamInclusionTable() {
       });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
-    onError: () => {
+    onError: (err: any) => {
       toast({
-        title: "Erro",
-        description: "Erro ao remover inclusão",
+        title: err?.status === 401 ? "Sessão expirada" : "Erro",
+        description: describeError(err, "Erro ao remover inclusão"),
         variant: "destructive",
       });
     },
@@ -340,10 +377,10 @@ export default function TeamInclusionTable() {
       });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
-    onError: () => {
+    onError: (err: any) => {
       toast({
-        title: "Erro",
-        description: "Erro ao cancelar escalação",
+        title: err?.status === 401 ? "Sessão expirada" : "Erro",
+        description: describeError(err, "Erro ao cancelar escalação"),
         variant: "destructive",
       });
     },
@@ -374,11 +411,17 @@ export default function TeamInclusionTable() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedRows.size === filteredAndSortedInclusions.length) {
-      setSelectedRows(new Set());
-    } else {
-      setSelectedRows(new Set(filteredAndSortedInclusions.map(i => i.id)));
-    }
+    // Opera SOMENTE sobre as linhas visíveis: comparar/limpar a seleção inteira
+    // descartava silenciosamente itens marcados sob outro filtro — justamente os
+    // que a barra anuncia como "fora dos filtros atuais".
+    const visibleIds = filteredAndSortedInclusions.map(i => i.id);
+    const todosVisiveisMarcados = visibleIds.length > 0 && visibleIds.every(id => selectedRows.has(id));
+    setSelectedRows(prev => {
+      const next = new Set(prev);
+      if (todosVisiveisMarcados) visibleIds.forEach(id => next.delete(id));
+      else visibleIds.forEach(id => next.add(id));
+      return next;
+    });
   };
 
   const handleBulkDelete = () => {
@@ -388,8 +431,8 @@ export default function TeamInclusionTable() {
     }
 
     const deletableIds = Array.from(selectedRows).filter(id => {
-      const inclusion = teamInclusions?.find(i => i.id === id);
-      return inclusion && canDeleteInclusion(inclusion);
+      const inclusion = inclusionById.get(id);
+      return !!inclusion && canDeleteInclusion(inclusion);
     });
 
     if (deletableIds.length === 0) {
@@ -413,15 +456,15 @@ export default function TeamInclusionTable() {
         let errorCount = 0;
         for (const id of deletableIds) {
           try {
-            const response = await apiRequest("DELETE", `/api/team-inclusions/${id}`);
-            if (response.ok) { successCount++; } else { errorCount++; }
+            await apiRequest("DELETE", `/api/team-inclusions/${id}`);
+            successCount++;
           } catch { errorCount++; }
         }
         queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
         setSelectedRows(new Set());
         toast({
-          title: successCount > 0 ? "Sucesso" : "Erro",
-          description: `${successCount} inclusão(ões) excluída(s). ${errorCount > 0 ? `${errorCount} erro(s).` : ''}`,
+          title: errorCount === 0 ? "Sucesso" : (successCount > 0 ? "Concluído parcialmente" : "Erro"),
+          description: `${successCount} inclusão(ões) excluída(s). ${errorCount > 0 ? `${errorCount} não foi(ram) excluída(s).` : ''}`,
           variant: errorCount > 0 ? "destructive" : "default",
         });
       },
@@ -445,15 +488,15 @@ export default function TeamInclusionTable() {
         let errorCount = 0;
         for (const id of Array.from(selectedRows)) {
           try {
-            const response = await apiRequest("PATCH", `/api/team-inclusions/${id}`, { status: "cancelado", phase: "cancelado" });
-            if (response.ok) { successCount++; } else { errorCount++; }
+            await apiRequest("PATCH", `/api/team-inclusions/${id}`, { status: "cancelado", phase: "cancelado" });
+            successCount++;
           } catch { errorCount++; }
         }
         queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
         setSelectedRows(new Set());
         toast({
-          title: successCount > 0 ? "Sucesso" : "Erro",
-          description: `${successCount} escalação(ões) cancelada(s). ${errorCount > 0 ? `${errorCount} erro(s).` : ''}`,
+          title: errorCount === 0 ? "Sucesso" : (successCount > 0 ? "Concluído parcialmente" : "Erro"),
+          description: `${successCount} escalação(ões) cancelada(s). ${errorCount > 0 ? `${errorCount} não foi(ram) cancelada(s).` : ''}`,
           variant: errorCount > 0 ? "destructive" : "default",
         });
       },
@@ -532,7 +575,7 @@ export default function TeamInclusionTable() {
       if (!b.scheduleStartDate) return -1;
       return new Date(a.scheduleStartDate).getTime() - new Date(b.scheduleStartDate).getTime();
     });
-  }, [teamInclusions, filters, sortConfig, events, functions, collaborators]);
+  }, [teamInclusions, filters, sortConfig, eventById, functionById, collaboratorById]);
 
   // Totals base: only base filters (event, function, collaborator, searchId)
   // Ignores status AND escalationStatus so card counts never change when a card is clicked
@@ -551,16 +594,28 @@ export default function TeamInclusionTable() {
   }, [teamInclusions, filters.eventId, filters.functionId, filters.collaboratorId, filters.searchId]);
 
   // Calculate real totals from totalsBase (ignores status filter so cards always show correct counts)
+  // Cada contador usa EXATAMENTE o mesmo predicado que o clique no card aplica na
+  // lista — antes o card "Passagem" também exigia needsTicket e mostrava um número
+  // menor do que a quantidade de linhas exibidas ao clicar nele.
   const totals = {
     incluidos: totalsBase.length,
     pendentes: totalsBase.filter(i => !i.collaboratorId && i.status !== 'cancelado').length,
     escalados: totalsBase.filter(i => i.collaboratorId && i.status !== 'cancelado').length,
-    aguardando_passagem: totalsBase.filter(i => i.needsTicket && i.status === 'passagem').length,
+    aguardando_passagem: totalsBase.filter(i => i.status === 'passagem').length,
     hospedagem: totalsBase.filter(i => i.status === 'hospedagem').length,
     passagem_comprada: totalsBase.filter(i => i.status === 'passagem_comprada').length,
     hospedagem_comprada: totalsBase.filter(i => i.status === 'hospedagem_comprada').length,
     cancelados: totalsBase.filter(i => i.status === 'cancelado').length,
   };
+
+  // Quantas das linhas VISÍVEIS estão marcadas. Comparar só os tamanhos deixava o
+  // "selecionar tudo" marcado quando a seleção antiga tinha o mesmo total de outra visão.
+  const selectedVisibleCount = filteredAndSortedInclusions.reduce(
+    (acc, i) => acc + (selectedRows.has(i.id) ? 1 : 0),
+    0,
+  );
+  const allVisibleSelected =
+    filteredAndSortedInclusions.length > 0 && selectedVisibleCount === filteredAndSortedInclusions.length;
 
   if (isLoading) {
     return (
@@ -573,6 +628,19 @@ export default function TeamInclusionTable() {
             ))}
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // Falha de rede/sessão NÃO pode virar "nenhuma inclusão encontrada"
+  if (isError) {
+    return (
+      <div className="bg-white rounded-xl border border-red-200 p-8 text-center">
+        <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-3">
+          <AlertCircle className="w-6 h-6 text-red-400" />
+        </div>
+        <h3 className="text-[15px] font-bold text-slate-700 mb-1">Não foi possível carregar as inclusões</h3>
+        <p className="text-[13px] text-slate-500">{describeError(error, "Verifique sua conexão e tente novamente.")}</p>
       </div>
     );
   }
@@ -614,8 +682,18 @@ export default function TeamInclusionTable() {
             return (
               <div
                 key={testId}
+                role="button"
+                tabIndex={0}
+                aria-pressed={isActive}
+                aria-label={`${label}: ${value}. Filtrar por ${label}`}
                 onClick={handleClick}
-                className={`border border-t-2 ${border} rounded-xl px-3 py-2.5 text-center cursor-pointer transition-all duration-150 select-none
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleClick();
+                  }
+                }}
+                className={`border border-t-2 ${border} rounded-xl px-3 py-2.5 text-center cursor-pointer transition-all duration-150 select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
                   ${isActive
                     ? `${activeBg} border-slate-200 shadow-sm`
                     : "bg-white border-slate-200 shadow-sm hover:shadow-md hover:-translate-y-0.5"}`}
@@ -635,6 +713,11 @@ export default function TeamInclusionTable() {
           <div className="flex items-center justify-between">
             <div className="text-sm font-medium text-blue-900 dark:text-blue-100">
               {selectedRows.size} inclusão(ões) selecionada(s)
+              {selectedRows.size > selectedVisibleCount && (
+                <span className="ml-1 font-normal text-blue-700/80">
+                  ({selectedRows.size - selectedVisibleCount} fora dos filtros atuais)
+                </span>
+              )}
             </div>
             <div className="flex gap-2">
               <Button
@@ -699,8 +782,9 @@ export default function TeamInclusionTable() {
               <tr>
                 <th className="w-[40px] px-2 py-3">
                   <Checkbox
-                    checked={selectedRows.size === filteredAndSortedInclusions.length && filteredAndSortedInclusions.length > 0}
+                    checked={allVisibleSelected}
                     onCheckedChange={toggleSelectAll}
+                    aria-label="Selecionar todas as inclusões exibidas"
                     data-testid="checkbox-select-all"
                   />
                 </th>
@@ -741,6 +825,7 @@ export default function TeamInclusionTable() {
                       <Checkbox
                         checked={selectedRows.has(inclusion.id)}
                         onCheckedChange={() => toggleRowSelection(inclusion.id)}
+                        aria-label={`Selecionar inclusão #${inclusion.inclusionNumber ?? ''}`}
                         data-testid={`checkbox-row-${inclusion.id}`}
                       />
                     </td>
@@ -753,13 +838,25 @@ export default function TeamInclusionTable() {
                           size="sm"
                           variant="ghost"
                           className="p-1 h-5 w-5 flex-shrink-0"
-                          onClick={() => {
+                          title="Copiar ID"
+                          aria-label={`Copiar ID da inclusão #${inclusion.inclusionNumber ?? ''}`}
+                          onClick={async () => {
                             const text = inclusion.inclusionNumber?.toString() || inclusion.id;
-                            navigator.clipboard.writeText(text);
-                            toast({
-                              title: "Sucesso",
-                              description: "ID copiado para a área de transferência",
-                            });
+                            // Só avisa "copiado" depois de realmente copiar — a API falha
+                            // em contexto não seguro e o toast mentia para o usuário.
+                            try {
+                              await navigator.clipboard.writeText(text);
+                              toast({
+                                title: "Sucesso",
+                                description: "ID copiado para a área de transferência",
+                              });
+                            } catch {
+                              toast({
+                                title: "Não foi possível copiar",
+                                description: `Copie manualmente: ${text}`,
+                                variant: "destructive",
+                              });
+                            }
                           }}
                           data-testid={`button-copy-id-${inclusion.id}`}
                         >
@@ -840,6 +937,8 @@ export default function TeamInclusionTable() {
                           variant="ghost"
                           onClick={() => handleViewComments(inclusion.id)}
                           className="text-blue-600 hover:text-blue-900 h-8 w-8 p-0 shrink-0"
+                          title="Comentários"
+                          aria-label={`Ver comentários da inclusão #${inclusion.inclusionNumber ?? ''}`}
                           data-testid={`button-comments-${inclusion.id}`}
                         >
                           <MessageCircle className="w-4 h-4" />
@@ -858,6 +957,7 @@ export default function TeamInclusionTable() {
                                     className="text-red-600 hover:text-red-900 h-8 w-8 p-0 shrink-0"
                                     data-testid={`button-delete-${inclusion.id}`}
                                     title="Excluir registro"
+                                    aria-label={`Excluir inclusão #${inclusion.inclusionNumber ?? ''}`}
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </Button>
@@ -870,6 +970,7 @@ export default function TeamInclusionTable() {
                                     className="text-orange-600 hover:text-orange-900 h-8 w-8 p-0 shrink-0"
                                     data-testid={`button-cancel-${inclusion.id}`}
                                     title="Cancelar Escalação"
+                                    aria-label={`Cancelar escalação da inclusão #${inclusion.inclusionNumber ?? ''}`}
                                   >
                                     <Ban className="w-4 h-4" />
                                   </Button>
@@ -884,6 +985,8 @@ export default function TeamInclusionTable() {
                                   onClick={() => handleEdit(inclusion.id)}
                                   className="text-green-600 hover:text-green-900 h-8 w-8 p-0 shrink-0"
                                   data-testid={`button-edit-${inclusion.id}`}
+                                  title="Editar inclusão"
+                                  aria-label={`Editar inclusão #${inclusion.inclusionNumber ?? ''}`}
                                 >
                                   <Edit className="w-4 h-4" />
                                 </Button>
@@ -894,6 +997,8 @@ export default function TeamInclusionTable() {
                                     onClick={() => handleDelete(inclusion.id)}
                                     className="text-red-600 hover:text-red-900 h-8 w-8 p-0 shrink-0"
                                     data-testid={`button-delete-${inclusion.id}`}
+                                    title="Excluir registro"
+                                    aria-label={`Excluir inclusão #${inclusion.inclusionNumber ?? ''}`}
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </Button>
@@ -906,6 +1011,7 @@ export default function TeamInclusionTable() {
                                     className="text-orange-600 hover:text-orange-900 h-8 w-8 p-0 shrink-0"
                                     data-testid={`button-cancel-${inclusion.id}`}
                                     title="Cancelar Escalação"
+                                    aria-label={`Cancelar escalação da inclusão #${inclusion.inclusionNumber ?? ''}`}
                                   >
                                     <Ban className="w-4 h-4" />
                                   </Button>
@@ -976,8 +1082,9 @@ export default function TeamInclusionTable() {
                 {/* Coluna Esquerda */}
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Função *</label>
+                    <label htmlFor="edit-function-id" className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Função *</label>
                     <select
+                      id="edit-function-id"
                       name="functionId"
                       defaultValue={editingInclusion.functionId}
                       className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
@@ -990,8 +1097,9 @@ export default function TeamInclusionTable() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Status *</label>
+                    <label htmlFor="edit-status" className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Status *</label>
                     <select
+                      id="edit-status"
                       name="status"
                       defaultValue={editingInclusion.status}
                       className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
@@ -1012,52 +1120,55 @@ export default function TeamInclusionTable() {
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Data Início *</label>
+                      <label htmlFor="edit-start-date" className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Data Início *</label>
                       <input
+                        id="edit-start-date"
                         type="date"
                         value={editStartDate}
                         onChange={(e) => {
+                          // Antes o recálculo dos dias acontecia DENTRO do updater de
+                          // outro setState (função impura, executada duas vezes em dev).
                           const newStart = e.target.value;
                           setEditStartDate(newStart);
-                          setEditEndDate(cur => {
-                            if (newStart && cur) {
-                              const allDays = generateDaysInRange(newStart, cur);
-                              setEditSelectedDays(prev => {
-                                const kept = allDays.filter(d => prev.has(d));
-                                return new Set(kept.length > 0 ? kept : allDays);
-                              });
-                            }
-                            return cur;
-                          });
+                          if (newStart && editEndDate) {
+                            const allDays = generateDaysInRange(newStart, editEndDate);
+                            setEditSelectedDays(prev => {
+                              const kept = allDays.filter(d => prev.has(d));
+                              return new Set(kept.length > 0 ? kept : allDays);
+                            });
+                          }
                         }}
                         className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Data Fim *</label>
+                      <label htmlFor="edit-end-date" className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Data Fim *</label>
                       <input
+                        id="edit-end-date"
                         type="date"
                         value={editEndDate}
                         onChange={(e) => {
                           const newEnd = e.target.value;
                           setEditEndDate(newEnd);
-                          setEditStartDate(cur => {
-                            if (cur && newEnd) {
-                              const allDays = generateDaysInRange(cur, newEnd);
-                              setEditSelectedDays(prev => {
-                                const kept = allDays.filter(d => prev.has(d));
-                                return new Set(kept.length > 0 ? kept : allDays);
-                              });
-                            }
-                            return cur;
-                          });
+                          if (editStartDate && newEnd) {
+                            const allDays = generateDaysInRange(editStartDate, newEnd);
+                            setEditSelectedDays(prev => {
+                              const kept = allDays.filter(d => prev.has(d));
+                              return new Set(kept.length > 0 ? kept : allDays);
+                            });
+                          }
                         }}
                         className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
                         required
                       />
                     </div>
                   </div>
+                  {editStartDate && editEndDate && editEndDate < editStartDate && (
+                    <p className="text-[11px] font-semibold text-red-500 -mt-2">
+                      A data de fim não pode ser anterior à data de início.
+                    </p>
+                  )}
 
                   {/* Seletor de dias individuais */}
                   {editStartDate && editEndDate && (() => {
@@ -1116,8 +1227,9 @@ export default function TeamInclusionTable() {
                   })()}
 
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Precisa de Passagem?</label>
+                    <label htmlFor="edit-needs-ticket" className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Precisa de Passagem?</label>
                     <select
+                      id="edit-needs-ticket"
                       name="needsTicket"
                       defaultValue={editingInclusion.needsTicket ? 'true' : 'false'}
                       className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
@@ -1128,8 +1240,9 @@ export default function TeamInclusionTable() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Precisa de Hospedagem?</label>
+                    <label htmlFor="edit-needs-accommodation" className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Precisa de Hospedagem?</label>
                     <select
+                      id="edit-needs-accommodation"
                       name="needsAccommodation"
                       defaultValue={editingInclusion.needsAccommodation ? 'true' : 'false'}
                       className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
@@ -1240,8 +1353,8 @@ export default function TeamInclusionTable() {
       {showBatchDiarias && (() => {
         const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
         const targets = batchTargetIds
-          .map(id => filteredAndSortedInclusions.find(i => i.id === id))
-          .filter(Boolean) as typeof filteredAndSortedInclusions;
+          .map(id => inclusionById.get(id))
+          .filter(Boolean) as TeamInclusion[];
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -1261,6 +1374,9 @@ export default function TeamInclusionTable() {
                   </div>
                 </div>
                 <button
+                  type="button"
+                  aria-label="Fechar edição de diárias em lote"
+                  title="Fechar"
                   onClick={() => setShowBatchDiarias(false)}
                   className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
                 >

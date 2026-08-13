@@ -3,8 +3,7 @@ import TeamInclusionTable from "@/components/tables/team-inclusion-table";
 import { useAuth } from "@/hooks/use-auth";
 import { canView, canEdit } from "@/lib/permissions";
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Plus, Calendar, MapPin, Loader2 } from "lucide-react";
+import { Plus, Calendar, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -34,7 +33,12 @@ const eventSchema = z.object({
   startDate: z.string().min(1, "Data de início é obrigatória"),
   endDate: z.string().min(1, "Data de fim é obrigatória"),
   observations: z.string().optional(),
-});
+}).refine(
+  // Strings "YYYY-MM-DD" comparam corretamente sem passar por Date (evita o
+  // off-by-one de fuso do new Date("YYYY-MM-DD"), que é UTC).
+  (d) => !d.startDate || !d.endDate || d.endDate >= d.startDate,
+  { path: ["endDate"], message: "A data de fim não pode ser anterior à data de início" },
+);
 
 type EventFormData = z.infer<typeof eventSchema>;
 
@@ -72,19 +76,8 @@ export default function TeamInclusion() {
 
   const createEventMutation = useMutation({
     mutationFn: async (data: EventFormData) => {
-      const response = await fetch('/api/events', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-      
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`HTTP ${response.status}: ${error}`);
-      }
-      
+      // apiRequest envia a sessão (credentials) e enriquece o erro com .status/.body
+      const response = await apiRequest("POST", "/api/events", data);
       return response.json();
     },
     onSuccess: () => {
@@ -96,16 +89,19 @@ export default function TeamInclusion() {
       form.reset();
       queryClient.invalidateQueries({ queryKey: ['/api/events'] });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
-        title: "Erro",
-        description: "Erro ao criar evento. Tente novamente.",
+        title: error?.status === 401 ? "Sessão expirada" : "Erro",
+        description: error?.status === 401
+          ? "Sua sessão expirou. Atualize a página e entre novamente — o evento não foi criado."
+          : (error?.body?.message || "Erro ao criar evento. Tente novamente."),
         variant: "destructive",
       });
     },
   });
 
   const onSubmit = (data: EventFormData) => {
+    if (createEventMutation.isPending) return; // trava duplo submit
     createEventMutation.mutate(data);
   };
 

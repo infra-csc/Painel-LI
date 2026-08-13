@@ -8,8 +8,8 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Check, X, Eye, UserPlus, Upload, FileText, Edit, Users,
-  ChevronLeft, ChevronRight, Search, UserCheck, AlertCircle,
-  Briefcase, Home, LayoutList, Loader2, Ban, AlertTriangle, RotateCcw
+  ChevronLeft, ChevronRight, Search, AlertCircle,
+  Loader2, Ban, AlertTriangle, RotateCcw
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/use-auth";
 import CollaboratorModal from "@/components/modals/collaborator-modal";
 import BulkUploadModal from "@/components/modals/bulk-upload-modal";
 import type { Collaborator } from "@shared/schema";
+import { normalizeRole } from "@shared/roles";
 
 const BLUE = "#0033CC";
 
@@ -68,8 +69,11 @@ function formatDocument(doc: string, type: string) {
   return doc;
 }
 function formatDate(dateStr: string) {
-  const [y, m, d] = dateStr.split("-");
-  return `${d}/${m}/${y}`;
+  // Recorta só a parte "YYYY-MM-DD": se vier um ISO completo, o dia sairia
+  // como "01T00:00:00". Formatação por string evita o deslocamento de fuso
+  // que new Date("YYYY-MM-DD") causa em Brasília.
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateStr).trim());
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : dateStr;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -110,9 +114,11 @@ export default function CollaboratorManagement() {
   const [inactivateReason, setInactivateReason] = useState("");
   const { toast } = useToast();
   const { user } = useAuth();
-  const canManage = !!user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
+  // A lista literal deixava de fora papéis legados que o servidor aceita
+  // ("compras", "viagens", "Administrador"...): o botão sumia para quem podia agir.
+  const canManage = ["admin", "purchasing"].includes(normalizeRole(user?.role) ?? "");
 
-  const { data: collaborators, isLoading } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
+  const { data: collaborators, isLoading, isError, error, refetch } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, status, approvalNotes, cpf, rg }: { id: string; status: string; approvalNotes?: string; cpf?: string; rg?: string }) => {
@@ -128,21 +134,22 @@ export default function CollaboratorManagement() {
       setShowDetailsModal(false); setShowApprovalModal(false);
       setApprovalNotes(""); setEditCpf(""); setEditRg("");
     },
-    onError: () => toast({ title: "Erro ao atualizar colaborador", variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Erro ao atualizar colaborador", description: parseErr(err, "Tente novamente."), variant: "destructive" }),
   });
 
+  // apiRequest já entrega o corpo do erro em err.body — só cai no parse manual
+  // quando o servidor devolve algo fora do padrão.
   const parseErr = (err: any, fallback: string) => {
-    let msg = fallback;
+    if (err?.status === 401) return "Sua sessão expirou. Entre novamente para continuar.";
+    if (err?.status === 403) return "Você não tem permissão para esta ação.";
+    if (err?.body?.message) return String(err.body.message);
     const raw = err?.message as string | undefined;
-    if (raw) {
-      const jsonStart = raw.indexOf("{");
-      if (jsonStart >= 0) {
-        try { msg = JSON.parse(raw.slice(jsonStart))?.message || msg; } catch { msg = raw; }
-      } else {
-        msg = raw;
-      }
+    if (!raw) return fallback;
+    const jsonStart = raw.indexOf("{");
+    if (jsonStart >= 0) {
+      try { return JSON.parse(raw.slice(jsonStart))?.message || fallback; } catch { return raw; }
     }
-    return msg;
+    return raw;
   };
 
   const inactivateMutation = useMutation({
@@ -170,40 +177,88 @@ export default function CollaboratorManagement() {
 
   const filtered = useMemo(() => {
     if (!collaborators) return [];
+    const q = filters.search.toLowerCase().trim();
+    const qDigits = q.replace(/\D/g, "");
     return collaborators.filter(c => {
-      const statusMatch = filters.status === "all" || c.status === filters.status;
+      // "Inativo" na prática é active === false (a rota /inactivate não mexe em
+      // `status`); o valor legado "inativo" em status continua valendo.
+      const statusMatch = filters.status === "all"
+        ? true
+        : filters.status === "inativo"
+          ? (c.status === "inativo" || (c as any).active === false)
+          : c.status === filters.status;
       const typeMatch = filters.type === "all" || c.type === filters.type;
-      const q = filters.search.toLowerCase();
-      const searchMatch = !q || c.fullName.toLowerCase().includes(q) || c.officialDocument.includes(q);
+      const searchMatch = !q
+        || c.fullName.toLowerCase().includes(q)
+        || c.officialDocument.includes(q)
+        // Busca por documento formatado ("123.456") também precisa casar.
+        || (!!qDigits && c.officialDocument.replace(/\D/g, "").includes(qDigits));
       return statusMatch && typeMatch && searchMatch;
     });
   }, [collaborators, filters]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // Inativar/filtrar podia encolher a lista e deixar `page` fora do intervalo →
+  // tabela vazia com o rodapé dizendo que havia registros.
+  const currentPage = Math.min(page, totalPages);
+  const paginated = useMemo(
+    () => filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filtered, currentPage],
+  );
 
   const setFilter = (key: string, val: string) => { setFilters(p => ({ ...p, [key]: val })); setPage(1); };
   const clearFilters = () => { setFilters({ status: "all", type: "all", search: "" }); setPage(1); };
-  const hasFilters = filters.status !== "all" || filters.type !== "all" || filters.search;
+  const hasFilters = filters.status !== "all" || filters.type !== "all" || !!filters.search;
 
-  const totalCount    = collaborators?.length ?? 0;
-  const pendingCount  = collaborators?.filter(c => c.status === "pendente").length ?? 0;
-  const approvedCount = collaborators?.filter(c => c.status === "aprovado").length ?? 0;
-  const freelaCount   = collaborators?.filter(c => c.type === "freela").length ?? 0;
-  const casaCount     = collaborators?.filter(c => c.type === "casa").length ?? 0;
+  const { totalCount, pendingCount, approvedCount, freelaCount, casaCount } = useMemo(() => {
+    let pendente = 0, aprovado = 0, freela = 0, casa = 0;
+    for (const c of collaborators ?? []) {
+      if (c.status === "pendente") pendente++;
+      else if (c.status === "aprovado") aprovado++;
+      if (c.type === "freela") freela++;
+      else if (c.type === "casa") casa++;
+    }
+    return {
+      totalCount: collaborators?.length ?? 0,
+      pendingCount: pendente, approvedCount: aprovado,
+      freelaCount: freela, casaCount: casa,
+    };
+  }, [collaborators]);
 
   const handleApprove = (c: Collaborator) => {
     setSelectedCollaborator(c); setApprovalAction("approve");
+    setApprovalNotes("");
     if (c.documentType === "cpf") { setEditCpf(c.officialDocument || ""); setEditRg(c.secondaryDocument || ""); }
     else { setEditRg(c.officialDocument || ""); setEditCpf(c.secondaryDocument || ""); }
     setShowApprovalModal(true);
   };
-  const handleReject  = (c: Collaborator) => { setSelectedCollaborator(c); setApprovalAction("reject"); setShowApprovalModal(true); };
+  // Cancelar uma aprovação deixava editCpf/editRg/approvalNotes preenchidos com os
+  // dados do colaborador anterior; a rejeição seguinte gravava o documento errado.
+  const handleReject  = (c: Collaborator) => {
+    setSelectedCollaborator(c); setApprovalAction("reject");
+    setApprovalNotes(""); setEditCpf(""); setEditRg("");
+    setShowApprovalModal(true);
+  };
   const handleView    = (c: Collaborator) => { setSelectedCollaborator(c); setShowDetailsModal(true); };
   const handleEdit    = (c: Collaborator) => { setSelectedCollaborator(c); setShowEditModal(true); };
   const handleConfirm = () => {
-    if (!selectedCollaborator) return;
-    updateMutation.mutate({ id: selectedCollaborator.id, status: approvalAction === "approve" ? "aprovado" : "rejeitado", approvalNotes: approvalNotes.trim() || undefined, cpf: editCpf.trim() || undefined, rg: editRg.trim() || undefined });
+    if (!selectedCollaborator || updateMutation.isPending) return;
+    const isApprove = approvalAction === "approve";
+    // Exige ao menos um documento — mas não obriga CPF: cadastros legados
+    // aprovados só com RG continuam aprováveis (exigir CPF travaria todos eles).
+    if (isApprove && !editCpf.trim() && !editRg.trim()) {
+      toast({ title: "Informe CPF ou RG para aprovar.", variant: "destructive" });
+      return;
+    }
+    updateMutation.mutate({
+      id: selectedCollaborator.id,
+      status: isApprove ? "aprovado" : "rejeitado",
+      approvalNotes: approvalNotes.trim() || undefined,
+      // Documentos só são gravados no fluxo de aprovação — a rejeição não deve
+      // sobrescrever CPF/RG de ninguém.
+      cpf: isApprove ? (editCpf.trim() || undefined) : undefined,
+      rg:  isApprove ? (editRg.trim()  || undefined) : undefined,
+    });
   };
 
   if (isLoading) {
@@ -222,6 +277,29 @@ export default function CollaboratorManagement() {
         <div className="bg-white rounded-xl border border-slate-200 p-8 animate-pulse space-y-4">
           {[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-slate-50 rounded-xl" />)}
         </div>
+      </div>
+    );
+  }
+
+  // Só troca a tela pelo erro quando NÃO há dados em cache: com
+  // refetchOnWindowFocus ligado, um refetch falho em segundo plano não pode
+  // apagar uma lista que o usuário está usando.
+  if (isError && !collaborators) {
+    const err: any = error;
+    const msg = err?.status === 401 ? "Sua sessão expirou. Entre novamente para ver os colaboradores."
+      : err?.status === 403 ? "Você não tem permissão para ver os colaboradores."
+      : err?.body?.message || "Verifique sua conexão e tente novamente.";
+    return (
+      /* Antes, uma falha de rede caía no estado vazio e dizia "nenhum colaborador". */
+      <div role="alert" className="bg-white rounded-xl border border-red-200 shadow-sm py-16 px-6 text-center">
+        <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center mx-auto mb-3">
+          <AlertCircle className="w-6 h-6 text-red-500" />
+        </div>
+        <p className="text-sm font-semibold text-slate-700">Não foi possível carregar os colaboradores</p>
+        <p className="text-xs text-slate-500 mt-1 mb-4">{msg}</p>
+        <button onClick={() => refetch()} className="h-9 px-4 text-xs font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+          Tentar novamente
+        </button>
       </div>
     );
   }
@@ -294,14 +372,16 @@ export default function CollaboratorManagement() {
             <div className="relative flex-1 min-w-[180px] max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <input
+                id="collaborators-search"
                 type="text"
+                aria-label="Buscar por nome ou documento"
                 placeholder="Buscar por nome ou documento..."
                 value={filters.search}
                 onChange={e => setFilter("search", e.target.value)}
                 className="w-full h-8 pl-9 pr-8 bg-white border border-gray-200 rounded-lg text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
               />
               {filters.search && (
-                <button onClick={() => setFilter("search", "")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <button onClick={() => setFilter("search", "")} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                   <X className="w-3 h-3" />
                 </button>
               )}
@@ -309,7 +389,7 @@ export default function CollaboratorManagement() {
 
             {/* Status filter */}
             <Select value={filters.status} onValueChange={v => setFilter("status", v)}>
-              <SelectTrigger className="h-8 w-[145px] text-xs border-gray-200 rounded-lg bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20">
+              <SelectTrigger aria-label="Filtrar por status" className="h-8 w-[145px] text-xs border-gray-200 rounded-lg bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
@@ -323,7 +403,7 @@ export default function CollaboratorManagement() {
 
             {/* Type filter */}
             <Select value={filters.type} onValueChange={v => setFilter("type", v)}>
-              <SelectTrigger className="h-8 w-[145px] text-xs border-gray-200 rounded-lg bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20">
+              <SelectTrigger aria-label="Filtrar por tipo" className="h-8 w-[145px] text-xs border-gray-200 rounded-lg bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20">
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
@@ -411,7 +491,12 @@ export default function CollaboratorManagement() {
                         <td className="px-5 py-3.5">
                           <div className="font-mono text-[11px] text-slate-500 space-y-0.5">
                             <div>{formatDocument(c.officialDocument, c.documentType)}</div>
-                            {c.secondaryDocument && <div className="text-slate-400">RG {c.secondaryDocument}</div>}
+                            {c.secondaryDocument && (
+                              <div className="text-slate-400">
+                                {(c.secondaryDocumentType || (c.documentType === "cpf" ? "rg" : "cpf")).toUpperCase()}{" "}
+                                {formatDocument(c.secondaryDocument, c.secondaryDocumentType || "")}
+                              </div>
+                            )}
                           </div>
                         </td>
 
@@ -446,12 +531,12 @@ export default function CollaboratorManagement() {
 
                         {/* Ações */}
                         <td className="px-5 py-3.5">
-                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                             {isPending && (
                               <>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <button onClick={() => handleApprove(c)} disabled={updateMutation.isPending} className="w-7 h-7 rounded-md flex items-center justify-center text-emerald-500 hover:bg-emerald-50 disabled:opacity-40 transition-colors">
+                                    <button onClick={() => handleApprove(c)} disabled={updateMutation.isPending} aria-label={`Aprovar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-emerald-500 hover:bg-emerald-50 disabled:opacity-40 transition-colors">
                                       <Check className="w-3.5 h-3.5" />
                                     </button>
                                   </TooltipTrigger>
@@ -459,7 +544,7 @@ export default function CollaboratorManagement() {
                                 </Tooltip>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <button onClick={() => handleReject(c)} disabled={updateMutation.isPending} className="w-7 h-7 rounded-md flex items-center justify-center text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors">
+                                    <button onClick={() => handleReject(c)} disabled={updateMutation.isPending} aria-label={`Rejeitar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors">
                                       <X className="w-3.5 h-3.5" />
                                     </button>
                                   </TooltipTrigger>
@@ -469,7 +554,7 @@ export default function CollaboratorManagement() {
                             )}
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <button onClick={() => handleView(c)} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                                <button onClick={() => handleView(c)} aria-label={`Ver detalhes de ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors">
                                   <Eye className="w-3.5 h-3.5" />
                                 </button>
                               </TooltipTrigger>
@@ -477,7 +562,7 @@ export default function CollaboratorManagement() {
                             </Tooltip>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <button onClick={() => handleEdit(c)} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                                <button onClick={() => handleEdit(c)} aria-label={`Editar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors">
                                   <Edit className="w-3.5 h-3.5" />
                                 </button>
                               </TooltipTrigger>
@@ -487,7 +572,7 @@ export default function CollaboratorManagement() {
                               isInactive ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <button onClick={() => reactivateMutation.mutate(c.id)} disabled={reactivateMutation.isPending} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-40 transition-colors">
+                                    <button onClick={() => reactivateMutation.mutate(c.id)} disabled={reactivateMutation.isPending} aria-label={`Reativar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-40 transition-colors">
                                       <RotateCcw className="w-3.5 h-3.5" />
                                     </button>
                                   </TooltipTrigger>
@@ -496,7 +581,7 @@ export default function CollaboratorManagement() {
                               ) : (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <button onClick={() => { setSelectedCollaborator(c); setInactivateReason(""); setShowDeleteModal(true); }} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors">
+                                    <button onClick={() => { setSelectedCollaborator(c); setInactivateReason(""); setShowDeleteModal(true); }} aria-label={`Inativar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors">
                                       <Ban className="w-3.5 h-3.5" />
                                     </button>
                                   </TooltipTrigger>
@@ -519,45 +604,51 @@ export default function CollaboratorManagement() {
             <div className="px-5 py-2.5 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
               <p className="text-[11px] text-slate-400 font-medium">
                 Mostrando{" "}
-                <span className="text-slate-600 font-semibold">{Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)}</span>
+                <span className="text-slate-600 font-semibold">{Math.min((currentPage - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(currentPage * PAGE_SIZE, filtered.length)}</span>
                 {" "}de{" "}
                 <span className="text-slate-600 font-semibold">{filtered.length}</span> colaboradores
               </p>
               {totalPages > 1 && (
-                <div className="flex items-center gap-1">
+                <nav className="flex items-center gap-1" aria-label="Paginação">
                   <button
-                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                    disabled={page === 1}
+                    onClick={() => setPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                    aria-label="Página anterior"
                     className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
                   </button>
                   <div className="flex items-center gap-0.5">
-                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                      const p = i + 1;
-                      return (
+                    {/* A janela acompanha a página atual — antes eram sempre 1..5,
+                        e a partir da 6ª página nenhum número ficava destacado. */}
+                    {(() => {
+                      const win = Math.min(totalPages, 5);
+                      const start = Math.max(1, Math.min(currentPage - Math.floor(win / 2), totalPages - win + 1));
+                      return Array.from({ length: win }, (_, i) => start + i).map(p => (
                         <button
                           key={p}
                           onClick={() => setPage(p)}
+                          aria-label={`Página ${p}`}
+                          aria-current={currentPage === p ? "page" : undefined}
                           className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-semibold transition-colors ${
-                            page === p ? "text-white" : "text-slate-500 hover:bg-slate-100"
+                            currentPage === p ? "text-white" : "text-slate-500 hover:bg-slate-100"
                           }`}
-                          style={page === p ? { background: BLUE } : undefined}
+                          style={currentPage === p ? { background: BLUE } : undefined}
                         >
                           {p}
                         </button>
-                      );
-                    })}
-                    {totalPages > 5 && <span className="px-1 text-slate-400 text-xs">…</span>}
+                      ));
+                    })()}
                   </div>
                   <button
-                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
+                    onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages}
+                    aria-label="Próxima página"
                     className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
                   >
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
-                </div>
+                </nav>
               )}
             </div>
           )}
@@ -585,7 +676,7 @@ export default function CollaboratorManagement() {
               {selectedCollaborator && (
                 <StatusBadge status={selectedCollaborator.status} />
               )}
-              <button onClick={() => setShowDetailsModal(false)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors">
+              <button onClick={() => setShowDetailsModal(false)} aria-label="Fechar detalhes" className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors">
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -604,9 +695,10 @@ export default function CollaboratorManagement() {
                 <div className="border-t border-gray-100 pt-4">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Documentos</p>
                   <div className="font-mono text-xs space-y-1 bg-slate-50 rounded-lg px-3 py-2.5 border border-gray-100">
-                    <div><span className="text-slate-400">CPF </span><span className="text-slate-700 font-medium">{formatDocument(selectedCollaborator.officialDocument, selectedCollaborator.documentType)}</span></div>
+                    {/* O rótulo seguia fixo em "CPF" mesmo quando o documento principal era RG. */}
+                    <div><span className="text-slate-400">{(selectedCollaborator.documentType || "documento").toUpperCase()} </span><span className="text-slate-700 font-medium">{formatDocument(selectedCollaborator.officialDocument, selectedCollaborator.documentType)}</span></div>
                     {selectedCollaborator.secondaryDocument && (
-                      <div><span className="text-slate-400">RG  </span><span className="text-slate-700 font-medium">{selectedCollaborator.secondaryDocument}</span></div>
+                      <div><span className="text-slate-400">{(selectedCollaborator.secondaryDocumentType || (selectedCollaborator.documentType === "cpf" ? "rg" : "cpf")).toUpperCase()} </span><span className="text-slate-700 font-medium">{formatDocument(selectedCollaborator.secondaryDocument, selectedCollaborator.secondaryDocumentType || "")}</span></div>
                     )}
                   </div>
                 </div>
@@ -677,7 +769,7 @@ export default function CollaboratorManagement() {
                   {approvalAction === "approve" ? "Revise os dados antes de confirmar" : "Informe o motivo da rejeição"}
                 </p>
               </div>
-              <button onClick={() => setShowApprovalModal(false)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors">
+              <button onClick={() => setShowApprovalModal(false)} disabled={updateMutation.isPending} aria-label="Fechar" className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 disabled:opacity-40 transition-colors">
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -703,23 +795,23 @@ export default function CollaboratorManagement() {
                   <div className="space-y-3">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Documentos</p>
                     <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1.5">CPF <span className="text-red-400 normal-case tracking-normal">*</span></label>
-                      <input value={editCpf} onChange={e => setEditCpf(e.target.value)} placeholder="000.000.000-00"
+                      <label htmlFor="approval-cpf" className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1.5">CPF <span className="text-red-400 normal-case tracking-normal">*</span></label>
+                      <input id="approval-cpf" value={editCpf} onChange={e => setEditCpf(e.target.value)} placeholder="000.000.000-00"
                         className="w-full h-9 px-3 font-mono text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1.5">RG <span className="text-slate-400 font-normal normal-case tracking-normal">(opcional)</span></label>
-                      <input value={editRg} onChange={e => setEditRg(e.target.value)} placeholder="00.000.000-0"
+                      <label htmlFor="approval-rg" className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1.5">RG <span className="text-slate-400 font-normal normal-case tracking-normal">(opcional)</span></label>
+                      <input id="approval-rg" value={editRg} onChange={e => setEditRg(e.target.value)} placeholder="00.000.000-0"
                         className="w-full h-9 px-3 font-mono text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
                     </div>
                   </div>
                 )}
 
                 <div>
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1.5">
+                  <label htmlFor="approval-notes" className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1.5">
                     Observações <span className="text-slate-400 font-normal normal-case tracking-normal">{approvalAction === "approve" ? "(opcional)" : "(recomendado)"}</span>
                   </label>
-                  <Textarea value={approvalNotes} onChange={e => setApprovalNotes(e.target.value)}
+                  <Textarea id="approval-notes" value={approvalNotes} onChange={e => setApprovalNotes(e.target.value)}
                     placeholder={approvalAction === "approve" ? "Comentários sobre a aprovação..." : "Motivo da rejeição..."}
                     rows={3} className="text-sm border-gray-200 rounded-lg resize-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
                 </div>
@@ -779,10 +871,11 @@ export default function CollaboratorManagement() {
               })()}
 
               <div>
-                <label className="block text-[12px] font-semibold text-slate-700 mb-1.5">
+                <label htmlFor="inactivate-reason" className="block text-[12px] font-semibold text-slate-700 mb-1.5">
                   Motivo da inativação <span className="text-red-500">*</span>
                 </label>
                 <textarea
+                  id="inactivate-reason"
                   value={inactivateReason}
                   onChange={e => setInactivateReason(e.target.value)}
                   placeholder="Ex.: desligamento, encerramento de contrato..."

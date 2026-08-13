@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Link, useSearch } from "wouter";
 import type { Event, Invoice } from "@shared/schema";
+import { isNfEligible } from "@shared/prestacao-rules";
 
 function toTitleCase(str: string) {
   if (!str || str === "—") return str;
@@ -192,7 +193,6 @@ export default function InvoicesPage() {
       const res = await apiRequest("PATCH", `/api/events/${selectedEventId}/payment-company`, {
         paymentCompanyName: name,
         paymentCompanyCnpj: cnpj,
-        _userId: (user as any)?.id,
       });
       if (!res.ok) throw new Error("Erro ao salvar empresa pagadora");
       return res.json();
@@ -240,10 +240,10 @@ export default function InvoicesPage() {
     return byFunction.emitsNf !== false;
   };
 
-  // NF fica disponível assim que o Realizado é enviado (sem esperar a análise
-  // do comparativo pelo RH). Devolvido/rejeitado pausam a NF até regularizar.
+  // Elegibilidade da NF vem de @shared/prestacao-rules — a mesma regra que o
+  // servidor aplica. Antes cada tela tinha sua cópia e elas divergiram.
   const approvedActuals = (budgetActuals as any[]).filter(
-    a => (a.rhStatus === "aprovado" || (a.sentForReview && a.rhStatus === "pendente")) && !a.splitParentId
+    a => isNfEligible(a) && !a.splitParentId
   );
 
   const getInvoice = (actualId: string) =>

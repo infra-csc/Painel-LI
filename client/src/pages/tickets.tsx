@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { fixEncoding } from "@/lib/utils";
+import { fixEncoding, parseBrNumber } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plane, Bus, Truck, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit, CheckCircle, Clock, Ticket as TicketIcon, CreditCard, Paperclip, NotebookPen, ClipboardCheck, History, AlertCircle, ArrowLeftRight, ArrowRight, CheckCheck, XCircle } from "lucide-react";
+import { Plane, Bus, Truck, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit, CheckCircle, Clock, Ticket as TicketIcon, CreditCard, Paperclip, NotebookPen, ClipboardCheck, History, AlertCircle, ArrowLeftRight, ArrowRight, CheckCheck, XCircle } from "lucide-react";
 import EventCombobox from "@/components/ui/event-combobox";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
 import FunctionMultiSelect from "@/components/ui/function-multi-select";
@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { isReadOnly, canEdit, canPerformActions } from "@/lib/interactions";
+import { isReadOnly } from "@/lib/interactions";
 import { canView, canEdit as canEditScreen } from "@/lib/permissions";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
@@ -68,23 +68,23 @@ export default function Tickets() {
     });
   };
 
-  const { data: teamInclusions, isLoading: isLoadingInclusions } = useQuery<TeamInclusion[]>({
+  const { data: teamInclusions, isLoading: isLoadingInclusions, error: inclusionsError } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions"],
   });
 
-  const { data: events, isLoading: isLoadingEvents } = useQuery<Event[]>({
+  const { data: events, isLoading: isLoadingEvents, error: eventsError } = useQuery<Event[]>({
     queryKey: ["/api/events"],
   });
 
-  const { data: functions, isLoading: isLoadingFunctions } = useQuery<Function[]>({
+  const { data: functions, isLoading: isLoadingFunctions, error: functionsError } = useQuery<Function[]>({
     queryKey: ["/api/functions"],
   });
 
-  const { data: collaborators, isLoading: isLoadingCollaborators } = useQuery<Collaborator[]>({
+  const { data: collaborators, isLoading: isLoadingCollaborators, error: collaboratorsError } = useQuery<Collaborator[]>({
     queryKey: ["/api/collaborators"],
   });
 
-  const { data: tickets, isLoading: isLoadingTickets } = useQuery<Ticket[]>({
+  const { data: tickets, isLoading: isLoadingTickets, error: ticketsError } = useQuery<Ticket[]>({
     queryKey: ["/api/tickets"],
   });
 
@@ -97,6 +97,14 @@ export default function Tickets() {
     isLoadingFunctions ||
     isLoadingCollaborators ||
     isLoadingTickets;
+
+  // Falha de carregamento NÃO pode virar "nenhuma passagem encontrada": sem isso
+  // uma sessão expirada (401) ou queda de rede aparecia como lista vazia.
+  // Só bloqueia a tela quando ainda não há dados: com refetchOnWindowFocus
+  // ligado, um refetch falho em segundo plano não pode apagar a tela cheia.
+  const loadError: any = teamInclusions
+    ? null
+    : (inclusionsError || eventsError || functionsError || collaboratorsError || ticketsError);
 
   const { data: accommodations } = useQuery<any[]>({
     queryKey: ["/api/accommodations"],
@@ -169,11 +177,13 @@ export default function Tickets() {
     onSuccess: () => {
       toast({ title: "Troca aprovada", description: "O colaborador foi atualizado na escalação." });
       queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id] });
+      // A lista global alimenta o banner e os selos "Troca pendente" da tabela;
+      // sem invalidar, a linha continuava marcada como pendente após aprovar.
+      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
-    onError: async (err: any) => {
-      const msg = await err?.response?.json?.().catch(() => null);
-      toast({ title: "Erro", description: msg?.message || "Erro ao aprovar troca", variant: "destructive" });
+    onError: (err: any) => {
+      toast({ title: "Erro", description: err?.body?.message || "Erro ao aprovar troca", variant: "destructive" });
     },
   });
 
@@ -185,10 +195,10 @@ export default function Tickets() {
     onSuccess: () => {
       toast({ title: "Troca rejeitada" });
       queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests"] });
     },
-    onError: async (err: any) => {
-      const msg = await err?.response?.json?.().catch(() => null);
-      toast({ title: "Erro", description: msg?.message || "Erro ao rejeitar troca", variant: "destructive" });
+    onError: (err: any) => {
+      toast({ title: "Erro", description: err?.body?.message || "Erro ao rejeitar troca", variant: "destructive" });
     },
   });
 
@@ -201,10 +211,10 @@ export default function Tickets() {
       queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
-    onError: () => {
+    onError: (err: any) => {
       toast({
         title: "Erro",
-        description: "Erro ao registrar passagem",
+        description: err?.body?.message || "Erro ao registrar passagem",
         variant: "destructive",
       });
     },
@@ -219,10 +229,10 @@ export default function Tickets() {
       queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       setEditingTicketId(null);
     },
-    onError: () => {
+    onError: (err: any) => {
       toast({
         title: "Erro",
-        description: "Erro ao atualizar passagem",
+        description: err?.body?.message || "Erro ao atualizar passagem",
         variant: "destructive",
       });
     },
@@ -236,35 +246,97 @@ export default function Tickets() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
+    onError: (err: any) => {
+      // Sem isto, a passagem era criada e a falha em atualizar o status da
+      // inclusão passava silenciosamente — a linha continuava "Pendente".
+      toast({
+        title: "Erro",
+        description: err?.body?.message || "Passagem registrada, mas não foi possível atualizar o status da inclusão",
+        variant: "destructive",
+      });
+    },
   });
 
   const [ticketData, setTicketData] = useState<Record<string, any>>({});
 
+  // Índices O(1) — antes cada linha da tabela fazia .find() em tickets, eventos,
+  // funções e colaboradores (e o comparador de ordenação repetia isso a cada
+  // comparação). O "primeiro registro vence" do .find() é preservado: só
+  // gravamos no Map quando a chave ainda não existe.
+  const ticketByInclusion = useMemo(() => {
+    const map = new Map<string, Ticket>();
+    tickets?.forEach(ticket => {
+      if (ticket.teamInclusionId && !map.has(ticket.teamInclusionId)) {
+        map.set(ticket.teamInclusionId, ticket);
+      }
+    });
+    return map;
+  }, [tickets]);
+
+  const eventById = useMemo(() => {
+    const map = new Map<string, Event>();
+    events?.forEach(e => { if (!map.has(e.id)) map.set(e.id, e); });
+    return map;
+  }, [events]);
+
+  const functionById = useMemo(() => {
+    const map = new Map<string, Function>();
+    functions?.forEach(f => { if (!map.has(f.id)) map.set(f.id, f); });
+    return map;
+  }, [functions]);
+
+  const collaboratorById = useMemo(() => {
+    const map = new Map<string, Collaborator>();
+    collaborators?.forEach(c => { if (!map.has(c.id)) map.set(c.id, c); });
+    return map;
+  }, [collaborators]);
+
+  const accommodationByInclusion = useMemo(() => {
+    const map = new Map<string, any>();
+    accommodations?.forEach(acc => {
+      if (acc?.teamInclusionId && !map.has(acc.teamInclusionId)) map.set(acc.teamInclusionId, acc);
+    });
+    return map;
+  }, [accommodations]);
+
   const getTicket = (inclusionId: string): Ticket | undefined => {
-    return tickets?.find(ticket => ticket.teamInclusionId === inclusionId);
+    return ticketByInclusion.get(inclusionId);
   };
 
   const getEventName = (eventId: string) => {
-    return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
+    return eventById.get(eventId)?.name || "Evento não encontrado";
   };
 
   const getFunctionName = (functionId: string) => {
-    return functions?.find(f => f.id === functionId)?.name || "Função não encontrada";
+    return functionById.get(functionId)?.name || "Função não encontrada";
   };
 
   const getCollaboratorName = (collaboratorId?: string) => {
     if (!collaboratorId) return "Não escalado";
-    return fixEncoding(collaborators?.find(c => c.id === collaboratorId)?.fullName) || "Colaborador não encontrado";
+    return fixEncoding(collaboratorById.get(collaboratorId)?.fullName) || "Colaborador não encontrado";
   };
 
   const getCollaborator = (collaboratorId?: string) => {
     if (!collaboratorId) return null;
-    return collaborators?.find(c => c.id === collaboratorId) || null;
+    return collaboratorById.get(collaboratorId) || null;
   };
 
   const getEventLocation = (eventId: string) => {
-    const event = events?.find(e => e.id === eventId);
-    return event?.location || "Destino não informado";
+    return eventById.get(eventId)?.location || "Destino não informado";
+  };
+
+  // "Só ida" NÃO existe no banco: o formulário grava os campos de volta como
+  // null quando o usuário marca "Apenas ida". Derivamos a condição da ausência
+  // desses dados persistidos (mesma regra usada ao reabrir a passagem para edição).
+  const isOneWayTicket = (t: Ticket) =>
+    !t.actualReturnDate && !t.actualReturnTime && !t.returnCityOrigin && !t.returnCityDestination;
+
+  // Valor monetário em centavos. Aceita "1.500,00" e "1500.00"; vazio vira null.
+  // Antes usava parseFloat direto e produzia NaN quando o campo era opcional
+  // (rodoviário/van) e valor errado em milhares com ponto.
+  const toCents = (raw: any): number | null => {
+    if (raw === undefined || raw === null || String(raw).trim() === '') return null;
+    return Math.round(parseBrNumber(raw) * 100);
   };
 
   const toTitleCase = (str: string) => {
@@ -274,17 +346,13 @@ export default function Tickets() {
     return lower.replace(/\b\w/g, (c) => c.toUpperCase());
   };
 
-  const isDateUrgent = (dateStr: string) => {
-    const today = new Date();
-    const targetDate = new Date(dateStr);
-    const diffTime = targetDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays <= 7 && diffDays >= 0; // Próximos 7 dias
-  };
-
+  // Formata sem passar por new Date(): "YYYY-MM-DD" no construtor é lido como
+  // UTC e volta um dia atrás em Brasília. O slice(0,10) protege contra valores
+  // que chegam como ISO completo ("YYYY-MM-DDTHH:mm:ss").
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return "N/A";
-    const [year, month, day] = dateStr.split('-');
+    const [year, month, day] = String(dateStr).slice(0, 10).split('-');
+    if (!year || !month || !day) return String(dateStr);
     return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
   };
 
@@ -314,13 +382,6 @@ export default function Tickets() {
     
     // Se não conseguir formatar, retorna o valor original
     return dateStr;
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value);
   };
 
   // Função para extrair dados de passagem dos campos específicos (prioridade) ou das observações (legado)
@@ -358,17 +419,19 @@ export default function Tickets() {
   };
 
   // Filter inclusions that need tickets - now independent of accommodation and collaborator
-  const ticketInclusions = teamInclusions?.filter(
+  const ticketInclusions = useMemo(() => teamInclusions?.filter(
     inclusion => {
       // Show all inclusions that need tickets (with or without collaborators)
       // This allows ticket purchase before name assignment
-      
+
       // Se NÃO precisa de passagem, não mostra
       if (!inclusion.needsTicket) return false;
-      
-      // Se está cancelado, não mostra (a menos que o filtro esteja explicitamente em "cancelado")
-      if (inclusion.status === "cancelado" && filters.inclusionStatus !== "cancelado") return false;
-      
+
+      // Canceladas só somem no filtro "Inclusões ativas". Antes eram descartadas
+      // aqui em qualquer filtro diferente de "Canceladas", o que deixava a opção
+      // "Todas" idêntica a "ativas" e tornava inalcançável o teste logo abaixo.
+      if (inclusion.status === "cancelado" && filters.inclusionStatus === "active") return false;
+
       // Se tem colaborador escalado, aparece INDEPENDENTE do status (workflow flexível)
       if (inclusion.collaboratorId) {
         // OK - Colaborador já foi atribuído, pode comprar passagem
@@ -391,19 +454,18 @@ export default function Tickets() {
       if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
       if (filters.searchId) {
         const q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
-        const colName = (collaborators?.find(c => c.id === inclusion.collaboratorId)?.fullName ?? '').toLowerCase();
+        const colName = (inclusion.collaboratorId ? collaboratorById.get(inclusion.collaboratorId)?.fullName ?? '' : '').toLowerCase();
         if (!(String(inclusion.inclusionNumber ?? '').toLowerCase().includes(q) ||
           inclusion.id.toLowerCase().includes(q) ||
           colName.includes(q))) return false;
       }
-      
-      // Filter by inclusion status - by default, hide cancelled inclusions
-      if (filters.inclusionStatus === "active" && inclusion.status === "cancelado") return false;
+
+      // Filter by inclusion status — "Canceladas" mostra apenas canceladas
       if (filters.inclusionStatus === "cancelado" && inclusion.status !== "cancelado") return false;
-      
+
       return true;
     }
-  ) || [];
+  ) || [], [teamInclusions, collaboratorById, filters.eventId, filters.functionId, filters.collaboratorId, filters.searchId, filters.inclusionStatus]);
 
   // Deduplicate inclusions by collaborator+event+function to avoid duplicates
   const deduplicatedInclusions = useMemo(() => {
@@ -477,22 +539,14 @@ export default function Tickets() {
     
     
     return Array.from(deduplicationMap.values());
-  }, [ticketInclusions, collaborators]);
-
-  // Banner: trocas pendentes que aparecem de fato na tabela de Passagem.
-  // Derivado do mesmo conjunto exibido (deduplicado), garantindo que o contador
-  // do banner sempre bata com o número de linhas mostradas ao ativar o filtro.
-  const pendingTicketSwapsCount = useMemo(() => {
-    if (!isPurchasingRole) return 0;
-    return deduplicatedInclusions.filter(inc => pendingSwapByInclusion.has(inc.id)).length;
-  }, [isPurchasingRole, deduplicatedInclusions, pendingSwapByInclusion]);
+  }, [ticketInclusions, collaboratorById]);
 
   // Apply ticket status filter to deduplicated inclusions and apply sorting
   const filteredTicketInclusions = useMemo(() => {
     const filtered = deduplicatedInclusions.filter(inclusion => {
       if (showOnlyPendingSwaps && !pendingSwapByInclusion.has(inclusion.id)) return false;
       if (filters.ticketStatus !== "all") {
-        const hasTicket = getTicket(inclusion.id);
+        const hasTicket = ticketByInclusion.has(inclusion.id);
         if (filters.ticketStatus === "pending" && hasTicket) return false;
         if (filters.ticketStatus === "processed" && !hasTicket) return false;
       }
@@ -534,7 +588,33 @@ export default function Tickets() {
     }
     
     return filtered;
-  }, [deduplicatedInclusions, filters.ticketStatus, showOnlyPendingSwaps, pendingSwapByInclusion, tickets, sortConfig, events, functions, collaborators]);
+  }, [deduplicatedInclusions, filters.ticketStatus, showOnlyPendingSwaps, pendingSwapByInclusion, ticketByInclusion, sortConfig, eventById, functionById, collaboratorById]);
+
+  // Banner: trocas pendentes que aparecem de fato na tabela de Passagem.
+  // Derivado da MESMA lista renderizada — com o filtro ligado, todas as linhas
+  // visíveis têm troca pendente, então o contador nunca diverge da tabela.
+  const pendingTicketSwapsCount = useMemo(() => {
+    if (!isPurchasingRole) return 0;
+    if (showOnlyPendingSwaps) return filteredTicketInclusions.length;
+    return filteredTicketInclusions.filter(inc => pendingSwapByInclusion.has(inc.id)).length;
+  }, [isPurchasingRole, showOnlyPendingSwaps, filteredTicketInclusions, pendingSwapByInclusion]);
+
+  // Linhas que podem entrar no lote: pendentes, não canceladas e visíveis agora.
+  const selectableInclusionIds = useMemo(() => {
+    const ids = new Set<string>();
+    filteredTicketInclusions.forEach(inc => {
+      if (!ticketByInclusion.has(inc.id) && inc.status !== 'cancelado') ids.add(inc.id);
+    });
+    return ids;
+  }, [filteredTicketInclusions, ticketByInclusion]);
+
+  // A seleção sobrevive à troca de filtros e a compras feitas em outra aba; o
+  // contador "Passageiros" e o botão de lote usam só o que ainda é aplicável,
+  // senão o número prometido no rodapé não batia com o que era processado.
+  const effectiveSelectedTickets = useMemo(
+    () => selectedTickets.filter(id => selectableInclusionIds.has(id)),
+    [selectedTickets, selectableInclusionIds]
+  );
 
   const handleTicketDataChange = (inclusionId: string, field: string, value: any) => {
     setTicketData(prev => ({
@@ -574,17 +654,18 @@ export default function Tickets() {
     });
   };
 
-  // Selecionar/deselecionar todos os tickets
+  // Selecionar/deselecionar todos os tickets.
+  // Antes marcava também inclusões canceladas (que nem têm checkbox na linha) e
+  // comparava só o tamanho da seleção, o que travava o "marcar todos".
+  const allSelectableSelected =
+    selectableInclusionIds.size > 0 &&
+    Array.from(selectableInclusionIds).every(id => selectedTickets.includes(id));
+
   const toggleAllTickets = () => {
-    const pendingInclusions = filteredTicketInclusions.filter(inclusion => 
-      !getTicket(inclusion.id)
-    );
-    const allPendingIds = pendingInclusions.map(inclusion => inclusion.id);
-    
-    if (selectedTickets.length === allPendingIds.length) {
+    if (allSelectableSelected) {
       setSelectedTickets([]); // Deselecionar todos
     } else {
-      setSelectedTickets(allPendingIds); // Selecionar todos pendentes
+      setSelectedTickets(Array.from(selectableInclusionIds)); // Selecionar todos pendentes
     }
   };
 
@@ -599,7 +680,7 @@ export default function Tickets() {
   // Aplicar dados do registro rápido às passagens selecionadas
   const handleApplyToSelected = async () => {
     const quickData = ticketData["quick"];
-    if (!quickData || selectedTickets.length === 0) return;
+    if (!quickData || effectiveSelectedTickets.length === 0 || createTicketMutation.isPending) return;
 
     const isVanQuick = quickData.transportType === 'van';
 
@@ -638,8 +719,9 @@ export default function Tickets() {
     try {
       let successCount = 0;
       const errors: string[] = [];
+      const processedIds: string[] = [];
 
-      for (const inclusionId of selectedTickets) {
+      for (const inclusionId of effectiveSelectedTickets) {
         const inclusion = filteredTicketInclusions.find(inc => inc.id === inclusionId);
         if (!inclusion) continue;
 
@@ -654,7 +736,7 @@ export default function Tickets() {
           await createTicketMutation.mutateAsync({
             teamInclusionId: inclusion.id,
             transportType: quickData.transportType || "aereo",
-            value: isVanQuick ? null : Math.round(parseFloat(quickData.value) * 100),
+            value: isVanQuick ? null : toCents(quickData.value),
             purchaseDate: quickData.purchaseDate || new Date().toISOString().split('T')[0],
             actualDepartureDate: isVanQuick ? null : (quickData.actualDepartureDate || null),
             actualDepartureTime: isVanQuick ? null : quickData.actualDepartureTime,
@@ -675,7 +757,7 @@ export default function Tickets() {
 
           // Atualizar team inclusion status - passagem agora é independente de hospedagem
           const needsAccommodation = inclusion.needsAccommodation;
-          const accommodation = accommodations?.find(acc => acc.teamInclusionId === inclusion.id);
+          const accommodation = accommodationByInclusion.get(inclusion.id);
           const accommodationPurchased = accommodation && accommodation.hotelName;
           
           let newStatus = "passagem_comprada";
@@ -697,8 +779,9 @@ export default function Tickets() {
           });
 
           successCount++;
-        } catch (error) {
-          errors.push(`Erro na passagem #${inclusion.inclusionNumber}`);
+          processedIds.push(inclusion.id);
+        } catch (error: any) {
+          errors.push(`#${inclusion.inclusionNumber}: ${error?.body?.message || 'falha ao registrar'}`);
         }
       }
 
@@ -712,13 +795,16 @@ export default function Tickets() {
       if (errors.length > 0) {
         toast({
           title: "Alguns erros ocorreram",
-          description: errors.join(", "),
+          description: errors.join(" · "),
           variant: "destructive",
         });
       }
 
-      // Limpar seleções
-      setSelectedTickets([]);
+      // Tira da fila só o que realmente foi registrado — limpar tudo apagava a
+      // seleção do usuário mesmo quando nenhuma passagem tinha sido criada.
+      if (processedIds.length > 0) {
+        setSelectedTickets(prev => prev.filter(id => !processedIds.includes(id)));
+      }
     } catch (error) {
       toast({
         title: "Erro",
@@ -747,6 +833,40 @@ export default function Tickets() {
     );
   }
 
+  // Sessão expirada ou rede fora: mostrar o motivo em vez de uma tabela vazia,
+  // que dava a impressão de que não existem passagens a comprar.
+  if (loadError) {
+    const isAuthError = loadError?.status === 401 || loadError?.status === 403;
+    return (
+      <div className="bg-white rounded-xl border border-red-200 shadow-sm p-8 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+          <AlertCircle className="w-7 h-7 text-red-400" />
+        </div>
+        <h3 className="text-[15px] font-bold text-slate-700 mb-1">
+          {isAuthError ? "Sessão expirada ou sem permissão" : "Não foi possível carregar as passagens"}
+        </h3>
+        <p className="text-[13px] text-slate-400 mb-4">
+          {isAuthError
+            ? "Entre novamente para continuar. Nenhum dado foi perdido."
+            : (loadError?.body?.message || "Verifique sua conexão e tente novamente.")}
+        </p>
+        <Button
+          variant="outline"
+          onClick={() => {
+            queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/functions"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/collaborators"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+          }}
+          className="rounded-lg"
+        >
+          Tentar novamente
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="space-y-3">
@@ -769,7 +889,9 @@ export default function Tickets() {
             {[
               { label: "Total Geral",  value: filteredTicketInclusions.length, stripe: "bg-slate-700",   iconBg: "bg-slate-100",  iconTx: "text-slate-600",  valTx: "#374151",  Icon: TicketIcon },
               { label: "Compradas",    value: filteredTicketInclusions.filter(inc => getTicket(inc.id)).length,  stripe: "bg-emerald-500", iconBg: "bg-emerald-50", iconTx: "text-emerald-600", valTx: "#059669", Icon: CheckCircle },
-              { label: "Aguardando",   value: filteredTicketInclusions.filter(inc => !getTicket(inc.id)).length, stripe: "bg-amber-400",   iconBg: "bg-amber-50",   iconTx: "text-amber-500",  valTx: "#D97706",  Icon: Clock },
+              // Inclusão cancelada não é "aguardando": contá-la inflava a fila de
+              // trabalho quando o filtro mostrava canceladas.
+              { label: "Aguardando",   value: filteredTicketInclusions.filter(inc => !getTicket(inc.id) && inc.status !== 'cancelado').length, stripe: "bg-amber-400",   iconBg: "bg-amber-50",   iconTx: "text-amber-500",  valTx: "#D97706",  Icon: Clock },
             ].map(card => (
               <div key={card.label} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className={`h-0.5 w-full ${card.stripe}`} />
@@ -817,6 +939,13 @@ export default function Tickets() {
           <div
             className="bg-white rounded-xl border border-slate-200 shadow-sm flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors overflow-hidden"
             onClick={() => toggleSection('basic')}
+            role="button"
+            tabIndex={0}
+            aria-expanded={expandedSections.basic}
+            aria-label="Aplicar em lote — expandir ou recolher"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSection('basic'); }
+            }}
           >
             <div className="flex items-center gap-3 px-4 py-3">
               <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
@@ -884,6 +1013,7 @@ export default function Tickets() {
                     <button
                       type="button" role="switch"
                       aria-checked={ticketData["quick"]?.isOneWay || false}
+                      aria-label="Apenas ida"
                       data-testid="checkbox-quick-one-way"
                       onClick={() => handleTicketDataChange("quick", "isOneWay", !(ticketData["quick"]?.isOneWay || false))}
                       className="relative inline-flex items-center rounded-full transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#0033CC] focus:ring-offset-1 shrink-0"
@@ -1003,10 +1133,14 @@ export default function Tickets() {
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Valor da Passagem</Label>
+                        <Label htmlFor="quick-ticket-value" className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Valor da Passagem</Label>
+                        {/* Guarda o texto como digitado; a conversão para centavos
+                            usa parseBrNumber (antes o replace de "," por "." quebrava
+                            "1.500,00", que virava R$ 1,50). */}
                         <Input placeholder="0,00" type="text" inputMode="decimal"
+                          id="quick-ticket-value"
                           value={ticketData["quick"]?.value || ""}
-                          onChange={(e) => handleTicketDataChange("quick", "value", e.target.value.replace(',', '.'))}
+                          onChange={(e) => handleTicketDataChange("quick", "value", e.target.value)}
                           className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                           data-testid="input-quick-ticket-value"
                         />
@@ -1431,7 +1565,7 @@ export default function Tickets() {
                     const financialStatus = hasLoc ? 'done' : 'empty';
                     const idaStatus = hasOrigin && hasDestination && hasDates ? 'done' : hasOrigin || hasDestination ? 'partial' : 'empty';
                     const attachStatus = attachCount > 0 ? 'done' : 'empty';
-                    const selectionStatus = selectedTickets.length > 0 ? 'done' : 'empty';
+                    const selectionStatus = effectiveSelectedTickets.length > 0 ? 'done' : 'empty';
 
                     const dot = (status: 'done'|'partial'|'empty') => {
                       const map = { done: 'bg-green-500', partial: 'bg-yellow-400', empty: 'bg-red-400' };
@@ -1482,7 +1616,7 @@ export default function Tickets() {
                             <div className="flex-1 min-w-0">
                               <p className={`text-[11px] font-semibold ${textColor(selectionStatus)}`}>Passagens selecionadas</p>
                               <p className="text-[10px] text-slate-400">
-                                {selectedTickets.length > 0 ? `${selectedTickets.length} na fila` : 'Selecione na tabela'}
+                                {effectiveSelectedTickets.length > 0 ? `${effectiveSelectedTickets.length} na fila` : 'Selecione na tabela'}
                               </p>
                             </div>
                           </li>
@@ -1497,11 +1631,11 @@ export default function Tickets() {
               <div className="border-t border-slate-100 px-4 py-2 bg-slate-50 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   {/* Badge de passageiros */}
-                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all ${selectedTickets.length > 0 ? 'bg-[#0033CC] text-white shadow-md shadow-blue-200' : 'bg-slate-200 text-slate-400'}`}>
+                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all ${effectiveSelectedTickets.length > 0 ? 'bg-[#0033CC] text-white shadow-md shadow-blue-200' : 'bg-slate-200 text-slate-400'}`}>
                     <span className="material-symbols-outlined" style={{fontSize:16}}>group</span>
                     <div>
                       <p className="text-[9px] font-bold uppercase tracking-widest opacity-70 leading-none mb-0.5">Passageiros</p>
-                      <p className="text-[18px] font-black leading-none">{selectedTickets.length}</p>
+                      <p className="text-[18px] font-black leading-none">{effectiveSelectedTickets.length}</p>
                     </div>
                   </div>
 
@@ -1510,8 +1644,8 @@ export default function Tickets() {
                   {/* Pill de status */}
                   {(() => {
                     const q = ticketData["quick"];
-                    const ready = selectedTickets.length > 0 && !!(q?.value) && !!(q?.purchaseOrderNumber) && !!(q?.departureAirport) && !!(q?.destinationAirport) && !!(q?.actualDepartureDate);
-                    const partial = !ready && (selectedTickets.length > 0 || !!(q?.value));
+                    const ready = effectiveSelectedTickets.length > 0 && !!(q?.value) && !!(q?.purchaseOrderNumber) && !!(q?.departureAirport) && !!(q?.destinationAirport) && !!(q?.actualDepartureDate);
+                    const partial = !ready && (effectiveSelectedTickets.length > 0 || !!(q?.value));
                     if (ready) return (
                       <span className="flex items-center gap-1.5 px-4 py-1.5 bg-green-100 text-green-700 rounded-full text-[11px] font-bold uppercase tracking-wide">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
@@ -1548,20 +1682,20 @@ export default function Tickets() {
                       </Button>
                       <Button
                         onClick={handleApplyToSelected}
-                        disabled={selectedTickets.length === 0 || createTicketMutation.isPending}
+                        disabled={effectiveSelectedTickets.length === 0 || createTicketMutation.isPending}
                         data-testid="button-apply-to-selected"
                         className="h-[34px] px-5 font-bold rounded-lg text-[12px] flex items-center gap-2 transition-all"
                         style={{
-                          background: selectedTickets.length === 0 ? '#E2E8F0' : '#0033CC',
-                          color: selectedTickets.length === 0 ? '#94A3B8' : 'white',
-                          boxShadow: selectedTickets.length > 0 ? '0 4px 14px rgba(0,51,204,0.3)' : 'none',
-                          cursor: selectedTickets.length === 0 ? 'not-allowed' : 'pointer',
+                          background: effectiveSelectedTickets.length === 0 ? '#E2E8F0' : '#0033CC',
+                          color: effectiveSelectedTickets.length === 0 ? '#94A3B8' : 'white',
+                          boxShadow: effectiveSelectedTickets.length > 0 ? '0 4px 14px rgba(0,51,204,0.3)' : 'none',
+                          cursor: effectiveSelectedTickets.length === 0 ? 'not-allowed' : 'pointer',
                         }}
                       >
                         <span className="material-symbols-outlined" style={{fontSize:18}}>rocket_launch</span>
                         {createTicketMutation.isPending
                           ? "Aplicando..."
-                          : `Aplicar a ${selectedTickets.length} Passageiro${selectedTickets.length !== 1 ? 's' : ''}`}
+                          : `Aplicar a ${effectiveSelectedTickets.length} Passageiro${effectiveSelectedTickets.length !== 1 ? 's' : ''}`}
                       </Button>
                     </>
                   )}
@@ -1692,8 +1826,11 @@ export default function Tickets() {
                     <th className="px-4 py-3 w-10">
                       <input
                         type="checkbox"
-                        checked={selectedTickets.length > 0}
+                        checked={allSelectableSelected}
+                        disabled={selectableInclusionIds.size === 0}
                         onChange={toggleAllTickets}
+                        aria-label="Selecionar todas as passagens pendentes"
+                        title="Selecionar todas as passagens pendentes"
                         className="rounded border-gray-300 accent-blue-600"
                         data-testid="checkbox-select-all"
                       />
@@ -1740,6 +1877,7 @@ export default function Tickets() {
                               type="checkbox"
                               checked={selectedTickets.includes(inclusion.id)}
                               onChange={() => toggleTicketSelection(inclusion.id)}
+                              aria-label={`Selecionar passagem da inclusão #${inclusion.inclusionNumber ?? ''}`}
                               className="rounded border-gray-300 accent-blue-600"
                               data-testid={`checkbox-ticket-${inclusion.id}`}
                             />
@@ -1829,7 +1967,9 @@ export default function Tickets() {
                                     <span className="text-[11px] font-medium text-[#6B7280]">{ticket.departureCityDestination || '—'}</span>
                                   </div>
                                 )}
-                                {(ticket.returnCityOrigin || ticket.returnCityDestination) && !(ticket as any).isOneWay && (
+                                {/* Trecho de volta: derivado dos dados persistidos (não existe coluna "isOneWay").
+                                    Ter cidade de retorno já implica não ser só-ida — checar as duas coisas seria redundante. */}
+                                {(ticket.returnCityOrigin || ticket.returnCityDestination) && (
                                   <div className="flex items-center gap-1">
                                     <span className="material-symbols-outlined text-slate-400" style={{fontSize:12}}>directions_bus</span>
                                     <span className="text-[11px] font-medium text-[#6B7280]">{ticket.returnCityOrigin || '—'}</span>
@@ -1850,7 +1990,8 @@ export default function Tickets() {
                                       <span className="text-[10px] text-slate-300">→</span>
                                       <span className="text-[11px] font-medium text-[#6B7280] uppercase">{ticket.destinationAirport || '—'}</span>
                                     </div>
-                                    {!(ticket as any).isOneWay && (
+                                    {/* Volta só aparece quando há dados de retorno gravados. */}
+                                    {!isOneWayTicket(ticket) && (
                                       <div className="flex items-center gap-1">
                                         <span className="material-symbols-outlined text-slate-400" style={{fontSize:12}}>flight_land</span>
                                         <span className="text-[11px] font-medium text-[#6B7280] uppercase">{ticket.destinationAirport || '—'}</span>
@@ -1882,7 +2023,7 @@ export default function Tickets() {
                               /* AÉREO / RODOVIÁRIO: datas e horários */
                               <div className="flex flex-col gap-1">
                                 <span className="text-[10px] font-bold text-[#16A34A] tracking-wide mb-0.5">
-                                  {ticket.transportType === 'rodoviario' ? '✓ Passagem confirmada' : '✓ Passagem confirmada'}
+                                  ✓ Passagem confirmada
                                 </span>
                                 <div className="flex items-center gap-2 text-xs">
                                   {ticket.transportType === 'rodoviario'
@@ -1892,7 +2033,9 @@ export default function Tickets() {
                                   <span className="font-bold text-slate-700">{ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : '—'}</span>
                                   {ticket.actualDepartureTime && <span className="text-slate-400 font-medium">{ticket.actualDepartureTime}</span>}
                                 </div>
-                                {!(ticket as any).isOneWay && (
+                                {/* Linha de volta: ausente quando a passagem é só ida
+                                    (retorno gravado como null). */}
+                                {!isOneWayTicket(ticket) && (
                                   <div className="flex items-center gap-2 text-xs">
                                     {ticket.transportType === 'rodoviario'
                                       ? <span className="material-symbols-outlined text-[#22C55E]" style={{fontSize:13}}>directions_bus</span>
@@ -1971,6 +2114,7 @@ export default function Tickets() {
                                 onClick={() => handleViewTicketDetails(inclusion)}
                                 data-testid={`view-ticket-${inclusion.inclusionNumber}`}
                                 title="Visualizar passagem"
+                                aria-label={`Visualizar passagem da inclusão #${inclusion.inclusionNumber ?? ''}`}
                                 className="w-8 h-8 rounded-full flex items-center justify-center mx-auto transition-colors"
                                 style={{background:'#F1F5F9',color:'#94A3B8'}}
                                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background='#EEF2FF'; (e.currentTarget as HTMLButtonElement).style.color='#3B4FE4'; }}
@@ -1983,6 +2127,7 @@ export default function Tickets() {
                                 onClick={() => handleViewTicketDetails(inclusion)}
                                 data-testid={`buy-ticket-${inclusion.inclusionNumber}`}
                                 title="Registrar passagem"
+                                aria-label={`Registrar passagem da inclusão #${inclusion.inclusionNumber ?? ''}`}
                                 className="w-8 h-8 flex items-center justify-center mx-auto transition-colors"
                                 style={{background:'#EEF2FF',color:'#3B4FE4',border:'none',borderRadius:8,cursor:'pointer'}}
                                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background='#3B4FE4'; (e.currentTarget as HTMLButtonElement).style.color='#fff'; }}
@@ -2373,7 +2518,8 @@ export default function Tickets() {
                                     )}
                                   </div>
                                 </div>
-                                {(ticket.actualReturnDate || ticket.returnCityOrigin) ? (
+                                {/* Mesma derivação usada nos cards da tabela. */}
+                                {!isOneWayTicket(ticket) ? (
                                   <div className="bg-white border border-slate-200 rounded-2xl p-4">
                                     <div className="text-[11px] font-black uppercase tracking-[0.12em] mb-3 flex items-center gap-1.5" style={{ color: '#2563EB' }}>
                                       {ticket.transportType === 'rodoviario' ? '🚌' : '🛬'} VOLTA
@@ -2456,23 +2602,31 @@ export default function Tickets() {
                                   <span className="ml-auto text-[10px] text-slate-400">{ticket.attachmentIds.length} arquivo(s)</span>
                                 </div>
                                 <div className="p-4 space-y-2">
-                                  {ticket.attachmentIds.map((attachmentId, index) => (
+                                  {ticket.attachmentIds.map((attachmentId, index) => {
+                                    const openAttachment = async () => {
+                                      try {
+                                        const response = await fetch(`/api/attachments/${attachmentId}`);
+                                        const attachmentData = await response.json();
+                                        if (response.ok && attachmentData.viewUrl && attachmentData.viewUrl !== "#") {
+                                          const isViewable = attachmentData.type?.includes('pdf') || attachmentData.type?.includes('image');
+                                          window.open(isViewable ? attachmentData.viewUrl : attachmentData.downloadUrl, '_blank');
+                                        } else {
+                                          toast({ title: "Anexo não disponível", variant: "destructive" });
+                                        }
+                                      } catch {
+                                        toast({ title: "Erro ao abrir anexo", variant: "destructive" });
+                                      }
+                                    };
+                                    return (
                                     <div
                                       key={attachmentId}
+                                      role="button"
+                                      tabIndex={0}
+                                      aria-label={`Abrir arquivo ${index + 1}`}
                                       className="flex items-center gap-3 bg-white border border-slate-200 hover:border-[#2563EB] hover:bg-blue-50 rounded-xl px-4 py-3 cursor-pointer transition-all group"
-                                      onClick={async () => {
-                                        try {
-                                          const response = await fetch(`/api/attachments/${attachmentId}`);
-                                          const attachmentData = await response.json();
-                                          if (response.ok && attachmentData.viewUrl && attachmentData.viewUrl !== "#") {
-                                            const isViewable = attachmentData.type?.includes('pdf') || attachmentData.type?.includes('image');
-                                            window.open(isViewable ? attachmentData.viewUrl : attachmentData.downloadUrl, '_blank');
-                                          } else {
-                                            toast({ title: "Anexo não disponível", variant: "destructive" });
-                                          }
-                                        } catch {
-                                          toast({ title: "Erro ao abrir anexo", variant: "destructive" });
-                                        }
+                                      onClick={openAttachment}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openAttachment(); }
                                       }}
                                     >
                                       <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
@@ -2484,7 +2638,8 @@ export default function Tickets() {
                                       </div>
                                       <Eye className="w-4 h-4 text-slate-300 group-hover:text-[#2563EB] transition-colors flex-shrink-0" />
                                     </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}
@@ -2532,8 +2687,11 @@ export default function Tickets() {
                                 {data.transportType !== 'van' && (
                                   <div className="flex items-center gap-2.5 pb-1">
                                     <button
+                                      type="button"
                                       role="switch"
                                       aria-checked={data.isOneWay || false}
+                                      aria-label="Apenas ida"
+                                      disabled={roMode || !canEditTicket}
                                       onClick={() => !roMode && canEditTicket && handleTicketDataChange(selectedInclusion.id, "isOneWay", !(data.isOneWay || false))}
                                       style={{
                                         width: 40, height: 22, borderRadius: 11, border: 'none', cursor: roMode ? 'not-allowed' : 'pointer',
@@ -2614,7 +2772,7 @@ export default function Tickets() {
                                       type="text"
                                       inputMode="decimal"
                                       value={data.value || ""}
-                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "value", e.target.value.replace(',', '.'))}
+                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "value", e.target.value)}
                                       className="max-w-[160px]"
                                       data-testid={`input-ticket-value-${selectedInclusion.id}`}
                                       disabled={roMode || !canEditTicket}
@@ -2630,35 +2788,35 @@ export default function Tickets() {
                                       {data.transportType === "rodoviario" ? '🚌' : '🛫'} IDA
                                     </div>
                                     <div>
-                                      <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Cidade Origem *</Label>
+                                      <Label htmlFor={`departureCityOrigin-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Cidade Origem *</Label>
                                       <Input id={`departureCityOrigin-${selectedInclusion.id}`} placeholder="Ex: São Paulo" value={data.departureCityOrigin || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureCityOrigin", e.target.value)} data-testid={`input-departure-city-origin-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
                                     </div>
                                     <div>
-                                      <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block flex items-center gap-1.5">
+                                      <Label htmlFor={`departureCityDestination-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block flex items-center gap-1.5">
                                         Cidade Destino *
                                         <span className="text-[10px] font-medium bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full normal-case">Local do evento</span>
                                       </Label>
                                       <Input id={`departureCityDestination-${selectedInclusion.id}`} placeholder="Ex: Rio de Janeiro" value={data.departureCityDestination || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureCityDestination", e.target.value)} data-testid={`input-departure-city-destination-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
                                     </div>
                                     <div>
-                                      <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">
+                                      <Label htmlFor={`departureAirport-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">
                                         {data.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"} *
                                       </Label>
                                       <Input id={`departureAirport-${selectedInclusion.id}`} placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: GRU, CGH, BSB"} value={data.departureAirport || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureAirport", e.target.value)} data-testid={`input-departure-airport-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
                                     </div>
                                     <div>
-                                      <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">
+                                      <Label htmlFor={`destinationAirport-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">
                                         {data.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"} *
                                       </Label>
                                       <Input id={`destinationAirport-${selectedInclusion.id}`} placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: SDU, GIG, RJ"} value={data.destinationAirport || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "destinationAirport", e.target.value)} data-testid={`input-destination-airport-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
                                     </div>
                                     <div className="grid grid-cols-2 gap-2">
                                       <div>
-                                        <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Data *</Label>
+                                        <Label htmlFor={`actualDepartureDate-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Data *</Label>
                                         <Input id={`actualDepartureDate-${selectedInclusion.id}`} type="date" value={data.actualDepartureDate || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureDate", e.target.value)} data-testid={`input-departure-date-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
                                       </div>
                                       <div>
-                                        <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Horário *</Label>
+                                        <Label htmlFor={`actualDepartureTime-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Horário *</Label>
                                         <Input id={`actualDepartureTime-${selectedInclusion.id}`} type="time" value={data.actualDepartureTime || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureTime", e.target.value)} data-testid={`input-departure-time-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
                                       </div>
                                     </div>
@@ -2671,35 +2829,35 @@ export default function Tickets() {
                                         {data.transportType === "rodoviario" ? '🚌' : '🛬'} VOLTA
                                       </div>
                                       <div>
-                                        <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block flex items-center gap-1.5">
+                                        <Label htmlFor={`returnCityOrigin-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block flex items-center gap-1.5">
                                           Cidade Origem *
                                           <span className="text-[10px] font-medium bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full normal-case">Local do evento</span>
                                         </Label>
                                         <Input id={`returnCityOrigin-${selectedInclusion.id}`} placeholder="Ex: Rio de Janeiro" value={data.returnCityOrigin || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnCityOrigin", e.target.value)} data-testid={`input-return-city-origin-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
                                       </div>
                                       <div>
-                                        <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Cidade Destino *</Label>
+                                        <Label htmlFor={`returnCityDestination-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Cidade Destino *</Label>
                                         <Input id={`returnCityDestination-${selectedInclusion.id}`} placeholder="Ex: São Paulo" value={data.returnCityDestination || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnCityDestination", e.target.value)} data-testid={`input-return-city-destination-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
                                       </div>
                                       <div>
-                                        <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">
+                                        <Label htmlFor={`returnOriginAirport-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">
                                           {data.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"} *
                                         </Label>
                                         <Input id={`returnOriginAirport-${selectedInclusion.id}`} placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: SDU, GIG, GRU"} value={data.returnOriginAirport || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnOriginAirport", e.target.value)} data-testid={`input-return-origin-airport-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
                                       </div>
                                       <div>
-                                        <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">
+                                        <Label htmlFor={`returnDestinationAirport-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">
                                           {data.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"} *
                                         </Label>
                                         <Input id={`returnDestinationAirport-${selectedInclusion.id}`} placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: GRU, CGH, BSB"} value={data.returnDestinationAirport || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnDestinationAirport", e.target.value)} data-testid={`input-return-destination-airport-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
                                       </div>
                                       <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                          <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Data *</Label>
+                                          <Label htmlFor={`actualReturnDate-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Data *</Label>
                                           <Input id={`actualReturnDate-${selectedInclusion.id}`} type="date" value={data.actualReturnDate || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnDate", e.target.value)} data-testid={`input-return-date-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
                                         </div>
                                         <div>
-                                          <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Horário *</Label>
+                                          <Label htmlFor={`actualReturnTime-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Horário *</Label>
                                           <Input id={`actualReturnTime-${selectedInclusion.id}`} type="time" value={data.actualReturnTime || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnTime", e.target.value)} data-testid={`input-return-time-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
                                         </div>
                                       </div>
@@ -2925,7 +3083,7 @@ export default function Tickets() {
                                 ...prev,
                                 [selectedInclusion.id]: {
                                   transportType: ticket.transportType || "aereo",
-                                  isOneWay: !ticket.actualReturnDate && !ticket.actualReturnTime,
+                                  isOneWay: isOneWayTicket(ticket),
                                   value: ((ticket.value || 0) / 100).toString(),
                                   purchaseDate: ticket.purchaseDate || "",
                                   departureAirport: ticket.departureAirport || "",
@@ -2972,6 +3130,8 @@ export default function Tickets() {
                             <Button
                               variant="outline"
                               onClick={async () => {
+                                if (createTicketMutation.isPending || updateTicketMutation.isPending) return;
+                                let saved = false;
                                 try {
                                   if (editingTicketId || getTicket(selectedInclusion.id)) {
                                     const ticketToUpdate = getTicket(selectedInclusion.id);
@@ -2980,7 +3140,7 @@ export default function Tickets() {
                                         id: ticketToUpdate.id,
                                         data: {
                                           transportType: data.transportType || ticketToUpdate.transportType || "aereo",
-                                          value: data.value ? Math.round(parseFloat(data.value) * 100) : ticketToUpdate.value,
+                                          value: toCents(data.value) ?? ticketToUpdate.value,
                                           purchaseDate: data.purchaseDate || ticketToUpdate.purchaseDate,
                                           actualDepartureDate: data.actualDepartureDate || ticketToUpdate.actualDepartureDate,
                                           actualDepartureTime: data.actualDepartureTime || ticketToUpdate.actualDepartureTime,
@@ -3000,12 +3160,13 @@ export default function Tickets() {
                                           attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : ticketToUpdate.attachmentIds
                                         }
                                       });
+                                      saved = true;
                                     }
                                   } else if (data.value || data.departureAirport || data.destinationAirport || data.purchaseOrderNumber) {
                                     await createTicketMutation.mutateAsync({
                                       teamInclusionId: selectedInclusion.id,
                                       transportType: data.transportType || "aereo",
-                                      value: data.value ? Math.round(parseFloat(data.value) * 100) : 0,
+                                      value: toCents(data.value) ?? 0,
                                       purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
                                       actualDepartureDate: data.actualDepartureDate || null,
                                       actualDepartureTime: data.actualDepartureTime || null,
@@ -3025,12 +3186,24 @@ export default function Tickets() {
                                       cardLastFourDigits: data.cardLastFourDigits || null,
                                       ticketObservations: data.ticketObservations || null
                                     });
+                                    saved = true;
+                                  }
+                                  // Antes o toast dizia "salvo" mesmo quando nenhum
+                                  // dos ramos rodava (formulário ainda vazio) e o
+                                  // modal fechava sem ter gravado nada.
+                                  if (!saved) {
+                                    toast({
+                                      title: "Nada a salvar",
+                                      description: "Preencha ao menos a LOC, um aeroporto/rodoviária ou o valor antes de salvar.",
+                                      variant: "destructive",
+                                    });
+                                    return;
                                   }
                                   toast({ title: "Sucesso", description: "Dados salvos com sucesso" });
                                   setShowModal(false);
                                   setEditingTicketId(null);
-                                } catch (error) {
-                                  toast({ title: "Erro", description: "Erro ao salvar dados", variant: "destructive" });
+                                } catch (error: any) {
+                                  toast({ title: "Erro", description: error?.body?.message || "Erro ao salvar dados", variant: "destructive" });
                                 }
                               }}
                               disabled={createTicketMutation.isPending || updateTicketMutation.isPending}
@@ -3076,7 +3249,8 @@ export default function Tickets() {
                                         id: ticketEx.id,
                                         data: {
                                           transportType: data.transportType || "aereo",
-                                          value: isVanModal ? null : Math.round(parseFloat(data.value) * 100),
+                                          value: isVanModal ? null : toCents(data.value),
+                                          purchaseDate: data.purchaseDate || undefined,
                                           actualDepartureDate: isVanModal ? null : data.actualDepartureDate,
                                           actualDepartureTime: isVanModal ? null : data.actualDepartureTime,
                                           actualReturnDate: isVanModal ? null : (data.isOneWay ? null : data.actualReturnDate),
@@ -3087,6 +3261,10 @@ export default function Tickets() {
                                           returnCityDestination: isVanModal ? null : (data.isOneWay ? null : data.returnCityDestination || null),
                                           departureAirport: isVanModal ? null : data.departureAirport,
                                           destinationAirport: isVanModal ? null : data.destinationAirport,
+                                          // Os aeroportos/rodoviárias da VOLTA existem no formulário e no
+                                          // banco, mas não eram enviados: o que o usuário digitava sumia.
+                                          returnOriginAirport: isVanModal ? null : (data.isOneWay ? null : data.returnOriginAirport || null),
+                                          returnDestinationAirport: isVanModal ? null : (data.isOneWay ? null : data.returnDestinationAirport || null),
                                           purchaseOrderNumber: data.purchaseOrderNumber,
                                           cardLastFourDigits: isVanModal ? null : (data.cardLastFourDigits || null),
                                           ticketObservations: data.ticketObservations || null,
@@ -3098,7 +3276,7 @@ export default function Tickets() {
                                     await createTicketMutation.mutateAsync({
                                       teamInclusionId: selectedInclusion.id,
                                       transportType: data.transportType || "aereo",
-                                      value: isVanModal ? null : Math.round(parseFloat(data.value) * 100),
+                                      value: isVanModal ? null : toCents(data.value),
                                       purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
                                       actualDepartureDate: isVanModal ? null : data.actualDepartureDate,
                                       actualDepartureTime: isVanModal ? null : data.actualDepartureTime,
@@ -3110,6 +3288,8 @@ export default function Tickets() {
                                       returnCityDestination: isVanModal ? null : (data.isOneWay ? null : data.returnCityDestination || null),
                                       departureAirport: isVanModal ? null : data.departureAirport,
                                       destinationAirport: isVanModal ? null : data.destinationAirport,
+                                      returnOriginAirport: isVanModal ? null : (data.isOneWay ? null : data.returnOriginAirport || null),
+                                      returnDestinationAirport: isVanModal ? null : (data.isOneWay ? null : data.returnDestinationAirport || null),
                                       purchaseOrderNumber: data.purchaseOrderNumber,
                                       fileUrl: data.fileUrl || null,
                                       attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null,
@@ -3117,7 +3297,7 @@ export default function Tickets() {
                                       ticketObservations: data.ticketObservations || null
                                     });
                                     const needsAccommodation = selectedInclusion.needsAccommodation;
-                                    const accommodation = accommodations?.find(acc => acc.teamInclusionId === selectedInclusion.id);
+                                    const accommodation = accommodationByInclusion.get(selectedInclusion.id);
                                     const accommodationPurchased = accommodation && accommodation.hotelName;
                                     let newStatus = "passagem_comprada";
                                     let newPhase = "passagem";
