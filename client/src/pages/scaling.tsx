@@ -370,6 +370,28 @@ export default function Scaling() {
     },
   });
 
+  // Mutation para alternar se o escalado emite nota fiscal (slide 4 do deck de melhorias)
+  const toggleEmitsNfMutation = useMutation({
+    mutationFn: async ({ id, emitsNf }: { id: string; emitsNf: boolean }) => {
+      const r = await apiRequest("PATCH", `/api/team-inclusions/${id}`, { emitsNf });
+      return r.json();
+    },
+    onSuccess: (updatedInclusion: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+      setSelectedInclusion((prev: any) => prev && prev.id === updatedInclusion.id ? { ...prev, emitsNf: updatedInclusion.emitsNf } : prev);
+      toast({
+        title: updatedInclusion.emitsNf ? "Marcado como emissor de NF" : "Marcado como não emissor de NF",
+        description: updatedInclusion.emitsNf
+          ? "A tela de Notas Fiscais vai cobrar a nota deste escalado."
+          : "A tela de Notas Fiscais não vai cobrar nota deste escalado.",
+      });
+    },
+    onError: async (err: any) => {
+      const msg = await err?.response?.json?.().catch(() => null);
+      toast({ title: "Erro", description: msg?.message || "Erro ao atualizar emissão de NF", variant: "destructive" });
+    },
+  });
+
   // Mutation para rejeição de cenotécnica pela Produção (remove colaborador, volta p/ escalacao)
   const [showRejectProductionConfirm, setShowRejectProductionConfirm] = useState(false);
   const rejectProductionMutation = useMutation({
@@ -2168,6 +2190,23 @@ export default function Scaling() {
                                   <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />Pendente
                                 </span>
                               )}
+                            </div>
+                            <div>
+                              <div className={lbl}>Nota Fiscal</div>
+                              <button
+                                type="button"
+                                disabled={toggleEmitsNfMutation.isPending}
+                                onClick={() => toggleEmitsNfMutation.mutate({ id: selectedInclusion.id, emitsNf: (selectedInclusion as any).emitsNf === false })}
+                                title="Clique para alternar. Define se a tela de Notas Fiscais cobra nota deste escalado."
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-full transition-colors disabled:opacity-50 ${
+                                  (selectedInclusion as any).emitsNf !== false
+                                    ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                }`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${(selectedInclusion as any).emitsNf !== false ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                                {(selectedInclusion as any).emitsNf !== false ? 'Emite NF' : 'Não emite NF'}
+                              </button>
                             </div>
                             {(selectedInclusion.needsTicket || selectedInclusion.needsAccommodation) && (
                               <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">

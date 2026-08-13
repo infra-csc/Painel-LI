@@ -107,6 +107,7 @@ export const teamInclusions = pgTable("team_inclusions", {
   functionId: varchar("function_id").notNull().references(() => functions.id),
   collaboratorId: varchar("collaborator_id").references(() => collaborators.id),
   area: text("area"), // campo que existe no banco mas estava faltando no schema
+  emitsNf: boolean("emits_nf").notNull().default(true), // se este escalado emite nota fiscal (definido na escalação, não no cadastro)
   rowOrder: integer("row_order"), // posição da linha na planilha para templates
   scheduleStartDate: date("schedule_start_date"),
   scheduleEndDate: date("schedule_end_date"),

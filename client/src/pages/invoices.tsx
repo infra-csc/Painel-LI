@@ -217,8 +217,25 @@ export default function InvoicesPage() {
   const { data: collaborators = [] } = useQuery<any[]>({ queryKey: ["/api/collaborators"] });
   const { data: functions   = [] }   = useQuery<any[]>({ queryKey: ["/api/functions"] });
 
+  // Escalação do evento — fonte da flag "emite NF" de cada escalado
+  const { data: teamInclusions = [] } = useQuery<any[]>({
+    queryKey: ["/api/team-inclusions", selectedEventId, "invoices"],
+    queryFn: () => apiRequest("GET", `/api/team-inclusions?eventId=${selectedEventId}`).then(r => r.json()),
+    enabled: !!selectedEventId,
+  });
+
   const getName     = (id?: string | null) => (collaborators as any[]).find(c => c.id === id)?.fullName || "—";
   const getFuncName = (id?: string | null) => (functions     as any[]).find(f => f.id === id)?.name     || "—";
+
+  // Definido na escalação: se false, a tela não cobra NF deste colaborador.
+  // Match por colaborador+função; sem escalação correspondente, assume que emite.
+  const emitsNfFor = (actual: any): boolean => {
+    const matches = (teamInclusions as any[]).filter(ti => ti.collaboratorId && ti.collaboratorId === actual.collaboratorId);
+    if (matches.length === 0) return true;
+    const byFunction = matches.find(ti => ti.functionId === actual.functionId);
+    const inclusion = byFunction || matches[0];
+    return inclusion.emitsNf !== false;
+  };
 
   // NF fica disponível assim que o Realizado é enviado (sem esperar a análise
   // do comparativo pelo RH). Devolvido/rejeitado pausam a NF até regularizar.
@@ -230,6 +247,7 @@ export default function InvoicesPage() {
     (invoices as any[]).find(inv => inv.budgetActualId === actualId);
 
   const pendingCount  = approvedActuals.filter(a => {
+    if (!emitsNfFor(a)) return false; // não emite NF — nada a cobrar
     const inv = getInvoice(a.id);
     return !inv || inv.status === "pendente" || inv.status === "devolvida";
   }).length;
@@ -429,6 +447,7 @@ export default function InvoicesPage() {
             {activeTab === "lancamento" && (
               <LancamentoTab
                 approvedActuals={approvedActuals}
+                emitsNfFor={emitsNfFor}
                 getInvoice={getInvoice}
                 getName={getName}
                 getFuncName={getFuncName}
@@ -468,9 +487,10 @@ const LANC_FILTERS = [
   { id: "devolvida",         label: "Devolvida",          activeBg: "bg-orange-500 text-white" },
   { id: "checkin-pendente",  label: "Aguard. Check-in",   activeBg: "bg-[#0033CC] text-white" },
   { id: "checkin-realizado", label: "Check-in Realizado", activeBg: "bg-emerald-600 text-white" },
+  { id: "sem-nf",            label: "Não emite NF",       activeBg: "bg-slate-500 text-white" },
 ];
 
-function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast, initialFilter, highlightActualId }: any) {
+function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast, initialFilter, highlightActualId }: any) {
   const [filterStatus, setFilterStatus] = useState(initialFilter || "all");
   const [highlightedId, setHighlightedId] = useState<string>(highlightActualId || "");
 
@@ -506,6 +526,7 @@ function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, sele
   }, [highlightedId, filterStatus, approvedActuals?.length]);
 
   function getEffStatus(actual: any) {
+    if (!emitsNfFor(actual)) return "sem-nf"; // definido na escalação
     return getEffectiveStatus(getInvoice(actual.id));
   }
 
@@ -540,6 +561,27 @@ function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, sele
         <div className="grid grid-cols-1 gap-3">
           {filtered.map((actual: any) => {
             const isTarget = actual.id === highlightedId;
+            if (!emitsNfFor(actual)) {
+              // Definido na escalação: não emite NF — mostra o item sem cobrar nota
+              return (
+                <div key={actual.id} data-actual-id={actual.id} className="rounded-2xl bg-slate-50 border border-slate-200 px-5 py-4 flex items-center gap-4">
+                  <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0">
+                    {(getName(actual.collaboratorId) || "?").charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-600 truncate">{getName(actual.collaboratorId)}</p>
+                    <p className="text-[11px] text-slate-400">{getFuncName(actual.functionId)}</p>
+                  </div>
+                  <span className="text-sm font-mono font-semibold text-slate-500">
+                    {((actual.totalValue || 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-200 text-slate-600 text-[11px] font-bold whitespace-nowrap" title="Definido na escalação — nenhuma nota fiscal será cobrada deste colaborador">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                    Não emite NF
+                  </span>
+                </div>
+              );
+            }
             return (
               <div
                 key={actual.id}
