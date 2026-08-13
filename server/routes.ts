@@ -3734,10 +3734,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return JSON.stringify(arr);
   }
 
+  // Slide 5 do deck de melhorias: dentro do mesmo evento, lançamentos com a
+  // mesma OC precisam ter a mesma nota fiscal anexada (mesmo arquivo/nome).
+  // Devolve a mensagem de erro, ou null se estiver consistente.
+  const validateOcConsistency = async (
+    eventId: string,
+    oc: string | null | undefined,
+    attachmentName: string | null | undefined,
+    ignoreInvoiceId?: string,
+  ): Promise<string | null> => {
+    const ocNorm = (oc || "").trim().toLowerCase();
+    if (!ocNorm) return null;
+    const eventInvoices = await storage.getInvoices(eventId);
+    const conflicting = eventInvoices.find(inv =>
+      inv.id !== ignoreInvoiceId &&
+      inv.status !== "recusada" &&
+      (inv.oc || "").trim().toLowerCase() === ocNorm &&
+      (inv.attachmentName || "") !== (attachmentName || "")
+    );
+    if (!conflicting) return null;
+    return `A OC "${(oc || "").trim()}" já foi usada neste evento com a nota "${conflicting.attachmentName || "sem anexo"}". ` +
+      `Lançamentos com a mesma OC precisam ter exatamente a mesma nota fiscal anexada. ` +
+      `Confira o número da OC ou anexe o mesmo arquivo.`;
+  };
+
   app.post("/api/invoices", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
     try {
       const data = insertInvoiceSchema.parse(req.body);
+      const ocError = await validateOcConsistency(data.eventId, data.oc, data.attachmentName);
+      if (ocError) return res.status(400).json({ message: ocError });
       const firstEvent = { type: "enviado", oc: data.oc || null, attachmentName: data.attachmentName || null, at: new Date().toISOString() };
       const invoice = await storage.createInvoice({ ...data, history: JSON.stringify([firstEvent]) });
       res.json(invoice);
@@ -3754,6 +3780,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let historyStr: string | undefined;
       // If resubmitting (setting status back to enviada), record a "reenviado" event
       if (body.status === "enviada") {
+        const existing = await storage.getInvoice(req.params.id);
+        if (existing) {
+          const ocError = await validateOcConsistency(
+            existing.eventId,
+            body.oc !== undefined ? body.oc : existing.oc,
+            body.attachmentName !== undefined ? body.attachmentName : existing.attachmentName,
+            existing.id,
+          );
+          if (ocError) return res.status(400).json({ message: ocError });
+        }
         historyStr = await appendHistory(req.params.id, {
           type: "reenviado",
           oc: body.oc || null,

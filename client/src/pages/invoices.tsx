@@ -739,7 +739,9 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
     },
     onError: (e: any) => {
       setUploading(false);
-      toast({ title: "Erro", description: e.message || "Erro ao enviar nota", variant: "destructive" });
+      // e.body vem do apiRequest enriquecido — mostra a mensagem real do
+      // servidor (ex.: validação de OC repetida) em vez do texto genérico
+      toast({ title: "Erro", description: e?.body?.message || e.message || "Erro ao enviar nota", variant: "destructive" });
     },
   });
 
