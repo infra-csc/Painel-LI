@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer, date, unique, decimal, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer, date, unique, decimal, serial, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -347,7 +347,9 @@ export const budgetActual = pgTable("budget_actual", {
   rhActionBy: varchar("rh_action_by").references(() => users.id),
   rhActionAt: timestamp("rh_action_at"),
   resubmitted: boolean("resubmitted").notNull().default(false), // true quando reenviado após devolução/recusa
-  splitParentId: varchar("split_parent_id"), // se preenchido, este é um registro de divisão de vaga
+  // se preenchido, este é um registro de divisão de vaga
+  // FK real criada no banco em 13/08 (budget_actual_split_parent_fk, ON DELETE CASCADE)
+  splitParentId: varchar("split_parent_id").references((): AnyPgColumn => budgetActual.id),
   workedDays: text("worked_days").array(), // dias específicos trabalhados [YYYY-MM-DD]
   didNotAttend: boolean("did_not_attend").notNull().default(false), // marcado como não participou
   didNotAttendReason: text("did_not_attend_reason"), // motivo de não participação
@@ -523,7 +525,9 @@ export const invoices = pgTable("invoices", {
   eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: 'cascade' }),
   collaboratorId: varchar("collaborator_id").notNull().references(() => collaborators.id),
   functionId: varchar("function_id").notNull().references(() => functions.id),
-  budgetActualId: varchar("budget_actual_id"),
+  // FK real criada no banco em 13/08 (invoices_budget_actual_fk, ON DELETE SET NULL)
+  // + índice único parcial invoices_budget_actual_uq: uma NF por prestação
+  budgetActualId: varchar("budget_actual_id").references(() => budgetActual.id),
   oc: text("oc"),
   attachmentUrl: text("attachment_url"),
   attachmentName: text("attachment_name"),

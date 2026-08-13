@@ -27,6 +27,7 @@ import {
   insertBudgetNoteSchema,
   insertSwapRequestSchema
 } from "@shared/schema";
+import { isFinanceRole, normalizeRole } from "@shared/roles";
 import bcrypt from "bcryptjs";
 import { randomBytes, timingSafeEqual } from "crypto";
 
@@ -2915,12 +2916,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Budget Planned — Apply system defaults to all pending (not-yet-sent) records
-  app.post("/api/budget-planned/apply-defaults", async (req, res) => {
-    const userId = req.session?.userId || req.body?._userId;
-    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+  // ── Guardas do módulo financeiro ────────────────────────────────────────────
+  // Identidade vem SOMENTE da sessão (o fallback _userId do corpo é forjável).
+  const requireFinSession = (req: any, res: any): string | null => {
+    const userId = req.session?.userId;
+    if (!userId) {
+      res.status(401).json({ message: "Não autenticado" });
+      return null;
+    }
+    return userId;
+  };
+  // Sessão + papel de decisão financeira (admin/RH, aliases legados inclusos)
+  const requireFinanceUser = async (req: any, res: any) => {
+    const userId = requireFinSession(req, res);
+    if (!userId) return null;
     const user = await storage.getUser(userId);
-    if (!user || (user.role !== "admin" && user.role !== "financial"))
-      return res.status(403).json({ message: "Acesso negado" });
+    if (!user || !isFinanceRole(user.role)) {
+      res.status(403).json({ message: "Sem permissão para esta ação financeira" });
+      return null;
+    }
+    return user;
+  };
+  // NOTA (dívida registrada em 13/08): o servidor NÃO recalcula totalValue
+  // porque o schema não persiste a diária de FDS separada — o total usa
+  // diáriaÚtil×diasÚteis + diáriaFDS×diasFDS, mas só a diária útil é gravada.
+  // Recalcular a partir dos campos corromperia totais legítimos. O caminho
+  // definitivo é adicionar colunas daily_value_weekend em planned/actual.
+
+  app.post("/api/budget-planned/apply-defaults", async (req, res) => {
+    const user = await requireFinanceUser(req, res);
+    if (!user) return;
 
     try {
       const [allPlanned, allActual, allInclusions, allFunctionValues, rawSettings, allCollaborators] = await Promise.all([
@@ -2960,7 +2985,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sentKeys = new Set<string>();
       for (const a of allActual) sentKeys.add(`${a.eventId}|${a.collaboratorId}|${a.functionId}`);
 
-      function countDays(start: string | null, end: string | null, fallback: number) {
+      const countDays = (start: string | null, end: string | null, fallback: number) => {
         if (start && end) {
           const s = new Date(start + 'T12:00:00'), e = new Date(end + 'T12:00:00');
           let wd = 0, we = 0;
@@ -2969,7 +2994,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return { weekdays: wd, weekends: we };
         }
         return { weekdays: fallback, weekends: 0 };
-      }
+      };
 
       // Calcular todos os updates necessários primeiro, depois executar em paralelo
       const updates: Promise<any>[] = [];
@@ -2991,12 +3016,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const isFreela = !collaborator || collaborator.type === 'freela';
 
         const fv = allFunctionValues.find(f => f.functionId === planned.functionId);
+        // ?? em vez de ||: um valor de função configurado como 0 é legítimo e
+        // não deve ser substituído pelo default do sistema
         const dailyWd = isFreela
-          ? (fv?.dailyValueFreela || D.dailyWdFreela)
-          : (fv?.dailyValue || D.dailyWd);
+          ? (fv?.dailyValueFreela ?? D.dailyWdFreela)
+          : (fv?.dailyValue ?? D.dailyWd);
         const dailyWe = isFreela
-          ? (fv?.dailyValueFreelaWeekend || fv?.dailyValueFreela || D.dailyWeFreela)
-          : (fv?.dailyValueWeekend || fv?.dailyValue || D.dailyWe);
+          ? (fv?.dailyValueFreelaWeekend ?? fv?.dailyValueFreela ?? D.dailyWeFreela)
+          : (fv?.dailyValueWeekend ?? fv?.dailyValue ?? D.dailyWe);
         const mobIda   = isFreela ? D.mobIdaFreela   : D.mobIda;
         const mobVolta  = isFreela ? D.mobVoltaFreela  : D.mobVolta;
         const mob       = mobIda + mobVolta;
@@ -3050,6 +3077,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Budget Planned (Planejado)
   app.get("/api/budget-planned", async (req, res) => {
+    if (!requireFinSession(req, res)) return;
     try {
       const { eventId } = req.query;
       if (eventId) {
@@ -3066,6 +3094,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/budget-planned/:id", async (req, res) => {
+    if (!requireFinSession(req, res)) return;
     try {
       const planned = await storage.getBudgetPlannedById(req.params.id);
       if (!planned) {
@@ -3079,25 +3108,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-planned", async (req, res) => {
+    const actorId = requireFinSession(req, res);
+    if (!actorId) return;
     try {
-      const data = insertBudgetPlannedSchema.parse(req.body);
+      const data: any = insertBudgetPlannedSchema.parse(req.body);
+      // Campos de workflow não nascem pela API — têm rotas dedicadas
+      delete data.status;
+      delete data.didNotAttend;
       const planned = await storage.createBudgetPlanned(data);
-      const actorId = req.session?.userId;
-      const actor = actorId ? await storage.getUser(actorId) : null;
+      const actor = await storage.getUser(actorId);
       await createAuditLog('create', 'budget_planned', planned.id, planned, actorId, actor?.name || 'Sistema', undefined, req);
       res.status(201).json(planned);
-    } catch (error) {
+    } catch (error: any) {
+      // 23505 = unique_violation (constraint criada na migração de 13/08):
+      // já existe planejado para este colaborador+função neste evento
+      if (error?.code === '23505') {
+        return res.status(409).json({ message: "Já existe um planejamento para este colaborador e função neste evento." });
+      }
       console.error("Error creating budget planned:", error);
       res.status(400).json({ message: "Erro ao criar planejamento" });
     }
   });
 
   app.patch("/api/budget-planned/:id", async (req, res) => {
+    const actorId = requireFinSession(req, res);
+    if (!actorId) return;
     try {
       const prev = await storage.getBudgetPlannedById(req.params.id);
-      const planned = await storage.updateBudgetPlanned(req.params.id, req.body);
-      const actorId = req.session?.userId;
-      const actor = actorId ? await storage.getUser(actorId) : null;
+      if (!prev) return res.status(404).json({ message: "Planejamento não encontrado" });
+      // Validação + allowlist: campos de workflow só mudam pelas rotas dedicadas
+      const data: any = insertBudgetPlannedSchema.partial().parse(req.body);
+      delete data.status;
+      delete data.didNotAttend;
+      delete data.didNotAttendReason;
+      const actor = await storage.getUser(actorId);
+      const planned = await storage.updateBudgetPlanned(req.params.id, { ...data, updatedBy: actorId } as any);
       await createAuditLog('update', 'budget_planned', req.params.id, planned, actorId, actor?.name || 'Sistema', prev, req);
       res.json(planned);
     } catch (error) {
@@ -3107,10 +3152,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/budget-planned/:id", async (req, res) => {
+    const actorId = requireFinSession(req, res);
+    if (!actorId) return;
     try {
       const prev = await storage.getBudgetPlannedById(req.params.id);
-      const actorId = req.session?.userId;
-      const actor = actorId ? await storage.getUser(actorId) : null;
+      if (!prev) return res.status(404).json({ message: "Planejamento não encontrado" });
+      const actor = await storage.getUser(actorId);
       await storage.deleteBudgetPlanned(req.params.id);
       await createAuditLog('delete', 'budget_planned', req.params.id, prev, actorId, actor?.name || 'Sistema', undefined, req);
       res.status(204).send();
@@ -3121,6 +3168,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-planned/:id/toggle-not-attended", async (req, res) => {
+    const finUser = await requireFinanceUser(req, res);
+    if (!finUser) return;
     try {
       const { reason } = req.body as { reason?: string };
       const item = await storage.getBudgetPlannedById(req.params.id);
@@ -3130,8 +3179,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         didNotAttend: toggled,
         didNotAttendReason: toggled ? (reason || null) : null,
       } as any);
-      const actorId = req.session?.userId;
-      const actor = actorId ? await storage.getUser(actorId) : null;
+      const actorId = finUser.id;
+      const actor = finUser;
       await createAuditLog('update', 'budget_planned', req.params.id, updated, actorId, actor?.name || 'Sistema', item, req);
       res.json(updated);
     } catch (error) {
@@ -3142,6 +3191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Budget Actual (Realizado)
   app.get("/api/budget-actual", async (req, res) => {
+    if (!requireFinSession(req, res)) return;
     try {
       const { eventId } = req.query;
       if (eventId) {
@@ -3158,6 +3208,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/budget-actual/:id", async (req, res) => {
+    if (!requireFinSession(req, res)) return;
     try {
       const actual = await storage.getBudgetActualById(req.params.id);
       if (!actual) {
@@ -3171,11 +3222,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-actual", async (req, res) => {
+    const actorId = requireFinSession(req, res);
+    if (!actorId) return;
     try {
-      const data = insertBudgetActualSchema.parse(req.body);
-      const actual = await storage.createBudgetActual(data);
-      const actorId = req.session?.userId || req.body.createdBy;
-      const actor = actorId ? await storage.getUser(actorId) : null;
+      const data: any = insertBudgetActualSchema.parse(req.body);
+      // Campos de workflow não nascem pela API — impedem "nascer aprovado"
+      delete data.rhStatus;
+      delete data.sentForReview;
+      delete data.rhActionBy;
+      delete data.rhActionAt;
+      delete data.rhAdjusted;
+      delete data.rhAdjustedFields;
+      delete data.resubmitted;
+      delete data.didNotAttend;
+      delete data.didNotAttendReason;
+      const actual = await storage.createBudgetActual({ ...data, createdBy: actorId });
+      const actor = await storage.getUser(actorId);
       await createAuditLog('create', 'budget_actual', actual.id, actual, actorId, actor?.name || 'Sistema', undefined, req);
       res.status(201).json(actual);
     } catch (error) {
@@ -3185,12 +3247,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-actual/duplicate-from-planned/:eventId", async (req, res) => {
+    const actorId = requireFinSession(req, res);
+    if (!actorId) return;
     try {
       const { eventId } = req.params;
+      // Idempotência: repetir a chamada duplicava todas as prestações do evento
+      const existing = await storage.getBudgetActual(eventId);
+      if (existing.length > 0) {
+        return res.status(409).json({ message: "Este evento já tem prestações no Realizado — duplicação ignorada." });
+      }
       const planned = await storage.getBudgetPlanned(eventId);
-      const actorId = req.session?.userId || req.body.userId;
-      const actor = actorId ? await storage.getUser(actorId) : null;
-      
+      const actor = await storage.getUser(actorId);
+
       const duplicated = await Promise.all(
         planned.map(async (p) => {
           const actualData = {
@@ -3207,10 +3275,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             weekendLunch: p.weekendLunch,
             weekendDinner: p.weekendDinner,
             mobility: p.mobility,
+            mobilityIda: (p as any).mobilityIda ?? null,
+            mobilityVolta: (p as any).mobilityVolta ?? null,
             transport: p.transport,
             totalValue: p.totalValue,
             observations: p.observations,
-            createdBy: req.body.userId,
+            createdBy: actorId,
           };
           return await storage.createBudgetActual(actualData);
         })
@@ -3225,6 +3295,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-actual/:id/duplicate", async (req, res) => {
+    const dupActorId = requireFinSession(req, res);
+    if (!dupActorId) return;
     try {
       const original = await storage.getBudgetActualById(req.params.id);
       if (!original) {
@@ -3247,11 +3319,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         transport: original.transport,
         totalValue: original.totalValue,
         observations: "Duplicado no Realizado",
-        createdBy: req.body.userId,
+        createdBy: dupActorId,
       };
       const duplicated = await storage.createBudgetActual(duplicateData);
-      const actorId = req.session?.userId || req.body.userId;
-      const actor = actorId ? await storage.getUser(actorId) : null;
+      const actorId = dupActorId;
+      const actor = await storage.getUser(actorId);
       await createAuditLog('create', 'budget_actual', duplicated.id, duplicated, actorId, actor?.name || 'Sistema', undefined, req);
       res.status(201).json(duplicated);
     } catch (error) {
@@ -3262,9 +3334,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── Split vacancy endpoint ────────────────────────────────────────────────
   app.post("/api/budget-actual/:id/split", async (req, res) => {
+    if (!requireFinSession(req, res)) return;
     try {
       const parent = await storage.getBudgetActualById(req.params.id);
       if (!parent) return res.status(404).json({ message: "Item não encontrado" });
+      // Divisão só faz sentido antes da análise: item em revisão ou aprovado é imutável
+      if (parent.rhStatus === 'aprovado' || (parent.sentForReview && parent.rhStatus === 'pendente')) {
+        return res.status(400).json({ message: "Não é possível dividir um item enviado para revisão ou já aprovado." });
+      }
 
       const {
         collaboratorId, workedDays, parentWorkedDays, collaboratorType,
@@ -3341,6 +3418,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-actual/:id/toggle-not-attended", async (req, res) => {
+    const finUser = await requireFinanceUser(req, res);
+    if (!finUser) return;
     try {
       const { reason } = req.body as { reason?: string };
       const item = await storage.getBudgetActualById(req.params.id);
@@ -3350,8 +3429,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         didNotAttend: toggled,
         didNotAttendReason: toggled ? (reason || null) : null,
       } as any);
-      const actorId = req.session?.userId;
-      const actor = actorId ? await storage.getUser(actorId) : null;
+      const actorId = finUser.id;
+      const actor = finUser;
       await createAuditLog('update', 'budget_actual', req.params.id, updated, actorId, actor?.name || 'Sistema', item, req);
       res.json(updated);
     } catch (error) {
@@ -3361,11 +3440,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/budget-actual/:id", async (req, res) => {
+    const actorId = requireFinSession(req, res);
+    if (!actorId) return;
     try {
       const prev = await storage.getBudgetActualById(req.params.id);
-      const actorId = req.session?.userId || req.body?._userId;
-      const actor = actorId ? await storage.getUser(actorId) : null;
-      const isRhAdmin = actor?.role === 'admin' || actor?.role === 'financial';
+      if (!prev) return res.status(404).json({ message: "Realizado não encontrado" });
+      const actor = await storage.getUser(actorId);
+      const isRhAdmin = isFinanceRole(actor?.role);
+      // Item em análise ou aprovado é imutável para quem não é RH/admin
+      if (!isRhAdmin && (prev.rhStatus === 'aprovado' || (prev.sentForReview && prev.rhStatus === 'pendente'))) {
+        return res.status(400).json({ message: "Este item está em análise ou aprovado — apenas o RH pode ajustá-lo." });
+      }
 
       // Track which monetary fields the RH changed
       const RH_FIELDS: Record<string, string> = {
@@ -3378,7 +3463,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mobility: 'Mobilidade',
       };
 
-      let updatePayload = { ...req.body };
+      // Validação + allowlist: workflow muda apenas pelas rotas dedicadas
+      // (send-for-review, rh-action, toggle-not-attended)
+      const parsed: any = insertBudgetActualSchema.partial().parse(req.body);
+      delete parsed.rhStatus;
+      delete parsed.sentForReview;
+      delete parsed.rhActionBy;
+      delete parsed.rhActionAt;
+      delete parsed.rhAdjusted;
+      delete parsed.rhAdjustedFields;
+      delete parsed.resubmitted;
+      delete parsed.didNotAttend;
+      delete parsed.didNotAttendReason;
+      let updatePayload: any = { ...parsed, updatedBy: actorId };
 
       if (isRhAdmin && prev) {
         const existingFields: Record<string, {from: number; to: number; label: string}> =
@@ -3386,7 +3483,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         let changed = false;
         for (const [field, label] of Object.entries(RH_FIELDS)) {
-          const newVal = req.body[field];
+          const newVal = parsed[field];
           if (newVal === undefined) continue;
           const prevVal = (prev as any)[field] ?? 0;
           if (Number(newVal) !== Number(prevVal)) {
@@ -3411,10 +3508,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/budget-actual/:id", async (req, res) => {
+    const actorId = requireFinSession(req, res);
+    if (!actorId) return;
     try {
       const prev = await storage.getBudgetActualById(req.params.id);
-      const actorId = req.session?.userId;
-      const actor = actorId ? await storage.getUser(actorId) : null;
+      if (!prev) return res.status(404).json({ message: "Realizado não encontrado" });
+      if (prev.rhStatus === 'aprovado') {
+        return res.status(400).json({ message: "Item aprovado não pode ser excluído." });
+      }
+      // NF vinculada impede a exclusão (senão a nota ficaria sem origem)
+      const eventInvoices = await storage.getInvoices(prev.eventId);
+      if (eventInvoices.some(inv => inv.budgetActualId === prev.id)) {
+        return res.status(400).json({ message: "Há uma nota fiscal vinculada a este item — exclua/trate a NF primeiro." });
+      }
+      const actor = await storage.getUser(actorId);
       await storage.deleteBudgetActual(req.params.id);
       await createAuditLog('delete', 'budget_actual', req.params.id, prev, actorId, actor?.name || 'Sistema', undefined, req);
       res.status(204).send();
@@ -3425,19 +3532,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-actual/send-for-review", async (req, res) => {
+    const actorId = requireFinSession(req, res);
+    if (!actorId) return;
     try {
       const { eventId, itemIds } = req.body;
       if (!eventId) {
         return res.status(400).json({ message: "eventId é obrigatório" });
       }
       const items = await storage.getBudgetActual(eventId);
-      const canSend = (i: any) => !i.sentForReview || i.rhStatus === 'devolvido' || i.rhStatus === 'rejeitado';
+      // Aprovado é terminal — reenvio só para pendente nunca enviado, devolvido ou rejeitado
+      const canSend = (i: any) => i.rhStatus !== 'aprovado' && (!i.sentForReview || i.rhStatus === 'devolvido' || i.rhStatus === 'rejeitado');
       const toUpdate = itemIds?.length
         ? items.filter((i: any) => itemIds.includes(i.id) && canSend(i))
         : items.filter(canSend);
 
-      const actorId = req.session?.userId;
-      const actor = actorId ? await storage.getUser(actorId) : null;
+      const actor = await storage.getUser(actorId);
 
       for (const item of toUpdate) {
         const wasRejectedOrReturned = item.rhStatus === 'rejeitado' || item.rhStatus === 'devolvido';
@@ -3458,6 +3567,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Budget Comparison (Comparativo)
   app.get("/api/budget-comparison", async (req, res) => {
+    if (!requireFinSession(req, res)) return;
     try {
       const { eventId } = req.query;
       if (eventId) {
@@ -3474,32 +3584,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-comparison", async (req, res) => {
+    if (!requireFinSession(req, res)) return;
     try {
       const data = insertBudgetComparisonSchema.parse(req.body);
       const comparison = await storage.createBudgetComparison(data);
       res.status(201).json(comparison);
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.code === '23505') {
+        return res.status(409).json({ message: "Já existe um comparativo para este evento." });
+      }
       console.error("Error creating budget comparison:", error);
       res.status(400).json({ message: "Erro ao criar comparativo" });
     }
   });
 
   app.post("/api/budget-comparison/calculate/:eventId", async (req, res) => {
+    if (!requireFinSession(req, res)) return;
     try {
       const { eventId } = req.params;
       
       // Get planned and actual data
       const planned = await storage.getBudgetPlanned(eventId);
-      const actual = await storage.getBudgetActual(eventId);
-      
-      // Calculate totals
-      const totalPlanned = planned.reduce((sum, p) => sum + (p.totalValue || 0), 0);
+      const allActual = await storage.getBudgetActual(eventId);
+
+      // Mesmas regras da tela: só prestações enviadas contam, filhos de split
+      // não duplicam (o pai já teve os valores reduzidos) e "não participou"
+      // conta zero. Antes o servidor somava tudo e o agregado divergia da UI.
+      const actual = allActual.filter((a: any) => a.sentForReview && !a.splitParentId && !a.didNotAttend);
+      const totalPlanned = planned
+        .filter((p: any) => !p.didNotAttend)
+        .reduce((sum, p) => sum + (p.totalValue || 0), 0);
       const totalActual = actual.reduce((sum, a) => sum + (a.totalValue || 0), 0);
-      const variance = totalPlanned - totalActual;
-      const variancePercent = totalPlanned > 0 
+      // Convenção da tela: variância positiva = realizado acima do planejado
+      const variance = totalActual - totalPlanned;
+      const variancePercent = totalPlanned > 0
         ? ((variance / totalPlanned) * 100).toFixed(2) + '%'
         : '0%';
-      
+
       // Generate changes log
       const changesLog = actual
         .filter(a => a.plannedId)
@@ -3547,8 +3668,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/budget-comparison/:id", async (req, res) => {
+    const finUser = await requireFinanceUser(req, res);
+    if (!finUser) return;
     try {
-      const comparison = await storage.updateBudgetComparison(req.params.id, req.body);
+      // Allowlist: decisão (status/approvedBy/motivos) só pelas rotas dedicadas
+      const data: any = insertBudgetComparisonSchema.partial().parse(req.body);
+      delete data.status;
+      delete data.approvedBy;
+      delete data.approvedAt;
+      delete data.approvalObservation;
+      delete data.rejectionReason;
+      delete data.returnReason;
+      const comparison = await storage.updateBudgetComparison(req.params.id, data);
       res.json(comparison);
     } catch (error) {
       console.error("Error updating budget comparison:", error);
@@ -3557,17 +3688,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-comparison/:id/approve", async (req, res) => {
+    const finUser = await requireFinanceUser(req, res);
+    if (!finUser) return;
     try {
-      const { approvedBy, approvalObservation } = req.body;
+      const { approvalObservation } = req.body;
       const comparison = await storage.updateBudgetComparison(req.params.id, {
         status: 'aprovado',
-        approvedBy,
+        approvedBy: finUser.id,
         approvalObservation,
         approvedAt: new Date(),
       });
-      const actorId = req.session?.userId || approvedBy;
-      const actor = actorId ? await storage.getUser(actorId) : null;
-      await createAuditLog('approve', 'budget_comparison', req.params.id, comparison, actorId, actor?.name || 'Sistema', undefined, req);
+      await createAuditLog('approve', 'budget_comparison', req.params.id, comparison, finUser.id, finUser.name, undefined, req);
       res.json(comparison);
     } catch (error) {
       console.error("Error approving budget comparison:", error);
@@ -3576,17 +3707,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-comparison/:id/reject", async (req, res) => {
+    const finUser = await requireFinanceUser(req, res);
+    if (!finUser) return;
     try {
-      const { approvedBy, rejectionReason } = req.body;
+      const { rejectionReason } = req.body;
       const comparison = await storage.updateBudgetComparison(req.params.id, {
         status: 'rejeitado',
-        approvedBy,
+        approvedBy: finUser.id,
         rejectionReason,
         approvedAt: new Date(),
       });
-      const actorId = req.session?.userId || approvedBy;
-      const actor = actorId ? await storage.getUser(actorId) : null;
-      await createAuditLog('reject', 'budget_comparison', req.params.id, comparison, actorId, actor?.name || 'Sistema', undefined, req);
+      await createAuditLog('reject', 'budget_comparison', req.params.id, comparison, finUser.id, finUser.name, undefined, req);
       res.json(comparison);
     } catch (error) {
       console.error("Error rejecting budget comparison:", error);
@@ -3595,16 +3726,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-comparison/:id/return", async (req, res) => {
+    const finUser = await requireFinanceUser(req, res);
+    if (!finUser) return;
     try {
-      const { approvedBy, returnReason } = req.body;
+      const { returnReason } = req.body;
       const comparison = await storage.updateBudgetComparison(req.params.id, {
         status: 'devolvido',
-        approvedBy,
+        approvedBy: finUser.id,
         returnReason,
       });
-      const actorId = req.session?.userId || approvedBy;
-      const actor = actorId ? await storage.getUser(actorId) : null;
-      await createAuditLog('update', 'budget_comparison', req.params.id, comparison, actorId, actor?.name || 'Sistema', undefined, req);
+      await createAuditLog('update', 'budget_comparison', req.params.id, comparison, finUser.id, finUser.name, undefined, req);
       res.json(comparison);
     } catch (error) {
       console.error("Error returning budget comparison:", error);
@@ -3613,23 +3744,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-actual/rh-action", async (req, res) => {
+    // Decisão do RH: sessão + papel obrigatórios; o ator vem da sessão
+    // (antes qualquer requisição anônima aprovava em nome de qualquer um)
+    const finUser = await requireFinanceUser(req, res);
+    if (!finUser) return;
     try {
-      const { itemIds, action, comment, actionBy } = req.body;
-      if (!itemIds?.length || !action || !actionBy) {
+      const { itemIds, action, comment } = req.body;
+      if (!itemIds?.length || !action) {
         return res.status(400).json({ message: "Dados incompletos" });
       }
       if (!['aprovado', 'rejeitado', 'devolvido'].includes(action)) {
         return res.status(400).json({ message: "Ação inválida" });
       }
 
-      const actor = actionBy ? await storage.getUser(actionBy) : null;
-      const actorId = req.session?.userId || actionBy;
+      const actor = finUser;
+      const actorId = finUser.id;
       const results = [];
+      const skipped: string[] = [];
       for (const id of itemIds) {
+        // Máquina de estados: só decide o que está de fato em análise
+        const current = await storage.getBudgetActualById(id);
+        if (!current || !current.sentForReview || current.rhStatus !== 'pendente') {
+          skipped.push(id);
+          continue;
+        }
         const updated = await storage.updateBudgetActual(id, {
           rhStatus: action,
           rhComment: comment || null,
-          rhActionBy: actionBy,
+          rhActionBy: actorId,
           rhActionAt: new Date(),
           ...(action === 'devolvido' || action === 'rejeitado'
             ? { sentForReview: false }
@@ -3639,8 +3781,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const logAction = action === 'aprovado' ? 'approve' : action === 'rejeitado' ? 'reject' : 'update';
-      await createAuditLog(logAction, 'budget_actual', itemIds[0], { itemIds, action, comment, count: results.length }, actorId, actor?.name || 'Sistema', undefined, req);
-      res.json({ updated: results.length, items: results });
+      await createAuditLog(logAction, 'budget_actual', itemIds[0], { itemIds, action, comment, count: results.length, skipped }, actorId, actor?.name || 'Sistema', undefined, req);
+      res.json({ updated: results.length, items: results, skipped });
     } catch (error) {
       console.error("Error performing RH action:", error);
       res.status(400).json({ message: "Erro ao processar ação do RH" });
@@ -3649,6 +3791,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ─── System Settings ──────────────────────────────────────────────
   app.get("/api/system-settings", async (req, res) => {
+    if (!requireFinSession(req, res)) return;
     try {
       const settings = await storage.getSystemSettings();
       const defaults: Record<string, number> = {
@@ -3682,10 +3825,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.put("/api/system-settings", async (req, res) => {
-    const userId = req.session?.userId || req.body?._userId;
-    if (!userId) return res.status(401).json({ message: "Não autenticado" });
-    const user = await storage.getUser(userId);
-    if (!user || (user.role !== "admin" && user.role !== "financial")) return res.status(403).json({ message: "Acesso não autorizado" });
+    const user = await requireFinanceUser(req, res);
+    if (!user) return;
+    const userId = user.id;
 
     try {
       const allowed = [
@@ -3698,13 +3840,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "default_weekday_lunch_freela", "default_weekday_dinner_freela",
         "default_weekend_lunch_freela", "default_weekend_dinner_freela",
       ];
+      // Valida tudo antes de gravar qualquer chave — um valor não numérico
+      // gravava "NaN" no banco e quebrava o formulário de todos os usuários
+      const updates: Array<[string, number]> = [];
       for (const key of allowed) {
-        if (req.body[key] !== undefined) {
-          const val = Math.round(parseFloat(req.body[key]) * 100);
-          await storage.upsertSystemSetting(key, String(val), req.session.userId);
+        if (req.body[key] === undefined) continue;
+        const parsed = parseFloat(req.body[key]);
+        if (!Number.isFinite(parsed) || parsed < 0) {
+          return res.status(400).json({ message: `Valor inválido para "${key}" — informe um número maior ou igual a zero.` });
         }
+        updates.push([key, Math.round(parsed * 100)]);
       }
-      await createAuditLog('update', 'system_settings', 'global', req.body, req.session.userId, user.name || 'Sistema', undefined, req);
+      for (const [key, val] of updates) {
+        await storage.upsertSystemSetting(key, String(val), userId);
+      }
+      await createAuditLog('update', 'system_settings', 'global', req.body, userId, user.name || 'Sistema', undefined, req);
       res.json({ message: "Configurações salvas com sucesso" });
     } catch (error) {
       console.error("Error updating system settings:", error);
@@ -3762,13 +3912,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/invoices", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
     try {
-      const data = insertInvoiceSchema.parse(req.body);
+      const data: any = insertInvoiceSchema.parse(req.body);
+      // NF não nasce aprovada/paga — envio sempre começa o fluxo
+      delete data.approvedAt;
+      delete data.checkinAt;
+      delete data.checkinBy;
+      delete data.paymentDate;
+      if (data.status && data.status !== "enviada" && data.status !== "pendente") {
+        data.status = "enviada";
+      }
+      // Elegibilidade: a prestação precisa existir e estar enviada ou aprovada
+      // (devolvida/rejeitada pausa a NF até regularizar)
+      if (data.budgetActualId) {
+        const actualRef = await storage.getBudgetActualById(data.budgetActualId);
+        if (!actualRef) {
+          return res.status(400).json({ message: "Prestação (Realizado) não encontrada para esta nota." });
+        }
+        const eligible = actualRef.rhStatus === "aprovado" || (actualRef.sentForReview && actualRef.rhStatus === "pendente");
+        if (!eligible) {
+          return res.status(400).json({ message: "Este item do Realizado não está elegível para NF (devolvido, rejeitado ou ainda não enviado)." });
+        }
+        // Unicidade: uma NF por prestação (constraint no banco cobre corrida)
+        const existingInvoices = await storage.getInvoices(data.eventId);
+        if (existingInvoices.some(inv => inv.budgetActualId === data.budgetActualId)) {
+          return res.status(409).json({ message: "Já existe uma nota fiscal para este item — use o reenvio na nota existente." });
+        }
+      }
       const ocError = await validateOcConsistency(data.eventId, data.oc, data.attachmentName);
       if (ocError) return res.status(400).json({ message: ocError });
       const firstEvent = { type: "enviado", oc: data.oc || null, attachmentName: data.attachmentName || null, at: new Date().toISOString() };
       const invoice = await storage.createInvoice({ ...data, history: JSON.stringify([firstEvent]) });
       res.json(invoice);
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        return res.status(400).json({ message: "Dados da nota inválidos. Verifique OC e anexo." });
+      }
+      if (error?.code === '23505') {
+        return res.status(409).json({ message: "Já existe uma nota fiscal para este item." });
+      }
       console.error("Error creating invoice:", error);
       res.status(500).json({ message: "Erro ao criar nota fiscal" });
     }
@@ -3777,32 +3958,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/invoices/:id", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
     try {
-      const body = req.body;
+      const existing = await storage.getInvoice(req.params.id);
+      if (!existing) return res.status(404).json({ message: "Nota fiscal não encontrada" });
+      // NF aprovada é imutável por esta rota (check-in tem rota própria)
+      if (existing.status === "aprovada") {
+        return res.status(400).json({ message: "Nota fiscal aprovada não pode ser alterada." });
+      }
+      // Allowlist: este PATCH serve ao envio/reenvio pelo colaborador.
+      // Aprovar/devolver/recusar/check-in têm rotas dedicadas com papel —
+      // antes qualquer logado aprovava a própria NF por aqui (IDOR).
+      const body: any = {};
+      for (const k of ["oc", "attachmentUrl", "attachmentName", "paymentText"]) {
+        if (k in req.body) body[k] = req.body[k];
+      }
+      if (req.body.status !== undefined) {
+        if (req.body.status !== "enviada") {
+          return res.status(400).json({ message: "Por esta rota o status só pode ir para 'enviada' (reenvio)." });
+        }
+        body.status = "enviada";
+      }
       let historyStr: string | undefined;
       // If resubmitting (setting status back to enviada), record a "reenviado" event
       if (body.status === "enviada") {
-        const existing = await storage.getInvoice(req.params.id);
-        if (existing) {
-          const ocError = await validateOcConsistency(
-            existing.eventId,
-            body.oc !== undefined ? body.oc : existing.oc,
-            body.attachmentName !== undefined ? body.attachmentName : existing.attachmentName,
-            existing.id,
-          );
-          if (ocError) return res.status(400).json({ message: ocError });
-        }
+        const ocError = await validateOcConsistency(
+          existing.eventId,
+          body.oc !== undefined ? body.oc : existing.oc,
+          body.attachmentName !== undefined ? body.attachmentName : existing.attachmentName,
+          existing.id,
+        );
+        if (ocError) return res.status(400).json({ message: ocError });
         historyStr = await appendHistory(req.params.id, {
           type: "reenviado",
-          oc: body.oc || null,
-          attachmentName: body.attachmentName || null,
+          oc: body.oc ?? existing.oc ?? null,
+          attachmentName: body.attachmentName ?? existing.attachmentName ?? null,
         });
-      }
-      // If setting paymentDate (check-in), record a "checkin" event
-      if (body.paymentDate && !body.status) {
-        historyStr = await appendHistory(req.params.id, {
-          type: "checkin",
-          paymentDate: body.paymentDate,
-        });
+        // Reenvio limpa o comentário da devolução anterior
+        body.returnComment = null;
       }
       const invoice = await storage.updateInvoice(req.params.id, {
         ...body,
@@ -3816,12 +4007,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/invoices/:id/approve", async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
-    const user = await storage.getUser(req.session.userId);
-    if (!user || (user.role !== "admin" && user.role !== "financial")) {
-      return res.status(403).json({ message: "Sem permissão" });
-    }
+    const user = await requireFinanceUser(req, res);
+    if (!user) return;
     try {
+      const inv = await storage.getInvoice(req.params.id);
+      if (!inv) return res.status(404).json({ message: "Nota fiscal não encontrada" });
+      if (inv.status !== "enviada") {
+        return res.status(400).json({ message: "Só é possível aprovar uma nota com status 'enviada'." });
+      }
+      // Se o RH devolveu/recusou o Realizado depois do envio da NF, o valor
+      // de referência vai mudar — bloqueia até o reenvio da prestação
+      if (inv.budgetActualId) {
+        const actualRef = await storage.getBudgetActualById(inv.budgetActualId);
+        if (actualRef && (actualRef.rhStatus === "devolvido" || actualRef.rhStatus === "rejeitado")) {
+          return res.status(400).json({ message: "O Realizado deste item foi devolvido/recusado — aguarde o reenvio antes de aprovar a NF." });
+        }
+      }
       const { paymentDate } = req.body;
       const historyStr = await appendHistory(req.params.id, { type: "aprovado" });
       const invoice = await storage.updateInvoice(req.params.id, {
@@ -3839,12 +4040,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/invoices/:id/return", async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
-    const user = await storage.getUser(req.session.userId);
-    if (!user || (user.role !== "admin" && user.role !== "financial")) {
-      return res.status(403).json({ message: "Sem permissão" });
-    }
+    const user = await requireFinanceUser(req, res);
+    if (!user) return;
     try {
+      const inv = await storage.getInvoice(req.params.id);
+      if (!inv) return res.status(404).json({ message: "Nota fiscal não encontrada" });
+      if (inv.status !== "enviada") {
+        return res.status(400).json({ message: "Só é possível devolver uma nota com status 'enviada'." });
+      }
       const { comment } = req.body;
       const historyStr = await appendHistory(req.params.id, { type: "devolvido", comment: comment || null });
       const invoice = await storage.updateInvoice(req.params.id, {
@@ -3860,16 +4063,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/invoices/:id/reject", async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
-    const user = await storage.getUser(req.session.userId);
-    if (!user || (user.role !== "admin" && user.role !== "financial")) {
-      return res.status(403).json({ message: "Sem permissão" });
-    }
+    const user = await requireFinanceUser(req, res);
+    if (!user) return;
     try {
+      const inv = await storage.getInvoice(req.params.id);
+      if (!inv) return res.status(404).json({ message: "Nota fiscal não encontrada" });
+      if (inv.status !== "enviada") {
+        return res.status(400).json({ message: "Só é possível recusar uma nota com status 'enviada'." });
+      }
       const { comment } = req.body;
+      const historyStr = await appendHistory(req.params.id, { type: "recusado", comment: comment || null });
       const invoice = await storage.updateInvoice(req.params.id, {
         status: "recusada",
         returnComment: comment ?? null,
+        history: historyStr,
       });
       res.json(invoice);
     } catch (error) {
@@ -3879,18 +4086,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/invoices/:id/checkin", async (req, res) => {
-    const actorId = req.session?.userId || req.body?._userId;
-    if (!actorId) return res.status(401).json({ message: "Não autenticado" });
-    const user = await storage.getUser(actorId);
-    if (!user || (user.role !== "admin" && user.role !== "financial")) {
-      return res.status(403).json({ message: "Sem permissão" });
-    }
+    const user = await requireFinanceUser(req, res);
+    if (!user) return;
     try {
+      const inv = await storage.getInvoice(req.params.id);
+      if (!inv) return res.status(404).json({ message: "Nota fiscal não encontrada" });
+      // Máquina de estados: check-in só após aprovação, e uma única vez
+      if (inv.status !== "aprovada") {
+        return res.status(400).json({ message: "Check-in só é possível em nota já aprovada." });
+      }
+      if (inv.checkinAt) {
+        return res.status(400).json({ message: "Esta nota já teve check-in." });
+      }
       const { paymentDate } = req.body;
+      if (!paymentDate) {
+        return res.status(400).json({ message: "Informe a data de pagamento para o check-in." });
+      }
+      const historyStr = await appendHistory(req.params.id, { type: "checkin", paymentDate });
       const invoice = await storage.updateInvoice(req.params.id, {
         checkinAt: new Date(),
-        checkinBy: actorId,
-        ...(paymentDate ? { paymentDate } : {}),
+        checkinBy: user.id,
+        paymentDate,
+        history: historyStr,
       });
       res.json(invoice);
     } catch (error) {
@@ -3901,8 +4118,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Payment Companies
   app.get("/api/payment-companies", async (req, res) => {
-    const userId = req.session.userId || req.body?._userId;
-    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+    if (!requireFinSession(req, res)) return;
     try {
       const companies = await storage.getPaymentCompanies();
       res.json(companies);
@@ -3913,8 +4129,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/payment-companies", async (req, res) => {
-    const userId = req.session.userId || req.body?._userId;
-    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+    if (!requireFinSession(req, res)) return;
     try {
       const { name, cnpj } = req.body;
       if (!name || !cnpj) return res.status(400).json({ message: "Nome e CNPJ são obrigatórios" });
@@ -3927,10 +4142,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/payment-companies/:id", async (req, res) => {
-    const userId = req.session.userId || req.body?._userId;
-    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+    const userId = requireFinSession(req, res);
+    if (!userId) return;
     const user = await storage.getUser(userId);
-    if (!user || !["admin"].includes(user.role)) return res.status(403).json({ message: "Sem permissão" });
+    if (!user || normalizeRole(user.role) !== "admin") return res.status(403).json({ message: "Sem permissão" });
     try {
       await storage.deletePaymentCompany(Number(req.params.id));
       res.json({ success: true });
@@ -3942,10 +4157,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ─── Conta Corrente Flash (slide 6 do deck de melhorias) ────────────────────
 
-  const FLASH_MANAGER_ROLES = ["admin", "administrator", "administrador", "financial"];
-
   app.get("/api/flash-movements", async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    if (!requireFinSession(req, res)) return;
     try {
       const collaboratorId = req.query.collaboratorId as string | undefined;
       const movements = await storage.getFlashMovements(collaboratorId);
@@ -3957,12 +4170,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/flash-movements", async (req, res) => {
-    const userId = req.session?.userId;
-    if (!userId) return res.status(401).json({ message: "Não autenticado" });
-    const user = await storage.getUser(userId);
-    if (!user || !FLASH_MANAGER_ROLES.includes(user.role)) {
-      return res.status(403).json({ message: "Sem permissão para lançar na conta corrente Flash" });
-    }
+    const user = await requireFinanceUser(req, res);
+    if (!user) return;
     try {
       const data = insertFlashMovementSchema.parse(req.body);
       const movement = await storage.createFlashMovement({
@@ -3977,15 +4186,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/flash-movements/:id", async (req, res) => {
-    const userId = req.session?.userId;
-    if (!userId) return res.status(401).json({ message: "Não autenticado" });
-    const user = await storage.getUser(userId);
-    if (!user || !FLASH_MANAGER_ROLES.includes(user.role)) {
-      return res.status(403).json({ message: "Sem permissão para excluir lançamentos" });
-    }
+  // Crédito inicial da admissão: os dois lançamentos (alimentação R$ 350 +
+  // mobilidade R$ 150) numa única transação — antes eram 2 POSTs do client e
+  // uma falha no segundo deixava o saldo pela metade sem correção pela UI.
+  app.post("/api/flash-movements/initial-credit", async (req, res) => {
+    const user = await requireFinanceUser(req, res);
+    if (!user) return;
     try {
+      const { collaboratorId, movementDate } = req.body;
+      if (!collaboratorId || !movementDate) {
+        return res.status(400).json({ message: "collaboratorId e movementDate são obrigatórios" });
+      }
+      const existing = await storage.getFlashMovements(collaboratorId);
+      if (existing.length > 0) {
+        return res.status(409).json({ message: "Este colaborador já tem lançamentos — o crédito inicial só vale para conta nova." });
+      }
+      const base = { collaboratorId, type: "credito" as const, movementDate, description: "Crédito inicial — admissão", createdBy: user.id, createdByName: user.name };
+      const movements = await storage.createFlashMovementsBatch([
+        { ...base, category: "alimentacao", amountCents: 35000 },
+        { ...base, category: "mobilidade", amountCents: 15000 },
+      ]);
+      res.status(201).json(movements);
+    } catch (error) {
+      console.error("Error creating initial flash credit:", error);
+      res.status(500).json({ message: "Erro ao lançar o crédito inicial" });
+    }
+  });
+
+  app.delete("/api/flash-movements/:id", async (req, res) => {
+    const user = await requireFinanceUser(req, res);
+    if (!user) return;
+    try {
+      const prev = (await storage.getFlashMovements()).find(m => m.id === req.params.id);
+      if (!prev) return res.status(404).json({ message: "Lançamento não encontrado" });
       await storage.deleteFlashMovement(req.params.id);
+      // Trilha: exclusão de lançamento financeiro fica no audit log com o registro apagado
+      await createAuditLog('delete', 'financial', req.params.id, prev, user.id, user.name, undefined, req);
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting flash movement:", error);
