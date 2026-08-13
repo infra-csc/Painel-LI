@@ -1524,6 +1524,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // (não logar o corpo: contém CPF/telefone do colaborador)
       let collaboratorData: any = insertCollaboratorSchema.parse(bodyData);
 
+      // Registrar quem criou o cadastro (sessão tem prioridade; _userId é
+      // apenas informativo — não é usado em nenhuma decisão de permissão)
+      const creatorId = req.session?.userId || _userId || null;
+      const creator = creatorId ? await storage.getUser(creatorId) : undefined;
+      collaboratorData = {
+        ...collaboratorData,
+        createdBy: creator?.id ?? null,
+        createdByName: creator?.name ?? null,
+      };
+
       // Auto-aprovar colaboradores criados por usuários "Área de Função"
       if (_userRole === 'function_area') {
         console.log("Auto-aprovando colaborador criado por usuário Área de Função");
@@ -1578,6 +1588,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Set para controlar documentos já processados no lote atual
       const processedDocuments = new Set<string>();
 
+      // Quem está importando o lote (para registrar "quem criou" em cada linha)
+      const bulkCreatorId = req.session?.userId || _userId || null;
+      const bulkCreator = bulkCreatorId ? await storage.getUser(bulkCreatorId) : undefined;
+
       for (let i = 0; i < collaborators.length; i++) {
         const collaboratorData = collaborators[i];
         
@@ -1630,7 +1644,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             continue;
           }
 
-          await storage.createCollaborator(validatedData);
+          await storage.createCollaborator({
+            ...validatedData,
+            createdBy: bulkCreator?.id ?? null,
+            createdByName: bulkCreator?.name ?? null,
+          } as any);
           result.successful++;
           
         } catch (error) {
@@ -1660,6 +1678,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       delete (collaboratorData as any).active;
       delete (collaboratorData as any).inactiveReason;
       delete (collaboratorData as any).inactivatedAt;
+      // Proveniência é definida apenas na criação — não pode ser reescrita aqui
+      delete (collaboratorData as any).createdBy;
+      delete (collaboratorData as any).createdByName;
       const collaborator = await storage.updateCollaborator(id, collaboratorData);
       res.json(collaborator);
     } catch (error) {

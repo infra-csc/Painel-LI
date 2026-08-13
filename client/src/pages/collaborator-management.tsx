@@ -598,6 +598,7 @@ export default function CollaboratorManagement() {
                   <DetailRow label="Data de Nascimento" value={selectedCollaborator.birthDate ? formatDate(selectedCollaborator.birthDate) : "—"} />
                   <DetailRow label="Cidade" value={selectedCollaborator.city || "—"} />
                   <DetailRow label="Telefone" value={selectedCollaborator.phone || "—"} />
+                  <DetailRow label="Criado por" value={selectedCollaborator.createdByName || "—"} />
                 </div>
 
                 <div className="border-t border-gray-100 pt-4">

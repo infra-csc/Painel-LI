@@ -94,6 +94,8 @@ export const collaborators = pgTable("collaborators", {
   active: boolean("active").notNull().default(true), // false = inativado (mantido no histórico, oculto nas escalações)
   inactiveReason: text("inactive_reason"), // motivo obrigatório da inativação
   inactivatedAt: timestamp("inactivated_at"), // quando foi inativado
+  createdBy: varchar("created_by").references(() => users.id), // quem criou o cadastro
+  createdByName: text("created_by_name"), // nome de quem criou (snapshot p/ exibição sem join)
   createdAt: timestamp("created_at").defaultNow(),
 });
 
