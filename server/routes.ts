@@ -27,7 +27,11 @@ import {
   insertBudgetNoteSchema,
   insertSwapRequestSchema
 } from "@shared/schema";
-import { isFinanceRole, normalizeRole } from "@shared/roles";
+import { isFinanceRole, normalizeRole, ROLE_GROUPS, type CanonicalRole } from "@shared/roles";
+import {
+  isNfEligible, contaNosTotais, podeDecidirPrestacao, podeEnviarParaRevisao,
+  prestacaoEstaTravada, podeAprovarNota, podeDevolverNota, podeFazerCheckin,
+} from "@shared/prestacao-rules";
 import bcrypt from "bcryptjs";
 import { randomBytes, timingSafeEqual } from "crypto";
 
@@ -170,6 +174,31 @@ const upload = multer({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+
+  // ── Autorização por papel ─────────────────────────────────────────────────
+  // A autenticação é garantida pelo middleware global de server/index.ts (toda
+  // rota /api exige sessão, exceto /api/auth, /api/integration e /api/portal).
+  // Estes helpers cuidam da AUTORIZAÇÃO: quem, entre os autenticados, pode agir.
+  // A identidade vem sempre da sessão — nunca do corpo da requisição.
+  const requireRoles = async (req: any, res: any, roles: readonly CanonicalRole[]) => {
+    const userId = req.session?.userId;
+    if (!userId) {
+      res.status(401).json({ message: "Não autenticado" });
+      return null;
+    }
+    const user = await storage.getUser(userId);
+    const role = normalizeRole(user?.role);
+    if (!user || !role || !roles.includes(role)) {
+      res.status(403).json({ message: "Sem permissão para esta ação" });
+      return null;
+    }
+    return user;
+  };
+
+  // Grupos definidos em shared/roles.ts — fonte única entre client e servidor
+  const CADASTRO_ROLES = ROLE_GROUPS.cadastro;
+  const FINANCE_ROLES = ROLE_GROUPS.financeiro;
+  const LOGISTICA_ROLES = ROLE_GROUPS.logistica;
 
   // ── Portal Norte — API de Gestão de Usuários ──────────────────────────────
   // Endpoints chamados server-to-server pelo Portal Norte para gerenciar usuários.
@@ -734,7 +763,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/users", async (req, res) => {
     try {
       // Check authentication and authorization
-      const userId = req.session.userId || req.body?._userId;
+      const userId = req.session.userId;
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
@@ -745,8 +774,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Admins, financial (RH) and purchasing (Compras) can create users
-      const isAdmin = currentUser.role === 'administrador' || currentUser.role === 'admin' || currentUser.role === 'administrator';
-      const canManageUsers = isAdmin || currentUser.role === 'financial' || currentUser.role === 'purchasing';
+      const isAdmin = normalizeRole(currentUser.role) === 'admin';
+      const canManageUsers = isAdmin || normalizeRole(currentUser.role) === 'financial' || normalizeRole(currentUser.role) === 'purchasing';
       if (!canManageUsers) {
         return res.status(403).json({ message: "Sem permissão para criar usuários." });
       }
@@ -756,7 +785,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userData = adminCreateSchema.parse(req.body);
 
       // Only true admins can create admin users
-      if (userData.role === 'admin' && !isAdmin) {
+      if (normalizeRole(userData.role) === 'admin' && !isAdmin) {
         return res.status(403).json({ message: "Apenas administradores podem criar outro Administrador." });
       }
       
@@ -812,8 +841,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Admins, financial (RH), purchasing (Compras) and production (Logística) can list users
-      const isAdmin = currentUser.role === 'administrador' || currentUser.role === 'admin' || currentUser.role === 'administrator';
-      const canManageUsers = isAdmin || currentUser.role === 'financial' || currentUser.role === 'purchasing' || currentUser.role === 'production';
+      const isAdmin = normalizeRole(currentUser.role) === 'admin';
+      const canManageUsers = isAdmin || normalizeRole(currentUser.role) === 'financial' || normalizeRole(currentUser.role) === 'purchasing' || normalizeRole(currentUser.role) === 'production';
       if (!canManageUsers) {
         return res.status(403).json({ message: "Sem permissão para listar usuários." });
       }
@@ -830,7 +859,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/users/:id", async (req, res) => {
     try {
       // Check authentication
-      const currentUserId = req.session.userId || req.body?._userId;
+      const currentUserId = req.session.userId;
       if (!currentUserId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
@@ -850,8 +879,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Authorization: admins, financial (RH) and purchasing (Compras) can edit other users
-      const isAdmin = currentUser.role === 'administrador' || currentUser.role === 'admin' || currentUser.role === 'administrator';
-      const canManageUsers = isAdmin || currentUser.role === 'financial' || currentUser.role === 'purchasing';
+      const isAdmin = normalizeRole(currentUser.role) === 'admin';
+      const canManageUsers = isAdmin || normalizeRole(currentUser.role) === 'financial' || normalizeRole(currentUser.role) === 'purchasing';
       const isSelfUpdate = currentUserId === id;
 
       // Only user managers can edit other users' profiles
@@ -912,7 +941,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Only true admins can assign the 'admin' role
-      if (filteredData.role === 'admin' && !isAdmin) {
+      if (normalizeRole(filteredData.role) === 'admin' && !isAdmin) {
         return res.status(403).json({ message: "Apenas administradores podem atribuir o papel de Administrador." });
       }
       
@@ -947,7 +976,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/users/:id/approval", async (req, res) => {
     try {
       // Check authentication and authorization
-      const userId = req.session.userId || req.body?._userId;
+      const userId = req.session.userId;
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
@@ -958,8 +987,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Admins, financial (RH), purchasing (Compras) and production (Logística) can approve/reject users
-      const isAdmin = currentUser.role === 'administrador' || currentUser.role === 'admin' || currentUser.role === 'administrator';
-      const canManageUsers = isAdmin || currentUser.role === 'financial' || currentUser.role === 'purchasing' || currentUser.role === 'production';
+      const isAdmin = normalizeRole(currentUser.role) === 'admin';
+      const canManageUsers = isAdmin || normalizeRole(currentUser.role) === 'financial' || normalizeRole(currentUser.role) === 'purchasing' || normalizeRole(currentUser.role) === 'production';
       if (!canManageUsers) {
         return res.status(403).json({ message: "Sem permissão para aprovar usuários." });
       }
@@ -998,13 +1027,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin: Toggle user active status (Reactivação)
   app.patch("/api/users/:id/toggle-active", async (req, res) => {
     try {
-      const adminId = req.session.userId || req.body?._userId;
+      const adminId = req.session.userId;
       if (!adminId) return res.status(401).json({ message: "Não autenticado" });
       
       const admin = await storage.getUser(adminId);
-      const isAdmin = admin && (admin.role === 'administrador' || admin.role === 'admin' || admin.role === 'administrator');
-      const isPurchasing = admin && admin.role === 'purchasing';
-      const isProduction = admin && admin.role === 'production';
+      const isAdmin = admin && (normalizeRole(admin.role) === 'admin');
+      const isPurchasing = admin && normalizeRole(admin.role) === 'purchasing';
+      const isProduction = admin && normalizeRole(admin.role) === 'production';
       if (!isAdmin && !isPurchasing && !isProduction) return res.status(403).json({ message: "Acesso negado" });
 
       const userId = req.params.id;
@@ -1043,7 +1072,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!adminId) return res.status(401).json({ message: "Não autenticado" });
 
       const admin = await storage.getUser(adminId);
-      const isAdmin = admin && ['admin', 'administrator', 'administrador'].includes(admin.role ?? '');
+      const isAdmin = admin && normalizeRole(admin.role) === 'admin';
       if (!isAdmin) return res.status(403).json({ message: "Apenas administradores podem alterar esta permissão" });
 
       const { id } = req.params;
@@ -1061,13 +1090,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin: Reset user password
   app.post("/api/users/:id/reset-password", async (req, res) => {
     try {
-      const adminId = req.session.userId || req.body?._userId;
+      const adminId = req.session.userId;
       if (!adminId) return res.status(401).json({ message: "Não autenticado" });
       
       const admin = await storage.getUser(adminId);
-      const isAdmin = admin && (admin.role === 'administrador' || admin.role === 'admin' || admin.role === 'administrator');
-      const isPurchasingAdmin = admin && admin.role === 'purchasing';
-      const isProductionAdmin = admin && admin.role === 'production';
+      const isAdmin = admin && (normalizeRole(admin.role) === 'admin');
+      const isPurchasingAdmin = admin && normalizeRole(admin.role) === 'purchasing';
+      const isProductionAdmin = admin && normalizeRole(admin.role) === 'production';
       if (!isAdmin && !isPurchasingAdmin && !isProductionAdmin) return res.status(403).json({ message: "Acesso negado" });
 
       const userId = req.params.id;
@@ -1158,9 +1187,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Dedicated endpoint for updating payment company (accessible to admin + financial roles)
   app.patch("/api/events/:id/payment-company", async (req, res) => {
     try {
-      const actorId = req.session?.userId || req.body?._userId;
+      const actorId = req.session?.userId;
       const actor = actorId ? await storage.getUser(actorId) : null;
-      if (!actor || !['admin', 'financial'].includes(actor.role)) {
+      if (!actor || !isFinanceRole(actor.role)) {
         return res.status(403).json({ message: "Sem permissão para configurar empresa pagadora" });
       }
       const event = await storage.getEvent(req.params.id);
@@ -1189,7 +1218,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Only admins and purchasing can edit events
-        const canEditEvent = ['admin', 'administrador', 'administrator', 'purchasing'].includes(currentUser.role);
+        const canEditEvent = ['admin', 'purchasing'].includes(normalizeRole(currentUser.role) ?? '');
         if (!canEditEvent) {
           return res.status(403).json({ message: "Sem permissão para editar eventos" });
         }
@@ -1235,7 +1264,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Only admins and purchasing can delete events
-        const canDeleteEvent = ['admin', 'administrador', 'administrator', 'purchasing'].includes(currentUser.role);
+        const canDeleteEvent = ['admin', 'purchasing'].includes(normalizeRole(currentUser.role) ?? '');
         if (!canDeleteEvent) {
           return res.status(403).json({ message: "Sem permissão para excluir eventos" });
         }
@@ -1313,6 +1342,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/functions", async (req, res) => {
+    if (!await requireRoles(req, res, CADASTRO_ROLES)) return;
     try {
       const functionData = insertFunctionSchema.parse(req.body);
       const func = await storage.createFunction(functionData);
@@ -1323,6 +1353,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/functions/:id", async (req, res) => {
+    if (!await requireRoles(req, res, CADASTRO_ROLES)) return;
     try {
       const { id } = req.params;
       const functionData = insertFunctionSchema.partial().parse(req.body);
@@ -1334,6 +1365,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/functions/:id", async (req, res) => {
+    if (!await requireRoles(req, res, CADASTRO_ROLES)) return;
     try {
       const { id } = req.params;
       await storage.deleteFunction(id);
@@ -1369,9 +1401,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Authorization check: Admin, purchasing, production or function manager can add users
-      const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
-      const isPurchasing = user.role === 'purchasing';
-      const isProduction = user.role === 'production';
+      const isAdmin = normalizeRole(user.role) === 'admin';
+      const isPurchasing = normalizeRole(user.role) === 'purchasing';
+      const isProduction = normalizeRole(user.role) === 'production';
       const isFunctionManager = await storage.isUserFunctionManager(id, userId);
       
       if (!isAdmin && !isPurchasing && !isProduction && !isFunctionManager) {
@@ -1405,9 +1437,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Authorization check: Admin, purchasing, production or function manager can remove users
-      const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
-      const isPurchasing = user.role === 'purchasing';
-      const isProduction = user.role === 'production';
+      const isAdmin = normalizeRole(user.role) === 'admin';
+      const isPurchasing = normalizeRole(user.role) === 'purchasing';
+      const isProduction = normalizeRole(user.role) === 'production';
       const isFunctionManager = await storage.isUserFunctionManager(functionId, userId);
       
       if (!isAdmin && !isPurchasing && !isProduction && !isFunctionManager) {
@@ -1457,9 +1489,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Authorization check: Admins, purchasing and production can add managers
-      const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
-      const isPurchasing = user.role === 'purchasing';
-      const isProduction = user.role === 'production';
+      const isAdmin = normalizeRole(user.role) === 'admin';
+      const isPurchasing = normalizeRole(user.role) === 'purchasing';
+      const isProduction = normalizeRole(user.role) === 'production';
       
       if (!isAdmin && !isPurchasing && !isProduction) {
         return res.status(403).json({ message: "Sem permissão para adicionar responsáveis às funções" });
@@ -1492,9 +1524,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Authorization check: Admins, purchasing and production can remove managers
-      const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
-      const isPurchasing = user.role === 'purchasing';
-      const isProduction = user.role === 'production';
+      const isAdmin = normalizeRole(user.role) === 'admin';
+      const isPurchasing = normalizeRole(user.role) === 'purchasing';
+      const isProduction = normalizeRole(user.role) === 'production';
       
       if (!isAdmin && !isPurchasing && !isProduction) {
         return res.status(403).json({ message: "Sem permissão para remover responsáveis das funções" });
@@ -1518,37 +1550,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/collaborators", async (req, res) => {
+    const creatorId = req.session?.userId;
+    if (!creatorId) return res.status(401).json({ message: "Não autenticado" });
     try {
-      // Extrair informações do usuário (não fazem parte do schema)
+      // Campos de identidade que o client ainda possa enviar são descartados —
+      // a identidade e o papel vêm da sessão
       const { _userId, _userRole, ...bodyData } = req.body;
 
       // Validar dados do colaborador
       // (não logar o corpo: contém CPF/telefone do colaborador)
       let collaboratorData: any = insertCollaboratorSchema.parse(bodyData);
+      // Aprovação só pelo fluxo dedicado (ou pela regra de auto-aprovação abaixo)
+      delete collaboratorData.status;
+      delete collaboratorData.approvedBy;
+      delete collaboratorData.approvedAt;
 
-      // Registrar quem criou o cadastro (sessão tem prioridade; _userId é
-      // apenas informativo — não é usado em nenhuma decisão de permissão)
-      const creatorId = req.session?.userId || _userId || null;
-      const creator = creatorId ? await storage.getUser(creatorId) : undefined;
+      const creator = await storage.getUser(creatorId);
       collaboratorData = {
         ...collaboratorData,
         createdBy: creator?.id ?? null,
         createdByName: creator?.name ?? null,
       };
 
-      // Auto-aprovar colaboradores criados por usuários "Área de Função"
-      if (_userRole === 'function_area') {
-        console.log("Auto-aprovando colaborador criado por usuário Área de Função");
+      // Auto-aprovar colaboradores criados por usuários "Área de Função".
+      // O papel vem do banco (via sessão) — antes vinha do corpo da requisição,
+      // então qualquer um se declarava function_area e já nascia aprovado.
+      if (normalizeRole(creator?.role) === 'function_area') {
         collaboratorData = {
           ...collaboratorData,
           status: 'aprovado',
           approvedAt: new Date(),
-          approvedBy: _userId
+          approvedBy: creator?.id ?? null,
         };
       }
-      
-      console.log("Dados finais do colaborador:", JSON.stringify(collaboratorData, null, 2));
-      
+
       // Verificar se já existe um colaborador com o mesmo documento oficial
       const existingCollaborators = await storage.getCollaborators();
       const duplicateDoc = existingCollaborators.find(
@@ -1573,9 +1608,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/collaborators/bulk", async (req, res) => {
+    const bulkCreatorId = req.session?.userId;
+    if (!bulkCreatorId) return res.status(401).json({ message: "Não autenticado" });
     try {
-      const { collaborators, _userId, _userRole } = req.body;
-      
+      const { collaborators } = req.body;
+
       if (!Array.isArray(collaborators) || collaborators.length === 0) {
         return res.status(400).json({ message: "Lista de colaboradores é obrigatória" });
       }
@@ -1591,8 +1628,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const processedDocuments = new Set<string>();
 
       // Quem está importando o lote (para registrar "quem criou" em cada linha)
-      const bulkCreatorId = req.session?.userId || _userId || null;
-      const bulkCreator = bulkCreatorId ? await storage.getUser(bulkCreatorId) : undefined;
+      const bulkCreator = await storage.getUser(bulkCreatorId);
+      // Papel vem do banco, não do corpo da requisição
+      const bulkAutoApprove = normalizeRole(bulkCreator?.role) === 'function_area';
 
       for (let i = 0; i < collaborators.length; i++) {
         const collaboratorData = collaborators[i];
@@ -1614,8 +1652,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             : '1900-01-01'; // data padrão para campos vazios
           
           // Auto-aprovar apenas se for usuário "Área de Função"
-          const autoApprove = _userRole === 'function_area';
-          
+          const autoApprove = bulkAutoApprove;
+
           const validatedData = insertCollaboratorSchema.parse({
             fullName: collaboratorData.fullName || 'Sem nome',
             officialDocument: collaboratorData.officialDocument || collaboratorData.document || 'SEM-DOCUMENTO-' + Date.now(),
@@ -1626,8 +1664,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             city: collaboratorData.city || 'Não informado',
             area: collaboratorData.area || 'Geral',
             status: autoApprove ? "aprovado" : "pendente", // Auto-aprovar apenas para function_area
-            ...(autoApprove && _userId ? {
-              approvedBy: _userId,
+            ...(autoApprove ? {
+              approvedBy: bulkCreatorId,
               approvedAt: new Date().toISOString()
             } : {})
           });
@@ -1671,6 +1709,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/collaborators/:id", async (req, res) => {
+    // Cadastro de colaborador: mesmos papéis que podem criar (inclui a Área de
+    // Função, que mantém o próprio time). Antes qualquer requisição editava.
+    if (!await requireRoles(req, res, [...CADASTRO_ROLES, 'function_area'])) return;
     try {
       const { id } = req.params;
       const collaboratorData = insertCollaboratorSchema.partial().parse(req.body);
@@ -1694,7 +1735,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const userId = req.session?.userId;
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
     const currentUser = await storage.getUser(userId);
-    const isAdminOrPurchasing = currentUser && ['admin', 'administrator', 'administrador', 'purchasing'].includes(currentUser.role);
+    const isAdminOrPurchasing = currentUser && ['admin', 'purchasing'].includes(normalizeRole(currentUser.role) ?? '');
     if (!isAdminOrPurchasing) return res.status(403).json({ message: "Sem permissão para inativar colaboradores" });
     try {
       const { id } = req.params;
@@ -1718,7 +1759,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const userId = req.session?.userId;
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
     const currentUser = await storage.getUser(userId);
-    const isAdminOrPurchasing = currentUser && ['admin', 'administrator', 'administrador', 'purchasing'].includes(currentUser.role);
+    const isAdminOrPurchasing = currentUser && ['admin', 'purchasing'].includes(normalizeRole(currentUser.role) ?? '');
     if (!isAdminOrPurchasing) return res.status(403).json({ message: "Sem permissão para reativar colaboradores" });
     try {
       const { id } = req.params;
@@ -1772,6 +1813,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/team-inclusions", async (req, res) => {
+    if (!await requireRoles(req, res, CADASTRO_ROLES)) return;
     try {
       // Clean empty date strings before validation
       const cleanedData = { ...req.body };
@@ -1801,13 +1843,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/team-inclusions/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      console.log("📝 [EDIT DEBUG] PATCH request received for inclusion ID:", id);
-      console.log("📝 [EDIT DEBUG] Request body:", JSON.stringify(req.body, null, 2));
-      
-      // Get userId from request body (frontend sends it)
-      const userId = req.body._userId || req.session?.userId;
-      console.log("📝 [EDIT DEBUG] User ID:", userId);
-      
+      const userId = req.session?.userId;
+
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
@@ -1831,8 +1868,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Authorization check: Admin, production, purchasing or function manager can modify
-      const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
-      const isProductionOrPurchasing = user.role === 'production' || user.role === 'purchasing';
+      const isAdmin = normalizeRole(user.role) === 'admin';
+      const isProductionOrPurchasing = normalizeRole(user.role) === 'production' || normalizeRole(user.role) === 'purchasing';
       const isFunctionManager = await storage.isUserFunctionManager(currentInclusion.functionId, userId);
       const isLegacyResponsible = func.userId === userId; // Compatibilidade com o campo antigo
       
@@ -1840,21 +1877,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Sem permissão para modificar esta escalação." });
       }
 
-      console.log("🔧 PATCH team-inclusion:", id, req.body);
-      
-      // 🔍 DETAILED LOGGING FOR ESCALATION CONFIRMATION
+      // Transição de status/fase da escalação — uma linha por mudança
       if (req.body.status || req.body.phase) {
-        console.log("🔍 [CONFIRM DEBUG - BACKEND] Escalation confirmation detected!");
-        console.log("🔍 [CONFIRM DEBUG - BACKEND] Current inclusion status:", currentInclusion.status);
-        console.log("🔍 [CONFIRM DEBUG - BACKEND] Current inclusion phase:", currentInclusion.phase);
-        console.log("🔍 [CONFIRM DEBUG - BACKEND] Current needsTicket:", currentInclusion.needsTicket);
-        console.log("🔍 [CONFIRM DEBUG - BACKEND] Current needsAccommodation:", currentInclusion.needsAccommodation);
-        console.log("🔍 [CONFIRM DEBUG - BACKEND] Received new status:", req.body.status);
-        console.log("🔍 [CONFIRM DEBUG - BACKEND] Received new phase:", req.body.phase);
-        console.log("🔍 [CONFIRM DEBUG - BACKEND] Received collaboratorId:", req.body.collaboratorId);
+        console.log(
+          `[Escalação ${id}] ${currentInclusion.status}/${currentInclusion.phase} → ${req.body.status ?? currentInclusion.status}/${req.body.phase ?? currentInclusion.phase}`
+        );
       }
-      
-      // Remove _userId from body (it's only for auth)
+
+      // Descarta campos de identidade que o client legado ainda possa enviar
       const { _userId, ...bodyData } = req.body;
       
       // Auto-recalculate workDays when schedule dates change (skip if workDays explicitly provided)
@@ -1946,7 +1976,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       console.log("🔧 Updates to apply:", updates);
       const inclusion = await storage.updateTeamInclusion(id, updates);
-      console.log("✅ [EDIT DEBUG] Team inclusion updated successfully:", inclusion.id, "- New status:", inclusion.status);
       await createAuditLog('update', 'team_inclusion', id, inclusion, userId, user?.name || 'Sistema', currentInclusion, req);
       res.json(inclusion);
     } catch (error) {
@@ -1966,7 +1995,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(userId);
       if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
 
-      const isAdmin = ['admin', 'administrator', 'administrador'].includes(user.role ?? '');
+      const isAdmin = normalizeRole(user.role) === 'admin';
       const hasPermission = isAdmin || user.canApproveCenotecnica === true;
       if (!hasPermission) {
         return res.status(403).json({ message: "Você não tem permissão para aprovar escalações de cenotécnica" });
@@ -2026,7 +2055,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(userId);
       if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
 
-      const isAdmin = ['admin', 'administrator', 'administrador'].includes(user.role ?? '');
+      const isAdmin = normalizeRole(user.role) === 'admin';
       const hasPermission = isAdmin || user.canApproveCenotecnica === true;
       if (!hasPermission) {
         return res.status(403).json({ message: "Você não tem permissão para reprovar escalações de cenotécnica" });
@@ -2070,7 +2099,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!userId) return res.status(401).json({ message: "Não autenticado" });
       const user = await storage.getUser(userId);
       if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
-      const isAdmin = ['admin', 'administrator', 'administrador'].includes(user.role ?? '');
+      const isAdmin = normalizeRole(user.role) === 'admin';
       if (!isAdmin) return res.status(403).json({ message: "Apenas administradores podem executar esta correção" });
 
       const allFunctions = await storage.getFunctions();
@@ -2115,7 +2144,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(userId);
       if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
 
-      const isAdmin = ['admin', 'administrator', 'administrador'].includes(user.role ?? '');
+      const isAdmin = normalizeRole(user.role) === 'admin';
       if (!isAdmin) return res.status(403).json({ message: "Apenas administradores podem reativar escalações" });
 
       const current = await storage.getTeamInclusion(id);
@@ -2137,6 +2166,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/team-inclusions/:id", async (req, res) => {
+    if (!await requireRoles(req, res, CADASTRO_ROLES)) return;
     try {
       const { id } = req.params;
       // Use authenticated user ID or null (deletedBy is nullable foreign key)
@@ -2159,6 +2189,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Endpoint para migrar horários das observações para os campos específicos
   app.post("/api/team-inclusions/migrate-flight-times", async (req, res) => {
+    if (!await requireRoles(req, res, CADASTRO_ROLES)) return;
     try {
       const inclusions = await storage.getTeamInclusions();
       let updatedCount = 0;
@@ -2210,8 +2241,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/tickets", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
     try {
-      console.log("📝 Dados recebidos:", JSON.stringify(req.body, null, 2));
+      // Não logar o corpo: passagens contêm dados pessoais do passageiro
       const ticketData = insertTicketSchema.parse(req.body);
       console.log("✅ Dados validados:", JSON.stringify(ticketData, null, 2));
       const ticket = await storage.createTicket(ticketData);
@@ -2227,16 +2259,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/tickets/:id", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
     try {
       const { id } = req.params;
       const updates = { 
         ...req.body, 
         updatedAt: new Date(),
-        updatedBy: req.body.updatedBy || null
+        updatedBy: req.session?.userId ?? null // ator vem da sessão, não do corpo
       };
       const prev = await storage.getTicket(id);
       const ticket = await storage.updateTicket(id, updates);
-      const actorId = req.session?.userId || req.body.updatedBy;
+      const actorId = req.session?.userId;
       const actor = actorId ? await storage.getUser(actorId) : null;
       await createAuditLog('update', 'ticket', id, ticket, actorId, actor?.name || 'Sistema', prev, req);
       res.json(ticket);
@@ -2256,8 +2289,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/accommodations", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
     try {
-      console.log("📝 Dados de hospedagem recebidos:", JSON.stringify(req.body, null, 2));
+      // Não logar o corpo: hospedagem contém dados pessoais do hóspede
       const accommodationData = insertAccommodationSchema.parse(req.body);
       console.log("✅ Dados de hospedagem validados:", JSON.stringify(accommodationData, null, 2));
       const accommodation = await storage.createAccommodation(accommodationData);
@@ -2273,16 +2307,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/accommodations/:id", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
     try {
       const { id } = req.params;
       const updates = { 
         ...req.body, 
         updatedAt: new Date(),
-        updatedBy: req.body.updatedBy || null
+        updatedBy: req.session?.userId ?? null // ator vem da sessão, não do corpo
       };
       const prev = await storage.getAccommodation(id);
       const accommodation = await storage.updateAccommodation(id, updates);
-      const actorId = req.session?.userId || req.body.updatedBy;
+      const actorId = req.session?.userId;
       const actor = actorId ? await storage.getUser(actorId) : null;
       await createAuditLog('update', 'accommodation', id, accommodation, actorId, actor?.name || 'Sistema', prev, req);
       res.json(accommodation);
@@ -2304,6 +2339,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/events/:eventId/operational-mirror/rows/:rowId", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
     try {
       if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
       const { field, value } = req.body || {};
@@ -2317,6 +2353,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/events/:eventId/recalculate-logistics-suggestions", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
     try {
       const result = await recalculateLogisticsSuggestions(req.params.eventId);
       res.json(result);
@@ -2340,6 +2377,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/hotel-room-groups/:id/confirm", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
     try {
       const [g] = await db.update(hotelRoomGroupsTable)
         .set({ confirmed: true, suggested: false, updatedAt: new Date() })
@@ -2351,6 +2389,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/hotel-room-groups/:id", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
     try {
       const allowed: any = {};
       for (const k of ["hotelName", "roomType", "genderRule", "checkInDate", "checkOutDate", "notes", "confirmed"]) {
@@ -2366,6 +2405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/uber-groups/:id/confirm", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
     try {
       const [g] = await db.update(uberGroupsTable)
         .set({ confirmed: true, suggested: false, status: "confirmado", updatedAt: new Date() })
@@ -2377,6 +2417,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/uber-groups/:id", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
     try {
       const allowed: any = {};
       for (const k of ["groupName", "direction", "origin", "destination", "date", "time", "estimatedTotalCents", "notes", "status", "confirmed"]) {
@@ -2393,6 +2434,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Custos extras de logística (bagagem, uber, locação)
   app.post("/api/logistics-extra-costs", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
     try {
       const data = insertLogisticsExtraCostSchema.parse(req.body);
       const [created] = await db.insert(logisticsExtraCostsTable).values(data).returning();
@@ -2404,6 +2446,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/logistics-extra-costs/:id", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
     try {
       const allowed: any = {};
       for (const k of ["collaboratorId", "type", "description", "amountCents", "oc", "checkInReference", "company", "notes", "attachmentUrl"]) {
@@ -2419,6 +2462,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/logistics-extra-costs/:id", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
     try {
       await db.delete(logisticsExtraCostsTable).where(eq(logisticsExtraCostsTable.id, req.params.id));
       res.json({ ok: true });
@@ -2438,6 +2482,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/financial", async (req, res) => {
+    if (!await requireRoles(req, res, FINANCE_ROLES)) return;
     try {
       const financialData = insertFinancialSchema.parse(req.body);
       const financial = await storage.createFinancial(financialData);
@@ -2448,12 +2493,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/financial/:id", async (req, res) => {
+    if (!await requireRoles(req, res, FINANCE_ROLES)) return;
     try {
       const { id } = req.params;
       const updates = { 
         ...req.body, 
         updatedAt: new Date(),
-        updatedBy: req.body.updatedBy || null // frontend deve enviar o ID do usuário que está editando
+        updatedBy: req.session?.userId ?? null // ator vem da sessão, não do corpo
       };
       const financial = await storage.updateFinancial(id, updates);
       res.json(financial);
@@ -2766,7 +2812,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Only admins can access system logs
-      const isAdmin = currentUser.role === 'administrador' || currentUser.role === 'admin' || currentUser.role === 'administrator';
+      const isAdmin = normalizeRole(currentUser.role) === 'admin';
       if (!isAdmin) {
         return res.status(403).json({ message: "Sem permissão para acessar logs do sistema. Apenas administradores podem acessar esta funcionalidade." });
       }
@@ -2841,7 +2887,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Valores por função definem diárias — impacto financeiro direto
   app.post("/api/function-values", async (req, res) => {
+    if (!await requireRoles(req, res, FINANCE_ROLES)) return;
     try {
       const data = insertFunctionValuesSchema.parse(req.body);
       const value = await storage.createFunctionValue(data);
@@ -2853,8 +2901,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/function-values/:id", async (req, res) => {
+    if (!await requireRoles(req, res, FINANCE_ROLES)) return;
     try {
-      const value = await storage.updateFunctionValue(req.params.id, req.body);
+      const data = insertFunctionValuesSchema.partial().parse(req.body);
+      const value = await storage.updateFunctionValue(req.params.id, data);
       res.json(value);
     } catch (error) {
       console.error("Error updating function value:", error);
@@ -3339,7 +3389,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const parent = await storage.getBudgetActualById(req.params.id);
       if (!parent) return res.status(404).json({ message: "Item não encontrado" });
       // Divisão só faz sentido antes da análise: item em revisão ou aprovado é imutável
-      if (parent.rhStatus === 'aprovado' || (parent.sentForReview && parent.rhStatus === 'pendente')) {
+      if (prestacaoEstaTravada(parent)) {
         return res.status(400).json({ message: "Não é possível dividir um item enviado para revisão ou já aprovado." });
       }
 
@@ -3448,7 +3498,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const actor = await storage.getUser(actorId);
       const isRhAdmin = isFinanceRole(actor?.role);
       // Item em análise ou aprovado é imutável para quem não é RH/admin
-      if (!isRhAdmin && (prev.rhStatus === 'aprovado' || (prev.sentForReview && prev.rhStatus === 'pendente'))) {
+      if (!isRhAdmin && prestacaoEstaTravada(prev)) {
         return res.status(400).json({ message: "Este item está em análise ou aprovado — apenas o RH pode ajustá-lo." });
       }
 
@@ -3541,7 +3591,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const items = await storage.getBudgetActual(eventId);
       // Aprovado é terminal — reenvio só para pendente nunca enviado, devolvido ou rejeitado
-      const canSend = (i: any) => i.rhStatus !== 'aprovado' && (!i.sentForReview || i.rhStatus === 'devolvido' || i.rhStatus === 'rejeitado');
+      const canSend = podeEnviarParaRevisao;
       const toUpdate = itemIds?.length
         ? items.filter((i: any) => itemIds.includes(i.id) && canSend(i))
         : items.filter(canSend);
@@ -3610,7 +3660,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Mesmas regras da tela: só prestações enviadas contam, filhos de split
       // não duplicam (o pai já teve os valores reduzidos) e "não participou"
       // conta zero. Antes o servidor somava tudo e o agregado divergia da UI.
-      const actual = allActual.filter((a: any) => a.sentForReview && !a.splitParentId && !a.didNotAttend);
+      const actual = allActual.filter((a: any) => a.sentForReview && contaNosTotais(a));
       const totalPlanned = planned
         .filter((p: any) => !p.didNotAttend)
         .reduce((sum, p) => sum + (p.totalValue || 0), 0);
@@ -3764,7 +3814,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const id of itemIds) {
         // Máquina de estados: só decide o que está de fato em análise
         const current = await storage.getBudgetActualById(id);
-        if (!current || !current.sentForReview || current.rhStatus !== 'pendente') {
+        if (!podeDecidirPrestacao(current).ok) {
           skipped.push(id);
           continue;
         }
@@ -3928,7 +3978,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!actualRef) {
           return res.status(400).json({ message: "Prestação (Realizado) não encontrada para esta nota." });
         }
-        const eligible = actualRef.rhStatus === "aprovado" || (actualRef.sentForReview && actualRef.rhStatus === "pendente");
+        const eligible = isNfEligible(actualRef);
         if (!eligible) {
           return res.status(400).json({ message: "Este item do Realizado não está elegível para NF (devolvido, rejeitado ou ainda não enviado)." });
         }
@@ -4011,18 +4061,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!user) return;
     try {
       const inv = await storage.getInvoice(req.params.id);
-      if (!inv) return res.status(404).json({ message: "Nota fiscal não encontrada" });
-      if (inv.status !== "enviada") {
-        return res.status(400).json({ message: "Só é possível aprovar uma nota com status 'enviada'." });
-      }
-      // Se o RH devolveu/recusou o Realizado depois do envio da NF, o valor
-      // de referência vai mudar — bloqueia até o reenvio da prestação
-      if (inv.budgetActualId) {
-        const actualRef = await storage.getBudgetActualById(inv.budgetActualId);
-        if (actualRef && (actualRef.rhStatus === "devolvido" || actualRef.rhStatus === "rejeitado")) {
-          return res.status(400).json({ message: "O Realizado deste item foi devolvido/recusado — aguarde o reenvio antes de aprovar a NF." });
-        }
-      }
+      const actualRef = inv?.budgetActualId ? await storage.getBudgetActualById(inv.budgetActualId) : null;
+      const permissao = podeAprovarNota(inv, actualRef);
+      if (!permissao.ok) return res.status(inv ? 400 : 404).json({ message: permissao.motivo });
       const { paymentDate } = req.body;
       const historyStr = await appendHistory(req.params.id, { type: "aprovado" });
       const invoice = await storage.updateInvoice(req.params.id, {
@@ -4044,10 +4085,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!user) return;
     try {
       const inv = await storage.getInvoice(req.params.id);
-      if (!inv) return res.status(404).json({ message: "Nota fiscal não encontrada" });
-      if (inv.status !== "enviada") {
-        return res.status(400).json({ message: "Só é possível devolver uma nota com status 'enviada'." });
-      }
+      const permissao = podeDevolverNota(inv);
+      if (!permissao.ok) return res.status(inv ? 400 : 404).json({ message: permissao.motivo });
       const { comment } = req.body;
       const historyStr = await appendHistory(req.params.id, { type: "devolvido", comment: comment || null });
       const invoice = await storage.updateInvoice(req.params.id, {
@@ -4090,18 +4129,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!user) return;
     try {
       const inv = await storage.getInvoice(req.params.id);
-      if (!inv) return res.status(404).json({ message: "Nota fiscal não encontrada" });
-      // Máquina de estados: check-in só após aprovação, e uma única vez
-      if (inv.status !== "aprovada") {
-        return res.status(400).json({ message: "Check-in só é possível em nota já aprovada." });
-      }
-      if (inv.checkinAt) {
-        return res.status(400).json({ message: "Esta nota já teve check-in." });
-      }
       const { paymentDate } = req.body;
-      if (!paymentDate) {
-        return res.status(400).json({ message: "Informe a data de pagamento para o check-in." });
-      }
+      const permissao = podeFazerCheckin(inv, paymentDate);
+      if (!permissao.ok) return res.status(inv ? 400 : 404).json({ message: permissao.motivo });
       const historyStr = await appendHistory(req.params.id, { type: "checkin", paymentDate });
       const invoice = await storage.updateInvoice(req.params.id, {
         checkinAt: new Date(),
@@ -4129,7 +4159,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/payment-companies", async (req, res) => {
-    if (!requireFinSession(req, res)) return;
+    if (!await requireRoles(req, res, [...FINANCE_ROLES, 'purchasing'])) return;
     try {
       const { name, cnpj } = req.body;
       if (!name || !cnpj) return res.status(400).json({ message: "Nome e CNPJ são obrigatórios" });
@@ -4252,7 +4282,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // POST /api/budget-notes
   app.post("/api/budget-notes", async (req, res) => {
-    const userId = req.session.userId || req.body?._userId;
+    const userId = req.session.userId;
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
     const user = await storage.getUser(userId);
     if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
@@ -4481,7 +4511,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const currentUser = await storage.getUser(req.session.userId);
     if (!currentUser) return res.status(401).json({ message: "Usuário não encontrado" });
 
-    const isAdminOrPurchasing = ['admin', 'administrator', 'administrador', 'purchasing'].includes(currentUser.role);
+    const isAdminOrPurchasing = ['admin', 'purchasing'].includes(normalizeRole(currentUser.role) ?? '');
     if (!isAdminOrPurchasing) return res.status(403).json({ message: "Sem permissão" });
 
     const { id } = req.params;
@@ -4517,7 +4547,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const currentUser = await storage.getUser(req.session.userId);
     if (!currentUser) return res.status(401).json({ message: "Usuário não encontrado" });
 
-    const isAdminOrPurchasing = ['admin', 'administrator', 'administrador', 'purchasing'].includes(currentUser.role);
+    const isAdminOrPurchasing = ['admin', 'purchasing'].includes(normalizeRole(currentUser.role) ?? '');
     if (!isAdminOrPurchasing) return res.status(403).json({ message: "Sem permissão" });
 
     const { id } = req.params;
@@ -4554,7 +4584,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!sr) return res.status(404).json({ message: "Solicitação não encontrada" });
       if (sr.status !== 'pendente') return res.status(400).json({ message: "Solicitação não está pendente" });
 
-      const isAdminOrPurchasing = ['admin', 'administrator', 'administrador', 'purchasing'].includes(currentUser.role);
+      const isAdminOrPurchasing = ['admin', 'purchasing'].includes(normalizeRole(currentUser.role) ?? '');
       const isRequester = sr.requested_by === currentUser.id;
       if (!isAdminOrPurchasing && !isRequester) return res.status(403).json({ message: "Sem permissão para cancelar" });
 

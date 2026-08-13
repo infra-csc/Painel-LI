@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeRole, isFinanceRole } from "./roles";
+import { normalizeRole, isFinanceRole, hasRoleIn, ROLE_GROUPS } from "./roles";
 
 describe("normalizeRole", () => {
   it("papéis canônicos passam direto", () => {
@@ -42,5 +42,37 @@ describe("isFinanceRole", () => {
     expect(isFinanceRole("production")).toBe(false);
     expect(isFinanceRole("purchasing")).toBe(false);
     expect(isFinanceRole(null)).toBe(false);
+  });
+});
+
+describe("hasRoleIn (grupos de autorização do servidor)", () => {
+  it("cadastro: admin, compras e logística — não RH nem área de função", () => {
+    expect(hasRoleIn("admin", ROLE_GROUPS.cadastro)).toBe(true);
+    expect(hasRoleIn("purchasing", ROLE_GROUPS.cadastro)).toBe(true);
+    expect(hasRoleIn("production", ROLE_GROUPS.cadastro)).toBe(true);
+    expect(hasRoleIn("financial", ROLE_GROUPS.cadastro)).toBe(false);
+    expect(hasRoleIn("function_area", ROLE_GROUPS.cadastro)).toBe(false);
+  });
+
+  it("financeiro: só admin e RH", () => {
+    expect(hasRoleIn("admin", ROLE_GROUPS.financeiro)).toBe(true);
+    expect(hasRoleIn("financial", ROLE_GROUPS.financeiro)).toBe(true);
+    expect(hasRoleIn("production", ROLE_GROUPS.financeiro)).toBe(false);
+    expect(hasRoleIn("purchasing", ROLE_GROUPS.financeiro)).toBe(false);
+  });
+
+  it("aceita aliases legados nos grupos (a falha que dava 403 indevido)", () => {
+    expect(hasRoleIn("financeiro", ROLE_GROUPS.financeiro)).toBe(true);
+    expect(hasRoleIn("administrador", ROLE_GROUPS.cadastro)).toBe(true);
+    expect(hasRoleIn("compras", ROLE_GROUPS.logistica)).toBe(true);
+    expect(hasRoleIn("logistica", ROLE_GROUPS.logistica)).toBe(true);
+  });
+
+  it("papel desconhecido nunca entra em grupo nenhum", () => {
+    for (const g of Object.values(ROLE_GROUPS)) {
+      expect(hasRoleIn("hacker", g)).toBe(false);
+      expect(hasRoleIn(null, g)).toBe(false);
+      expect(hasRoleIn("", g)).toBe(false);
+    }
   });
 });

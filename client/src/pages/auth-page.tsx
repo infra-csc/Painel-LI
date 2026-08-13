@@ -27,12 +27,16 @@ export default function AuthPage() {
     defaultValues: { email: "", password: "" },
   });
 
+  const [sessaoExpirada, setSessaoExpirada] = useState(false);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const err = params.get("sso_error");
     if (err === "not_registered" || err === "not_approved") {
       setSsoError(err);
     }
+    // Marcado pelo queryClient quando o servidor devolve 401 numa tela interna
+    if (params.get("sessao") === "expirada") setSessaoExpirada(true);
   }, []);
 
   if (user) return <Redirect to="/" />;
@@ -96,6 +100,18 @@ export default function AuthPage() {
                 {ssoError === "not_registered"
                   ? "Seu e-mail não está cadastrado no sistema. Solicite acesso ao administrador."
                   : "Sua conta está inativa. Entre em contato com o administrador."}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {sessaoExpirada && !ssoError && (
+          <div className="flex items-start gap-3 p-3 mb-5 rounded-xl" style={{ background: "#fffbeb", border: "1px solid #fde68a" }}>
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "#d97706" }} />
+            <div>
+              <p className="text-sm font-semibold" style={{ color: "#92400e" }}>Sessão expirada</p>
+              <p className="text-xs mt-0.5" style={{ color: "#b45309" }}>
+                Sua sessão terminou por inatividade. Entre novamente para continuar de onde parou.
               </p>
             </div>
           </div>

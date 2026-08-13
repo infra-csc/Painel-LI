@@ -222,35 +222,28 @@ app.use(async (req, res, next) => {
 });
 
 
-// ── Auditoria de autenticação (SOMENTE LOG — não bloqueia nada) ───────────
-// Passo preparatório para o requireAuth global. Hoje a maior parte das rotas
-// não verifica sessão, e 21 delas aceitam `_userId` vindo do corpo como se
-// fosse identidade — o que permite agir como qualquer usuário sem autenticar.
+// ── requireAuth global (BLOQUEIO ativado em 13/08/2026) ───────────────────
+// Evolução do middleware [AuthAudit] que rodou em modo somente-log: toda rota
+// /api agora exige sessão, exceto os prefixos públicos abaixo. O fallback de
+// identidade via `_userId` no corpo foi removido de todas as rotas — a
+// identidade vem exclusivamente da sessão.
 //
-// Este middleware não altera comportamento: apenas marca no log quais
-// requisições SERIAM bloqueadas se a autenticação passasse a ser exigida.
-// Rode por alguns dias e depois filtre o log por "[AuthAudit]":
-//
-//   - linhas com bypass=SIM  → a rota só funciona hoje por causa do `_userId`;
-//                              é exatamente o buraco a fechar.
-//   - linhas com bypass=nao  → chamada realmente anônima. Se vier de uma tela
-//                              legítima, essa tela precisa de ajuste antes de
-//                              ligar o bloqueio.
-//
-// Se após o período de observação não aparecer nenhuma linha inesperada, dá
-// para trocar o console.warn por `return res.status(401)` com segurança.
-const AUTH_AUDIT_EXEMPT = ['/api/auth/', '/api/integration/', '/api/portal/'];
+// Prefixos públicos:
+//   /api/auth/        → login, registro, recuperação de senha, sessão
+//   /api/integration/ → API da Maratona, autenticada por Bearer token próprio
+//   /api/portal/      → handshake do SSO com o Portal Norte
+const AUTH_EXEMPT = ['/api/auth/', '/api/integration/', '/api/portal/'];
 
-app.use((req, _res, next) => {
+app.use((req, res, next) => {
   if (!req.path.startsWith('/api')) return next();
-  if (AUTH_AUDIT_EXEMPT.some((prefix) => req.path.startsWith(prefix))) return next();
+  if (AUTH_EXEMPT.some((prefix) => req.path.startsWith(prefix))) return next();
   if (req.session?.userId) return next();
 
   const usouBypass = Boolean(req.body && typeof req.body === 'object' && req.body._userId);
   console.warn(
-    `[AuthAudit] ${req.method} ${req.path} — sem sessão, bypass=${usouBypass ? 'SIM' : 'nao'}`
+    `[AuthAudit] BLOQUEADO ${req.method} ${req.path} — sem sessão, bypass=${usouBypass ? 'SIM' : 'nao'}`
   );
-  next();
+  return res.status(401).json({ message: 'Não autenticado' });
 });
 
 // CSRF defense-in-depth — como em produção o cookie de sessão é SameSite=None

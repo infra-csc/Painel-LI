@@ -42,3 +42,26 @@ export function isFinanceRole(role: string | null | undefined): boolean {
   const r = normalizeRole(role);
   return r === "admin" || r === "financial";
 }
+
+/**
+ * Grupos de autorização usados pelo servidor (server/routes.ts) e disponíveis
+ * ao client para esconder ações que a API vai recusar. Fonte única — antes
+ * cada rota repetia sua própria lista de strings.
+ */
+export const ROLE_GROUPS = {
+  /** Cadastros estruturais: funções, colaboradores, eventos, escalação */
+  cadastro: ["admin", "purchasing", "production"],
+  /** Valores, custos e decisões financeiras */
+  financeiro: ["admin", "financial"],
+  /** Logística: passagens, hospedagem, grupos de transporte, custos extras */
+  logistica: ["admin", "purchasing", "production"],
+} as const satisfies Record<string, readonly CanonicalRole[]>;
+
+/** Verifica se o papel (aceitando aliases legados) pertence ao grupo. */
+export function hasRoleIn(
+  role: string | null | undefined,
+  group: readonly CanonicalRole[],
+): boolean {
+  const r = normalizeRole(role);
+  return !!r && group.includes(r);
+}

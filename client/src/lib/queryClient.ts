@@ -1,5 +1,21 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+// Desde 13/08/2026 toda rota /api exige sessão no servidor. Quando a sessão
+// expira, dezenas de telas receberiam 401 ao mesmo tempo e mostrariam "erro ao
+// carregar" — o usuário não saberia que precisa entrar de novo. Aqui o 401 é
+// tratado uma única vez: manda para a tela de login.
+// Exceções: rotas de /api/auth (o próprio /me responde 401 quando deslogado e
+// o app já trata isso) e quando já estamos na tela de autenticação.
+let redirecionandoParaLogin = false;
+function tratarSessaoExpirada(url: string) {
+  if (redirecionandoParaLogin) return;
+  if (url.includes("/api/auth/")) return;
+  const path = window.location.pathname;
+  if (path.startsWith("/auth") || path.startsWith("/reset-password")) return;
+  redirecionandoParaLogin = true;
+  window.location.href = "/auth?sessao=expirada";
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
@@ -9,26 +25,13 @@ async function throwIfResNotOk(res: Response) {
     } catch {
       body = { message: text };
     }
+    if (res.status === 401) tratarSessaoExpirada(res.url || "");
     const err = new Error(`${res.status}: ${text}`) as any;
     err.status = res.status;
     err.body = body;
     // Compatibilidade com handlers que leem err.response.json()
     err.response = { status: res.status, json: async () => body };
     throw err;
-  }
-}
-
-// Get user ID from localStorage for requests
-function getUserId(): string | null {
-  const user = localStorage.getItem('auth-user');
-  if (!user) return null;
-  
-  try {
-    const parsed = JSON.parse(user);
-    return parsed.id || null;
-  } catch (error) {
-    localStorage.removeItem('auth-user'); // Clear invalid data
-    return null;
   }
 }
 
@@ -40,27 +43,18 @@ export async function apiRequest(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  
-  // Get userId from localStorage and include in request body
-  let requestBody = data;
-  const authUser = localStorage.getItem('auth-user');
-  if (authUser) {
-    try {
-      const parsed = JSON.parse(authUser);
-      if (parsed && parsed.id) {
-        // Add _userId to request body
-        requestBody = { ...(data as object || {}), _userId: parsed.id };
-      }
-    } catch (error) {
-      localStorage.removeItem('auth-user');
-    }
-  }
-  
+
+  // A identidade vai APENAS no cookie de sessão (credentials: "include").
+  // Até 13/08/2026 esta função injetava `_userId` do localStorage em todo
+  // corpo de mutação e o servidor aceitava esse campo como identidade —
+  // qualquer pessoa trocava o id no devtools e agia como outro usuário.
+  // O servidor ignora `_userId` desde então; parar de enviá-lo evita que a
+  // prática volte por hábito.
   const isBodyless = method === "GET" || method === "HEAD";
   const res = await fetch(url, {
     method,
     headers,
-    body: isBodyless ? undefined : (requestBody ? JSON.stringify(requestBody) : undefined),
+    body: isBodyless ? undefined : (data ? JSON.stringify(data) : undefined),
     credentials: "include",
   });
 
