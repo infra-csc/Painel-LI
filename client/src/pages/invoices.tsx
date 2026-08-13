@@ -220,8 +220,10 @@ export default function InvoicesPage() {
   const getName     = (id?: string | null) => (collaborators as any[]).find(c => c.id === id)?.fullName || "—";
   const getFuncName = (id?: string | null) => (functions     as any[]).find(f => f.id === id)?.name     || "—";
 
+  // NF fica disponível assim que o Realizado é enviado (sem esperar a análise
+  // do comparativo pelo RH). Devolvido/rejeitado pausam a NF até regularizar.
   const approvedActuals = (budgetActuals as any[]).filter(
-    a => a.rhStatus === "aprovado" && !a.splitParentId
+    a => (a.rhStatus === "aprovado" || (a.sentForReview && a.rhStatus === "pendente")) && !a.splitParentId
   );
 
   const getInvoice = (actualId: string) =>
