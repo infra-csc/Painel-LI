@@ -11,21 +11,32 @@ import { setupVite, serveStatic, log } from "./vite";
 const PgSession = connectPgSimple(session);
 
 // ── Checagem de configuração no boot ──────────────────────────────────────
-// Não interrompe a inicialização (para não derrubar o deploy), mas deixa o
-// problema visível no log. Se SESSION_SECRET não estiver definido, o segredo
-// usado é o literal que está versionado neste repositório — e como o mesmo
-// valor assina o JWT do SSO, qualquer pessoa consegue forjar um token com
-// role "admin".
+// SESSION_SECRET e SSO_SECRET assinam, respectivamente, o cookie de sessão e o
+// JWT do SSO. O fallback abaixo é o mesmo literal versionado neste repositório
+// (público) — com ele, qualquer pessoa forja um token de SSO com role "admin".
+// Por isso, EM PRODUÇÃO, subir sem os segredos é pior do que não subir: o boot
+// é abortado. Em desenvolvimento o fallback é tolerado, apenas com aviso.
+const IS_PROD = process.env.NODE_ENV === 'production';
 const SECRET_FALLBACK = 'dev-session-secret-change-in-production';
-for (const varName of ['SESSION_SECRET', 'SSO_SECRET'] as const) {
-  if (!process.env[varName]) {
+const missingSecrets = (['SESSION_SECRET', 'SSO_SECRET'] as const).filter((v) => !process.env[v]);
+if (missingSecrets.length > 0) {
+  if (IS_PROD) {
     console.error(
-      `[Config] ATENÇÃO: ${varName} não está definido — usando o valor padrão ` +
-      `público do repositório. Configure essa variável nos Secrets antes de ` +
-      `expor a aplicação.`
+      `[Config] FATAL: ${missingSecrets.join(', ')} não definido(s) em produção. ` +
+      `Configure nos Secrets antes de expor a aplicação. Encerrando o processo.`
     );
+    process.exit(1);
   }
+  console.error(
+    `[Config] ATENÇÃO (desenvolvimento): ${missingSecrets.join(', ')} não definido(s) — ` +
+    `usando o valor padrão público. Isto é INSEGURO fora de desenvolvimento.`
+  );
 }
+
+// Segredos resolvidos uma única vez. SSO_SECRET herda SESSION_SECRET só em dev
+// (em produção ambos são obrigatórios, garantido pela checagem acima).
+const SESSION_SECRET = process.env.SESSION_SECRET || SECRET_FALLBACK;
+const SSO_SECRET = process.env.SSO_SECRET || process.env.SESSION_SECRET || SECRET_FALLBACK;
 
 // Session interface extension
 declare module 'express-session' {
@@ -63,7 +74,7 @@ app.use(session({
     tableName: 'session',
     createTableIfMissing: true,
   }),
-  secret: process.env.SESSION_SECRET || 'dev-session-secret-change-in-production',
+  secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -120,7 +131,7 @@ app.use(async (req, res, next) => {
 
     if (!ssoToken) return next();
 
-    const rawSecret = process.env.SSO_SECRET || process.env.SESSION_SECRET || 'dev-session-secret-change-in-production';
+    const rawSecret = SSO_SECRET;
     const secretKey = new TextEncoder().encode(rawSecret);
 
     let payload: Record<string, unknown>;
@@ -235,8 +246,13 @@ app.use(async (req, res, next) => {
 const AUTH_EXEMPT = ['/api/auth/', '/api/integration/', '/api/portal/'];
 
 app.use((req, res, next) => {
-  if (!req.path.startsWith('/api')) return next();
-  if (AUTH_EXEMPT.some((prefix) => req.path.startsWith(prefix))) return next();
+  // O Express roteia case-insensitive por padrão, então /API/collaborators
+  // CASA com o handler /api/collaborators. Se o gate comparasse o path com o
+  // case original, uma requisição em maiúsculas passaria sem sessão. Comparamos
+  // sempre em minúsculas para fechar esse contorno.
+  const path = req.path.toLowerCase();
+  if (!path.startsWith('/api')) return next();
+  if (AUTH_EXEMPT.some((prefix) => path.startsWith(prefix))) return next();
   if (req.session?.userId) return next();
 
   const usouBypass = Boolean(req.body && typeof req.body === 'object' && req.body._userId);

@@ -806,8 +806,10 @@ export class DatabaseStorage implements IStorage {
 
   async createComment(commentData: InsertComment): Promise<Comment> {
     const [comment] = await db.insert(comments).values(commentData).returning();
-    
-    // Create log entry for comment creation
+
+    // Nome real do autor no log (antes era o literal "Usuário")
+    const author = commentData.userId ? await this.getUser(commentData.userId) : undefined;
+
     await this.createSystemLog({
       action: "create",
       entityType: "comment",
@@ -816,9 +818,9 @@ export class DatabaseStorage implements IStorage {
       details: `Novo comentário adicionado: "${commentData.content.substring(0, 50)}..."`,
       newData: JSON.stringify(comment),
       userId: commentData.userId,
-      userName: "Usuário", // Would normally fetch from user table
+      userName: author?.name || "Usuário",
     });
-    
+
     return comment;
   }
   

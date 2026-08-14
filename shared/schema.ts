@@ -383,10 +383,17 @@ export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
 });
 
-// Public registration schema (allows admin role)
-export const publicUserRegistrationSchema = insertUserSchema.extend({
-  role: z.enum(["admin", "production", "function_area", "purchasing", "financial"])
-});
+// Cadastro público: só os campos que um solicitante pode informar. Papéis
+// privilegiados (admin/financial/purchasing) NUNCA vêm do corpo — são
+// atribuídos por um admin na aprovação (userApprovalSchema). Antes o schema
+// estendia insertUserSchema inteiro, aceitando role "admin", isActive,
+// canApproveCenotecnica e mustChangePassword do corpo (mass assignment).
+export const publicUserRegistrationSchema = insertUserSchema
+  .pick({ email: true, name: true, area: true })
+  .extend({
+    password: z.string().min(8, "Senha deve ter pelo menos 8 caracteres"),
+    role: z.enum(["production", "function_area"]).default("production"),
+  });
 
 // Login schema (email + password only)
 export const loginSchema = z.object({

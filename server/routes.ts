@@ -161,6 +161,19 @@ async function createAuditLog(
   }
 }
 
+// Tipos aceitos nos uploads: documentos (CPF/RG, passagens, notas) e imagens.
+// Executáveis/scripts são rejeitados — o app nunca precisa deles e aceitá-los
+// aumenta a superfície de ataque sem ganho algum.
+const ALLOWED_UPLOAD_MIMES = new Set([
+  'application/pdf',
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/csv', 'text/plain',
+]);
+
 // Configure multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -168,8 +181,8 @@ const upload = multer({
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
   fileFilter: (req, file, cb) => {
-    // Accept all file types for now
-    cb(null, true);
+    if (ALLOWED_UPLOAD_MIMES.has(file.mimetype)) return cb(null, true);
+    cb(new Error(`Tipo de arquivo não permitido: ${file.mimetype}`));
   }
 });
 
@@ -451,7 +464,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { jwtVerify } = await import("jose");
-      const rawSecret = process.env.SSO_SECRET || process.env.SESSION_SECRET || "dev-session-secret-change-in-production";
+      // Em produção o boot (server/index.ts) garante SSO_SECRET/SESSION_SECRET.
+      // Sem eles (só possível em dev), usamos string vazia: a verificação falha
+      // fechada em vez de cair no segredo público versionado.
+      const rawSecret = process.env.SSO_SECRET || process.env.SESSION_SECRET || "";
       const secretKey = new TextEncoder().encode(rawSecret);
 
       let payload: Record<string, unknown>;
@@ -509,8 +525,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           isActive: true,
         } as any);
         console.log(`[SSO] Usuário auto-registrado via Norte Portal: ${email}`);
-      } else if (user.status !== "approved") {
-        // Usuário existe mas não está aprovado — aprovar via SSO
+      } else if (user.status === "rejected" || user.isActive === false) {
+        // Conta rejeitada por um admin ou inativada — o SSO NÃO reverte essa
+        // decisão (antes qualquer não-aprovado, inclusive rejeitado, era
+        // auto-aprovado no login por SSO).
+        console.warn(`[SSO] Acesso negado — conta rejeitada/inativa: ${email}`);
+        return res.status(403).json({ message: "Conta sem acesso. Contate o administrador." });
+      } else if (user.status === "pending") {
+        // Primeiro acesso via SSO de um usuário pré-cadastrado — aprovar
         user = await storage.updateUser(user.id, { status: "approved" }) || user;
       }
 
@@ -592,11 +614,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const user = await storage.getUserByEmail(email);
-      
-      if (!user || user.status !== 'approved') {
+
+      // isActive === false = conta inativada; o toggle-active só mexe nesse
+      // campo, então o login por senha precisa checá-lo (o SSO já checa os dois)
+      if (!user || user.status !== 'approved' || user.isActive === false) {
         return res.status(401).json({ message: "Credenciais inválidas ou conta não aprovada" });
       }
-      
+
       // Compare password with hash
       const isValidPassword = await bcrypt.compare(password, user.password);
       
@@ -1970,11 +1994,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const updates = { 
-        ...bodyData, 
-        updatedBy: userId // Use authenticated user ID
-      };
-      console.log("🔧 Updates to apply:", updates);
+      // Allowlist: só campos legitimamente editáveis por esta rota genérica.
+      // Fora dela ficam a aprovação da produção (rota /approve-production com
+      // checagem de canApproveCenotecnica), o soft-delete (rota DELETE),
+      // identidade (event/function/inclusionNumber) e campos de servidor.
+      // Antes o corpo cru era espalhado — um responsável de função gravava
+      // approvedByProduction/deletedAt direto e pulava as rotas dedicadas.
+      const EDITABLE_INCLUSION_FIELDS = new Set([
+        'collaboratorId', 'area', 'emitsNf', 'rowOrder',
+        'scheduleStartDate', 'scheduleEndDate', 'actualStartDate', 'actualEndDate',
+        'flightDepartureDate', 'flightDepartureSuggestedTime', 'flightArrivalSuggestedTime',
+        'flightReturnDate', 'flightReturnSuggestedTime',
+        'needsTicket', 'needsAccommodation', 'dailyRates', 'workDays', 'dailyValue',
+        'actualDailyRates', 'observations', 'actualObservations', 'emergencyRecord',
+        'city', 'status', 'previousStatus', 'phase',
+      ]);
+      const updates: Record<string, any> = { updatedBy: userId };
+      for (const [k, v] of Object.entries(bodyData)) {
+        if (EDITABLE_INCLUSION_FIELDS.has(k)) updates[k] = v;
+      }
       const inclusion = await storage.updateTeamInclusion(id, updates);
       await createAuditLog('update', 'team_inclusion', id, inclusion, userId, user?.name || 'Sistema', currentInclusion, req);
       res.json(inclusion);
@@ -2520,9 +2558,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/comments", async (req, res) => {
+    const userId = req.session?.userId;
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
     try {
-      const commentData = insertCommentSchema.parse(req.body);
-      const comment = await storage.createComment(commentData);
+      const parsed = insertCommentSchema.parse(req.body);
+      // A autoria vem da sessão, nunca do corpo (o schema tinha userId e o
+      // client mandava user.id — mesmo padrão _userId removido do resto do app)
+      const inclusion = await storage.getTeamInclusion(parsed.teamInclusionId);
+      if (!inclusion) return res.status(404).json({ message: "Inclusão não encontrada" });
+      const comment = await storage.createComment({ ...parsed, userId });
       res.json(comment);
     } catch (error) {
       res.status(400).json({ message: "Dados inválidos" });
@@ -2987,6 +3031,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     return user;
   };
+  // Escrita no módulo financeiro: exige papel financeiro (mesma regra que o
+  // client aplica às telas — só admin/RH acessam). Drop-in de requireFinSession:
+  // devolve o userId (string) ou null, mantendo os dois padrões de call site.
+  // As telas financeiras são finance-only; os GETs seguem com requireFinSession
+  // porque alguns (ex.: /api/payment-companies) são lidos por telas não-financeiras.
+  const requireFinWrite = async (req: any, res: any): Promise<string | null> => {
+    const user = await requireFinanceUser(req, res);
+    return user ? user.id : null;
+  };
   // NOTA (dívida registrada em 13/08): o servidor NÃO recalcula totalValue
   // porque o schema não persiste a diária de FDS separada — o total usa
   // diáriaÚtil×diasÚteis + diáriaFDS×diasFDS, mas só a diária útil é gravada.
@@ -3158,7 +3211,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-planned", async (req, res) => {
-    const actorId = requireFinSession(req, res);
+    const actorId = await requireFinWrite(req, res);
     if (!actorId) return;
     try {
       const data: any = insertBudgetPlannedSchema.parse(req.body);
@@ -3181,7 +3234,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/budget-planned/:id", async (req, res) => {
-    const actorId = requireFinSession(req, res);
+    const actorId = await requireFinWrite(req, res);
     if (!actorId) return;
     try {
       const prev = await storage.getBudgetPlannedById(req.params.id);
@@ -3202,7 +3255,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/budget-planned/:id", async (req, res) => {
-    const actorId = requireFinSession(req, res);
+    const actorId = await requireFinWrite(req, res);
     if (!actorId) return;
     try {
       const prev = await storage.getBudgetPlannedById(req.params.id);
@@ -3272,7 +3325,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-actual", async (req, res) => {
-    const actorId = requireFinSession(req, res);
+    const actorId = await requireFinWrite(req, res);
     if (!actorId) return;
     try {
       const data: any = insertBudgetActualSchema.parse(req.body);
@@ -3297,7 +3350,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-actual/duplicate-from-planned/:eventId", async (req, res) => {
-    const actorId = requireFinSession(req, res);
+    const actorId = await requireFinWrite(req, res);
     if (!actorId) return;
     try {
       const { eventId } = req.params;
@@ -3345,7 +3398,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-actual/:id/duplicate", async (req, res) => {
-    const dupActorId = requireFinSession(req, res);
+    const dupActorId = await requireFinWrite(req, res);
     if (!dupActorId) return;
     try {
       const original = await storage.getBudgetActualById(req.params.id);
@@ -3384,7 +3437,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── Split vacancy endpoint ────────────────────────────────────────────────
   app.post("/api/budget-actual/:id/split", async (req, res) => {
-    if (!requireFinSession(req, res)) return;
+    if (!await requireFinWrite(req, res)) return;
     try {
       const parent = await storage.getBudgetActualById(req.params.id);
       if (!parent) return res.status(404).json({ message: "Item não encontrado" });
@@ -3490,7 +3543,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/budget-actual/:id", async (req, res) => {
-    const actorId = requireFinSession(req, res);
+    const actorId = await requireFinWrite(req, res);
     if (!actorId) return;
     try {
       const prev = await storage.getBudgetActualById(req.params.id);
@@ -3558,7 +3611,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/budget-actual/:id", async (req, res) => {
-    const actorId = requireFinSession(req, res);
+    const actorId = await requireFinWrite(req, res);
     if (!actorId) return;
     try {
       const prev = await storage.getBudgetActualById(req.params.id);
@@ -3582,7 +3635,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-actual/send-for-review", async (req, res) => {
-    const actorId = requireFinSession(req, res);
+    const actorId = await requireFinWrite(req, res);
     if (!actorId) return;
     try {
       const { eventId, itemIds } = req.body;
@@ -3634,7 +3687,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-comparison", async (req, res) => {
-    if (!requireFinSession(req, res)) return;
+    if (!await requireFinWrite(req, res)) return;
     try {
       const data = insertBudgetComparisonSchema.parse(req.body);
       const comparison = await storage.createBudgetComparison(data);
@@ -3649,7 +3702,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/budget-comparison/calculate/:eventId", async (req, res) => {
-    if (!requireFinSession(req, res)) return;
+    if (!await requireFinWrite(req, res)) return;
     try {
       const { eventId } = req.params;
       
