@@ -8,6 +8,7 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { SidebarProvider } from "@/contexts/sidebar-context";
 import { ThemeProvider } from "@/contexts/theme-context";
 import MainLayout from "@/components/layout/main-layout";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 // Carregadas de imediato: são o caminho crítico de entrada e são pequenas.
 import AuthPage from "@/pages/auth-page";
@@ -127,6 +128,7 @@ function Router() {
     // Limite externo: cobre as rotas públicas (o /reset-password também é
     // carregado sob demanda). Para as telas protegidas quem responde primeiro
     // é o Suspense de dentro do MainLayout, preservando a sidebar.
+    <ErrorBoundary>
     <Suspense
       fallback={
         <div className="min-h-screen bg-background flex items-center justify-center">
@@ -143,6 +145,7 @@ function Router() {
       {user ? (
         <MainLayout>
           <Suspense fallback={<PageFallback />}>
+          <ErrorBoundary>
           <Switch>
             <Route path="/" component={HomeRedirect} />
             <Route path="/events">
@@ -248,6 +251,7 @@ function Router() {
             <Route path="/calendar" component={CalendarPage} />
             <Route component={NotFound} />
           </Switch>
+          </ErrorBoundary>
           </Suspense>
         </MainLayout>
       ) : (
@@ -258,6 +262,7 @@ function Router() {
       )}
     </Switch>
     </Suspense>
+    </ErrorBoundary>
   );
 }
 

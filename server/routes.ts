@@ -29,7 +29,7 @@ import {
 } from "@shared/schema";
 import { isFinanceRole, normalizeRole, ROLE_GROUPS, type CanonicalRole } from "@shared/roles";
 import {
-  isNfEligible, contaNosTotais, podeDecidirPrestacao, podeEnviarParaRevisao,
+  isNfEligible, podeDecidirPrestacao, podeEnviarParaRevisao,
   prestacaoEstaTravada, podeAprovarNota, podeDevolverNota, podeFazerCheckin,
 } from "@shared/prestacao-rules";
 import bcrypt from "bcryptjs";
@@ -1574,8 +1574,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/collaborators", async (req, res) => {
-    const creatorId = req.session?.userId;
-    if (!creatorId) return res.status(401).json({ message: "Não autenticado" });
+    // Mesmos papéis que o PATCH exige (cadastro + área de função). Antes exigia
+    // só sessão, então qualquer logado criava colaborador.
+    const creator = await requireRoles(req, res, [...CADASTRO_ROLES, 'function_area']);
+    if (!creator) return;
+    const creatorId = creator.id;
     try {
       // Campos de identidade que o client ainda possa enviar são descartados —
       // a identidade e o papel vêm da sessão
@@ -1589,11 +1592,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       delete collaboratorData.approvedBy;
       delete collaboratorData.approvedAt;
 
-      const creator = await storage.getUser(creatorId);
+      // creator já veio de requireRoles acima
       collaboratorData = {
         ...collaboratorData,
-        createdBy: creator?.id ?? null,
-        createdByName: creator?.name ?? null,
+        createdBy: creator.id,
+        createdByName: creator.name,
       };
 
       // Auto-aprovar colaboradores criados por usuários "Área de Função".
@@ -1632,8 +1635,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/collaborators/bulk", async (req, res) => {
-    const bulkCreatorId = req.session?.userId;
-    if (!bulkCreatorId) return res.status(401).json({ message: "Não autenticado" });
+    const bulkCreator = await requireRoles(req, res, [...CADASTRO_ROLES, 'function_area']);
+    if (!bulkCreator) return;
+    const bulkCreatorId = bulkCreator.id;
     try {
       const { collaborators } = req.body;
 
@@ -1651,10 +1655,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Set para controlar documentos já processados no lote atual
       const processedDocuments = new Set<string>();
 
-      // Quem está importando o lote (para registrar "quem criou" em cada linha)
-      const bulkCreator = await storage.getUser(bulkCreatorId);
-      // Papel vem do banco, não do corpo da requisição
-      const bulkAutoApprove = normalizeRole(bulkCreator?.role) === 'function_area';
+      // bulkCreator já veio de requireRoles; papel do banco, não do corpo
+      const bulkAutoApprove = normalizeRole(bulkCreator.role) === 'function_area';
 
       for (let i = 0; i < collaborators.length; i++) {
         const collaboratorData = collaborators[i];
@@ -1859,8 +1861,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(inclusion);
     } catch (error) {
       console.error("Error creating team inclusion:", error);
-      console.error("Request body:", req.body);
       res.status(400).json({ message: "Dados inválidos", error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  // Criação em lote (grade de escalação) — tudo numa transação: ou todas as
+  // escalações entram, ou nenhuma. Antes o client fazia N POSTs sequenciais e
+  // uma falha no meio deixava escalação parcial.
+  app.post("/api/team-inclusions/bulk", async (req, res) => {
+    const actor = await requireRoles(req, res, CADASTRO_ROLES);
+    if (!actor) return;
+    try {
+      const { inclusions } = req.body as { inclusions: any[] };
+      if (!Array.isArray(inclusions) || inclusions.length === 0) {
+        return res.status(400).json({ message: "Lista de escalações é obrigatória" });
+      }
+      const rows = inclusions.map((raw) => {
+        const cleaned = { ...raw };
+        for (const k of ["scheduleStartDate", "scheduleEndDate", "actualStartDate", "actualEndDate", "flightDepartureDate", "flightReturnDate"]) {
+          if (cleaned[k] === "") cleaned[k] = null;
+        }
+        return insertTeamInclusionSchema.parse(cleaned);
+      });
+      const created = await storage.createTeamInclusionsBatch(rows);
+      await createAuditLog('create', 'team_inclusion', created[0]?.id ?? 'bulk', { count: created.length }, actor.id, actor.name, undefined, req);
+      res.status(201).json({ created: created.length, items: created });
+    } catch (error) {
+      console.error("Error creating team inclusions batch:", error);
+      res.status(400).json({ message: "Dados inválidos no lote de escalações", error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -3710,24 +3738,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const planned = await storage.getBudgetPlanned(eventId);
       const allActual = await storage.getBudgetActual(eventId);
 
-      // Mesmas regras da tela: só prestações enviadas contam, filhos de split
-      // não duplicam (o pai já teve os valores reduzidos) e "não participou"
-      // conta zero. Antes o servidor somava tudo e o agregado divergia da UI.
-      const actual = allActual.filter((a: any) => a.sentForReview && contaNosTotais(a));
-      const totalPlanned = planned
-        .filter((p: any) => !p.didNotAttend)
-        .reduce((sum, p) => sum + (p.totalValue || 0), 0);
-      const totalActual = actual.reduce((sum, a) => sum + (a.totalValue || 0), 0);
+      // Espelha EXATAMENTE o cálculo da tela Comparativo (budget-comparison.tsx):
+      // processa só os pais enviados; o total do grupo é pai(já reduzido pelo
+      // split) + TODOS os filhos; "não participou" (no planejado) zera o grupo.
+      // A versão anterior excluía os filhos de split e subcontava o realizado.
+      const splitChildren = new Map<string, any[]>();
+      for (const a of allActual as any[]) {
+        if (a.splitParentId) {
+          const arr = splitChildren.get(a.splitParentId) || [];
+          arr.push(a);
+          splitChildren.set(a.splitParentId, arr);
+        }
+      }
+      const parents = (allActual as any[]).filter(a => a.sentForReview && !a.splitParentId);
+      const matchPlanned = (a: any) => a.plannedId
+        ? planned.find((pl: any) => pl.id === a.plannedId)
+        : planned.find((pl: any) => pl.collaboratorId === a.collaboratorId && pl.functionId === a.functionId && pl.eventId === a.eventId);
+      let totalActual = 0;
+      let totalPlanned = 0;
+      for (const p of parents) {
+        const mp: any = matchPlanned(p);
+        const notAttended = !!mp?.didNotAttend;
+        const kids = splitChildren.get(p.id) || [];
+        totalActual += notAttended ? 0 : (p.totalValue || 0) + kids.reduce((s, c) => s + (c.totalValue || 0), 0);
+        totalPlanned += mp?.totalValue || 0;
+      }
       // Convenção da tela: variância positiva = realizado acima do planejado
       const variance = totalActual - totalPlanned;
       const variancePercent = totalPlanned > 0
         ? ((variance / totalPlanned) * 100).toFixed(2) + '%'
         : '0%';
 
-      // Generate changes log
-      const changesLog = actual
-        .filter(a => a.plannedId)
-        .map(a => {
+      // Changes log: só os pais enviados com planejado (filhos de split são
+      // frações — comparar cada um contra o planejado cheio seria enganoso)
+      const changesLog = parents
+        .filter((a: any) => a.plannedId)
+        .map((a: any) => {
           const p = planned.find(pl => pl.id === a.plannedId);
           if (!p) return null;
           
@@ -4529,6 +4575,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ message: "Campos obrigatórios: teamInclusionId, newCollaboratorId, reason" });
     }
 
+    // A inclusão precisa existir e ter um colaborador atual — sem alguém para
+    // trocar, a operação correta é atribuir direto, não abrir uma troca.
+    const inclusion = await storage.getTeamInclusion(teamInclusionId);
+    if (!inclusion) return res.status(404).json({ message: "Escalação não encontrada" });
+    const currentCollaboratorId = inclusion.collaboratorId ?? null;
+    if (!currentCollaboratorId) {
+      return res.status(400).json({ message: "Esta escalação ainda não tem colaborador — não há troca a fazer." });
+    }
+    if (newCollaboratorId === currentCollaboratorId) {
+      return res.status(400).json({ message: "O novo colaborador é o mesmo que já está escalado." });
+    }
+
+    // O novo colaborador precisa existir, estar aprovado e ativo
+    const newCollaborator = await storage.getCollaborator(newCollaboratorId);
+    if (!newCollaborator) return res.status(404).json({ message: "Colaborador novo não encontrado" });
+    if (newCollaborator.status !== 'aprovado' || newCollaborator.active === false) {
+      return res.status(400).json({ message: "O colaborador escolhido não está aprovado/ativo." });
+    }
+
     // Verificar se já existe solicitação pendente para essa inclusão
     const existing = await db.execute(drizzleSql`
       SELECT id FROM swap_requests WHERE team_inclusion_id = ${teamInclusionId} AND status = 'pendente'
@@ -4537,13 +4602,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (existingRows.length > 0) {
       return res.status(409).json({ message: "Já existe uma solicitação de troca pendente para esta escalação" });
     }
-
-    // Buscar inclusão para pegar o colaborador atual
-    const inclusionRows = await db.execute(drizzleSql`
-      SELECT collaborator_id FROM team_inclusions WHERE id = ${teamInclusionId}
-    `);
-    const inclRows = (inclusionRows as any).rows ?? inclusionRows;
-    const currentCollaboratorId = inclRows[0]?.collaborator_id ?? null;
 
     try {
       const result = await db.execute(drizzleSql`

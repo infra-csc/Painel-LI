@@ -93,6 +93,9 @@ interface ProcessedRange {
     dataVooRetorno: string;
     horarioPartidaSugerido: string;
   };
+  needsTicket: boolean;
+  needsAccommodation: boolean;
+  rowOrder: number;
 }
 
 export default function GridTeamInclusionForm() {
@@ -214,15 +217,11 @@ export default function GridTeamInclusionForm() {
   };
 
   // Rascunho será carregado apenas quando o usuário clicar no botão
-
-  // Check if user can edit this screen
-  if (!hasPermission(user, 'canEditScreen1')) {
-    return (
-      <div className="bg-card rounded-lg shadow-sm border border-border p-6">
-        <p className="text-muted-foreground text-center">Você não tem permissão para usar a escalação por grade.</p>
-      </div>
-    );
-  }
+  // A checagem de permissão foi movida para logo antes do return principal:
+  // early return AQUI ficava ANTES de useForm/useMutation/useMemo abaixo, então
+  // o número de hooks mudava quando o usuário não tinha permissão (Rules of
+  // Hooks — "rendered more hooks than during the previous render").
+  const canEditGrid = hasPermission(user, 'canEditScreen1');
 
   const form = useForm<GridFormData>({
     resolver: zodResolver(gridFormSchema),
@@ -260,23 +259,8 @@ export default function GridTeamInclusionForm() {
     [functions]
   );
 
-  const createTeamInclusionMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await apiRequest("POST", "/api/team-inclusions", data);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/events-with-inclusions"] });
-    },
-    onError: () => {
-      toast({
-        title: "Erro",
-        description: "Erro ao criar escalação",
-        variant: "destructive",
-      });
-    },
-  });
+  // A criação passou a ser em lote transacional (POST /api/team-inclusions/bulk
+  // no handleSubmit) — a mutation unitária antiga saiu.
 
   const generateGrid = () => {
     const { startDate, endDate } = form.getValues();
@@ -834,7 +818,7 @@ export default function GridTeamInclusionForm() {
   const processedRanges = useMemo((): ProcessedRange[] => {
     const ranges: ProcessedRange[] = [];
 
-    functionRows.forEach(row => {
+    functionRows.forEach((row, rowIndex) => {
       if (dates.length === 0) return;
 
       // Get dates with daily rates > 0
@@ -901,6 +885,9 @@ export default function GridTeamInclusionForm() {
               dataVooRetorno: row.dataVooRetorno,
               horarioPartidaSugerido: row.horarioPartidaSugerido,
             },
+            needsTicket: !!row.needsTicket,
+            needsAccommodation: !!row.needsAccommodation,
+            rowOrder: rowIndex,
           });
         }
       }
@@ -935,96 +922,71 @@ export default function GridTeamInclusionForm() {
     setIsProcessing(true);
 
     try {
-      let successCount = 0;
-      
-      // Cria um team_inclusion para cada range processado
-      for (let rangeIndex = 0; rangeIndex < ranges.length; rangeIndex++) {
-        const range = ranges[rangeIndex];
-        const dailyRatesCount = calculateDailyRates(range.startDate, range.endDate);
-        
-        // Como range.functionId agora é o ID original, precisamos encontrar a row pelo ID único original  
-        const functionRow = functionRows.find(r => {
-          // Extrair ID original da row para comparar
-          let rowOriginalId = r.functionId;
-          if (r.functionId.includes('-')) {
-            const parts = r.functionId.split('-');
-            for (let i = 1; i <= parts.length; i++) {
-              const testId = parts.slice(0, i).join('-');
-              const foundFunction = functions?.find(f => f.id === testId);
-              if (foundFunction) {
-                rowOriginalId = testId;
-                break;
-              }
-            }
-          }
-          return rowOriginalId === range.functionId;
-        });
-        
-        // Encontrar a posição original da linha na planilha
-        const rowOrder = functionRows.findIndex(r => {
-          let rowOriginalId = r.functionId;
-          if (r.functionId.includes('-')) {
-            const parts = r.functionId.split('-');
-            for (let i = 1; i <= parts.length; i++) {
-              const testId = parts.slice(0, i).join('-');
-              const foundFunction = functions?.find(f => f.id === testId);
-              if (foundFunction) {
-                rowOriginalId = testId;
-                break;
-              }
-            }
-          }
-          return rowOriginalId === range.functionId;
-        });
-        
-        // O processGrid já retorna IDs originais corretos
+      const inclusionsPayload = ranges.map((range) => {
         const originalFunction = functions?.find(f => f.id === range.functionId);
-        
-        await createTeamInclusionMutation.mutateAsync({
+        return {
           eventId,
-          functionId: range.functionId, // já é o ID original correto
-          userId: originalFunction?.userId || user?.id, // usa userId da função original
-          scheduleStartDate: range.startDate, // PERÍODO DE TRABALHO (primeiro dia de trabalho)
-          scheduleEndDate: range.endDate, // PERÍODO DE TRABALHO (último dia de trabalho)
-          dailyRates: range.dailyRate, // número de dias trabalhados (já calculado corretamente no processGrid)
-          workDays: range.workDays, // dias específicos de trabalho
-          dailyValue: range.dailyRate * 5000, // valor total (dias * valor unitário de R$50)
-          needsTicket: functionRow?.needsTicket || false,
-          needsAccommodation: functionRow?.needsAccommodation || false,
-          status: "planejado", // Status para aparecer na escalação
-          phase: "inclusao", // Fase obrigatória
-          rowOrder: rowOrder, // SALVAR POSIÇÃO DA LINHA NA PLANILHA
-          // Salvar datas e horários de voo nos campos específicos
-          flightDepartureDate: functionRow?.dataVooIda || null,
-          flightArrivalSuggestedTime: functionRow?.horarioChegadaSugerido || null,
-          flightReturnDate: functionRow?.dataVooRetorno || null,
-          flightReturnSuggestedTime: functionRow?.horarioPartidaSugerido || null
-        });
-        
-        successCount++;
-      }
+          functionId: range.functionId,
+          userId: originalFunction?.userId || user?.id,
+          scheduleStartDate: range.startDate,
+          scheduleEndDate: range.endDate,
+          dailyRates: range.dailyRate,
+          workDays: range.workDays,
+          // dailyValue NÃO é fabricado aqui (antes era range.dailyRate*5000 =
+          // R$50/dia chumbado). O valor financeiro é calculado no Planejado a
+          // partir dos Valores Padrão / valores por função.
+          dailyValue: 0,
+          needsTicket: range.needsTicket,
+          needsAccommodation: range.needsAccommodation,
+          status: "planejado",
+          phase: "inclusao",
+          rowOrder: range.rowOrder,
+          // Voo por LINHA (range.travelInfo), não da 1ª linha da função
+          flightDepartureDate: range.travelInfo.dataVooIda || null,
+          flightArrivalSuggestedTime: range.travelInfo.horarioChegadaSugerido || null,
+          flightReturnDate: range.travelInfo.dataVooRetorno || null,
+          flightReturnSuggestedTime: range.travelInfo.horarioPartidaSugerido || null,
+        };
+      });
+
+      // Uma única chamada transacional: ou todas entram, ou nenhuma
+      const resp = await apiRequest("POST", "/api/team-inclusions/bulk", { inclusions: inclusionsPayload });
+      const result = await resp.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events-with-inclusions"] });
 
       toast({
         title: "Sucesso",
-        description: `${successCount} escalação(ões) criada(s) com sucesso!`,
+        description: `${result.created} escalação(ões) criada(s) com sucesso!`,
       });
 
-      // Limpa o form e rascunho após sucesso
       form.reset();
       setFunctionRows([]);
       setDates([]);
       setShowGrid(false);
-      
-      // Limpar rascunhos salvos após criar escalações
-      localStorage.removeItem('grid-draft-save');
-      localStorage.removeItem('grid-auto-save');
-      
-    } catch (error) {
-      // Error já tratado no mutation
+      localStorage.removeItem("grid-draft-save");
+      localStorage.removeItem("grid-auto-save");
+
+    } catch (error: any) {
+      // A transação garante que nada foi gravado — mostra a causa e mantém a grade
+      toast({
+        title: "Erro ao criar escalações",
+        description: error?.body?.message || "Nenhuma escalação foi criada. Revise os dados e tente novamente.",
+        variant: "destructive",
+      });
     } finally {
       setIsProcessing(false);
     }
   };
+
+  // Guarda de permissão: agora DEPOIS de todos os hooks
+  if (!canEditGrid) {
+    return (
+      <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+        <p className="text-muted-foreground text-center">Você não tem permissão para usar a escalação por grade.</p>
+      </div>
+    );
+  }
 
   return (
     <Card className="border-slate-200 shadow-sm rounded-xl overflow-hidden">

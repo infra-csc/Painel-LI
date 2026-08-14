@@ -1,4 +1,5 @@
 import type { User } from "@shared/schema";
+import { normalizeRole } from "@shared/roles";
 
 export type UserRole = "admin" | "production" | "function_area" | "purchasing" | "financial";
 
@@ -25,7 +26,8 @@ export interface RolePermissions {
 }
 
 export function getRolePermissions(role: UserRole): RolePermissions {
-  switch (role) {
+  const canonical = normalizeRole(role) ?? role;
+  switch (canonical) {
     case "admin":
       return {
         canAccessCadastros: true,
@@ -173,7 +175,8 @@ export function hasPermission(user: User | null, permission: keyof RolePermissio
 }
 
 export function getRoleLabel(role: UserRole): string {
-  switch (role) {
+  const canonical = normalizeRole(role) ?? role;
+  switch (canonical) {
     case "admin": return "Administrador";
     case "production": return "Logística Interna";
     case "function_area": return "Área responsável por funções";

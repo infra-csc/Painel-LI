@@ -80,6 +80,7 @@ export interface IStorage {
   getTeamInclusions(includeDeleted?: boolean): Promise<TeamInclusion[]>;
   getTeamInclusion(id: string): Promise<TeamInclusion | undefined>;
   createTeamInclusion(inclusion: InsertTeamInclusion): Promise<TeamInclusion>;
+  createTeamInclusionsBatch(rows: InsertTeamInclusion[]): Promise<TeamInclusion[]>;
   updateTeamInclusion(id: string, inclusion: Partial<InsertTeamInclusion>): Promise<TeamInclusion>;
   deleteTeamInclusion(id: string, userId?: string): Promise<void>;
   
@@ -464,6 +465,20 @@ export class DatabaseStorage implements IStorage {
   async createTeamInclusion(inclusionData: InsertTeamInclusion): Promise<TeamInclusion> {
     const [inclusion] = await db.insert(teamInclusions).values(inclusionData).returning();
     return inclusion;
+  }
+
+  // Criação em lote numa única transação: a grade cria N escalações de uma vez;
+  // sem transação, uma falha no meio deixava as anteriores gravadas (escalação
+  // parcial). Ou todas entram, ou nenhuma.
+  async createTeamInclusionsBatch(rows: InsertTeamInclusion[]): Promise<TeamInclusion[]> {
+    return await db.transaction(async (tx) => {
+      const created: TeamInclusion[] = [];
+      for (const r of rows) {
+        const [row] = await tx.insert(teamInclusions).values(r).returning();
+        created.push(row);
+      }
+      return created;
+    });
   }
 
   async updateTeamInclusion(id: string, inclusionData: Partial<InsertTeamInclusion>): Promise<TeamInclusion> {
