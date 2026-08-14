@@ -32,6 +32,7 @@ import {
   isNfEligible, podeDecidirPrestacao, podeEnviarParaRevisao,
   prestacaoEstaTravada, podeAprovarNota, podeDevolverNota, podeFazerCheckin,
 } from "@shared/prestacao-rules";
+import { isAtendimentoFunction } from "@shared/atendimento";
 import bcrypt from "bcryptjs";
 import { randomBytes, timingSafeEqual } from "crypto";
 
@@ -2035,12 +2036,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'flightReturnDate', 'flightReturnSuggestedTime',
         'needsTicket', 'needsAccommodation', 'dailyRates', 'workDays', 'dailyValue',
         'actualDailyRates', 'observations', 'actualObservations', 'emergencyRecord',
-        'city', 'status', 'previousStatus', 'phase',
+        'city', 'status', 'previousStatus', 'phase', 'atendimentoTipo',
       ]);
       const updates: Record<string, any> = { updatedBy: userId };
       for (const [k, v] of Object.entries(bodyData)) {
         if (EDITABLE_INCLUSION_FIELDS.has(k)) updates[k] = v;
       }
+
+      // Atendimento: ao ter colaborador atribuído, o tipo (Key Account /
+      // Executivo de Contas) é obrigatório — define a tarifa da diária.
+      if (isAtendimentoFunction(func.name)) {
+        const effColab = updates.collaboratorId !== undefined ? updates.collaboratorId : currentInclusion.collaboratorId;
+        const effTipo = updates.atendimentoTipo !== undefined ? updates.atendimentoTipo : (currentInclusion as any).atendimentoTipo;
+        if (effColab && !effTipo) {
+          return res.status(400).json({ message: "Para atendimento, selecione o tipo (Key Account ou Executivo de Contas) ao escalar o colaborador." });
+        }
+      } else if (updates.atendimentoTipo !== undefined) {
+        // Fora de atendimento o campo não faz sentido
+        updates.atendimentoTipo = null;
+      }
+
       const inclusion = await storage.updateTeamInclusion(id, updates);
       await createAuditLog('update', 'team_inclusion', id, inclusion, userId, user?.name || 'Sistema', currentInclusion, req);
       res.json(inclusion);
@@ -3961,6 +3976,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         default_weekday_dinner_freela: 4000,
         default_weekend_lunch_freela: 4000,
         default_weekend_dinner_freela: 4500,
+        // Tarifas de atendimento (Key Account / Executivo de Contas)
+        atendimento_key_account: 58000,
+        atendimento_executivo_contas: 46500,
       };
       const result: Record<string, number> = { ...defaults };
       for (const s of settings) {
@@ -3988,6 +4006,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "default_mobility_ida_freela", "default_mobility_volta_freela",
         "default_weekday_lunch_freela", "default_weekday_dinner_freela",
         "default_weekend_lunch_freela", "default_weekend_dinner_freela",
+        // Tarifas de atendimento (Key Account / Executivo de Contas)
+        "atendimento_key_account", "atendimento_executivo_contas",
       ];
       // Valida tudo antes de gravar qualquer chave — um valor não numérico
       // gravava "NaN" no banco e quebrava o formulário de todos os usuários

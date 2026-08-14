@@ -108,6 +108,9 @@ export const teamInclusions = pgTable("team_inclusions", {
   collaboratorId: varchar("collaborator_id").references(() => collaborators.id),
   area: text("area"), // campo que existe no banco mas estava faltando no schema
   emitsNf: boolean("emits_nf").notNull().default(true), // se este escalado emite nota fiscal (definido na escalação, não no cadastro)
+  // Para funções de "atendimento": qual tarifa usar (Key Account x Executivo de
+  // Contas), definida na escalação ao atribuir o colaborador. null nas demais funções.
+  atendimentoTipo: text("atendimento_tipo"), // 'key_account' | 'executivo_contas'
   rowOrder: integer("row_order"), // posição da linha na planilha para templates
   scheduleStartDate: date("schedule_start_date"),
   scheduleEndDate: date("schedule_end_date"),

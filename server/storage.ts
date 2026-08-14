@@ -441,6 +441,7 @@ export class DatabaseStorage implements IStorage {
         approvedByProduction: teamInclusions.approvedByProduction,
         approvedByProductionAt: teamInclusions.approvedByProductionAt,
         emitsNf: teamInclusions.emitsNf,
+        atendimentoTipo: teamInclusions.atendimentoTipo,
         functionName: functions.name,
         eventName: events.name,
         rowOrder: teamInclusions.rowOrder,

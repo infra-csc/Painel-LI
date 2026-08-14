@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { TeamInclusion, Event, Function, Collaborator, Comment, Ticket, Accommodation, TeamInclusionLog, SwapRequest } from "@shared/schema";
+import { isAtendimentoFunction, ATENDIMENTO_TIPOS } from "@shared/atendimento";
 import { useAuth } from "@/hooks/use-auth";
 import { isReadOnly } from "@/lib/interactions";
 import { canView } from "@/lib/permissions";
@@ -81,6 +82,7 @@ export default function Scaling() {
     dailyValue: 0,
     city: "",
     departureFromSP: true,
+    atendimentoTipo: "",
   });
   
   // Estado para novo comentário inline
@@ -1174,6 +1176,7 @@ export default function Scaling() {
       dailyValue: 0,
       city,
       departureFromSP: isCityFromSP(city),
+      atendimentoTipo: (inclusion as any).atendimentoTipo || "",
     });
     setShowModal(true);
     markInclusionSwapSeen(inclusion.id);
@@ -1189,6 +1192,7 @@ export default function Scaling() {
       dailyValue: 0,
       city,
       departureFromSP: isCityFromSP(city),
+      atendimentoTipo: (inclusion as any).atendimentoTipo || "",
     });
     setShowModal(true);
     markInclusionSwapSeen(inclusion.id);
@@ -1207,20 +1211,35 @@ export default function Scaling() {
       return;
     }
 
+    // Atendimento: se há colaborador, o tipo é obrigatório (mesma regra da confirmação)
+    if (
+      modalData.collaboratorId &&
+      isAtendimentoFunction(getFunctionName(selectedInclusion.functionId)) &&
+      !modalData.atendimentoTipo
+    ) {
+      toast({
+        title: "Erro",
+        description: "Selecione o tipo de atendimento (Key Account ou Executivo de Contas)",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const updateData: any = {
       collaboratorId: modalData.collaboratorId,
       observations: modalData.observations,
       city: modalData.departureFromSP ? "São Paulo - SP" : (modalData.city || ""),
+      atendimentoTipo: modalData.atendimentoTipo || null,
       // CRÍTICO: Preservar campos de necessidade de passagem/hospedagem
       needsTicket: selectedInclusion.needsTicket,
       needsAccommodation: selectedInclusion.needsAccommodation,
     };
-    
+
     // Só incluir dailyValue se foi especificamente editado
     if (modalData.dailyValue && modalData.dailyValue > 0) {
       updateData.dailyValue = Math.round(modalData.dailyValue * 100); // Store in cents
     }
-    
+
     pendingScalingAction.current = 'save';
     updateTeamInclusionMutation.mutate({
       id: selectedInclusion.id,
@@ -1245,6 +1264,15 @@ export default function Scaling() {
       toast({
         title: "Erro",
         description: "Selecione um colaborador antes de confirmar a escalação",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isAtendimentoFunction(getFunctionName(selectedInclusion.functionId)) && !modalData.atendimentoTipo) {
+      toast({
+        title: "Erro",
+        description: "Selecione o tipo de atendimento (Key Account ou Executivo de Contas)",
         variant: "destructive",
       });
       return;
@@ -1280,6 +1308,7 @@ export default function Scaling() {
       city: modalData.departureFromSP ? "São Paulo - SP" : (modalData.city || ""),
       status: nextStatus,
       phase: nextPhase,
+      atendimentoTipo: modalData.atendimentoTipo || null,
       // CRÍTICO: Preservar campos de necessidade de passagem/hospedagem
       needsTicket: selectedInclusion.needsTicket,
       needsAccommodation: selectedInclusion.needsAccommodation,
@@ -2588,6 +2617,26 @@ export default function Scaling() {
                                   testId="select-collaborator-escalation"
                                   hideAll={true}
                                 />
+                                {/* Tipo de atendimento — obrigatório quando a função é de atendimento */}
+                                {isAtendimentoFunction(getFunctionName(selectedInclusion?.functionId ?? null)) && (
+                                  <div className="space-y-1.5">
+                                    <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                                      <Users className="w-3 h-3" />
+                                      Tipo de atendimento <span className="text-red-500">*</span>
+                                    </label>
+                                    <select
+                                      value={modalData.atendimentoTipo}
+                                      onChange={(e) => setModalData(prev => ({ ...prev, atendimentoTipo: e.target.value }))}
+                                      data-testid="select-atendimento-tipo"
+                                      className="w-full px-3 py-2 text-[13px] border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
+                                    >
+                                      <option value="">Selecione...</option>
+                                      {ATENDIMENTO_TIPOS.map((t) => (
+                                        <option key={t.value} value={t.value}>{t.label}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
                                 {/* Campo de cidade de saída — para todas as funções */}
                                 <div className="space-y-1.5">
                                   <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">

@@ -39,6 +39,9 @@ const formSchema = z.object({
   default_weekday_dinner_freela: z.string().min(1, "Obrigatório"),
   default_weekend_lunch_freela: z.string().min(1, "Obrigatório"),
   default_weekend_dinner_freela: z.string().min(1, "Obrigatório"),
+  // Atendimento
+  atendimento_key_account: z.string().min(1, "Obrigatório"),
+  atendimento_executivo_contas: z.string().min(1, "Obrigatório"),
 });
 type FormValues = z.infer<typeof formSchema>;
 
@@ -59,6 +62,8 @@ const FIELD_LABELS: Record<string, string> = {
   default_weekday_dinner_freela: "Jantar Freela — Dia Útil",
   default_weekend_lunch_freela: "Almoço Freela — Fim de Semana",
   default_weekend_dinner_freela: "Jantar Freela — Fim de Semana",
+  atendimento_key_account: "Atendimento — Key Account",
+  atendimento_executivo_contas: "Atendimento — Executivo de Contas",
 };
 
 const HISTORY_KEY = "system_settings_history";
@@ -318,6 +323,8 @@ export default function SystemSettingsPage() {
       default_weekday_dinner_freela: "40.00",
       default_weekend_lunch_freela: "40.00",
       default_weekend_dinner_freela: "45.00",
+      atendimento_key_account: "580.00",
+      atendimento_executivo_contas: "465.00",
     },
   });
 
@@ -343,6 +350,8 @@ export default function SystemSettingsPage() {
         default_weekday_dinner_freela: centavosToReais(s.default_weekday_dinner_freela ?? s.default_weekday_dinner ?? 4000),
         default_weekend_lunch_freela: centavosToReais(s.default_weekend_lunch_freela ?? s.default_weekend_lunch ?? 4000),
         default_weekend_dinner_freela: centavosToReais(s.default_weekend_dinner_freela ?? s.default_weekend_dinner ?? 4500),
+        atendimento_key_account: centavosToReais(s.atendimento_key_account ?? 58000),
+        atendimento_executivo_contas: centavosToReais(s.atendimento_executivo_contas ?? 46500),
       });
     }
   }, [settings]);
@@ -847,6 +856,37 @@ export default function SystemSettingsPage() {
                     </>)}
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Atendimento (valores fixos, não dependem de Casa/Freela) ── */}
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            <div style={{ background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', borderBottom: '1px solid #C7D2FE', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 9, background: '#6366F1', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(99,102,241,0.3)', flexShrink: 0 }}>
+                <Building2 style={{ width: 18, height: 18, color: '#fff' }} />
+              </div>
+              <div>
+                <p style={{ fontWeight: 700, fontSize: 13, color: '#3730A3', margin: 0 }}>Atendimento</p>
+                <p style={{ fontSize: 11, color: '#6366F1', margin: 0 }}>Tarifas fixas de atendimento</p>
+              </div>
+            </div>
+            <div style={{ padding: 16 }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField control={form.control} name="atendimento_key_account" render={({ field }) => (
+                  <FormItem>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#4F46E5', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Key Account</p>
+                    <FormControl><CurrencyInput field={field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="atendimento_executivo_contas" render={({ field }) => (
+                  <FormItem>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#4F46E5', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Executivo de Contas</p>
+                    <FormControl><CurrencyInput field={field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
               </div>
             </div>
           </div>

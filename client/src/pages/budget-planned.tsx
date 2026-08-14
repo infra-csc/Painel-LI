@@ -20,6 +20,7 @@ import { EventSearchSelect } from "@/components/event-select";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetNote } from "@shared/schema";
+import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents } from "@shared/atendimento";
 import { useAuth } from "@/hooks/use-auth";
 import { useSearch } from "wouter";
 import { BudgetChat, BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
@@ -509,10 +510,22 @@ export default function BudgetPlannedPage() {
         : (ss?.default_daily_value_weekend_freela ?? ss?.default_daily_value_weekend ?? ss?.default_daily_value ?? 5000);
 
       const inclusionDailyValue = inclusion.dailyValue ?? defaultDailyValueWeekday;
-      // Daily rate: override > function-specific (per type+weekday/weekend) > inclusion-specific > system default
-      const valorDiariaUtil = override?.valorDiariaUtil ?? (fvDailyWd > 0 ? fvDailyWd : null) ?? inclusionDailyValue ?? defaultDailyValueWeekday;
-      const valorDiariaFds = override?.valorDiariaFds ?? (fvDailyWe > 0 ? fvDailyWe : null) ?? (inclusion.dailyValue ?? defaultDailyValueWeekend);
-      const valorDiaria = override?.valorDiaria ?? valorDiariaUtil;
+      // Atendimento (Key Account x Executivo de Contas): a diária é plana (mesmo
+      // valor útil e fds), definida pelo tipo escolhido na escalação e editável
+      // no Valores Padrão. Tem prioridade sobre fv/inclusion/default — inclusive
+      // corrige o dailyValue sujo de R$50/dia da grade antiga.
+      const isAtend = isAtendimentoFunction(getFunctionName(inclusion.functionId));
+      const atendVal = isAtend ? atendimentoDailyCents((inclusion as any).atendimentoTipo, ss) : null;
+      // Diária FIXA por função — sem distinção útil/fds (decisão de negócio):
+      // um único valor aplicado a todos os dias. Prioridade: override manual >
+      // atendimento (tipo) > valor da função (útil, senão fds) > inclusão > default.
+      const fvDaily = fvDailyWd > 0 ? fvDailyWd : (fvDailyWe > 0 ? fvDailyWe : 0);
+      // Diária plana: enquanto o modal ainda mostra dois campos (útil/fds),
+      // editar QUALQUER um deles vira o valor único — nada é ignorado.
+      const valorDiaria = override?.valorDiaria ?? override?.valorDiariaUtil ?? override?.valorDiariaFds ?? atendVal
+        ?? (fvDaily > 0 ? fvDaily : null) ?? inclusionDailyValue ?? defaultDailyValueWeekday;
+      const valorDiariaUtil = valorDiaria;
+      const valorDiariaFds = valorDiaria;
       
       const subtotalDiariasUtil = weekdays * valorDiariaUtil;
       const subtotalDiariasFds = weekends * valorDiariaFds;
@@ -531,19 +544,15 @@ export default function BudgetPlannedPage() {
       const sysJanFds = collabIsCasa
         ? (ss?.default_weekend_dinner ?? 4500)
         : (ss?.default_weekend_dinner_freela ?? ss?.default_weekend_dinner ?? 4500);
-      const freelaMobIda = ss?.default_mobility_ida_freela ?? null;
-      const freelaMobVolta = ss?.default_mobility_volta_freela ?? null;
-      const freeHasOwnMob = freelaMobIda !== null && freelaMobVolta !== null && (freelaMobIda + freelaMobVolta) > 0;
-      const defaultMobFallback = ss?.default_mobility ?? 2500;
-      const sysMobTotal = collabIsCasa
-        ? (ss?.default_mobility_ida ?? 0) + (ss?.default_mobility_volta ?? 0) || (ss?.default_mobility ?? 2500)
-        : freeHasOwnMob ? (freelaMobIda! + freelaMobVolta!) : defaultMobFallback;
-      const sysMobIda = collabIsCasa
-        ? (ss?.default_mobility_ida ?? Math.ceil((ss?.default_mobility ?? 2500) / 2))
-        : freeHasOwnMob ? freelaMobIda! : Math.ceil(defaultMobFallback / 2);
-      const sysMobVolta = collabIsCasa
-        ? (ss?.default_mobility_volta ?? Math.floor((ss?.default_mobility ?? 2500) / 2))
-        : freeHasOwnMob ? freelaMobVolta! : Math.floor(defaultMobFallback / 2);
+      // Mobilidade automatizada por horário de voo (slide "Ajuda de custo"):
+      // R$58/trecho para voos de madrugada (parte 23h30–9h30 OU chega 20h–5h),
+      // R$29/trecho caso contrário; 0 se a pessoa não voa (sem passagem).
+      // Vale para casa e freela. No Planejado usamos os horários sugeridos da
+      // escalação; o Realizado pode refinar com os horários reais da passagem.
+      const voa = !!inclusion.needsTicket;
+      const sysMobIda = voa ? mobilidadeTrechoCents(inclusion.flightDepartureSuggestedTime, inclusion.flightArrivalSuggestedTime) : 0;
+      const sysMobVolta = voa ? mobilidadeTrechoCents(inclusion.flightReturnSuggestedTime, null) : 0;
+      const sysMobTotal = sysMobIda + sysMobVolta;
       const sysMob = sysMobTotal;
       const mobilidade = override?.mobilidade ?? sysMob;
       const mobilidadeIda = override?.mobilidadeIda ?? sysMobIda;
@@ -2310,16 +2319,21 @@ export default function BudgetPlannedPage() {
 
                           // Default values for tooltips (use system defaults — same as what pending records show)
                           const fv = budget.functionValue;
-                          const defaultVDia = isCasaType
+                          // Atendimento: o "padrão" é a tarifa do tipo escolhido (plana)
+                          const atendDefault = isAtendimentoFunction(getFunctionName(budget.inclusion.functionId))
+                            ? atendimentoDailyCents((budget.inclusion as any).atendimentoTipo, systemSettings as any)
+                            : null;
+                          const defaultVDia = atendDefault ?? (isCasaType
                             ? (fv?.dailyValue ?? systemSettings?.default_daily_value_weekday ?? systemSettings?.default_daily_value ?? 5000)
-                            : (fv?.dailyValueFreela ?? systemSettings?.default_daily_value_weekday_freela ?? systemSettings?.default_daily_value ?? 5000);
-                          const defaultVDiaFds = isCasaType
+                            : (fv?.dailyValueFreela ?? systemSettings?.default_daily_value_weekday_freela ?? systemSettings?.default_daily_value ?? 5000));
+                          const defaultVDiaFds = atendDefault ?? (isCasaType
                             ? (fv?.dailyValueWeekend ?? systemSettings?.default_daily_value_weekend ?? systemSettings?.default_daily_value ?? 5000)
-                            : (fv?.dailyValueFreelaWeekend ?? systemSettings?.default_daily_value_weekend_freela ?? systemSettings?.default_daily_value ?? 5000);
+                            : (fv?.dailyValueFreelaWeekend ?? systemSettings?.default_daily_value_weekend_freela ?? systemSettings?.default_daily_value ?? 5000));
                           const defaultAlimTotal = ((systemSettings?.default_weekday_lunch ?? 3500) + (systemSettings?.default_weekday_dinner ?? 4000)) * budget.weekdays
                                             + ((systemSettings?.default_weekend_lunch ?? 4000) + (systemSettings?.default_weekend_dinner ?? 4500)) * budget.weekends;
                           const defaultAlim = Math.round(defaultAlimTotal / Math.max(1, budget.qtdDiarias));
-                          const defaultMob = systemSettings?.default_mobility ?? 2500;
+                          // Mobilidade agora é automatizada por horário de voo — o "padrão" é o próprio valor calculado
+                          const defaultMob = budget.mobilidade;
                           const tipoLabel = isCasaType ? 'Casa' : 'Freela';
                           const tipoIcon = isCasaType ? '🏠' : '⚡';
 
