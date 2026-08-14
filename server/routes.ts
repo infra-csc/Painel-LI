@@ -3979,6 +3979,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Tarifas de atendimento (Key Account / Executivo de Contas)
         atendimento_key_account: 58000,
         atendimento_executivo_contas: 46500,
+        // Fatores de deflação (percentuais inteiros)
+        deflacao_fator_ate_4: 100,
+        deflacao_fator_5_8: 90,
+        deflacao_fator_9_mais: 80,
       };
       const result: Record<string, number> = { ...defaults };
       for (const s of settings) {
@@ -4008,7 +4012,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "default_weekend_lunch_freela", "default_weekend_dinner_freela",
         // Tarifas de atendimento (Key Account / Executivo de Contas)
         "atendimento_key_account", "atendimento_executivo_contas",
+        // Fatores de deflação (percentuais inteiros)
+        "deflacao_fator_ate_4", "deflacao_fator_5_8", "deflacao_fator_9_mais",
       ];
+      // Fatores de deflação são PERCENTUAIS inteiros (0..100), não valores
+      // monetários — gravados sem o ×100 dos demais.
+      const PERCENT_KEYS = new Set(["deflacao_fator_ate_4", "deflacao_fator_5_8", "deflacao_fator_9_mais"]);
       // Valida tudo antes de gravar qualquer chave — um valor não numérico
       // gravava "NaN" no banco e quebrava o formulário de todos os usuários
       const updates: Array<[string, number]> = [];
@@ -4018,7 +4027,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!Number.isFinite(parsed) || parsed < 0) {
           return res.status(400).json({ message: `Valor inválido para "${key}" — informe um número maior ou igual a zero.` });
         }
-        updates.push([key, Math.round(parsed * 100)]);
+        if (PERCENT_KEYS.has(key)) {
+          if (parsed > 100) {
+            return res.status(400).json({ message: `Percentual inválido para "${key}" — informe de 0 a 100.` });
+          }
+          updates.push([key, Math.round(parsed)]);
+        } else {
+          updates.push([key, Math.round(parsed * 100)]);
+        }
       }
       for (const [key, val] of updates) {
         await storage.upsertSystemSetting(key, String(val), userId);

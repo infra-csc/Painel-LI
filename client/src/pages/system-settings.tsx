@@ -42,7 +42,18 @@ const formSchema = z.object({
   // Atendimento
   atendimento_key_account: z.string().min(1, "Obrigatório"),
   atendimento_executivo_contas: z.string().min(1, "Obrigatório"),
+  // Regra de deflação (diárias) — percentuais inteiros 0..100, NÃO monetários
+  deflacao_fator_ate_4: z.string().min(1, "Obrigatório"),
+  deflacao_fator_5_8: z.string().min(1, "Obrigatório"),
+  deflacao_fator_9_mais: z.string().min(1, "Obrigatório"),
 });
+
+// Chaves percentuais inteiras (0..100). NÃO passam por conversão reais<->centavos.
+const PERCENT_KEYS = new Set<string>([
+  "deflacao_fator_ate_4",
+  "deflacao_fator_5_8",
+  "deflacao_fator_9_mais",
+]);
 type FormValues = z.infer<typeof formSchema>;
 
 const FIELD_LABELS: Record<string, string> = {
@@ -64,6 +75,9 @@ const FIELD_LABELS: Record<string, string> = {
   default_weekend_dinner_freela: "Jantar Freela — Fim de Semana",
   atendimento_key_account: "Atendimento — Key Account",
   atendimento_executivo_contas: "Atendimento — Executivo de Contas",
+  deflacao_fator_ate_4: "Deflação — Até 4 dias (%)",
+  deflacao_fator_5_8: "Deflação — Do 5º ao 8º dia (%)",
+  deflacao_fator_9_mais: "Deflação — A partir do 9º dia (%)",
 };
 
 const HISTORY_KEY = "system_settings_history";
@@ -113,6 +127,25 @@ function CurrencyInput({ field }: { field: any }) {
         onFocus={e => { e.target.style.background = '#fff'; e.target.style.borderColor = '#6366F1'; }}
         onBlur={e => { e.target.style.background = '#F9FAFB'; e.target.style.borderColor = '#E5E7EB'; }}
       />
+    </div>
+  );
+}
+
+// Input de percentual inteiro (0..100) com sufixo "%". NÃO é monetário.
+function PercentInput({ field }: { field: any }) {
+  return (
+    <div className="relative">
+      <input
+        type="number"
+        step="1"
+        min="0"
+        max="100"
+        {...field}
+        style={{ height: 38, fontSize: 14, fontWeight: 600, paddingLeft: 12, paddingRight: 34, border: '1px solid #E5E7EB', borderRadius: 8, background: '#F9FAFB', width: '100%', outline: 'none', appearance: 'none' }}
+        onFocus={e => { e.target.style.background = '#fff'; e.target.style.borderColor = '#6366F1'; }}
+        onBlur={e => { e.target.style.background = '#F9FAFB'; e.target.style.borderColor = '#E5E7EB'; }}
+      />
+      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[13px] text-gray-400 font-semibold select-none pointer-events-none">%</span>
     </div>
   );
 }
@@ -325,6 +358,9 @@ export default function SystemSettingsPage() {
       default_weekend_dinner_freela: "45.00",
       atendimento_key_account: "580.00",
       atendimento_executivo_contas: "465.00",
+      deflacao_fator_ate_4: "100",
+      deflacao_fator_5_8: "90",
+      deflacao_fator_9_mais: "80",
     },
   });
 
@@ -352,6 +388,10 @@ export default function SystemSettingsPage() {
         default_weekend_dinner_freela: centavosToReais(s.default_weekend_dinner_freela ?? s.default_weekend_dinner ?? 4500),
         atendimento_key_account: centavosToReais(s.atendimento_key_account ?? 58000),
         atendimento_executivo_contas: centavosToReais(s.atendimento_executivo_contas ?? 46500),
+        // Percentuais inteiros — usar o valor cru do GET, SEM centavosToReais
+        deflacao_fator_ate_4: String(s.deflacao_fator_ate_4 ?? 100),
+        deflacao_fator_5_8: String(s.deflacao_fator_5_8 ?? 90),
+        deflacao_fator_9_mais: String(s.deflacao_fator_9_mais ?? 80),
       });
     }
   }, [settings]);
@@ -424,8 +464,16 @@ export default function SystemSettingsPage() {
       const newEntries: HistoryEntry[] = [];
       if (settings) {
         for (const key of Object.keys(values) as (keyof FormValues)[]) {
-          const oldVal = centavosToReais((settings as any)[key] ?? (settings as any)["default_daily_value"] ?? 0);
           const newVal = values[key];
+          if (PERCENT_KEYS.has(key)) {
+            // Percentuais inteiros — o valor salvo já é inteiro cru (sem ×100)
+            const oldRaw = String((settings as any)[key] ?? "");
+            if (parseFloat(oldRaw || "NaN") !== parseFloat(newVal)) {
+              newEntries.push({ timestamp: now, user: userName, field: FIELD_LABELS[key] ?? key, oldValue: `${oldRaw || "—"}%`, newValue: `${newVal}%` });
+            }
+            continue;
+          }
+          const oldVal = centavosToReais((settings as any)[key] ?? (settings as any)["default_daily_value"] ?? 0);
           if (parseFloat(oldVal) !== parseFloat(newVal)) {
             newEntries.push({ timestamp: now, user: userName, field: FIELD_LABELS[key] ?? key, oldValue: formatCurrency(oldVal), newValue: formatCurrency(newVal) });
           }
@@ -888,6 +936,47 @@ export default function SystemSettingsPage() {
                   </FormItem>
                 )} />
               </div>
+            </div>
+          </div>
+
+          {/* ── Regra de deflação (diárias) ── */}
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            <div style={{ background: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)', borderBottom: '1px solid #FECACA', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 9, background: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(239,68,68,0.3)', flexShrink: 0 }}>
+                <ChevronDown style={{ width: 18, height: 18, color: '#fff' }} />
+              </div>
+              <div>
+                <p style={{ fontWeight: 700, fontSize: 13, color: '#991B1B', margin: 0 }}>Regra de deflação (diárias)</p>
+                <p style={{ fontSize: 11, color: '#EF4444', margin: 0 }}>Fatores aplicados à diária conforme o período trabalhado</p>
+              </div>
+            </div>
+            <div style={{ padding: 16 }}>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <FormField control={form.control} name="deflacao_fator_ate_4" render={({ field }) => (
+                  <FormItem>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#B91C1C', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Até 4 dias (%)</p>
+                    <FormControl><PercentInput field={field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="deflacao_fator_5_8" render={({ field }) => (
+                  <FormItem>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#B91C1C', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Do 5º ao 8º dia (%)</p>
+                    <FormControl><PercentInput field={field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="deflacao_fator_9_mais" render={({ field }) => (
+                  <FormItem>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#B91C1C', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>A partir do 9º dia (%)</p>
+                    <FormControl><PercentInput field={field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+              <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 12, marginBottom: 0 }}>
+                Percentual da diária pago em cada faixa de dias. Ex.: 100% nos primeiros dias, reduzindo conforme a permanência.
+              </p>
             </div>
           </div>
 

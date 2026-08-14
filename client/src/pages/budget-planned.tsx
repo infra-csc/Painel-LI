@@ -21,6 +21,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetNote } from "@shared/schema";
 import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents } from "@shared/atendimento";
+import { calcDeflatedDailies, deflationFactorsFromSettings } from "@shared/calculation-rules";
 import { useAuth } from "@/hooks/use-auth";
 import { useSearch } from "wouter";
 import { BudgetChat, BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
@@ -527,9 +528,16 @@ export default function BudgetPlannedPage() {
       const valorDiariaUtil = valorDiaria;
       const valorDiariaFds = valorDiaria;
       
-      const subtotalDiariasUtil = weekdays * valorDiariaUtil;
-      const subtotalDiariasFds = weekends * valorDiariaFds;
-      const subtotalDiarias = subtotalDiariasUtil + subtotalDiariasFds;
+      // Deflação por período (slide): 100% até 4 dias, 90% do 5º ao 8º, 80% do
+      // 9º em diante — fatores editáveis no Valores Padrão. Aplicada sobre a
+      // diária plana, por contagem total de dias.
+      const totalDiasDiaria = weekdays + weekends;
+      const deflated = calcDeflatedDailies(valorDiaria, totalDiasDiaria, deflationFactorsFromSettings(ss));
+      const subtotalDiarias = deflated.totalCents;
+      // Distribui o total deflacionado entre útil/fds só para exibição (a diária
+      // é plana; a deflação é por dia, não por útil/fds).
+      const subtotalDiariasUtil = totalDiasDiaria > 0 ? Math.round(subtotalDiarias * weekdays / totalDiasDiaria) : 0;
+      const subtotalDiariasFds = subtotalDiarias - subtotalDiariasUtil;
       
       // Food/mobility: use type-specific system defaults (casa or freela keys)
       const sysAlmSem = collabIsCasa

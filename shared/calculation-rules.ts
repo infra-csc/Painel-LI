@@ -25,13 +25,32 @@ export interface DeflationSegment {
 }
 
 /** Total de diárias com deflação progressiva por dia + memória de cálculo. */
-export function calcDeflatedDailies(dailyValueCents: number, days: number): {
+/** Fatores de deflação (0..1) por faixa. Editáveis no Valores Padrão. */
+export interface DeflationFactors {
+  ate4: number;   // até 4 dias (base, normalmente 1.0)
+  d5a8: number;   // do 5º ao 8º dia
+  d9mais: number; // a partir do 9º dia
+}
+
+export const DEFLATION_FACTORS_DEFAULT: DeflationFactors = { ate4: 1.0, d5a8: 0.9, d9mais: 0.8 };
+
+export function calcDeflatedDailies(
+  dailyValueCents: number,
+  days: number,
+  factors: DeflationFactors = DEFLATION_FACTORS_DEFAULT,
+): {
   totalCents: number;
   segments: DeflationSegment[];
 } {
+  // Faixas do slide (fixas); só os fatores são configuráveis.
+  const tiers = [
+    { fromDay: 1, toDay: 4, factor: factors.ate4, label: "até 4 dias" },
+    { fromDay: 5, toDay: 8, factor: factors.d5a8, label: "do 5º ao 8º dia" },
+    { fromDay: 9, toDay: Infinity, factor: factors.d9mais, label: "a partir do 9º dia" },
+  ];
   const segments: DeflationSegment[] = [];
   let total = 0;
-  for (const tier of DEFLATION_TIERS) {
+  for (const tier of tiers) {
     if (days < tier.fromDay) break;
     const daysInTier = Math.min(days, tier.toDay) - tier.fromDay + 1;
     if (daysInTier <= 0) continue;
@@ -41,6 +60,22 @@ export function calcDeflatedDailies(dailyValueCents: number, days: number): {
     segments.push({ days: daysInTier, factor: tier.factor, dailyCents: daily, totalCents: subtotal, label: tier.label });
   }
   return { totalCents: total, segments };
+}
+
+/** Lê os fatores de deflação (percentuais inteiros) do Valores Padrão. */
+export function deflationFactorsFromSettings(
+  settings?: Record<string, number | string | undefined> | null,
+): DeflationFactors {
+  const pct = (key: string, def: number): number => {
+    const raw = settings?.[key];
+    const n = typeof raw === "string" ? parseInt(raw, 10) : raw;
+    return (typeof n === "number" && Number.isFinite(n) && n >= 0) ? n / 100 : def;
+  };
+  return {
+    ate4: pct("deflacao_fator_ate_4", 1.0),
+    d5a8: pct("deflacao_fator_5_8", 0.9),
+    d9mais: pct("deflacao_fator_9_mais", 0.8),
+  };
 }
 
 // ── Slide 7: time da casa ────────────────────────────────────────────────────

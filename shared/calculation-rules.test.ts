@@ -63,3 +63,31 @@ describe("tabela do percurseiro", () => {
     }
   });
 });
+
+import { deflationFactorsFromSettings, DEFLATION_FACTORS_DEFAULT } from "./calculation-rules";
+
+describe("calcDeflatedDailies com fatores editáveis", () => {
+  it("usa os fatores padrão quando não informado", () => {
+    const r = calcDeflatedDailies(10000, 10);
+    // 4×100% + 4×90% + 2×80% = 40000 + 36000 + 16000
+    expect(r.totalCents).toBe(40000 + 36000 + 16000);
+  });
+  it("respeita fatores customizados", () => {
+    const r = calcDeflatedDailies(10000, 10, { ate4: 1.0, d5a8: 0.85, d9mais: 0.7 });
+    expect(r.totalCents).toBe(4 * 10000 + 4 * 8500 + 2 * 7000);
+  });
+});
+
+describe("deflationFactorsFromSettings", () => {
+  it("converte percentuais inteiros em fatores", () => {
+    const f = deflationFactorsFromSettings({ deflacao_fator_ate_4: 100, deflacao_fator_5_8: 90, deflacao_fator_9_mais: 80 });
+    expect(f).toEqual({ ate4: 1.0, d5a8: 0.9, d9mais: 0.8 });
+  });
+  it("cai no default quando ausente", () => {
+    expect(deflationFactorsFromSettings({})).toEqual(DEFLATION_FACTORS_DEFAULT);
+    expect(deflationFactorsFromSettings(null)).toEqual(DEFLATION_FACTORS_DEFAULT);
+  });
+  it("aceita string", () => {
+    expect(deflationFactorsFromSettings({ deflacao_fator_5_8: "85" }).d5a8).toBe(0.85);
+  });
+});
