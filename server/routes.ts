@@ -4497,7 +4497,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Histórico pré-sistema (contagens importadas da planilha antiga; só leitura)
+  // Histórico pré-sistema (contagens importadas da planilha antiga)
   app.get("/api/baggage-history", async (req, res) => {
     if (!await requireBagagem(req, res)) return;
     try {
@@ -4505,6 +4505,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching baggage history:", error);
       res.status(500).json({ message: "Erro ao buscar o histórico de bagagens" });
+    }
+  });
+
+  // Ajuste manual da contagem histórica (admin/compras): define o valor de
+  // colaborador × CIA; 0 remove. Auditado.
+  const BAGGAGE_HISTORY_CIAS = ["Azul", "Gol", "TAM", "Outros"] as const;
+  app.put("/api/baggage-history", async (req, res) => {
+    const user = await requireBagagem(req, res);
+    if (!user) return;
+    try {
+      const schema = z.object({
+        collaboratorId: z.string().min(1, "Informe o colaborador"),
+        cia: z.enum(BAGGAGE_HISTORY_CIAS, { errorMap: () => ({ message: "CIA inválida" }) }),
+        quantity: z.number().int("Quantidade deve ser inteira").min(0, "Quantidade não pode ser negativa").max(999),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: firstZodMessage(parsed.error) });
+      const collaborator = await storage.getCollaborator(parsed.data.collaboratorId);
+      if (!collaborator) return res.status(404).json({ message: "Colaborador não encontrado" });
+
+      const before = (await storage.getBaggageHistory())
+        .find(h => h.collaboratorId === parsed.data.collaboratorId && h.cia === parsed.data.cia);
+      const row = await storage.setBaggageHistory(parsed.data.collaboratorId, parsed.data.cia, parsed.data.quantity);
+      await createAuditLog(
+        'update', 'baggage_history', `${parsed.data.collaboratorId}:${parsed.data.cia}`,
+        { before: before?.quantity ?? 0, after: parsed.data.quantity, collaborator: collaborator.fullName },
+        user.id, user.name, undefined, req,
+      );
+      res.json(row ?? { collaboratorId: parsed.data.collaboratorId, cia: parsed.data.cia, quantity: 0 });
+    } catch (error) {
+      console.error("Error updating baggage history:", error);
+      res.status(500).json({ message: "Erro ao ajustar o histórico de bagagens" });
     }
   });
 

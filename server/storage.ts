@@ -175,6 +175,7 @@ export interface IStorage {
   updateBaggageRequest(id: string, updates: Partial<InsertBaggageRequest>): Promise<BaggageRequest | undefined>;
   softDeleteBaggageRequest(id: string, deletedBy: string): Promise<void>;
   getBaggageHistory(): Promise<BaggageHistoryEntry[]>;
+  setBaggageHistory(collaboratorId: string, cia: string, quantity: number, sourceName?: string | null): Promise<BaggageHistoryEntry | null>;
 }
 
 // Database storage implementation using PostgreSQL + Drizzle
@@ -1148,6 +1149,29 @@ export class DatabaseStorage implements IStorage {
   // Histórico pré-sistema (importado da planilha antiga; somente leitura)
   async getBaggageHistory(): Promise<BaggageHistoryEntry[]> {
     return await db.select().from(baggageHistory);
+  }
+
+  // Define a contagem histórica de um colaborador × CIA (UPSERT). quantity 0
+  // remove a linha — o histórico só guarda contagens > 0.
+  async setBaggageHistory(
+    collaboratorId: string, cia: string, quantity: number, sourceName?: string | null,
+  ): Promise<BaggageHistoryEntry | null> {
+    const where = and(eq(baggageHistory.collaboratorId, collaboratorId), eq(baggageHistory.cia, cia));
+    if (quantity <= 0) {
+      await db.delete(baggageHistory).where(where);
+      return null;
+    }
+    const [existing] = await db.select().from(baggageHistory).where(where);
+    if (existing) {
+      const [row] = await db.update(baggageHistory)
+        .set({ quantity, ...(sourceName !== undefined ? { sourceName } : {}) })
+        .where(where).returning();
+      return row;
+    }
+    const [row] = await db.insert(baggageHistory)
+      .values({ collaboratorId, cia, quantity, sourceName: sourceName ?? "ajuste manual" })
+      .returning();
+    return row;
   }
 }
 
