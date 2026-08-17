@@ -182,6 +182,10 @@ describe("diasComDiaria (dias com direito a diária por tipo de colaborador)", (
     expect(diasComDiaria("local", 2, 2, "Cenotecnica")).toBe(4);
     // Casa em outra função continua "fds"
     expect(regraDiariaPorTipo("casa", "Produção")).toBe("fds");
+    // Nome como vem do banco de produção (minúsculo, sem acento) — caso real
+    // reportado pelo usuário (Cleber Lucas, "cenotecnica" + Casa mostrava R$ 800)
+    expect(regraDiariaPorTipo("casa", "cenotecnica")).toBe("nenhuma");
+    expect(diasComDiaria("casa", 2, 2, "cenotecnica")).toBe(0);
     // "Sup Ceno" (supervisor) é do grupo PRODUTOR, não cenotécnico: casa → fds
     expect(regraDiariaPorTipo("casa", "Sup Ceno")).toBe("fds");
     expect(regraDiariaPorTipo("casa", "Supervisor de Cenotecnica")).toBe("fds");
