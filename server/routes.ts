@@ -3983,6 +3983,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         deflacao_fator_ate_4: 100,
         deflacao_fator_5_8: 90,
         deflacao_fator_9_mais: 80,
+        // Refeições flat (alimentação por voo)
+        alimentacao_almoco: 4000,
+        alimentacao_jantar: 4000,
+        alimentacao_almoco_ceno: 3500,
+        alimentacao_jantar_ceno: 3500,
       };
       const result: Record<string, number> = { ...defaults };
       for (const s of settings) {
@@ -4014,6 +4019,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "atendimento_key_account", "atendimento_executivo_contas",
         // Fatores de deflação (percentuais inteiros)
         "deflacao_fator_ate_4", "deflacao_fator_5_8", "deflacao_fator_9_mais",
+        // Refeições flat (alimentação por voo — Demais e Cenotécnica)
+        "alimentacao_almoco", "alimentacao_jantar", "alimentacao_almoco_ceno", "alimentacao_jantar_ceno",
       ];
       // Fatores de deflação são PERCENTUAIS inteiros (0..100), não valores
       // monetários — gravados sem o ×100 dos demais.

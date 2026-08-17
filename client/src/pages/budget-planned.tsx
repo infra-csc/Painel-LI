@@ -22,6 +22,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetNote } from "@shared/schema";
 import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents } from "@shared/atendimento";
 import { calcDeflatedDailies, deflationFactorsFromSettings } from "@shared/calculation-rules";
+import { calcAlimentacao, isCenotecnicaFunction, refeicaoCents } from "@shared/alimentacao";
 import { useAuth } from "@/hooks/use-auth";
 import { useSearch } from "wouter";
 import { BudgetChat, BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
@@ -68,6 +69,12 @@ interface CalculatedBudget {
   weekdays: number;
   weekends: number;
   hasOverride: boolean;
+  // Horários de voo exibidos no modal (fonte: passagem > sugerido)
+  vooPartidaIda: string | null;
+  vooChegadaIda: string | null;
+  vooPartidaVolta: string | null;
+  fonteVoo: "passagem" | "sugerido" | "nenhum";
+  alimEstimada: boolean;
 }
 
 // Rascunho de edições persistido por evento — sobrevive a F5 e à troca de evento
@@ -99,7 +106,7 @@ export default function BudgetPlannedPage() {
     return p.get("event") || "";
   });
   const [editingBudget, setEditingBudget] = useState<BudgetEdit | null>(null);
-  const [editingBudgetInfo, setEditingBudgetInfo] = useState<{ name: string; functionName: string; type: string; weekdays: number; weekends: number; period: string } | null>(null);
+  const [editingBudgetInfo, setEditingBudgetInfo] = useState<{ name: string; functionName: string; type: string; weekdays: number; weekends: number; period: string; vooChegadaIda?: string | null; vooPartidaVolta?: string | null; fonteVoo?: "passagem" | "sugerido" | "nenhum"; alimEstimada?: boolean; voa?: boolean } | null>(null);
   const [editingBudgetPlannedId, setEditingBudgetPlannedId] = useState<string | null>(null);
   const [budgetOverrides, setBudgetOverrides] = useState<Record<string, BudgetEdit>>(() => readDraft(selectedEventId));
   // Evento dono do rascunho em memória — impede salvar o rascunho de um evento
@@ -213,6 +220,13 @@ export default function BudgetPlannedPage() {
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
   const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
   const { data: functionValues, isLoading: isLoadingFunctionValues, isError: isErrorFunctionValues, refetch: refetchFunctionValues } = useQuery<FunctionValue[]>({ queryKey: ["/api/function-values"] });
+  // Passagens: fonte dos horários de voo para mobilidade e alimentação
+  const { data: allTickets } = useQuery<any[]>({ queryKey: ["/api/tickets"] });
+  const ticketByInclusion = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const t of allTickets || []) if (t.teamInclusionId) m.set(t.teamInclusionId, t);
+    return m;
+  }, [allTickets]);
   const { data: systemSettings } = useQuery<Record<string, number>>({
     queryKey: ["/api/system-settings"],
     queryFn: async () => {
@@ -472,6 +486,7 @@ export default function BudgetPlannedPage() {
       let weekdays = 0;
       let weekends = 0;
       let qtdDiarias: number;
+      const diasPeriodo: string[] = [];
 
       if (inclusion.scheduleStartDate && inclusion.scheduleEndDate) {
         // Usar intervalo completo start→end: mesma lógica que o "Período de Trabalho" na escalação
@@ -482,6 +497,7 @@ export default function BudgetPlannedPage() {
           const day = cur.getDay();
           if (day === 0 || day === 6) weekends++;
           else weekdays++;
+          diasPeriodo.push(`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,"0")}-${String(cur.getDate()).padStart(2,"0")}`);
           cur.setDate(cur.getDate() + 1);
         }
         const totalFromRange = weekdays + weekends;
@@ -539,41 +555,60 @@ export default function BudgetPlannedPage() {
       const subtotalDiariasUtil = totalDiasDiaria > 0 ? Math.round(subtotalDiarias * weekdays / totalDiasDiaria) : 0;
       const subtotalDiariasFds = subtotalDiarias - subtotalDiariasUtil;
       
-      // Food/mobility: use type-specific system defaults (casa or freela keys)
-      const sysAlmSem = collabIsCasa
-        ? (ss?.default_weekday_lunch ?? 3500)
-        : (ss?.default_weekday_lunch_freela ?? ss?.default_weekday_lunch ?? 3500);
-      const sysJanSem = collabIsCasa
-        ? (ss?.default_weekday_dinner ?? 4000)
-        : (ss?.default_weekday_dinner_freela ?? ss?.default_weekday_dinner ?? 4000);
-      const sysAlmFds = collabIsCasa
-        ? (ss?.default_weekend_lunch ?? 4000)
-        : (ss?.default_weekend_lunch_freela ?? ss?.default_weekend_lunch ?? 4000);
-      const sysJanFds = collabIsCasa
-        ? (ss?.default_weekend_dinner ?? 4500)
-        : (ss?.default_weekend_dinner_freela ?? ss?.default_weekend_dinner ?? 4500);
-      // Mobilidade automatizada por horário de voo (slide "Ajuda de custo"):
-      // R$58/trecho para voos de madrugada (parte 23h30–9h30 OU chega 20h–5h),
-      // R$29/trecho caso contrário; 0 se a pessoa não voa (sem passagem).
-      // Vale para casa e freela. No Planejado usamos os horários sugeridos da
-      // escalação; o Realizado pode refinar com os horários reais da passagem.
+      // ── Horários de voo: a PASSAGEM registrada manda; os horários sugeridos
+      // da escalação são só fallback enquanto a compra não acontece ──────────
       const voa = !!inclusion.needsTicket;
-      const sysMobIda = voa ? mobilidadeTrechoCents(inclusion.flightDepartureSuggestedTime, inclusion.flightArrivalSuggestedTime) : 0;
-      const sysMobVolta = voa ? mobilidadeTrechoCents(inclusion.flightReturnSuggestedTime, null) : 0;
-      const sysMobTotal = sysMobIda + sysMobVolta;
-      const sysMob = sysMobTotal;
+      const ticket = ticketByInclusion.get(inclusion.id);
+      const vooPartidaIda = ticket?.actualDepartureTime || inclusion.flightDepartureSuggestedTime || null;
+      const vooChegadaIda = ticket?.actualArrivalTime || inclusion.flightArrivalSuggestedTime || null;
+      const vooPartidaVolta = ticket?.actualReturnTime || inclusion.flightReturnSuggestedTime || null;
+      const fonteVoo: 'passagem' | 'sugerido' | 'nenhum' =
+        (ticket?.actualArrivalTime || ticket?.actualReturnTime || ticket?.actualDepartureTime) ? 'passagem'
+        : (vooPartidaIda || vooChegadaIda || vooPartidaVolta) ? 'sugerido' : 'nenhum';
+
+      // Mobilidade (slide "Ajuda de custo"): R$58/trecho para voos de madrugada
+      // (parte 23h30–9h30 OU chega 20h–5h), R$29 caso contrário; 0 sem voo.
+      const sysMobIda = voa ? mobilidadeTrechoCents(vooPartidaIda, vooChegadaIda) : 0;
+      const sysMobVolta = voa ? mobilidadeTrechoCents(vooPartidaVolta, null) : 0;
+      const sysMob = sysMobIda + sysMobVolta;
       const mobilidade = override?.mobilidade ?? sysMob;
       const mobilidadeIda = override?.mobilidadeIda ?? sysMobIda;
       const mobilidadeVolta = override?.mobilidadeVolta ?? sysMobVolta;
-      const almocoSemana = override?.almocoSemana ?? (sysAlmSem * weekdays);
-      const jantarSemana = override?.jantarSemana ?? (sysJanSem * weekdays);
-      const almocoFds = override?.almocoFds ?? (sysAlmFds * weekends);
-      const jantarFds = override?.jantarFds ?? (sysJanFds * weekends);
+
+      // ── Alimentação por refeição, dirigida pelos horários da passagem ──────
+      // (quem não voa fica sem alimentação — decisão de 14/08, reversível)
+      const ceno = isCenotecnicaFunction(getFunctionName(inclusion.functionId));
+      const { almocoCents, jantarCents } = refeicaoCents(ceno, ss);
+      const alim = calcAlimentacao({
+        workDays: diasPeriodo, voa,
+        chegadaIda: vooChegadaIda, partidaVolta: vooPartidaVolta,
+        almocoCents, jantarCents,
+      });
+      // Distribui as refeições calculadas entre útil/fds (persistência usa os
+      // 4 campos existentes; a regra em si não distingue útil de fds)
+      let calcAlmSem = 0, calcJanSem = 0, calcAlmFds = 0, calcJanFds = 0;
+      for (const d of alim.dias) {
+        const dow = new Date(d.date + 'T12:00:00').getDay();
+        const fds = dow === 0 || dow === 6;
+        if (d.almoco) { if (fds) calcAlmFds += almocoCents; else calcAlmSem += almocoCents; }
+        if (d.jantar) { if (fds) calcJanFds += jantarCents; else calcJanSem += jantarCents; }
+      }
+      // Sem intervalo completo de datas (diasPeriodo vazio) mas com dias
+      // contados: assume dia cheio na proporção útil/fds já conhecida
+      if (voa && diasPeriodo.length === 0 && (weekdays + weekends) > 0) {
+        calcAlmSem = weekdays * almocoCents; calcJanSem = weekdays * jantarCents;
+        calcAlmFds = weekends * almocoCents; calcJanFds = weekends * jantarCents;
+      }
+      const alimEstimada = voa && (fonteVoo !== 'passagem' || alim.estimado);
+      const almocoSemana = override?.almocoSemana ?? calcAlmSem;
+      const jantarSemana = override?.jantarSemana ?? calcJanSem;
+      const almocoFds = override?.almocoFds ?? calcAlmFds;
+      const jantarFds = override?.jantarFds ?? calcJanFds;
       // unit values for tooltip display
-      const unitAlmocoSemana = sysAlmSem;
-      const unitJantarSemana = sysJanSem;
-      const unitAlmocoFds = sysAlmFds;
-      const unitJantarFds = sysJanFds;
+      const unitAlmocoSemana = almocoCents;
+      const unitJantarSemana = jantarCents;
+      const unitAlmocoFds = almocoCents;
+      const unitJantarFds = jantarCents;
       
       const ajudaCusto = mobilidade + almocoSemana + jantarSemana + almocoFds + jantarFds;
       const totalFinal = subtotalDiarias + ajudaCusto;
@@ -605,9 +640,14 @@ export default function BudgetPlannedPage() {
         weekdays,
         weekends,
         hasOverride: !!override,
+        vooPartidaIda,
+        vooChegadaIda,
+        vooPartidaVolta,
+        fonteVoo,
+        alimEstimada,
       };
     });
-  }, [confirmedInclusions, functionValues, collaborators, budgetOverrides, systemSettings]);
+  }, [confirmedInclusions, functionValues, collaborators, budgetOverrides, systemSettings, ticketByInclusion]);
 
   // Set de chaves "collaboratorId|functionId" para cards marcados como "não participou"
   const notAttendedKeys = useMemo(() => {
@@ -754,6 +794,11 @@ export default function BudgetPlannedPage() {
       weekdays: budget.weekdays,
       weekends: budget.weekends,
       period,
+      vooChegadaIda: budget.vooChegadaIda,
+      vooPartidaVolta: budget.vooPartidaVolta,
+      fonteVoo: budget.fonteVoo,
+      alimEstimada: budget.alimEstimada,
+      voa: !!budget.inclusion.needsTicket,
     });
 
     const fv = getFunctionValue(budget.inclusion.functionId);
@@ -3155,6 +3200,23 @@ export default function BudgetPlannedPage() {
                     </div>
                     <span className="text-[13px] font-bold text-orange-600">{formatCurrency(totalAlimentacao)}</span>
                   </div>
+
+                  {/* Horários de voo que dirigem o cálculo (passagem manda) */}
+                  {editingBudgetInfo.voa ? (
+                    <div className="flex items-center gap-2 flex-wrap px-3.5 py-1.5 bg-orange-50/50 border-b border-orange-100 text-[10px] text-slate-500">
+                      <span>✈ Chegada (ida): <b className="text-slate-700">{editingBudgetInfo.vooChegadaIda || "—"}</b></span>
+                      <span>· Partida (volta): <b className="text-slate-700">{editingBudgetInfo.vooPartidaVolta || "—"}</b></span>
+                      {editingBudgetInfo.fonteVoo === "passagem" ? (
+                        <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">pela passagem</span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold" title="Sem horários da passagem registrada — refeições assumem dia cheio até a compra">estimado — aguardando passagem</span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="px-3.5 py-1.5 bg-slate-50 border-b border-slate-100 text-[10px] text-slate-500">
+                      Sem viagem (não voa) — alimentação não se aplica; use os campos abaixo apenas para exceções.
+                    </div>
+                  )}
 
                   {/* Sub-seção: Dias Úteis */}
                   <div className="px-3.5 pt-2 pb-1.5">

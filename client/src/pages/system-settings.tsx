@@ -46,6 +46,11 @@ const formSchema = z.object({
   deflacao_fator_ate_4: z.string().min(1, "Obrigatório"),
   deflacao_fator_5_8: z.string().min(1, "Obrigatório"),
   deflacao_fator_9_mais: z.string().min(1, "Obrigatório"),
+  // Alimentação por refeição (regra por voo) — monetárias normais (reais<->centavos)
+  alimentacao_almoco: z.string().min(1, "Obrigatório"),
+  alimentacao_jantar: z.string().min(1, "Obrigatório"),
+  alimentacao_almoco_ceno: z.string().min(1, "Obrigatório"),
+  alimentacao_jantar_ceno: z.string().min(1, "Obrigatório"),
 });
 
 // Chaves percentuais inteiras (0..100). NÃO passam por conversão reais<->centavos.
@@ -78,6 +83,10 @@ const FIELD_LABELS: Record<string, string> = {
   deflacao_fator_ate_4: "Deflação — Até 4 dias (%)",
   deflacao_fator_5_8: "Deflação — Do 5º ao 8º dia (%)",
   deflacao_fator_9_mais: "Deflação — A partir do 9º dia (%)",
+  alimentacao_almoco: "Alimentação por Refeição — Almoço (Demais)",
+  alimentacao_jantar: "Alimentação por Refeição — Jantar (Demais)",
+  alimentacao_almoco_ceno: "Alimentação por Refeição — Almoço (Cenotécnica)",
+  alimentacao_jantar_ceno: "Alimentação por Refeição — Jantar (Cenotécnica)",
 };
 
 const HISTORY_KEY = "system_settings_history";
@@ -361,6 +370,10 @@ export default function SystemSettingsPage() {
       deflacao_fator_ate_4: "100",
       deflacao_fator_5_8: "90",
       deflacao_fator_9_mais: "80",
+      alimentacao_almoco: "40.00",
+      alimentacao_jantar: "40.00",
+      alimentacao_almoco_ceno: "35.00",
+      alimentacao_jantar_ceno: "35.00",
     },
   });
 
@@ -392,6 +405,10 @@ export default function SystemSettingsPage() {
         deflacao_fator_ate_4: String(s.deflacao_fator_ate_4 ?? 100),
         deflacao_fator_5_8: String(s.deflacao_fator_5_8 ?? 90),
         deflacao_fator_9_mais: String(s.deflacao_fator_9_mais ?? 80),
+        alimentacao_almoco: centavosToReais(s.alimentacao_almoco ?? 4000),
+        alimentacao_jantar: centavosToReais(s.alimentacao_jantar ?? 4000),
+        alimentacao_almoco_ceno: centavosToReais(s.alimentacao_almoco_ceno ?? 3500),
+        alimentacao_jantar_ceno: centavosToReais(s.alimentacao_jantar_ceno ?? 3500),
       });
     }
   }, [settings]);
@@ -976,6 +993,54 @@ export default function SystemSettingsPage() {
               </div>
               <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 12, marginBottom: 0 }}>
                 Percentual da diária pago em cada faixa de dias. Ex.: 100% nos primeiros dias, reduzindo conforme a permanência.
+              </p>
+            </div>
+          </div>
+
+          {/* ── Alimentação por refeição (regra por voo) — chaves MONETÁRIAS ── */}
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            <div style={{ background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)', borderBottom: '1px solid #A7F3D0', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 9, background: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(5,150,105,0.3)', flexShrink: 0 }}>
+                <Utensils style={{ width: 18, height: 18, color: '#fff' }} />
+              </div>
+              <div>
+                <p style={{ fontWeight: 700, fontSize: 13, color: '#065F46', margin: 0 }}>Alimentação por refeição (regra por voo)</p>
+                <p style={{ fontSize: 11, color: '#059669', margin: 0 }}>Valores flat por refeição, sem distinção útil/fim de semana</p>
+              </div>
+            </div>
+            <div style={{ padding: 16 }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField control={form.control} name="alimentacao_almoco" render={({ field }) => (
+                  <FormItem>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#047857', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Almoço — Demais</p>
+                    <FormControl><CurrencyInput field={field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="alimentacao_jantar" render={({ field }) => (
+                  <FormItem>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#047857', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Jantar — Demais</p>
+                    <FormControl><CurrencyInput field={field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="alimentacao_almoco_ceno" render={({ field }) => (
+                  <FormItem>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#047857', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Almoço — Cenotécnica</p>
+                    <FormControl><CurrencyInput field={field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="alimentacao_jantar_ceno" render={({ field }) => (
+                  <FormItem>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#047857', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Jantar — Cenotécnica</p>
+                    <FormControl><CurrencyInput field={field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+              <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 12, marginBottom: 0 }}>
+                Valores por refeição usados no cálculo automático de alimentação (regra por horário de voo). Os campos antigos de alimentação útil/fds continuam valendo apenas para overrides manuais.
               </p>
             </div>
           </div>

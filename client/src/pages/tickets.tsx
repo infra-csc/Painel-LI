@@ -740,6 +740,7 @@ export default function Tickets() {
             purchaseDate: quickData.purchaseDate || new Date().toISOString().split('T')[0],
             actualDepartureDate: isVanQuick ? null : (quickData.actualDepartureDate || null),
             actualDepartureTime: isVanQuick ? null : quickData.actualDepartureTime,
+            actualArrivalTime: isVanQuick ? null : (quickData.actualArrivalTime || null),
             actualReturnDate: isVanQuick ? null : (quickData.isOneWay ? null : quickData.actualReturnDate),
             actualReturnTime: isVanQuick ? null : (quickData.isOneWay ? null : quickData.actualReturnTime),
             departureCityOrigin: isVanQuick ? null : (quickData.departureCityOrigin || null),
@@ -1232,6 +1233,15 @@ export default function Tickets() {
                                       data-testid="input-quick-departure-time"
                                     />
                                   </div>
+                                  <div className="space-y-1.5" title="Horário de chegada do voo de ida — usado no cálculo automático de alimentação">
+                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Chegada (ida)</Label>
+                                    <Input type="time"
+                                      value={ticketData["quick"]?.actualArrivalTime || ""}
+                                      onChange={(e) => handleTicketDataChange("quick", "actualArrivalTime", e.target.value)}
+                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
+                                      data-testid="input-quick-arrival-time"
+                                    />
+                                  </div>
                                 </div>
                                 {/* Poltrona + Classe */}
                                 <div className="grid grid-cols-2 gap-3">
@@ -1317,6 +1327,15 @@ export default function Tickets() {
                                       onChange={(e) => handleTicketDataChange("quick", "actualDepartureTime", e.target.value)}
                                       className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                       data-testid="input-quick-departure-time"
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5" title="Horário de chegada do voo de ida — usado no cálculo automático de alimentação">
+                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Chegada (ida)</Label>
+                                    <Input type="time"
+                                      value={ticketData["quick"]?.actualArrivalTime || ""}
+                                      onChange={(e) => handleTicketDataChange("quick", "actualArrivalTime", e.target.value)}
+                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
+                                      data-testid="input-quick-arrival-time"
                                     />
                                   </div>
                                 </div>
@@ -2031,7 +2050,7 @@ export default function Tickets() {
                                     : <span className="material-symbols-outlined text-[#16A34A]" style={{fontSize:13}}>flight_takeoff</span>
                                   }
                                   <span className="font-bold text-slate-700">{ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : '—'}</span>
-                                  {ticket.actualDepartureTime && <span className="text-slate-400 font-medium">{ticket.actualDepartureTime}</span>}
+                                  {ticket.actualDepartureTime && <span className="text-slate-400 font-medium">{ticket.actualDepartureTime}{ticket.actualArrivalTime ? ` → ${ticket.actualArrivalTime}` : ''}</span>}
                                 </div>
                                 {/* Linha de volta: ausente quando a passagem é só ida
                                     (retorno gravado como null). */}
@@ -2511,8 +2530,8 @@ export default function Tickets() {
                                     {ticket.actualDepartureTime && (
                                       <div>
                                         <div className={lbl}>Horário</div>
-                                        <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2">
-                                          <span className="text-lg font-bold text-green-700">{ticket.actualDepartureTime}</span>
+                                        <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2" title={ticket.actualArrivalTime ? "Partida → Chegada (ida) — usado no cálculo automático de alimentação" : undefined}>
+                                          <span className="text-lg font-bold text-green-700">{ticket.actualDepartureTime}{ticket.actualArrivalTime ? ` → ${ticket.actualArrivalTime}` : ''}</span>
                                         </div>
                                       </div>
                                     )}
@@ -2819,6 +2838,10 @@ export default function Tickets() {
                                         <Label htmlFor={`actualDepartureTime-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Horário *</Label>
                                         <Input id={`actualDepartureTime-${selectedInclusion.id}`} type="time" value={data.actualDepartureTime || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureTime", e.target.value)} data-testid={`input-departure-time-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
                                       </div>
+                                      <div title="Horário de chegada do voo de ida — usado no cálculo automático de alimentação">
+                                        <Label htmlFor={`actualArrivalTime-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Chegada (ida)</Label>
+                                        <Input id={`actualArrivalTime-${selectedInclusion.id}`} type="time" value={data.actualArrivalTime || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualArrivalTime", e.target.value)} data-testid={`input-arrival-time-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                      </div>
                                     </div>
                                   </div>
 
@@ -3098,6 +3121,7 @@ export default function Tickets() {
                                   actualDepartureDate: ticket.actualDepartureDate || "",
                                   actualReturnDate: ticket.actualReturnDate || "",
                                   actualDepartureTime: ticket.actualDepartureTime || "",
+                                  actualArrivalTime: ticket.actualArrivalTime || "",
                                   actualReturnTime: ticket.actualReturnTime || "",
                                   cardLastFourDigits: ticket.cardLastFourDigits || "",
                                   ticketObservations: ticket.ticketObservations || "",
@@ -3144,6 +3168,7 @@ export default function Tickets() {
                                           purchaseDate: data.purchaseDate || ticketToUpdate.purchaseDate,
                                           actualDepartureDate: data.actualDepartureDate || ticketToUpdate.actualDepartureDate,
                                           actualDepartureTime: data.actualDepartureTime || ticketToUpdate.actualDepartureTime,
+                                          actualArrivalTime: data.actualArrivalTime || ticketToUpdate.actualArrivalTime,
                                           actualReturnDate: data.isOneWay ? null : data.actualReturnDate || ticketToUpdate.actualReturnDate,
                                           actualReturnTime: data.isOneWay ? null : data.actualReturnTime || ticketToUpdate.actualReturnTime,
                                           departureCityOrigin: data.departureCityOrigin || ticketToUpdate.departureCityOrigin,
@@ -3170,6 +3195,7 @@ export default function Tickets() {
                                       purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
                                       actualDepartureDate: data.actualDepartureDate || null,
                                       actualDepartureTime: data.actualDepartureTime || null,
+                                      actualArrivalTime: data.actualArrivalTime || null,
                                       actualReturnDate: data.isOneWay ? null : data.actualReturnDate || null,
                                       actualReturnTime: data.isOneWay ? null : data.actualReturnTime || null,
                                       departureCityOrigin: data.departureCityOrigin || null,
@@ -3253,6 +3279,7 @@ export default function Tickets() {
                                           purchaseDate: data.purchaseDate || undefined,
                                           actualDepartureDate: isVanModal ? null : data.actualDepartureDate,
                                           actualDepartureTime: isVanModal ? null : data.actualDepartureTime,
+                                          actualArrivalTime: isVanModal ? null : (data.actualArrivalTime || null),
                                           actualReturnDate: isVanModal ? null : (data.isOneWay ? null : data.actualReturnDate),
                                           actualReturnTime: isVanModal ? null : (data.isOneWay ? null : data.actualReturnTime),
                                           departureCityOrigin: isVanModal ? null : (data.departureCityOrigin || null),
@@ -3280,6 +3307,7 @@ export default function Tickets() {
                                       purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
                                       actualDepartureDate: isVanModal ? null : data.actualDepartureDate,
                                       actualDepartureTime: isVanModal ? null : data.actualDepartureTime,
+                                      actualArrivalTime: isVanModal ? null : (data.actualArrivalTime || null),
                                       actualReturnDate: isVanModal ? null : (data.isOneWay ? null : data.actualReturnDate),
                                       actualReturnTime: isVanModal ? null : (data.isOneWay ? null : data.actualReturnTime),
                                       departureCityOrigin: isVanModal ? null : (data.departureCityOrigin || null),

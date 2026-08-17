@@ -152,6 +152,9 @@ export const tickets = pgTable("tickets", {
   purchaseDate: date("purchase_date"),
   actualDepartureDate: date("actual_departure_date"),
   actualDepartureTime: text("actual_departure_time"),
+  // Horário de CHEGADA da ida ("HH:MM") — a regra de alimentação ("almoço se
+  // chega até 11h, jantar até 19h") depende dele; só existiam horários de partida
+  actualArrivalTime: text("actual_arrival_time"),
   actualReturnDate: date("actual_return_date"), // agora opcional
   actualReturnTime: text("actual_return_time"),
   departureCityOrigin: text("departure_city_origin"), // cidade de origem da ida
