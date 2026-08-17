@@ -713,6 +713,11 @@ export default function BudgetPlannedPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
+
+  // Mudou busca/filtro → limpa a seleção. Sem isso, item selecionado e depois
+  // oculto pelo filtro seguia no "Enviar Planejamento (N)" sem o usuário ver
+  // (mesma classe de bug corrigida no Realizado/Comparativo).
+  useEffect(() => { setSelectedIds(new Set()); }, [searchTerm, filterFunction, filterType]);
   const [sortBy, setSortBy] = useState<string>("name_asc");
   const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
   const [notAttendedModal, setNotAttendedModal] = useState<{ id?: string; budget?: any; name: string; functionName: string } | null>(null);
@@ -1771,6 +1776,14 @@ export default function BudgetPlannedPage() {
       updated.mobilidade = valCents;
       updated.mobilidadeIda = Math.round(valCents / 2);
       updated.mobilidadeVolta = valCents - Math.round(valCents / 2);
+    }
+    // Sem nenhum campo além do inclusionId (ex.: lote de alimentação numa
+    // linha sem dias), não grava override vazio — a linha não foi editada.
+    const { inclusionId: _iid, ...camposEditados } = updated;
+    if (Object.keys(camposEditados).length === 0) {
+      const next = { ...prev };
+      delete next[budget.inclusion.id];
+      return next;
     }
     return { ...prev, [budget.inclusion.id]: updated };
     });

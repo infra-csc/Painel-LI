@@ -341,14 +341,25 @@ export default function BudgetComparisonPage() {
       });
       return res.json();
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (data: any, variables) => {
       const labels: Record<string, { title: string; cls: string }> = {
         aprovado: { title: "Prestação aprovada — análise formal do RH", cls: "bg-emerald-50 border-emerald-200 text-emerald-800" },
         rejeitado: { title: "Prestação recusada", cls: "bg-red-50 border-red-200 text-red-800" },
         devolvido: { title: "Devolvido para ajustes", cls: "bg-amber-50 border-amber-200 text-amber-800" },
       };
       const info = labels[variables.action];
-      toast({ title: info?.title || "Ação realizada", className: info?.cls });
+      // O servidor pula itens que não estão enviados (ex.: filho de divisão
+      // ainda pendente) — sem este aviso, o "sucesso" escondia itens de fora.
+      const skipped = Array.isArray(data?.skipped) ? data.skipped.length : 0;
+      if (skipped > 0) {
+        toast({
+          title: `${info?.title || "Ação realizada"} — ${skipped} ${skipped === 1 ? "item ficou de fora" : "itens ficaram de fora"}`,
+          description: "Itens ainda não enviados para análise não entram na decisão. Peça o envio no Realizado e decida-os depois.",
+          className: "bg-amber-50 border-amber-200 text-amber-800",
+        });
+      } else {
+        toast({ title: info?.title || "Ação realizada", className: info?.cls });
+      }
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
       qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
       setActionModal(null);

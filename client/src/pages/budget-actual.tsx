@@ -2049,9 +2049,13 @@ export default function BudgetActualPage() {
         <AlertDialogContent className="max-w-md rounded-2xl">
           {(() => {
             // Aviso e envio cobrem o MESMO conjunto: pendentes visíveis no filtro
-            // atual ('all') ou a interseção da seleção com esses pendentes ('selected')
+            // atual ('all') ou a interseção da seleção com esses pendentes ('selected').
+            // Filhos de divisão acompanham o pai selecionado — sem isso o pai ia
+            // sozinho e os filhos ficavam pendentes/destravados para sempre (o
+            // servidor pula itens não enviados na decisão do RH).
             const targets = confirmSend === 'selected'
-              ? pendingFiltered.filter(i => selectedCards.has(i.id))
+              ? pendingFiltered.filter(i =>
+                  selectedCards.has(i.id) || (i.splitParentId && selectedCards.has(i.splitParentId)))
               : pendingFiltered;
             const targetUnfilled = targets.filter(isUnfilledItem).length;
             return (
