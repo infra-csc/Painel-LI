@@ -327,7 +327,9 @@ export default function BaggageControlPage() {
   } = useQuery<BaggageRequestItem[]>({ queryKey: ["/api/baggage-requests"], enabled: allowed });
   // Histórico pré-sistema (contagens importadas da planilha antiga — sem
   // evento/valor; somadas nas visões por colaborador com selo de histórico)
-  const { data: baggageHistory = [] } = useQuery<{ collaboratorId: string; cia: string; quantity: number }[]>({
+  const {
+    data: baggageHistory = [], isError: historyError, refetch: refetchHistory,
+  } = useQuery<{ collaboratorId: string; cia: string; quantity: number }[]>({
     queryKey: ["/api/baggage-history"], enabled: allowed,
   });
 
@@ -435,7 +437,8 @@ export default function BaggageControlPage() {
         if (r.name.toLowerCase().includes(q)) return true;
         return !!qDigits && r.cpf.replace(/\D/g, "").includes(qDigits);
       })
-      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+      // Quem tem mais bagagens primeiro (a pergunta da aba é "quem tem bagagem?")
+      .sort((a, b) => b.totalBags - a.totalBags || a.name.localeCompare(b.name, "pt-BR"));
   }, [bagsByCollaborator, collabById, collabTabSearch]);
 
   // ── Aba 3: agregado por evento ──
@@ -1248,6 +1251,21 @@ export default function BaggageControlPage() {
                 />
               </div>
             </div>
+            {historyError && (
+              <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-amber-50 border-b border-amber-100 text-[11px] text-amber-700" role="alert">
+                <span>
+                  Não foi possível carregar o histórico de bagagens — o servidor pode estar rodando uma versão antiga.
+                  Reinicie o workflow no Replit e tente de novo.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => refetchHistory()}
+                  className="shrink-0 text-[11px] font-bold text-amber-800 underline underline-offset-2 hover:text-amber-900"
+                >
+                  Tentar novamente
+                </button>
+              </div>
+            )}
             {isLoading ? (
               <div className="p-4 space-y-2" aria-hidden="true">
                 {[...Array(4)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-slate-100 animate-pulse" />)}
@@ -1256,9 +1274,11 @@ export default function BaggageControlPage() {
               <div className="text-center py-10 px-4">
                 <Users className="w-8 h-8 text-gray-200 mx-auto mb-2" />
                 <p className="text-xs text-slate-400">
-                  {requests.length === 0
-                    ? "Nenhuma solicitação registrada ainda — os totais por colaborador aparecem aqui."
-                    : "Nenhum colaborador encontrado."}
+                  {historyError
+                    ? "O histórico não pôde ser carregado (veja o aviso acima) e ainda não há solicitações registradas."
+                    : requests.length === 0
+                      ? "Nenhuma solicitação registrada ainda — os totais por colaborador (incluindo o histórico importado) aparecem aqui."
+                      : "Nenhum colaborador encontrado."}
                 </p>
               </div>
             ) : (
