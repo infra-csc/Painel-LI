@@ -54,6 +54,7 @@ const allTabs = [
   { id: "tickets",           path: "/tickets",           label: "Passagem",              icon: "confirmation_number",     iconColor: ORANGE70,  iconBg: "#FFE8DF", permission: "canAccessScreen3"       as const },
   { id: "accommodations",    path: "/accommodations",    label: "Hospedagem",            icon: "bed",                     iconColor: BLUE70,    iconBg: "#EEF2FF", permission: "canAccessScreen3"       as const },
   { id: "operational-mirror", path: "/operational-mirror", label: "Espelho Operacional",  icon: "table_view",              iconColor: ORANGE70,  iconBg: "#FFE8DF", permission: "canAccessScreen3"       as const },
+  { id: "baggage-control",   path: "/baggage-control",   label: "Controle de Bagagem",   icon: "luggage",                 iconColor: BLUE70,    iconBg: "#EEF2FF", permission: "canAccessBaggage"       as const },
   { id: "budget-planned",    path: "/budget-planned",    label: "Planejado",             icon: "pending_actions",         iconColor: ORANGE70,  iconBg: "#FFE8DF", permission: "canAccessFinanceiro"    as const },
   { id: "budget-actual",     path: "/budget-actual",     label: "Realizado",             icon: "account_balance_wallet",  iconColor: BLUE70,    iconBg: "#EEF2FF", permission: "canAccessFinanceiro"    as const },
   { id: "budget-comparison", path: "/budget-comparison", label: "Comparativo",           icon: "query_stats",             iconColor: ORANGE70,  iconBg: "#FFE8DF", permission: "canAccessScreen5"       as const },
@@ -68,7 +69,7 @@ const allTabs = [
 
 const menuGroups = [
   { title: "Cadastros",   ids: ["user-registration", "events", "calendar", "functions", "collaborators"] },
-  { title: "Operacional", ids: ["team-inclusion", "scaling", "tickets", "accommodations", "operational-mirror"] },
+  { title: "Operacional", ids: ["team-inclusion", "scaling", "tickets", "accommodations", "operational-mirror", "baggage-control"] },
   { title: "Financeiro",  ids: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "flash-account", "calculation-rules", "system-settings"] },
   { title: "Gestão",      ids: ["consultation", "admin-users"] },
 ];

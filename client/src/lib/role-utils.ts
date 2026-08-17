@@ -23,6 +23,7 @@ export interface RolePermissions {
   canAccessCollaborators: boolean;
   canEditCollaborators: boolean;
   canAccessCalendar: boolean;
+  canAccessBaggage: boolean;     // controle de bagagem — admin e compras
 }
 
 export function getRolePermissions(role: UserRole): RolePermissions {
@@ -49,6 +50,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessCollaborators: true,
         canEditCollaborators: true,
         canAccessCalendar: true,
+        canAccessBaggage: true,
       };
 
     case "production":
@@ -72,6 +74,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessCollaborators: true,
         canEditCollaborators: true,
         canAccessCalendar: true,
+        canAccessBaggage: false,
       };
 
     case "function_area":
@@ -95,6 +98,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessCollaborators: true,
         canEditCollaborators: true,
         canAccessCalendar: true,
+        canAccessBaggage: false,
       };
 
     case "purchasing":
@@ -118,6 +122,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessCollaborators: true,
         canEditCollaborators: true,
         canAccessCalendar: true,
+        canAccessBaggage: true,
       };
 
     case "financial":
@@ -141,6 +146,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessCollaborators: true,
         canEditCollaborators: false,
         canAccessCalendar: true,
+        canAccessBaggage: false,
       };
 
     default:
@@ -164,6 +170,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessCollaborators: false,
         canEditCollaborators: false,
         canAccessCalendar: false,
+        canAccessBaggage: false,
       };
   }
 }

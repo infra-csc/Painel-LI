@@ -40,6 +40,7 @@ const FlashAccountPage       = lazy(() => import("@/pages/flash-account"));
 const CalculationRulesPage   = lazy(() => import("@/pages/calculation-rules"));
 const SystemSettings         = lazy(() => import("@/pages/system-settings"));
 const CalendarPage           = lazy(() => import("@/pages/calendar"));
+const BaggageControlPage     = lazy(() => import("@/pages/baggage-control"));
 
 import ProtectedRoute from "@/components/layout/protected-route";
 import { useAuth } from "@/hooks/use-auth";
@@ -73,6 +74,7 @@ const ORDERED_ROUTES: { path: string; permission: keyof RolePermissions }[] = [
   { path: "/scaling",           permission: "canAccessScreen2"       },
   { path: "/tickets",           permission: "canAccessScreen3"       },
   { path: "/accommodations",    permission: "canAccessScreen3"       },
+  { path: "/baggage-control",   permission: "canAccessBaggage"       },
   { path: "/budget-planned",    permission: "canAccessFinanceiro"    },
   { path: "/budget-actual",     permission: "canAccessFinanceiro"    },
   { path: "/budget-comparison", permission: "canAccessScreen5"       },
@@ -181,6 +183,11 @@ function Router() {
             <Route path="/operational-mirror">
               <ProtectedRoute permission="canAccessScreen3">
                 <OperationalMirror />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/baggage-control">
+              <ProtectedRoute permission="canAccessBaggage">
+                <BaggageControlPage />
               </ProtectedRoute>
             </Route>
             <Route path="/approval">

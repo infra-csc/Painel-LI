@@ -700,6 +700,65 @@ export const insertSwapRequestSchema = createInsertSchema(swapRequests).omit({
 export type SwapRequest = typeof swapRequests.$inferSelect;
 export type InsertSwapRequest = z.infer<typeof insertSwapRequestSchema>;
 
+// ===== CONTROLE DE BAGAGEM =====
+// Solicitações de bagagem por colaborador/evento (porte do app standalone).
+// Dinheiro em centavos; contagens por CIA são SEMPRE derivadas dos registros
+// (nada de contadores manuais). Exclusão é soft delete.
+export const baggageRequests = pgTable("baggage_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id),
+  collaboratorId: varchar("collaborator_id").notNull().references(() => collaborators.id),
+  loc: text("loc").notNull(), // localizador (uppercase no client)
+  cia: text("cia").notNull(), // Azul, Gol, TAM ou texto livre ("Outros")
+  valueCents: integer("value_cents").notNull(), // valor da solicitação em centavos (>= 0)
+  os: text("os").notNull(),
+  quantity: integer("quantity").notNull().default(1), // nº de bagagens (>= 1)
+  agency: text("agency").notNull(), // LCA, Flytour, Onfly, Direto no site ou livre
+  requestDate: date("request_date").notNull(), // data da solicitação
+  boardingDate: date("boarding_date").notNull(), // data do embarque (>= solicitação)
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"), // snapshot p/ exibição sem join
+  createdAt: timestamp("created_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"), // soft delete
+  deletedBy: varchar("deleted_by"),
+});
+
+const DATE_YMD = /^\d{4}-\d{2}-\d{2}$/;
+
+export const insertBaggageRequestSchema = createInsertSchema(baggageRequests)
+  .omit({
+    id: true,
+    createdAt: true,
+    createdBy: true,     // identidade vem SEMPRE da sessão, nunca do corpo
+    createdByName: true,
+    deletedAt: true,
+    deletedBy: true,
+  })
+  .extend({
+    loc: z.string().trim().min(1, "Informe o localizador (LOC)"),
+    cia: z.string().trim().min(1, "Informe a companhia aérea"),
+    os: z.string().trim().min(1, "Informe a OS"),
+    agency: z.string().trim().min(1, "Informe a agência"),
+    valueCents: z.number().int("Valor deve ser em centavos inteiros").min(0, "Valor não pode ser negativo"),
+    quantity: z.number().int("Quantidade deve ser um número inteiro").min(1, "Quantidade mínima é 1"),
+    requestDate: z.string().regex(DATE_YMD, "Data da solicitação inválida"),
+    boardingDate: z.string().regex(DATE_YMD, "Data do embarque inválida"),
+    notes: z.string().nullish(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.requestDate && data.boardingDate && data.boardingDate < data.requestDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["boardingDate"],
+        message: "A data do embarque não pode ser anterior à data da solicitação",
+      });
+    }
+  });
+
+export type BaggageRequest = typeof baggageRequests.$inferSelect;
+export type InsertBaggageRequest = z.infer<typeof insertBaggageRequestSchema>;
+
 // ===== ESPELHO OPERACIONAL — Logística do Evento =====
 
 // Custos extras de logística (bagagem, uber, locação de carro, outros)

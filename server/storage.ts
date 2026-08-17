@@ -24,9 +24,11 @@ import {
   type Invoice, type InsertInvoice,
   type PaymentCompany, type InsertPaymentCompany,
   flashMovements,
-  type FlashMovement, type InsertFlashMovement
+  type FlashMovement, type InsertFlashMovement,
+  baggageRequests,
+  type BaggageRequest, type InsertBaggageRequest
 } from "@shared/schema";
-import { eq, and, sql, isNull, ne, exists, asc } from "drizzle-orm";
+import { eq, and, sql, isNull, ne, exists, asc, desc } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -163,6 +165,13 @@ export interface IStorage {
   createFlashMovement(movement: InsertFlashMovement): Promise<FlashMovement>;
   createFlashMovementsBatch(movements: InsertFlashMovement[]): Promise<FlashMovement[]>;
   deleteFlashMovement(id: string): Promise<void>;
+
+  // Baggage Requests (Controle de Bagagem)
+  getBaggageRequests(eventId?: string): Promise<BaggageRequest[]>;
+  getBaggageRequest(id: string): Promise<BaggageRequest | undefined>;
+  createBaggageRequest(request: InsertBaggageRequest & { createdBy?: string | null; createdByName?: string | null }): Promise<BaggageRequest>;
+  updateBaggageRequest(id: string, updates: Partial<InsertBaggageRequest>): Promise<BaggageRequest | undefined>;
+  softDeleteBaggageRequest(id: string, deletedBy: string): Promise<void>;
 }
 
 // Database storage implementation using PostgreSQL + Drizzle
@@ -1084,6 +1093,42 @@ export class DatabaseStorage implements IStorage {
 
   async deletePaymentCompany(id: number): Promise<void> {
     await db.delete(paymentCompanies).where(eq(paymentCompanies.id, id));
+  }
+
+  // ── Baggage Requests (Controle de Bagagem) ──────────────────────────────
+  // Soft delete: as listagens só devolvem registros com deleted_at nulo.
+
+  async getBaggageRequests(eventId?: string): Promise<BaggageRequest[]> {
+    const conditions = eventId
+      ? and(isNull(baggageRequests.deletedAt), eq(baggageRequests.eventId, eventId))
+      : isNull(baggageRequests.deletedAt);
+    return await db.select().from(baggageRequests)
+      .where(conditions)
+      .orderBy(desc(baggageRequests.boardingDate), desc(baggageRequests.createdAt));
+  }
+
+  async getBaggageRequest(id: string): Promise<BaggageRequest | undefined> {
+    const [row] = await db.select().from(baggageRequests).where(eq(baggageRequests.id, id));
+    return row || undefined;
+  }
+
+  async createBaggageRequest(request: InsertBaggageRequest & { createdBy?: string | null; createdByName?: string | null }): Promise<BaggageRequest> {
+    const [created] = await db.insert(baggageRequests).values(request).returning();
+    return created;
+  }
+
+  async updateBaggageRequest(id: string, updates: Partial<InsertBaggageRequest>): Promise<BaggageRequest | undefined> {
+    const [updated] = await db.update(baggageRequests)
+      .set(updates)
+      .where(and(eq(baggageRequests.id, id), isNull(baggageRequests.deletedAt)))
+      .returning();
+    return updated || undefined;
+  }
+
+  async softDeleteBaggageRequest(id: string, deletedBy: string): Promise<void> {
+    await db.update(baggageRequests)
+      .set({ deletedAt: new Date(), deletedBy })
+      .where(and(eq(baggageRequests.id, id), isNull(baggageRequests.deletedAt)));
   }
 }
 
