@@ -3,7 +3,27 @@ import {
   isAtendimentoFunction, atendimentoDailyCents, ATENDIMENTO_DEFAULTS_CENTS,
   mobilidadeTrechoCents, parseHoraMin,
   MOBILIDADE_TRECHO_PADRAO_CENTS, MOBILIDADE_TRECHO_MADRUGADA_CENTS,
+  isEventoEmSP, mobilidadeSemVooCents,
 } from "./atendimento";
+
+describe("mobilidade de quem NÃO voa (regra 17/08): só fora de SP, R$29/trecho", () => {
+  it("evento em SP / Grande SP → sem mobilidade", () => {
+    for (const loc of ["São Paulo - SP", "SP", "sao paulo", "Grande SP", "Osasco/SP", "Guarulhos - SP", "Barueri (SP)"]) {
+      expect(isEventoEmSP(loc)).toBe(true);
+      expect(mobilidadeSemVooCents(loc)).toEqual({ ida: 0, volta: 0 });
+    }
+  });
+  it("evento fora de SP → R$29 ida + R$29 volta", () => {
+    for (const loc of ["Rio de Janeiro", "Manaus", "Florianópolis", "Corrida DPSP Rio de Janeiro", "BELO HORIZONTE"]) {
+      expect(isEventoEmSP(loc)).toBe(false);
+      expect(mobilidadeSemVooCents(loc)).toEqual({ ida: 2900, volta: 2900 });
+    }
+  });
+  it("local vazio não assume SP (evento sem local → paga R$29/trecho, conservador)", () => {
+    expect(isEventoEmSP("")).toBe(false);
+    expect(isEventoEmSP(null)).toBe(false);
+  });
+});
 
 describe("isAtendimentoFunction", () => {
   it("reconhece atendimento (variações)", () => {

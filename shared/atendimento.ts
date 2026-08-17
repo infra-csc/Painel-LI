@@ -117,3 +117,26 @@ export function mobilidadeTrechoCents(
     (trecho === "volta" && p !== null && p >= VOLTA_NOITE_A_PARTIR);
   return madrugada ? MOBILIDADE_TRECHO_MADRUGADA_CENTS : MOBILIDADE_TRECHO_PADRAO_CENTS;
 }
+
+// ── Mobilidade de quem NÃO voa (regra 17/08) ────────────────────────────────
+// Evento em SP/Grande SP: sem mobilidade. Evento fora de SP (vai de van,
+// ônibus, carro): R$ 29 por trecho (ida + volta) — sem janela de horário,
+// porque não há voo. Percurso continua fora (pacote fechado).
+
+/**
+ * O local do EVENTO é em São Paulo / Grande São Paulo? Casa a partir do texto
+ * livre de events.location ("São Paulo - SP", "SP", "Grande SP", "Osasco/SP"…).
+ * Vazio → false (não assume SP para evento; a regra do colaborador é outra).
+ */
+export function isEventoEmSP(location: string | null | undefined): boolean {
+  if (!location) return false;
+  const l = location.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+  if (l === "sp" || l.endsWith(" sp") || l.endsWith("-sp") || l.endsWith("/sp") || l.endsWith("- sp") || l.endsWith("(sp)")) return true;
+  return l.includes("sao paulo") || l.includes("grande sp") || l.includes("grande sao paulo");
+}
+
+/** Mobilidade (ida + volta, centavos) de quem NÃO voa, pelo local do evento. */
+export function mobilidadeSemVooCents(eventLocation: string | null | undefined): { ida: number; volta: number } {
+  if (isEventoEmSP(eventLocation)) return { ida: 0, volta: 0 };
+  return { ida: MOBILIDADE_TRECHO_PADRAO_CENTS, volta: MOBILIDADE_TRECHO_PADRAO_CENTS };
+}

@@ -1,8 +1,11 @@
 /**
  * Alimentação automatizada por voo (slide "Ações de melhoria APP LI").
  *
- * Regra confirmada pelo negócio em 14/08/2026:
- * - Quem NÃO voa: sem alimentação (por enquanto; decisão pode ser revista).
+ * Regra confirmada pelo negócio (14/08 e revista em 17/08/2026):
+ * - Quem NÃO voa (jornada externa / evento local): almoço + jantar em TODOS
+ *   os dias trabalhados (o slide condiciona a horas de jornada — 4h para
+ *   almoço, 10h para jantar — mas o sistema não registra jornada; assume as
+ *   duas refeições). Nunca "estimado": não depende de passagem.
  * - Quem voa, por dia do período:
  *   · dia de CHEGADA:  almoço se o voo de ida CHEGA até 11h; jantar se chega até 19h
  *   · dias do MEIO:    almoço + jantar
@@ -24,7 +27,8 @@ export interface AlimentacaoDia {
   date: string;          // YYYY-MM-DD
   almoco: boolean;
   jantar: boolean;
-  papel: "chegada" | "meio" | "retorno" | "unico";
+  /** "externo" = quem não voa (jornada externa): dia cheio, sem depender de voo */
+  papel: "chegada" | "meio" | "retorno" | "unico" | "externo";
 }
 
 export interface AlimentacaoResult {
@@ -39,7 +43,7 @@ export interface AlimentacaoResult {
 export interface AlimentacaoInput {
   /** Dias do período (YYYY-MM-DD, ordenados ou não — serão ordenados) */
   workDays: string[];
-  /** A pessoa voa? (needsTicket) — sem voo, alimentação é zero */
+  /** A pessoa voa? (needsTicket) — sem voo é jornada externa: almoço + jantar todo dia */
   voa: boolean;
   /** Horário de CHEGADA do voo de ida ("HH:MM") — da passagem registrada */
   chegadaIda?: string | null;
@@ -60,11 +64,23 @@ export function calcAlimentacao(input: AlimentacaoInput): AlimentacaoResult {
   const dias: AlimentacaoDia[] = [];
   let estimado = false;
 
-  if (!input.voa || input.workDays.length === 0) {
+  if (input.workDays.length === 0) {
     return { dias, almocos: 0, jantares: 0, totalCents: 0, estimado: false };
   }
 
   const sorted = [...input.workDays].sort();
+
+  // Jornada externa (não voa): almoço + jantar em todos os dias, sem estimativa
+  if (!input.voa) {
+    for (const date of sorted) dias.push({ date, almoco: true, jantar: true, papel: "externo" });
+    return {
+      dias,
+      almocos: dias.length,
+      jantares: dias.length,
+      totalCents: dias.length * (input.almocoCents + input.jantarCents),
+      estimado: false,
+    };
+  }
   const chegada = parseHoraMin(input.chegadaIda);
   const partida = parseHoraMin(input.partidaVolta);
 

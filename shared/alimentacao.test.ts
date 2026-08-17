@@ -4,11 +4,18 @@ import { calcAlimentacao, isCenotecnicaFunction, refeicaoCents, refeicaoCentsDia
 const base = { almocoCents: 4000, jantarCents: 4000 };
 const dias3 = ["2026-08-28", "2026-08-29", "2026-08-30"];
 
-describe("calcAlimentacao — quem não voa", () => {
-  it("não paga alimentação (decisão de 14/08; pode ser revista)", () => {
+describe("calcAlimentacao — quem não voa (jornada externa, regra 17/08)", () => {
+  it("almoço + jantar em TODOS os dias trabalhados, sem 'estimado'", () => {
     const r = calcAlimentacao({ workDays: dias3, voa: false, ...base });
-    expect(r.totalCents).toBe(0);
-    expect(r.dias).toHaveLength(0);
+    expect(r.dias).toHaveLength(3);
+    expect(r.dias.every(d => d.almoco && d.jantar && d.papel === "externo")).toBe(true);
+    expect(r.almocos).toBe(3);
+    expect(r.jantares).toBe(3);
+    expect(r.totalCents).toBe(3 * 8000);
+    expect(r.estimado).toBe(false);
+  });
+  it("sem dias → zero (mesmo sem voar)", () => {
+    expect(calcAlimentacao({ workDays: [], voa: false, ...base }).totalCents).toBe(0);
   });
 });
 

@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { EventSearchSelect } from "@/components/event-select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetNote } from "@shared/schema";
-import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents, ATENDIMENTO_TIPOS, type AtendimentoTipo } from "@shared/atendimento";
+import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents, mobilidadeSemVooCents, ATENDIMENTO_TIPOS, type AtendimentoTipo } from "@shared/atendimento";
 import { calcDeflatedDailies, deflationFactorsFromSettings, freelaDailyCents, casaDailyCents, diasComDiaria as calcDiasComDiaria, regraDiariaPorTipo, isPercursoFunction, percurseiroDiariaCents, diasPercurseiro, PERCURSEIRO_TIPOS, type DeflationSegment, type RegraDiaria, type PercurseiroTipo, type PercurseiroDiaria } from "@shared/calculation-rules";
 import { calcAlimentacao, isCenotecnicaFunction, refeicaoCents, refeicaoCentsDia } from "@shared/alimentacao";
 import { useAuth } from "@/hooks/use-auth";
@@ -1295,18 +1295,21 @@ export default function BudgetPlannedPage() {
         : (vooPartidaIda || vooChegadaIda || vooPartidaVolta) ? 'sugerido' : 'nenhum';
 
       // Mobilidade (slide "Ajuda de custo"): R$58/trecho para voos de madrugada
-      // (parte 23h30–9h30 OU chega 20h–5h), R$29 caso contrário; 0 sem voo.
+      // (parte 23h30–9h30 OU chega 20h–5h), R$29 caso contrário.
       // Regra 17/08: trecho de VOLTA partindo a partir das 20h também vale R$58.
+      // Quem NÃO voa (17/08): evento fora de SP → R$29 por trecho; em SP → 0.
       // Percurso: mobilidade já está no pacote → 0.
-      const sysMobIda = voa && !isPercurso ? mobilidadeTrechoCents(vooPartidaIda, vooChegadaIda, { trecho: 'ida' }) : 0;
-      const sysMobVolta = voa && !isPercurso ? mobilidadeTrechoCents(vooPartidaVolta, null, { trecho: 'volta' }) : 0;
+      const semVoo = !voa && !isPercurso ? mobilidadeSemVooCents(selectedEvent?.location) : null;
+      const sysMobIda = isPercurso ? 0 : voa ? mobilidadeTrechoCents(vooPartidaIda, vooChegadaIda, { trecho: 'ida' }) : (semVoo?.ida ?? 0);
+      const sysMobVolta = isPercurso ? 0 : voa ? mobilidadeTrechoCents(vooPartidaVolta, null, { trecho: 'volta' }) : (semVoo?.volta ?? 0);
       const sysMob = sysMobIda + sysMobVolta;
       const mobilidade = override?.mobilidade ?? sysMob;
       const mobilidadeIda = override?.mobilidadeIda ?? sysMobIda;
       const mobilidadeVolta = override?.mobilidadeVolta ?? sysMobVolta;
 
       // ── Alimentação por refeição, dirigida pelos horários da passagem ──────
-      // (quem não voa fica sem alimentação — decisão de 14/08, reversível)
+      // Quem NÃO voa (17/08): jornada externa → almoço + jantar todos os dias
+      // (calcAlimentacao trata voa=false como dia cheio, sem "estimado").
       const ceno = isCenotecnicaFunction(getFunctionName(inclusion.functionId));
       const { almocoCents, jantarCents } = refeicaoCents(ceno, ss);
       // Regra 17/08: colaborador `casa` (CLT) em dia ÚTIL tem almoço reduzido
@@ -1314,8 +1317,9 @@ export default function BudgetPlannedPage() {
       // inalterados. Valor por dia vem de shared/alimentacao (refeicaoCentsDia).
       const refUtil = refeicaoCentsDia(ceno, ss, { tipoColaborador: collab?.type, isWeekend: false });
       const refFds = refeicaoCentsDia(ceno, ss, { tipoColaborador: collab?.type, isWeekend: true });
+      // Percurso: alimentação no pacote → sem dias
       const alim = calcAlimentacao({
-        workDays: diasPeriodo, voa: voa && !isPercurso, // percurso: alimentação no pacote
+        workDays: isPercurso ? [] : diasPeriodo, voa,
         chegadaIda: vooChegadaIda, partidaVolta: vooPartidaVolta,
         almocoCents, jantarCents,
       });
@@ -1330,7 +1334,7 @@ export default function BudgetPlannedPage() {
       }
       // Sem intervalo completo de datas (diasPeriodo vazio) mas com dias
       // contados: assume dia cheio na proporção útil/fds já conhecida
-      if (voa && !isPercurso && diasPeriodo.length === 0 && (weekdays + weekends) > 0) {
+      if (!isPercurso && diasPeriodo.length === 0 && (weekdays + weekends) > 0) {
         calcAlmSem = weekdays * refUtil.almocoCents; calcJanSem = weekdays * refUtil.jantarCents;
         calcAlmFds = weekends * refFds.almocoCents; calcJanFds = weekends * refFds.jantarCents;
       }
@@ -1399,7 +1403,7 @@ export default function BudgetPlannedPage() {
         sysJantarFds: calcJanFds,
       };
     });
-  }, [confirmedInclusions, functionValues, collaborators, budgetOverrides, systemSettings, ticketByInclusion]);
+  }, [confirmedInclusions, functionValues, collaborators, budgetOverrides, systemSettings, ticketByInclusion, selectedEvent?.location]);
 
   // Set de chaves "collaboratorId|functionId" para cards marcados como "não participou"
   const notAttendedKeys = useMemo(() => {
@@ -3728,7 +3732,7 @@ export default function BudgetPlannedPage() {
                     </div>
                   ) : (
                     <div className="px-3.5 py-1.5 bg-slate-50 border-b border-slate-100 text-[10px] text-slate-500">
-                      Sem viagem (não voa) — alimentação não se aplica.
+                      Jornada externa (não voa) — almoço e jantar em todos os dias trabalhados.
                     </div>
                   )}
 
