@@ -144,15 +144,22 @@ export default function FlashAccountPage() {
     });
   }, [selectedMovements]);
 
+  // Critério único de "tem conta": QUALQUER movimento registrado (mesmo o que o
+  // servidor usa para rejeitar o crédito inicial). `balances` não serve — ele
+  // ignora categorias desconhecidas e mentiria para dados legados/manuais.
+  const collabsWithMovements = useMemo(
+    () => new Set(movements.map(m => m.collaboratorId)),
+    [movements],
+  );
+
   // Admitidos sem crédito inicial: colaboradores ativos sem NENHUM lançamento
   // (o crédito inicial só vale para conta nova — o servidor rejeita se já houver
   // movimentos). Fecha o fluxo "crédito na admissão".
   const admittedWithoutInitialCredit = useMemo(() => {
-    const withMovements = new Set(movements.map(m => m.collaboratorId));
     return collaborators
-      .filter(c => c.active !== false && !withMovements.has(c.id))
+      .filter(c => c.active !== false && !collabsWithMovements.has(c.id))
       .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || "", "pt-BR"));
-  }, [collaborators, movements]);
+  }, [collaborators, collabsWithMovements]);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/flash-movements/${id}`).then(r => r.json()),
@@ -450,7 +457,7 @@ export default function FlashAccountPage() {
             events={events}
             defaultCollaboratorId={formCollabId || selectedCollabId}
             editing={movementToEdit}
-            hasAccount={(id: string) => balances.has(id)}
+            hasAccount={(id: string) => collabsWithMovements.has(id)}
             onCreated={(collabId: string) => {
               qc.invalidateQueries({ queryKey: ["/api/flash-movements"] });
               setSelectedCollabId(collabId);
@@ -482,7 +489,7 @@ interface NewMovementDialogProps {
   collaborators: Collaborator[];
   events: EventItem[];
   defaultCollaboratorId: string;
-  /** Lançamento em edição (sem rota de update no servidor: salvar = excluir + recriar). */
+  /** Lançamento em edição (salvo via PATCH — atualização in-place, auditada no servidor). */
   editing: FlashMovement | null;
   hasAccount: (id: string) => boolean;
   onCreated: (collabId: string) => void;
@@ -527,6 +534,17 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
       .slice(0, 50);
   }, [collaborators, collabSearch]);
 
+  // O colaborador selecionado pode não estar nas options (inativo ou fora do
+  // slice de 50) — sem esta injeção o select exibiria "Selecione..." mesmo com
+  // um lançamento em edição já vinculado a alguém.
+  const optionCollabs = useMemo(() => {
+    if (collaboratorId && !filteredCollabs.some(c => c.id === collaboratorId)) {
+      const current = collaborators.find(c => c.id === collaboratorId);
+      if (current) return [current, ...filteredCollabs];
+    }
+    return filteredCollabs;
+  }, [filteredCollabs, collaborators, collaboratorId]);
+
   const reset = () => {
     setCategory("alimentacao"); setType("credito"); setAmount("");
     setMovementDate(todayISO()); setEventId(""); setDescription(""); setCollabSearch("");
@@ -536,6 +554,7 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
 
   const save = async (initialCredit: boolean) => {
     if (!collaboratorId) { toast({ title: "Selecione o colaborador", variant: "destructive" }); return; }
+    if (!movementDate) { toast({ title: "Informe a data do lançamento", variant: "destructive" }); return; }
     try {
       setSaving(true);
       if (initialCredit) {
@@ -546,16 +565,17 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
       } else {
         const cents = Math.round(parseBrNumber(amount) * 100);
         if (!cents || cents <= 0) { toast({ title: "Informe um valor válido", variant: "destructive" }); setSaving(false); return; }
-        if (editing) {
-          // Sem rota de update no servidor: excluir + recriar (as duas ações
-          // ficam na auditoria). Se a recriação falhar, o diálogo continua
-          // aberto com os dados para tentar salvar de novo.
-          await apiRequest("DELETE", `/api/flash-movements/${editing.id}`).then(r => r.json());
-        }
-        await post({
+        const body = {
           collaboratorId, category, type, amountCents: cents, movementDate,
           eventId: eventId || null, description: description.trim() || null,
-        });
+        };
+        if (editing) {
+          // Atualização in-place via PATCH: o original só muda se a edição
+          // for aceita pelo servidor (nada de excluir + recriar).
+          await apiRequest("PATCH", `/api/flash-movements/${editing.id}`, body).then(r => r.json());
+        } else {
+          await post(body);
+        }
         toast({ title: editing ? "Lançamento atualizado" : "Lançamento registrado" });
       }
       onCreated(collaboratorId);
@@ -580,7 +600,7 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
           <div className="flex-1">
             <h3 className="text-sm font-bold text-slate-800">{editing ? "Editar Lançamento" : "Novo Lançamento"}</h3>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              {editing ? "O lançamento original é excluído e recriado — as duas ações ficam na auditoria" : "Conta corrente Flash"}
+              {editing ? "A alteração é aplicada ao próprio lançamento e fica registrada na auditoria" : "Conta corrente Flash"}
             </p>
           </div>
           <button onClick={() => { if (!saving) { reset(); onClose(); } }} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors">
@@ -590,15 +610,16 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
 
         <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
           <div>
-            <label className={lbl}>Colaborador</label>
-            <Input value={collabSearch} onChange={e => setCollabSearch(e.target.value)} placeholder="Digite para buscar..." className="h-8 text-xs rounded-lg border-gray-200 mb-1.5" />
+            <label htmlFor="fm-collaborator" className={lbl}>Colaborador</label>
+            <Input value={collabSearch} onChange={e => setCollabSearch(e.target.value)} placeholder="Digite para buscar..." aria-label="Buscar colaborador" className="h-8 text-xs rounded-lg border-gray-200 mb-1.5" />
             <select
+              id="fm-collaborator"
               value={collaboratorId}
               onChange={e => setCollaboratorId(e.target.value)}
               className="w-full h-9 text-xs rounded-lg border border-gray-200 px-2 bg-white text-slate-700 focus:outline-none focus:border-violet-400"
             >
               <option value="">Selecione...</option>
-              {filteredCollabs.map((c: any) => (
+              {optionCollabs.map((c: any) => (
                 <option key={c.id} value={c.id}>{toTitleCase(c.fullName)}</option>
               ))}
             </select>
@@ -620,32 +641,32 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={lbl}>Categoria</label>
-              <select value={category} onChange={e => setCategory(e.target.value as any)} className="w-full h-9 text-xs rounded-lg border border-gray-200 px-2 bg-white text-slate-700 focus:outline-none focus:border-violet-400">
+              <label htmlFor="fm-category" className={lbl}>Categoria</label>
+              <select id="fm-category" value={category} onChange={e => setCategory(e.target.value as any)} className="w-full h-9 text-xs rounded-lg border border-gray-200 px-2 bg-white text-slate-700 focus:outline-none focus:border-violet-400">
                 <option value="alimentacao">Alimentação</option>
                 <option value="mobilidade">Mobilidade</option>
               </select>
             </div>
             <div>
-              <label className={lbl}>Tipo</label>
-              <select value={type} onChange={e => setType(e.target.value as any)} className="w-full h-9 text-xs rounded-lg border border-gray-200 px-2 bg-white text-slate-700 focus:outline-none focus:border-violet-400">
+              <label htmlFor="fm-type" className={lbl}>Tipo</label>
+              <select id="fm-type" value={type} onChange={e => setType(e.target.value as any)} className="w-full h-9 text-xs rounded-lg border border-gray-200 px-2 bg-white text-slate-700 focus:outline-none focus:border-violet-400">
                 <option value="credito">Crédito (reembolso/recarga)</option>
                 <option value="debito">Débito (consumo/ajuste)</option>
               </select>
             </div>
             <div>
-              <label className={lbl}>Valor (R$)</label>
-              <Input value={amount} onChange={e => setAmount(e.target.value)} inputMode="decimal" placeholder="0,00" className="h-9 text-xs rounded-lg border-gray-200 font-mono" />
+              <label htmlFor="fm-amount" className={lbl}>Valor (R$)</label>
+              <Input id="fm-amount" value={amount} onChange={e => setAmount(e.target.value)} inputMode="decimal" placeholder="0,00" className="h-9 text-xs rounded-lg border-gray-200 font-mono" />
             </div>
             <div>
-              <label className={lbl}>Data</label>
-              <Input type="date" value={movementDate} onChange={e => setMovementDate(e.target.value)} className="h-9 text-xs rounded-lg border-gray-200" />
+              <label htmlFor="fm-date" className={lbl}>Data</label>
+              <Input id="fm-date" type="date" value={movementDate} onChange={e => setMovementDate(e.target.value)} className="h-9 text-xs rounded-lg border-gray-200" />
             </div>
           </div>
 
           <div>
-            <label className={lbl}>Evento (opcional)</label>
-            <select value={eventId} onChange={e => setEventId(e.target.value)} className="w-full h-9 text-xs rounded-lg border border-gray-200 px-2 bg-white text-slate-700 focus:outline-none focus:border-violet-400">
+            <label htmlFor="fm-event" className={lbl}>Evento (opcional)</label>
+            <select id="fm-event" value={eventId} onChange={e => setEventId(e.target.value)} className="w-full h-9 text-xs rounded-lg border border-gray-200 px-2 bg-white text-slate-700 focus:outline-none focus:border-violet-400">
               <option value="">Sem evento vinculado</option>
               {events.map(ev => (
                 <option key={ev.id} value={ev.id}>{ev.name}</option>
@@ -654,8 +675,8 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
           </div>
 
           <div>
-            <label className={lbl}>Descrição (opcional)</label>
-            <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Ex.: Reembolso alimentação — Night Run" className="h-9 text-xs rounded-lg border-gray-200" />
+            <label htmlFor="fm-description" className={lbl}>Descrição (opcional)</label>
+            <Input id="fm-description" value={description} onChange={e => setDescription(e.target.value)} placeholder="Ex.: Reembolso alimentação — Night Run" className="h-9 text-xs rounded-lg border-gray-200" />
           </div>
         </div>
 

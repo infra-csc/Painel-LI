@@ -644,12 +644,22 @@ export default function RhControlPage() {
     },
   };
 
-  const hasActiveFilters = filterEvent !== "all" || filterFunction !== "all" || filterCollaborator !== "all" || (filterStatus !== "all" && filterStatus !== "rh_action") || filterInvoiceStatus !== "all" || searchTerm !== "" || filterCheckinOnly;
+  // Os 4 card-filtros (rh_action, col_action, nf_andamento, concluidos) contam
+  // como filtro ativo — consistente com o badge "Filtros (N)".
+  const hasActiveFilters = filterEvent !== "all" || filterFunction !== "all" || filterCollaborator !== "all" || filterStatus !== "all" || filterInvoiceStatus !== "all" || searchTerm !== "" || filterCheckinOnly;
   const isRhFilterActive = filterStatus === "rh_action";
   const rhReceivedCount = statusCounts.prestacao_recebida || 0;
   const rhPlanPendingCount = statusCounts.planejamento_pendente || 0;
   const rhNfPendingCount = invoiceCounts.enviada;
-  const rhActionCount = rhReceivedCount + rhPlanPendingCount + rhNfPendingCount + (invoiceCounts.checkinPending || 0);
+  // Itens ÚNICOS aguardando RH — mesmo predicado do filtro "rh_action". Um item
+  // presente em mais de uma categoria (ex.: comparativo pendente + NF enviada)
+  // conta uma única vez, para o número bater com a lista ao clicar.
+  const rhActionCount = useMemo(() => prestacaoItems.filter(item => {
+    const inv = item.actual ? invoiceByActualId.get(item.actual.id) : null;
+    const needsRhCheckin = item.status === "aprovada_faturamento" && inv?.status === "aprovada" && !inv?.checkinAt;
+    const needsRhNfApproval = item.status === "aprovada_faturamento" && inv?.status === "enviada";
+    return RH_STATUSES.includes(item.status) || needsRhCheckin || needsRhNfApproval;
+  }).length, [prestacaoItems, invoiceByActualId]);
 
   const getTimelineStep = (item: PrestacaoItem): number => {
     // step = index of the CURRENT active step (steps before it are completed ✓)
@@ -710,6 +720,8 @@ export default function RhControlPage() {
     const step = getTimelineStep(item);
     const isConcluded = item.status === "aprovada_faturamento" || item.status === "recusada";
 
+    // Isento definido na escalação — passo NF neutro, sem cobrança de envio.
+    const itemEmitsNf = emitsNfFor({ eventId: item.event.id, collaboratorId: item.collaboratorId, functionId: item.functionId });
     // NF disponível a partir do envio do Realizado — não espera o comparativo.
     const nfEligible = item.status === "aprovada_faturamento" || item.status === "prestacao_recebida";
     const nfInv = nfEligible && item.actual ? getInvoiceForActual(item.actual.id) : undefined;
@@ -723,16 +735,17 @@ export default function RhControlPage() {
     const nfRecusada = nfStatus === "recusada";
     const nfEnviada = nfStatus === "enviada";
     const nfDevolvida = nfStatus === "devolvida";
-    const nfAwaitingSubmission = nfEligible && nfStatus === "pendente"; // comparativo approved, waiting collaborator to send NF
+    const nfAwaitingSubmission = itemEmitsNf && nfEligible && nfStatus === "pendente"; // waiting collaborator to send NF (nunca para isentos)
     const nfDateStr = nfCompleted && nfInv?.approvedAt
       ? new Date(nfInv.approvedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
       : (nfEnviada || nfDevolvida) && nfInv?.createdAt
       ? new Date(nfInv.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
       : null;
     const nfTooltip = nfCompleted ? "Nota fiscal aprovada"
-      : nfRecusada ? "Nota fiscal recusada"
+      : nfRecusada ? "Nota fiscal recusada — decisão definitiva, sem reenvio"
       : nfEnviada ? "Nota fiscal enviada — aguardando aprovação do RH"
       : nfDevolvida ? "Nota fiscal devolvida para correção"
+      : !itemEmitsNf ? "Não emite NF — definido na escalação"
       : nfEligible ? "Aguardando envio da nota fiscal"
       : item.status === "devolvida_para_ajuste" ? "NF pausada — Realizado devolvido para ajuste"
       : "Disponível após o envio do realizado";
@@ -750,7 +763,7 @@ export default function RhControlPage() {
             const dateStr = getStepDate(item, i);
             const responsibleName = getStepResponsible(item, i);
             const connectorColor = i === 3
-              ? nfCompleted ? 'bg-emerald-300' : nfEligible ? 'bg-amber-300' : 'bg-gray-200'
+              ? nfCompleted ? 'bg-emerald-300' : nfEligible && itemEmitsNf ? 'bg-amber-300' : 'bg-gray-200'
               : isCompleted ? 'bg-blue-300' : 'bg-gray-200';
             return (
               <div key={label} className="flex items-start flex-1 min-w-0">
@@ -819,6 +832,10 @@ export default function RhControlPage() {
                   }`}>Nota Fiscal</span>
                   {nfDateStr
                     ? <span className="text-[10px] text-slate-400 whitespace-nowrap">{nfDateStr}</span>
+                    : nfRecusada
+                    ? <span className="text-[10px] text-red-500 italic font-medium">Recusada</span>
+                    : !itemEmitsNf
+                    ? <span className="text-[10px] text-slate-400">Não emite</span>
                     : <span className="text-[10px] text-amber-500 italic font-medium">{nfEligible ? "Ag. envio" : "—"}</span>}
                 </div>
               </TooltipTrigger>
@@ -904,8 +921,9 @@ export default function RhControlPage() {
       if (item.status === "aprovada_faturamento") {
         const nfInv = item.actual ? getInvoiceForActual(item.actual.id) : undefined;
         const nfSt = nfInv?.status || "pendente";
-        // Green = NF approved (concluded); violet = NF in review; amber = pending/returned
+        // Green = NF approved (concluded); red = NF refused (terminal); blue = NF in review; amber = pending/returned
         if (nfSt === "aprovada") return { border: "border-l-4 border-l-emerald-400", bg: "" };
+        if (nfSt === "recusada") return { border: "border-l-4 border-l-red-400", bg: "" };
         if (nfSt === "enviada") return { border: "border-l-4 border-l-blue-300", bg: "" };
         if (nfSt === "devolvida") return { border: "border-l-4 border-l-orange-300", bg: "" };
         return { border: "border-l-4 border-l-amber-300", bg: "" };
@@ -933,6 +951,8 @@ export default function RhControlPage() {
     const nfInvCard = nfEligible && item.actual ? getInvoiceForActual(item.actual.id) : undefined;
     const nfStatus = nfInvCard?.status || "pendente";
     const hasCheckin = !!nfInvCard?.checkinAt; // for the physical check-in button
+    // Isento definido na escalação — a linha nunca deve cobrar NF deste item.
+    const itemEmitsNf = emitsNfFor({ eventId: item.event.id, collaboratorId: item.collaboratorId, functionId: item.functionId });
 
     return (
       <div
@@ -972,12 +992,18 @@ export default function RhControlPage() {
                     ? "bg-blue-50 text-blue-700 border-blue-200"
                     : nfStatus === "devolvida"
                     ? "bg-orange-50 text-orange-700 border-orange-200"
+                    : nfStatus === "recusada"
+                    ? "bg-red-50 text-red-700 border-red-200"
+                    : !itemEmitsNf
+                    ? "bg-slate-100 text-slate-500 border-slate-200"
                     : "bg-amber-50 text-amber-700 border-amber-200"
                 }`}>
                   {nfStatus === "aprovada" && hasCheckin ? "Concluído"
                     : nfStatus === "aprovada" && !hasCheckin ? "Ag. Check-in"
                     : nfStatus === "enviada" ? "NF em análise"
                     : nfStatus === "devolvida" ? "NF devolvida"
+                    : nfStatus === "recusada" ? "NF recusada"
+                    : !itemEmitsNf ? "Não emite NF"
                     : "Ag. Nota Fiscal"}
                 </span>
               ) : (
@@ -1050,6 +1076,8 @@ export default function RhControlPage() {
                 return <span className="text-[10px] text-slate-400 hidden sm:block">Ag. colaborador</span>;
               if (item.status === "devolvida_para_ajuste")
                 return <span className="text-[10px] text-orange-400 hidden sm:block">Devolvida</span>;
+              if (nfEligible && nfStatus === "pendente" && !itemEmitsNf)
+                return null; // isento — o badge "Não emite NF" já informa, nada a cobrar
               if (nfEligible && nfStatus === "pendente")
                 return <span className="text-[10px] text-amber-500 hidden sm:block">Ag. nota fiscal</span>;
               return null;
@@ -1141,6 +1169,17 @@ export default function RhControlPage() {
               }
               if (nfStatus === "devolvida") {
                 return <span className="text-[10px] font-medium text-orange-500 border border-orange-200 rounded-md px-2 py-1">NF devolvida</span>;
+              }
+              // Recusa é terminal — chip vermelho, sem CTA
+              if (nfStatus === "recusada") {
+                return <span className="text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 rounded-md px-2 py-1">NF recusada</span>;
+              }
+              // Isento (escalação) — nada a cobrar. Em aprovada_faturamento o badge
+              // ao lado do nome já diz "Não emite NF"; nos demais mostra chip neutro.
+              if (!itemEmitsNf) {
+                return item.status === "aprovada_faturamento"
+                  ? null
+                  : <span className="text-[10px] font-medium text-slate-500 bg-slate-100 border border-slate-200 rounded-md px-2 py-1">Não emite NF</span>;
               }
               return <span className="text-[10px] font-semibold rounded-md px-2 py-1 border" style={{ background: '#FEF3C7', color: '#D97706', borderColor: '#FCD34D' }}>Ag. Nota Fiscal</span>;
             })()}
@@ -1265,11 +1304,28 @@ export default function RhControlPage() {
                 {item.status === "aprovada_faturamento" && item.actual && (() => {
                   const nfInv = getInvoiceForActual(item.actual!.id);
                   const nfStatus = nfInv?.status || "pendente";
+                  if (nfStatus === "pendente" && !itemEmitsNf) {
+                    return (
+                      <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                        <FileText className="w-3.5 h-3.5" />
+                        Não emite NF — definido na escalação
+                      </span>
+                    );
+                  }
                   if (nfStatus === "pendente") {
                     return (
                       <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
                         <FileText className="w-3.5 h-3.5" />
                         Aguardando envio da nota fiscal
+                      </span>
+                    );
+                  }
+                  // Recusa é terminal — sem CTA no footer
+                  if (nfStatus === "recusada") {
+                    return (
+                      <span className="flex items-center gap-1.5 text-[11px] text-red-600 font-medium">
+                        <Ban className="w-3.5 h-3.5" />
+                        NF recusada — decisão definitiva, sem reenvio
                       </span>
                     );
                   }
@@ -1308,6 +1364,8 @@ export default function RhControlPage() {
                     const nfInv = getInvoiceForActual(item.actual!.id);
                     const nfStatus = nfInv?.status || "pendente";
                     if (nfStatus === "enviada") {
+                      // Aprovação de NF é exclusiva do RH/admin — sem CTA para os demais
+                      if (!canRh) return null;
                       return (
                         <button
                           onClick={() => navigate(`/invoices?event=${item.event.id}&tab=aprovacao`)}
@@ -1333,6 +1391,8 @@ export default function RhControlPage() {
                     }
                     // nfStatus "aprovada" + sem check-in → leva para tela de check-in (card específico)
                     if (nfStatus === "aprovada" && !hasCheckin) {
+                      // Check-in financeiro é exclusivo do RH/admin — sem CTA para os demais
+                      if (!canRh) return null;
                       const actualId = item.actual?.id || "";
                       return (
                         <button
@@ -1377,9 +1437,13 @@ export default function RhControlPage() {
   // Denominador exclui quem nunca terá check-in: não compareceu, recusados e
   // "não emite NF" (definido na escalação) — senão o progresso nunca chega a 100%.
   const totalForProgress = prestacaoItems.filter(item => {
-    if (item.planned?.didNotAttend) return false;
+    // "Não compareceu" pode estar marcado no planned OU no actual (o fluxo marca no actual)
+    if (item.planned?.didNotAttend || item.actual?.didNotAttend) return false;
     if (item.status === "recusada") return false;
     if (!emitsNfFor({ eventId: item.event.id, collaboratorId: item.collaboratorId, functionId: item.functionId })) return false;
+    // NF recusada é terminal — nunca terá check-in
+    const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
+    if (inv?.status === "recusada") return false;
     return true;
   }).length;
   const progressPct = totalForProgress > 0 ? Math.round(concludedCount / totalForProgress * 100) : 0;
@@ -1422,10 +1486,12 @@ export default function RhControlPage() {
         const rhComp = statusCounts.prestacao_recebida || 0;
         const rhNf   = invoiceCounts.enviada;
         const chk = invoiceCounts.checkinPending || 0;   // NF approved, RH check-in pending
-        const rhTotal = rhPlan + rhComp + rhNf + chk;
+        // Itens únicos (rhActionCount) — as sublinhas se sobrepõem e somariam a mais
+        const rhTotal = rhActionCount;
 
         const colReal = (statusCounts.aguardando_prestacao || 0) + (statusCounts.devolvida_para_ajuste || 0);
         const colNfDev = invoiceCounts.devolvida;
+        // NF ainda não lançada pelo colaborador — "Aguardando lançamento" na tela de NFs
         const colNfPend = invoiceCounts.pending;
         const colTotal = colReal + colNfDev + colNfPend;
 
@@ -1502,7 +1568,7 @@ export default function RhControlPage() {
                 onClick={() => applyCardFilter("col_action")} active={filterStatus === "col_action"}>
                 <MetricLine label="Realizado"    val={colReal}   color="#0033CC" />
                 <MetricLine label="NF devolvida" val={colNfDev}  color="#0033CC" />
-                <MetricLine label="Ag. NF"       val={colNfPend} color="#0033CC" />
+                <MetricLine label="Aguardando lançamento" val={colNfPend} color="#0033CC" />
               </MetricCard>
 
               <MetricCard stripColor="#d97706" icon={Clock} iconColor="#d97706" title="Nota Fiscal" value={emAndamento}
@@ -1607,8 +1673,9 @@ export default function RhControlPage() {
 
       {/* ── Search + filters ── */}
       <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
+        {/* flex-wrap: em ~375px a linha busca+toggle quebra em vez de estourar */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative flex-1 min-w-[180px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <Input
               placeholder="Buscar por colaborador..."
@@ -1645,7 +1712,7 @@ export default function RhControlPage() {
                   filterEvent !== "all",
                   filterFunction !== "all",
                   filterCollaborator !== "all",
-                  filterStatus !== "all" && filterStatus !== "rh_action",
+                  filterStatus !== "all", // inclui os 4 card-filtros (rh_action também)
                   filterInvoiceStatus !== "all",
                   searchTerm !== "",
                   filterCheckinOnly,
@@ -1705,6 +1772,7 @@ export default function RhControlPage() {
                 <SelectItem value="enviada" className="hover:bg-violet-50 hover:text-violet-700 cursor-pointer focus:bg-violet-50 focus:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700 data-[state=checked]:font-medium">Aguardando aprovação RH</SelectItem>
                 <SelectItem value="devolvida" className="hover:bg-violet-50 hover:text-violet-700 cursor-pointer focus:bg-violet-50 focus:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700 data-[state=checked]:font-medium">Devolvida</SelectItem>
                 <SelectItem value="aprovada" className="hover:bg-violet-50 hover:text-violet-700 cursor-pointer focus:bg-violet-50 focus:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700 data-[state=checked]:font-medium">Aprovada</SelectItem>
+                <SelectItem value="recusada" className="hover:bg-violet-50 hover:text-violet-700 cursor-pointer focus:bg-violet-50 focus:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700 data-[state=checked]:font-medium">NF recusada</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1757,7 +1825,12 @@ export default function RhControlPage() {
           </p>
           {hasActiveFilters && (
             <Button variant="outline" size="sm" className="mt-3 text-xs"
-              onClick={() => { setFilterEvent("all"); setFilterFunction("all"); setFilterCollaborator("all"); setFilterStatus("all"); setSearchTerm(""); setFilterCheckinOnly(false); }}>
+              onClick={() => {
+                // Reseta TODOS os filtros — incl. Nota Fiscal e os card-filtros
+                // (rh_action/col_action/nf_andamento/concluidos vivem em filterStatus)
+                setFilterEvent("all"); setFilterFunction("all"); setFilterCollaborator("all");
+                setFilterStatus("all"); setFilterInvoiceStatus("all"); setSearchTerm(""); setFilterCheckinOnly(false);
+              }}>
               Limpar filtros
             </Button>
           )}
@@ -1801,6 +1874,7 @@ export default function RhControlPage() {
               if (i.actual && !emitsNfFor(i.actual)) return false;
               if (!i.actual) return true;
               const inv = getInvoiceForActual(i.actual.id);
+              if (inv?.status === "recusada") return false; // NF recusada é terminal — não está "ag. NF"
               const isDone = inv?.status === "aprovada" && !!inv?.checkinAt;
               const isChkPending = inv?.status === "aprovada" && !inv?.checkinAt;
               return !isDone && !isChkPending;

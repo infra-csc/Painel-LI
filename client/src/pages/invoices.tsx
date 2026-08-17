@@ -12,6 +12,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   FileText, Upload, CheckCircle2, RotateCcw, Clock,
   ChevronDown, ChevronUp, Paperclip, Calendar, Building2,
@@ -204,6 +205,12 @@ export default function InvoicesPage() {
     if (paramActual) setHighlightActualId(paramActual);
   }, [paramEvent, paramTab, paramFilter, paramActual]);
 
+  // Papel sem RH com aba "aprovacao" ativa (ex.: ?tab=aprovacao na URL) renderizaria
+  // um corpo vazio — cai para "lancamento".
+  useEffect(() => {
+    if (activeTab === "aprovacao" && !canRH) setActiveTab("lancamento");
+  }, [activeTab, canRH]);
+
   // Auto-select the first active event when the list loads (if nothing is selected yet)
   useEffect(() => {
     if (!selectedEventId && activeEvents.length > 0) {
@@ -279,13 +286,21 @@ export default function InvoicesPage() {
   const getInvoice = (actualId: string) =>
     (invoices as any[]).find(inv => inv.budgetActualId === actualId);
 
+  // Ids dos itens NF-elegíveis do Realizado — mesmo recorte do Controle RH (rh-control).
+  const eligibleActualIds = new Set(approvedActuals.map((a: any) => a.id));
+
+  // "Lançamento": itens NF-elegíveis que ainda dependem do colaborador — sem NF enviada
+  // ("Aguardando lançamento") ou com NF devolvida. Equivale a "Aguardando lançamento"
+  // + "NF devolvida" do card "Aguardando Colaborador" do Controle RH.
   const pendingCount  = approvedActuals.filter(a => {
     if (!emitsNfFor(a)) return false; // não emite NF — nada a cobrar
     const inv = getInvoice(a.id);
     return !inv || inv.status === "pendente" || inv.status === "devolvida";
   }).length;
-  const rhPendingCount = (invoices as any[]).filter(i => i.status === "enviada").length;
-  const checkinPendingCount = (invoices as any[]).filter(i => i.status === "aprovada" && !i.checkinAt).length;
+  // "Aprovação RH" (em análise): NFs enviadas de itens NF-elegíveis — mesmo critério do Controle RH.
+  const rhPendingCount = (invoices as any[]).filter(i => i.status === "enviada" && eligibleActualIds.has(i.budgetActualId)).length;
+  // "Check-in": NFs aprovadas de itens NF-elegíveis ainda sem check-in financeiro.
+  const checkinPendingCount = (invoices as any[]).filter(i => i.status === "aprovada" && !i.checkinAt && eligibleActualIds.has(i.budgetActualId)).length;
 
   const tabs = [
     { id: "lancamento" as const, label: "Lançamento",   count: pendingCount,   countCls: "bg-amber-100 text-amber-700" },
@@ -295,21 +310,27 @@ export default function InvoicesPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-6">
       <div className="max-w-6xl mx-auto space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
+        {/* Header — flex-wrap: em ~375px o select de evento quebra em vez de estourar */}
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0 flex-wrap">
             <div>
               <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
                   <FileText className="w-4 h-4 text-emerald-600" />
                 </div>
                 Notas Fiscais
-                <span
-                  className="group relative cursor-default"
-                  title="A nota fiscal é liberada assim que o Realizado é enviado — itens devolvidos ou rejeitados pausam a NF até a regularização. Para geração automática do texto de pagamento, cadastre a empresa pagadora no evento."
-                >
-                  <Info className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 transition-colors" />
-                </span>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" aria-label="Regra de liberação da nota fiscal" className="cursor-default">
+                        <Info className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 transition-colors" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[300px] text-xs font-normal">
+                      A nota fiscal é liberada assim que o Realizado é enviado — itens devolvidos ou rejeitados pausam a NF até a regularização. Para geração automática do texto de pagamento, cadastre a empresa pagadora no evento.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </h1>
               <p className="text-xs text-gray-400 mt-0.5 ml-10">Envio e aprovação de notas por colaborador</p>
             </div>
@@ -352,7 +373,8 @@ export default function InvoicesPage() {
             <FileText className="w-10 h-10 text-gray-200 mx-auto mb-3" />
             <p className="text-sm text-gray-400">Selecione um evento para gerenciar as notas fiscais</p>
           </div>
-        ) : !selectedEvent?.paymentCompanyCnpj?.trim() ? (
+        ) : !selectedEvent?.paymentCompanyCnpj?.trim() && canRH ? (
+          // Definir a empresa pagadora é ação do RH/admin — só eles veem o formulário
           (() => {
             const pcs = paymentCompanies as any[];
             const selectedPc = pcs.find(c => String(c.id) === confirmCompanyId);
@@ -483,6 +505,15 @@ export default function InvoicesPage() {
           </div>
         ) : (
           <>
+            {/* Empresa pagadora indefinida + papel sem RH: aviso somente-leitura,
+                sem bloquear a visualização das NFs */}
+            {!selectedEvent?.paymentCompanyCnpj?.trim() && (
+              <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                <Building2 className="w-4 h-4 text-amber-500 shrink-0" />
+                A empresa pagadora deste evento ainda não foi definida pelo RH. As notas fiscais continuam disponíveis para consulta.
+              </div>
+            )}
+
             {/* Stepper — estágio real dos itens (não a aba ativa) */}
             <InvoiceStepper counts={{ lancamento: pendingCount, aprovacao: rhPendingCount, checkin: checkinPendingCount }} />
 
@@ -534,6 +565,7 @@ export default function InvoicesPage() {
                 qc={qc}
                 toast={toast}
                 initialFilter={initialFilter}
+                highlightActualId={highlightActualId}
               />
             )}
           </>
@@ -1124,12 +1156,44 @@ function HistoryPanel({ events, collabName }: { events: HistEvent[]; collabName:
 type AprovAction = "approve" | "return" | "reject" | "checkin";
 type ActiveAprovAction = { invId: string; type: AprovAction } | null;
 
-function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedEventId, qc, toast, initialFilter }: any) {
+function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedEventId, qc, toast, initialFilter, highlightActualId }: any) {
   const [active, setActive]             = useState<ActiveAprovAction>(null);
   const [historyOpenId, setHistoryOpenId] = useState<string | null>(null);
   const [comment, setComment]           = useState("");
   const [checkinDate, setCheckinDate]   = useState("");
   const [filterStatus, setFilterStatus] = useState(initialFilter || "all");
+  const [highlightedId, setHighlightedId] = useState<string>(highlightActualId || "");
+
+  // Mesmo padrão da LancamentoTab: aplica o filtro vindo da URL quando ele muda
+  useEffect(() => {
+    if (initialFilter) setFilterStatus(initialFilter);
+  }, [initialFilter]);
+
+  // Param `actual` → destaca a linha e limpa após a animação (padrão da LancamentoTab)
+  useEffect(() => {
+    if (highlightActualId) {
+      setHighlightedId(highlightActualId);
+      const timer = setTimeout(() => setHighlightedId(""), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightActualId]);
+
+  // Scroll até a linha destacada — tenta de novo até o elemento aparecer no DOM
+  useEffect(() => {
+    if (!highlightedId) return;
+    let attempts = 0;
+    const tryScroll = () => {
+      const el = document.querySelector(`[data-actual-id="${highlightedId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else if (attempts < 10) {
+        attempts++;
+        setTimeout(tryScroll, 200);
+      }
+    };
+    const t = setTimeout(tryScroll, 150);
+    return () => clearTimeout(t);
+  }, [highlightedId, filterStatus, invoices?.length]);
 
   function openAction(invId: string, type: AprovAction) {
     setHistoryOpenId(null);
@@ -1152,6 +1216,8 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
       apiRequest("POST", `/api/invoices/${id}/approve`, {}).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
+      // Chave global também (igual reject/checkin) — o Controle RH usa ["/api/invoices"]
+      qc.invalidateQueries({ queryKey: ["/api/invoices"] });
       closeAction();
       toast({ title: "Nota aprovada!", description: "Faça o Check-in Financeiro para definir a data de pagamento." });
     },
@@ -1163,6 +1229,8 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
       apiRequest("POST", `/api/invoices/${id}/return`, { comment }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
+      // Chave global também (igual reject/checkin) — o Controle RH usa ["/api/invoices"]
+      qc.invalidateQueries({ queryKey: ["/api/invoices"] });
       closeAction();
       toast({ title: "Nota devolvida para ajuste." });
     },
@@ -1297,12 +1365,16 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
               const borderColor  = isHistOpen ? "#3B4FE4" : cfg.border;
               // Realizado devolvido/rejeitado pausa a aprovação da NF até o reenvio
               const actualBlocked = !!actual && (actual.rhStatus === "devolvido" || actual.rhStatus === "rejeitado");
+              const isTarget = !!highlightedId && inv.budgetActualId === highlightedId;
 
               return (
                 <Fragment key={inv.id}>
                   <tr
-                    className={`hover:bg-gray-50/60 transition-colors ${
-                      isActive && active?.type === "approve"
+                    data-actual-id={inv.budgetActualId}
+                    className={`hover:bg-gray-50/60 transition-colors duration-700 ${
+                      isTarget
+                        ? "bg-violet-50/70"
+                        : isActive && active?.type === "approve"
                         ? "bg-white"
                         : isHistOpen
                         ? "bg-blue-50/30"
@@ -1310,7 +1382,10 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                         ? "bg-gray-50"
                         : "border-b border-gray-50"
                     }`}
-                    style={{ borderLeft: `3px solid ${borderColor}` }}
+                    style={{
+                      borderLeft: `3px solid ${borderColor}`,
+                      ...(isTarget ? { boxShadow: "inset 0 0 0 2px #a78bfa" } : {}),
+                    }}
                   >
                     {/* Colaborador */}
                     <td className="px-4 py-3.5 overflow-hidden" style={{ minWidth: "180px" }}>

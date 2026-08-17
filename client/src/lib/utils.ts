@@ -34,9 +34,10 @@ export function normalizeId(val: string | number | null | undefined): string {
  * com placeholder "0,00", a interface pede vírgula e o valor era perdido.
  *
  * Regra: se houver vírgula, ela é o separador decimal e os pontos são de
- * milhar ("1.234,56" → 1234.56). Sem vírgula, o ponto continua sendo tratado
- * como decimal ("1234.56" → 1234.56), preservando o comportamento de quem
- * digita no teclado numérico.
+ * milhar ("1.234,56" → 1234.56). Sem vírgula, pontos agrupando exatamente
+ * 3 dígitos são separador de milhar ("1.500" → 1500; "1.500.000" → 1500000);
+ * nos demais casos o ponto continua decimal ("1.5" → 1.5; "1234.56" → 1234.56),
+ * preservando o comportamento de quem digita no teclado numérico.
  *
  * Usar apenas em inputs de texto. Em type="number" o navegador já entrega
  * ponto decimal e parseFloat basta.
@@ -45,9 +46,15 @@ export function parseBrNumber(raw: string | number | null | undefined): number {
   if (typeof raw === 'number') return Number.isFinite(raw) ? raw : 0;
   const s = String(raw ?? '').trim();
   if (!s) return 0;
-  const normalized = s.includes(',')
-    ? s.replace(/\./g, '').replace(',', '.')
-    : s;
+  let normalized: string;
+  if (s.includes(',')) {
+    normalized = s.replace(/\./g, '').replace(',', '.');
+  } else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) {
+    // "1.500" digitado sem vírgula é milhar (1500), não decimal (1,5)
+    normalized = s.replace(/\./g, '');
+  } else {
+    normalized = s;
+  }
   const n = parseFloat(normalized);
   return Number.isFinite(n) ? n : 0;
 }

@@ -239,8 +239,9 @@ export default function BudgetComparisonPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
-  // Filtro por status via chips do topo (toggle) — null = sem filtro
-  const [statusFilter, setStatusFilter] = useState<'para_analise' | 'aprovado' | 'rejeitado' | 'devolvido' | 'nao_enviado' | null>(null);
+  // Filtro por status via chips do topo (toggle) — null = sem filtro.
+  // "Não enviado" não é filtrável: esses itens não entram na base do comparativo.
+  const [statusFilter, setStatusFilter] = useState<'para_analise' | 'aprovado' | 'rejeitado' | 'devolvido' | null>(null);
   // Seleção por id do BudgetActual (não por índice): filtrar/ordenar deslocava os índices
   // e o RH acabava aprovando itens errados
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -489,7 +490,22 @@ export default function BudgetComparisonPage() {
   // Helper: scale a planned record proportionally using real weekday/weekend counts from the split group
   const proportionalPlanned = (planned: BudgetPlanned, item: BudgetActual, allGroupDays: string[]): BudgetPlanned => {
     const myDays = (item.workedDays as string[] | null) || [];
-    if (myDays.length === 0 || allGroupDays.length === 0) return planned;
+    if (allGroupDays.length === 0) return planned;
+    // Item que cedeu todos os dias na divisão: o planejado proporcional é ZERO —
+    // devolver o rawPlan fazia o titular sem dias herdar o planejado cheio
+    if (myDays.length === 0) {
+      return {
+        ...planned,
+        dailyQuantity: 0,
+        weekdayLunch: 0,
+        weekdayDinner: 0,
+        weekendLunch: 0,
+        weekendDinner: 0,
+        mobility: 0,
+        transport: 0,
+        totalValue: 0,
+      };
+    }
     if (myDays.length >= allGroupDays.length) return planned;
 
     const origWkdays = allGroupDays.filter(d => !isWknd(d)).length;
@@ -524,7 +540,12 @@ export default function BudgetComparisonPage() {
 
   const comparisonData = useMemo(() => {
     if (!budgetPlanned || !budgetActual) return [];
-    const sentActual = budgetActual.filter(a => a.sentForReview);
+    // Base do comparativo: itens enviados OU já decididos pelo RH. O servidor zera
+    // sentForReview ao devolver/recusar — sem o segundo critério, devolvidos e
+    // recusados sumiam da lista do RH.
+    const sentActual = budgetActual.filter(a =>
+      a.sentForReview || ['aprovado', 'devolvido', 'rejeitado'].includes(a.rhStatus || '')
+    );
 
     // Build map: parentId → split children (regardless of sentForReview on children)
     const splitChildrenMap = new Map<string, BudgetActual[]>();
@@ -596,10 +617,11 @@ export default function BudgetComparisonPage() {
     }
   }, [selectedEventId, comparison, isLoadingComparison, comparisonData]);
 
-  // Limpa a seleção quando busca/filtro/ordenação mudam — itens selecionados podem sair da lista visível
+  // Limpa a seleção quando busca/filtro mudam — itens selecionados podem sair da
+  // lista visível. Ordenar não muda a visibilidade, então sortBy fica de fora.
   useEffect(() => {
     setSelectedItems(new Set());
-  }, [searchTerm, filterFunction, filterType, sortBy, statusFilter]);
+  }, [searchTerm, filterFunction, filterType, statusFilter]);
 
   const filteredData = useMemo(() => {
     let data = [...comparisonData];
@@ -613,7 +635,6 @@ export default function BudgetComparisonPage() {
       data = data.filter(r => {
         const st = r.actual.rhStatus || 'pendente';
         if (statusFilter === 'para_analise') return r.actual.sentForReview && st === 'pendente';
-        if (statusFilter === 'nao_enviado') return !r.actual.sentForReview && st === 'pendente';
         return st === statusFilter;
       });
     }
@@ -651,8 +672,11 @@ export default function BudgetComparisonPage() {
   }, [comparisonData]);
 
   const totals = useMemo(() => {
-    // Always recompute from grouped data to avoid double-counting split children
-    const totalPlanned = comparisonData.reduce((s, r) => s + (r.planned?.totalValue || 0), 0);
+    // Always recompute from grouped data to avoid double-counting split children.
+    // "Não participou" fica fora dos DOIS lados: o realizado já é zerado no
+    // groupActualTotal e o planejado do ausente também não entra na soma.
+    const totalPlanned = comparisonData.reduce(
+      (s, r) => s + (r.planned && !r.planned.didNotAttend ? r.planned.totalValue : 0), 0);
     const totalActual = comparisonData.reduce((s, r) => s + r.groupActualTotal, 0);
     return { totalPlanned, totalActual, difference: totalActual - totalPlanned };
   }, [comparisonData]);
@@ -719,12 +743,18 @@ export default function BudgetComparisonPage() {
         <>
           {/* ── Stepper ── */}
           {(() => {
-            const currentStep = 3;
+            // Passo atual calculado como no Realizado (não fixo): enquanto houver
+            // item sem envio/decisão, ainda estamos na Prestação; tudo aprovado → NF
+            const eventItems = budgetActual || [];
+            const allSentOrDecided = eventItems.length > 0 && eventItems.every(i => i.sentForReview || ['aprovado', 'devolvido', 'rejeitado'].includes(i.rhStatus || ''));
+            const allApproved = eventItems.length > 0 && eventItems.every(i => i.rhStatus === 'aprovado');
+            const currentStep = allApproved ? 4 : allSentOrDecided ? 3 : 2;
+            // Mesmos 4 passos e rótulos do Orçamento Realizado + etapa final de NF
             const steps = [
               { label: "Escalação", desc: "Inclusões confirmadas" },
               { label: "Planejamento RH", desc: "Valores previstos" },
-              { label: "Prestação de contas", desc: "Resp. preenche o realizado" },
-              { label: "Aprovação RH", desc: "Análise formal das prestações" },
+              { label: "Prestação", desc: "Resp. preenche realizado" },
+              { label: "Aprovação RH", desc: "Análise e aprovação" },
               { label: "Nota Fiscal", desc: "Liberada no envio do Realizado" },
             ];
             return (
@@ -768,18 +798,21 @@ export default function BudgetComparisonPage() {
           {/* ── Status pills ── */}
           {budgetActual && budgetActual.length > 0 && (() => {
             const totalActualItems = budgetActual.length;
-            const sentCount = budgetActual.filter(a => a.sentForReview && a.rhStatus === 'pendente').length;
-            const approvedCount = budgetActual.filter(a => a.rhStatus === 'aprovado').length;
-            const rejectedCount = budgetActual.filter(a => a.rhStatus === 'rejeitado').length;
-            const returnedCount = budgetActual.filter(a => a.rhStatus === 'devolvido').length;
-            const pendingCount = budgetActual.filter(a => !a.sentForReview && a.rhStatus === 'pendente').length;
-            type StatusFilterKey = 'para_analise' | 'aprovado' | 'rejeitado' | 'devolvido' | 'nao_enviado';
+            // Chips clicáveis contam sobre a MESMA base filtrada pelos cards
+            // (comparisonData) — contar sobre budgetActual cru fazia o chip
+            // prometer N itens e o filtro mostrar outro número
+            const sentCount = comparisonData.filter(r => r.actual.sentForReview && (r.actual.rhStatus || 'pendente') === 'pendente').length;
+            const approvedCount = comparisonData.filter(r => (r.actual.rhStatus || 'pendente') === 'aprovado').length;
+            const rejectedCount = comparisonData.filter(r => (r.actual.rhStatus || 'pendente') === 'rejeitado').length;
+            const returnedCount = comparisonData.filter(r => (r.actual.rhStatus || 'pendente') === 'devolvido').length;
+            // "Não enviados" ficam fora da base do comparativo — o chip é apenas informativo
+            const pendingCount = budgetActual.filter(a => !a.splitParentId && !a.sentForReview && (a.rhStatus || 'pendente') === 'pendente').length;
+            type StatusFilterKey = 'para_analise' | 'aprovado' | 'rejeitado' | 'devolvido';
             const chips = [
               sentCount > 0 && { key: 'para_analise' as StatusFilterKey, icon: Send, count: sentCount, label: `para análise`, bg: 'bg-blue-50', border: 'border-blue-200', iconColor: 'text-blue-500', numColor: 'text-blue-700', textColor: 'text-blue-500/70', ring: 'ring-blue-400' },
               approvedCount > 0 && { key: 'aprovado' as StatusFilterKey, icon: CheckCircle, count: approvedCount, label: `aprovado${approvedCount !== 1 ? 's' : ''}`, bg: 'bg-emerald-50', border: 'border-emerald-200', iconColor: 'text-emerald-500', numColor: 'text-emerald-700', textColor: 'text-emerald-600/70', ring: 'ring-emerald-400' },
               rejectedCount > 0 && { key: 'rejeitado' as StatusFilterKey, icon: XCircle, count: rejectedCount, label: `recusado${rejectedCount !== 1 ? 's' : ''}`, bg: 'bg-red-50', border: 'border-red-200', iconColor: 'text-red-500', numColor: 'text-red-700', textColor: 'text-red-600/70', ring: 'ring-red-400' },
               returnedCount > 0 && { key: 'devolvido' as StatusFilterKey, icon: RotateCcw, count: returnedCount, label: `devolvido${returnedCount !== 1 ? 's' : ''}`, bg: 'bg-orange-50', border: 'border-orange-200', iconColor: 'text-orange-500', numColor: 'text-orange-700', textColor: 'text-orange-600/70', ring: 'ring-orange-400' },
-              pendingCount > 0 && { key: 'nao_enviado' as StatusFilterKey, icon: Clock, count: pendingCount, label: `não enviado${pendingCount !== 1 ? 's' : ''}`, bg: 'bg-amber-50', border: 'border-amber-200', iconColor: 'text-amber-500', numColor: 'text-amber-700', textColor: 'text-amber-600/70', ring: 'ring-amber-400' },
             ].filter(Boolean) as Array<{ key: StatusFilterKey; icon: LucideIcon; count: number; label: string; bg: string; border: string; iconColor: string; numColor: string; textColor: string; ring: string }>;
             return (
               <div className="flex items-center gap-2 flex-wrap">
@@ -797,6 +830,16 @@ export default function BudgetComparisonPage() {
                     <span className={`text-[10px] ${chip.textColor}`}>{chip.label}</span>
                   </button>
                 ))}
+                {pendingCount > 0 && (
+                  <div
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200"
+                    title="Prestações ainda não enviadas pelo responsável — não aparecem na lista abaixo"
+                  >
+                    <Clock className="w-3 h-3 text-amber-500" />
+                    <span className="text-sm font-bold text-amber-700">{pendingCount}</span>
+                    <span className="text-[10px] text-amber-600/70">não enviado{pendingCount !== 1 ? 's' : ''}</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200">
                   <ListChecks className="w-3 h-3 text-slate-400" />
                   <span className="text-sm font-bold text-slate-600">{totalActualItems}</span>
@@ -905,12 +948,15 @@ export default function BudgetComparisonPage() {
                     size="sm" variant="ghost"
                     className="text-xs h-7 gap-1 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100"
                     onClick={() => {
-                      if (expandedCards.size === sortedData.length) setExpandedCards(new Set());
+                      // Interseção com os ids visíveis: comparar por size acumulado
+                      // travava o botão quando havia ids expandidos fora do filtro
+                      const allVisibleExpanded = sortedData.length > 0 && sortedData.every(r => expandedCards.has(r.actual.id));
+                      if (allVisibleExpanded) setExpandedCards(new Set());
                       else setExpandedCards(new Set(sortedData.map(r => r.actual.id)));
                     }}
                   >
-                    {expandedCards.size === sortedData.length ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                    {expandedCards.size === sortedData.length ? 'Recolher todos' : 'Expandir todos'}
+                    {sortedData.length > 0 && sortedData.every(r => expandedCards.has(r.actual.id)) ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    {sortedData.length > 0 && sortedData.every(r => expandedCards.has(r.actual.id)) ? 'Recolher todos' : 'Expandir todos'}
                   </Button>
                   {isRhOrAdmin && (
                     <Button
@@ -1018,8 +1064,11 @@ export default function BudgetComparisonPage() {
                   const hasJustification = !!a.changeReason;
                   const hasDiff = diff !== 0;
 
-                  const dailyPlanned = p ? p.dailyQuantity * p.dailyValue : 0;
-                  const dailyActual = a.dailyQuantity * a.dailyValue;
+                  // Subtotal de diárias derivado do total gravado (total − alimentação −
+                  // mobilidade − translado, como no Realizado): qty × média arredondada
+                  // não reproduz o subtotal dia a dia e deixava o card sem fechar
+                  const dailyPlanned = p ? p.totalValue - p.weekdayLunch - p.weekdayDinner - p.weekendLunch - p.weekendDinner - p.mobility - p.transport : 0;
+                  const dailyActual = a.totalValue - a.weekdayLunch - a.weekdayDinner - a.weekendLunch - a.weekendDinner - a.mobility - a.transport;
 
                   const itemRhStatus = a.rhStatus || 'pendente';
                   const isDecided = itemRhStatus === 'aprovado' || itemRhStatus === 'rejeitado' || itemRhStatus === 'devolvido';
@@ -1197,7 +1246,8 @@ export default function BudgetComparisonPage() {
                               )}
                             </div>
                           </div>
-                          {isRhOrAdmin && !['aprovado', 'rejeitado'].includes(a.rhStatus || '') && (
+                          {/* Item devolvido está com o responsável — o RH não edita até o reenvio */}
+                          {isRhOrAdmin && !['aprovado', 'rejeitado', 'devolvido'].includes(a.rhStatus || '') && (
                             <TooltipProvider delayDuration={200}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1237,7 +1287,7 @@ export default function BudgetComparisonPage() {
                                 <UserX className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
                                 <div>
                                   <p className="text-sm font-semibold text-slate-600">Colaborador não participou do evento</p>
-                                  <p className="text-[11px] text-slate-400 mt-0.5">Os valores do Realizado e a Diferença são excluídos dos totais. O Planejado permanece para referência.</p>
+                                  <p className="text-[11px] text-slate-400 mt-0.5">Planejado, Realizado e Diferença deste colaborador são excluídos dos totais. Os valores abaixo permanecem apenas para referência.</p>
                                   {row.planned?.didNotAttendReason && <p className="text-[11px] text-slate-500 mt-1 italic">Motivo: {row.planned.didNotAttendReason}</p>}
                                 </div>
                               </div>
@@ -1554,7 +1604,7 @@ export default function BudgetComparisonPage() {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="text-xs max-w-[180px] text-center">
-                    Rejeita a prestação — responsável não poderá editar novamente
+                    Rejeita a prestação — o responsável poderá corrigir e reenviar
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -1784,10 +1834,11 @@ export default function BudgetComparisonPage() {
             const pp = sd.propPlanned;
             const fa = sd.actual;
 
-            const dailyPlan = pp ? pp.dailyQuantity * pp.dailyValue : 0;
-            const dailyAct = fa.dailyQuantity * fa.dailyValue;
             const mealPlan = pp ? (pp.weekdayLunch + pp.weekdayDinner + pp.weekendLunch + pp.weekendDinner) : 0;
             const mealAct = fa.weekdayLunch + fa.weekdayDinner + fa.weekendLunch + fa.weekendDinner;
+            // Derivado do total (não qty×média) para os subtotais fecharem com o TOTAL
+            const dailyPlan = pp ? pp.totalValue - mealPlan - pp.mobility - pp.transport : 0;
+            const dailyAct = fa.totalValue - mealAct - fa.mobility - fa.transport;
             const mobPlan = pp ? (pp.mobility + pp.transport) : 0;
             const mobAct = fa.mobility + fa.transport;
             const totalPlan = pp?.totalValue || 0;

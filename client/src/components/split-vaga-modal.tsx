@@ -386,21 +386,32 @@ export function SplitVagaModal({
         return;
       }
       if (e.key === "Tab" && modalRef.current) {
-        const focusables = Array.from(
-          modalRef.current.querySelectorAll<HTMLElement>(
+        // O trap precisa enxergar os PORTAIS (dropdown de colaborador e alertdialog
+        // de confirmação vivem em document.body): coletar só dentro do modal roubava
+        // o foco desses elementos. Com o alertdialog aberto, o trap fica só nele.
+        const zeroDayPortal = document.getElementById("split-zeroday-portal");
+        const collabPortal = document.getElementById("split-collab-portal");
+        const roots: HTMLElement[] = zeroDayPortal
+          ? [zeroDayPortal]
+          : collabPortal
+            ? [modalRef.current, collabPortal]
+            : [modalRef.current];
+        const focusables = roots.flatMap(root => Array.from(
+          root.querySelectorAll<HTMLElement>(
             'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
           )
-        ).filter(el => el.offsetParent !== null);
+        )).filter(el => el.offsetParent !== null);
         if (focusables.length === 0) return;
         const first = focusables[0];
         const last = focusables[focusables.length - 1];
         const active = document.activeElement as HTMLElement | null;
+        const insideRoots = roots.some(r => r.contains(active));
         if (e.shiftKey) {
-          if (active === first || !modalRef.current.contains(active)) {
+          if (active === first || !insideRoots) {
             e.preventDefault();
             last.focus();
           }
-        } else if (active === last || !modalRef.current.contains(active)) {
+        } else if (active === last || !insideRoots) {
           e.preventDefault();
           first.focus();
         }
@@ -1006,8 +1017,13 @@ export function SplitVagaModal({
                   {/* Summary card */}
                   <div className="rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="grid grid-cols-3 divide-x divide-slate-200">
-                      <div className="px-3 py-3 text-center">
-                        <div className="text-[10px] uppercase text-slate-400 font-semibold tracking-widest mb-1">Planejado prop.</div>
+                      {/* Base honesta: os valores vêm do BudgetActual do titular (realizado),
+                          não do planejado do RH — o rótulo antigo "Planejado prop." mentia */}
+                      <div
+                        className="px-3 py-3 text-center"
+                        title={`Proporcional calculado sobre o realizado do titular, não sobre o planejado do RH${proportionalPlannedBreakdown ? ` — ${proportionalPlannedBreakdown}` : ''}`}
+                      >
+                        <div className="text-[10px] uppercase text-slate-400 font-semibold tracking-widest mb-1">Base do titular (realizado)</div>
                         <div className="text-sm font-bold text-slate-600 tabular-nums">{fmtR$(proportionalPlanned)}</div>
                       </div>
                       <div className="px-4 py-3 text-center bg-violet-50/60">
@@ -1054,7 +1070,7 @@ export function SplitVagaModal({
       {/* Zero-day confirmation */}
       {showZeroDayConfirm && createPortal(
         <div className="fixed inset-0 z-[10001] bg-black/60 flex items-center justify-center p-6">
-          <div role="alertdialog" aria-modal="true" aria-label="Colaborador original sem dias" className="bg-white rounded-2xl max-w-[420px] w-full p-7 shadow-2xl">
+          <div id="split-zeroday-portal" role="alertdialog" aria-modal="true" aria-label="Colaborador original sem dias" className="bg-white rounded-2xl max-w-[420px] w-full p-7 shadow-2xl">
             <div className="flex gap-3 items-start mb-5">
               <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
                 <AlertTriangle className="w-5 h-5 text-red-500" />

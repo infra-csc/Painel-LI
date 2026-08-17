@@ -127,7 +127,8 @@ export default function BudgetActualPage() {
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [modalActualTab, setModalActualTab] = useState<'custos' | 'observacoes' | 'historico'>('custos');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [confirmSendAll, setConfirmSendAll] = useState(false);
+  // Confirmação de envio: 'all' = pendentes visíveis no filtro; 'selected' = seleção atual
+  const [confirmSend, setConfirmSend] = useState<null | 'all' | 'selected'>(null);
   const [splittingItem, setSplittingItem] = useState<BudgetActual | null>(null);
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
   const { toast } = useToast();
@@ -178,6 +179,13 @@ export default function BudgetActualPage() {
 
   const rhComment = budgetComparison?.status === 'devolvido' ? budgetComparison.returnReason :
                     budgetComparison?.status === 'rejeitado' ? budgetComparison.rejectionReason : null;
+
+  // Itens efetivamente devolvidos pelo RH — o banner deriva daqui, não do status
+  // agregado do comparativo (que fica stale quando a devolução é por item)
+  const devolvedItems = useMemo(
+    () => (budgetActual || []).filter(i => i.eventId === selectedEventId && i.rhStatus === 'devolvido'),
+    [budgetActual, selectedEventId]
+  );
 
   const isRhOrAdmin = user?.role === 'admin' || user?.role === 'financial';
 
@@ -408,7 +416,23 @@ export default function BudgetActualPage() {
     const allGroupDays = Array.from(new Set(allGroupItems.flatMap(a => a.workedDays || []))).sort();
     const myDays = item.workedDays || [];
 
-    if (myDays.length === 0 || allGroupDays.length === 0 || myDays.length >= allGroupDays.length) return rawPlan;
+    if (allGroupDays.length === 0) return rawPlan;
+    // Item que cedeu todos os dias na divisão: o planejado proporcional é ZERO —
+    // devolver o rawPlan fazia o titular sem dias herdar o planejado cheio
+    if (myDays.length === 0) {
+      return {
+        ...rawPlan,
+        dailyQuantity: 0,
+        weekdayLunch: 0,
+        weekdayDinner: 0,
+        weekendLunch: 0,
+        weekendDinner: 0,
+        mobility: 0,
+        transport: 0,
+        totalValue: 0,
+      };
+    }
+    if (myDays.length >= allGroupDays.length) return rawPlan;
 
     const origWkdays = allGroupDays.filter(d => !isWeekendDate(d)).length;
     const origWknds  = allGroupDays.filter(d =>  isWeekendDate(d)).length;
@@ -642,7 +666,8 @@ export default function BudgetActualPage() {
   }, [filteredItems, budgetPlanned]);
   const totalPlanejado = useMemo(() => {
     return filteredItems
-      .filter(item => !item.splitParentId)
+      // "Não participou" fica fora do planejado também — igual ao realizado acima
+      .filter(item => !item.splitParentId && !isDidNotAttend(item))
       .reduce((sum, item) => {
         const planned = getPlannedRef(item);
         // Sem planejado correspondente soma 0 — usar item.totalValue inflava o planejado
@@ -654,15 +679,21 @@ export default function BudgetActualPage() {
     pendingCount: filteredItems.filter(item => !item.splitParentId && !item.sentForReview).length,
   }), [filteredItems]);
   // Itens que ainda podem ser selecionados/enviados (não travados por sentForReview)
-  const selectableCount = useMemo(() => filteredItems.filter(i => !i.sentForReview).length, [filteredItems]);
-  // Itens ainda com badge "Não preenchido" (nunca salvos) — informados na confirmação do envio em lote
-  const unfilledCount = useMemo(() => filteredItems.filter(i => {
+  const pendingFiltered = useMemo(() => filteredItems.filter(i => !i.sentForReview), [filteredItems]);
+  const selectableCount = pendingFiltered.length;
+  // Item ainda com badge "Não preenchido" (nunca salvo) — informado na confirmação do envio
+  const isUnfilledItem = (i: BudgetActual): boolean => {
     if (i.sentForReview) return false;
     if (['aprovado', 'devolvido', 'rejeitado'].includes(i.rhStatus || '')) return false;
     if (i.observations?.includes('Duplicado no Realizado')) return false;
     const edited = !!(i.updatedAt && i.createdAt && new Date(i.updatedAt).getTime() > new Date(i.createdAt).getTime() + 1000);
     return !edited;
-  }).length, [filteredItems]);
+  };
+  // Limpa a seleção quando busca/filtro mudam — itens selecionados fora da lista
+  // visível viravam "seleção fantasma" e entravam no envio em lote sem o usuário ver
+  useEffect(() => {
+    setSelectedCards(new Set());
+  }, [searchTerm, filterType, filterFunction]);
   const totalDifference = totalRealizado - totalPlanejado;
   const diffLabel = totalDifference === 0
     ? { text: "Dentro do planejado", color: "text-gray-500" }
@@ -1030,19 +1061,37 @@ export default function BudgetActualPage() {
         )}
       </div>
 
-      {/* ── Banner: prestação devolvida pelo RH ── */}
-      {selectedEventId && budgetComparison?.status === 'devolvido' && (
-        <div className="flex items-start gap-3 px-4 py-3.5 rounded-2xl border border-amber-200 bg-amber-50 shadow-sm">
-          <div className="w-8 h-8 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0">
-            <AlertCircle className="w-4 h-4 text-amber-600" />
+      {/* ── Banner: prestações devolvidas pelo RH (derivado dos itens, item
+           a item — o status agregado do comparativo ficava stale) ── */}
+      {selectedEventId && devolvedItems.length > 0 && (() => {
+        const commented = devolvedItems.filter(i => i.rhComment);
+        const shown = commented.slice(0, 3);
+        return (
+          <div className="flex items-start gap-3 px-4 py-3.5 rounded-2xl border border-amber-200 bg-amber-50 shadow-sm">
+            <div className="w-8 h-8 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0">
+              <AlertCircle className="w-4 h-4 text-amber-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[13px] font-bold text-amber-800 m-0">
+                {devolvedItems.length === 1
+                  ? 'Prestação devolvida pelo RH'
+                  : `${devolvedItems.length} prestações devolvidas pelo RH`}
+              </p>
+              {shown.map(i => (
+                <p key={i.id} className="text-xs text-amber-700 mt-0.5 m-0">
+                  <span className="font-semibold">{getCollaboratorName(i.collaboratorId)}:</span> {i.rhComment}
+                </p>
+              ))}
+              {commented.length > shown.length && (
+                <p className="text-xs text-amber-600/80 mt-0.5 m-0">
+                  + {commented.length - shown.length} {commented.length - shown.length === 1 ? 'outro comentário' : 'outros comentários'} nos cards devolvidos
+                </p>
+              )}
+              <p className="text-[11px] text-amber-600/80 mt-1 m-0">Corrija os itens marcados como "Devolvido" e reenvie para revisão.</p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-[13px] font-bold text-amber-800 m-0">Prestação devolvida pelo RH</p>
-            {rhComment && <p className="text-xs text-amber-700 mt-0.5 m-0">{rhComment}</p>}
-            <p className="text-[11px] text-amber-600/80 mt-1 m-0">Corrija os itens marcados como "Devolvido" e reenvie para revisão.</p>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── Tela 1: Seleção de evento ── */}
       {!selectedEventId ? (
@@ -1072,7 +1121,7 @@ export default function BudgetActualPage() {
         <div className="flex items-center justify-center py-20">
           <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : filteredItems.length === 0 && !searchTerm && filterType === "all" ? (
+      ) : filteredItems.length === 0 && !searchTerm && filterType === "all" && filterFunction === "all" ? (
         <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
           <ClipboardCheck className="w-16 h-16 text-gray-200 dark:text-gray-700 mx-auto mb-4" />
           <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-2">Nenhuma prestação disponível</h3>
@@ -1333,6 +1382,22 @@ export default function BudgetActualPage() {
           )}
 
           <div className="space-y-5">
+            {orderedRenderItems.length === 0 && (
+              <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-12 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                  <Search className="w-6 h-6 text-slate-300" />
+                </div>
+                <p className="font-semibold text-slate-500">Nenhum resultado para os filtros</p>
+                <p className="text-sm text-slate-400 mt-1">Ajuste a busca ou os filtros para ver outras prestações.</p>
+                <Button
+                  variant="ghost"
+                  className="mt-3 h-8 px-4 rounded-xl text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                  onClick={() => { setSearchTerm(''); setFilterType('all'); setFilterFunction('all'); }}
+                >
+                  Limpar filtros
+                </Button>
+              </div>
+            )}
             {orderedRenderItems.map((item) => {
               const isGroupParent = !item.splitParentId && splitGroupsMap.has(item.id);
               const isGroupChild = !!item.splitParentId;
@@ -1346,8 +1411,10 @@ export default function BudgetActualPage() {
                 // Filho cujo pai está na lista já é renderizado dentro do grupo do pai
                 const parentPresent = filteredItems.some(p => !p.splitParentId && p.id === item.splitParentId);
                 if (parentPresent) return null;
-                // Órfão (pai filtrado/apagado): renderiza como card avulso para não virar valor invisível nos totais
-                return <div key={item.id}>{renderSingleCard(item)}</div>;
+                // Órfão (pai filtrado/apagado): renderiza com contexto de divisão —
+                // isGChild resolve o planejado proporcional via splitParentId e
+                // mantém o badge "Divisão", em vez de tratá-lo como card avulso
+                return <div key={item.id}>{renderSingleCard(item, { isGChild: true })}</div>;
               }
 
               if (!isGroupParent) {
@@ -1440,8 +1507,8 @@ export default function BudgetActualPage() {
                     disabled={sendForReviewMutation.isPending}
                     onClick={() => {
                       if (!selectedEventId) return;
-                      sendForReviewMutation.mutate({ eventId: selectedEventId, itemIds: Array.from(selectedCards) });
-                      setSelectedCards(new Set());
+                      // Passa pela mesma confirmação do "Enviar todas" (não preenchidos + aviso de NF)
+                      setConfirmSend('selected');
                     }}
                   >
                     <Send className="w-3.5 h-3.5" />
@@ -1458,7 +1525,7 @@ export default function BudgetActualPage() {
                     disabled={sendForReviewMutation.isPending}
                     onClick={() => {
                       if (!selectedEventId) return;
-                      setConfirmSendAll(true);
+                      setConfirmSend('all');
                     }}
                   >
                     <Send className="w-3.5 h-3.5" />
@@ -1803,6 +1870,30 @@ export default function BudgetActualPage() {
                     </div>
                   </div>
 
+                  {/* ── Translado — somente leitura (entra no total gravado; sem esta
+                       linha o total do rodapé não fechava aos olhos do responsável) ── */}
+                  {editingItem.transport > 0 && (
+                    <div
+                      className="rounded-xl border border-slate-200 overflow-hidden"
+                      style={{borderLeft:'3px solid #e5e7eb', background:'#F8FAFC'}}
+                      title="Este valor é definido pelo RH e não pode ser alterado nesta etapa"
+                    >
+                      <div className="flex items-center justify-between px-4 py-2.5" style={{background:'#F1F5F9'}}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-5 h-5 rounded-md bg-slate-400 flex items-center justify-center">
+                            <Car className="w-3 h-3 text-white" />
+                          </div>
+                          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Translado</span>
+                          <span className="text-[10px] font-medium text-slate-400 flex items-center gap-0.5">
+                            <Lock className="w-2.5 h-2.5" />
+                            Definido pelo RH
+                          </span>
+                        </div>
+                        <span className="text-[13px] font-bold text-slate-500 tabular-nums font-mono">{formatCurrency(editingItem.transport)}</span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* ── Alimentação — somente leitura ── */}
                   <div
                     className="rounded-xl border border-slate-200 overflow-hidden"
@@ -1953,43 +2044,66 @@ export default function BudgetActualPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Confirmação: Enviar todas ── */}
-      <AlertDialog open={confirmSendAll} onOpenChange={setConfirmSendAll}>
+      {/* ── Confirmação: enviar para revisão (todas visíveis ou selecionadas) ── */}
+      <AlertDialog open={confirmSend !== null} onOpenChange={(open) => { if (!open) setConfirmSend(null); }}>
         <AlertDialogContent className="max-w-md rounded-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Enviar todas as prestações para revisão?</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-2 text-sm text-slate-600">
-                {unfilledCount > 0 ? (
-                  <p>
-                    <strong className="text-amber-600">
-                      {unfilledCount} {unfilledCount === 1 ? 'item está como "Não preenchido"' : 'itens estão como "Não preenchido"'}
-                    </strong>{' '}
-                    e {unfilledCount === 1 ? 'será enviado' : 'serão enviados'} com os valores atuais.
-                  </p>
-                ) : (
-                  <p>Todos os itens pendentes serão enviados para conferência do RH.</p>
-                )}
-                <p>
-                  Após o envio, os itens ficam <strong>bloqueados para edição</strong> e a{' '}
-                  <strong>emissão de NF é liberada</strong> para os colaboradores enviados.
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="rounded-xl text-white"
-              style={{background:'#059669'}}
-              onClick={() => {
-                if (selectedEventId) sendForReviewMutation.mutate({ eventId: selectedEventId });
-              }}
-            >
-              <Send className="w-3.5 h-3.5 mr-1.5" />
-              Enviar todas
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          {(() => {
+            // Aviso e envio cobrem o MESMO conjunto: pendentes visíveis no filtro
+            // atual ('all') ou a interseção da seleção com esses pendentes ('selected')
+            const targets = confirmSend === 'selected'
+              ? pendingFiltered.filter(i => selectedCards.has(i.id))
+              : pendingFiltered;
+            const targetUnfilled = targets.filter(isUnfilledItem).length;
+            return (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    {confirmSend === 'selected'
+                      ? 'Enviar prestações selecionadas para revisão?'
+                      : 'Enviar prestações para revisão?'}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription asChild>
+                    <div className="space-y-2 text-sm text-slate-600">
+                      <p>
+                        {confirmSend === 'selected'
+                          ? <>Serão enviadas as <strong>{targets.length} {targets.length === 1 ? 'prestação selecionada' : 'prestações selecionadas'}</strong>.</>
+                          : <>Serão enviadas as <strong>{targets.length} {targets.length === 1 ? 'prestação visível' : 'prestações visíveis'} no filtro atual</strong>.</>}
+                      </p>
+                      {targetUnfilled > 0 && (
+                        <p>
+                          <strong className="text-amber-600">
+                            {targetUnfilled} {targetUnfilled === 1 ? 'item está como "Não preenchido"' : 'itens estão como "Não preenchido"'}
+                          </strong>{' '}
+                          e {targetUnfilled === 1 ? 'será enviado' : 'serão enviados'} com os valores atuais.
+                        </p>
+                      )}
+                      <p>
+                        Após o envio, os itens ficam <strong>bloqueados para edição</strong> e a{' '}
+                        <strong>emissão de NF é liberada</strong> para os colaboradores enviados.
+                      </p>
+                    </div>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="rounded-xl text-white"
+                    style={{background:'#059669'}}
+                    onClick={() => {
+                      if (selectedEventId && targets.length > 0) {
+                        sendForReviewMutation.mutate({ eventId: selectedEventId, itemIds: targets.map(t => t.id) });
+                        if (confirmSend === 'selected') setSelectedCards(new Set());
+                      }
+                      setConfirmSend(null);
+                    }}
+                  >
+                    <Send className="w-3.5 h-3.5 mr-1.5" />
+                    {confirmSend === 'selected' ? 'Enviar selecionadas' : 'Enviar prestações'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </>
+            );
+          })()}
         </AlertDialogContent>
       </AlertDialog>
 

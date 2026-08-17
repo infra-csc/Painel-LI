@@ -23,49 +23,70 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/use-auth";
-import { isRhOrAdmin } from "@/lib/permissions";
+import { isAdmin, isRhOrAdmin } from "@/lib/permissions";
 import type { Function as FunctionType, FunctionValue, PaymentCompany } from "@shared/schema";
 import { CnpjInput, validateCnpj } from "@/components/ui/cnpj-input";
 
+// Validação numérica no client: o input normaliza vírgula→ponto, então aqui
+// basta aceitar dígitos com decimal opcional. Sem isso, "12abc" ou "" viravam
+// NaN no PUT e o erro só aparecia (genérico) depois da ida ao servidor.
+const isNumericString = (v: string) => /^\d+(\.\d+)?$/.test(v.trim());
+
+// Campo monetário (reais<->centavos): número >= 0.
+const moneyField = () =>
+  z.string()
+    .min(1, "Obrigatório")
+    .refine(isNumericString, "Informe um valor numérico válido (ex.: 40,00)");
+
+// Campo percentual inteiro: número entre 0 e 100, com mensagem própria.
+const percentField = () =>
+  z.string()
+    .min(1, "Obrigatório")
+    .refine(isNumericString, "Informe um percentual numérico válido (ex.: 90)")
+    .refine(v => {
+      const n = parseFloat(v);
+      return n >= 0 && n <= 100;
+    }, "O percentual deve estar entre 0 e 100");
+
 const formSchema = z.object({
   // Casa
-  default_daily_value_weekday: z.string().min(1, "Obrigatório"),
-  default_daily_value_weekend: z.string().min(1, "Obrigatório"),
-  default_mobility_ida: z.string().min(1, "Obrigatório"),
-  default_mobility_volta: z.string().min(1, "Obrigatório"),
-  default_weekday_lunch: z.string().min(1, "Obrigatório"),
-  default_weekday_dinner: z.string().min(1, "Obrigatório"),
-  default_weekend_lunch: z.string().min(1, "Obrigatório"),
-  default_weekend_dinner: z.string().min(1, "Obrigatório"),
+  default_daily_value_weekday: moneyField(),
+  default_daily_value_weekend: moneyField(),
+  default_mobility_ida: moneyField(),
+  default_mobility_volta: moneyField(),
+  default_weekday_lunch: moneyField(),
+  default_weekday_dinner: moneyField(),
+  default_weekend_lunch: moneyField(),
+  default_weekend_dinner: moneyField(),
   // Freela
-  default_daily_value_weekday_freela: z.string().min(1, "Obrigatório"),
-  default_daily_value_weekend_freela: z.string().min(1, "Obrigatório"),
-  default_mobility_ida_freela: z.string().min(1, "Obrigatório"),
-  default_mobility_volta_freela: z.string().min(1, "Obrigatório"),
-  default_weekday_lunch_freela: z.string().min(1, "Obrigatório"),
-  default_weekday_dinner_freela: z.string().min(1, "Obrigatório"),
-  default_weekend_lunch_freela: z.string().min(1, "Obrigatório"),
-  default_weekend_dinner_freela: z.string().min(1, "Obrigatório"),
+  default_daily_value_weekday_freela: moneyField(),
+  default_daily_value_weekend_freela: moneyField(),
+  default_mobility_ida_freela: moneyField(),
+  default_mobility_volta_freela: moneyField(),
+  default_weekday_lunch_freela: moneyField(),
+  default_weekday_dinner_freela: moneyField(),
+  default_weekend_lunch_freela: moneyField(),
+  default_weekend_dinner_freela: moneyField(),
   // Atendimento
-  atendimento_key_account: z.string().min(1, "Obrigatório"),
-  atendimento_executivo_contas: z.string().min(1, "Obrigatório"),
+  atendimento_key_account: moneyField(),
+  atendimento_executivo_contas: moneyField(),
   // Diárias Freela (regra por viagem) — monetárias normais (reais<->centavos)
-  freela_diaria_local: z.string().min(1, "Obrigatório"),
-  freela_diaria_viagem: z.string().min(1, "Obrigatório"),
-  freela_diaria_dir_prova: z.string().min(1, "Obrigatório"),
+  freela_diaria_local: moneyField(),
+  freela_diaria_viagem: moneyField(),
+  freela_diaria_dir_prova: moneyField(),
   // Diárias Casa (regra por grupo de função) — monetárias normais (reais<->centavos)
-  casa_diaria_dir_prova: z.string().min(1, "Obrigatório"),
-  casa_diaria_produtor: z.string().min(1, "Obrigatório"),
-  casa_diaria_exec_vendas: z.string().min(1, "Obrigatório"),
+  casa_diaria_dir_prova: moneyField(),
+  casa_diaria_produtor: moneyField(),
+  casa_diaria_exec_vendas: moneyField(),
   // Regra de deflação (diárias) — percentuais inteiros 0..100, NÃO monetários
-  deflacao_fator_ate_4: z.string().min(1, "Obrigatório"),
-  deflacao_fator_5_8: z.string().min(1, "Obrigatório"),
-  deflacao_fator_9_mais: z.string().min(1, "Obrigatório"),
+  deflacao_fator_ate_4: percentField(),
+  deflacao_fator_5_8: percentField(),
+  deflacao_fator_9_mais: percentField(),
   // Alimentação por refeição (regra por voo) — monetárias normais (reais<->centavos)
-  alimentacao_almoco: z.string().min(1, "Obrigatório"),
-  alimentacao_jantar: z.string().min(1, "Obrigatório"),
-  alimentacao_almoco_ceno: z.string().min(1, "Obrigatório"),
-  alimentacao_jantar_ceno: z.string().min(1, "Obrigatório"),
+  alimentacao_almoco: moneyField(),
+  alimentacao_jantar: moneyField(),
+  alimentacao_almoco_ceno: moneyField(),
+  alimentacao_jantar_ceno: moneyField(),
 });
 
 // Chaves percentuais inteiras (0..100). NÃO passam por conversão reais<->centavos.
@@ -73,6 +94,24 @@ const PERCENT_KEYS = new Set<string>([
   "deflacao_fator_ate_4",
   "deflacao_fator_5_8",
   "deflacao_fator_9_mais",
+]);
+
+// Campos que vivem dentro da zona legada (Collapsible fechado por padrão).
+// Quando a validação falha num deles, a seção precisa ser aberta e o campo
+// levado à vista — senão o erro fica invisível e o Salvar parece quebrado.
+const LEGACY_ZONE_FIELDS = new Set<string>([
+  "default_daily_value_weekday",
+  "default_daily_value_weekend",
+  "default_daily_value_weekday_freela",
+  "default_daily_value_weekend_freela",
+  "default_weekday_lunch",
+  "default_weekday_dinner",
+  "default_weekend_lunch",
+  "default_weekend_dinner",
+  "default_weekday_lunch_freela",
+  "default_weekday_dinner_freela",
+  "default_weekend_lunch_freela",
+  "default_weekend_dinner_freela",
 ]);
 type FormValues = z.infer<typeof formSchema>;
 
@@ -260,6 +299,9 @@ export default function SystemSettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Zona legada controlada: aberta programaticamente quando um erro de
+  // validação está num campo escondido dentro dela (ver handleSaveAll).
+  const [legacyOpen, setLegacyOpen] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [lastSaved, setLastSaved] = useState<{ timestamp: string; user: string } | null>(null);
   const [activeTab, setActiveTab] = useState<'casa' | 'freela'>('casa');
@@ -353,7 +395,11 @@ export default function SystemSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/payment-companies"] });
       toast({ title: "Empresa removida." });
     },
-    onError: () => toast({ title: "Erro ao remover empresa.", variant: "destructive" }),
+    onError: (e: any) => toast({
+      title: "Erro ao remover empresa.",
+      description: e?.body?.message,
+      variant: "destructive",
+    }),
   });
 
   // Reconstrói os 4 mapas de valores por função a partir do que está salvo.
@@ -570,22 +616,63 @@ export default function SystemSettingsPage() {
       setLastSaved(savedInfo);
       localStorage.setItem(LAST_SAVED_KEY, JSON.stringify(savedInfo));
     },
-    onError: () => { toast({ title: "Erro ao salvar", variant: "destructive" }); },
+    // Sem onError aqui: o único toast de falha do fluxo é o do catch de
+    // handleSaveAll (que exibe a mensagem do servidor) — antes eram dois.
   });
 
   // ÚNICO fluxo de salvamento da página (barra flutuante): valida, salva as
   // tarifas + valores por função e aplica os padrões aos planejamentos
   // pendentes, com um único toast ao final.
+  // Monta as entradas de histórico local para as Diárias por Função alteradas.
+  // Precisa rodar ANTES do PATCH/POST, enquanto allFunctionValues ainda tem os
+  // valores antigos (a invalidation do save recarrega a query).
+  const buildFunctionHistoryEntries = (): HistoryEntry[] => {
+    const now = new Date().toISOString();
+    const userName = (user as any)?.name || (user as any)?.username || "Admin";
+    const entries: HistoryEntry[] = [];
+    for (const fn of allFunctions.filter(isFunctionDirty)) {
+      const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
+      const cells: { label: string; saved: string; current: string }[] = [
+        { label: "Casa · Dia Útil", saved: fv ? centavosToReais(fv.dailyValue) : "0.00", current: functionDailyValues[fn.id] ?? "0" },
+        { label: "Casa · Fim de Semana", saved: fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00", current: fnWeekendValues[fn.id] ?? "0" },
+        { label: "Freela · Dia Útil", saved: fv ? centavosToReais(freelaOuCasa(fv.dailyValueFreela, fv.dailyValue)) : "0.00", current: fnFreelaValues[fn.id] ?? "0" },
+        { label: "Freela · Fim de Semana", saved: fv ? centavosToReais(freelaOuCasa(fv.dailyValueFreelaWeekend, fv.dailyValueWeekend)) : "0.00", current: fnFreelaWeekendValues[fn.id] ?? "0" },
+      ];
+      for (const c of cells) {
+        if (parseFloat(c.current) !== parseFloat(c.saved)) {
+          entries.push({
+            timestamp: now,
+            user: userName,
+            field: `Diária por Função — ${toTitleCase(fn.name)} (${c.label})`,
+            oldValue: formatCurrency(c.saved),
+            newValue: formatCurrency(c.current),
+          });
+        }
+      }
+    }
+    return entries;
+  };
+
   const handleSaveAll = form.handleSubmit(
     async (values) => {
       try {
         await saveMutation.mutateAsync(values);
         if (dirtyFunctionCount > 0) {
+          // Histórico local também cobre as Diárias por Função salvas neste fluxo
+          const fnEntries = buildFunctionHistoryEntries();
           await saveFunctionValuesMutation.mutateAsync();
           queryClient.invalidateQueries({ queryKey: ["/api/function-values"] });
+          if (fnEntries.length > 0) {
+            setHistory(prev => {
+              const updated = [...fnEntries, ...prev].slice(0, 40);
+              localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+              return updated;
+            });
+          }
         }
         // Apply new defaults to all pending (not-yet-sent) budget_planned records
         let updatedCount = 0;
+        let applyFailed = false;
         try {
           const applyRes = await apiRequest("POST", "/api/budget-planned/apply-defaults", {});
           const applyData = await applyRes.json();
@@ -593,19 +680,52 @@ export default function SystemSettingsPage() {
           if (updatedCount > 0) {
             queryClient.invalidateQueries({ queryKey: ["/api/budget-planned"] });
           }
-        } catch { /* non-critical */ }
+        } catch {
+          // Falha não pode ser engolida: os valores foram salvos, mas o
+          // Planejado pendente ficou desatualizado — avisar com o caminho manual.
+          applyFailed = true;
+        }
+        if (applyFailed) {
+          toast({
+            title: "Valores salvos, mas não foi possível atualizar os planejamentos pendentes",
+            description: "Use o botão \"Atualizar Planejado\" para aplicá-los aos orçamentos pendentes.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Valores padrão salvos",
+            description: updatedCount > 0
+              ? `${updatedCount} planejamento${updatedCount > 1 ? 's' : ''} pendente${updatedCount > 1 ? 's' : ''} atualizado${updatedCount > 1 ? 's' : ''} com os novos valores.`
+              : "Os novos valores serão aplicados em orçamentos de novos eventos.",
+          });
+        }
+      } catch (e: any) {
+        // Mensagem do servidor (e.body.message) em vez do genérico
         toast({
-          title: "Valores padrão salvos",
-          description: updatedCount > 0
-            ? `${updatedCount} planejamento${updatedCount > 1 ? 's' : ''} pendente${updatedCount > 1 ? 's' : ''} atualizado${updatedCount > 1 ? 's' : ''} com os novos valores.`
-            : "Os novos valores serão aplicados em orçamentos de novos eventos.",
+          title: "Erro ao salvar",
+          description: e?.body?.message || "Não foi possível salvar as alterações. Tente novamente.",
+          variant: "destructive",
         });
-      } catch {
-        toast({ title: "Erro ao salvar", variant: "destructive" });
       }
     },
-    () => {
+    (errors) => {
       toast({ title: "Corrija os valores destacados antes de salvar", variant: "destructive" });
+      // Se o primeiro campo inválido estiver na zona legada (colapsada), abre a
+      // seção e leva o foco até ele — senão o erro fica invisível.
+      const firstErrorField = Object.keys(errors)[0];
+      if (firstErrorField && LEGACY_ZONE_FIELDS.has(firstErrorField)) {
+        setLegacyOpen(true);
+        // Os campos legados só montam na aba correspondente (Casa/Freela)
+        setActiveTab(firstErrorField.endsWith("_freela") ? "freela" : "casa");
+        // Espera o CollapsibleContent montar antes de rolar/focar
+        setTimeout(() => {
+          const el = document.getElementById(firstErrorField);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            (el as HTMLElement).focus({ preventScroll: true });
+          }
+        }, 150);
+      }
     },
   );
 
@@ -683,7 +803,8 @@ export default function SystemSettingsPage() {
 
   return (
     <TooltipProvider>
-    <div className="p-6 max-w-6xl space-y-6">
+    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="max-w-6xl mx-auto p-6 space-y-6">
 
       {/* ── Barra flutuante: ÚNICO ponto de salvamento da página ── */}
       {hasAnyChanges && (
@@ -713,14 +834,14 @@ export default function SystemSettingsPage() {
         </div>
       )}
 
-      {/* ── Cabeçalho ── */}
+      {/* ── Cabeçalho (padrão pastel das páginas irmãs — flash/regras) ── */}
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 shadow-md shadow-blue-200">
-          <Calculator className="w-5 h-5 text-white" />
+        <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+          <Calculator className="w-4 h-4 text-blue-600" />
         </div>
         <div>
           <h1 className="text-xl font-bold text-gray-900">Valores Padrão</h1>
-          <p className="text-xs text-gray-500">Defina os valores base utilizados no cálculo de novos eventos</p>
+          <p className="text-xs text-gray-400">Defina os valores base utilizados no cálculo de novos eventos</p>
         </div>
       </div>
 
@@ -880,15 +1001,19 @@ export default function SystemSettingsPage() {
                         <p className="text-sm font-semibold text-gray-800">{c.name}</p>
                         <p className="font-mono text-xs text-gray-400">{c.cnpj}</p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setCompanyToDelete(c)}
-                        disabled={deleteCompanyMutation.isPending}
-                        className="rounded-lg p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                        title="Remover empresa"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {/* O DELETE do servidor exige admin — para os demais papéis
+                          o botão nem aparece (antes: clique → 403 silencioso) */}
+                      {isAdmin(user) && (
+                        <button
+                          type="button"
+                          onClick={() => setCompanyToDelete(c)}
+                          disabled={deleteCompanyMutation.isPending}
+                          className="rounded-lg p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                          title="Remover empresa"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -944,7 +1069,7 @@ export default function SystemSettingsPage() {
           {/* ════════════════════════════════════════════════════════════════
               ZONA 2 — VALORES LEGADOS E OVERRIDES (colapsada por padrão)
              ════════════════════════════════════════════════════════════════ */}
-          <Collapsible className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50/60">
+          <Collapsible open={legacyOpen} onOpenChange={setLegacyOpen} className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50/60">
             <CollapsibleTrigger asChild>
               <button
                 type="button"
@@ -1280,7 +1405,7 @@ export default function SystemSettingsPage() {
           <div className="flex flex-wrap items-center justify-between gap-4 border-t border-gray-200 py-4">
             <div className="flex items-center gap-2 text-sm text-gray-400">
               <Lock className="w-4 h-4 flex-shrink-0" />
-              <span>Apenas administradores podem alterar estes valores</span>
+              <span>Administradores e Financeiro/RH podem alterar estes valores</span>
             </div>
             <div className="flex items-center gap-3">
               {lastSaved && (
@@ -1390,6 +1515,7 @@ export default function SystemSettingsPage() {
           </>
         )}
       </div>
+    </div>
     </div>
     </TooltipProvider>
   );

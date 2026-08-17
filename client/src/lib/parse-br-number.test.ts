@@ -16,6 +16,19 @@ describe("parseBrNumber (entrada monetária pt-BR)", () => {
   it("sem vírgula, o ponto continua decimal (teclado numérico)", () => {
     expect(parseBrNumber("1234.56")).toBe(1234.56);
     expect(parseBrNumber("40.5")).toBe(40.5);
+    expect(parseBrNumber("1.5")).toBe(1.5);
+  });
+
+  it("sem vírgula, ponto agrupando 3 dígitos é separador de milhar", () => {
+    expect(parseBrNumber("1.500")).toBe(1500);
+    expect(parseBrNumber("1.500.000")).toBe(1500000);
+  });
+
+  it("casos de referência do formato monetário pt-BR", () => {
+    expect(parseBrNumber("1.500,00")).toBe(1500);
+    expect(parseBrNumber("1500")).toBe(1500);
+    expect(parseBrNumber("0,5")).toBe(0.5);
+    expect(parseBrNumber("540,50")).toBe(540.5);
   });
 
   it("números já numéricos passam direto", () => {

@@ -26,7 +26,8 @@ import {
   flashMovements,
   type FlashMovement, type InsertFlashMovement,
   baggageRequests,
-  type BaggageRequest, type InsertBaggageRequest
+  baggageHistory,
+  type BaggageRequest, type InsertBaggageRequest, type BaggageHistoryEntry
 } from "@shared/schema";
 import { eq, and, sql, isNull, ne, exists, asc, desc } from "drizzle-orm";
 
@@ -164,6 +165,7 @@ export interface IStorage {
   getFlashMovements(collaboratorId?: string): Promise<FlashMovement[]>;
   createFlashMovement(movement: InsertFlashMovement): Promise<FlashMovement>;
   createFlashMovementsBatch(movements: InsertFlashMovement[]): Promise<FlashMovement[]>;
+  updateFlashMovement(id: string, updates: Partial<InsertFlashMovement>): Promise<FlashMovement | undefined>;
   deleteFlashMovement(id: string): Promise<void>;
 
   // Baggage Requests (Controle de Bagagem)
@@ -172,6 +174,7 @@ export interface IStorage {
   createBaggageRequest(request: InsertBaggageRequest & { createdBy?: string | null; createdByName?: string | null }): Promise<BaggageRequest>;
   updateBaggageRequest(id: string, updates: Partial<InsertBaggageRequest>): Promise<BaggageRequest | undefined>;
   softDeleteBaggageRequest(id: string, deletedBy: string): Promise<void>;
+  getBaggageHistory(): Promise<BaggageHistoryEntry[]>;
 }
 
 // Database storage implementation using PostgreSQL + Drizzle
@@ -1087,6 +1090,17 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
+  // Edição in-place: substitui o antigo fluxo delete+recreate do client, que
+  // perdia o lançamento original quando a recriação falhava.
+  async updateFlashMovement(id: string, updates: Partial<InsertFlashMovement>): Promise<FlashMovement | undefined> {
+    const [updated] = await db
+      .update(flashMovements)
+      .set(updates)
+      .where(eq(flashMovements.id, id))
+      .returning();
+    return updated;
+  }
+
   async deleteFlashMovement(id: string): Promise<void> {
     await db.delete(flashMovements).where(eq(flashMovements.id, id));
   }
@@ -1129,6 +1143,11 @@ export class DatabaseStorage implements IStorage {
     await db.update(baggageRequests)
       .set({ deletedAt: new Date(), deletedBy })
       .where(and(eq(baggageRequests.id, id), isNull(baggageRequests.deletedAt)));
+  }
+
+  // Histórico pré-sistema (importado da planilha antiga; somente leitura)
+  async getBaggageHistory(): Promise<BaggageHistoryEntry[]> {
+    return await db.select().from(baggageHistory);
   }
 }
 

@@ -61,6 +61,23 @@ export default function CalculationRulesPage() {
     [settings],
   );
 
+  // Alimentação: mesmo padrão das outras tabelas — valor vigente dos Valores
+  // Padrão (alimentacao_*) com fallback nas constantes 2026 do slide.
+  const casaFood = useMemo(() => {
+    const mapRow = (f: { refeicao: string; demaisCents: number; cenotecnicaCents: number }) => {
+      const isAlmoco = f.refeicao.toLowerCase().startsWith("almoço");
+      return {
+        refeicao: f.refeicao,
+        demaisCents: effectiveCents(settings, isAlmoco ? "alimentacao_almoco" : "alimentacao_jantar", f.demaisCents),
+        cenotecnicaCents: effectiveCents(settings, isAlmoco ? "alimentacao_almoco_ceno" : "alimentacao_jantar_ceno", f.cenotecnicaCents),
+      };
+    };
+    return {
+      jornadaExterna: CASA_FOOD_2026.jornadaExterna.map(mapRow),
+      emViagem: CASA_FOOD_2026.emViagem.map(mapRow),
+    };
+  }, [settings]);
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-6">
       <div className="max-w-6xl mx-auto space-y-4">
@@ -73,7 +90,7 @@ export default function CalculationRulesPage() {
             Regras de Cálculo
           </h1>
           <p className="text-xs text-gray-400 mt-0.5 ml-10">
-            Tabelas de referência 2026 para diárias, alimentação e mobilidade, com a régua de deflação por período
+            Tabelas de referência — valores vigentes dos Valores Padrão, base 2026 — para diárias, alimentação e mobilidade, com a régua de deflação por período
           </p>
         </div>
 
@@ -89,14 +106,26 @@ export default function CalculationRulesPage() {
           </p>
         </div>
 
-        {/* Tabs */}
+        {/* Tabs (padrão ARIA completo: id/aria-controls, roving tabindex e setas) */}
         <div role="tablist" aria-label="Regimes de contratação" className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit flex-wrap">
-          {TABS.map(t => (
+          {TABS.map((t, idx) => (
             <button
               key={t.id}
+              id={`tab-${t.id}`}
               role="tab"
               aria-selected={tab === t.id}
+              aria-controls={`tabpanel-${t.id}`}
+              tabIndex={tab === t.id ? 0 : -1}
               onClick={() => setTab(t.id)}
+              onKeyDown={e => {
+                if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+                e.preventDefault();
+                const next = e.key === "ArrowRight"
+                  ? (idx + 1) % TABS.length
+                  : (idx + TABS.length - 1) % TABS.length;
+                setTab(TABS[next].id);
+                document.getElementById(`tab-${TABS[next].id}`)?.focus();
+              }}
               className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
                 tab === t.id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
               }`}
@@ -106,10 +135,12 @@ export default function CalculationRulesPage() {
           ))}
         </div>
 
-        {tab === "casa" && <CasaTab rates={casaRates} factors={factors} />}
-        {tab === "freela" && <FreelaTab rates={freelaRates} factors={factors} />}
-        {tab === "empreita" && <EmpreitaTab />}
-        {tab === "percurseiro" && <PercurseiroTab />}
+        <div role="tabpanel" id={`tabpanel-${tab}`} aria-labelledby={`tab-${tab}`}>
+          {tab === "casa" && <CasaTab rates={casaRates} food={casaFood} factors={factors} />}
+          {tab === "freela" && <FreelaTab rates={freelaRates} factors={factors} />}
+          {tab === "empreita" && <EmpreitaTab />}
+          {tab === "percurseiro" && <PercurseiroTab />}
+        </div>
       </div>
     </div>
   );
@@ -261,7 +292,10 @@ function MobilityCard() {
 
 type TabRatesProps = { rates: { funcao: string; cents: number }[]; factors: DeflationFactors };
 
-function CasaTab({ rates, factors }: TabRatesProps) {
+type FoodRow = { refeicao: string; demaisCents: number; cenotecnicaCents: number };
+type CasaFood = { jornadaExterna: FoodRow[]; emViagem: FoodRow[] };
+
+function CasaTab({ rates, food, factors }: TabRatesProps & { food: CasaFood }) {
   return (
     <div className="space-y-4">
       <DeflationBanner factors={factors} />
@@ -277,15 +311,18 @@ function CasaTab({ rates, factors }: TabRatesProps) {
           </p>
         </Card>
         <div className="space-y-4">
-          <Card title="Alimentação 2026" icon={UtensilsCrossed} accent="text-emerald-600">
+          <Card title="Alimentação" icon={UtensilsCrossed} accent="text-emerald-600">
             <RateTable
               headers={["Em jornada externa", "Demais", "Cenotécnica"]}
-              rows={CASA_FOOD_2026.jornadaExterna.map(f => [f.refeicao, fmt(f.demaisCents), fmt(f.cenotecnicaCents)])}
+              rows={food.jornadaExterna.map(f => [f.refeicao, fmt(f.demaisCents), fmt(f.cenotecnicaCents)])}
             />
             <RateTable
               headers={["Em viagem", "Demais", "Cenotécnica"]}
-              rows={CASA_FOOD_2026.emViagem.map(f => [f.refeicao, fmt(f.demaisCents), fmt(f.cenotecnicaCents)])}
+              rows={food.emViagem.map(f => [f.refeicao, fmt(f.demaisCents), fmt(f.cenotecnicaCents)])}
             />
+            <p className="text-[11px] text-slate-400 px-4 py-3 border-t border-gray-50">
+              Valor vigente (editável no Valores Padrão).
+            </p>
           </Card>
           <MobilityCard />
         </div>

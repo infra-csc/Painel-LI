@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -25,6 +25,13 @@ function fmtDate(d?: string | null) {
   if (!d) return "—";
   const [y, m, day] = String(d).split("T")[0].split("-");
   return `${day}/${m}/${y}`;
+}
+// dd/mm/aa — usado nas opções do combobox de evento
+function fmtDateShort(d?: string | null) {
+  if (!d) return "";
+  const [y, m, day] = String(d).split("T")[0].split("-");
+  if (!y || !m || !day) return "";
+  return `${day}/${m}/${y.slice(2)}`;
 }
 function todayISO() {
   return new Date().toISOString().split("T")[0];
@@ -84,6 +91,23 @@ interface CollaboratorItem {
 interface EventItem {
   id: string;
   name: string;
+  location?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+}
+// Forma normalizada usada pelo EventCombobox (nome já com encoding corrigido)
+interface EventOption {
+  id: string;
+  name: string;
+  location: string;
+  startDate: string;
+  endDate: string;
+}
+function eventPeriod(ev: EventOption) {
+  const a = fmtDateShort(ev.startDate);
+  const b = fmtDateShort(ev.endDate);
+  if (a && b && a !== b) return `${a} – ${b}`;
+  return a || b;
 }
 interface BaggageRequestItem {
   id: string;
@@ -125,6 +149,146 @@ const emptyForm = {
 };
 type FormState = typeof emptyForm;
 
+// ── Combobox de evento (busca + teclado) ─────────────────────────────────────
+// Mesmo padrão do autocomplete de colaborador: input com dropdown filtrado.
+// Recebe a lista já ordenada por data de início DESC (mais recentes primeiro).
+
+function EventCombobox({
+  id, events, value, onChange, placeholder, invalid, describedBy, className = "",
+}: {
+  id: string;
+  events: EventOption[];
+  value: string;
+  onChange: (eventId: string) => void;
+  placeholder: string;
+  invalid?: boolean;
+  describedBy?: string;
+  className?: string;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+
+  const selected = value ? events.find(e => e.id === value) : undefined;
+  const listboxId = `${id}-listbox`;
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const base = q
+      ? events.filter(e => e.name.toLowerCase().includes(q) || e.location.toLowerCase().includes(q))
+      : events;
+    return base.slice(0, 50);
+  }, [events, query]);
+
+  const select = (eventId: string) => {
+    onChange(eventId);
+    setQuery("");
+    setOpen(false);
+    setActiveIndex(-1);
+  };
+
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      e.preventDefault();
+      setOpen(true);
+      setActiveIndex(0);
+      return;
+    }
+    if (!open) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex(i => Math.min(i + 1, matches.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex(i => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      if (activeIndex >= 0 && matches[activeIndex]) {
+        e.preventDefault();
+        select(matches[activeIndex].id);
+      }
+    } else if (e.key === "Escape") {
+      setOpen(false);
+      setActiveIndex(-1);
+    }
+  };
+
+  if (selected) {
+    return (
+      <div className={`flex items-center gap-2 h-9 px-3 rounded-lg border border-blue-200 bg-blue-50/50 ${className}`}>
+        <p className="flex-1 min-w-0 text-xs font-semibold text-slate-700 truncate">
+          {selected.name}
+          {eventPeriod(selected) && (
+            <span className="ml-2 font-mono font-normal text-[11px] text-slate-400 whitespace-nowrap">{eventPeriod(selected)}</span>
+          )}
+        </p>
+        <button
+          type="button"
+          onClick={() => { onChange(""); setQuery(""); }}
+          aria-label={`Remover evento ${selected.name}`}
+          className="w-6 h-6 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-white transition-colors shrink-0"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`relative ${className}`}>
+      <Input
+        id={id}
+        value={query}
+        onChange={e => { setQuery(e.target.value); setOpen(true); setActiveIndex(0); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => { setOpen(false); setActiveIndex(-1); }, 150)}
+        onKeyDown={onKeyDown}
+        placeholder={placeholder}
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={listboxId}
+        aria-autocomplete="list"
+        aria-activedescendant={open && activeIndex >= 0 && matches[activeIndex] ? `${id}-opt-${matches[activeIndex].id}` : undefined}
+        aria-invalid={invalid}
+        aria-describedby={describedBy}
+        className="h-9 text-xs rounded-lg border-gray-200"
+      />
+      {open && (
+        <div
+          id={listboxId}
+          role="listbox"
+          aria-label="Eventos"
+          className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-[260px] overflow-y-auto min-w-[240px]"
+        >
+          {matches.length === 0 ? (
+            <p className="text-[11px] text-slate-400 text-center py-3 px-3">Nenhum evento encontrado.</p>
+          ) : matches.map((ev, i) => (
+            <button
+              key={ev.id}
+              id={`${id}-opt-${ev.id}`}
+              type="button"
+              role="option"
+              aria-selected={i === activeIndex}
+              ref={i === activeIndex ? el => el?.scrollIntoView({ block: "nearest" }) : undefined}
+              onMouseDown={e => e.preventDefault()}
+              onMouseEnter={() => setActiveIndex(i)}
+              onClick={() => select(ev.id)}
+              className={`w-full text-left px-3 py-2 text-xs transition-colors border-b border-gray-50 last:border-0 ${
+                i === activeIndex ? "bg-blue-50" : ""
+              }`}
+            >
+              <span className="block font-semibold text-slate-700 truncate">{ev.name}</span>
+              <span className="block text-[11px] text-slate-400 mt-0.5 truncate">
+                {eventPeriod(ev)}
+                {ev.location && (eventPeriod(ev) ? ` · ${ev.location}` : ev.location)}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Página ───────────────────────────────────────────────────────────────────
 
 export default function BaggageControlPage() {
@@ -152,14 +316,20 @@ export default function BaggageControlPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [collabSearch, setCollabSearch] = useState("");
   const [collabDropdownOpen, setCollabDropdownOpen] = useState(false);
+  const [collabActiveIndex, setCollabActiveIndex] = useState(-1);
   const [deleteTarget, setDeleteTarget] = useState<BaggageRequestItem | null>(null);
-  const formRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const { data: events = [] } = useQuery<EventItem[]>({ queryKey: ["/api/events"], enabled: allowed });
   const { data: collaborators = [] } = useQuery<CollaboratorItem[]>({ queryKey: ["/api/collaborators"], enabled: allowed });
   const {
     data: requests = [], isLoading, isError, refetch,
   } = useQuery<BaggageRequestItem[]>({ queryKey: ["/api/baggage-requests"], enabled: allowed });
+  // Histórico pré-sistema (contagens importadas da planilha antiga — sem
+  // evento/valor; somadas nas visões por colaborador com selo de histórico)
+  const { data: baggageHistory = [] } = useQuery<{ collaboratorId: string; cia: string; quantity: number }[]>({
+    queryKey: ["/api/baggage-history"], enabled: allowed,
+  });
 
   const collabById = useMemo(() => {
     const map = new Map<string, CollaboratorItem>();
@@ -172,36 +342,73 @@ export default function BaggageControlPage() {
     return map;
   }, [events]);
 
+  // Lista normalizada para os comboboxes de evento: encoding corrigido e
+  // ordenada por data de início DESC (mais recentes/futuros primeiro)
+  const eventOptions = useMemo<EventOption[]>(() => {
+    return events
+      .map(ev => ({
+        id: ev.id,
+        name: fixEncoding(ev.name),
+        location: fixEncoding(ev.location || ""),
+        startDate: String(ev.startDate || "").split("T")[0],
+        endDate: String(ev.endDate || "").split("T")[0],
+      }))
+      .sort((a, b) =>
+        (b.startDate || "").localeCompare(a.startDate || "")
+        || a.name.localeCompare(b.name, "pt-BR"));
+  }, [events]);
+
   const getCollabName = (id: string) => toTitleCase(fixEncoding(collabById.get(id)?.fullName || "")) || "—";
   const getEventName = (id: string) => fixEncoding(eventById.get(id)?.name || "") || "—";
 
   // Bagagens já registradas por colaborador, agregadas por CIA (100% derivado
   // dos registros — nada de contador manual)
   const bagsByCollaborator = useMemo(() => {
-    const map = new Map<string, { byCia: Record<CiaGroup, number>; totalBags: number; totalCents: number }>();
+    const map = new Map<string, { byCia: Record<CiaGroup, number>; totalBags: number; totalCents: number; historyBags: number }>();
+    const getAgg = (id: string) => {
+      const agg = map.get(id) || { byCia: { Azul: 0, Gol: 0, TAM: 0, Outros: 0 }, totalBags: 0, totalCents: 0, historyBags: 0 };
+      map.set(id, agg);
+      return agg;
+    };
     for (const r of requests) {
-      const agg = map.get(r.collaboratorId) || { byCia: { Azul: 0, Gol: 0, TAM: 0, Outros: 0 }, totalBags: 0, totalCents: 0 };
+      const agg = getAgg(r.collaboratorId);
       agg.byCia[ciaGroup(r.cia)] += r.quantity || 0;
       agg.totalBags += r.quantity || 0;
       agg.totalCents += r.valueCents || 0;
-      map.set(r.collaboratorId, agg);
+    }
+    // Histórico importado: conta nas CIAs e no total de bagagens (sem valor)
+    for (const h of baggageHistory) {
+      const agg = getAgg(h.collaboratorId);
+      agg.byCia[ciaGroup(h.cia)] += h.quantity || 0;
+      agg.totalBags += h.quantity || 0;
+      agg.historyBags += h.quantity || 0;
     }
     return map;
-  }, [requests]);
+  }, [requests, baggageHistory]);
 
-  // ── Aba 1: lista filtrada ──
+  // ── Aba 1: lista filtrada (ordenada por embarque mais recente) ──
   const filteredRequests = useMemo(() => {
     const q = listSearch.trim().toLowerCase();
-    return requests.filter(r => {
-      if (filterEventId && r.eventId !== filterEventId) return false;
-      if (filterCollabId && r.collaboratorId !== filterCollabId) return false;
-      if (!q) return true;
-      const name = (collabById.get(r.collaboratorId)?.fullName || "").toLowerCase();
-      return name.includes(q)
-        || (r.loc || "").toLowerCase().includes(q)
-        || (r.os || "").toLowerCase().includes(q);
-    });
-  }, [requests, filterEventId, filterCollabId, listSearch, collabById]);
+    const qDigits = q.replace(/\D/g, "");
+    return requests
+      .filter(r => {
+        if (filterEventId && r.eventId !== filterEventId) return false;
+        if (filterCollabId && r.collaboratorId !== filterCollabId) return false;
+        if (!q) return true;
+        const c = collabById.get(r.collaboratorId);
+        const name = fixEncoding(c?.fullName || "").toLowerCase();
+        if (name.includes(q)) return true;
+        if ((r.loc || "").toLowerCase().includes(q)) return true;
+        if ((r.os || "").toLowerCase().includes(q)) return true;
+        const evName = fixEncoding(eventById.get(r.eventId)?.name || "").toLowerCase();
+        if (evName.includes(q)) return true;
+        const cpf = c ? getCpf(c).replace(/\D/g, "") : "";
+        return !!qDigits && cpf.includes(qDigits);
+      })
+      .sort((a, b) =>
+        (b.boardingDate || "").localeCompare(a.boardingDate || "")
+        || (b.createdAt || "").localeCompare(a.createdAt || ""));
+  }, [requests, filterEventId, filterCollabId, listSearch, collabById, eventById]);
 
   const filterSummary = useMemo(() => {
     let bags = 0, cents = 0;
@@ -283,6 +490,7 @@ export default function BaggageControlPage() {
     if (f.ciaSelect === "Outros" && !f.ciaOther.trim()) errs.cia = "Informe a companhia aérea";
     const cents = Math.round(parseBrNumber(f.valueText) * 100);
     if (!f.valueText.trim()) errs.value = "Informe o valor";
+    else if (!/\d/.test(f.valueText)) errs.value = "Valor inválido — use números, ex.: 1.500,00";
     else if (cents < 0) errs.value = "Valor não pode ser negativo";
     if (!f.os.trim()) errs.os = "Informe a OS";
     const qty = parseInt(f.quantityText, 10);
@@ -316,6 +524,7 @@ export default function BaggageControlPage() {
     setEditingId(null);
     setCollabSearch("");
     setCollabDropdownOpen(false);
+    setCollabActiveIndex(-1);
   };
 
   const saveMutation = useMutation({
@@ -350,16 +559,37 @@ export default function BaggageControlPage() {
     }),
   });
 
+  // Ao submeter com erro, foca o primeiro campo inválido (na ordem visual)
+  const ERROR_FIELD_IDS: [string, string][] = [
+    ["eventId", "bg-event"],
+    ["collaboratorId", "bg-collab"],
+    ["loc", "bg-loc"],
+    ["cia", "bg-cia-other"],
+    ["value", "bg-value"],
+    ["os", "bg-os"],
+    ["quantity", "bg-qty"],
+    ["agency", "bg-agency-other"],
+    ["requestDate", "bg-request-date"],
+    ["boardingDate", "bg-boarding-date"],
+  ];
+
   const submit = () => {
     const errs = validate(form);
     setErrors(errs);
-    if (Object.keys(errs).length > 0) return;
+    const first = ERROR_FIELD_IDS.find(([key]) => errs[key]);
+    if (first) {
+      const el = document.getElementById(first[1]);
+      if (el) {
+        el.focus();
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      return;
+    }
     saveMutation.mutate(buildPayload(form));
   };
 
   const startEdit = (r: BaggageRequestItem) => {
-    const group = ciaGroup(r.cia);
-    const isFixedCia = CIAS_FIXAS.includes(r.cia as any);
+    const isFixedCia = (CIAS_FIXAS as readonly string[]).includes(r.cia);
     const isFixedAgency = (AGENCIAS_FIXAS as readonly string[]).includes(r.agency);
     setEditingId(r.id);
     setErrors({});
@@ -367,8 +597,10 @@ export default function BaggageControlPage() {
       eventId: r.eventId,
       collaboratorId: r.collaboratorId,
       loc: r.loc || "",
-      ciaSelect: isFixedCia ? r.cia : (group !== "Outros" ? group : "Outros"),
-      ciaOther: isFixedCia || group !== "Outros" ? "" : r.cia,
+      // Preserva o texto original de CIAs não fixas (ex.: "Latam") em vez de
+      // convertê-lo para o grupo — salvar sem mexer não altera o dado
+      ciaSelect: isFixedCia ? r.cia : "Outros",
+      ciaOther: isFixedCia ? "" : r.cia,
       valueText: ((r.valueCents || 0) / 100).toFixed(2).replace(".", ","),
       os: r.os || "",
       quantityText: String(r.quantity || 1),
@@ -468,8 +700,8 @@ export default function BaggageControlPage() {
           </div>
         </div>
 
-        {/* Abas */}
-        <div role="tablist" aria-label="Seções do Controle de Bagagem" className="bg-white rounded-2xl border border-gray-100 p-1.5 inline-flex gap-1">
+        {/* Abas (roláveis no mobile; setas ← → navegam entre elas) */}
+        <div role="tablist" aria-label="Seções do Controle de Bagagem" className="bg-white rounded-2xl border border-gray-100 p-1.5 inline-flex max-w-full overflow-x-auto gap-1">
           {tabs.map(t => (
             <button
               key={t.id}
@@ -477,8 +709,19 @@ export default function BaggageControlPage() {
               id={`tab-${t.id}`}
               aria-selected={tab === t.id}
               aria-controls={`panel-${t.id}`}
+              tabIndex={tab === t.id ? 0 : -1}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 h-8 px-3.5 rounded-xl text-xs font-semibold transition-colors ${
+              onKeyDown={e => {
+                if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+                e.preventDefault();
+                const idx = tabs.findIndex(x => x.id === tab);
+                const next = e.key === "ArrowRight"
+                  ? (idx + 1) % tabs.length
+                  : (idx - 1 + tabs.length) % tabs.length;
+                setTab(tabs[next].id);
+                document.getElementById(`tab-${tabs[next].id}`)?.focus();
+              }}
+              className={`flex items-center gap-1.5 h-8 px-3.5 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
                 tab === t.id ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"
               }`}
             >
@@ -491,13 +734,19 @@ export default function BaggageControlPage() {
         {tab === "solicitacoes" && (
           <div id="panel-solicitacoes" role="tabpanel" aria-labelledby="tab-solicitacoes" className="space-y-4">
             {/* Formulário */}
-            <div ref={formRef} className="bg-white rounded-2xl border border-gray-100 p-5">
+            <form
+              ref={formRef}
+              onSubmit={e => { e.preventDefault(); submit(); }}
+              noValidate
+              className="bg-white rounded-2xl border border-gray-100 p-5"
+            >
               <div className="flex items-center justify-between gap-3 mb-4">
                 <h2 className="text-sm font-bold text-slate-800">
                   {editingId ? "Editar solicitação" : "Nova solicitação"}
                 </h2>
                 {editingId && (
                   <button
+                    type="button"
                     onClick={resetForm}
                     className="flex items-center gap-1.5 h-7 px-2.5 text-[11px] font-semibold text-slate-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                   >
@@ -512,22 +761,18 @@ export default function BaggageControlPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Evento */}
+                {/* Evento (combobox com busca; ordenado por início DESC) */}
                 <div>
                   <label htmlFor="bg-event" className={lbl}>Evento *</label>
-                  <select
+                  <EventCombobox
                     id="bg-event"
+                    events={eventOptions}
                     value={form.eventId}
-                    onChange={e => setForm(f => ({ ...f, eventId: e.target.value }))}
-                    aria-invalid={!!errors.eventId}
-                    aria-describedby={errors.eventId ? "bg-event-err" : undefined}
-                    className={selectCls}
-                  >
-                    <option value="">Selecione o evento...</option>
-                    {events.map(ev => (
-                      <option key={ev.id} value={ev.id}>{fixEncoding(ev.name)}</option>
-                    ))}
-                  </select>
+                    onChange={eventId => setForm(f => ({ ...f, eventId }))}
+                    placeholder="Buscar evento por nome ou cidade..."
+                    invalid={!!errors.eventId}
+                    describedBy={errors.eventId ? "bg-event-err" : undefined}
+                  />
                   {fieldError("eventId", "bg-event-err")}
                 </div>
 
@@ -543,6 +788,7 @@ export default function BaggageControlPage() {
                         )}
                       </p>
                       <button
+                        type="button"
                         onClick={() => setForm(f => ({ ...f, collaboratorId: "" }))}
                         aria-label="Remover colaborador selecionado"
                         className="w-6 h-6 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-white transition-colors shrink-0"
@@ -555,35 +801,69 @@ export default function BaggageControlPage() {
                       <Input
                         id="bg-collab"
                         value={collabSearch}
-                        onChange={e => { setCollabSearch(e.target.value); setCollabDropdownOpen(true); }}
+                        onChange={e => { setCollabSearch(e.target.value); setCollabDropdownOpen(true); setCollabActiveIndex(0); }}
                         onFocus={() => setCollabDropdownOpen(true)}
-                        onBlur={() => setTimeout(() => setCollabDropdownOpen(false), 150)}
+                        onBlur={() => setTimeout(() => { setCollabDropdownOpen(false); setCollabActiveIndex(-1); }, 150)}
+                        onKeyDown={e => {
+                          if (!collabDropdownOpen || collabMatches.length === 0) return;
+                          if (e.key === "ArrowDown") {
+                            e.preventDefault();
+                            setCollabActiveIndex(i => Math.min(i + 1, collabMatches.length - 1));
+                          } else if (e.key === "ArrowUp") {
+                            e.preventDefault();
+                            setCollabActiveIndex(i => Math.max(i - 1, 0));
+                          } else if (e.key === "Enter") {
+                            if (collabActiveIndex >= 0 && collabMatches[collabActiveIndex]) {
+                              e.preventDefault();
+                              setForm(f => ({ ...f, collaboratorId: collabMatches[collabActiveIndex].id }));
+                              setCollabSearch("");
+                              setCollabDropdownOpen(false);
+                              setCollabActiveIndex(-1);
+                            }
+                          } else if (e.key === "Escape") {
+                            setCollabDropdownOpen(false);
+                            setCollabActiveIndex(-1);
+                          }
+                        }}
                         placeholder="Buscar por nome ou CPF..."
                         role="combobox"
                         aria-expanded={collabDropdownOpen && collabMatches.length > 0}
+                        aria-controls="bg-collab-listbox"
                         aria-autocomplete="list"
+                        aria-activedescendant={
+                          collabDropdownOpen && collabActiveIndex >= 0 && collabMatches[collabActiveIndex]
+                            ? `bg-collab-opt-${collabMatches[collabActiveIndex].id}`
+                            : undefined
+                        }
                         aria-invalid={!!errors.collaboratorId}
                         aria-describedby={errors.collaboratorId ? "bg-collab-err" : undefined}
                         className={inputCls}
                       />
                       {collabDropdownOpen && collabSearch.trim() && (
-                        <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-[240px] overflow-y-auto" role="listbox">
+                        <div id="bg-collab-listbox" className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-[240px] overflow-y-auto" role="listbox" aria-label="Colaboradores">
                           {collabMatches.length === 0 ? (
                             <p className="text-[11px] text-slate-400 text-center py-3 px-3">Nenhum colaborador encontrado.</p>
-                          ) : collabMatches.map(c => {
+                          ) : collabMatches.map((c, i) => {
                             const cpf = getCpf(c);
                             return (
                               <button
                                 key={c.id}
+                                id={`bg-collab-opt-${c.id}`}
+                                type="button"
                                 role="option"
-                                aria-selected={false}
+                                aria-selected={i === collabActiveIndex}
+                                ref={i === collabActiveIndex ? el => el?.scrollIntoView({ block: "nearest" }) : undefined}
                                 onMouseDown={e => e.preventDefault()}
+                                onMouseEnter={() => setCollabActiveIndex(i)}
                                 onClick={() => {
                                   setForm(f => ({ ...f, collaboratorId: c.id }));
                                   setCollabSearch("");
                                   setCollabDropdownOpen(false);
+                                  setCollabActiveIndex(-1);
                                 }}
-                                className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
+                                className={`w-full text-left px-3 py-2 text-xs transition-colors border-b border-gray-50 last:border-0 ${
+                                  i === collabActiveIndex ? "bg-blue-50" : ""
+                                }`}
                               >
                                 <span className="font-semibold text-slate-700">{toTitleCase(fixEncoding(c.fullName))}</span>
                                 {cpf && <span className="ml-2 font-mono text-[11px] text-slate-400">{formatCpf(cpf)}</span>}
@@ -626,7 +906,7 @@ export default function BaggageControlPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
                 {/* LOC */}
                 <div>
                   <label htmlFor="bg-loc" className={lbl}>LOC *</label>
@@ -656,6 +936,7 @@ export default function BaggageControlPage() {
                   </select>
                   {form.ciaSelect === "Outros" && (
                     <Input
+                      id="bg-cia-other"
                       value={form.ciaOther}
                       onChange={e => setForm(f => ({ ...f, ciaOther: e.target.value }))}
                       placeholder="Nome da companhia"
@@ -681,6 +962,11 @@ export default function BaggageControlPage() {
                     aria-describedby={errors.value ? "bg-value-err" : undefined}
                     className={`${inputCls} font-mono`}
                   />
+                  {!errors.value && form.valueText.trim() && /\d/.test(form.valueText) && (
+                    <p className="text-[10px] text-slate-400 mt-1 font-mono" aria-live="polite">
+                      = {formatCurrency(Math.round(parseBrNumber(form.valueText) * 100))}
+                    </p>
+                  )}
                   {fieldError("value", "bg-value-err")}
                 </div>
 
@@ -730,6 +1016,7 @@ export default function BaggageControlPage() {
                   </select>
                   {form.agencySelect === "Outros" && (
                     <Input
+                      id="bg-agency-other"
                       value={form.agencyOther}
                       onChange={e => setForm(f => ({ ...f, agencyOther: e.target.value }))}
                       placeholder="Nome da agência"
@@ -788,14 +1075,14 @@ export default function BaggageControlPage() {
 
               <div className="flex justify-end mt-4">
                 <Button
+                  type="submit"
                   disabled={saveMutation.isPending}
-                  onClick={submit}
                   className="h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold"
                 >
                   {saveMutation.isPending ? "Salvando..." : editingId ? "Salvar alterações" : "Registrar solicitação"}
                 </Button>
               </div>
-            </div>
+            </form>
 
             {/* Filtros + lista */}
             <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
@@ -805,20 +1092,19 @@ export default function BaggageControlPage() {
                   <Input
                     value={listSearch}
                     onChange={e => setListSearch(e.target.value)}
-                    placeholder="Buscar por nome, LOC ou OS..."
-                    aria-label="Buscar solicitações por nome, LOC ou OS"
+                    placeholder="Buscar por nome, CPF, LOC, OS ou evento..."
+                    aria-label="Buscar solicitações por nome, CPF, LOC, OS ou evento"
                     className="pl-8 h-9 text-xs rounded-xl border-gray-200"
                   />
                 </div>
-                <select
+                <EventCombobox
+                  id="bg-filter-event"
+                  events={eventOptions}
                   value={filterEventId}
-                  onChange={e => setFilterEventId(e.target.value)}
-                  aria-label="Filtrar por evento"
-                  className="h-9 text-xs rounded-xl border border-gray-200 px-2 bg-white text-slate-700 focus:outline-none focus:border-blue-400 min-w-[180px]"
-                >
-                  <option value="">Todos os eventos</option>
-                  {events.map(ev => <option key={ev.id} value={ev.id}>{fixEncoding(ev.name)}</option>)}
-                </select>
+                  onChange={setFilterEventId}
+                  placeholder="Todos os eventos"
+                  className="w-[220px] max-w-full"
+                />
                 {filterCollabId && (
                   <span className="flex items-center gap-1.5 h-9 px-3 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-xl">
                     {getCollabName(filterCollabId)}
@@ -849,6 +1135,8 @@ export default function BaggageControlPage() {
                 <span><strong className="text-slate-700">{filterSummary.bags}</strong> {filterSummary.bags === 1 ? "bagagem" : "bagagens"}</span>
                 <span className="text-slate-200">·</span>
                 <span className="font-mono font-semibold text-slate-700">{formatCurrency(filterSummary.cents)}</span>
+                <span className="text-slate-200 hidden sm:inline">·</span>
+                <span className="hidden sm:inline text-slate-400">embarques mais recentes primeiro</span>
               </div>
 
               <div className="p-4 space-y-3">
@@ -876,6 +1164,15 @@ export default function BaggageControlPage() {
                         ? "Nenhuma solicitação registrada ainda. Preencha o formulário acima para registrar a primeira."
                         : "Nenhuma solicitação encontrada com os filtros atuais."}
                     </p>
+                    {requests.length > 0 && (filterEventId || filterCollabId || listSearch) && (
+                      <button
+                        type="button"
+                        onClick={() => { setFilterEventId(""); setFilterCollabId(""); setListSearch(""); }}
+                        className="mt-3 inline-flex items-center gap-1.5 h-8 px-3 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" /> Limpar filtros
+                      </button>
+                    )}
                   </div>
                 ) : filteredRequests.map(r => {
                   const style = CIA_STYLE[ciaGroup(r.cia)];
@@ -1005,12 +1302,27 @@ export default function BaggageControlPage() {
                               ))}
                           </div>
                         </td>
-                        <td className="px-2 py-2.5 text-right font-semibold text-slate-700">{row.totalBags}</td>
+                        <td className="px-2 py-2.5 text-right font-semibold text-slate-700 whitespace-nowrap">
+                          {row.totalBags}
+                          {row.historyBags > 0 && (
+                            <span
+                              className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 align-middle"
+                              title={`${row.historyBags} bagagem(ns) do histórico importado da planilha antiga (sem evento/valor)`}
+                            >
+                              {row.historyBags} hist.
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-2.5 text-right font-mono font-semibold text-slate-700 whitespace-nowrap">{formatCurrency(row.totalCents)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                {baggageHistory.length > 0 && (
+                  <p className="px-4 py-2 text-[10px] text-slate-400 border-t border-gray-50">
+                    As contagens incluem o histórico importado da planilha antiga (selo "hist."), que não tem evento nem valor associado — por isso não entra no Valor total.
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -1057,7 +1369,20 @@ export default function BaggageControlPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {eventRows.map(row => (
-                      <tr key={row.eventId} className="hover:bg-slate-50/60">
+                      <tr
+                        key={row.eventId}
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`Ver solicitações do evento ${row.name}`}
+                        onClick={() => { setFilterEventId(row.eventId); setFilterCollabId(""); setListSearch(""); setTab("solicitacoes"); }}
+                        onKeyDown={e => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setFilterEventId(row.eventId); setFilterCollabId(""); setListSearch(""); setTab("solicitacoes");
+                          }
+                        }}
+                        className="hover:bg-blue-50/40 cursor-pointer focus:outline-none focus:bg-blue-50/60"
+                      >
                         <td className="px-4 py-2.5 font-semibold text-slate-700">{row.name}</td>
                         <td className="px-2 py-2.5 text-right font-semibold text-slate-700">{row.bags}</td>
                         <td className="px-2 py-2.5 text-right font-mono font-semibold text-slate-700 whitespace-nowrap">{formatCurrency(row.cents)}</td>

@@ -759,6 +759,21 @@ export const insertBaggageRequestSchema = createInsertSchema(baggageRequests)
 export type BaggageRequest = typeof baggageRequests.$inferSelect;
 export type InsertBaggageRequest = z.infer<typeof insertBaggageRequestSchema>;
 
+// Histórico pré-sistema: contagens de bagagem por colaborador × CIA importadas
+// da planilha/HTML antigo (sem evento/valor/data — só a contagem consolidada).
+// Somadas na visão "Por colaborador" com selo de histórico; registros novos
+// nascem completos em baggage_requests.
+export const baggageHistory = pgTable("baggage_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  collaboratorId: varchar("collaborator_id").notNull().references(() => collaborators.id),
+  cia: text("cia").notNull(), // Azul, Gol, TAM ou Outros
+  quantity: integer("quantity").notNull(), // >= 1
+  sourceName: text("source_name"), // nome como constava na origem (auditoria)
+  importedAt: timestamp("imported_at").defaultNow(),
+});
+
+export type BaggageHistoryEntry = typeof baggageHistory.$inferSelect;
+
 // ===== ESPELHO OPERACIONAL — Logística do Evento =====
 
 // Custos extras de logística (bagagem, uber, locação de carro, outros)

@@ -4429,6 +4429,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Edição in-place de lançamento: substitui o antigo delete+recreate do
+  // client (que perdia o original se a recriação falhasse). Mesmo schema do
+  // POST; identidade de criação preservada; alteração fica no audit log.
+  app.patch("/api/flash-movements/:id", async (req, res) => {
+    const user = await requireFinanceUser(req, res);
+    if (!user) return;
+    try {
+      const prev = (await storage.getFlashMovements()).find(m => m.id === req.params.id);
+      if (!prev) return res.status(404).json({ message: "Lançamento não encontrado" });
+      const data = insertFlashMovementSchema
+        .omit({ createdBy: true, createdByName: true })
+        .parse(req.body);
+      const movement = await storage.updateFlashMovement(req.params.id, data);
+      if (!movement) return res.status(404).json({ message: "Lançamento não encontrado" });
+      // Trilha: edição de lançamento financeiro fica no audit log com o diff
+      await createAuditLog('update', 'financial', req.params.id, movement, user.id, user.name, prev, req);
+      res.json(movement);
+    } catch (error) {
+      console.error("Error updating flash movement:", error);
+      res.status(400).json({ message: "Dados inválidos. Verifique categoria, tipo, valor e data." });
+    }
+  });
+
   app.delete("/api/flash-movements/:id", async (req, res) => {
     const user = await requireFinanceUser(req, res);
     if (!user) return;
@@ -4471,6 +4494,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching baggage requests:", error);
       res.status(500).json({ message: "Erro ao buscar solicitações de bagagem" });
+    }
+  });
+
+  // Histórico pré-sistema (contagens importadas da planilha antiga; só leitura)
+  app.get("/api/baggage-history", async (req, res) => {
+    if (!await requireBagagem(req, res)) return;
+    try {
+      res.json(await storage.getBaggageHistory());
+    } catch (error) {
+      console.error("Error fetching baggage history:", error);
+      res.status(500).json({ message: "Erro ao buscar o histórico de bagagens" });
     }
   });
 
