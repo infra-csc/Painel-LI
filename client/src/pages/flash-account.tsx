@@ -64,6 +64,18 @@ interface FlashMovement {
   movementDate: string;
   description?: string | null;
   createdAt?: string | null;
+  /** 'manual' (tela) ou 'oc' (crédito automático gerado pela OC da NF — somente leitura) */
+  sourceType?: string | null;
+  sourceRef?: string | null;
+}
+
+/** Filtro do extrato por origem do lançamento */
+type SourceFilter = "todos" | "manual" | "oc";
+
+/** Extrai o nº da OC da descrição padrão "Automático — OC nº X · Evento" (fallback: vazio) */
+function ocFromDescription(desc?: string | null): string {
+  const m = /OC nº\s*([^·]+)/.exec(desc || "");
+  return m ? m[1].trim() : "";
 }
 
 export default function FlashAccountPage() {
@@ -80,6 +92,7 @@ export default function FlashAccountPage() {
   const [movementToEdit, setMovementToEdit] = useState<FlashMovement | null>(null);
   const [movementToDelete, setMovementToDelete] = useState<FlashMovement | null>(null);
   const [showNoInitialCredit, setShowNoInitialCredit] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("todos");
 
   const { data: collaborators = [] } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
   const { data: events = [] } = useQuery<EventItem[]>({ queryKey: ["/api/events"] });
@@ -147,6 +160,14 @@ export default function FlashAccountPage() {
     });
   }, [selectedMovements]);
 
+  // Filtro por origem é só de exibição — o saldo acumulado por linha continua
+  // calculado sobre TODOS os lançamentos (senão o "Saldo" da linha mentiria).
+  const extratoVisible = useMemo(() => {
+    if (sourceFilter === "todos") return extrato;
+    return extrato.filter(m => (m.sourceType === "oc") === (sourceFilter === "oc"));
+  }, [extrato, sourceFilter]);
+  const hasAutomatic = useMemo(() => extrato.some(m => m.sourceType === "oc"), [extrato]);
+
   // Critério único de "tem conta": QUALQUER movimento registrado (mesmo o que o
   // servidor usa para rejeitar o crédito inicial). `balances` não serve — ele
   // ignora categorias desconhecidas e mentiria para dados legados/manuais.
@@ -178,11 +199,12 @@ export default function FlashAccountPage() {
 
   const exportCsv = () => {
     const name = getCollabName(selectedCollabId);
-    const header = "Data;Categoria;Tipo;Evento;Descrição;Valor (R$);Saldo Alimentação (R$);Saldo Mobilidade (R$)";
+    const header = "Data;Categoria;Tipo;Origem;Evento;Descrição;Valor (R$);Saldo Alimentação (R$);Saldo Mobilidade (R$)";
     const lines = extrato.map(m => [
       fmtDate(m.movementDate),
       m.category === "alimentacao" ? "Alimentação" : "Mobilidade",
       m.type === "credito" ? "Crédito" : "Débito",
+      m.sourceType === "oc" ? "Automático (OC)" : "Manual",
       csvField(getEventName(m.eventId)),
       csvField(m.description || ""),
       (m.signed / 100).toFixed(2).replace(".", ","),
@@ -347,9 +369,36 @@ export default function FlashAccountPage() {
                     </button>
                   </div>
                 </div>
+                {/* Legenda/filtro discreto por origem: manual × automático (OC da NF) */}
+                {extrato.length > 0 && (
+                  <div className="flex items-center gap-2 px-5 py-2 border-b border-gray-50 text-[10px]">
+                    <span className="text-slate-400 font-bold uppercase tracking-wider">Origem</span>
+                    {(["todos", "manual", "oc"] as SourceFilter[]).map(f => (
+                      <button
+                        key={f}
+                        onClick={() => setSourceFilter(f)}
+                        aria-pressed={sourceFilter === f}
+                        className={`px-2 py-0.5 rounded-full border transition-colors ${
+                          sourceFilter === f
+                            ? "bg-slate-800 border-slate-800 text-white"
+                            : "border-gray-200 text-slate-500 hover:bg-gray-50"
+                        }`}
+                      >
+                        {f === "todos" ? "Todos" : f === "manual" ? "Manual" : "Automático"}
+                      </button>
+                    ))}
+                    {hasAutomatic && (
+                      <span className="ml-auto text-slate-400 flex items-center gap-1" title="Gerado pela OC da nota fiscal — acompanha o Realizado; estorno pela recusa da NF">
+                        <Sparkles className="w-3 h-3 text-violet-400" /> Automático = crédito da OC (somente leitura)
+                      </span>
+                    )}
+                  </div>
+                )}
                 <div className="max-h-[470px] overflow-y-auto overflow-x-auto">
                   {extrato.length === 0 ? (
                     <p className="text-xs text-slate-400 text-center py-10">Nenhum lançamento para este colaborador.</p>
+                  ) : extratoVisible.length === 0 ? (
+                    <p className="text-xs text-slate-400 text-center py-10">Nenhum lançamento {sourceFilter === "oc" ? "automático" : "manual"} para este colaborador.</p>
                   ) : (
                     <table className="w-full min-w-[560px] text-xs">
                       <thead className="sticky top-0 bg-slate-50 text-[10px] uppercase tracking-wider text-slate-400">
@@ -362,17 +411,26 @@ export default function FlashAccountPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
-                        {extrato.map(m => (
+                        {extratoVisible.map(m => (
                           <tr key={m.id} className="hover:bg-slate-50/60">
                             <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap font-mono">{fmtDate(m.movementDate)}</td>
                             <td className="px-2 py-2.5">
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
                                 {m.type === "credito"
                                   ? <ArrowUpCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                                   : <ArrowDownCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />}
                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${m.category === "alimentacao" ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600"}`}>
                                   {m.category === "alimentacao" ? "Alimentação" : "Mobilidade"}
                                 </span>
+                                {m.sourceType === "oc" && (
+                                  <span
+                                    className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-600 inline-flex items-center gap-1"
+                                    title="Crédito automático gerado pelo lançamento da OC na nota fiscal — somente leitura"
+                                  >
+                                    <Sparkles className="w-2.5 h-2.5" aria-hidden="true" />
+                                    Automático{ocFromDescription(m.description) ? ` · OC nº ${ocFromDescription(m.description)}` : ""}
+                                  </span>
+                                )}
                               </div>
                               {(m.description || m.eventId) && (
                                 <p className="text-[11px] text-slate-400 mt-1 truncate max-w-[260px]">
@@ -386,7 +444,14 @@ export default function FlashAccountPage() {
                             <td className="px-4 py-2.5 text-right font-mono text-slate-500 whitespace-nowrap">
                               {formatCurrency(m.category === "alimentacao" ? m.runningFood : m.runningMobility)}
                             </td>
-                            {canManage && (
+                            {canManage && m.sourceType === "oc" && (
+                              <td className="px-2 py-2.5 text-right whitespace-nowrap">
+                                <span className="text-[10px] text-slate-300" title="Lançamento automático: acompanha o Realizado da NF; estorno pela recusa da nota">
+                                  somente leitura
+                                </span>
+                              </td>
+                            )}
+                            {canManage && m.sourceType !== "oc" && (
                               <td className="px-2 py-2.5 text-right whitespace-nowrap">
                                 <button
                                   title="Editar lançamento"

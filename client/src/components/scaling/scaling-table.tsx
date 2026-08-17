@@ -392,21 +392,14 @@ export default function ScalingTable({
                           <span className="inline-flex items-center gap-0.5"><Headset className="w-2.5 h-2.5" />{atendimento.short}</span>
                         </NeedIcon>
                       )}
-                      {isPercurso && (percurseiro ? (
+                      {/* Tipo do percurseiro: mostra só quando já definido. A definição
+                          (Tipo 1/2) é feita NO PLANEJADO por decisão do usuário — a
+                          Escalação não cobra nem bloqueia por isso. */}
+                      {isPercurso && percurseiro && (
                         <NeedIcon label={`Tipo do percurseiro: ${percurseiro.label}`} active>
                           <span className="inline-flex items-center gap-0.5"><Bike className="w-2.5 h-2.5" />{percurseiro.short}</span>
                         </NeedIcon>
-                      ) : (
-                        <span
-                          role="img"
-                          aria-label="Percurseiro sem tipo definido (Tipo 1 ou Tipo 2)"
-                          title="Percurseiro sem tipo definido (Tipo 1 ou Tipo 2)"
-                          data-testid="badge-percurseiro-definir-tipo"
-                          className="inline-flex items-center justify-center gap-0.5 h-6 px-1 rounded-md border text-[10px] font-bold bg-amber-50 border-amber-200 text-amber-700"
-                        >
-                          <Bike className="w-2.5 h-2.5" />definir tipo
-                        </span>
-                      ))}
+                      )}
                       {percursoDiariasDivergem && (
                         <span
                           role="img"

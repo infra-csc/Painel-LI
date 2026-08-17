@@ -35,6 +35,8 @@ import {
 import { isAtendimentoFunction } from "@shared/atendimento";
 import { isPercursoFunction } from "@shared/calculation-rules";
 import { nextStatusOnConfirm } from "@shared/scaling-rules";
+import { safeSyncFlashFromInvoice, safeReverseFlashFromInvoice, type FlashSyncActor } from "./flash-oc";
+import { isAutomaticFlashMovement } from "@shared/flash-rules";
 import bcrypt from "bcryptjs";
 import { randomBytes, timingSafeEqual } from "crypto";
 
@@ -2045,16 +2047,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updates.atendimentoTipo = null;
       }
 
-      // Percurso (motoqueiro): ao ter colaborador atribuído, o tipo (Tipo 1 /
-      // Tipo 2) é obrigatório — define o pacote fechado da diária.
+      // Percurso (motoqueiro): o tipo (Tipo 1 / Tipo 2) define o pacote fechado
+      // da diária, mas por decisão do usuário (17/08) é definido NO PLANEJADO —
+      // a escalação NÃO exige o tipo (só valida o valor se vier).
       if (isPercursoFunction(func.name)) {
-        const effColab = updates.collaboratorId !== undefined ? updates.collaboratorId : currentInclusion.collaboratorId;
         const effTipo = updates.percurseiroTipo !== undefined ? updates.percurseiroTipo : (currentInclusion as any).percurseiroTipo;
         if (effTipo != null && effTipo !== 'tipo_1' && effTipo !== 'tipo_2') {
           return res.status(400).json({ message: "Tipo de percurseiro inválido — use Tipo 1 ou Tipo 2." });
-        }
-        if (effColab && !effTipo) {
-          return res.status(400).json({ message: "Defina o tipo do percurseiro (Tipo 1 ou Tipo 2)" });
         }
       } else if (updates.percurseiroTipo !== undefined) {
         updates.percurseiroTipo = null;
@@ -2133,14 +2132,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updates.atendimentoTipo = null;
       }
 
-      // Percurso: tipo (Tipo 1 / Tipo 2) obrigatório ao escalar (pacote da diária)
+      // Percurso: o tipo (Tipo 1 / Tipo 2) é definido NO PLANEJADO (decisão do
+      // usuário, 17/08) — confirmar a escalação não exige o tipo; só valida o valor.
       if (isPercursoFunction(func.name)) {
         const effTipo = updates.percurseiroTipo !== undefined ? updates.percurseiroTipo : (currentInclusion as any).percurseiroTipo;
         if (effTipo != null && effTipo !== 'tipo_1' && effTipo !== 'tipo_2') {
           return res.status(400).json({ message: "Tipo de percurseiro inválido — use Tipo 1 ou Tipo 2." });
-        }
-        if (!effTipo) {
-          return res.status(400).json({ message: "Defina o tipo do percurseiro (Tipo 1 ou Tipo 2)" });
         }
       } else if (updates.percurseiroTipo !== undefined) {
         updates.percurseiroTipo = null;
@@ -4300,6 +4297,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `Confira o número da OC ou anexe o mesmo arquivo.`;
   };
 
+  // Ator + trilha de auditoria para o crédito automático no Flash (server/flash-oc.ts).
+  // O audit log usa entityType 'financial' — mesmo bucket dos lançamentos manuais.
+  const flashActorFor = async (req: any): Promise<FlashSyncActor> => {
+    const u = req.session?.userId ? await storage.getUser(req.session.userId) : undefined;
+    return {
+      userId: u?.id ?? null,
+      userName: u?.name ?? "Sistema",
+      audit: (action, entityId, data, oldData) =>
+        createAuditLog(action, 'financial', entityId, data, u?.id, u?.name || 'Sistema', oldData, req),
+    };
+  };
+
   app.post("/api/invoices", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
     try {
@@ -4333,7 +4342,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (ocError) return res.status(400).json({ message: ocError });
       const firstEvent = { type: "enviado", oc: data.oc || null, attachmentName: data.attachmentName || null, at: new Date().toISOString() };
       const invoice = await storage.createInvoice({ ...data, history: JSON.stringify([firstEvent]) });
-      res.json(invoice);
+      // Regra 17/08: lançou a OC → alimentação e mobilidade do Realizado entram
+      // no Flash (diária não). Falha no sync não derruba a NF — vira flashSync.ok=false.
+      const flashSync = (invoice.oc || "").trim()
+        ? await safeSyncFlashFromInvoice(invoice.id, await flashActorFor(req))
+        : { ok: true, alimentacaoCents: 0, mobilidadeCents: 0, movementIds: [] };
+      res.json({ ...invoice, flashSync });
     } catch (error: any) {
       if (error?.name === 'ZodError') {
         return res.status(400).json({ message: "Dados da nota inválidos. Verifique OC e anexo." });
@@ -4354,6 +4368,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // NF aprovada é imutável por esta rota (check-in tem rota própria)
       if (existing.status === "aprovada") {
         return res.status(400).json({ message: "Nota fiscal aprovada não pode ser alterada." });
+      }
+      // NF recusada é terminal: reenviar por aqui recriaria os créditos do
+      // Flash que a recusa acabou de estornar (o client já não oferece).
+      if (existing.status === "recusada") {
+        return res.status(400).json({ message: "Nota fiscal recusada é definitiva e não pode ser reenviada." });
       }
       // Allowlist: este PATCH serve ao envio/reenvio pelo colaborador.
       // Aprovar/devolver/recusar/check-in têm rotas dedicadas com papel —
@@ -4390,7 +4409,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...body,
         ...(historyStr !== undefined ? { history: historyStr } : {}),
       });
-      res.json(invoice);
+      // Reenvio ou troca da OC → ressincroniza o crédito automático do Flash
+      // (idempotente: atualiza os mesmos lançamentos, não duplica). OC vazia
+      // → remove os automáticos. Falha no sync não derruba a NF.
+      let flashSync: any = undefined;
+      const touchesOc = body.status === "enviada" || "oc" in body;
+      if (touchesOc && invoice.status !== "recusada") {
+        const actor = await flashActorFor(req);
+        if ((invoice.oc || "").trim()) {
+          flashSync = await safeSyncFlashFromInvoice(invoice.id, actor);
+        } else {
+          const r = await safeReverseFlashFromInvoice(invoice.id, actor);
+          flashSync = { ok: r.ok, alimentacaoCents: 0, mobilidadeCents: 0, movementIds: [] };
+        }
+      }
+      res.json(flashSync ? { ...invoice, flashSync } : invoice);
     } catch (error) {
       console.error("Error updating invoice:", error);
       res.status(500).json({ message: "Erro ao atualizar nota fiscal" });
@@ -4458,7 +4491,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         returnComment: comment ?? null,
         history: historyStr,
       });
-      res.json(invoice);
+      // Recusa é definitiva → estorna o crédito automático do Flash (apaga os
+      // lançamentos 'oc' desta NF; ver server/flash-oc.ts para o porquê de
+      // apagar em vez de debitar). Aprovar/devolver/check-in não mexem no Flash.
+      const flashReverse = await safeReverseFlashFromInvoice(invoice.id, {
+        userId: user.id, userName: user.name,
+        audit: (action, entityId, data, oldData) =>
+          createAuditLog(action, 'financial', entityId, data, user.id, user.name, oldData, req),
+      });
+      res.json({ ...invoice, flashReverse });
     } catch (error) {
       console.error("Error rejecting invoice:", error);
       res.status(500).json({ message: "Erro ao recusar nota fiscal" });
@@ -4568,7 +4609,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!collaboratorId || !movementDate) {
         return res.status(400).json({ message: "collaboratorId e movementDate são obrigatórios" });
       }
-      const existing = await storage.getFlashMovements(collaboratorId);
+      // Só lançamentos MANUAIS contam como "conta já aberta" — um crédito
+      // automático de OC (NF do primeiro evento) não pode impedir o crédito
+      // inicial da admissão.
+      const existing = (await storage.getFlashMovements(collaboratorId)).filter((m: any) => m.sourceType !== "oc");
       if (existing.length > 0) {
         return res.status(409).json({ message: "Este colaborador já tem lançamentos — o crédito inicial só vale para conta nova." });
       }
@@ -4591,8 +4635,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const user = await requireFinanceUser(req, res);
     if (!user) return;
     try {
-      const prev = (await storage.getFlashMovements()).find(m => m.id === req.params.id);
+      const prev = await storage.getFlashMovement(req.params.id);
       if (!prev) return res.status(404).json({ message: "Lançamento não encontrado" });
+      if (isAutomaticFlashMovement(prev)) {
+        return res.status(409).json({ message: "Este lançamento é automático (gerado pela OC da nota fiscal) e não pode ser editado. Ele acompanha o Realizado; para estornar, recuse a nota." });
+      }
       const data = insertFlashMovementSchema
         .omit({ createdBy: true, createdByName: true })
         .parse(req.body);
@@ -4611,8 +4658,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const user = await requireFinanceUser(req, res);
     if (!user) return;
     try {
-      const prev = (await storage.getFlashMovements()).find(m => m.id === req.params.id);
+      const prev = await storage.getFlashMovement(req.params.id);
       if (!prev) return res.status(404).json({ message: "Lançamento não encontrado" });
+      if (isAutomaticFlashMovement(prev)) {
+        return res.status(409).json({ message: "Este lançamento é automático (gerado pela OC da nota fiscal) e não pode ser excluído. O estorno acontece ao recusar a nota." });
+      }
       await storage.deleteFlashMovement(req.params.id);
       // Trilha: exclusão de lançamento financeiro fica no audit log com o registro apagado
       await createAuditLog('delete', 'financial', req.params.id, prev, user.id, user.name, undefined, req);

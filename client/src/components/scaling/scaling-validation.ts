@@ -27,9 +27,12 @@ export const PERCURSEIRO_MISSING_MSG = "Defina o tipo do percurseiro (Tipo 1 ou 
 export const isAtendimentoMissing = (inclusion: TeamInclusion, values: ValidationValues, rules: Rules): boolean =>
   !!values.collaboratorId && rules.isAtendimentoInclusion(inclusion) && !values.atendimentoTipo;
 
-/** Percurso: pacote fechado Tipo 1 × Tipo 2 é obrigatório ao atribuir colaborador. */
-export const isPercurseiroMissing = (inclusion: TeamInclusion, values: ValidationValues, rules: Rules): boolean =>
-  !!values.collaboratorId && rules.isPercursoInclusion(inclusion) && !values.percurseiroTipo;
+/**
+ * Percurso: o Tipo 1 × Tipo 2 é definido NO PLANEJADO (decisão do usuário,
+ * 17/08) — a Escalação NÃO bloqueia por falta dele. Mantido como função para
+ * religar facilmente se a regra mudar; hoje sempre false.
+ */
+export const isPercurseiroMissing = (_inclusion: TeamInclusion, _values: ValidationValues, _rules: Rules): boolean => false;
 
 /** Valores gravados na escalação (sem edição) no formato da validação. */
 export const valuesFromInclusion = (inclusion: TeamInclusion): ValidationValues => ({

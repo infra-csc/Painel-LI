@@ -6,6 +6,10 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+
+// Decisão do usuário (17/08): o Tipo 1 × Tipo 2 do percurseiro é definido no
+// PLANEJADO. Mude para true se a Escalação voltar a pedir o tipo.
+const SHOW_PERCURSEIRO_TIPO_NA_ESCALACAO = false;
 import {
   Eye, Save, Plane, Check, CalendarDays, Users, MessageSquare, FileText, File,
   HelpCircle, ArrowLeftRight, AlertCircle, RotateCcw, MapPin, ChevronLeft, ChevronRight, Bike,
@@ -517,8 +521,11 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                 </div>
                               );
                             })()}
-                            {/* Tipo do percurseiro — pacote fechado Tipo 1 × Tipo 2, obrigatório quando a função é de percurso */}
-                            {isPercursoInclusion && (() => {
+                            {/* Tipo do percurseiro (Tipo 1 × Tipo 2): por decisão do usuário
+                                (17/08) é definido NO PLANEJADO, não aqui. Bloco mantido
+                                desligado (SHOW_PERCURSEIRO_TIPO_NA_ESCALACAO) para religar
+                                sem reescrever se a regra mudar. */}
+                            {SHOW_PERCURSEIRO_TIPO_NA_ESCALACAO && isPercursoInclusion && (() => {
                               const missing = isPercurseiroMissing(inclusion, modalData, data);
                               return (
                                 <div className="space-y-1.5">

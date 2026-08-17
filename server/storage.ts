@@ -39,6 +39,16 @@ export interface FunctionManagerSummary {
 export type FunctionWithManagers = Function & { managers: FunctionManagerSummary[] };
 
 /**
+ * Lançamento Flash com origem explícita. O schema público (insertFlashMovementSchema)
+ * omite sourceType/sourceRef para o body da API nunca criar um "automático";
+ * só o servidor (server/flash-oc.ts) grava sourceType 'oc'.
+ */
+export type InsertFlashMovementWithSource = InsertFlashMovement & {
+  sourceType?: "manual" | "oc";
+  sourceRef?: string | null;
+};
+
+/**
  * Linha bruta de swap_requests (SELECT sr.* + joins) em camelCase.
  * Mantém TAMBÉM as chaves snake_case originais por um ciclo — os clients de
  * scaling/tickets/accommodations ainda leem `team_inclusion_id` etc.
@@ -188,9 +198,12 @@ export interface IStorage {
 
   // Flash Movements (Conta Corrente Flash)
   getFlashMovements(collaboratorId?: string): Promise<FlashMovement[]>;
-  createFlashMovement(movement: InsertFlashMovement): Promise<FlashMovement>;
-  createFlashMovementsBatch(movements: InsertFlashMovement[]): Promise<FlashMovement[]>;
-  updateFlashMovement(id: string, updates: Partial<InsertFlashMovement>): Promise<FlashMovement | undefined>;
+  getFlashMovement(id: string): Promise<FlashMovement | undefined>;
+  /** Lançamentos automáticos de uma origem (ex.: sourceType 'oc' + id da NF). */
+  getFlashMovementsBySource(sourceType: string, sourceRef: string): Promise<FlashMovement[]>;
+  createFlashMovement(movement: InsertFlashMovementWithSource): Promise<FlashMovement>;
+  createFlashMovementsBatch(movements: InsertFlashMovementWithSource[]): Promise<FlashMovement[]>;
+  updateFlashMovement(id: string, updates: Partial<InsertFlashMovementWithSource>): Promise<FlashMovement | undefined>;
   deleteFlashMovement(id: string): Promise<void>;
 
   // Baggage Requests (Controle de Bagagem)
@@ -1124,13 +1137,23 @@ export class DatabaseStorage implements IStorage {
     return await ordered.orderBy(asc(flashMovements.movementDate), asc(flashMovements.createdAt));
   }
 
-  async createFlashMovement(movement: InsertFlashMovement): Promise<FlashMovement> {
+  async getFlashMovement(id: string): Promise<FlashMovement | undefined> {
+    const [row] = await db.select().from(flashMovements).where(eq(flashMovements.id, id));
+    return row;
+  }
+
+  async getFlashMovementsBySource(sourceType: string, sourceRef: string): Promise<FlashMovement[]> {
+    return await db.select().from(flashMovements)
+      .where(and(eq(flashMovements.sourceType, sourceType), eq(flashMovements.sourceRef, sourceRef)));
+  }
+
+  async createFlashMovement(movement: InsertFlashMovementWithSource): Promise<FlashMovement> {
     const [created] = await db.insert(flashMovements).values(movement).returning();
     return created;
   }
 
   // Inserção atômica (crédito inicial = 2 lançamentos que não podem ficar pela metade)
-  async createFlashMovementsBatch(movements: InsertFlashMovement[]): Promise<FlashMovement[]> {
+  async createFlashMovementsBatch(movements: InsertFlashMovementWithSource[]): Promise<FlashMovement[]> {
     return await db.transaction(async (tx) => {
       const created: FlashMovement[] = [];
       for (const m of movements) {
@@ -1143,7 +1166,7 @@ export class DatabaseStorage implements IStorage {
 
   // Edição in-place: substitui o antigo fluxo delete+recreate do client, que
   // perdia o lançamento original quando a recriação falhava.
-  async updateFlashMovement(id: string, updates: Partial<InsertFlashMovement>): Promise<FlashMovement | undefined> {
+  async updateFlashMovement(id: string, updates: Partial<InsertFlashMovementWithSource>): Promise<FlashMovement | undefined> {
     const [updated] = await db
       .update(flashMovements)
       .set(updates)

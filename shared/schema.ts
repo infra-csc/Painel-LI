@@ -584,11 +584,22 @@ export const flashMovements = pgTable("flash_movements", {
   createdBy: varchar("created_by").references(() => users.id),
   createdByName: text("created_by_name"),
   createdAt: timestamp("created_at").defaultNow(),
+  // Origem do lançamento (17/08): 'manual' (tela Conta Corrente Flash) ou
+  // 'oc' (crédito automático gerado pelo lançamento da NF com OC — ver
+  // server/flash-oc.ts). sourceRef guarda o id da invoice quando 'oc';
+  // (source_type, source_ref, category) identifica o lançamento automático
+  // e torna a sincronização idempotente. Migração: 2026-08-17-flash-oc.ts.
+  sourceType: text("source_type").notNull().default("manual"),
+  sourceRef: text("source_ref"),
 });
 
 export const insertFlashMovementSchema = createInsertSchema(flashMovements).omit({
   id: true,
   createdAt: true,
+  // Origem nunca vem do body: a API manual sempre grava 'manual'; 'oc' só
+  // nasce no servidor via syncFlashFromInvoice.
+  sourceType: true,
+  sourceRef: true,
 }).extend({
   category: z.enum(["alimentacao", "mobilidade"]),
   type: z.enum(["credito", "debito"]),
