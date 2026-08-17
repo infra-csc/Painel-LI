@@ -18,6 +18,7 @@ import {
   Send, Clock, ListChecks, Briefcase, Utensils, Car, Users,
   AlertCircle, Check, Minus, GitFork, ClipboardList, X, UserX, Pencil
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { EventSearchSelect } from "@/components/event-select";
 import { useSearch } from "wouter";
@@ -42,6 +43,177 @@ function initials(name: string) {
   return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 }
 
+// Formatador de moeda criado uma única vez (Intl.NumberFormat é caro de instanciar)
+const brlFormatter = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const fmt = (cents: number) => brlFormatter.format(cents / 100);
+
+// Parse seguro do JSON de rhAdjustedFields — retorna [] se ausente ou inválido
+function parseAdjustedFields(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? Object.keys(parsed) : [];
+  } catch {
+    return [];
+  }
+}
+
+// Classe padrão dos SelectItem (evita repetição da string em cada item)
+const SELECT_ITEM_CLS = "hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium";
+
+// Forma dos registros de activity log retornados por /api/activity-logs/by-event
+// (estruturalmente compatível com o ActivityLog interno de activity-timeline.tsx)
+interface ActivityLogEntry {
+  id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  created_at?: string | null;
+  user_name?: string | null;
+}
+
+// ── Blocos de detalhamento (module scope para não remontar o DOM a cada render) ──
+
+function CategoryBlock({ title, icon: Icon, iconColor, bgColor, stripColor, rows, badge }: {
+  title: string;
+  icon: LucideIcon;
+  iconColor: string;
+  bgColor: string;
+  stripColor: string;
+  rows: Array<{ label: string; planned: number; actual: number; isQuantity?: boolean }>;
+  badge?: string;
+}) {
+  const currencyRows = rows.filter(r => !r.isQuantity);
+  const subtotalPlanned = currencyRows.reduce((s, r) => s + r.planned, 0);
+  const subtotalActual  = currencyRows.reduce((s, r) => s + r.actual,  0);
+  const subtotalDiff    = subtotalActual - subtotalPlanned;
+  const hasAnyDiff      = rows.some(r => r.planned !== r.actual);
+  const fmtVal = (v: number, isQty?: boolean) => isQty ? String(v) : fmt(v);
+
+  return (
+    <div className="rounded-xl border border-slate-100 overflow-hidden bg-slate-50/50">
+      {/* Category header */}
+      <div className={`flex items-center justify-between px-3 ${bgColor} border-b border-slate-100`} style={{ height: 32 }}>
+        <div className="flex items-center gap-1.5">
+          <div className={`w-4 h-4 rounded flex items-center justify-center ${stripColor}`}>
+            <Icon className="w-2.5 h-2.5 text-white" />
+          </div>
+          <span className={`text-[10px] font-bold uppercase tracking-wide ${iconColor}`}>{title}</span>
+          {badge && (
+            <span className="text-[9px] font-medium text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full leading-none">
+              {badge}
+            </span>
+          )}
+          {hasAnyDiff && (
+            <span className="flex items-center gap-0.5 text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full leading-none">
+              <AlertTriangle className="w-2 h-2" /> Divergência
+            </span>
+          )}
+        </div>
+        <span className={`text-[12px] font-semibold tabular-nums ${iconColor}`}>{fmt(subtotalActual)}</span>
+      </div>
+
+      {/* Rows */}
+      <div className="divide-y divide-slate-100 bg-white">
+        {rows.map((row, i) => {
+          const diff  = row.actual - row.planned;
+          const isDiff = diff !== 0;
+          return (
+            <div key={i} className="grid grid-cols-4 gap-2 px-3 text-[12px] items-center" style={{ height: 32 }}>
+              <span className="text-slate-500 font-medium text-[11px]">{row.label}</span>
+              <span className="text-right tabular-nums text-blue-600 font-medium text-[11px]">{fmtVal(row.planned, row.isQuantity)}</span>
+              <span className={`text-right tabular-nums font-medium text-[11px] ${isDiff ? 'text-violet-700' : 'text-violet-400'}`}>
+                {fmtVal(row.actual, row.isQuantity)}
+              </span>
+              <div className="text-right">
+                {diff === 0 ? (
+                  <span className="text-slate-300 tabular-nums text-[11px]">—</span>
+                ) : (
+                  <span className={`tabular-nums font-semibold text-[10px] ${diff > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                    {row.isQuantity ? `${diff > 0 ? '+' : ''}${diff}` : `${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff))}`}
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Subtotal */}
+      {currencyRows.length > 0 && (
+        <div className={`grid grid-cols-4 gap-2 px-3 text-[11px] items-center border-t border-slate-100 ${subtotalDiff > 0 ? 'bg-red-50/40' : subtotalDiff < 0 ? 'bg-emerald-50/40' : 'bg-slate-50'}`} style={{ height: 28 }}>
+          <span className="text-slate-400 uppercase text-[9px] tracking-wider font-semibold">Subtotal</span>
+          <span className="text-right tabular-nums text-blue-700 font-semibold">{fmt(subtotalPlanned)}</span>
+          <span className={`text-right tabular-nums font-semibold ${subtotalDiff !== 0 ? 'text-violet-700' : 'text-violet-500'}`}>{fmt(subtotalActual)}</span>
+          <div className="text-right">
+            {subtotalDiff === 0 ? (
+              <span className="text-slate-300 tabular-nums">—</span>
+            ) : (
+              <span className={`tabular-nums text-[10px] font-semibold ${subtotalDiff > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                {subtotalDiff > 0 ? '+' : '−'}{fmt(Math.abs(subtotalDiff))}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Sub-linha do modal de divisão (zebra controlada pelo chamador)
+function SubRow({ label, planned, actual, rowIndex }: { label: string; planned: number; actual: number; rowIndex: number }) {
+  const d = actual - planned;
+  return (
+    <div className={`grid grid-cols-4 gap-4 px-4 py-2 items-center ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}`}>
+      <div className="flex items-center gap-1.5 pl-3">
+        <span className="text-slate-300 text-[10px] select-none">└</span>
+        <span className="text-[10px] text-slate-400">{label}</span>
+      </div>
+      <span className="text-right tabular-nums text-[11px] text-blue-500">{fmt(planned)}</span>
+      <span className={`text-right tabular-nums text-[11px] ${d !== 0 ? 'text-violet-600' : 'text-violet-400'}`}>{fmt(actual)}</span>
+      <div className="text-right">
+        {d === 0 ? <span className="text-slate-300 text-[10px]">—</span> : (
+          <span className={`text-[10px] font-semibold ${d > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+            {d > 0 ? '+' : '−'}{fmt(Math.abs(d))}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Seção com cabeçalho colorido do modal de divisão
+function SectionBlock({ title, icon: Icon, headerBg, iconColor, titleColor, subtotalPlan, subtotalAct, children }: {
+  title: string; icon: LucideIcon; headerBg: string; iconColor: string; titleColor: string;
+  subtotalPlan: number; subtotalAct: number; children: React.ReactNode;
+}) {
+  const d = subtotalAct - subtotalPlan;
+  return (
+    <div className="rounded-xl overflow-hidden border border-slate-100">
+      <div className={`flex items-center gap-1.5 px-4 py-2 border-b border-white/40 ${headerBg}`}>
+        <Icon className={`w-3.5 h-3.5 ${iconColor}`} />
+        <span className={`text-[10px] font-bold tracking-wide ${titleColor}`}>{title}</span>
+      </div>
+      <div className={`grid grid-cols-4 gap-4 px-4 py-2 ${headerBg}`}>
+        <span className={`text-[10px] font-semibold ${titleColor} opacity-70`}>Total</span>
+        <span className="text-right tabular-nums text-[11px] text-blue-600 font-semibold">{fmt(subtotalPlan)}</span>
+        <span className={`text-right tabular-nums text-[11px] font-semibold ${d !== 0 ? 'text-violet-700' : 'text-violet-500'}`}>{fmt(subtotalAct)}</span>
+        <div className="text-right">
+          {d === 0
+            ? <span className="text-slate-300 text-[10px]">—</span>
+            : <span className={`text-[11px] font-bold tabular-nums ${d > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                {d > 0 ? '+' : '−'}{fmt(Math.abs(d))}
+              </span>
+          }
+        </div>
+      </div>
+      <div className="divide-y divide-slate-50">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export default function BudgetComparisonPage() {
   const searchString = useSearch();
   const { urlCollaboratorId, urlFunctionId } = useMemo(() => {
@@ -59,11 +231,16 @@ export default function BudgetComparisonPage() {
   });
   const [actionModal, setActionModal] = useState<{ type: 'approve' | 'reject' | 'return' } | null>(null);
   const [actionNote, setActionNote] = useState("");
-  const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set());
+  const [actionNoteError, setActionNoteError] = useState(false);
+  // Expansão por id do BudgetActual (não por índice): mudar a ordenação com cards
+  // abertos expandia outros cards — mesma correção já aplicada na seleção abaixo
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<'difference' | 'total'>('difference');
   const [searchTerm, setSearchTerm] = useState("");
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
+  // Filtro por status via chips do topo (toggle) — null = sem filtro
+  const [statusFilter, setStatusFilter] = useState<'para_analise' | 'aprovado' | 'rejeitado' | 'devolvido' | 'nao_enviado' | null>(null);
   // Seleção por id do BudgetActual (não por índice): filtrar/ordenar deslocava os índices
   // e o RH acabava aprovando itens errados
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -108,7 +285,7 @@ export default function BudgetComparisonPage() {
     enabled: !!selectedEventId,
   });
 
-  const { data: plannedLogs = [] } = useQuery<any[]>({
+  const { data: plannedLogs = [] } = useQuery<ActivityLogEntry[]>({
     queryKey: ['/api/activity-logs/by-event', 'budget_planned', selectedEventId],
     queryFn: async () => {
       const res = await fetch(`/api/activity-logs/by-event?entityType=budget_planned&eventId=${selectedEventId}`, { credentials: 'include' });
@@ -119,7 +296,7 @@ export default function BudgetComparisonPage() {
     staleTime: 60_000,
   });
 
-  const { data: budgetPlanned, isLoading: isLoadingPlanned } = useQuery<BudgetPlanned[]>({
+  const { data: budgetPlanned, isLoading: isLoadingPlanned, isError: isErrorPlanned, refetch: refetchPlanned } = useQuery<BudgetPlanned[]>({
     queryKey: ["/api/budget-planned", selectedEventId],
     queryFn: async () => {
       const res = await fetch(`/api/budget-planned?eventId=${selectedEventId}`, { credentials: "include" });
@@ -129,7 +306,7 @@ export default function BudgetComparisonPage() {
     enabled: !!selectedEventId,
   });
 
-  const { data: budgetActual, isLoading: isLoadingActual } = useQuery<BudgetActual[]>({
+  const { data: budgetActual, isLoading: isLoadingActual, isError: isErrorActual, refetch: refetchActual } = useQuery<BudgetActual[]>({
     queryKey: ["/api/budget-actual", selectedEventId],
     queryFn: async () => {
       const res = await fetch(`/api/budget-actual?eventId=${selectedEventId}`, { credentials: "include" });
@@ -165,7 +342,7 @@ export default function BudgetComparisonPage() {
     },
     onSuccess: (_, variables) => {
       const labels: Record<string, { title: string; cls: string }> = {
-        aprovado: { title: "Aprovado para faturamento", cls: "bg-emerald-50 border-emerald-200 text-emerald-800" },
+        aprovado: { title: "Prestação aprovada — análise formal do RH", cls: "bg-emerald-50 border-emerald-200 text-emerald-800" },
         rejeitado: { title: "Prestação recusada", cls: "bg-red-50 border-red-200 text-red-800" },
         devolvido: { title: "Devolvido para ajustes", cls: "bg-amber-50 border-amber-200 text-amber-800" },
       };
@@ -175,6 +352,7 @@ export default function BudgetComparisonPage() {
       qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
       setActionModal(null);
       setActionNote("");
+      setActionNoteError(false);
       setSelectedItems(new Set());
     },
     onError: (err: any) => {
@@ -212,7 +390,7 @@ export default function BudgetComparisonPage() {
       weekendLunch: (actual.weekendLunch / 100).toFixed(2),
       weekendDinner: (actual.weekendDinner / 100).toFixed(2),
       mobility: (actual.mobility / 100).toFixed(2),
-      rhAdjustNote: (actual as any).rhAdjustNote || '',
+      rhAdjustNote: actual.rhAdjustNote || '',
     });
   };
 
@@ -235,7 +413,7 @@ export default function BudgetComparisonPage() {
     // reproduz o subtotal de diárias gravado dia a dia).
     const data: Record<string, any> = { rhAdjustNote: editForm.rhAdjustNote?.trim() || null };
     (Object.keys(parsed) as Array<keyof typeof parsed>).forEach(k => {
-      if (parsed[k] !== (orig as any)[k]) data[k] = parsed[k];
+      if (parsed[k] !== orig[k]) data[k] = parsed[k];
     });
     const anyNumericChange = Object.keys(data).some(k => k !== 'rhAdjustNote');
     if (anyNumericChange) {
@@ -252,6 +430,19 @@ export default function BudgetComparisonPage() {
 
   const handleAction = () => {
     if (!actionModal) return;
+    // Manual do Financeiro: ao devolver ou recusar, a observação é OBRIGATÓRIA
+    // (o responsável de função a recebe na tela do Realizado). No aprovar segue opcional.
+    if ((actionModal.type === 'reject' || actionModal.type === 'return') && !actionNote.trim()) {
+      setActionNoteError(true);
+      toast({
+        title: "Observação obrigatória",
+        description: actionModal.type === 'reject'
+          ? "Para recusar, escreva o motivo da recusa — o responsável de função receberá esta observação."
+          : "Para devolver, descreva o que precisa ser corrigido — o responsável de função receberá esta observação.",
+        variant: "destructive",
+      });
+      return;
+    }
     const actionMap: Record<string, string> = { approve: 'aprovado', reject: 'rejeitado', return: 'devolvido' };
     const rhAction = actionMap[actionModal.type];
     const selectedActualIds = sortedData
@@ -264,9 +455,6 @@ export default function BudgetComparisonPage() {
     if (selectedActualIds.length === 0) return;
     rhActionMutation.mutate({ itemIds: selectedActualIds, action: rhAction, comment: actionNote });
   };
-
-  const fmt = (cents: number) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 
   const fmtDate = (dateStr: string) => {
     const d = new Date(dateStr + "T12:00:00");
@@ -369,7 +557,7 @@ export default function BudgetComparisonPage() {
       const children = splitChildrenMap.get(a.id) || [];
       const isSplit = children.length > 0;
       // If the planned record is marked as not attended, their values are excluded from totals
-      const isNotAttendedPlanned = !!(matchingPlanned as any)?.didNotAttend;
+      const isNotAttendedPlanned = !!matchingPlanned?.didNotAttend;
       const groupActualTotal = isNotAttendedPlanned ? 0 : (a.totalValue + children.reduce((s, c) => s + c.totalValue, 0));
 
       data.push({
@@ -388,12 +576,17 @@ export default function BudgetComparisonPage() {
     return data;
   }, [budgetPlanned, budgetActual]);
 
-  // Guarda contra POSTs de recálculo desnecessários ao navegar: hash simples de
-  // [eventId, nº de prestações enviadas, soma dos totalValue enviados]
+  // Guarda contra POSTs de recálculo desnecessários ao navegar: hash por item
+  // (`id:totalValue` de cada prestação, inclusive filhos de divisão) — soma agregada
+  // perdia edições que se cancelavam entre itens
   const lastCalcHashRef = useRef<string>("");
   useEffect(() => {
     if (!selectedEventId || isLoadingComparison || comparisonData.length === 0 || calculateMutation.isPending) return;
-    const hash = `${selectedEventId}|${comparisonData.length}|${comparisonData.reduce((s, r) => s + r.groupActualTotal, 0)}`;
+    const itemsSignature = comparisonData
+      .flatMap(r => [r.actual, ...r.splitChildren].map(i => `${i.id}:${i.totalValue}`))
+      .sort()
+      .join(',');
+    const hash = `${selectedEventId}|${itemsSignature}`;
     if (hash === lastCalcHashRef.current) return; // nada mudou desde a última observação
     const isFirstObservationForEvent = !lastCalcHashRef.current.startsWith(`${selectedEventId}|`);
     lastCalcHashRef.current = hash;
@@ -406,7 +599,7 @@ export default function BudgetComparisonPage() {
   // Limpa a seleção quando busca/filtro/ordenação mudam — itens selecionados podem sair da lista visível
   useEffect(() => {
     setSelectedItems(new Set());
-  }, [searchTerm, filterFunction, filterType, sortBy]);
+  }, [searchTerm, filterFunction, filterType, sortBy, statusFilter]);
 
   const filteredData = useMemo(() => {
     let data = [...comparisonData];
@@ -416,8 +609,16 @@ export default function BudgetComparisonPage() {
     }
     if (filterFunction !== "all") data = data.filter(r => r.functionId === filterFunction);
     if (filterType !== "all") data = data.filter(r => r.collaboratorType === filterType);
+    if (statusFilter) {
+      data = data.filter(r => {
+        const st = r.actual.rhStatus || 'pendente';
+        if (statusFilter === 'para_analise') return r.actual.sentForReview && st === 'pendente';
+        if (statusFilter === 'nao_enviado') return !r.actual.sentForReview && st === 'pendente';
+        return st === statusFilter;
+      });
+    }
     return data;
-  }, [comparisonData, searchTerm, filterFunction, filterType]);
+  }, [comparisonData, searchTerm, filterFunction, filterType, statusFilter]);
 
   const sortedData = useMemo(() => {
     const sorted = [...filteredData];
@@ -432,9 +633,10 @@ export default function BudgetComparisonPage() {
     const idx = sortedData.findIndex(r => r.collaboratorId === urlCollaboratorId && r.functionId === urlFunctionId);
     if (idx >= 0) {
       didScrollToCard.current = true;
+      const targetId = sortedData[idx].actual.id;
       const cardKey = `${urlCollaboratorId}-${urlFunctionId}`;
       setHighlightCardId(cardKey);
-      setExpandedCards(prev => { const next = new Set(Array.from(prev)); next.add(idx); return next; });
+      setExpandedCards(prev => { const next = new Set(Array.from(prev)); next.add(targetId); return next; });
       setTimeout(() => {
         const el = document.querySelector(`[data-card-id="${cardKey}"]`);
         if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -455,98 +657,19 @@ export default function BudgetComparisonPage() {
     return { totalPlanned, totalActual, difference: totalActual - totalPlanned };
   }, [comparisonData]);
 
-  const toggleExpand = (idx: number) => {
-    setExpandedCards(prev => { const s = new Set(prev); if (s.has(idx)) s.delete(idx); else s.add(idx); return s; });
+  const toggleExpand = (id: string) => {
+    setExpandedCards(prev => { const s = new Set(prev); if (s.has(id)) s.delete(id); else s.add(id); return s; });
   };
+
+  // Totais do conjunto selecionado — exibidos no rodapé de decisão e no modal de confirmação
+  const selectedTotals = useMemo(() => {
+    const rows = sortedData.filter(r => selectedItems.has(r.actual.id));
+    const planned = rows.reduce((s, r) => s + (r.planned?.totalValue || 0), 0);
+    const actual = rows.reduce((s, r) => s + r.groupActualTotal, 0);
+    return { planned, actual, diff: actual - planned };
+  }, [sortedData, selectedItems]);
 
   const rhComment = comparison?.approvalObservation || comparison?.rejectionReason || comparison?.returnReason;
-  const isReadOnly = false;
-
-  const CategoryBlock = ({ title, icon: Icon, iconColor, bgColor, stripColor, rows, badge }: {
-    title: string;
-    icon: any;
-    iconColor: string;
-    bgColor: string;
-    stripColor: string;
-    rows: Array<{ label: string; planned: number; actual: number; isQuantity?: boolean }>;
-    badge?: string;
-  }) => {
-    const currencyRows = rows.filter(r => !r.isQuantity);
-    const subtotalPlanned = currencyRows.reduce((s, r) => s + r.planned, 0);
-    const subtotalActual  = currencyRows.reduce((s, r) => s + r.actual,  0);
-    const subtotalDiff    = subtotalActual - subtotalPlanned;
-    const hasAnyDiff      = rows.some(r => r.planned !== r.actual);
-    const fmtVal = (v: number, isQty?: boolean) => isQty ? String(v) : fmt(v);
-
-    return (
-      <div className="rounded-xl border border-slate-100 overflow-hidden bg-slate-50/50">
-        {/* Category header */}
-        <div className={`flex items-center justify-between px-3 ${bgColor} border-b border-slate-100`} style={{ height: 32 }}>
-          <div className="flex items-center gap-1.5">
-            <div className={`w-4 h-4 rounded flex items-center justify-center ${stripColor}`}>
-              <Icon className="w-2.5 h-2.5 text-white" />
-            </div>
-            <span className={`text-[10px] font-bold uppercase tracking-wide ${iconColor}`}>{title}</span>
-            {badge && (
-              <span className="text-[9px] font-medium text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full leading-none">
-                {badge}
-              </span>
-            )}
-            {hasAnyDiff && (
-              <span className="flex items-center gap-0.5 text-[8px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full leading-none">
-                <AlertTriangle className="w-2 h-2" /> Divergência
-              </span>
-            )}
-          </div>
-          <span className={`text-[12px] font-semibold tabular-nums ${iconColor}`}>{fmt(subtotalActual)}</span>
-        </div>
-
-        {/* Rows */}
-        <div className="divide-y divide-slate-100 bg-white">
-          {rows.map((row, i) => {
-            const diff  = row.actual - row.planned;
-            const isDiff = diff !== 0;
-            return (
-              <div key={i} className="grid grid-cols-4 gap-2 px-3 text-[12px] items-center" style={{ height: 32 }}>
-                <span className="text-slate-500 font-medium text-[11px]">{row.label}</span>
-                <span className="text-right tabular-nums text-blue-600 font-medium text-[11px]">{fmtVal(row.planned, row.isQuantity)}</span>
-                <span className={`text-right tabular-nums font-medium text-[11px] ${isDiff ? 'text-violet-700' : 'text-violet-400'}`}>
-                  {fmtVal(row.actual, row.isQuantity)}
-                </span>
-                <div className="text-right">
-                  {diff === 0 ? (
-                    <span className="text-slate-300 tabular-nums text-[11px]">—</span>
-                  ) : (
-                    <span className={`tabular-nums font-semibold text-[10px] ${diff > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                      {row.isQuantity ? `${diff > 0 ? '+' : ''}${diff}` : `${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff))}`}
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Subtotal */}
-        {currencyRows.length > 0 && (
-          <div className={`grid grid-cols-4 gap-2 px-3 text-[11px] items-center border-t border-slate-100 ${subtotalDiff > 0 ? 'bg-red-50/40' : subtotalDiff < 0 ? 'bg-emerald-50/40' : 'bg-slate-50'}`} style={{ height: 28 }}>
-            <span className="text-slate-400 uppercase text-[9px] tracking-wider font-semibold">Subtotal</span>
-            <span className="text-right tabular-nums text-blue-700 font-semibold">{fmt(subtotalPlanned)}</span>
-            <span className={`text-right tabular-nums font-semibold ${subtotalDiff !== 0 ? 'text-violet-700' : 'text-violet-500'}`}>{fmt(subtotalActual)}</span>
-            <div className="text-right">
-              {subtotalDiff === 0 ? (
-                <span className="text-slate-300 tabular-nums">—</span>
-              ) : (
-                <span className={`tabular-nums text-[10px] font-semibold ${subtotalDiff > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                  {subtotalDiff > 0 ? '+' : '−'}{fmt(Math.abs(subtotalDiff))}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
 
   return (
     <div className="space-y-5 max-w-5xl mx-auto pb-32">
@@ -558,7 +681,7 @@ export default function BudgetComparisonPage() {
           </div>
           <div>
             <h1 className="text-[18px] font-bold text-gray-900">Comparativo Planejado × Realizado</h1>
-            <p className="text-xs text-gray-400">Análise e aprovação do RH para faturamento</p>
+            <p className="text-xs text-gray-400">Análise formal do RH — a NF é liberada no envio do Realizado</p>
           </div>
         </div>
         {selectedEventId && (
@@ -601,8 +724,8 @@ export default function BudgetComparisonPage() {
               { label: "Escalação", desc: "Inclusões confirmadas" },
               { label: "Planejamento RH", desc: "Valores previstos" },
               { label: "Prestação de contas", desc: "Resp. preenche o realizado" },
-              { label: "Aprovação RH", desc: "Análise e aprovação final" },
-              { label: "Nota Fiscal", desc: "Envio da nota" },
+              { label: "Aprovação RH", desc: "Análise formal das prestações" },
+              { label: "Nota Fiscal", desc: "Liberada no envio do Realizado" },
             ];
             return (
               <div className="bg-white border border-slate-200 rounded-2xl px-5 py-4">
@@ -650,21 +773,29 @@ export default function BudgetComparisonPage() {
             const rejectedCount = budgetActual.filter(a => a.rhStatus === 'rejeitado').length;
             const returnedCount = budgetActual.filter(a => a.rhStatus === 'devolvido').length;
             const pendingCount = budgetActual.filter(a => !a.sentForReview && a.rhStatus === 'pendente').length;
+            type StatusFilterKey = 'para_analise' | 'aprovado' | 'rejeitado' | 'devolvido' | 'nao_enviado';
             const chips = [
-              sentCount > 0 && { icon: Send, count: sentCount, label: `para análise`, bg: 'bg-blue-50', border: 'border-blue-200', iconColor: 'text-blue-500', numColor: 'text-blue-700', textColor: 'text-blue-500/70' },
-              approvedCount > 0 && { icon: CheckCircle, count: approvedCount, label: `aprovado${approvedCount !== 1 ? 's' : ''}`, bg: 'bg-emerald-50', border: 'border-emerald-200', iconColor: 'text-emerald-500', numColor: 'text-emerald-700', textColor: 'text-emerald-600/70' },
-              rejectedCount > 0 && { icon: XCircle, count: rejectedCount, label: `recusado${rejectedCount !== 1 ? 's' : ''}`, bg: 'bg-red-50', border: 'border-red-200', iconColor: 'text-red-500', numColor: 'text-red-700', textColor: 'text-red-600/70' },
-              returnedCount > 0 && { icon: RotateCcw, count: returnedCount, label: `devolvido${returnedCount !== 1 ? 's' : ''}`, bg: 'bg-orange-50', border: 'border-orange-200', iconColor: 'text-orange-500', numColor: 'text-orange-700', textColor: 'text-orange-600/70' },
-              pendingCount > 0 && { icon: Clock, count: pendingCount, label: `pendente${pendingCount !== 1 ? 's' : ''}`, bg: 'bg-amber-50', border: 'border-amber-200', iconColor: 'text-amber-500', numColor: 'text-amber-700', textColor: 'text-amber-600/70' },
-            ].filter(Boolean) as Array<{ icon: any; count: number; label: string; bg: string; border: string; iconColor: string; numColor: string; textColor: string }>;
+              sentCount > 0 && { key: 'para_analise' as StatusFilterKey, icon: Send, count: sentCount, label: `para análise`, bg: 'bg-blue-50', border: 'border-blue-200', iconColor: 'text-blue-500', numColor: 'text-blue-700', textColor: 'text-blue-500/70', ring: 'ring-blue-400' },
+              approvedCount > 0 && { key: 'aprovado' as StatusFilterKey, icon: CheckCircle, count: approvedCount, label: `aprovado${approvedCount !== 1 ? 's' : ''}`, bg: 'bg-emerald-50', border: 'border-emerald-200', iconColor: 'text-emerald-500', numColor: 'text-emerald-700', textColor: 'text-emerald-600/70', ring: 'ring-emerald-400' },
+              rejectedCount > 0 && { key: 'rejeitado' as StatusFilterKey, icon: XCircle, count: rejectedCount, label: `recusado${rejectedCount !== 1 ? 's' : ''}`, bg: 'bg-red-50', border: 'border-red-200', iconColor: 'text-red-500', numColor: 'text-red-700', textColor: 'text-red-600/70', ring: 'ring-red-400' },
+              returnedCount > 0 && { key: 'devolvido' as StatusFilterKey, icon: RotateCcw, count: returnedCount, label: `devolvido${returnedCount !== 1 ? 's' : ''}`, bg: 'bg-orange-50', border: 'border-orange-200', iconColor: 'text-orange-500', numColor: 'text-orange-700', textColor: 'text-orange-600/70', ring: 'ring-orange-400' },
+              pendingCount > 0 && { key: 'nao_enviado' as StatusFilterKey, icon: Clock, count: pendingCount, label: `não enviado${pendingCount !== 1 ? 's' : ''}`, bg: 'bg-amber-50', border: 'border-amber-200', iconColor: 'text-amber-500', numColor: 'text-amber-700', textColor: 'text-amber-600/70', ring: 'ring-amber-400' },
+            ].filter(Boolean) as Array<{ key: StatusFilterKey; icon: LucideIcon; count: number; label: string; bg: string; border: string; iconColor: string; numColor: string; textColor: string; ring: string }>;
             return (
               <div className="flex items-center gap-2 flex-wrap">
-                {chips.map((chip, i) => (
-                  <div key={i} className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${chip.bg} ${chip.border}`}>
+                {chips.map((chip) => (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    aria-pressed={statusFilter === chip.key}
+                    onClick={() => setStatusFilter(prev => prev === chip.key ? null : chip.key)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-shadow cursor-pointer ${chip.bg} ${chip.border} ${statusFilter === chip.key ? `ring-2 ${chip.ring} shadow-sm` : 'hover:shadow-sm'}`}
+                    title={statusFilter === chip.key ? 'Remover filtro' : 'Filtrar por este status'}
+                  >
                     <chip.icon className={`w-3 h-3 ${chip.iconColor}`} />
                     <span className={`text-sm font-bold ${chip.numColor}`}>{chip.count}</span>
                     <span className={`text-[10px] ${chip.textColor}`}>{chip.label}</span>
-                  </div>
+                  </button>
                 ))}
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200">
                   <ListChecks className="w-3 h-3 text-slate-400" />
@@ -676,7 +807,7 @@ export default function BudgetComparisonPage() {
           })()}
 
           {/* ── 3 Metric cards ── */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {/* Planejado */}
             <div className="rounded-xl border border-blue-100 p-5" style={{background:'#F0F7FF'}}>
               <div className="flex items-center justify-between mb-3">
@@ -775,13 +906,13 @@ export default function BudgetComparisonPage() {
                     className="text-xs h-7 gap-1 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100"
                     onClick={() => {
                       if (expandedCards.size === sortedData.length) setExpandedCards(new Set());
-                      else setExpandedCards(new Set(sortedData.map((_, i) => i)));
+                      else setExpandedCards(new Set(sortedData.map(r => r.actual.id)));
                     }}
                   >
                     {expandedCards.size === sortedData.length ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                     {expandedCards.size === sortedData.length ? 'Recolher todos' : 'Expandir todos'}
                   </Button>
-                  {isRhOrAdmin && !isReadOnly && (
+                  {isRhOrAdmin && (
                     <Button
                       size="sm" variant="ghost"
                       className="text-xs h-7 gap-1 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100"
@@ -800,31 +931,31 @@ export default function BudgetComparisonPage() {
               </div>
 
               {/* Filters */}
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative flex-1 min-w-[180px]">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                   <Input placeholder="Buscar por nome..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-8 pl-8 text-xs rounded-xl border-gray-200" />
                 </div>
                 <Select value={filterFunction} onValueChange={setFilterFunction}>
                   <SelectTrigger className="h-9 text-sm w-auto min-w-[160px] border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200"><SelectValue placeholder="Função" /></SelectTrigger>
                   <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
-                    <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todas as funções</SelectItem>
-                    {usedFunctionIds.map(fid => <SelectItem key={fid} value={fid!} className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">{getFunctionName(fid)}</SelectItem>)}
+                    <SelectItem value="all" className={SELECT_ITEM_CLS}>Todas as funções</SelectItem>
+                    {usedFunctionIds.map(fid => <SelectItem key={fid} value={fid!} className={SELECT_ITEM_CLS}>{getFunctionName(fid)}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={filterType} onValueChange={setFilterType}>
                   <SelectTrigger className="h-9 text-sm w-28 border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200"><SelectValue placeholder="Tipo" /></SelectTrigger>
                   <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[140px]">
-                    <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos</SelectItem>
-                    <SelectItem value="casa" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Casa</SelectItem>
-                    <SelectItem value="freela" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Freela</SelectItem>
+                    <SelectItem value="all" className={SELECT_ITEM_CLS}>Todos</SelectItem>
+                    <SelectItem value="casa" className={SELECT_ITEM_CLS}>Casa</SelectItem>
+                    <SelectItem value="freela" className={SELECT_ITEM_CLS}>Freela</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={sortBy} onValueChange={(v: 'difference' | 'total') => setSortBy(v)}>
                   <SelectTrigger className="h-9 text-sm w-auto min-w-[160px] border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200"><SelectValue /></SelectTrigger>
                   <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
-                    <SelectItem value="difference" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Maior diferença</SelectItem>
-                    <SelectItem value="total" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Maior valor</SelectItem>
+                    <SelectItem value="difference" className={SELECT_ITEM_CLS}>Maior diferença</SelectItem>
+                    <SelectItem value="total" className={SELECT_ITEM_CLS}>Maior valor</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -836,20 +967,51 @@ export default function BudgetComparisonPage() {
                 <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
                 <p className="text-sm text-slate-400">Carregando prestações...</p>
               </div>
-            ) : sortedData.length === 0 ? (
-              <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-12 text-center">
-                <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
-                  <BarChart3 className="w-6 h-6 text-slate-300" />
+            ) : (isErrorPlanned || isErrorActual) ? (
+              <div className="rounded-2xl border-2 border-dashed border-red-200 bg-red-50/50 p-12 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center mx-auto mb-3">
+                  <AlertCircle className="w-6 h-6 text-red-400" />
                 </div>
-                <p className="font-semibold text-slate-500">Nenhuma prestação enviada para revisão</p>
-                <p className="text-sm text-slate-400 mt-1">As prestações aparecerão aqui após serem preenchidas e enviadas no Orçamento Realizado.</p>
+                <p className="font-semibold text-red-600">Erro ao carregar as prestações</p>
+                <p className="text-sm text-slate-500 mt-1">Não foi possível carregar os dados do Planejado e do Realizado. Verifique sua conexão e tente novamente.</p>
+                <Button
+                  className="mt-4 h-9 px-5 rounded-xl text-sm font-semibold bg-white border border-red-200 text-red-600 hover:bg-red-50 shadow-none"
+                  onClick={() => { if (isErrorPlanned) refetchPlanned(); if (isErrorActual) refetchActual(); }}
+                >
+                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Tentar novamente
+                </Button>
               </div>
+            ) : sortedData.length === 0 ? (
+              (searchTerm || filterFunction !== 'all' || filterType !== 'all' || statusFilter) ? (
+                <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-12 text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                    <Search className="w-6 h-6 text-slate-300" />
+                  </div>
+                  <p className="font-semibold text-slate-500">Nenhuma prestação corresponde aos filtros</p>
+                  <p className="text-sm text-slate-400 mt-1">Ajuste a busca ou os filtros para ver outras prestações.</p>
+                  <Button
+                    variant="ghost"
+                    className="mt-3 h-8 px-4 rounded-xl text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                    onClick={() => { setSearchTerm(''); setFilterFunction('all'); setFilterType('all'); setStatusFilter(null); }}
+                  >
+                    Limpar filtros
+                  </Button>
+                </div>
+              ) : (
+                <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-12 text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                    <BarChart3 className="w-6 h-6 text-slate-300" />
+                  </div>
+                  <p className="font-semibold text-slate-500">Nenhuma prestação enviada para revisão</p>
+                  <p className="text-sm text-slate-400 mt-1">As prestações aparecerão aqui após serem preenchidas e enviadas no Orçamento Realizado.</p>
+                </div>
+              )
             ) : (
               <div className="space-y-2">
-                {sortedData.map((row, idx) => {
-                  const isExpanded = expandedCards.has(idx);
+                {sortedData.map((row) => {
                   const p = row.planned;
                   const a = row.actual;
+                  const isExpanded = expandedCards.has(a.id);
                   const plannedTotal = p?.totalValue || 0;
                   const actualTotal = row.groupActualTotal;
                   const diff = actualTotal - plannedTotal;
@@ -858,16 +1020,12 @@ export default function BudgetComparisonPage() {
 
                   const dailyPlanned = p ? p.dailyQuantity * p.dailyValue : 0;
                   const dailyActual = a.dailyQuantity * a.dailyValue;
-                  const mealPlanned = p ? (p.weekdayLunch + p.weekdayDinner + p.weekendLunch + p.weekendDinner) : 0;
-                  const mealActual = a.weekdayLunch + a.weekdayDinner + a.weekendLunch + a.weekendDinner;
-                  const mobilityPlanned = p ? (p.mobility + p.transport) : 0;
-                  const mobilityActual = a.mobility + a.transport;
 
                   const itemRhStatus = a.rhStatus || 'pendente';
                   const isDecided = itemRhStatus === 'aprovado' || itemRhStatus === 'rejeitado' || itemRhStatus === 'devolvido';
                   const isResubmitted = a.resubmitted;
 
-                  const statusStyles: Record<string, { bg: string; border: string; text: string; icon: any; label: string; cardBg: string; cardBorder: string }> = {
+                  const statusStyles: Record<string, { bg: string; border: string; text: string; icon: LucideIcon; label: string; cardBg: string; cardBorder: string }> = {
                     aprovado: { bg: 'bg-emerald-100', border: 'border-emerald-200', text: 'text-emerald-700', icon: CheckCircle, label: 'Aprovado', cardBg: 'bg-emerald-50/40', cardBorder: 'border-emerald-200' },
                     rejeitado: { bg: 'bg-red-100', border: 'border-red-200', text: 'text-red-700', icon: XCircle, label: 'Recusado', cardBg: 'bg-red-50/40', cardBorder: 'border-red-200' },
                     devolvido: { bg: 'bg-orange-100', border: 'border-orange-200', text: 'text-orange-700', icon: RotateCcw, label: 'Devolvido', cardBg: 'bg-orange-50/40', cardBorder: 'border-orange-200' },
@@ -877,7 +1035,7 @@ export default function BudgetComparisonPage() {
                   const colName = getCollaboratorName(row.collaboratorId);
                   const cardKey = `${row.collaboratorId}-${row.functionId}`;
 
-                  const isNotAttended = !!(row.planned as any)?.didNotAttend;
+                  const isNotAttended = !!row.planned?.didNotAttend;
 
                   // Period from team inclusion
                   const cardTi = allTeamInclusions.find(t =>
@@ -885,8 +1043,8 @@ export default function BudgetComparisonPage() {
                     t.collaboratorId === row.collaboratorId &&
                     t.functionId === row.functionId
                   );
-                  const tiStart = (cardTi as any)?.actualStartDate || (cardTi as any)?.scheduleStartDate;
-                  const tiEnd   = (cardTi as any)?.actualEndDate   || (cardTi as any)?.scheduleEndDate;
+                  const tiStart = cardTi?.actualStartDate || cardTi?.scheduleStartDate;
+                  const tiEnd   = cardTi?.actualEndDate   || cardTi?.scheduleEndDate;
                   const fmtPeriodDate = (d: string) => {
                     const dt = new Date(d + "T12:00:00");
                     return dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
@@ -895,7 +1053,7 @@ export default function BudgetComparisonPage() {
 
                   return (
                     <div
-                      key={idx}
+                      key={a.id}
                       data-card-id={cardKey}
                       className={`rounded-xl border overflow-hidden transition-all duration-200 ${
                         isNotAttended ? 'bg-slate-50 border-slate-300 border-dashed opacity-75' :
@@ -910,23 +1068,18 @@ export default function BudgetComparisonPage() {
                         <div className={`h-[2.5px] ${itemRhStatus === 'aprovado' ? 'bg-emerald-400' : itemRhStatus === 'rejeitado' ? 'bg-red-400' : 'bg-orange-400'}`} />
                       )}
 
-                      {/* Card header row — collapsible */}
+                      {/* Card header row — collapsible. O clique no header expande, mas o
+                          role="button" acessível fica no chevron: controles interativos
+                          (checkbox, lápis) não podem viver dentro de um elemento com role="button" */}
                       <div
-                        className="flex items-center justify-between px-4 py-3 cursor-pointer"
-                        onClick={() => toggleExpand(idx)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            toggleExpand(idx);
-                          }
-                        }}
+                        className="flex flex-wrap items-center justify-between gap-y-2 px-4 py-3 cursor-pointer"
+                        onClick={() => toggleExpand(a.id)}
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          {isRhOrAdmin && !isReadOnly && !isDecided && (
+                          {isRhOrAdmin && !isDecided && (
                             <Checkbox
                               checked={selectedItems.has(a.id)}
+                              aria-label={`Selecionar ${colName}`}
                               onCheckedChange={(checked) => {
                                 const next = new Set(selectedItems);
                                 if (checked) next.add(a.id); else next.delete(a.id);
@@ -969,16 +1122,16 @@ export default function BudgetComparisonPage() {
                                 <BudgetNotesBadge notes={eventNotes} entityId={a.id} />
                               )}
                               {row.planned && (
-                                <PlannedEditedBadge logs={plannedLogs} entityId={(row.planned as any).id} />
+                                <PlannedEditedBadge logs={plannedLogs} entityId={row.planned.id} />
                               )}
                             </div>
                             {eventNotes.length > 0 && (
                               <BudgetNotesSnippet notes={eventNotes} entityId={a.id} />
                             )}
                             {/* Not-attended reason snippet */}
-                            {isNotAttended && (row.planned as any)?.didNotAttendReason && (
+                            {isNotAttended && row.planned?.didNotAttendReason && (
                               <p className="text-[10px] italic mt-0.5 text-slate-400 leading-snug max-w-xs truncate">
-                                {(row.planned as any).didNotAttendReason}
+                                {row.planned.didNotAttendReason}
                               </p>
                             )}
                             {/* RH comment snippet */}
@@ -1019,21 +1172,21 @@ export default function BudgetComparisonPage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3 shrink-0">
+                        <div className="flex flex-wrap items-center gap-3 shrink-0">
                           {/* Mini values strip */}
                           <div className="flex items-center divide-x divide-slate-100 border border-slate-100 rounded-lg overflow-hidden">
                             {/* Plan. — referência discreta */}
-                            <div className="px-3 py-1.5 text-center w-28">
+                            <div className="px-2 sm:px-3 py-1.5 text-center w-20 sm:w-28">
                               <span className="text-[9px] uppercase font-medium text-slate-400 tracking-wider block leading-tight">Plan.</span>
                               <span className="text-sm tabular-nums text-slate-400 font-light">{fmt(plannedTotal)}</span>
                             </div>
                             {/* Real. — protagonista */}
-                            <div className="px-3 py-1.5 text-center w-28" style={{background:'#F5F3FF'}}>
+                            <div className="px-2 sm:px-3 py-1.5 text-center w-20 sm:w-28" style={{background:'#F5F3FF'}}>
                               <span className="text-[9px] uppercase font-medium text-slate-500 tracking-wider block leading-tight">Real.</span>
                               <span className="text-base tabular-nums text-slate-900 font-bold">{fmt(actualTotal)}</span>
                             </div>
                             {/* Dif. — alerta imediato */}
-                            <div className={`px-3 py-1.5 text-center w-28 ${hasDiff ? (diff > 0 ? 'bg-red-50' : 'bg-emerald-50') : ''}`}>
+                            <div className={`px-2 sm:px-3 py-1.5 text-center w-20 sm:w-28 ${hasDiff ? (diff > 0 ? 'bg-red-50' : 'bg-emerald-50') : ''}`}>
                               <span className="text-[9px] uppercase font-medium text-slate-400 tracking-wider block leading-tight">Dif.</span>
                               {hasDiff ? (
                                 <span className={`text-sm tabular-nums font-bold ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
@@ -1049,9 +1202,10 @@ export default function BudgetComparisonPage() {
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <button
+                                    type="button"
+                                    aria-label={`Editar realizado de ${colName} (RH)`}
                                     className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-amber-50 transition-colors"
                                     onClick={(e) => { e.stopPropagation(); openEditModal(a); }}
-                                    title="Editar realizado (RH)"
                                   >
                                     <Pencil className="w-3.5 h-3.5 text-amber-500" />
                                   </button>
@@ -1060,7 +1214,15 @@ export default function BudgetComparisonPage() {
                               </Tooltip>
                             </TooltipProvider>
                           )}
-                          <ChevronDown className={`w-4 h-4 text-slate-400 hover:text-slate-700 transition-all duration-200 cursor-pointer ${isExpanded ? 'rotate-180' : ''}`} />
+                          <button
+                            type="button"
+                            aria-expanded={isExpanded}
+                            aria-label={`${isExpanded ? 'Recolher' : 'Expandir'} detalhes de ${colName}`}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors"
+                            onClick={(e) => { e.stopPropagation(); toggleExpand(a.id); }}
+                          >
+                            <ChevronDown className={`w-4 h-4 text-slate-400 hover:text-slate-700 transition-all duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                          </button>
                         </div>
                       </div>
 
@@ -1076,7 +1238,7 @@ export default function BudgetComparisonPage() {
                                 <div>
                                   <p className="text-sm font-semibold text-slate-600">Colaborador não participou do evento</p>
                                   <p className="text-[11px] text-slate-400 mt-0.5">Os valores do Realizado e a Diferença são excluídos dos totais. O Planejado permanece para referência.</p>
-                                  {(row.planned as any)?.didNotAttendReason && <p className="text-[11px] text-slate-500 mt-1 italic">Motivo: {(row.planned as any).didNotAttendReason}</p>}
+                                  {row.planned?.didNotAttendReason && <p className="text-[11px] text-slate-500 mt-1 italic">Motivo: {row.planned.didNotAttendReason}</p>}
                                 </div>
                               </div>
                             )}
@@ -1093,6 +1255,9 @@ export default function BudgetComparisonPage() {
                                     Detalhamento por Colaborador
                                   </span>
                                 </div>
+                                {/* Tabela larga: rola horizontalmente em telas estreitas */}
+                                <div className="overflow-x-auto">
+                                <div className="min-w-[560px]">
                                 <div className="grid grid-cols-6 gap-2 px-3 py-1.5 bg-slate-50 border-b border-slate-100">
                                   <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider col-span-2">Colaborador</span>
                                   <span className="text-[9px] uppercase text-blue-500 font-bold tracking-wider text-right">Plan. prop.</span>
@@ -1140,12 +1305,14 @@ export default function BudgetComparisonPage() {
                                       </div>
                                       <div className="flex justify-center">
                                         <button
+                                          type="button"
                                           onClick={e => {
                                             e.stopPropagation();
                                             setSplitDetail({ actual: colItem, planned: p, propPlanned: colProp, isParent, allGroupDays });
                                           }}
                                           className="w-6 h-6 rounded-md flex items-center justify-center bg-slate-100 hover:bg-purple-100 text-slate-400 hover:text-purple-600 transition-colors"
                                           title="Ver detalhes completos"
+                                          aria-label={`Ver detalhes completos de ${colItemName}`}
                                         >
                                           <ClipboardList className="w-3.5 h-3.5" />
                                         </button>
@@ -1166,6 +1333,8 @@ export default function BudgetComparisonPage() {
                                       </span>
                                     )}
                                   </div>
+                                </div>
+                                </div>
                                 </div>
                               </div>
                             )}
@@ -1214,6 +1383,9 @@ export default function BudgetComparisonPage() {
                               stripColor="bg-violet-500"
                               rows={[
                                 { label: "Mobilidade", planned: p?.mobility || 0, actual: a.mobility },
+                                // Translado precisa aparecer aqui: o total do card o inclui,
+                                // e sem esta linha os subtotais não fechavam com o total
+                                { label: "Translado", planned: p?.transport || 0, actual: a.transport },
                               ]}
                             />
                             </>}
@@ -1294,27 +1466,28 @@ export default function BudgetComparisonPage() {
                             )}
 
                             {/* ── Observação do ajuste do RH ── */}
-                            {(a as any).rhAdjustNote && (
+                            {a.rhAdjustNote && (
                               <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 flex items-start gap-2">
                                 <MessageSquare className="w-3.5 h-3.5 text-amber-500 mt-0.5 flex-shrink-0" />
                                 <div>
                                   <span className="text-[9px] uppercase text-amber-600 font-bold tracking-wider">Observação do Ajuste (RH)</span>
-                                  <p className="text-xs text-amber-800 mt-0.5">{(a as any).rhAdjustNote}</p>
+                                  <p className="text-xs text-amber-800 mt-0.5">{a.rhAdjustNote}</p>
                                 </div>
                               </div>
                             )}
 
                             {/* ── Aviso: planejamento alterado pelo RH ── */}
                             {row.planned && (() => {
-                              const planId = (row.planned as any).id;
+                              const planId = row.planned?.id;
+                              if (!planId) return null;
                               const hasEdits = plannedLogs.some(l => l.entity_id === planId && l.action === 'update');
                               if (!hasEdits) return null;
                               const last = plannedLogs
                                 .filter(l => l.entity_id === planId && l.action === 'update')
-                                .sort((x: any, y: any) => new Date(y.created_at || 0).getTime() - new Date(x.created_at || 0).getTime())[0];
+                                .sort((x, y) => new Date(y.created_at || 0).getTime() - new Date(x.created_at || 0).getTime())[0];
                               return (
                                 <div className="flex items-start gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50">
-                                  <span className="text-amber-500 text-base leading-none shrink-0">⚠️</span>
+                                  <span aria-hidden="true" className="text-amber-500 text-base leading-none shrink-0">⚠️</span>
                                   <div>
                                     <p className="text-[11px] font-semibold text-amber-800">Orçamento Planejado foi alterado pelo RH</p>
                                     {last && <p className="text-[10px] text-amber-600 mt-0.5">Última edição por {last.user_name || '?'} — os valores de referência podem ter mudado após o envio.</p>}
@@ -1347,19 +1520,27 @@ export default function BudgetComparisonPage() {
       )}
 
       {/* ── Fixed RH Decision footer — apenas RH/admin decide ── */}
-      {isRhOrAdmin && comparison && !isReadOnly && comparisonData.length > 0 && sortedData.some(r => (r.actual.rhStatus || 'pendente') === 'pendente') && (
-        <div className={`fixed bottom-0 right-0 z-40 px-6 pb-4 pt-3 bg-white/95 backdrop-blur-sm border-t border-slate-200 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.08)] transition-all duration-300 ${(isCollapsed || isFocusMode) ? 'left-0' : isCompact ? 'left-14' : 'left-[260px]'}`}>
-          <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
+      {isRhOrAdmin && comparison && comparisonData.length > 0 && sortedData.some(r => (r.actual.rhStatus || 'pendente') === 'pendente') && (
+        <div className={`fixed bottom-0 right-0 z-40 px-6 pb-4 pt-3 bg-white/95 backdrop-blur-sm border-t border-slate-200 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.08)] transition-all duration-300 left-0 ${(isCollapsed || isFocusMode) ? '' : isCompact ? 'md:left-14' : 'md:left-[260px]'}`}>
+          <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-4">
             <div>
               <h3 className="text-sm font-black text-slate-800">Decisão do RH</h3>
               <p className={`text-xs mt-0.5 transition-colors ${selectedItems.size > 0 ? 'text-emerald-600 font-medium' : 'text-slate-400'}`}>
                 {selectedItems.size > 0
-                  ? <>{selectedItems.size} selecionado{selectedItems.size !== 1 ? 's' : ''} para ação</>
+                  ? <>
+                      {selectedItems.size} selecionado{selectedItems.size !== 1 ? 's' : ''} para ação
+                      <span className="text-slate-400 font-normal tabular-nums">
+                        {' '}· Plan. {fmt(selectedTotals.planned)} · Real. {fmt(selectedTotals.actual)} · Dif.{' '}
+                        <span className={selectedTotals.diff > 0 ? 'text-red-500 font-semibold' : selectedTotals.diff < 0 ? 'text-emerald-600 font-semibold' : ''}>
+                          {selectedTotals.diff > 0 ? '+' : selectedTotals.diff < 0 ? '−' : ''}{fmt(Math.abs(selectedTotals.diff))}
+                        </span>
+                      </span>
+                    </>
                   : <>Selecione os itens pendentes acima para tomar uma decisão</>
                 }
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {/* Secondary actions */}
               <TooltipProvider>
                 <Tooltip>
@@ -1401,10 +1582,7 @@ export default function BudgetComparisonPage() {
                   .filter(row => selectedItems.has(row.actual.id))
                   .reduce((total, row) => {
                     const allActuals = [row.actual, ...(row.isSplit ? row.splitChildren : [])];
-                    return total + allActuals.reduce((n, a) => {
-                      const f = (a as any).rhAdjustedFields;
-                      return n + (f ? Object.keys(JSON.parse(f)).length : 0);
-                    }, 0);
+                    return total + allActuals.reduce((n, a) => n + parseAdjustedFields(a.rhAdjustedFields).length, 0);
                   }, 0);
                 const hasAdjusted = selectedRhAdjustedFields > 0;
                 return (
@@ -1429,7 +1607,7 @@ export default function BudgetComparisonPage() {
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="text-xs max-w-[180px] text-center">
-                        Aprova e envia para faturamento
+                        Aprova a prestação — análise formal do RH
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -1443,6 +1621,7 @@ export default function BudgetComparisonPage() {
       {/* ── Modal edição do realizado pelo RH ── */}
       <Dialog open={!!editingActual} onOpenChange={(open) => { if (!open) setEditingActual(null); }}>
         <DialogContent style={{display:'flex', flexDirection:'column', maxHeight:'90vh', maxWidth:'480px'}} className="rounded-2xl p-0 gap-0">
+          <DialogTitle className="sr-only">Editar Realizado — ajuste do RH</DialogTitle>
           {editingActual && (
             <>
               <div className="px-6 pt-5 pb-4 border-b border-slate-100 shrink-0">
@@ -1554,6 +1733,7 @@ export default function BudgetComparisonPage() {
       {/* ── Modal confirmação de aprovação com ajustes ── */}
       <Dialog open={confirmAdjustOpen} onOpenChange={setConfirmAdjustOpen}>
         <DialogContent className="max-w-sm rounded-2xl p-6 gap-4">
+          <DialogTitle className="sr-only">Aprovação com ajustes</DialogTitle>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
@@ -1592,6 +1772,7 @@ export default function BudgetComparisonPage() {
 
       <Dialog open={!!splitDetail} onOpenChange={() => setSplitDetail(null)}>
         <DialogContent className="max-w-xl rounded-2xl p-0 overflow-hidden gap-0">
+          <DialogTitle className="sr-only">Detalhes da prestação do colaborador na vaga dividida</DialogTitle>
           {splitDetail && (() => {
             const sd = splitDetail;
             const sdName = getCollaboratorName(sd.actual.collaboratorId);
@@ -1612,60 +1793,6 @@ export default function BudgetComparisonPage() {
             const totalPlan = pp?.totalValue || 0;
             const totalAct = fa.totalValue;
             const totalDiff = totalAct - totalPlan;
-
-            // Sub-row inside a section (zebra handled by caller)
-            const SubRow = ({ label, planned, actual, rowIndex }: { label: string; planned: number; actual: number; rowIndex: number }) => {
-              const d = actual - planned;
-              return (
-                <div className={`grid grid-cols-4 gap-4 px-4 py-2 items-center ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}`}>
-                  <div className="flex items-center gap-1.5 pl-3">
-                    <span className="text-slate-300 text-[10px] select-none">└</span>
-                    <span className="text-[10px] text-slate-400">{label}</span>
-                  </div>
-                  <span className="text-right tabular-nums text-[11px] text-blue-500">{fmt(planned)}</span>
-                  <span className={`text-right tabular-nums text-[11px] ${d !== 0 ? 'text-violet-600' : 'text-violet-400'}`}>{fmt(actual)}</span>
-                  <div className="text-right">
-                    {d === 0 ? <span className="text-slate-300 text-[10px]">—</span> : (
-                      <span className={`text-[10px] font-semibold ${d > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-                        {d > 0 ? '+' : '−'}{fmt(Math.abs(d))}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            };
-
-            // Section block with colored header
-            const SectionBlock = ({ title, icon: Icon, headerBg, iconColor, titleColor, subtotalPlan, subtotalAct, children }: {
-              title: string; icon: any; headerBg: string; iconColor: string; titleColor: string;
-              subtotalPlan: number; subtotalAct: number; children: React.ReactNode;
-            }) => {
-              const d = subtotalAct - subtotalPlan;
-              return (
-                <div className="rounded-xl overflow-hidden border border-slate-100">
-                  <div className={`flex items-center gap-1.5 px-4 py-2 border-b border-white/40 ${headerBg}`}>
-                    <Icon className={`w-3.5 h-3.5 ${iconColor}`} />
-                    <span className={`text-[10px] font-bold tracking-wide ${titleColor}`}>{title}</span>
-                  </div>
-                  <div className={`grid grid-cols-4 gap-4 px-4 py-2 ${headerBg}`}>
-                    <span className={`text-[10px] font-semibold ${titleColor} opacity-70`}>Total</span>
-                    <span className="text-right tabular-nums text-[11px] text-blue-600 font-semibold">{fmt(subtotalPlan)}</span>
-                    <span className={`text-right tabular-nums text-[11px] font-semibold ${d !== 0 ? 'text-violet-700' : 'text-violet-500'}`}>{fmt(subtotalAct)}</span>
-                    <div className="text-right">
-                      {d === 0
-                        ? <span className="text-slate-300 text-[10px]">—</span>
-                        : <span className={`text-[11px] font-bold tabular-nums ${d > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-                            {d > 0 ? '+' : '−'}{fmt(Math.abs(d))}
-                          </span>
-                      }
-                    </div>
-                  </div>
-                  <div className="divide-y divide-slate-50">
-                    {children}
-                  </div>
-                </div>
-              );
-            };
 
             let subRowIdx = 0;
 
@@ -1691,6 +1818,8 @@ export default function BudgetComparisonPage() {
                       </div>
                     </div>
                     <button
+                      type="button"
+                      aria-label="Fechar detalhes"
                       onClick={() => setSplitDetail(null)}
                       className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-colors"
                     >
@@ -1800,10 +1929,10 @@ export default function BudgetComparisonPage() {
                     subtotalAct={mobAct}
                   >
                     {(pp?.mobility || fa.mobility) ? (() => {
-                      const pIda   = (pp as any)?.mobilityIda   ?? Math.ceil((pp?.mobility  || 0) / 2);
-                      const pVolta = (pp as any)?.mobilityVolta  ?? Math.floor((pp?.mobility || 0) / 2);
-                      const aIda   = (fa as any).mobilityIda     ?? Math.ceil(fa.mobility  / 2);
-                      const aVolta = (fa as any).mobilityVolta   ?? Math.floor(fa.mobility / 2);
+                      const pIda   = pp?.mobilityIda   ?? Math.ceil((pp?.mobility  || 0) / 2);
+                      const pVolta = pp?.mobilityVolta ?? Math.floor((pp?.mobility || 0) / 2);
+                      const aIda   = fa.mobilityIda    ?? Math.ceil(fa.mobility  / 2);
+                      const aVolta = fa.mobilityVolta  ?? Math.floor(fa.mobility / 2);
                       return (
                         <>
                           <SubRow rowIndex={subRowIdx++} label="Ida" planned={pIda} actual={aIda} />
@@ -1867,12 +1996,12 @@ export default function BudgetComparisonPage() {
       </Dialog>
 
       {/* ── Action confirmation modal ── */}
-      <Dialog open={!!actionModal} onOpenChange={() => { setActionModal(null); setActionNote(""); }}>
+      <Dialog open={!!actionModal} onOpenChange={() => { setActionModal(null); setActionNote(""); setActionNoteError(false); }}>
         <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               {actionModal?.type === 'approve' && (
-                <><div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0"><CheckCircle className="w-4 h-4 text-emerald-600" /></div> Aprovar para Faturamento</>
+                <><div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0"><CheckCircle className="w-4 h-4 text-emerald-600" /></div> Aprovar prestação</>
               )}
               {actionModal?.type === 'reject' && (
                 <><div className="w-8 h-8 rounded-xl bg-red-100 flex items-center justify-center shrink-0"><XCircle className="w-4 h-4 text-red-600" /></div> <span className="text-red-700">Recusar prestação</span></>
@@ -1901,40 +2030,75 @@ export default function BudgetComparisonPage() {
                   );
                 })}
               </div>
+              {/* Totais do conjunto selecionado */}
+              <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-200/70">
+                <div>
+                  <p className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Planejado</p>
+                  <p className="text-[13px] font-semibold text-blue-700 tabular-nums">{fmt(selectedTotals.planned)}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Realizado</p>
+                  <p className="text-[13px] font-semibold text-violet-700 tabular-nums">{fmt(selectedTotals.actual)}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Diferença</p>
+                  <p className={`text-[13px] font-semibold tabular-nums ${selectedTotals.diff > 0 ? 'text-red-600' : selectedTotals.diff < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    {selectedTotals.diff > 0 ? '+' : selectedTotals.diff < 0 ? '−' : ''}{fmt(Math.abs(selectedTotals.diff))}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            {/* Comment field — o comentário é aplicado a todos os itens selecionados */}
+            {/* Comment field — o comentário é aplicado a todos os itens selecionados.
+                Manual do Financeiro: obrigatório ao devolver/recusar; opcional só no aprovar */}
             <div>
               <label className="text-sm font-medium text-slate-700">
-                Comentário{' '}
-                <span className="text-slate-400 font-normal">
-                  (opcional{selectedItems.size > 1 ? ` — será aplicado a todos os ${selectedItems.size} colaboradores selecionados` : ''})
-                </span>
+                {actionModal?.type === 'approve' ? (
+                  <>
+                    Comentário{' '}
+                    <span className="text-slate-400 font-normal">
+                      (opcional{selectedItems.size > 1 ? ` — será aplicado a todos os ${selectedItems.size} colaboradores selecionados` : ''})
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Observação <span className="text-red-500" aria-hidden="true">*</span>{' '}
+                    <span className="text-slate-400 font-normal">
+                      (obrigatória{selectedItems.size > 1 ? ` — será aplicada a todos os ${selectedItems.size} colaboradores selecionados` : ''})
+                    </span>
+                  </>
+                )}
               </label>
               <Textarea
-                className="mt-1.5 rounded-xl text-sm resize-none"
+                className={`mt-1.5 rounded-xl text-sm resize-none ${actionNoteError && actionModal?.type !== 'approve' && !actionNote.trim() ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
                 value={actionNote}
-                onChange={e => setActionNote(e.target.value)}
+                onChange={e => { setActionNote(e.target.value); if (e.target.value.trim()) setActionNoteError(false); }}
+                aria-required={actionModal?.type !== 'approve'}
                 placeholder={
                   actionModal?.type === 'approve'
                     ? 'Adicionar um comentário...'
                     : actionModal?.type === 'reject'
-                    ? 'Adicione um motivo para o colaborador (opcional)...'
-                    : 'Descreva o que precisa ser corrigido (opcional)...'
+                    ? 'Escreva o motivo da recusa (obrigatório)...'
+                    : 'Descreva o que precisa ser corrigido (obrigatório)...'
                 }
                 rows={3}
                 autoFocus={actionModal?.type !== 'approve'}
               />
+              {actionNoteError && actionModal?.type !== 'approve' && !actionNote.trim() && (
+                <p className="text-[11px] text-red-600 font-medium mt-1.5">
+                  A observação é obrigatória ao {actionModal?.type === 'reject' ? 'recusar' : 'devolver'} — o responsável de função a receberá na tela do Realizado.
+                </p>
+              )}
               {actionModal?.type !== 'approve' && actionNote.trim() && (
                 <p className="text-[10px] text-gray-400 mt-1.5 italic">
-                  Este comentário ficará visível para o(s) colaborador(es) no card de prestação.
+                  Esta observação ficará visível para o(s) colaborador(es) no card de prestação.
                 </p>
               )}
             </div>
           </div>
 
           <DialogFooter className="gap-2 mt-1">
-            <Button variant="ghost" className="rounded-xl" onClick={() => { setActionModal(null); setActionNote(""); }}>Cancelar</Button>
+            <Button variant="ghost" className="rounded-xl" onClick={() => { setActionModal(null); setActionNote(""); setActionNoteError(false); }}>Cancelar</Button>
             <Button
               onClick={handleAction}
               disabled={rhActionMutation.isPending}

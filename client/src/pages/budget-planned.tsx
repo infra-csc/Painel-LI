@@ -1,27 +1,23 @@
-import { useState, useMemo, useEffect, useRef } from "react";
-import { formatDias, formatDiarias, formatDiasUteis, formatFds, fixEncoding, parseBrNumber } from "@/lib/utils";
+import { useState, useMemo, useEffect, useRef, useCallback, memo } from "react";
+import { formatDiasUteis, formatFds, fixEncoding, parseBrNumber } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { ActivityTimeline } from "@/components/activity-timeline";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Check, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock, UserX, Undo2, Zap, Eye } from "lucide-react";
+import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Check, Car, Utensils, Sun, Search, Home, UserCheck, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock, UserX, Undo2, Eye } from "lucide-react";
 import { isRhOrAdmin } from "@/lib/permissions";
 import { Textarea } from "@/components/ui/textarea";
 import { EventSearchSelect } from "@/components/event-select";
-import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetNote } from "@shared/schema";
 import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents, ATENDIMENTO_TIPOS, type AtendimentoTipo } from "@shared/atendimento";
-import { calcDeflatedDailies, deflationFactorsFromSettings, freelaDailyCents, casaDailyCents } from "@shared/calculation-rules";
+import { calcDeflatedDailies, deflationFactorsFromSettings, freelaDailyCents, casaDailyCents, type DeflationSegment } from "@shared/calculation-rules";
 import { calcAlimentacao, isCenotecnicaFunction, refeicaoCents } from "@shared/alimentacao";
 import { useAuth } from "@/hooks/use-auth";
 import { useSearch } from "wouter";
@@ -41,6 +37,11 @@ interface BudgetEdit {
   almocoFds: number;
   jantarFds: number;
 }
+
+// Override ESPARSO: só os campos que o usuário realmente alterou entram aqui.
+// Campos ausentes continuam sendo recalculados pelo motor (ex.: mobilidade e
+// alimentação reagem à chegada da passagem mesmo depois de editar a diária).
+type BudgetOverride = Partial<Omit<BudgetEdit, "inclusionId">> & { inclusionId: string };
 
 interface CalculatedBudget {
   inclusion: TeamInclusion;
@@ -75,11 +76,22 @@ interface CalculatedBudget {
   vooPartidaVolta: string | null;
   fonteVoo: "passagem" | "sugerido" | "nenhum";
   alimEstimada: boolean;
+  // Memória da deflação por período (faixas × diária deflacionada)
+  deflationSegments: DeflationSegment[];
+  // Valores do MOTOR ATUAL (sem override) — base do "Restaurar padrão" e tooltips
+  sysValorDiaria: number;
+  sysMobilidade: number;
+  sysMobilidadeIda: number;
+  sysMobilidadeVolta: number;
+  sysAlmocoSemana: number;
+  sysJantarSemana: number;
+  sysAlmocoFds: number;
+  sysJantarFds: number;
 }
 
 // Rascunho de edições persistido por evento — sobrevive a F5 e à troca de evento
 const draftStorageKey = (eventId: string) => `budget-overrides-draft:${eventId}`;
-function readDraft(eventId: string): Record<string, BudgetEdit> {
+function readDraft(eventId: string): Record<string, BudgetOverride> {
   if (!eventId) return {};
   try {
     const raw = localStorage.getItem(draftStorageKey(eventId));
@@ -89,6 +101,496 @@ function readDraft(eventId: string): Record<string, BudgetEdit> {
     return {};
   }
 }
+
+const formatCurrency = (cents: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Math.round(cents) / 100);
+
+const toTitleCase = (str: string) => {
+  const lower = new Set(['de', 'da', 'das', 'do', 'dos', 'e', 'em', 'a', 'o', 'ao', 'aos']);
+  return str.toLowerCase().split(' ').map((word, i) =>
+    i === 0 || !lower.has(word) ? word.charAt(0).toUpperCase() + word.slice(1) : word
+  ).join(' ');
+};
+
+// "4d × R$ 540,00 + 2d × R$ 486,00" — memória compacta da deflação por faixa
+const formatSegmentsMemo = (segments: DeflationSegment[]) =>
+  segments.map(s => `${s.days}d × ${formatCurrency(s.dailyCents)}`).join(' + ');
+
+// Popover de edição em lote da planilha — antes triplicado nos 3 cabeçalhos
+function BatchPopover({ title, value, onlyPending, onChangeValue, onTogglePending, onCancel, onApply }: {
+  title: string;
+  value: string;
+  onlyPending: boolean;
+  onChangeValue: (v: string) => void;
+  onTogglePending: (v: boolean) => void;
+  onCancel: () => void;
+  onApply: () => void;
+}) {
+  return (
+    <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-xl border border-slate-200 shadow-xl p-3 w-56 text-left" style={{minWidth:'220px'}}>
+      <div className="text-[11px] font-semibold text-slate-600 mb-2">{title}</div>
+      <input
+        type="text" inputMode="decimal" placeholder="0,00"
+        aria-label={title}
+        value={value}
+        onChange={e => onChangeValue(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') onApply(); }}
+        autoFocus
+        className="w-full h-8 border border-slate-200 rounded-md px-2 text-right text-[12px] font-mono outline-none focus:border-[#3B4FE4] focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)] mb-2"
+      />
+      <label className="flex items-center gap-1.5 text-[11px] text-slate-500 mb-3 cursor-pointer">
+        <Checkbox checked={onlyPending} onCheckedChange={v => onTogglePending(!!v)} className="w-3.5 h-3.5" aria-label="Aplicar apenas aos pendentes" />
+        Apenas Pendentes
+      </label>
+      <div className="flex gap-2">
+        <button onClick={onCancel} className="flex-1 h-7 text-[11px] border border-slate-200 rounded-md text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</button>
+        <button onClick={onApply} className="flex-1 h-7 text-[11px] rounded-md text-white font-semibold" style={{background:'#3B4FE4'}}>Aplicar</button>
+      </div>
+    </div>
+  );
+}
+
+type SheetField = 'valorDia' | 'valorDiaFds' | 'alimentacao' | 'alimentacaoUtil' | 'alimentacaoFds' | 'mobilidade';
+
+interface SheetRowProps {
+  budget: CalculatedBudget;
+  name: string;
+  funcName: string;
+  isSent: boolean;
+  isNotAttended: boolean;
+  isNewCollab: boolean;
+  showTopBorder: boolean;
+  selected: boolean;
+  ovr?: BudgetOverride;
+  matchingActual?: any;
+  subtotalOpen: boolean;
+  onToggleSelect: (sid: string, v: boolean) => void;
+  onSheetEdit: (budget: CalculatedBudget, field: SheetField, rawValue: string) => void;
+  onRestoreField: (sid: string, field: SheetField) => void;
+  onToggleSubtotal: (sid: string) => void;
+}
+
+// Linha da planilha memoizada: digitar num input só re-renderiza ESTA linha
+// (buffer de digitação local), não a tabela inteira.
+const SheetRow = memo(function SheetRow({
+  budget, name, funcName, isSent, isNotAttended, isNewCollab, showTopBorder,
+  selected, ovr, matchingActual, subtotalOpen,
+  onToggleSelect, onSheetEdit, onRestoreField, onToggleSubtotal,
+}: SheetRowProps) {
+  const sid = budget.inclusion.id;
+  const hasOvr = budget.hasOverride;
+  const isCasaType = budget.collaborator?.type === 'casa' || budget.collaborator?.type === 'local';
+  const mobTotal = budget.mobilidade / 100;
+  const disabled = isSent || isNotAttended;
+
+  // Buffer local de digitação — commit no blur
+  const [bufs, setBufs] = useState<Record<string, string>>({});
+  const [restoredFeedback, setRestoredFeedback] = useState<string | null>(null);
+  const buf = (field: string, fallback: string) => bufs[field] ?? fallback;
+  const setbuf = (field: string, val: string) => setBufs(prev => ({ ...prev, [field]: val }));
+  const clearbuf = (field: string) => setBufs(prev => { const n = { ...prev }; delete n[field]; return n; });
+  const commitBlur = (field: SheetField, key: string) => (e: React.FocusEvent<HTMLInputElement>) => {
+    onSheetEdit(budget, field, e.target.value);
+    clearbuf(key);
+  };
+
+  // Diária é PLANA: qualquer edição (útil ou fds) grava o valor único.
+  // Rascunhos legados podem ter só um dos campos — qualquer um marca como editada.
+  const vdiaEdited = ovr?.valorDiaria !== undefined || ovr?.valorDiariaUtil !== undefined || ovr?.valorDiariaFds !== undefined;
+  const vdiaFdsEdited = vdiaEdited;
+  const alimUtilEdited = ovr?.almocoSemana !== undefined || ovr?.jantarSemana !== undefined;
+  const alimFdsEdited = ovr?.almocoFds !== undefined || ovr?.jantarFds !== undefined;
+  const mobEdited = ovr?.mobilidade !== undefined;
+
+  // "Padrão" = valor da REGRA ATUAL (motor), não o legado fv/dailyValue
+  const defaultVDia = budget.sysValorDiaria;
+  const defaultMob = budget.sysMobilidade;
+  const sysAlimUtilDia = (budget.sysAlmocoSemana + budget.sysJantarSemana) / Math.max(1, budget.weekdays);
+  const sysAlimFdsDia = (budget.sysAlmocoFds + budget.sysJantarFds) / Math.max(1, budget.weekends);
+
+  const inputBase = `h-7 text-right font-mono tabular-nums text-[12px] rounded px-2 outline-none transition-all
+    ${disabled
+      ? 'bg-transparent text-slate-300 cursor-not-allowed'
+      : 'bg-transparent border border-transparent text-slate-700 focus:bg-white focus:border-[#2563EB] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.12)]'}`;
+
+  const restoreBtn = (field: SheetField, key: string, hoverColor: string) => {
+    const fbKey = `${sid}:${key}`;
+    const restored = restoredFeedback === fbKey;
+    return (
+      <TooltipProvider delayDuration={restored ? 0 : 150}>
+        <Tooltip open={restored ? true : undefined}>
+          <TooltipTrigger asChild>
+            <button
+              aria-label="Restaurar valor padrão"
+              onClick={() => { onRestoreField(sid, field); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
+              className={`text-[10px] transition-colors cursor-pointer shrink-0 ${restored ? 'text-emerald-500' : `text-slate-400 ${hoverColor}`}`}
+            >↩</button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão (regra atual)'}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
+
+  return (
+    <tr
+      style={{
+        background: isSent ? '#FAFAFA' : undefined,
+        borderTop: showTopBorder ? '2px solid #CBD5E1' : undefined,
+      }}
+      className={`group transition-colors ${isSent ? '' : isNotAttended ? 'opacity-40' : 'hover:bg-blue-50/20'} ${hasOvr && !isSent ? 'bg-amber-50/20' : ''}`}
+    >
+      {/* Checkbox */}
+      <td style={{width:40, paddingLeft:12, verticalAlign:'middle'}}>
+        <Checkbox
+          checked={selected}
+          onCheckedChange={v => onToggleSelect(sid, !!v)}
+          className="w-3.5 h-3.5"
+          disabled={isSent}
+          aria-label={`Selecionar ${name}`}
+        />
+      </td>
+
+      {/* Colaborador + Função + Período — coluna rica com avatar */}
+      <td className="pl-4 pr-4 py-3" style={{minWidth:'280px', verticalAlign:'middle'}}>
+        <div className="flex items-start gap-3">
+          {/* Avatar com iniciais */}
+          {isNewCollab && (() => {
+            const initials = name.split(' ').filter(Boolean).slice(0,2).map((w:string) => w[0]).join('').toUpperCase();
+            return (
+              <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold mt-0.5"
+                style={isCasaType
+                  ? {background:'#DBEAFE', color:'#1D4ED8'}
+                  : {background:'#FEE2E2', color:'#B91C1C'}}>
+                {initials}
+              </div>
+            );
+          })()}
+          {!isNewCollab && <div className="shrink-0 w-8" />}
+
+          <div className="flex-1 min-w-0">
+            {isNewCollab && (
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span style={{fontSize:13, fontWeight:600, color:'#111827', letterSpacing:'-0.01em'}}>{toTitleCase(name)}</span>
+                {hasOvr && !isSent && (
+                  <TooltipProvider delayDuration={150}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{background:'#F97316', boxShadow:'0 0 0 2px #FFF'}} />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs">Valores editados manualmente pelo RH</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+                <span className="inline-flex items-center justify-center text-[10px] font-semibold rounded-full"
+                  style={{
+                    ...(isCasaType ? {background:'#EFF6FF', color:'#1D4ED8'} : {background:'#FFF1F2', color:'#BE123C'}),
+                    padding: '2px 8px',
+                    minWidth: 44,
+                  }}>
+                  {isCasaType ? 'Casa' : 'Freela'}
+                </span>
+              </div>
+            )}
+            {/* Linha 2: Função | Período */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className={`text-[11px] ${isNotAttended ? 'line-through text-slate-400' : 'text-slate-500'}`}>
+                {funcName}
+              </span>
+              {budget.inclusion.scheduleStartDate && (
+                <span className="text-[11px]" style={{color:'#9CA3AF'}}>
+                  · {new Date(budget.inclusion.scheduleStartDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}
+                  {budget.inclusion.scheduleEndDate && budget.inclusion.scheduleStartDate !== budget.inclusion.scheduleEndDate && (
+                    <> → {new Date(budget.inclusion.scheduleEndDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}</>
+                  )}
+                </span>
+              )}
+              {matchingActual?.rhAdjusted && (
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex items-center shrink-0 cursor-default" style={{color:'#D97706'}}>✏</span>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="text-xs">RH ajustou o realizado deste colaborador</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
+            {/* Linha 3: Status discreto */}
+            <div className="mt-0.5">
+              {isSent ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-px rounded-full" style={{background:'#DCFCE7', color:'#16A34A'}}>
+                  <Check className="w-2 h-2" />Enviado
+                </span>
+              ) : !isNotAttended ? (
+                <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-px rounded-full" style={{background:'#FEF3C7', color:'#92400E'}}>
+                  Pendente
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </td>
+
+      {/* Diárias qty — somente leitura */}
+      <td className="px-3 py-3 text-center" style={{background:'#F8FAFC', verticalAlign:'middle'}}>
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-[13px] font-semibold tabular-nums font-mono text-slate-600 cursor-default select-none">
+                {budget.weekdays + budget.weekends}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs max-w-[220px]">
+              <div className="flex flex-col gap-0.5">
+                {budget.weekdays > 0 && <span><span style={{color:'#2563EB'}}>●</span> Útil: {budget.weekdays}×</span>}
+                {budget.weekends > 0 && <span><span style={{color:'#F97316'}}>●</span> FDS: {budget.weekends}×</span>}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </td>
+
+      {/* Diária R$/dia — plana; os dois inputs editam o MESMO valor único */}
+      <td className="px-4 py-3" style={{minWidth:'120px', verticalAlign:'middle'}}>
+        {/* Útil */}
+        <div className="flex items-center justify-end gap-1 mb-1.5 rounded-md px-1 -mx-1" style={{background:'rgba(37,99,235,0.05)'}}>
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <input
+                  type="text" inputMode="decimal"
+                  aria-label={`Diária de ${name} (R$/dia)`}
+                  disabled={disabled}
+                  value={buf('vdia', (budget.valorDiariaUtil / 100).toFixed(2))}
+                  onChange={e => setbuf('vdia', e.target.value)}
+                  onBlur={commitBlur('valorDia', 'vdia')}
+                  onFocus={e => e.target.select()}
+                  className={`${inputBase} flex-1 min-w-0 ${!disabled && vdiaEdited ? 'font-bold' : ''}`}
+                  style={!disabled && vdiaEdited ? {color:'#2563EB', borderColor:'#93C5FD'} : !disabled ? {color:'#1e40af'} : {}}
+                />
+              </TooltipTrigger>
+              {!disabled && (
+                <TooltipContent side="top" className="text-xs">
+                  {vdiaEdited ? `Editado · regra atual: R$ ${(defaultVDia / 100).toFixed(2).replace('.', ',')}` : `Diária plana pela regra atual (${funcName})`}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+          {vdiaEdited && !disabled && restoreBtn('valorDia', 'vdia', 'hover:text-[#2563EB]')}
+        </div>
+        {/* FDS */}
+        <div className="flex items-center justify-end gap-1 rounded-md px-1 -mx-1" style={{background:'#FFF8F2'}}>
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <input
+                  type="text" inputMode="decimal"
+                  aria-label={`Diária de fim de semana de ${name} (R$/dia)`}
+                  disabled={disabled}
+                  value={buf('vdiaFds', (budget.valorDiariaFds / 100).toFixed(2))}
+                  onChange={e => setbuf('vdiaFds', e.target.value)}
+                  onBlur={commitBlur('valorDiaFds', 'vdiaFds')}
+                  onFocus={e => e.target.select()}
+                  className={`${inputBase} flex-1 min-w-0 ${!disabled && vdiaFdsEdited ? 'font-bold' : ''}`}
+                  style={!disabled && vdiaFdsEdited ? {color:'#F97316', borderColor:'#FED7AA'} : !disabled ? {color:'#C2410C'} : {}}
+                />
+              </TooltipTrigger>
+              {!disabled && (
+                <TooltipContent side="top" className="text-xs">
+                  {vdiaFdsEdited ? `Editado · regra atual: R$ ${(defaultVDia / 100).toFixed(2).replace('.', ',')}` : `Diária plana pela regra atual (${funcName})`}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+          {vdiaFdsEdited && !disabled && restoreBtn('valorDiaFds', 'vdiaFds', 'hover:text-[#F97316]')}
+        </div>
+      </td>
+
+      {/* Alim. R$/dia — Útil + FDS empilhados */}
+      <td className="px-4 py-3" style={{minWidth:'120px', verticalAlign:'middle'}}>
+        {/* Útil */}
+        <div className="flex items-center justify-end gap-1 mb-1.5 rounded-md px-1 -mx-1" style={{background:'rgba(37,99,235,0.05)'}}>
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <input
+                  type="text" inputMode="decimal"
+                  aria-label={`Alimentação de ${name} por dia útil (R$)`}
+                  disabled={disabled || budget.weekdays === 0}
+                  value={budget.weekdays === 0 ? '—' : buf('alimUtil', ((budget.almocoSemana + budget.jantarSemana) / Math.max(1, budget.weekdays) / 100).toFixed(2))}
+                  onChange={e => setbuf('alimUtil', e.target.value)}
+                  onBlur={commitBlur('alimentacaoUtil', 'alimUtil')}
+                  onFocus={e => e.target.select()}
+                  className={`${inputBase} flex-1 min-w-0 ${!disabled && budget.weekdays > 0 && alimUtilEdited ? 'font-bold' : ''}`}
+                  style={!disabled && budget.weekdays > 0 && alimUtilEdited ? {color:'#2563EB', borderColor:'#93C5FD'} : !disabled && budget.weekdays > 0 ? {color:'#1e3a8a'} : {color:'#CBD5E1'}}
+                />
+              </TooltipTrigger>
+              {!disabled && budget.weekdays > 0 && (
+                <TooltipContent side="top" className="text-xs">
+                  {alimUtilEdited
+                    ? `Editado · regra atual: R$ ${(sysAlimUtilDia / 100).toFixed(2).replace('.', ',')} /dia útil`
+                    : `Almoço + Jantar por dia útil`}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+          {alimUtilEdited && !disabled && budget.weekdays > 0 && restoreBtn('alimentacaoUtil', 'alimUtil', 'hover:text-[#2563EB]')}
+        </div>
+        {/* FDS */}
+        <div className="flex items-center justify-end gap-1 rounded-md px-1 -mx-1" style={{background:'#FFF8F2'}}>
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <input
+                  type="text" inputMode="decimal"
+                  aria-label={`Alimentação de ${name} por dia de fim de semana (R$)`}
+                  disabled={disabled || budget.weekends === 0}
+                  value={budget.weekends === 0 ? '—' : buf('alimFds', ((budget.almocoFds + budget.jantarFds) / Math.max(1, budget.weekends) / 100).toFixed(2))}
+                  onChange={e => setbuf('alimFds', e.target.value)}
+                  onBlur={commitBlur('alimentacaoFds', 'alimFds')}
+                  onFocus={e => e.target.select()}
+                  className={`${inputBase} flex-1 min-w-0 ${!disabled && budget.weekends > 0 && alimFdsEdited ? 'font-bold' : ''}`}
+                  style={!disabled && budget.weekends > 0 && alimFdsEdited ? {color:'#F97316', borderColor:'#FDBA74'} : !disabled && budget.weekends > 0 ? {color:'#92400e'} : {color:'#CBD5E1'}}
+                />
+              </TooltipTrigger>
+              {!disabled && budget.weekends > 0 && (
+                <TooltipContent side="top" className="text-xs">
+                  {alimFdsEdited
+                    ? `Editado · regra atual: R$ ${(sysAlimFdsDia / 100).toFixed(2).replace('.', ',')} /dia FDS`
+                    : `Almoço + Jantar por dia de fim de semana`}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+          {alimFdsEdited && !disabled && budget.weekends > 0 && restoreBtn('alimentacaoFds', 'alimFds', 'hover:text-[#F97316]')}
+        </div>
+        {budget.alimEstimada && (
+          <div className="flex justify-end mt-1">
+            <span className="inline-flex items-center px-1.5 py-px rounded-full text-[10px] font-semibold" style={{background:'#FEF3C7', color:'#B45309'}}
+              title="Sem horários da passagem registrada — refeições estimadas até a compra">
+              estimado
+            </span>
+          </div>
+        )}
+      </td>
+
+      {/* Mobilidade — coluna individual */}
+      <td className="px-4 py-3 text-right" style={{verticalAlign:'middle'}}>
+        <div className="flex items-center justify-end gap-1">
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <input
+                  type="text" inputMode="decimal"
+                  aria-label={`Mobilidade de ${name} (R$ total ida e volta)`}
+                  disabled={disabled}
+                  value={buf('mob', mobTotal.toFixed(2))}
+                  onChange={e => setbuf('mob', e.target.value)}
+                  onBlur={commitBlur('mobilidade', 'mob')}
+                  onFocus={e => e.target.select()}
+                  className={`${inputBase} w-[80px] ${!disabled && mobEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-slate-900' : ''}`}
+                />
+              </TooltipTrigger>
+              {!disabled && (
+                <TooltipContent side="top" className="text-xs">
+                  {mobEdited
+                    ? `Editado · regra atual: R$ ${(defaultMob / 100).toFixed(2).replace('.', ',')} (total Ida+Volta)`
+                    : `Total Ida+Volta · regra atual: R$ ${(defaultMob / 100).toFixed(2).replace('.', ',')}`}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+          {mobEdited && !disabled && restoreBtn('mobilidade', 'mob', 'hover:text-[#3B4FE4]')}
+        </div>
+      </td>
+
+      {/* Subtotal — clicável → Memória de Cálculo */}
+      <td className="px-4 py-3 text-right bg-blue-50/20" style={{position:'relative', verticalAlign:'middle'}}>
+        <button
+          onClick={() => onToggleSubtotal(sid)}
+          aria-label={`Ver memória de cálculo de ${name}`}
+          className={`text-[14px] font-mono font-bold tabular-nums transition-colors ${isNotAttended ? 'text-slate-300 line-through cursor-default' : 'cursor-pointer hover:opacity-80'}`}
+          style={isNotAttended ? {} : {color:'#0033CC'}}
+          disabled={isNotAttended}
+        >
+          {formatCurrency(budget.totalFinal)}
+        </button>
+        {matchingActual?.rhAdjusted && isSent && (
+          <div className="text-[11px] font-mono font-semibold tabular-nums mt-0.5" style={{color:'#D97706'}}>
+            {formatCurrency(matchingActual.totalValue)} ✏
+          </div>
+        )}
+        {/* Popover de Memória de Cálculo — fecha a conta usando os segments da deflação */}
+        {subtotalOpen && !isNotAttended && (() => {
+          const alimTotal = budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds;
+          const totalDias = budget.weekdays + budget.weekends;
+          return (
+            <div
+              id={`subtotal-popover-${sid}`}
+              onClick={e => e.stopPropagation()}
+              style={{
+                position:'absolute', right:0, top:'100%', zIndex:60,
+                background:'#fff', border:'1px solid #E2E8F0',
+                borderRadius:12, boxShadow:'0 8px 24px rgba(0,0,0,0.12)',
+                padding:'14px 16px', minWidth:270, textAlign:'left',
+              }}
+            >
+              <div style={{fontSize:11, fontWeight:700, color:'#0033CC', marginBottom:10, letterSpacing:'0.05em', textTransform:'uppercase'}}>
+                Memória de Cálculo · {toTitleCase(name)}
+              </div>
+              <div style={{fontSize:11, color:'#64748B', marginBottom:8}}>
+                {totalDias} {totalDias === 1 ? 'dia' : 'dias'}
+                {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && ` · ${new Date(budget.inclusion.scheduleStartDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})} → ${new Date(budget.inclusion.scheduleEndDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}`}
+              </div>
+              <table style={{width:'100%', borderCollapse:'collapse', fontSize:12}}>
+                <tbody>
+                  {budget.deflationSegments.map((seg, i) => (
+                    <tr key={i}>
+                      <td style={{paddingBottom:4, color:'#2563EB', fontWeight:600}}>
+                        {seg.days} {seg.days === 1 ? 'dia' : 'dias'} × {formatCurrency(seg.dailyCents)}
+                        {seg.factor < 1 && <span style={{color:'#9CA3AF', fontWeight:400}}> ({Math.round(seg.factor * 100)}% · {seg.label})</span>}
+                      </td>
+                      <td style={{paddingBottom:4, textAlign:'right', color:'#374151', fontFamily:'monospace'}}>{formatCurrency(seg.totalCents)}</td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td style={{paddingBottom:8, color:'#9CA3AF', fontSize:10, paddingLeft:8}}>Diárias (com deflação por período)</td>
+                    <td style={{paddingBottom:8, textAlign:'right', color:'#64748B', fontFamily:'monospace', fontSize:11}}>{formatCurrency(budget.subtotalDiarias)}</td>
+                  </tr>
+                  {alimTotal > 0 && (
+                    <tr>
+                      <td style={{paddingBottom:4, color:'#EA580C', fontWeight:600}}>
+                        Alimentação{budget.alimEstimada ? <span style={{color:'#B45309', fontWeight:400, fontSize:10}}> (estimada)</span> : null}
+                      </td>
+                      <td style={{paddingBottom:4, textAlign:'right', color:'#374151', fontFamily:'monospace'}}>{formatCurrency(alimTotal)}</td>
+                    </tr>
+                  )}
+                  {budget.mobilidade > 0 && (
+                    <tr>
+                      <td style={{paddingBottom:4, color:'#6D28D9', fontWeight:600}}>Mobilidade (total)</td>
+                      <td style={{paddingBottom:4, textAlign:'right', color:'#374151', fontFamily:'monospace'}}>{formatCurrency(budget.mobilidade)}</td>
+                    </tr>
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr style={{borderTop:'2px solid #E2E8F0'}}>
+                    <td style={{paddingTop:8, fontWeight:700, color:'#0033CC', fontSize:13}}>Total</td>
+                    <td style={{paddingTop:8, textAlign:'right', fontWeight:700, color:'#0033CC', fontFamily:'monospace', fontSize:13}}>{formatCurrency(budget.totalFinal)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+              <button
+                onClick={() => onToggleSubtotal(sid)}
+                style={{marginTop:10, fontSize:10, color:'#94A3B8', cursor:'pointer', background:'none', border:'none', display:'block', textAlign:'center', width:'100%'}}
+              >fechar</button>
+            </div>
+          );
+        })()}
+      </td>
+    </tr>
+  );
+});
 
 export default function BudgetPlannedPage() {
   const searchString = useSearch();
@@ -124,20 +626,25 @@ export default function BudgetPlannedPage() {
       const novoValor = atendimentoDailyCents(tipo, systemSettings as any);
       if (novoValor != null) {
         setEditingBudget(prev => prev ? { ...prev, valorDiaria: novoValor, valorDiariaUtil: novoValor, valorDiariaFds: novoValor } : prev);
+        // O "padrão" do modal acompanha a nova tarifa — assim salvar sem outras
+        // edições não cria override desnecessário.
+        setDefaultBudgetValues(prev => prev ? { ...prev, valorDiaria: novoValor, valorDiariaUtil: novoValor, valorDiariaFds: novoValor } : prev);
       }
       toast({ title: "Tipo de atendimento atualizado", description: "A diária foi recalculada para a tarifa escolhida." });
     },
     onError: (e: any) => toast({ title: "Erro ao definir o tipo", description: e?.body?.message || "Tente novamente.", variant: "destructive" }),
   });
-  const [budgetOverrides, setBudgetOverrides] = useState<Record<string, BudgetEdit>>(() => readDraft(selectedEventId));
+  const [budgetOverrides, setBudgetOverrides] = useState<Record<string, BudgetOverride>>(() => readDraft(selectedEventId));
+  // Aviso discreto de que um rascunho salvo foi restaurado no load
+  const [draftRestored, setDraftRestored] = useState<boolean>(() => Object.keys(readDraft(selectedEventId)).length > 0);
   // Evento dono do rascunho em memória — impede salvar o rascunho de um evento
   // na chave de outro durante a troca de evento.
   const draftEventRef = useRef(selectedEventId);
   const [sentToActual, setSentToActual] = useState<Set<string>>(new Set());
-  const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
-  const [confirmSendOpen, setConfirmSendOpen] = useState(false);
-  const [confirmSendSingle, setConfirmSendSingle] = useState<CalculatedBudget | null>(null);
-  const [inlineSendConfirm, setInlineSendConfirm] = useState(false);
+  // Seleção ÚNICA, compartilhada entre a Visão Geral (cards) e a Planilha
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Confirmação de envio unificada (cards, envio individual e planilha)
+  const [confirmSend, setConfirmSend] = useState<{ ids: string[]; source: 'single' | 'batch' } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
@@ -149,16 +656,13 @@ export default function BudgetPlannedPage() {
   const [isApplyingDefaults, setIsApplyingDefaults] = useState(false);
   const [modalTab, setModalTab] = useState<'custos' | 'observacoes' | 'historico'>('custos');
   const [modalViewMode, setModalViewMode] = useState(false);
-  const [sheetInputValues, setSheetInputValues] = useState<Record<string, string>>({});
   const [confirmReset, setConfirmReset] = useState(false);
   const [batchPopover, setBatchPopover] = useState<{ field: 'vdia'|'alim'|'mob'; value: string; onlyPending: boolean } | null>(null);
   const [batchApplied, setBatchApplied] = useState<Set<'vdia'|'alim'|'mob'>>(new Set());
   const [batchHistory, setBatchHistory] = useState<{ fields: ('vdia'|'alim'|'mob')[]; prev: Record<string, any> } | null>(null);
   const batchPopoverRef = useRef<HTMLDivElement>(null);
-  const [restoredFeedback, setRestoredFeedback] = useState<string | null>(null);
   const [restoreModal, setRestoreModal] = useState<{ id: string; name: string; functionName: string; startDate?: string; endDate?: string } | null>(null);
   const [subtotalOpenId, setSubtotalOpenId] = useState<string | null>(null);
-  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [advancedBatch, setAdvancedBatch] = useState<{
     target: 'all'|'casa'|'freela'|'selected';
     field: 'vdiaUtil'|'vdiaFds'|'alimUtil'|'alimFds'|'mob';
@@ -175,7 +679,9 @@ export default function BudgetPlannedPage() {
   useEffect(() => {
     if (draftEventRef.current === selectedEventId) return;
     draftEventRef.current = selectedEventId;
-    setBudgetOverrides(readDraft(selectedEventId));
+    const draft = readDraft(selectedEventId);
+    setBudgetOverrides(draft);
+    setDraftRestored(Object.keys(draft).length > 0);
   }, [selectedEventId]);
 
   // Salva o rascunho a cada mudança, sempre na chave do evento dono do rascunho
@@ -203,7 +709,7 @@ export default function BudgetPlannedPage() {
   };
 
   const toggleCardSelection = (id: string) => {
-    setSelectedCards(prev => {
+    setSelectedIds(prev => {
       const newSet = new Set(prev);
       if (newSet.has(id)) {
         newSet.delete(id);
@@ -221,11 +727,11 @@ export default function BudgetPlannedPage() {
       if ((plan as any)?.didNotAttend) return false;
       return true;
     });
-    setSelectedCards(new Set(pending.map(b => b.inclusion.id)));
+    setSelectedIds(new Set(pending.map(b => b.inclusion.id)));
   };
 
   const clearSelection = () => {
-    setSelectedCards(new Set());
+    setSelectedIds(new Set());
   };
 
   const toggleCollapse = (id: string) => {
@@ -299,7 +805,7 @@ export default function BudgetPlannedPage() {
       if (data.didNotAttend) {
         // Remove de seleção se estava selecionado
         const budget = calculatedBudgets.find(b => allBudgetPlanned?.find((p: any) => p.id === id && p.collaboratorId === b.inclusion.collaboratorId && p.functionId === b.inclusion.functionId));
-        if (budget) setSelectedCards(prev => { const s = new Set(Array.from(prev)); s.delete(budget.inclusion.id); return s; });
+        if (budget) setSelectedIds(prev => { const s = new Set(Array.from(prev)); s.delete(budget.inclusion.id); return s; });
         toast({ title: "Colaborador marcado como não participou", className: "bg-gray-50 border-gray-200 text-gray-800" });
       } else {
         toast({ title: "Participação restaurada", className: "bg-emerald-50 border-emerald-200 text-emerald-800" });
@@ -341,7 +847,7 @@ export default function BudgetPlannedPage() {
       qc.invalidateQueries({ queryKey: ["/api/budget-planned", selectedEventId] });
       setNotAttendedModal(null);
       setNotAttendedReason("");
-      setSelectedCards(prev => { const s = new Set(Array.from(prev)); s.delete(budget.inclusion.id); return s; });
+      setSelectedIds(prev => { const s = new Set(Array.from(prev)); s.delete(budget.inclusion.id); return s; });
       toast({ title: "Colaborador marcado como não participou", className: "bg-gray-50 border-gray-200 text-gray-800" });
     },
     onError: () => toast({ title: "Erro ao marcar como não participou", variant: "destructive" }),
@@ -391,10 +897,6 @@ export default function BudgetPlannedPage() {
     }
   }, [teamInclusions, urlCollaboratorId, urlFunctionId]);
 
-  const formatCurrency = (cents: number) => {
-    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Math.round(cents) / 100);
-  };
-
   // Maps id→nome pré-computados: os getters eram Array.find O(n) chamados
   // dentro do comparador de ordenação e por card, O(n²) com listas grandes.
   const collaboratorNamesById = useMemo(() => {
@@ -412,13 +914,6 @@ export default function BudgetPlannedPage() {
   const getCollaboratorName = (id?: string | null) => {
     if (!id) return "Não definido";
     return collaboratorNamesById.get(id) || "Não definido";
-  };
-
-  const toTitleCase = (str: string) => {
-    const lower = new Set(['de', 'da', 'das', 'do', 'dos', 'e', 'em', 'a', 'o', 'ao', 'aos']);
-    return str.toLowerCase().split(' ').map((word, i) =>
-      i === 0 || !lower.has(word) ? word.charAt(0).toUpperCase() + word.slice(1) : word
-    ).join(' ');
   };
 
   const getFunctionName = (id?: string | null) => {
@@ -572,8 +1067,10 @@ export default function BudgetPlannedPage() {
       const casaVal = collabIsCasa
         ? casaDailyCents(getFunctionName(inclusion.functionId), ss)
         : null;
-      const valorDiaria = override?.valorDiaria ?? override?.valorDiariaUtil ?? override?.valorDiariaFds ?? atendVal
+      // Valor da REGRA ATUAL (motor), sem override — usado por "Restaurar padrão" e tooltips
+      const sysValorDiaria = atendVal
         ?? freelaVal ?? casaVal ?? (fvDaily > 0 ? fvDaily : null) ?? inclusionDailyValue ?? defaultDailyValueWeekday;
+      const valorDiaria = override?.valorDiaria ?? override?.valorDiariaUtil ?? override?.valorDiariaFds ?? sysValorDiaria;
       const valorDiariaUtil = valorDiaria;
       const valorDiariaFds = valorDiaria;
       
@@ -678,6 +1175,15 @@ export default function BudgetPlannedPage() {
         vooPartidaVolta,
         fonteVoo,
         alimEstimada,
+        deflationSegments: deflated.segments,
+        sysValorDiaria,
+        sysMobilidade: sysMob,
+        sysMobilidadeIda: sysMobIda,
+        sysMobilidadeVolta: sysMobVolta,
+        sysAlmocoSemana: calcAlmSem,
+        sysJantarSemana: calcJanSem,
+        sysAlmocoFds: calcAlmFds,
+        sysJantarFds: calcJanFds,
       };
     });
   }, [confirmedInclusions, functionValues, collaborators, budgetOverrides, systemSettings, ticketByInclusion]);
@@ -720,12 +1226,6 @@ export default function BudgetPlannedPage() {
       .filter(b => !notAttendedKeys.has(`${b.inclusion.collaboratorId}|${b.inclusion.functionId}`))
       .reduce((sum, b) => sum + b.totalFinal, 0);
   }, [calculatedBudgets, notAttendedKeys]);
-
-  const totalSelecionado = useMemo(() => {
-    return calculatedBudgets
-      .filter(b => selectedCards.has(b.inclusion.id) && !sentToActual.has(b.inclusion.id))
-      .reduce((sum, b) => sum + b.totalFinal, 0);
-  }, [calculatedBudgets, selectedCards, sentToActual]);
 
   // Estatísticas de resumo
   const stats = useMemo(() => {
@@ -779,10 +1279,10 @@ export default function BudgetPlannedPage() {
       );
     }
     
-    // Filtro por tipo
+    // Filtro por tipo — 'casa' inclui 'local', como no resto da tela
     if (filterType !== 'all') {
-      result = result.filter(b => 
-        (filterType === 'casa' && b.collaborator?.type === 'casa') ||
+      result = result.filter(b =>
+        (filterType === 'casa' && (b.collaborator?.type === 'casa' || b.collaborator?.type === 'local')) ||
         (filterType === 'freela' && (b.collaborator?.type === 'freela' || !b.collaborator?.type))
       );
     }
@@ -837,22 +1337,21 @@ export default function BudgetPlannedPage() {
       inclusionId: budget.inclusion.id,
     });
 
-    const fv = getFunctionValue(budget.inclusion.functionId);
-    const inclusionDailyValue = budget.inclusion.dailyValue ?? 5000;
-    const defMob = (fv?.mobility ?? 2500) * budget.qtdDiarias;
+    // "Restaurar padrão" re-deriva do MOTOR ATUAL (atendimento/freela/casa +
+    // deflação + voo), não do legado fv/dailyValue.
     const defaultVals: BudgetEdit = {
       inclusionId: budget.inclusion.id,
-      qtdDiarias: budget.qtdDiarias,
-      valorDiaria: fv?.dailyValue ?? inclusionDailyValue,
-      valorDiariaUtil: inclusionDailyValue,
-      valorDiariaFds: inclusionDailyValue,
-      mobilidade: defMob,
-      mobilidadeIda: (fv as any)?.mobilityIda ?? Math.ceil(defMob / 2),
-      mobilidadeVolta: (fv as any)?.mobilityVolta ?? Math.floor(defMob / 2),
-      almocoSemana: (fv?.weekdayLunch || 3500) * budget.weekdays,
-      jantarSemana: (fv?.weekdayDinner || 4000) * budget.weekdays,
-      almocoFds: (fv?.weekendLunch || 4000) * budget.weekends,
-      jantarFds: (fv?.weekendDinner || 4500) * budget.weekends,
+      qtdDiarias: budget.weekdays + budget.weekends,
+      valorDiaria: budget.sysValorDiaria,
+      valorDiariaUtil: budget.sysValorDiaria,
+      valorDiariaFds: budget.sysValorDiaria,
+      mobilidade: budget.sysMobilidade,
+      mobilidadeIda: budget.sysMobilidadeIda,
+      mobilidadeVolta: budget.sysMobilidadeVolta,
+      almocoSemana: budget.sysAlmocoSemana,
+      jantarSemana: budget.sysJantarSemana,
+      almocoFds: budget.sysAlmocoFds,
+      jantarFds: budget.sysJantarFds,
     };
     setDefaultBudgetValues(defaultVals);
 
@@ -882,11 +1381,46 @@ export default function BudgetPlannedPage() {
   };
 
   const saveEdit = () => {
-    if (!editingBudget) return;
-    setBudgetOverrides(prev => ({
-      ...prev,
-      [editingBudget.inclusionId]: editingBudget,
-    }));
+    if (!editingBudget || !originalModalValues || !defaultBudgetValues) return;
+    const id = editingBudget.inclusionId;
+    const cur = editingBudget;
+    const orig = originalModalValues;
+    const sys = defaultBudgetValues;
+    setBudgetOverrides(prev => {
+      const existing = prev[id];
+      // Override ESPARSO: persiste SOMENTE o que o usuário alterou em relação
+      // ao valor calculado. Campo igual ao motor sai do override, para que o
+      // recálculo (ex.: chegada da passagem) volte a valer.
+      const next: BudgetOverride = { ...(existing || { inclusionId: id }) };
+
+      // Grupo diária (plana): um único valor espelhado em util/fds
+      if (cur.valorDiaria === sys.valorDiaria) {
+        delete next.valorDiaria; delete next.valorDiariaUtil; delete next.valorDiariaFds;
+      } else if (cur.valorDiaria !== orig.valorDiaria || next.valorDiaria !== undefined || next.valorDiariaUtil !== undefined || next.valorDiariaFds !== undefined) {
+        next.valorDiaria = cur.valorDiaria; next.valorDiariaUtil = cur.valorDiaria; next.valorDiariaFds = cur.valorDiaria;
+      }
+
+      // Grupo mobilidade: total sempre coerente com ida + volta
+      const mobEqualsSys = cur.mobilidade === sys.mobilidade && cur.mobilidadeIda === sys.mobilidadeIda && cur.mobilidadeVolta === sys.mobilidadeVolta;
+      const mobChanged = cur.mobilidade !== orig.mobilidade || cur.mobilidadeIda !== orig.mobilidadeIda || cur.mobilidadeVolta !== orig.mobilidadeVolta;
+      if (mobEqualsSys) {
+        delete next.mobilidade; delete next.mobilidadeIda; delete next.mobilidadeVolta;
+      } else if (mobChanged || next.mobilidade !== undefined || next.mobilidadeIda !== undefined || next.mobilidadeVolta !== undefined) {
+        next.mobilidade = cur.mobilidade; next.mobilidadeIda = cur.mobilidadeIda; next.mobilidadeVolta = cur.mobilidadeVolta;
+      }
+
+      // Campos individuais (alimentação e qtd de diárias)
+      (['almocoSemana', 'jantarSemana', 'almocoFds', 'jantarFds', 'qtdDiarias'] as const).forEach(f => {
+        if (cur[f] === sys[f]) delete next[f];
+        else if (cur[f] !== orig[f] || next[f] !== undefined) next[f] = cur[f];
+      });
+
+      const hasAny = Object.keys(next).some(k => k !== 'inclusionId');
+      const n = { ...prev };
+      if (!hasAny) delete n[id];
+      else n[id] = next;
+      return n;
+    });
     setEditingBudget(null);
     setEditingBudgetPlannedId(null);
     toast({ title: "Valores ajustados", description: "As alterações serão aplicadas no envio para o Realizado." });
@@ -950,13 +1484,14 @@ export default function BudgetPlannedPage() {
     onSuccess: (data, variables) => {
       setSentToActual(prev => { const s = new Set(Array.from(prev)); s.add(data.id); return s; });
       clearDraftEntries([data.id]);
-      setConfirmSendSingle(null);
+      setConfirmSend(null);
       const wasEdited = !!(variables as any).hasOverride;
+      // O envio individual JÁ cria o registro no Realizado — o texto diz isso.
       toast({
-        title: wasEdited ? "Planejamento salvo com sucesso!" : "Enviado para o Realizado!",
+        title: "Enviado para o Realizado!",
         description: wasEdited
-          ? "Os valores editados foram registrados. Envie o lote quando estiver pronto."
-          : "Os valores calculados foram enviados diretamente.",
+          ? "Enviado para a prestação de contas — os valores editados foram junto."
+          : "Os valores calculados foram enviados para a prestação de contas.",
       });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
       qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
@@ -969,7 +1504,7 @@ export default function BudgetPlannedPage() {
   const sendSelectedToActualMutation = useMutation({
     mutationFn: async () => {
       const toSend = calculatedBudgets.filter(b =>
-        selectedCards.has(b.inclusion.id) && !sentToActual.has(b.inclusion.id)
+        selectedIds.has(b.inclusion.id) && !sentToActual.has(b.inclusion.id)
       );
       const results: { id: string; result: any }[] = [];
       let failedCount = 0;
@@ -989,9 +1524,9 @@ export default function BudgetPlannedPage() {
     onSuccess: (data) => {
       setSentToActual(prev => { const s = new Set(Array.from(prev)); data.forEach(d => s.add(d.id)); return s; });
       clearDraftEntries(data.map(d => d.id));
-      setSelectedCards(new Set());
-      setConfirmSendOpen(false);
-      toast({ title: "Planejamento enviado com sucesso!", description: `${data.length} ${data.length === 1 ? 'colaborador enviado' : 'colaboradores enviados'} para o Realizado.` });
+      setSelectedIds(new Set());
+      setConfirmSend(null);
+      toast({ title: "Planejamento enviado com sucesso!", description: `${data.length} ${data.length === 1 ? 'colaborador enviado' : 'colaboradores enviados'} para a prestação de contas.` });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
       qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
     },
@@ -1003,7 +1538,7 @@ export default function BudgetPlannedPage() {
         // que uma nova tentativa reenvie apenas os que falharam.
         setSentToActual(prev => { const s = new Set(Array.from(prev)); sent.forEach(d => s.add(d.id)); return s; });
         clearDraftEntries(sent.map(d => d.id));
-        setSelectedCards(prev => { const s = new Set(Array.from(prev)); sent.forEach(d => s.delete(d.id)); return s; });
+        setSelectedIds(prev => { const s = new Set(Array.from(prev)); sent.forEach(d => s.delete(d.id)); return s; });
         qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
         qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
       }
@@ -1039,47 +1574,28 @@ export default function BudgetPlannedPage() {
     }
   };
 
-  // Handler para edição inline na planilha
-  const handleSheetEdit = (budget: CalculatedBudget, field: 'qtdDiarias' | 'valorDia' | 'valorDiaFds' | 'alimentacao' | 'alimentacaoUtil' | 'alimentacaoFds' | 'mobilidade', rawValue: string) => {
-    const parsed = parseBrNumber(rawValue);
-    // qtdDiarias é contagem de dias — não faz sentido fracionária. Antes o
-    // parseFloat truncava na vírgula por acidente; agora é explícito.
-    const val = field === 'qtdDiarias' ? Math.max(0, Math.round(parsed)) : parsed;
+  // Handler para edição inline na planilha — grava override ESPARSO: apenas os
+  // campos efetivamente editados entram; o resto continua recalculando (ex.:
+  // mobilidade/alimentação reagem à chegada da passagem).
+  const handleSheetEdit = useCallback((budget: CalculatedBudget, field: SheetField, rawValue: string) => {
+    const val = parseBrNumber(rawValue);
     const valCents = Math.round(val * 100);
-    const existingOvr = budgetOverrides[budget.inclusion.id];
 
     const dias = Math.max(1, budget.qtdDiarias);
 
     // NÃO limpar o override quando o valor digitado coincide com o padrão.
     //
-    // Antes, digitar um valor igual ao padrão calculado apagava o override e a
-    // célula voltava sozinha ao valor de origem. O caso mais visível era zerar
-    // um campo: valCents = 0 e, quando o padrão daquele campo também era 0, a
-    // edição era descartada como "não mudou nada". Daí o relato de que os
-    // valores de alimentação e mobilidade "não estabilizam" e voltam ao zerar.
-    //
     // Zerar é uma decisão legítima do usuário e precisa ser gravada como
     // override. Para voltar ao padrão já existem três caminhos explícitos: o
     // ↩ de cada célula, o "Restaurar" da linha e o "Restaurar Padrão em Todos".
 
-    const base: BudgetEdit = existingOvr || {
-      inclusionId: budget.inclusion.id,
-      qtdDiarias: budget.qtdDiarias,
-      valorDiaria: budget.valorDiaria,
-      valorDiariaUtil: budget.valorDiariaUtil,
-      valorDiariaFds: budget.valorDiariaFds,
-      mobilidade: budget.mobilidade,
-      mobilidadeIda: budget.mobilidadeIda,
-      mobilidadeVolta: budget.mobilidadeVolta,
-      almocoSemana: budget.almocoSemana,
-      jantarSemana: budget.jantarSemana,
-      almocoFds: budget.almocoFds,
-      jantarFds: budget.jantarFds,
-    };
-    const updated = { ...base };
-    if (field === 'qtdDiarias') { updated.qtdDiarias = val; }
-    else if (field === 'valorDia') { updated.valorDiariaUtil = valCents; }
-    else if (field === 'valorDiaFds') { updated.valorDiariaFds = valCents; }
+    setBudgetOverrides(prev => {
+    const existingOvr = prev[budget.inclusion.id];
+    const updated: BudgetOverride = { ...(existingOvr || { inclusionId: budget.inclusion.id }) };
+    if (field === 'valorDia' || field === 'valorDiaFds') {
+      // Diária PLANA: editar qualquer um dos dois campos define o valor único
+      updated.valorDiaria = valCents; updated.valorDiariaUtil = valCents; updated.valorDiariaFds = valCents;
+    }
     else if (field === 'alimentacao') {
       // valCents é por dia → converter para total do período
       const totalCents = valCents * dias;
@@ -1126,8 +1642,40 @@ export default function BudgetPlannedPage() {
       updated.mobilidadeIda = Math.round(valCents / 2);
       updated.mobilidadeVolta = valCents - Math.round(valCents / 2);
     }
-    setBudgetOverrides(prev => ({ ...prev, [budget.inclusion.id]: updated }));
-  };
+    return { ...prev, [budget.inclusion.id]: updated };
+    });
+  }, []);
+
+  // Restaurar padrão de um campo: REMOVE o campo do override — o cálculo reassume
+  const restoreSheetField = useCallback((sid: string, field: SheetField) => {
+    setBudgetOverrides(prev => {
+      const ovr = prev[sid];
+      if (!ovr) return prev;
+      const updated: BudgetOverride = { ...ovr };
+      if (field === 'valorDia' || field === 'valorDiaFds') { delete updated.valorDiaria; delete updated.valorDiariaUtil; delete updated.valorDiariaFds; }
+      else if (field === 'alimentacao') { delete updated.almocoSemana; delete updated.jantarSemana; delete updated.almocoFds; delete updated.jantarFds; }
+      else if (field === 'alimentacaoUtil') { delete updated.almocoSemana; delete updated.jantarSemana; }
+      else if (field === 'alimentacaoFds') { delete updated.almocoFds; delete updated.jantarFds; }
+      else if (field === 'mobilidade') { delete updated.mobilidade; delete updated.mobilidadeIda; delete updated.mobilidadeVolta; }
+      const hasAny = Object.keys(updated).some(k => k !== 'inclusionId');
+      const n = { ...prev };
+      if (!hasAny) delete n[sid];
+      else n[sid] = updated;
+      return n;
+    });
+  }, []);
+
+  const toggleRowSelection = useCallback((sid: string, v: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (v) next.add(sid); else next.delete(sid);
+      return next;
+    });
+  }, []);
+
+  const toggleSubtotalPopover = useCallback((sid: string) => {
+    setSubtotalOpenId(prev => prev === sid ? null : sid);
+  }, []);
 
   const applyBatchEdit = (field: 'vdia'|'alim'|'mob', rawValue: string, onlyPending: boolean) => {
     // Precisa do mesmo parser do handleSheetEdit: com parseFloat, um "0,50"
@@ -1185,7 +1733,7 @@ export default function BudgetPlannedPage() {
       const isCasa = b.collaborator?.type === 'casa' || b.collaborator?.type === 'local';
       if (target === 'casa' && !isCasa) return false;
       if (target === 'freela' && isCasa) return false;
-      if (target === 'selected' && !selectedRows.has(b.inclusion.id)) return false;
+      if (target === 'selected' && !selectedIds.has(b.inclusion.id)) return false;
       return true;
     });
     if (targets.length === 0) return;
@@ -1202,7 +1750,7 @@ export default function BudgetPlannedPage() {
     toast({ title: `Lote aplicado`, description: `${targets.length} colaborador${targets.length !== 1 ? 'es' : ''} atualizados` });
   };
 
-  // Close batch popover on outside click
+  // Close batch popover on outside click or Esc
   useEffect(() => {
     if (!batchPopover) return;
     const handler = (e: MouseEvent) => {
@@ -1210,8 +1758,10 @@ export default function BudgetPlannedPage() {
         setBatchPopover(null);
       }
     };
+    const keyHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') setBatchPopover(null); };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('keydown', keyHandler);
+    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('keydown', keyHandler); };
   }, [batchPopover]);
 
   useEffect(() => {
@@ -1223,9 +1773,19 @@ export default function BudgetPlannedPage() {
         setSubtotalOpenId(null);
       }
     };
+    const keyHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') setSubtotalOpenId(null); };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('keydown', keyHandler);
+    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('keydown', keyHandler); };
   }, [subtotalOpenId]);
+
+  // Modal de edição em lote fecha com Esc
+  useEffect(() => {
+    if (!advancedBatch) return;
+    const keyHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') setAdvancedBatch(null); };
+    document.addEventListener('keydown', keyHandler);
+    return () => document.removeEventListener('keydown', keyHandler);
+  }, [advancedBatch]);
 
   // Avatar color based on first letter
   const avatarColor = (name: string) => {
@@ -1252,25 +1812,17 @@ export default function BudgetPlannedPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
           {isRhOrAdmin(user) && (
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleApplyDefaults}
               disabled={isApplyingDefaults}
               title="Aplica os valores padrão configurados em Sistema a todos os orçamentos ainda não enviados"
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '8px 13px', borderRadius: 9, fontSize: 12, fontWeight: 600,
-                border: '1.5px solid #D1D5DB', background: '#fff',
-                color: isApplyingDefaults ? '#9CA3AF' : '#374151',
-                cursor: isApplyingDefaults ? 'not-allowed' : 'pointer',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.06)', whiteSpace: 'nowrap',
-                transition: 'all .15s',
-              }}
-              onMouseEnter={e => { if (!isApplyingDefaults) { (e.currentTarget as HTMLElement).style.borderColor = '#3B4FE4'; (e.currentTarget as HTMLElement).style.color = '#3B4FE4'; } }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#D1D5DB'; (e.currentTarget as HTMLElement).style.color = isApplyingDefaults ? '#9CA3AF' : '#374151'; }}
+              className="gap-1.5 text-xs font-semibold rounded-lg whitespace-nowrap hover:text-[#3B4FE4] hover:border-[#3B4FE4]"
             >
-              <RefreshCw style={{ width: 13, height: 13, animation: isApplyingDefaults ? 'spin 1s linear infinite' : 'none' }} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isApplyingDefaults ? 'animate-spin' : ''}`} />
               {isApplyingDefaults ? 'Atualizando...' : 'Atualizar padrões'}
-            </button>
+            </Button>
           )}
           {selectedEventId && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
@@ -1325,15 +1877,16 @@ export default function BudgetPlannedPage() {
               {/* Faixa accent azul topo */}
               <div style={{height: 3, background: 'linear-gradient(90deg, #0033CC 0%, #4F7BF5 50%, #059669 100%)'}} />
 
-              <div className="flex items-stretch">
+              {/* flex-wrap: em telas <900px o hero e os stats quebram em linhas */}
+              <div className="flex flex-wrap items-stretch">
                 {/* Total Planejado — hero section */}
-                <div className="px-7 py-5 flex flex-col justify-center gap-1 relative overflow-hidden" style={{
+                <div className="px-7 py-5 flex flex-col justify-center gap-1 relative overflow-hidden grow max-[900px]:w-full" style={{
                   background: 'linear-gradient(135deg, #1D4ED8 0%, #2563EB 50%, #3B82F6 100%)',
                   minWidth: 230,
                 }}>
-                  <p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-white/60 relative">Total Planejado</p>
+                  <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-white/75 relative">Total Planejado</p>
                   {selectedEvent?.startDate && (
-                    <p className="flex items-center gap-1 text-[10px] text-white/40 relative">
+                    <p className="flex items-center gap-1 text-[10px] text-white/70 relative">
                       <Calendar className="w-2.5 h-2.5 shrink-0" />
                       {formatEventDate(selectedEvent.startDate)}
                     </p>
@@ -1345,48 +1898,48 @@ export default function BudgetPlannedPage() {
                 </div>
 
                 {/* Separador vertical */}
-                <div style={{width: 1, background: 'rgba(0,51,204,0.1)'}} />
+                <div className="max-[900px]:hidden" style={{width: 1, background: 'rgba(0,51,204,0.1)'}} />
 
                 {/* Stats */}
-                <div className="flex-1 px-6 py-5 flex items-center gap-0">
+                <div className="flex-1 px-6 py-5 flex flex-wrap items-center gap-y-3 min-w-[280px]">
                   {/* Colaboradores */}
-                  <div className="flex-1 flex flex-col items-center gap-1 px-4">
+                  <div className="flex-1 min-w-[110px] flex flex-col items-center gap-1 px-4">
                     <div className="text-[26px] font-black leading-none tracking-tight" style={{color:'#0033CC'}}>{stats.total}</div>
-                    <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">
                       <Users className="w-3 h-3" />Colaboradores
                     </div>
                   </div>
 
-                  <div style={{width:1, height:36, background:'rgba(0,51,204,0.08)'}} />
+                  <div className="max-[900px]:hidden" style={{width:1, height:36, background:'rgba(0,51,204,0.08)'}} />
 
                   {/* Casa */}
-                  <div className="flex-1 flex flex-col items-center gap-1 px-4">
+                  <div className="flex-1 min-w-[90px] flex flex-col items-center gap-1 px-4">
                     <div className="text-[26px] font-black leading-none tracking-tight" style={{color:'#2563EB'}}>{stats.totalCasa}</div>
-                    <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">
                       <Home className="w-3 h-3" />Casa
                     </div>
                   </div>
 
-                  <div style={{width:1, height:36, background:'rgba(0,51,204,0.08)'}} />
+                  <div className="max-[900px]:hidden" style={{width:1, height:36, background:'rgba(0,51,204,0.08)'}} />
 
                   {/* Freela */}
-                  <div className="flex-1 flex flex-col items-center gap-1 px-4">
+                  <div className="flex-1 min-w-[90px] flex flex-col items-center gap-1 px-4">
                     <div className="text-[26px] font-black leading-none tracking-tight" style={{color:'#EA580C'}}>{stats.totalFreela}</div>
-                    <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">
                       <UserCheck className="w-3 h-3" />Freela
                     </div>
                   </div>
 
-                  <div style={{width:1, height:36, background:'rgba(0,51,204,0.08)'}} />
+                  <div className="max-[900px]:hidden" style={{width:1, height:36, background:'rgba(0,51,204,0.08)'}} />
 
                   {/* Período do evento */}
-                  <div className="flex-1 flex flex-col items-center gap-1 px-4">
+                  <div className="flex-1 min-w-[90px] flex flex-col items-center gap-1 px-4">
                     {selectedEvent?.startDate && selectedEvent?.endDate ? (
                       <div className="flex flex-col items-center gap-0">
                         <div className="text-[14px] font-black leading-none tracking-tight tabular-nums" style={{color:'#0D9488'}}>
                           {new Date(selectedEvent.startDate + 'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
                         </div>
-                        <div className="text-[9px] font-bold text-slate-300 leading-none my-0.5">→</div>
+                        <div className="text-[10px] font-bold text-slate-300 leading-none my-0.5">→</div>
                         <div className="text-[14px] font-black leading-none tracking-tight tabular-nums" style={{color:'#0D9488'}}>
                           {new Date(selectedEvent.endDate + 'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
                         </div>
@@ -1394,7 +1947,7 @@ export default function BudgetPlannedPage() {
                     ) : (
                       <div className="text-[14px] font-black leading-none tracking-tight text-slate-300">—</div>
                     )}
-                    <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">
                       <Calendar className="w-3 h-3" />Período
                     </div>
                   </div>
@@ -1422,13 +1975,14 @@ export default function BudgetPlannedPage() {
                       <div className="text-[13px] font-bold text-[#0033CC] mt-0.5">{steps[currentStep].label}</div>
                     </div>
                   </div>
-                  <div className="flex items-center">
+                  {/* flex-wrap + min-width por etapa: abaixo de ~900px o stepper quebra em 2 linhas */}
+                  <div className="flex items-center flex-wrap gap-y-4">
                     {steps.map((step, i) => {
                       const isDone = i < currentStep;
                       const isActive = i === currentStep;
                       const isLast = i === steps.length - 1;
                       return (
-                        <div key={i} className="flex items-center flex-1">
+                        <div key={i} className="flex items-center flex-1 min-w-[150px]">
                           <div className="flex flex-col items-center gap-2">
                             {/* Bolinha */}
                             <div style={{position: 'relative', flexShrink: 0}}>
@@ -1476,7 +2030,7 @@ export default function BudgetPlannedPage() {
                                 fontSize: 11, fontWeight: 700, lineHeight: 1.2,
                                 color: isDone ? '#059669' : isActive ? '#0033CC' : '#CBD5E1',
                               }}>{step.label}</div>
-                              <div style={{fontSize: 9, color: '#CBD5E1', marginTop: 2}}>{step.desc}</div>
+                              <div style={{fontSize: 10, color: '#94A3B8', marginTop: 2}}>{step.desc}</div>
                             </div>
                           </div>
                           {!isLast && (
@@ -1509,7 +2063,7 @@ export default function BudgetPlannedPage() {
                           <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(37,99,235,0.08)'}}>
                             <Home style={{width:13, height:13, color:'#2563EB'}} />
                           </div>
-                          <span style={{fontSize:9, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Casa</span>
+                          <span style={{fontSize:10, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Casa</span>
                         </div>
                         <div style={{fontSize:17, fontWeight:500, color:'#2563EB', letterSpacing:'-0.02em', fontVariantNumeric:'tabular-nums', lineHeight:1}}>
                           {formatCurrency(stats.valorCasa)}
@@ -1534,7 +2088,7 @@ export default function BudgetPlannedPage() {
                           <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(234,88,12,0.08)'}}>
                             <UserCheck style={{width:13, height:13, color:'#EA580C'}} />
                           </div>
-                          <span style={{fontSize:9, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Freela</span>
+                          <span style={{fontSize:10, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Freela</span>
                         </div>
                         <div style={{fontSize:17, fontWeight:500, color:'#EA580C', letterSpacing:'-0.02em', fontVariantNumeric:'tabular-nums', lineHeight:1}}>
                           {formatCurrency(stats.valorFreela)}
@@ -1559,7 +2113,7 @@ export default function BudgetPlannedPage() {
                           <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(124,58,237,0.08)'}}>
                             <Users style={{width:13, height:13, color:'#7C3AED'}} />
                           </div>
-                          <span style={{fontSize:9, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Médio / Pessoa</span>
+                          <span style={{fontSize:10, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Médio / Pessoa</span>
                         </div>
                         <div style={{fontSize:17, fontWeight:500, color:'#7C3AED', letterSpacing:'-0.02em', fontVariantNumeric:'tabular-nums', lineHeight:1}}>
                           {formatCurrency(stats.media)}
@@ -1584,7 +2138,7 @@ export default function BudgetPlannedPage() {
                           <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(13,148,136,0.08)'}}>
                             <BarChart3 style={{width:13, height:13, color:'#0D9488'}} />
                           </div>
-                          <span style={{fontSize:9, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Médio / Dia</span>
+                          <span style={{fontSize:10, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Médio / Dia</span>
                         </div>
                         <div style={{fontSize:17, fontWeight:500, color:'#0D9488', letterSpacing:'-0.02em', fontVariantNumeric:'tabular-nums', lineHeight:1}}>
                           {formatCurrency(stats.mediaPorDia)}
@@ -1600,6 +2154,23 @@ export default function BudgetPlannedPage() {
               </TooltipProvider>
 
             </div>
+
+            {/* ── Aviso de rascunho restaurado ── */}
+            {draftRestored && Object.keys(budgetOverrides).length > 0 && (
+              <div role="status" className="flex items-center gap-2 px-3 py-2 rounded-lg text-[11px]"
+                style={{background:'#FFFBEB', border:'1px solid #FDE68A', color:'#92400E'}}>
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                <span>Rascunho de edições restaurado</span>
+                <span style={{color:'#D6BB6C'}}>·</span>
+                <button
+                  onClick={() => { setBudgetOverrides({}); setDraftRestored(false); }}
+                  className="font-semibold underline underline-offset-2 hover:text-amber-900 transition-colors"
+                  aria-label="Descartar rascunho de edições restaurado"
+                >
+                  Descartar
+                </button>
+              </div>
+            )}
 
             {/* ── Seletor de Abas ── */}
             <div className="flex items-center gap-1 border-b border-slate-100">
@@ -1621,10 +2192,11 @@ export default function BudgetPlannedPage() {
             {/* ── Filtros e Busca — minimal ── */}
             <div className="flex flex-wrap items-center gap-3 px-0">
               {pendingCount > 0 && (
-                <Checkbox 
-                  checked={selectedCards.size === pendingCount && pendingCount > 0}
+                <Checkbox
+                  checked={selectedIds.size === pendingCount && pendingCount > 0}
                   onCheckedChange={(checked) => checked ? selectAllCards() : clearSelection()}
                   className="shrink-0"
+                  aria-label="Selecionar todos os colaboradores pendentes"
                 />
               )}
 
@@ -1634,6 +2206,7 @@ export default function BudgetPlannedPage() {
                 <input
                   type="text"
                   placeholder="Buscar por nome..."
+                  aria-label="Buscar colaborador por nome"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   style={{
@@ -1700,9 +2273,9 @@ export default function BudgetPlannedPage() {
                 <RefreshCw className="w-8 h-8 animate-spin text-indigo-600" />
               </div>
             ) : (isErrorInclusions || isErrorFunctionValues) ? (
-              <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
-                <RefreshCw className="w-16 h-16 text-gray-200 dark:text-gray-700 mb-4" />
-                <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300">Erro ao carregar os dados</h3>
+              <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-200">
+                <RefreshCw className="w-16 h-16 text-gray-200 mb-4" />
+                <h3 className="text-base font-semibold text-gray-700">Erro ao carregar os dados</h3>
                 <p className="text-sm text-gray-400 mt-1">Não foi possível buscar as escalações deste evento</p>
                 <Button
                   variant="outline"
@@ -1714,9 +2287,9 @@ export default function BudgetPlannedPage() {
                 </Button>
               </div>
             ) : filteredBudgets.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
-                <Users className="w-16 h-16 text-gray-200 dark:text-gray-700 mb-4" />
-                <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300">
+              <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-200">
+                <Users className="w-16 h-16 text-gray-200 mb-4" />
+                <h3 className="text-base font-semibold text-gray-700">
                   {calculatedBudgets.length === 0 ? 'Nenhuma escalação confirmada' : 'Nenhum resultado encontrado'}
                 </h3>
                 <p className="text-sm text-gray-400 mt-1">
@@ -1727,7 +2300,7 @@ export default function BudgetPlannedPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
                 {filteredBudgets.map((budget) => {
                   const isSent = sentToActual.has(budget.inclusion.id);
-                  const isSelected = selectedCards.has(budget.inclusion.id);
+                  const isSelected = selectedIds.has(budget.inclusion.id);
                   const isCollapsed = collapsedCards.has(budget.inclusion.id);
                   const isCasa = budget.collaborator?.type === 'casa' || budget.collaborator?.type === 'local';
                   const name = getCollaboratorName(budget.inclusion.collaboratorId);
@@ -1815,9 +2388,10 @@ export default function BudgetPlannedPage() {
                         <div className="flex items-center gap-3">
                           {/* Checkbox / lock */}
                           {!isSent ? (
-                            <Checkbox 
+                            <Checkbox
                               checked={isSelected}
                               onCheckedChange={() => toggleCardSelection(budget.inclusion.id)}
+                              aria-label={`Selecionar ${name}`}
                             />
                           ) : (
                             <TooltipProvider delayDuration={200}>
@@ -1913,7 +2487,7 @@ export default function BudgetPlannedPage() {
                           )}
                           <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
                           {canEdit && !isSent && (
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg" title="Editar valores" onClick={() => openEditModal(budget)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg" title="Editar valores" aria-label={`Editar valores de ${name}`} onClick={() => openEditModal(budget)}>
                               <Edit className="w-3.5 h-3.5" />
                             </Button>
                           )}
@@ -1930,19 +2504,21 @@ export default function BudgetPlannedPage() {
                             </TooltipProvider>
                           )}
                           {!isSent && (
-                            <Button 
-                              variant="ghost" size="icon" 
+                            <Button
+                              variant="ghost" size="icon"
                               className="h-8 w-8 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
                               title="Enviar para o Realizado"
-                              onClick={() => setConfirmSendSingle(budget)}
+                              aria-label={`Enviar ${name} para o Realizado`}
+                              onClick={() => setConfirmSend({ ids: [budget.inclusion.id], source: 'single' })}
                             >
                               <Send className="w-3.5 h-3.5" />
                             </Button>
                           )}
-                          <Button 
-                            variant="ghost" size="icon" 
+                          <Button
+                            variant="ghost" size="icon"
                             className="h-8 w-8 text-gray-400 hover:text-gray-600 rounded-lg"
                             title={isCollapsed ? "Expandir" : "Recolher"}
+                            aria-label={isCollapsed ? `Expandir card de ${name}` : `Recolher card de ${name}`}
                             onClick={() => toggleCollapse(budget.inclusion.id)}
                           >
                             {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
@@ -1964,7 +2540,7 @@ export default function BudgetPlannedPage() {
                                 <div className="flex flex-col gap-0.5">
                                   <div className="flex items-center gap-1">
                                     <Calendar className="w-2.5 h-2.5 shrink-0" style={{color:'#0033CC'}} />
-                                    <span className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{color:'#0033CC'}}>Diárias</span>
+                                    <span className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{color:'#0033CC'}}>Diárias</span>
                                   </div>
                                   <span className="tabular-nums font-medium text-[14px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em', textDecoration: isNotAttended ? 'line-through' : 'none'}}>{formatCurrency(budget.subtotalDiarias)}</span>
                                 </div>
@@ -1988,6 +2564,13 @@ export default function BudgetPlannedPage() {
                                 {budget.weekdays === 0 && budget.weekends === 0 && (
                                   <span className="text-[11px] font-normal" style={{color:'#CBD5E1'}}>—</span>
                                 )}
+                                {/* Memória da deflação por período (>4 dias) */}
+                                {budget.deflationSegments.length > 1 && (
+                                  <span className="text-[10px] leading-tight font-normal tabular-nums" style={{color:'#6D7BC4'}}
+                                    title="Deflação por período: 100% até o 4º dia; fatores reduzidos nas faixas seguintes">
+                                    {formatSegmentsMemo(budget.deflationSegments)}
+                                  </span>
+                                )}
                               </div>
                             </div>
 
@@ -1997,7 +2580,14 @@ export default function BudgetPlannedPage() {
                                 <div className="flex flex-col gap-0.5">
                                   <div className="flex items-center gap-1">
                                     <Utensils className="w-2.5 h-2.5 shrink-0" style={{color:'#EA580C'}} />
-                                    <span className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{color:'#EA580C'}}>Alimentação</span>
+                                    <span className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{color:'#EA580C'}}>Alimentação</span>
+                                    {budget.alimEstimada && (
+                                      <span className="inline-flex items-center px-1 py-px rounded-full text-[10px] font-semibold shrink-0"
+                                        style={{background:'#FEF3C7', color:'#B45309'}}
+                                        title="Sem horários da passagem registrada — refeições estimadas até a compra">
+                                        estimado
+                                      </span>
+                                    )}
                                   </div>
                                   <span className="tabular-nums font-medium text-[14px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em', textDecoration: isNotAttended ? 'line-through' : 'none'}}>{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</span>
                                 </div>
@@ -2028,7 +2618,7 @@ export default function BudgetPlannedPage() {
                                 <div className="flex flex-col gap-0.5">
                                   <div className="flex items-center gap-1">
                                     <Car className="w-2.5 h-2.5 shrink-0" style={{color:'#6d28d9'}} />
-                                    <span className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{color:'#6d28d9'}}>Mobilidade</span>
+                                    <span className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{color:'#6d28d9'}}>Mobilidade</span>
                                   </div>
                                   <span className="tabular-nums font-medium text-[14px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em', textDecoration: isNotAttended ? 'line-through' : 'none'}}>{formatCurrency(budget.mobilidade)}</span>
                                 </div>
@@ -2066,7 +2656,7 @@ export default function BudgetPlannedPage() {
                           borderTop: isNotAttended ? '1px solid #E2E8F0' : '1px solid rgba(224,231,255,0.8)',
                           marginTop: 'auto',
                         }}>
-                        <span style={{fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: isNotAttended ? '#94A3B8' : '#C7D2FE'}}>
+                        <span style={{fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: isNotAttended ? '#94A3B8' : '#6D7BC4'}}>
                           {isNotAttended ? 'Não contabilizado' : 'Total Planejado'}
                         </span>
                         <span style={{
@@ -2160,7 +2750,7 @@ export default function BudgetPlannedPage() {
                         {(['all','casa','freela','selected'] as const).map(t => (
                           <button key={t} onClick={() => setAdvancedBatch(p => p ? {...p, target: t} : p)}
                             className={`text-[12px] px-3 py-2 rounded-lg border font-medium transition-colors ${advancedBatch.target === t ? 'border-[#0033CC] bg-blue-50 text-[#0033CC]' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-                            {t === 'all' ? 'Todos' : t === 'casa' ? 'Somente CASA' : t === 'freela' ? 'Somente FREELA' : `Selecionados (${selectedRows.size})`}
+                            {t === 'all' ? 'Todos' : t === 'casa' ? 'Somente CASA' : t === 'freela' ? 'Somente FREELA' : `Selecionados (${selectedIds.size})`}
                           </button>
                         ))}
                       </div>
@@ -2186,7 +2776,9 @@ export default function BudgetPlannedPage() {
                     </div>
                     {/* Value */}
                     <div className="mb-5">
-                      <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Novo valor (R$/dia)</div>
+                      <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                        {advancedBatch.field === 'mob' ? 'Novo valor (R$ total Ida+Volta)' : 'Novo valor (R$/dia)'}
+                      </div>
                       <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 focus-within:border-[#0033CC] focus-within:shadow-[0_0_0_2px_rgba(0,51,204,0.1)]">
                         <span className="text-slate-400 text-sm font-medium">R$</span>
                         <input
@@ -2224,14 +2816,15 @@ export default function BudgetPlannedPage() {
                           {/* Checkbox select-all */}
                           <th className="w-10 px-3 py-2.5 bg-slate-50/80">
                             <Checkbox
-                              checked={filteredBudgets.length > 0 && filteredBudgets.every(b => selectedRows.has(b.inclusion.id))}
+                              checked={filteredBudgets.length > 0 && filteredBudgets.every(b => selectedIds.has(b.inclusion.id))}
                               onCheckedChange={v => {
-                                setSelectedRows(v
+                                setSelectedIds(v
                                   ? new Set(filteredBudgets.filter(b => !sentToActual.has(b.inclusion.id)).map(b => b.inclusion.id))
                                   : new Set()
                                 );
                               }}
                               className="w-3.5 h-3.5"
+                              aria-label="Selecionar todos os colaboradores pendentes"
                             />
                           </th>
                           {/* Colaborador / Função / Período */}
@@ -2250,7 +2843,7 @@ export default function BudgetPlannedPage() {
                             <div className="flex items-center justify-end gap-1">
                               <div className="flex flex-col items-end leading-tight gap-0.5">
                                 <span className="text-[11px] font-semibold text-slate-600">Diária R$/dia</span>
-                                <div className="flex items-center gap-2 text-[9px] font-medium" style={{color:'#94A3B8'}}>
+                                <div className="flex items-center gap-2 text-[10px] font-medium" style={{color:'#94A3B8'}}>
                                   <span><span className="inline-block w-1.5 h-1.5 rounded-full mr-0.5" style={{background:'#2563EB', verticalAlign:'middle'}} />Útil</span>
                                   <span><span className="inline-block w-1.5 h-1.5 rounded-full mr-0.5" style={{background:'#F97316', verticalAlign:'middle'}} />FDS</span>
                                 </div>
@@ -2259,27 +2852,19 @@ export default function BudgetPlannedPage() {
                                 onClick={() => setBatchPopover(batchPopover?.field === 'vdia' ? null : { field: 'vdia', value: '', onlyPending: true })}
                                 className={`text-[10px] transition-colors cursor-pointer ${batchApplied.has('vdia') ? 'text-[#3B4FE4]' : 'text-slate-300 hover:text-slate-500'}`}
                                 title="Editar em lote"
+                                aria-label="Editar diária em lote"
                               >✏</button>
                             </div>
                             {batchPopover?.field === 'vdia' && (
-                              <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-xl border border-slate-200 shadow-xl p-3 w-56 text-left" style={{minWidth:'220px'}}>
-                                <div className="text-[11px] font-semibold text-slate-600 mb-2">Aplicar R$/dia para todos</div>
-                                <input
-                                  type="text" inputMode="decimal" placeholder="0,00"
-                                  value={batchPopover.value}
-                                  onChange={e => setBatchPopover(p => p ? {...p, value: e.target.value} : p)}
-                                  autoFocus
-                                  className="w-full h-8 border border-slate-200 rounded-md px-2 text-right text-[12px] font-mono outline-none focus:border-[#3B4FE4] focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)] mb-2"
-                                />
-                                <label className="flex items-center gap-1.5 text-[11px] text-slate-500 mb-3 cursor-pointer">
-                                  <Checkbox checked={batchPopover.onlyPending} onCheckedChange={v => setBatchPopover(p => p ? {...p, onlyPending: !!v} : p)} className="w-3.5 h-3.5" />
-                                  Apenas Pendentes
-                                </label>
-                                <div className="flex gap-2">
-                                  <button onClick={() => setBatchPopover(null)} className="flex-1 h-7 text-[11px] border border-slate-200 rounded-md text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</button>
-                                  <button onClick={() => { applyBatchEdit('vdia', batchPopover.value, batchPopover.onlyPending); setBatchPopover(null); }} className="flex-1 h-7 text-[11px] rounded-md text-white font-semibold" style={{background:'#3B4FE4'}}>Aplicar</button>
-                                </div>
-                              </div>
+                              <BatchPopover
+                                title="Aplicar R$/dia para todos"
+                                value={batchPopover.value}
+                                onlyPending={batchPopover.onlyPending}
+                                onChangeValue={v => setBatchPopover(p => p ? {...p, value: v} : p)}
+                                onTogglePending={v => setBatchPopover(p => p ? {...p, onlyPending: v} : p)}
+                                onCancel={() => setBatchPopover(null)}
+                                onApply={() => { applyBatchEdit('vdia', batchPopover.value, batchPopover.onlyPending); setBatchPopover(null); }}
+                              />
                             )}
                           </th>
 
@@ -2288,7 +2873,7 @@ export default function BudgetPlannedPage() {
                             <div className="flex items-center justify-end gap-1">
                               <div className="flex flex-col items-end leading-tight gap-0.5">
                                 <span className="text-[11px] font-semibold text-slate-600">Alim. R$/dia</span>
-                                <div className="flex items-center gap-2 text-[9px] font-medium" style={{color:'#94A3B8'}}>
+                                <div className="flex items-center gap-2 text-[10px] font-medium" style={{color:'#94A3B8'}}>
                                   <span><span className="inline-block w-1.5 h-1.5 rounded-full mr-0.5" style={{background:'#2563EB', verticalAlign:'middle'}} />Útil</span>
                                   <span><span className="inline-block w-1.5 h-1.5 rounded-full mr-0.5" style={{background:'#F97316', verticalAlign:'middle'}} />FDS</span>
                                 </div>
@@ -2297,27 +2882,19 @@ export default function BudgetPlannedPage() {
                                 onClick={() => setBatchPopover(batchPopover?.field === 'alim' ? null : { field: 'alim', value: '', onlyPending: true })}
                                 className={`text-[10px] transition-colors cursor-pointer ${batchApplied.has('alim') ? 'text-[#3B4FE4]' : 'text-slate-300 hover:text-slate-500'}`}
                                 title="Editar em lote"
+                                aria-label="Editar alimentação em lote"
                               >✏</button>
                             </div>
                             {batchPopover?.field === 'alim' && (
-                              <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-xl border border-slate-200 shadow-xl p-3 w-56 text-left" style={{minWidth:'220px'}}>
-                                <div className="text-[11px] font-semibold text-slate-600 mb-2">Alim. R$/dia — aplicar para todos</div>
-                                <input
-                                  type="text" inputMode="decimal" placeholder="0,00"
-                                  value={batchPopover.value}
-                                  onChange={e => setBatchPopover(p => p ? {...p, value: e.target.value} : p)}
-                                  autoFocus
-                                  className="w-full h-8 border border-slate-200 rounded-md px-2 text-right text-[12px] font-mono outline-none focus:border-[#3B4FE4] focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)] mb-2"
-                                />
-                                <label className="flex items-center gap-1.5 text-[11px] text-slate-500 mb-3 cursor-pointer">
-                                  <Checkbox checked={batchPopover.onlyPending} onCheckedChange={v => setBatchPopover(p => p ? {...p, onlyPending: !!v} : p)} className="w-3.5 h-3.5" />
-                                  Apenas Pendentes
-                                </label>
-                                <div className="flex gap-2">
-                                  <button onClick={() => setBatchPopover(null)} className="flex-1 h-7 text-[11px] border border-slate-200 rounded-md text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</button>
-                                  <button onClick={() => { applyBatchEdit('alim', batchPopover.value, batchPopover.onlyPending); setBatchPopover(null); }} className="flex-1 h-7 text-[11px] rounded-md text-white font-semibold" style={{background:'#3B4FE4'}}>Aplicar</button>
-                                </div>
-                              </div>
+                              <BatchPopover
+                                title="Alim. R$/dia — aplicar para todos"
+                                value={batchPopover.value}
+                                onlyPending={batchPopover.onlyPending}
+                                onChangeValue={v => setBatchPopover(p => p ? {...p, value: v} : p)}
+                                onTogglePending={v => setBatchPopover(p => p ? {...p, onlyPending: v} : p)}
+                                onCancel={() => setBatchPopover(null)}
+                                onApply={() => { applyBatchEdit('alim', batchPopover.value, batchPopover.onlyPending); setBatchPopover(null); }}
+                              />
                             )}
                           </th>
 
@@ -2329,27 +2906,19 @@ export default function BudgetPlannedPage() {
                                   onClick={() => setBatchPopover(batchPopover?.field === 'mob' ? null : { field: 'mob', value: '', onlyPending: true })}
                                   className={`text-[10px] transition-colors cursor-pointer ${batchApplied.has('mob') ? 'text-[#3B4FE4]' : 'text-slate-300 hover:text-slate-500'}`}
                                   title="Editar em lote"
+                                  aria-label="Editar mobilidade em lote"
                                 >✏</button>
                               </div>
                               {batchPopover?.field === 'mob' && (
-                                <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-xl border border-slate-200 shadow-xl p-3 w-56 text-left" style={{minWidth:'220px'}}>
-                                  <div className="text-[11px] font-semibold text-slate-600 mb-2">Mob. R$/dia — aplicar para todos</div>
-                                  <input
-                                    type="text" inputMode="decimal" placeholder="0,00"
-                                    value={batchPopover.value}
-                                    onChange={e => setBatchPopover(p => p ? {...p, value: e.target.value} : p)}
-                                    autoFocus
-                                    className="w-full h-8 border border-slate-200 rounded-md px-2 text-right text-[12px] font-mono outline-none focus:border-[#3B4FE4] focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)] mb-2"
-                                  />
-                                  <label className="flex items-center gap-1.5 text-[11px] text-slate-500 mb-3 cursor-pointer">
-                                    <Checkbox checked={batchPopover.onlyPending} onCheckedChange={v => setBatchPopover(p => p ? {...p, onlyPending: !!v} : p)} className="w-3.5 h-3.5" />
-                                    Apenas Pendentes
-                                  </label>
-                                  <div className="flex gap-2">
-                                    <button onClick={() => setBatchPopover(null)} className="flex-1 h-7 text-[11px] border border-slate-200 rounded-md text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</button>
-                                    <button onClick={() => { applyBatchEdit('mob', batchPopover.value, batchPopover.onlyPending); setBatchPopover(null); }} className="flex-1 h-7 text-[11px] rounded-md text-white font-semibold" style={{background:'#3B4FE4'}}>Aplicar</button>
-                                  </div>
-                                </div>
+                                <BatchPopover
+                                  title="Mob. R$ total (Ida+Volta) — aplicar para todos"
+                                  value={batchPopover.value}
+                                  onlyPending={batchPopover.onlyPending}
+                                  onChangeValue={v => setBatchPopover(p => p ? {...p, value: v} : p)}
+                                  onTogglePending={v => setBatchPopover(p => p ? {...p, onlyPending: v} : p)}
+                                  onCancel={() => setBatchPopover(null)}
+                                  onApply={() => { applyBatchEdit('mob', batchPopover.value, batchPopover.onlyPending); setBatchPopover(null); }}
+                                />
                               )}
                             </th>
                           <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 bg-blue-50/60 text-[#3B4FE4]">Subtotal</th>
@@ -2378,516 +2947,28 @@ export default function BudgetPlannedPage() {
                             <td colSpan={colSpanTotal} className="px-4 py-12 text-center text-sm text-slate-400">Nenhum colaborador encontrado</td>
                           </tr>
                         ) : filteredBudgets.map((budget, rowIdx) => {
-                          const isSent = sentToActual.has(budget.inclusion.id);
-                          const isNotAttended = isCardNotAttended(budget);
-                          const hasOvr = budget.hasOverride;
-                          const name = getCollaboratorName(budget.inclusion.collaboratorId);
-                          const funcName = getFunctionName(budget.inclusion.functionId);
+                          const sid = budget.inclusion.id;
                           const prevBudgetCollab = rowIdx > 0 ? filteredBudgets[rowIdx - 1].inclusion.collaboratorId : null;
                           const isNewCollab = prevBudgetCollab !== budget.inclusion.collaboratorId;
-                          const isCasaTypeHdr = budget.collaborator?.type === 'casa' || budget.collaborator?.type === 'local';
-                          const foodTotal = (budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds) / 100;
-                          const foodPerDay = foodTotal / Math.max(1, budget.qtdDiarias);
-                          const mobTotal = budget.mobilidade / 100;
-                          const disabled = isSent || isNotAttended;
-                          const matchingActual = actualsByCollabFunc.get(`${budget.inclusion.collaboratorId}|${budget.inclusion.functionId}`);
-                          const sid = budget.inclusion.id;
-                          const prevBudget = rowIdx > 0 ? filteredBudgets[rowIdx - 1] : null;
-                          const isSameCollab = prevBudget?.inclusion.collaboratorId === budget.inclusion.collaboratorId;
-                          const buf = (field: string, fallback: string) =>
-                            sheetInputValues[`${sid}:${field}`] ?? fallback;
-                          const setbuf = (field: string, val: string) =>
-                            setSheetInputValues(prev => ({ ...prev, [`${sid}:${field}`]: val }));
-                          const clearbuf = (field: string) =>
-                            setSheetInputValues(prev => { const n = {...prev}; delete n[`${sid}:${field}`]; return n; });
-                          const commitBlur = (field: 'qtdDiarias'|'valorDia'|'valorDiaFds'|'alimentacao'|'alimentacaoUtil'|'alimentacaoFds'|'mobilidade', key: string) => (e: React.FocusEvent<HTMLInputElement>) => {
-                            handleSheetEdit(budget, field, e.target.value);
-                            clearbuf(key);
-                          };
-
-                          // Per-field override detection
-                          const ovr = budgetOverrides[sid];
-                          const vdiaEdited = ovr?.valorDiariaUtil !== undefined;
-                          const vdiaFdsEdited = ovr?.valorDiariaFds !== undefined;
-                          const alimUtilEdited = ovr?.almocoSemana !== undefined || ovr?.jantarSemana !== undefined;
-                          const alimFdsEdited = ovr?.almocoFds !== undefined || ovr?.jantarFds !== undefined;
-                          const alimEdited = alimUtilEdited || alimFdsEdited;
-                          const mobEdited = ovr?.mobilidade !== undefined;
-
-                          // Tipo: Casa ou Freela
-                          const isCasaType = budget.collaborator?.type === 'casa' || budget.collaborator?.type === 'local';
-
-                          // Default values for tooltips (use system defaults — same as what pending records show)
-                          const fv = budget.functionValue;
-                          // Atendimento: o "padrão" é a tarifa do tipo escolhido (plana)
-                          const atendDefault = isAtendimentoFunction(getFunctionName(budget.inclusion.functionId))
-                            ? atendimentoDailyCents((budget.inclusion as any).atendimentoTipo, systemSettings as any)
-                            : null;
-                          const defaultVDia = atendDefault ?? (isCasaType
-                            ? (fv?.dailyValue ?? systemSettings?.default_daily_value_weekday ?? systemSettings?.default_daily_value ?? 5000)
-                            : (fv?.dailyValueFreela ?? systemSettings?.default_daily_value_weekday_freela ?? systemSettings?.default_daily_value ?? 5000));
-                          const defaultVDiaFds = atendDefault ?? (isCasaType
-                            ? (fv?.dailyValueWeekend ?? systemSettings?.default_daily_value_weekend ?? systemSettings?.default_daily_value ?? 5000)
-                            : (fv?.dailyValueFreelaWeekend ?? systemSettings?.default_daily_value_weekend_freela ?? systemSettings?.default_daily_value ?? 5000));
-                          const defaultAlimTotal = ((systemSettings?.default_weekday_lunch ?? 3500) + (systemSettings?.default_weekday_dinner ?? 4000)) * budget.weekdays
-                                            + ((systemSettings?.default_weekend_lunch ?? 4000) + (systemSettings?.default_weekend_dinner ?? 4500)) * budget.weekends;
-                          const defaultAlim = Math.round(defaultAlimTotal / Math.max(1, budget.qtdDiarias));
-                          // Mobilidade agora é automatizada por horário de voo — o "padrão" é o próprio valor calculado
-                          const defaultMob = budget.mobilidade;
-                          const tipoLabel = isCasaType ? 'Casa' : 'Freela';
-                          const tipoIcon = isCasaType ? '🏠' : '⚡';
-
-                          const inputBase = `h-7 text-right font-mono tabular-nums text-[12px] rounded px-2 outline-none transition-all
-                            ${disabled
-                              ? 'bg-transparent text-slate-300 cursor-not-allowed'
-                              : 'bg-transparent border border-transparent text-slate-700 focus:bg-white focus:border-[#2563EB] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.12)]'}`;
-
-                          const restoreField = (field: 'valorDia'|'valorDiaFds'|'alimentacao'|'alimentacaoUtil'|'alimentacaoFds'|'mobilidade') => {
-                            if (!ovr) return;
-                            const updated = { ...ovr };
-                            if (field === 'valorDia') { delete (updated as any).valorDiariaUtil; }
-                            else if (field === 'valorDiaFds') { delete (updated as any).valorDiariaFds; }
-                            else if (field === 'alimentacao') { delete (updated as any).almocoSemana; delete (updated as any).jantarSemana; delete (updated as any).almocoFds; delete (updated as any).jantarFds; }
-                            else if (field === 'alimentacaoUtil') { delete (updated as any).almocoSemana; delete (updated as any).jantarSemana; }
-                            else if (field === 'alimentacaoFds') { delete (updated as any).almocoFds; delete (updated as any).jantarFds; }
-                            else if (field === 'mobilidade') { delete (updated as any).mobilidade; delete (updated as any).mobilidadeIda; delete (updated as any).mobilidadeVolta; }
-                            const hasAny = Object.keys(updated).filter(k => k !== 'inclusionId' && k !== 'qtdDiarias').length > 0;
-                            if (!hasAny && !updated.qtdDiarias) {
-                              setBudgetOverrides(prev => { const n = {...prev}; delete n[sid]; return n; });
-                            } else {
-                              setBudgetOverrides(prev => ({ ...prev, [sid]: updated }));
-                            }
-                          };
-
                           return (
-                            <tr
-                              key={budget.inclusion.id}
-                              style={{
-                                background: isSent ? '#FAFAFA' : undefined,
-                                borderTop: isNewCollab && rowIdx > 0 ? '2px solid #CBD5E1' : undefined,
-                              }}
-                              className={`group transition-colors ${isSent ? '' : isNotAttended ? 'opacity-40' : 'hover:bg-blue-50/20'} ${hasOvr && !isSent ? 'bg-amber-50/20' : ''}`}
-                            >
-                              {/* Checkbox */}
-                              <td style={{width:40, paddingLeft:12, verticalAlign:'middle'}}>
-                                <Checkbox
-                                  checked={selectedRows.has(sid)}
-                                  onCheckedChange={v => setSelectedRows(prev => { const next = new Set(prev); v ? next.add(sid) : next.delete(sid); return next; })}
-                                  className="w-3.5 h-3.5"
-                                  disabled={isSent}
-                                />
-                              </td>
-
-                              {/* Colaborador + Função + Período — coluna rica com avatar */}
-                              <td className="pl-4 pr-4 py-3" style={{minWidth:'280px', verticalAlign:'middle'}}>
-                                <div className="flex items-start gap-3">
-                                  {/* Avatar com iniciais */}
-                                  {isNewCollab && (() => {
-                                    const initials = name.split(' ').filter(Boolean).slice(0,2).map((w:string) => w[0]).join('').toUpperCase();
-                                    return (
-                                      <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold mt-0.5"
-                                        style={isCasaTypeHdr
-                                          ? {background:'#DBEAFE', color:'#1D4ED8'}
-                                          : {background:'#FEE2E2', color:'#B91C1C'}}>
-                                        {initials}
-                                      </div>
-                                    );
-                                  })()}
-                                  {!isNewCollab && <div className="shrink-0 w-8" />}
-
-                                  <div className="flex-1 min-w-0">
-                                    {isNewCollab && (
-                                      <div className="flex items-center gap-1.5 mb-0.5">
-                                        <span style={{fontSize:13, fontWeight:600, color:'#111827', letterSpacing:'-0.01em'}}>{toTitleCase(name)}</span>
-                                        {hasOvr && !isSent && (
-                                          <TooltipProvider delayDuration={150}>
-                                            <Tooltip>
-                                              <TooltipTrigger asChild>
-                                                <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{background:'#F97316', boxShadow:'0 0 0 2px #FFF'}} />
-                                              </TooltipTrigger>
-                                              <TooltipContent side="top" className="text-xs">Valores editados manualmente pelo RH</TooltipContent>
-                                            </Tooltip>
-                                          </TooltipProvider>
-                                        )}
-                                        <span className="inline-flex items-center justify-center text-[10px] font-semibold rounded-full"
-                                          style={{
-                                            ...(isCasaTypeHdr ? {background:'#EFF6FF', color:'#1D4ED8'} : {background:'#FFF1F2', color:'#BE123C'}),
-                                            padding: '2px 8px',
-                                            minWidth: 44,
-                                          }}>
-                                          {isCasaTypeHdr ? 'Casa' : 'Freela'}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {/* Linha 2: Função | Período */}
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span className={`text-[11px] ${isNotAttended ? 'line-through text-slate-400' : 'text-slate-500'}`}>
-                                        {funcName}
-                                      </span>
-                                      {budget.inclusion.scheduleStartDate && (
-                                        <span className="text-[11px]" style={{color:'#9CA3AF'}}>
-                                          · {new Date(budget.inclusion.scheduleStartDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}
-                                          {budget.inclusion.scheduleEndDate && budget.inclusion.scheduleStartDate !== budget.inclusion.scheduleEndDate && (
-                                            <> → {new Date(budget.inclusion.scheduleEndDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}</>
-                                          )}
-                                        </span>
-                                      )}
-                                      {matchingActual?.rhAdjusted && (
-                                        <TooltipProvider delayDuration={200}>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <span className="inline-flex items-center shrink-0 cursor-default" style={{color:'#D97706'}}>✏</span>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="right" className="text-xs">RH ajustou o realizado deste colaborador</TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      )}
-                                    </div>
-                                    {/* Linha 3: Status discreto */}
-                                    <div className="mt-0.5">
-                                      {isSent ? (
-                                        <span className="inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-px rounded-full" style={{background:'#DCFCE7', color:'#16A34A'}}>
-                                          <Check className="w-2 h-2" />Enviado
-                                        </span>
-                                      ) : !isNotAttended ? (
-                                        <span className="inline-flex items-center text-[9px] font-semibold px-1.5 py-px rounded-full" style={{background:'#FEF3C7', color:'#92400E'}}>
-                                          Pendente
-                                        </span>
-                                      ) : null}
-                                    </div>
-                                  </div>
-                                </div>
-                              </td>
-
-                              {/* Diárias qty — somente leitura */}
-                              <td className="px-3 py-3 text-center" style={{background:'#F8FAFC', verticalAlign:'middle'}}>
-                                <TooltipProvider delayDuration={200}>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="text-[13px] font-semibold tabular-nums font-mono text-slate-600 cursor-default select-none">
-                                        {budget.weekdays + budget.weekends}
-                                      </span>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top" className="text-xs max-w-[220px]">
-                                      <div className="flex flex-col gap-0.5">
-                                        {budget.weekdays > 0 && <span><span style={{color:'#2563EB'}}>●</span> Útil: {budget.weekdays}×</span>}
-                                        {budget.weekends > 0 && <span><span style={{color:'#F97316'}}>●</span> FDS: {budget.weekends}×</span>}
-                                      </div>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </td>
-
-                              {/* Diária R$/dia — Útil + FDS empilhados */}
-                              <td className="px-4 py-3" style={{minWidth:'120px', verticalAlign:'middle'}}>
-                                {/* Útil */}
-                                <div className="flex items-center justify-end gap-1 mb-1.5 rounded-md px-1 -mx-1" style={{background:'rgba(37,99,235,0.05)'}}>
-                                  <TooltipProvider delayDuration={150}>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <input
-                                          type="text" inputMode="decimal"
-                                          disabled={disabled}
-                                          value={buf('vdia', (budget.valorDiariaUtil / 100).toFixed(2))}
-                                          onChange={e => setbuf('vdia', e.target.value)}
-                                          onBlur={commitBlur('valorDia', 'vdia')}
-                                          onFocus={e => e.target.select()}
-                                          className={`${inputBase} flex-1 min-w-0 ${!disabled && vdiaEdited ? 'font-bold' : ''}`}
-                                          style={!disabled && vdiaEdited ? {color:'#2563EB', borderColor:'#93C5FD'} : !disabled ? {color:'#1e40af'} : {}}
-                                        />
-                                      </TooltipTrigger>
-                                      {!disabled && (
-                                        <TooltipContent side="top" className="text-xs">
-                                          {vdiaEdited ? `Editado · padrão: R$ ${(defaultVDia / 100).toFixed(2).replace('.', ',')}` : `Padrão da função ${funcName} (dia útil)`}
-                                        </TooltipContent>
-                                      )}
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                  {vdiaEdited && !disabled && (() => {
-                                    const fbKey = `${sid}:vdia`;
-                                    const restored = restoredFeedback === fbKey;
-                                    return (
-                                      <TooltipProvider delayDuration={restored ? 0 : 150}>
-                                        <Tooltip open={restored ? true : undefined}>
-                                          <TooltipTrigger asChild>
-                                            <button onClick={() => { restoreField('valorDia'); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
-                                              className={`text-[10px] shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#2563EB]'}`}>↩</button>
-                                          </TooltipTrigger>
-                                          <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão'}</TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
-                                    );
-                                  })()}
-                                </div>
-                                {/* FDS */}
-                                <div className="flex items-center justify-end gap-1 rounded-md px-1 -mx-1" style={{background:'#FFF8F2'}}>
-                                  <TooltipProvider delayDuration={150}>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <input
-                                          type="text" inputMode="decimal"
-                                          disabled={disabled}
-                                          value={buf('vdiaFds', (budget.valorDiariaFds / 100).toFixed(2))}
-                                          onChange={e => setbuf('vdiaFds', e.target.value)}
-                                          onBlur={(e) => { handleSheetEdit(budget, 'valorDiaFds', e.target.value); clearbuf('vdiaFds'); }}
-                                          onFocus={e => e.target.select()}
-                                          className={`${inputBase} flex-1 min-w-0 ${!disabled && vdiaFdsEdited ? 'font-bold' : ''}`}
-                                          style={!disabled && vdiaFdsEdited ? {color:'#F97316', borderColor:'#FED7AA'} : !disabled ? {color:'#C2410C'} : {}}
-                                        />
-                                      </TooltipTrigger>
-                                      {!disabled && (
-                                        <TooltipContent side="top" className="text-xs">
-                                          {vdiaFdsEdited ? `Editado · padrão: R$ ${(defaultVDiaFds / 100).toFixed(2).replace('.', ',')}` : `Padrão da função ${funcName} (fim de semana)`}
-                                        </TooltipContent>
-                                      )}
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                  {vdiaFdsEdited && !disabled && (() => {
-                                    const fbKey = `${sid}:vdiaFds`;
-                                    const restored = restoredFeedback === fbKey;
-                                    return (
-                                      <TooltipProvider delayDuration={restored ? 0 : 150}>
-                                        <Tooltip open={restored ? true : undefined}>
-                                          <TooltipTrigger asChild>
-                                            <button onClick={() => { restoreField('valorDiaFds'); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
-                                              className={`text-[10px] shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#F97316]'}`}>↩</button>
-                                          </TooltipTrigger>
-                                          <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão'}</TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
-                                    );
-                                  })()}
-                                </div>
-                              </td>
-
-                              {/* Alim. R$/dia — Útil + FDS empilhados */}
-                              <td className="px-4 py-3" style={{minWidth:'120px', verticalAlign:'middle'}}>
-                                {/* Útil */}
-                                <div className="flex items-center justify-end gap-1 mb-1.5 rounded-md px-1 -mx-1" style={{background:'rgba(37,99,235,0.05)'}}>
-                                  <TooltipProvider delayDuration={150}>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <input
-                                          type="text" inputMode="decimal"
-                                          disabled={disabled || budget.weekdays === 0}
-                                          value={budget.weekdays === 0 ? '—' : buf('alimUtil', ((budget.almocoSemana + budget.jantarSemana) / Math.max(1, budget.weekdays) / 100).toFixed(2))}
-                                          onChange={e => setbuf('alimUtil', e.target.value)}
-                                          onBlur={commitBlur('alimentacaoUtil', 'alimUtil')}
-                                          onFocus={e => e.target.select()}
-                                          className={`${inputBase} flex-1 min-w-0 ${!disabled && budget.weekdays > 0 && alimUtilEdited ? 'font-bold' : ''}`}
-                                          style={!disabled && budget.weekdays > 0 && alimUtilEdited ? {color:'#2563EB', borderColor:'#93C5FD'} : !disabled && budget.weekdays > 0 ? {color:'#1e3a8a'} : {color:'#CBD5E1'}}
-                                        />
-                                      </TooltipTrigger>
-                                      {!disabled && budget.weekdays > 0 && (
-                                        <TooltipContent side="top" className="text-xs">
-                                          {alimUtilEdited
-                                            ? `Editado · padrão: R$ ${((budget.unitAlmocoSemana + budget.unitJantarSemana) / 100).toFixed(2).replace('.', ',')} /dia útil`
-                                            : `Almoço + Jantar por dia útil`}
-                                        </TooltipContent>
-                                      )}
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                  {alimUtilEdited && !disabled && budget.weekdays > 0 && (() => {
-                                    const fbKey = `${sid}:alimUtil`;
-                                    const restored = restoredFeedback === fbKey;
-                                    return (
-                                      <TooltipProvider delayDuration={restored ? 0 : 150}>
-                                        <Tooltip open={restored ? true : undefined}>
-                                          <TooltipTrigger asChild>
-                                            <button onClick={() => { restoreField('alimentacaoUtil'); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
-                                              className={`text-[10px] shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#2563EB]'}`}>↩</button>
-                                          </TooltipTrigger>
-                                          <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão'}</TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
-                                    );
-                                  })()}
-                                </div>
-                                {/* FDS */}
-                                <div className="flex items-center justify-end gap-1 rounded-md px-1 -mx-1" style={{background:'#FFF8F2'}}>
-                                  <TooltipProvider delayDuration={150}>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <input
-                                          type="text" inputMode="decimal"
-                                          disabled={disabled || budget.weekends === 0}
-                                          value={budget.weekends === 0 ? '—' : buf('alimFds', ((budget.almocoFds + budget.jantarFds) / Math.max(1, budget.weekends) / 100).toFixed(2))}
-                                          onChange={e => setbuf('alimFds', e.target.value)}
-                                          onBlur={commitBlur('alimentacaoFds', 'alimFds')}
-                                          onFocus={e => e.target.select()}
-                                          className={`${inputBase} flex-1 min-w-0 ${!disabled && budget.weekends > 0 && alimFdsEdited ? 'font-bold' : ''}`}
-                                          style={!disabled && budget.weekends > 0 && alimFdsEdited ? {color:'#F97316', borderColor:'#FDBA74'} : !disabled && budget.weekends > 0 ? {color:'#92400e'} : {color:'#CBD5E1'}}
-                                        />
-                                      </TooltipTrigger>
-                                      {!disabled && budget.weekends > 0 && (
-                                        <TooltipContent side="top" className="text-xs">
-                                          {alimFdsEdited
-                                            ? `Editado · padrão: R$ ${((budget.unitAlmocoFds + budget.unitJantarFds) / 100).toFixed(2).replace('.', ',')} /dia FDS`
-                                            : `Almoço + Jantar por dia de fim de semana`}
-                                        </TooltipContent>
-                                      )}
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                  {alimFdsEdited && !disabled && budget.weekends > 0 && (() => {
-                                    const fbKey = `${sid}:alimFds`;
-                                    const restored = restoredFeedback === fbKey;
-                                    return (
-                                      <TooltipProvider delayDuration={restored ? 0 : 150}>
-                                        <Tooltip open={restored ? true : undefined}>
-                                          <TooltipTrigger asChild>
-                                            <button onClick={() => { restoreField('alimentacaoFds'); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
-                                              className={`text-[10px] shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#F97316]'}`}>↩</button>
-                                          </TooltipTrigger>
-                                          <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão'}</TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
-                                    );
-                                  })()}
-                                </div>
-                              </td>
-
-                              {/* Mobilidade — coluna individual */}
-                              <td className="px-4 py-3 text-right" style={{verticalAlign:'middle'}}>
-                                  <div className="flex items-center justify-end gap-1">
-                                    <TooltipProvider delayDuration={150}>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <input
-                                            type="text" inputMode="decimal"
-                                            disabled={disabled}
-                                            value={buf('mob', mobTotal.toFixed(2))}
-                                            onChange={e => setbuf('mob', e.target.value)}
-                                            onBlur={commitBlur('mobilidade', 'mob')}
-                                            onFocus={e => e.target.select()}
-                                            className={`${inputBase} w-[80px] ${!disabled && mobEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-slate-900' : ''}`}
-                                          />
-                                        </TooltipTrigger>
-                                        {!disabled && (
-                                          <TooltipContent side="top" className="text-xs">
-                                            {mobEdited
-                                              ? `Editado · padrão: R$ ${(defaultMob / 100).toFixed(2).replace('.', ',')} (total Ida+Volta)`
-                                              : `Total Ida+Volta · padrão: R$ ${(defaultMob / 100).toFixed(2).replace('.', ',')}`}
-                                          </TooltipContent>
-                                        )}
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                    {mobEdited && !disabled && (() => {
-                                      const fbKey = `${sid}:mob`;
-                                      const restored = restoredFeedback === fbKey;
-                                      return (
-                                        <TooltipProvider delayDuration={restored ? 0 : 150}>
-                                          <Tooltip open={restored ? true : undefined}>
-                                            <TooltipTrigger asChild>
-                                              <button
-                                                onClick={() => {
-                                                  restoreField('mobilidade');
-                                                  setRestoredFeedback(fbKey);
-                                                  setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000);
-                                                }}
-                                                className={`text-[10px] transition-colors cursor-pointer shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#3B4FE4]'}`}
-                                              >↩</button>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="top" className="text-xs">
-                                              {restored ? 'Restaurado ✓' : 'Restaurar valor padrão da função'}
-                                            </TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      );
-                                    })()}
-                                  </div>
-                                </td>
-
-                              {/* Subtotal — clicável → Memória de Cálculo */}
-                              <td className="px-4 py-3 text-right bg-blue-50/20" style={{position:'relative', verticalAlign:'middle'}}>
-                                <button
-                                  onClick={() => setSubtotalOpenId(subtotalOpenId === sid ? null : sid)}
-                                  className={`text-[14px] font-mono font-bold tabular-nums transition-colors ${isNotAttended ? 'text-slate-300 line-through cursor-default' : 'cursor-pointer hover:opacity-80'}`}
-                                  style={isNotAttended ? {} : {color:'#0033CC'}}
-                                  disabled={isNotAttended}
-                                >
-                                  {formatCurrency(budget.totalFinal)}
-                                </button>
-                                {matchingActual?.rhAdjusted && isSent && (
-                                  <div className="text-[11px] font-mono font-semibold tabular-nums mt-0.5" style={{color:'#D97706'}}>
-                                    {formatCurrency(matchingActual.totalValue)} ✏
-                                  </div>
-                                )}
-                                {/* Popover de Memória de Cálculo */}
-                                {subtotalOpenId === sid && !isNotAttended && (() => {
-                                  const wdFood = budget.weekdays > 0 ? (budget.almocoSemana + budget.jantarSemana) / Math.max(1, budget.weekdays) : 0;
-                                  const weFood = budget.weekends > 0 ? (budget.almocoFds + budget.jantarFds) / Math.max(1, budget.weekends) : 0;
-                                  const wdTotal = budget.weekdays * (budget.valorDiariaUtil + Math.round(wdFood));
-                                  const weTotal = budget.weekends * (budget.valorDiariaFds + Math.round(weFood));
-                                  const fmt = (v: number) => (v / 100).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
-                                  return (
-                                    <div
-                                      id={`subtotal-popover-${sid}`}
-                                      onClick={e => e.stopPropagation()}
-                                      style={{
-                                        position:'absolute', right:0, top:'100%', zIndex:60,
-                                        background:'#fff', border:'1px solid #E2E8F0',
-                                        borderRadius:12, boxShadow:'0 8px 24px rgba(0,0,0,0.12)',
-                                        padding:'14px 16px', minWidth:270, textAlign:'left',
-                                      }}
-                                    >
-                                      <div style={{fontSize:11, fontWeight:700, color:'#0033CC', marginBottom:10, letterSpacing:'0.05em', textTransform:'uppercase'}}>
-                                        Memória de Cálculo · {toTitleCase(name)}
-                                      </div>
-                                      <div style={{fontSize:11, color:'#64748B', marginBottom:8}}>
-                                        {budget.qtdDiarias} {budget.qtdDiarias === 1 ? 'dia' : 'dias'}
-                                        {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && ` · ${new Date(budget.inclusion.scheduleStartDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})} → ${new Date(budget.inclusion.scheduleEndDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}`}
-                                      </div>
-                                      <table style={{width:'100%', borderCollapse:'collapse', fontSize:12}}>
-                                        <tbody>
-                                          {budget.weekdays > 0 && (
-                                            <tr>
-                                              <td style={{paddingBottom:4, color:'#2563EB', fontWeight:600}}>{budget.weekdays} Dia{budget.weekdays > 1 ? 's' : ''} Útil{budget.weekdays > 1 ? 'eis' : ''}</td>
-                                              <td style={{paddingBottom:4, textAlign:'right', color:'#374151', fontFamily:'monospace'}}>{fmt(wdTotal)}</td>
-                                            </tr>
-                                          )}
-                                          {budget.weekdays > 0 && (
-                                            <tr>
-                                              <td colSpan={2} style={{paddingBottom:8, color:'#9CA3AF', fontSize:10, paddingLeft:8}}>
-                                                Diária {fmt(budget.valorDiariaUtil)} + Alim. {fmt(Math.round(wdFood))} por dia
-                                              </td>
-                                            </tr>
-                                          )}
-                                          {budget.weekends > 0 && (
-                                            <tr>
-                                              <td style={{paddingBottom:4, color:'#F97316', fontWeight:600}}>{budget.weekends} Fim{budget.weekends > 1 ? 's' : ''} de Semana</td>
-                                              <td style={{paddingBottom:4, textAlign:'right', color:'#374151', fontFamily:'monospace'}}>{fmt(weTotal)}</td>
-                                            </tr>
-                                          )}
-                                          {budget.weekends > 0 && (
-                                            <tr>
-                                              <td colSpan={2} style={{paddingBottom:8, color:'#9CA3AF', fontSize:10, paddingLeft:8}}>
-                                                Diária {fmt(budget.valorDiariaFds)} + Alim. {fmt(Math.round(weFood))} por dia
-                                              </td>
-                                            </tr>
-                                          )}
-                                          {budget.mobilidade > 0 && (
-                                            <tr>
-                                              <td style={{paddingBottom:4, color:'#6D28D9', fontWeight:600}}>Mobilidade (total)</td>
-                                              <td style={{paddingBottom:4, textAlign:'right', color:'#374151', fontFamily:'monospace'}}>{fmt(budget.mobilidade)}</td>
-                                            </tr>
-                                          )}
-                                        </tbody>
-                                        <tfoot>
-                                          <tr style={{borderTop:'2px solid #E2E8F0'}}>
-                                            <td style={{paddingTop:8, fontWeight:700, color:'#0033CC', fontSize:13}}>Total</td>
-                                            <td style={{paddingTop:8, textAlign:'right', fontWeight:700, color:'#0033CC', fontFamily:'monospace', fontSize:13}}>{fmt(budget.totalFinal)}</td>
-                                          </tr>
-                                        </tfoot>
-                                      </table>
-                                      <button
-                                        onClick={() => setSubtotalOpenId(null)}
-                                        style={{marginTop:10, fontSize:10, color:'#94A3B8', cursor:'pointer', background:'none', border:'none', display:'block', textAlign:'center', width:'100%'}}
-                                      >fechar</button>
-                                    </div>
-                                  );
-                                })()}
-                              </td>
-                            </tr>
+                            <SheetRow
+                              key={sid}
+                              budget={budget}
+                              name={getCollaboratorName(budget.inclusion.collaboratorId)}
+                              funcName={getFunctionName(budget.inclusion.functionId)}
+                              isSent={sentToActual.has(sid)}
+                              isNotAttended={isCardNotAttended(budget)}
+                              isNewCollab={isNewCollab}
+                              showTopBorder={isNewCollab && rowIdx > 0}
+                              selected={selectedIds.has(sid)}
+                              ovr={budgetOverrides[sid]}
+                              matchingActual={actualsByCollabFunc.get(`${budget.inclusion.collaboratorId}|${budget.inclusion.functionId}`)}
+                              subtotalOpen={subtotalOpenId === sid}
+                              onToggleSelect={toggleRowSelection}
+                              onSheetEdit={handleSheetEdit}
+                              onRestoreField={restoreSheetField}
+                              onToggleSubtotal={toggleSubtotalPopover}
+                            />
                           );
                         })}
                       </tbody>
@@ -2960,7 +3041,7 @@ export default function BudgetPlannedPage() {
                     </div>
                     {isAdmin && (
                       <div className="flex items-center gap-3">
-                        {hasEdits && !inlineSendConfirm && (
+                        {hasEdits && (
                           <button
                             onClick={() => setBudgetOverrides(prev => {
                               const updated = { ...prev };
@@ -2972,56 +3053,28 @@ export default function BudgetPlannedPage() {
                             Descartar Alterações
                           </button>
                         )}
-                        {inlineSendConfirm ? (
-                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50" style={{animation:'fadeIn 0.15s ease'}}>
-                            <span className="text-[12px] font-medium text-slate-700 whitespace-nowrap">
-                              Enviar para {pendingSheet.length} colaborador{pendingSheet.length !== 1 ? 'es' : ''}?
+                        <button
+                          disabled={!hasPending}
+                          onClick={() => {
+                            if (!hasPending) return;
+                            const ids = pendingSheet.map(b => b.inclusion.id);
+                            setSelectedIds(new Set(ids));
+                            setConfirmSend({ ids, source: 'batch' });
+                          }}
+                          className={`h-10 flex items-center gap-2 text-[13px] font-semibold text-white px-5 rounded-lg shadow-md transition-all
+                            ${hasPending
+                              ? `bg-[#059669] hover:bg-[#047857] ${hasEdits ? 'shadow-emerald-200 ring-2 ring-emerald-400 ring-offset-1' : 'shadow-emerald-100'}`
+                              : 'bg-slate-300 cursor-not-allowed opacity-50 shadow-none'}
+                          `}
+                        >
+                          <Send className="w-4 h-4" />
+                          Enviar Planejamento
+                          {hasPending && (
+                            <span className="ml-1 w-5 h-5 rounded-full bg-white/25 flex items-center justify-center text-[11px] font-bold leading-none">
+                              {pendingSheet.length}
                             </span>
-                            <button
-                              onClick={() => setInlineSendConfirm(false)}
-                              className="text-[12px] font-medium text-slate-500 hover:text-slate-700 px-2 py-1 rounded-lg hover:bg-white/60 transition-colors"
-                            >
-                              Cancelar
-                            </button>
-                            <button
-                              disabled={sendSelectedToActualMutation.isPending}
-                              onClick={() => {
-                                sendSelectedToActualMutation.mutate();
-                                setInlineSendConfirm(false);
-                              }}
-                              className="h-8 flex items-center gap-1.5 text-[12px] font-semibold text-white px-3 rounded-lg bg-[#059669] hover:bg-[#047857] transition-colors shadow-sm"
-                            >
-                              {sendSelectedToActualMutation.isPending ? (
-                                <RefreshCw className="w-3 h-3 animate-spin" />
-                              ) : (
-                                <Send className="w-3 h-3" />
-                              )}
-                              Confirmar envio
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            disabled={!hasPending}
-                            onClick={() => {
-                              if (!hasPending) return;
-                              setSelectedCards(new Set(pendingSheet.map(b => b.inclusion.id)));
-                              setInlineSendConfirm(true);
-                            }}
-                            className={`h-10 flex items-center gap-2 text-[13px] font-semibold text-white px-5 rounded-lg shadow-md transition-all
-                              ${hasPending
-                                ? `bg-[#059669] hover:bg-[#047857] ${hasEdits ? 'shadow-emerald-200 ring-2 ring-emerald-400 ring-offset-1' : 'shadow-emerald-100'}`
-                                : 'bg-slate-300 cursor-not-allowed opacity-50 shadow-none'}
-                            `}
-                          >
-                            <Send className="w-4 h-4" />
-                            Enviar Planejamento
-                            {hasPending && (
-                              <span className="ml-1 w-5 h-5 rounded-full bg-white/25 flex items-center justify-center text-[11px] font-bold leading-none">
-                                {pendingSheet.length}
-                              </span>
-                            )}
-                          </button>
-                        )}
+                          )}
+                        </button>
                       </div>
                     )}
                   </div>
@@ -3042,9 +3095,10 @@ export default function BudgetPlannedPage() {
           {editingBudget && editingBudgetInfo && (() => {
             const noWeekdays = editingBudgetInfo.weekdays === 0;
             const noWeekends = editingBudgetInfo.weekends === 0;
-            const subtotalDiariasUtil = editingBudgetInfo.weekdays * editingBudget.valorDiariaUtil;
-            const subtotalDiariasFds = editingBudgetInfo.weekends * editingBudget.valorDiariaFds;
-            const totalDiarias = subtotalDiariasUtil + subtotalDiariasFds;
+            const totalDiasModal = editingBudgetInfo.weekdays + editingBudgetInfo.weekends;
+            // Mesma conta do card: diária plana COM deflação por período
+            const deflatedModal = calcDeflatedDailies(editingBudget.valorDiaria, totalDiasModal, deflationFactorsFromSettings(systemSettings));
+            const totalDiarias = deflatedModal.totalCents;
             const effectiveAlmocoSemana = noWeekdays ? 0 : editingBudget.almocoSemana;
             const effectiveJantarSemana = noWeekdays ? 0 : editingBudget.jantarSemana;
             const effectiveAlmocoFds = noWeekends ? 0 : editingBudget.almocoFds;
@@ -3057,6 +3111,9 @@ export default function BudgetPlannedPage() {
             // Campo a campo: edições que se compensam no total também contam
             const hasChanges = !!originalModalValues && (Object.keys(editingBudget) as (keyof BudgetEdit)[])
               .some(k => editingBudget[k] !== originalModalValues![k]);
+            // Difere do MOTOR ATUAL (override herdado ou edição da sessão) → habilita "Restaurar padrão"
+            const differsFromDefault = !!defaultBudgetValues && (Object.keys(editingBudget) as (keyof BudgetEdit)[])
+              .some(k => k !== 'inclusionId' && editingBudget[k] !== defaultBudgetValues![k]);
             const modalInitials = editingBudgetInfo.name.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase();
 
             const restoreDefaults = () => {
@@ -3184,44 +3241,36 @@ export default function BudgetPlannedPage() {
                     </div>
                   )}
                   <div className="divide-y divide-slate-100">
-                    {/* Dias Úteis */}
+                    {/* Diária PLANA — um único valor para todos os dias */}
                     <div className="flex items-center px-3.5 py-2 gap-3">
                       <div className="flex items-center gap-1.5 flex-1">
                         <Briefcase className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span className="text-[12px] font-medium text-slate-700">Dias Úteis</span>
-                        <span className="text-[10px] text-slate-400">({editingBudgetInfo.weekdays})</span>
+                        <span className="text-[12px] font-medium text-slate-700">Diária</span>
+                        <span className="text-[10px] text-slate-400">× {totalDiasModal} {totalDiasModal === 1 ? 'dia' : 'dias'}</span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span className="text-[11px] text-slate-400">R$</span>
                         <Input
                           type="number" step="1" className={inputCls}
-                          value={noWeekdays ? 0 : editingBudget.valorDiariaUtil / 100}
-                          disabled={noWeekdays || modalViewMode}
-                          onChange={e => setEditingBudget({...editingBudget, valorDiariaUtil: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                          aria-label="Diária (R$/dia)"
+                          value={editingBudget.valorDiaria / 100}
+                          disabled={modalViewMode}
+                          onChange={e => {
+                            const v = Math.round(parseFloat(e.target.value) * 100) || 0;
+                            // diária plana: espelha nos campos legados útil/fds
+                            setEditingBudget({...editingBudget, valorDiaria: v, valorDiariaUtil: v, valorDiariaFds: v});
+                          }}
                         />
                         <span className="text-[10px] text-slate-400">/dia</span>
                       </div>
-                      <span className="text-[13px] font-bold text-slate-700 w-20 text-right shrink-0">{formatCurrency(subtotalDiariasUtil)}</span>
+                      <span className="text-[13px] font-bold text-slate-700 w-20 text-right shrink-0">{formatCurrency(totalDiarias)}</span>
                     </div>
-                    {/* Fim de Semana */}
-                    <div className="flex items-center px-3.5 py-2 gap-3 bg-amber-50/30">
-                      <div className="flex items-center gap-1.5 flex-1">
-                        <Sun className="w-3 h-3 text-amber-500 shrink-0" />
-                        <span className="text-[12px] font-medium text-slate-700">Fim de Semana</span>
-                        <span className="text-[10px] text-slate-400">({editingBudgetInfo.weekends})</span>
+                    {/* Memória da deflação por período */}
+                    {deflatedModal.segments.length > 1 && (
+                      <div className="px-3.5 py-1.5 text-[10px] bg-blue-50/30" style={{color:'#5B6BB8'}}>
+                        Deflação por período: {formatSegmentsMemo(deflatedModal.segments)} = <b>{formatCurrency(totalDiarias)}</b>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] text-slate-400">R$</span>
-                        <Input
-                          type="number" step="1" className={inputCls}
-                          value={noWeekends ? 0 : editingBudget.valorDiariaFds / 100}
-                          disabled={noWeekends || modalViewMode}
-                          onChange={e => setEditingBudget({...editingBudget, valorDiariaFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                        />
-                        <span className="text-[10px] text-slate-400">/dia</span>
-                      </div>
-                      <span className="text-[13px] font-bold text-slate-700 w-20 text-right shrink-0">{formatCurrency(subtotalDiariasFds)}</span>
-                    </div>
+                    )}
                   </div>
                 </div>
 
@@ -3438,7 +3487,7 @@ export default function BudgetPlannedPage() {
                     <div className="text-[11px] text-slate-500 mt-0.5 leading-tight">
                       Mobilidade <span className="font-semibold text-slate-600">{formatCurrency(editingBudget.mobilidade)}</span>
                     </div>
-                    {diff !== 0 && (
+                    {hasChanges && diff !== 0 && (
                       <div className={`text-[10px] font-bold mt-1 ${diff > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
                         {diff > 0 ? '▲' : '▼'} {formatCurrency(Math.abs(diff))} vs original
                       </div>
@@ -3448,9 +3497,10 @@ export default function BudgetPlannedPage() {
                 {/* Botões */}
                 <div className="px-5 pb-3 flex justify-between items-center gap-2" style={{borderTop:'1px solid #e5e7eb', paddingTop:'10px', background:'white'}}>
                   <div>
-                    {!modalViewMode && hasChanges && (
+                    {!modalViewMode && differsFromDefault && (
                       <button
                         onClick={restoreDefaults}
+                        title="Volta aos valores da regra atual (atendimento/freela/casa + deflação + voo)"
                         className="flex items-center gap-1 text-[11px] font-medium text-[#0033CC] hover:text-[#0022aa] transition-colors"
                       >
                         <RotateCcw className="w-3 h-3" />
@@ -3485,163 +3535,94 @@ export default function BudgetPlannedPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Modal Envio em Lote ── */}
-      <Dialog open={confirmSendOpen} onOpenChange={v => { if (!sendSelectedToActualMutation.isPending) setConfirmSendOpen(v); }}>
-        <DialogContent className="max-w-sm p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl" style={{border:'1px solid rgba(0,0,0,0.06)'}}>
-          <DialogHeader className="sr-only"><DialogTitle>Enviar Planejamento</DialogTitle></DialogHeader>
-          <div className="bg-white flex flex-col items-center px-6 pt-7 pb-6 gap-4"
-            style={{animation:'modalIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both'}}>
-            {/* Ícone */}
-            <div className="w-12 h-12 rounded-full flex items-center justify-center"
-              style={{background:'#EFF6FF', border:'1.5px solid #BFDBFE'}}>
-              <Send style={{color:'#2563EB', width:20, height:20}} />
-            </div>
-            {/* Título */}
-            <div className="text-center space-y-1">
-              <h2 className="text-[15px] font-medium text-slate-800">Enviar Planejamento?</h2>
-              <p className="text-[12px] font-normal text-slate-400">
-                {selectedCards.size} {selectedCards.size === 1 ? 'colaborador selecionado' : 'colaboradores selecionados'}
-              </p>
-            </div>
-            {/* Resumo */}
-            <div className="w-full rounded-2xl overflow-hidden" style={{border:'1px solid #E2E8F0'}}>
-              <div className="flex items-center justify-between px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-slate-400" />
-                  <span className="text-[12px] font-normal text-slate-500">Colaboradores</span>
-                </div>
-                <span className="text-[13px] font-medium text-slate-700">{selectedCards.size} {selectedCards.size === 1 ? 'pessoa' : 'pessoas'}</span>
-              </div>
-              <div className="flex items-center justify-between px-4 py-3" style={{borderTop:'1px solid #F1F5F9', background:'#F8FAFF'}}>
-                <div className="flex items-center gap-2">
-                  <span className="text-[12px] font-normal text-slate-500">Valor total</span>
-                </div>
-                <span className="text-[15px] font-medium" style={{color:'#2563EB'}}>{formatCurrency(totalSelecionado)}</span>
-              </div>
-            </div>
-            {/* Mensagem */}
-            <p className="text-center text-[12px] font-normal text-slate-400 leading-relaxed">
-              As informações de custos e logística serão enviadas para aprovação. Deseja prosseguir?
-            </p>
-            {/* Linha do total */}
-            <div className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl"
-              style={{background:'#F8FAFC', border:'1px solid #E2E8F0'}}>
-              <span className="text-[11px] font-normal text-slate-400">Total a ser enviado</span>
-              <span className="text-[14px] font-medium tabular-nums" style={{color:'#059669'}}>
-                {formatCurrency(totalSelecionado)}
-              </span>
-            </div>
-            {/* Botões */}
-            <div className="flex gap-2 w-full">
-              <button
-                className="flex-1 h-10 rounded-xl text-[13px] font-medium text-slate-500 transition-colors"
-                style={{background:'rgba(241,245,249,0.6)'}}
-                onClick={() => setConfirmSendOpen(false)}
-                disabled={sendSelectedToActualMutation.isPending}
-              >
-                Voltar
-              </button>
-              <button
-                className="flex-1 h-10 rounded-xl text-[13px] font-medium text-white flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-70"
-                style={{background:'#059669', boxShadow:'0 2px 10px rgba(5,150,105,0.3)'}}
-                disabled={sendSelectedToActualMutation.isPending}
-                onClick={() => sendSelectedToActualMutation.mutate()}
-              >
-                {sendSelectedToActualMutation.isPending ? (
-                  <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Enviando...</>
-                ) : (
-                  <><Check className="w-3.5 h-3.5" />Confirmar Envio</>
-                )}
-              </button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Modal Salvar Planejamento Individual ── */}
-      <Dialog open={!!confirmSendSingle} onOpenChange={v => { if (!sendToActualMutation.isPending) { if (!v) setConfirmSendSingle(null); } }}>
-        <DialogContent className="max-w-sm p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl" style={{border:'1px solid rgba(0,0,0,0.06)'}}>
-          <DialogHeader className="sr-only"><DialogTitle>Salvar Planejamento</DialogTitle></DialogHeader>
-          {confirmSendSingle && (() => {
+      {/* ── Confirmação de envio UNIFICADA (cards, individual e planilha) ── */}
+      <AlertDialog
+        open={!!confirmSend}
+        onOpenChange={v => {
+          if (sendToActualMutation.isPending || sendSelectedToActualMutation.isPending) return;
+          if (!v) setConfirmSend(null);
+        }}
+      >
+        <AlertDialogContent className="max-w-sm rounded-3xl">
+          {confirmSend && (() => {
+            const targets = calculatedBudgets.filter(b => confirmSend.ids.includes(b.inclusion.id) && !sentToActual.has(b.inclusion.id));
+            const single = confirmSend.source === 'single' && targets.length === 1 ? targets[0] : null;
+            const totalEnvio = targets.reduce((s, b) => s + b.totalFinal, 0);
+            const anyEdited = targets.some(b => b.hasOverride);
+            const isSending = sendToActualMutation.isPending || sendSelectedToActualMutation.isPending;
+            const doSend = () => {
+              if (single) sendToActualMutation.mutate(single as typeof calculatedBudgets[0]);
+              else sendSelectedToActualMutation.mutate();
+            };
             return (
-              <div className="bg-white flex flex-col items-center px-6 pt-7 pb-6 gap-4"
-                style={{animation:'modalIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both'}}>
-                {/* Ícone Send */}
-                <div className="w-12 h-12 rounded-full flex items-center justify-center"
-                  style={{background:'#ECFDF5', border:'1.5px solid #A7F3D0'}}>
-                  <Send style={{color:'#059669', width:20, height:20}} />
-                </div>
-                {/* Título + colaborador */}
-                <div className="text-center space-y-1">
-                  <h2 className="text-[15px] font-medium text-slate-800">
-                    Enviar para o Realizado?
-                  </h2>
-                  <p className="text-[12px] font-normal text-slate-400">
-                    {getCollaboratorName(confirmSendSingle.inclusion.collaboratorId)} · {getFunctionName(confirmSendSingle.inclusion.functionId)}
-                  </p>
-                </div>
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-[15px]">Enviar para a prestação de contas?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-[12px]">
+                    {single
+                      ? `${getCollaboratorName(single.inclusion.collaboratorId)} · ${getFunctionName(single.inclusion.functionId)}`
+                      : `${targets.length} ${targets.length === 1 ? 'colaborador selecionado' : 'colaboradores selecionados'}`}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+
                 {/* Resumo de custos */}
                 <div className="w-full rounded-2xl overflow-hidden" style={{border:'1px solid #E2E8F0'}}>
-                  <div className="flex items-center justify-between px-4 py-3">
-                    <span className="text-[12px] font-normal text-slate-500">Diárias</span>
-                    <span className="text-[12px] font-medium text-slate-600">{formatCurrency(confirmSendSingle.subtotalDiarias)}</span>
-                  </div>
-                  <div className="flex items-center justify-between px-4 py-3" style={{borderTop:'1px solid #F1F5F9'}}>
-                    <span className="text-[12px] font-normal text-slate-500">Alimentação</span>
-                    <span className="text-[12px] font-medium text-slate-600">{formatCurrency(confirmSendSingle.almocoSemana + confirmSendSingle.jantarSemana + confirmSendSingle.almocoFds + confirmSendSingle.jantarFds)}</span>
-                  </div>
-                  <div className="flex items-center justify-between px-4 py-3" style={{borderTop:'1px solid #F1F5F9'}}>
-                    <span className="text-[12px] font-normal text-slate-500">Mobilidade</span>
-                    <span className="text-[12px] font-medium text-slate-600">{formatCurrency(confirmSendSingle.mobilidade)}</span>
-                  </div>
-                  <div className="flex items-center justify-between px-4 py-3" style={{
-                    borderTop:'1px solid #F1F5F9',
-                    background: '#F0FDF4',
-                  }}>
-                    <span className="text-[12px] font-medium text-slate-600">Total planejado</span>
-                    <span className="text-[15px] font-medium" style={{color:'#059669'}}>{formatCurrency(confirmSendSingle.totalFinal)}</span>
+                  {single ? (
+                    <>
+                      <div className="flex items-center justify-between px-4 py-2.5">
+                        <span className="text-[12px] font-normal text-slate-500">Diárias</span>
+                        <span className="text-[12px] font-medium text-slate-600">{formatCurrency(single.subtotalDiarias)}</span>
+                      </div>
+                      <div className="flex items-center justify-between px-4 py-2.5" style={{borderTop:'1px solid #F1F5F9'}}>
+                        <span className="text-[12px] font-normal text-slate-500">Alimentação</span>
+                        <span className="text-[12px] font-medium text-slate-600">{formatCurrency(single.almocoSemana + single.jantarSemana + single.almocoFds + single.jantarFds)}</span>
+                      </div>
+                      <div className="flex items-center justify-between px-4 py-2.5" style={{borderTop:'1px solid #F1F5F9'}}>
+                        <span className="text-[12px] font-normal text-slate-500">Mobilidade</span>
+                        <span className="text-[12px] font-medium text-slate-600">{formatCurrency(single.mobilidade)}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-slate-400" />
+                        <span className="text-[12px] font-normal text-slate-500">Colaboradores</span>
+                      </div>
+                      <span className="text-[13px] font-medium text-slate-700">{targets.length} {targets.length === 1 ? 'pessoa' : 'pessoas'}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between px-4 py-2.5" style={{borderTop:'1px solid #F1F5F9', background:'#F0FDF4'}}>
+                    <span className="text-[12px] font-medium text-slate-600">Total a ser enviado</span>
+                    <span className="text-[15px] font-medium tabular-nums" style={{color:'#059669'}}>{formatCurrency(totalEnvio)}</span>
                   </div>
                 </div>
-                {/* Mensagem de apoio */}
+
+                {/* Copy consistente entre os três fluxos */}
                 <p className="text-center text-[12px] font-normal text-slate-400 leading-relaxed">
-                  Os valores calculados serão enviados diretamente para o Realizado. Esta ação não pode ser desfeita.
+                  {targets.length === 1 ? 'O planejamento será enviado' : 'Os planejamentos serão enviados'} para a prestação de contas (Realizado)
+                  {anyEdited ? ' — os valores editados manualmente vão junto' : ''}. Esta ação não pode ser desfeita.
                 </p>
-                {/* Linha do total */}
-                <div className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl"
-                  style={{background:'#F8FAFC', border:'1px solid #E2E8F0'}}>
-                  <span className="text-[11px] font-normal text-slate-400">Total a ser enviado</span>
-                  <span className="text-[14px] font-medium tabular-nums" style={{color:'#059669'}}>
-                    {formatCurrency(confirmSendSingle.totalFinal)}
-                  </span>
-                </div>
-                {/* Botões */}
-                <div className="flex gap-2 w-full">
-                  <button
-                    className="flex-1 h-10 rounded-xl text-[13px] font-medium text-slate-500 transition-colors"
-                    style={{background:'rgba(241,245,249,0.6)'}}
-                    onClick={() => setConfirmSendSingle(null)}
-                    disabled={sendToActualMutation.isPending}
+
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={isSending} className="rounded-xl text-[13px]">Voltar</AlertDialogCancel>
+                  <AlertDialogAction
+                    disabled={isSending || targets.length === 0}
+                    onClick={e => { e.preventDefault(); doSend(); }}
+                    className="rounded-xl text-[13px] gap-1.5 text-white"
+                    style={{background:'#059669'}}
                   >
-                    Voltar
-                  </button>
-                  <button
-                    className="flex-1 h-10 rounded-xl text-[13px] font-medium text-white flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-70"
-                    style={{background:'#059669', boxShadow:'0 2px 10px rgba(5,150,105,0.3)'}}
-                    disabled={sendToActualMutation.isPending}
-                    onClick={() => sendToActualMutation.mutate(confirmSendSingle as typeof calculatedBudgets[0])}
-                  >
-                    {sendToActualMutation.isPending ? (
+                    {isSending ? (
                       <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Enviando...</>
                     ) : (
                       <><Check className="w-3.5 h-3.5" />Confirmar Envio</>
                     )}
-                  </button>
-                </div>
-              </div>
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </>
             );
           })()}
-        </DialogContent>
-      </Dialog>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── Modal de confirmação de restauração ── */}
       <Dialog open={!!restoreModal} onOpenChange={() => setRestoreModal(null)}>
@@ -3844,24 +3825,24 @@ export default function BudgetPlannedPage() {
               </div>
             ) : (
               <button
-                onClick={() => selectedCards.size > 0 ? setConfirmSendOpen(true) : undefined}
-                disabled={selectedCards.size === 0}
+                onClick={() => selectedIds.size > 0 ? setConfirmSend({ ids: Array.from(selectedIds), source: 'batch' }) : undefined}
+                disabled={selectedIds.size === 0}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 7,
                   height: 38, paddingLeft: 18, paddingRight: 18,
-                  borderRadius: 12, border: 'none', cursor: selectedCards.size > 0 ? 'pointer' : 'not-allowed',
+                  borderRadius: 12, border: 'none', cursor: selectedIds.size > 0 ? 'pointer' : 'not-allowed',
                   flexShrink: 0,
-                  background: selectedCards.size > 0 ? '#059669' : '#E2E8F0',
-                  color: selectedCards.size > 0 ? '#fff' : '#94A3B8',
-                  boxShadow: selectedCards.size > 0 ? '0 4px 14px rgba(5,150,105,0.35)' : 'none',
+                  background: selectedIds.size > 0 ? '#059669' : '#E2E8F0',
+                  color: selectedIds.size > 0 ? '#fff' : '#94A3B8',
+                  boxShadow: selectedIds.size > 0 ? '0 4px 14px rgba(5,150,105,0.35)' : 'none',
                   fontSize: 13, fontWeight: 600,
                   transition: 'all 0.2s ease',
-                  opacity: selectedCards.size === 0 ? 0.7 : 1,
+                  opacity: selectedIds.size === 0 ? 0.7 : 1,
                 }}
               >
                 <Send style={{width: 14, height: 14}} />
-                {selectedCards.size > 0
-                  ? `Enviar Planejamento (${selectedCards.size})`
+                {selectedIds.size > 0
+                  ? `Enviar Planejamento (${selectedIds.size})`
                   : 'Selecione colaboradores'}
               </button>
             )}

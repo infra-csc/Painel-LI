@@ -12,10 +12,10 @@ import { isRhOrAdmin } from "@/lib/permissions";
 import { useLocation } from "wouter";
 import {
   Shield, Search, CheckCircle, XCircle, RotateCcw, Clock,
-  FileText, FileCheck, ChevronDown, ChevronUp, MessageSquare,
+  FileText, FileCheck, ChevronDown,
   AlertTriangle, Users, Calendar, Filter,
   ChevronRight, Eye, ArrowRight, ClipboardList,
-  Send, CircleDot, Ban, ExternalLink, TrendingDown, TrendingUp, Check
+  Send, CircleDot, Ban, ExternalLink, Check
 } from "lucide-react";
 
 const RH_AVATAR_COLORS = [
@@ -29,11 +29,13 @@ function avatarColorRh(name: string) {
 function initialsRh(name: string) {
   return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 }
+// Mesma implementação da tela de Notas Fiscais (invoices.tsx) — manter idênticas.
 function toTitleCase(str: string): string {
+  if (!str || str === "—" || str === "-") return str;
   return str.toLowerCase().replace(/(?:^|\s)\S/g, a => a.toUpperCase());
 }
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, User, TeamInclusion } from "@shared/schema";
-import { isNfEligible } from "@shared/prestacao-rules";
+import { isNfEligible, nfIsentaPorEscalacao } from "@shared/prestacao-rules";
 
 type PrestacaoStatus =
   | "planejamento_pendente"
@@ -43,7 +45,11 @@ type PrestacaoStatus =
   | "aprovada_faturamento"
   | "recusada"
   | "all"
-  | "rh_action";
+  | "rh_action"
+  // Filtros dos cards de métrica (não são status de item):
+  | "col_action"
+  | "nf_andamento"
+  | "concluidos";
 
 interface PrestacaoItem {
   id: string;
@@ -128,7 +134,6 @@ export default function RhControlPage() {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
   const [approvingInvoiceId, setApprovingInvoiceId] = useState<string | null>(null);
-  const [nfApprovalDate, setNfApprovalDate] = useState("");
   const [nfApproving, setNfApproving] = useState(false);
   const [expandedDetails, setExpandedDetails] = useState<Set<string>>(new Set());
   const toggleDetails = (id: string) => setExpandedDetails(prev => {
@@ -193,17 +198,9 @@ export default function RhControlPage() {
     id ? functionNameById.get(id) || "-" : "-";
 
   // Definido na escalação: se emitsNf === false, o colaborador não emite NF.
-  // Mesma regra da tela de Notas Fiscais: match por colaborador+função na
-  // escalação do evento; sem match exato, assume que emite (cobra NF).
-  const emitsNfFor = (actual: { eventId?: string | null; collaboratorId?: string | null; functionId?: string | null }): boolean => {
-    const matches = (allTeamInclusions || []).filter(ti =>
-      !ti.deletedAt && ti.collaboratorId && ti.collaboratorId === actual.collaboratorId && ti.eventId === actual.eventId
-    );
-    if (matches.length === 0) return true;
-    const byFunction = matches.find(ti => ti.functionId === actual.functionId);
-    if (!byFunction) return true;
-    return byFunction.emitsNf !== false;
-  };
+  // Regra única em @shared/prestacao-rules — mesma da tela de Notas Fiscais.
+  const emitsNfFor = (actual: { eventId?: string | null; collaboratorId?: string | null; functionId?: string | null }): boolean =>
+    !nfIsentaPorEscalacao(allTeamInclusions, actual.collaboratorId, actual.functionId, actual.eventId);
 
   const getUserName = (id?: string | null) =>
     id ? users?.find(u => u.id === id)?.name || "-" : "-";
@@ -230,15 +227,31 @@ export default function RhControlPage() {
     const processedPlannedIds = new Set<string>();
     const seenKeys = new Set<string>();
 
+    // Maps pré-computados — substituem Array.find O(n) dentro do loop O(n²)
+    const eventById = new Map<string, Event>(events.map(e => [e.id, e]));
+    const keyOf = (r: { eventId?: string | null; collaboratorId?: string | null; functionId?: string | null }) =>
+      `${r.eventId}|${r.collaboratorId}|${r.functionId}`;
+    const plannedByKey = new Map<string, BudgetPlanned>();
+    for (const p of allPlanned || []) {
+      const key = keyOf(p);
+      if (!plannedByKey.has(key)) plannedByKey.set(key, p);
+    }
+    const actualByPlannedId = new Map<string, BudgetActual>();
+    const actualByKey = new Map<string, BudgetActual>();
+    for (const a of allActual || []) {
+      if (a.splitParentId) continue;
+      if (a.plannedId && !actualByPlannedId.has(a.plannedId)) actualByPlannedId.set(a.plannedId, a);
+      const key = keyOf(a);
+      if (!actualByKey.has(key)) actualByKey.set(key, a);
+    }
+    const findActualFor = (planned: BudgetPlanned): BudgetActual | null =>
+      actualByPlannedId.get(planned.id) || actualByKey.get(keyOf(planned)) || null;
+
     for (const ti of activeInclusions) {
-      const event = events.find(e => e.id === ti.eventId);
+      const event = eventById.get(ti.eventId);
       if (!event) continue;
 
-      const matchingPlanned = allPlanned?.find(p =>
-        p.eventId === ti.eventId &&
-        p.collaboratorId === ti.collaboratorId &&
-        p.functionId === ti.functionId
-      );
+      const matchingPlanned = plannedByKey.get(keyOf(ti));
 
       if (!matchingPlanned) {
         items.push({
@@ -259,12 +272,7 @@ export default function RhControlPage() {
       seenKeys.add(itemKey);
       processedPlannedIds.add(matchingPlanned.id);
 
-      const matchingActual = allActual?.find(a =>
-        !a.splitParentId && (
-          (a.plannedId === matchingPlanned.id) ||
-          (a.collaboratorId === matchingPlanned.collaboratorId && a.functionId === matchingPlanned.functionId && a.eventId === matchingPlanned.eventId)
-        )
-      ) || null;
+      const matchingActual = findActualFor(matchingPlanned);
 
       let status: PrestacaoStatus = "aguardando_prestacao";
       let responsavelAtual = "Responsável da função";
@@ -313,19 +321,14 @@ export default function RhControlPage() {
 
     const orphanPlanned = (allPlanned || []).filter(p => !processedPlannedIds.has(p.id));
     for (const planned of orphanPlanned) {
-      const event = events.find(e => e.id === planned.eventId);
+      const event = eventById.get(planned.eventId);
       if (!event) continue;
 
       const itemKey = `pl-${planned.id}`;
       if (seenKeys.has(itemKey)) continue;
       seenKeys.add(itemKey);
 
-      const matchingActual = allActual?.find(a =>
-        !a.splitParentId && (
-          (a.plannedId === planned.id) ||
-          (a.collaboratorId === planned.collaboratorId && a.functionId === planned.functionId && a.eventId === planned.eventId)
-        )
-      ) || null;
+      const matchingActual = findActualFor(planned);
 
       let status: PrestacaoStatus = "aguardando_prestacao";
       let responsavelAtual = resolveResponsavel(planned.createdBy);
@@ -390,29 +393,46 @@ export default function RhControlPage() {
 
   const RH_STATUSES: PrestacaoStatus[] = ["prestacao_recebida", "planejamento_pendente"];
 
-  const isCheckinPending = (item: PrestacaoItem): boolean => {
-    if (item.status !== "aprovada_faturamento") return false;
-    const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
-    return inv?.status === "aprovada" && !inv?.checkinAt;
-  };
-
   const filteredItems = useMemo(() => {
     return prestacaoItems.filter(item => {
+      const itemAsEscalacao = { eventId: item.event.id, collaboratorId: item.collaboratorId, functionId: item.functionId };
       if (filterStatus === "rh_action") {
         const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
         const needsRhCheckin = item.status === "aprovada_faturamento" && inv?.status === "aprovada" && !inv?.checkinAt;
         const needsRhNfApproval = item.status === "aprovada_faturamento" && inv?.status === "enviada";
         if (!RH_STATUSES.includes(item.status) && !needsRhCheckin && !needsRhNfApproval) return false;
+      } else if (filterStatus === "col_action") {
+        // Card "Aguardando Colaborador": Realizado pendente/devolvido + NF devolvida + NF a enviar
+        const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
+        const nfElig = item.actual ? isNfEligible(item.actual) : false;
+        const nfDevolvida = nfElig && inv?.status === "devolvida";
+        const nfPendente = nfElig && (!inv || inv.status === "pendente") && emitsNfFor(itemAsEscalacao);
+        if (item.status !== "aguardando_prestacao" && item.status !== "devolvida_para_ajuste" && !nfDevolvida && !nfPendente) return false;
+      } else if (filterStatus === "nf_andamento") {
+        // Card "Nota Fiscal": itens elegíveis com NF a enviar, em análise ou devolvida
+        const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
+        const nfElig = item.actual ? isNfEligible(item.actual) : false;
+        const st = inv?.status || "pendente";
+        const inNfStage = nfElig && (
+          (st === "pendente" && emitsNfFor(itemAsEscalacao)) || st === "enviada" || st === "devolvida"
+        );
+        if (!inNfStage) return false;
+      } else if (filterStatus === "concluidos") {
+        // Card "Concluídos": NF aprovada + check-in financeiro realizado
+        const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
+        const isConcluded = item.status === "aprovada_faturamento" && inv?.status === "aprovada" && !!inv?.checkinAt;
+        if (!isConcluded) return false;
       } else if (filterStatus !== "all") {
         if (item.status !== filterStatus) return false;
       } else {
-        // "Concluído" = aprovada_faturamento + NF aprovada + check-in realizado (checkinAt)
-        if (filterInvoiceStatus === "all") {
+        // "Concluído" = aprovada_faturamento + NF aprovada + check-in realizado (checkinAt).
+        // Concluídos E recusados ficam ocultos por padrão (manual); com o toggle
+        // ligado eles são ACRESCENTADOS à lista (mostra tudo), não substituem.
+        if (filterInvoiceStatus === "all" && !showConcluded) {
           const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
           const invStatus = inv?.status ?? "pendente";
           const isConcluded = item.status === "aprovada_faturamento" && invStatus === "aprovada" && !!inv?.checkinAt;
-          if (showConcluded && !isConcluded) return false;
-          if (!showConcluded && isConcluded) return false;
+          if (isConcluded || item.status === "recusada") return false;
         }
       }
       if (filterEvent !== "all" && item.event.id !== filterEvent) return false;
@@ -441,7 +461,7 @@ export default function RhControlPage() {
       }
       return true;
     });
-  }, [prestacaoItems, filterEvent, filterStatus, filterFunction, filterCollaborator, filterInvoiceStatus, searchTerm, showConcluded, filterCheckinOnly, collaborators, allInvoices]);
+  }, [prestacaoItems, filterEvent, filterStatus, filterFunction, filterCollaborator, filterInvoiceStatus, searchTerm, showConcluded, filterCheckinOnly, collaborators, allInvoices, allTeamInclusions]);
 
   const eventGroups = useMemo((): EventGroup[] => {
     const map = new Map<string, EventGroup>();
@@ -601,6 +621,27 @@ export default function RhControlPage() {
       badgeCls: "bg-blue-100 text-blue-700 border-blue-200",
       cardBorder: "border-blue-200",
     },
+    col_action: {
+      label: "Aguardando Colaborador", shortLabel: "Ag. Colaborador", description: "",
+      icon: Users, color: "text-blue-700", bg: "bg-blue-50",
+      border: "border-blue-200", iconColor: "text-blue-500",
+      badgeCls: "bg-blue-100 text-blue-700 border-blue-200",
+      cardBorder: "border-blue-200",
+    },
+    nf_andamento: {
+      label: "Nota Fiscal em andamento", shortLabel: "Nota Fiscal", description: "",
+      icon: FileText, color: "text-amber-700", bg: "bg-amber-50",
+      border: "border-amber-200", iconColor: "text-amber-500",
+      badgeCls: "bg-amber-100 text-amber-700 border-amber-200",
+      cardBorder: "border-amber-200",
+    },
+    concluidos: {
+      label: "Concluídos", shortLabel: "Concluídos", description: "",
+      icon: CheckCircle, color: "text-emerald-700", bg: "bg-emerald-50",
+      border: "border-emerald-200", iconColor: "text-emerald-500",
+      badgeCls: "bg-emerald-100 text-emerald-700 border-emerald-200",
+      cardBorder: "border-emerald-200",
+    },
   };
 
   const hasActiveFilters = filterEvent !== "all" || filterFunction !== "all" || filterCollaborator !== "all" || (filterStatus !== "all" && filterStatus !== "rh_action") || filterInvoiceStatus !== "all" || searchTerm !== "" || filterCheckinOnly;
@@ -693,13 +734,14 @@ export default function RhControlPage() {
       : nfEnviada ? "Nota fiscal enviada — aguardando aprovação do RH"
       : nfDevolvida ? "Nota fiscal devolvida para correção"
       : nfEligible ? "Aguardando envio da nota fiscal"
+      : item.status === "devolvida_para_ajuste" ? "NF pausada — Realizado devolvido para ajuste"
       : "Disponível após o envio do realizado";
 
     const mainSteps = ["Escalação", "Planejado", "Realizado", "Comparativo"];
 
     return (
       <TooltipProvider delayDuration={200}>
-        <div className="flex items-start w-full px-1 py-1">
+        <div className="flex items-start w-full min-w-[560px] px-1 py-1">
           {/* Steps 0–3 with connectors (connector always follows each step) */}
           {mainSteps.map((label, i) => {
             const isCompleted = isConcluded ? true : i < step;
@@ -716,7 +758,7 @@ export default function RhControlPage() {
                   <TooltipTrigger asChild>
                     <div className="flex flex-col items-center flex-shrink-0 cursor-default w-14">
                       <div className="relative flex items-center justify-center">
-                        {isCurrent && <span className="absolute w-7 h-7 rounded-full bg-blue-100 animate-ping opacity-60" />}
+                        {isCurrent && <span className="absolute w-7 h-7 rounded-full bg-blue-100 animate-ping opacity-60 motion-reduce:hidden" />}
                         <div className={`relative w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                           isCompleted ? 'bg-blue-600 shadow-sm shadow-blue-200'
                           : isCurrent ? 'bg-white border-2 border-blue-500'
@@ -752,7 +794,7 @@ export default function RhControlPage() {
               <TooltipTrigger asChild>
                 <div className="flex flex-col items-center flex-shrink-0 cursor-default w-14">
                   <div className="relative flex items-center justify-center">
-                    {(nfEnviada || nfAwaitingSubmission) && <span className="absolute w-7 h-7 rounded-full bg-amber-100 animate-ping opacity-60" />}
+                    {(nfEnviada || nfAwaitingSubmission) && <span className="absolute w-7 h-7 rounded-full bg-amber-100 animate-ping opacity-60 motion-reduce:hidden" />}
                     <div className={`relative w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                       nfCompleted ? 'bg-emerald-500 shadow-sm shadow-emerald-200'
                       : nfRecusada ? 'bg-red-500'
@@ -776,8 +818,8 @@ export default function RhControlPage() {
                     : 'text-slate-400'
                   }`}>Nota Fiscal</span>
                   {nfDateStr
-                    ? <span className="text-[9px] text-slate-400 whitespace-nowrap">{nfDateStr}</span>
-                    : <span className="text-[9px] text-amber-500 italic font-medium">{nfEligible ? "Ag. envio" : "—"}</span>}
+                    ? <span className="text-[10px] text-slate-400 whitespace-nowrap">{nfDateStr}</span>
+                    : <span className="text-[10px] text-amber-500 italic font-medium">{nfEligible ? "Ag. envio" : "—"}</span>}
                 </div>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs max-w-[200px]">
@@ -794,7 +836,7 @@ export default function RhControlPage() {
             <TooltipTrigger asChild>
               <div className="flex flex-col items-center flex-shrink-0 cursor-default w-16">
                 <div className="relative flex items-center justify-center">
-                  {checkinEligible && !checkinDone && <span className="absolute w-7 h-7 rounded-full bg-violet-100 animate-ping opacity-60" />}
+                  {checkinEligible && !checkinDone && <span className="absolute w-7 h-7 rounded-full bg-violet-100 animate-ping opacity-60 motion-reduce:hidden" />}
                   <div className={`relative w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                     checkinDone ? 'bg-emerald-500 shadow-sm shadow-emerald-200'
                     : checkinEligible ? 'bg-white border-2 border-violet-400'
@@ -810,10 +852,10 @@ export default function RhControlPage() {
                   : 'text-slate-300'
                 }`}>Check-in</span>
                 {checkinDateStr
-                  ? <span className="text-[9px] text-slate-400 whitespace-nowrap">{checkinDateStr}</span>
+                  ? <span className="text-[10px] text-slate-400 whitespace-nowrap">{checkinDateStr}</span>
                   : checkinEligible
-                  ? <span className="text-[9px] text-violet-500 italic font-medium">Pendente</span>
-                  : <span className="text-[9px] text-slate-300">—</span>}
+                  ? <span className="text-[10px] text-violet-500 italic font-medium">Pendente</span>
+                  : <span className="text-[10px] text-slate-300">—</span>}
               </div>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs max-w-[200px]">
@@ -944,7 +986,7 @@ export default function RhControlPage() {
                 </span>
               )}
               {isResubmitted && (
-                <span className="text-[9px] bg-violet-50 text-violet-600 border border-violet-200 font-medium px-1.5 py-0.5 rounded-full">Reenviado</span>
+                <span className="text-[10px] bg-violet-50 text-violet-600 border border-violet-200 font-medium px-1.5 py-0.5 rounded-full">Reenviado</span>
               )}
             </div>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -1045,26 +1087,25 @@ export default function RhControlPage() {
                 }
                 const isApprovingThis = approvingInvoiceId === nfInvCard?.id;
                 if (isApprovingThis) {
+                  // Aprovar não pede data: a data de pagamento entra só no
+                  // Check-in Financeiro (mesma cerimônia da tela de Notas Fiscais).
                   return (
                     <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-                      <input
-                        type="date"
-                        value={nfApprovalDate}
-                        onChange={e => setNfApprovalDate(e.target.value)}
-                        className="h-7 text-[11px] px-2 rounded-md border border-violet-300 focus:outline-none focus:ring-1 focus:ring-violet-400 bg-white"
-                        placeholder="Data pagamento"
-                      />
+                      <span className="text-[11px] text-slate-500 whitespace-nowrap">Aprovar esta nota?</span>
                       <button
-                        disabled={!nfApprovalDate || nfApproving}
+                        disabled={nfApproving}
                         onClick={async (e) => {
                           e.stopPropagation();
-                          if (!nfApprovalDate || !nfInvCard?.id) return;
+                          if (!nfInvCard?.id) return;
                           setNfApproving(true);
                           try {
-                            await apiRequest("POST", `/api/invoices/${nfInvCard.id}/approve`, { paymentDate: nfApprovalDate });
+                            await apiRequest("POST", `/api/invoices/${nfInvCard.id}/approve`, {});
                             await queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
                             setApprovingInvoiceId(null);
-                            setNfApprovalDate("");
+                            toast({
+                              title: "Nota aprovada!",
+                              description: "Faça o Check-in Financeiro para definir a data de pagamento.",
+                            });
                           } catch (err: any) {
                             toast({
                               title: "Erro ao aprovar nota",
@@ -1082,7 +1123,7 @@ export default function RhControlPage() {
                       </button>
                       <button
                         aria-label="Cancelar aprovação"
-                        onClick={(e) => { e.stopPropagation(); setApprovingInvoiceId(null); setNfApprovalDate(""); }}
+                        onClick={(e) => { e.stopPropagation(); setApprovingInvoiceId(null); }}
                         className="text-[11px] h-7 px-2 rounded-md border border-gray-200 text-slate-500 hover:bg-gray-50 transition-colors"
                       >✕</button>
                     </div>
@@ -1092,7 +1133,7 @@ export default function RhControlPage() {
                   <button
                     className="text-[11px] font-semibold h-7 px-3 rounded-md text-white transition-colors"
                     style={{ background: '#6d28d9' }}
-                    onClick={(e) => { e.stopPropagation(); setApprovingInvoiceId(nfInvCard?.id || null); setNfApprovalDate(""); }}
+                    onClick={(e) => { e.stopPropagation(); setApprovingInvoiceId(nfInvCard?.id || null); }}
                   >
                     Aprovar NF
                   </button>
@@ -1111,8 +1152,8 @@ export default function RhControlPage() {
         {isExpanded && (
           <div className="border-t border-slate-100 bg-slate-50/30 px-4 pb-4 pt-3 space-y-3">
 
-            {/* Stepper */}
-            <div className="rounded-lg bg-white border border-slate-100 px-4 py-3 shadow-sm">
+            {/* Stepper — rola horizontalmente em telas estreitas */}
+            <div className="rounded-lg bg-white border border-slate-100 px-4 py-3 shadow-sm overflow-x-auto">
               {renderTimeline(item)}
             </div>
 
@@ -1143,10 +1184,10 @@ export default function RhControlPage() {
                   {/* Compact single-line financial summary */}
                   <div className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2 flex items-center gap-3 flex-wrap">
                     <div className="flex items-center gap-2 text-[11px]">
-                      <span className="uppercase text-[9px] font-semibold tracking-wide text-slate-400">Planejado</span>
+                      <span className="uppercase text-[10px] font-semibold tracking-wide text-slate-400">Planejado</span>
                       <span className="font-semibold text-[#0033CC] tabular-nums">{fmt(item.planned.totalValue)}</span>
                       <span className="text-slate-300">→</span>
-                      <span className="uppercase text-[9px] font-semibold tracking-wide text-slate-400">Realizado</span>
+                      <span className="uppercase text-[10px] font-semibold tracking-wide text-slate-400">Realizado</span>
                       <span className="font-semibold text-[#6d28d9] tabular-nums">{fmt(item.actual!.totalValue)}</span>
                     </div>
                     {isZero ? (
@@ -1170,7 +1211,7 @@ export default function RhControlPage() {
                   {showDetails && (
                     <div className="grid grid-cols-2 divide-x divide-gray-100 rounded-lg border border-gray-200 overflow-hidden">
                       <div className="p-3">
-                        <p className="text-[9px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: '#0033CC' }}>Planejado</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: '#0033CC' }}>Planejado</p>
                         <div className="space-y-1 text-[10px]">
                           <div className="flex justify-between"><span className="text-slate-400">Diárias</span><span className="tabular-nums text-slate-600">{item.planned.dailyQuantity}× {fmt(item.planned.dailyValue)}</span></div>
                           <div className="flex justify-between"><span className="text-slate-400">Alimentação</span><span className="tabular-nums text-slate-600">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span></div>
@@ -1178,14 +1219,14 @@ export default function RhControlPage() {
                         </div>
                       </div>
                       <div className="p-3">
-                        <p className="text-[9px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: '#6d28d9' }}>Realizado</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: '#6d28d9' }}>Realizado</p>
                         <div className="space-y-1 text-[10px]">
                           <div className="flex justify-between"><span className="text-slate-400">Diárias</span><span className="tabular-nums text-slate-600">{item.actual!.dailyQuantity}× {fmt(item.actual!.dailyValue)}</span></div>
                           <div className="flex justify-between"><span className="text-slate-400">Alimentação</span><span className="tabular-nums text-slate-600">{fmt(item.actual!.weekdayLunch + item.actual!.weekdayDinner + item.actual!.weekendLunch + item.actual!.weekendDinner)}</span></div>
                           <div className="flex justify-between"><span className="text-slate-400">Mobilidade</span><span className="tabular-nums text-slate-600">{fmt(item.actual!.mobility + item.actual!.transport)}</span></div>
                         </div>
                         {item.actual!.changeReason && (
-                          <p className="text-[9px] text-slate-400 italic mt-2 pt-1.5 border-t border-gray-100">{item.actual!.changeReason}</p>
+                          <p className="text-[10px] text-slate-400 italic mt-2 pt-1.5 border-t border-gray-100">{item.actual!.changeReason}</p>
                         )}
                       </div>
                     </div>
@@ -1333,11 +1374,19 @@ export default function RhControlPage() {
   const totalItems = prestacaoItems.length;
   // "Concluído" = NF aprovada + check-in físico realizado (checkinAt)
   const concludedCount = invoiceCounts.checkinDone;
-  const totalForProgress = prestacaoItems.filter(item => !item.planned?.didNotAttend).length;
+  // Denominador exclui quem nunca terá check-in: não compareceu, recusados e
+  // "não emite NF" (definido na escalação) — senão o progresso nunca chega a 100%.
+  const totalForProgress = prestacaoItems.filter(item => {
+    if (item.planned?.didNotAttend) return false;
+    if (item.status === "recusada") return false;
+    if (!emitsNfFor({ eventId: item.event.id, collaboratorId: item.collaboratorId, functionId: item.functionId })) return false;
+    return true;
+  }).length;
   const progressPct = totalForProgress > 0 ? Math.round(concludedCount / totalForProgress * 100) : 0;
+  const recusadaCount = statusCounts.recusada || 0;
 
   return (
-    <div className="space-y-5 max-w-5xl mx-auto pb-24">
+    <div className="space-y-5 max-w-6xl mx-auto pb-24">
 
       {/* ── Page header ── */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -1394,14 +1443,36 @@ export default function RhControlPage() {
           </div>
         );
 
+        // Clique no card aplica o filtro correspondente (clicar de novo limpa)
+        const applyCardFilter = (status: PrestacaoStatus) => {
+          setFilterEvent("all");
+          setFilterFunction("all");
+          setFilterCollaborator("all");
+          setFilterInvoiceStatus("all");
+          setSearchTerm("");
+          setFilterCheckinOnly(false);
+          setShowConcluded(false);
+          setFilterStatus(prev => (prev === status ? "all" : status));
+          setTimeout(() => document.getElementById("rh-listing")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+        };
+
         const MetricCard = ({
-          stripColor, icon: Icon, iconColor, title, value, children,
+          stripColor, icon: Icon, iconColor, title, value, children, onClick, active,
         }: {
           stripColor: string; icon: any; iconColor: string; title: string; value: number; children: any;
+          onClick: () => void; active: boolean;
         }) => (
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col">
-            <div className="h-[3px]" style={{ background: stripColor }} />
-            <div className="p-5 flex flex-col flex-1">
+          <button
+            type="button"
+            onClick={onClick}
+            aria-pressed={active}
+            title={active ? "Clique para limpar este filtro" : "Clique para filtrar a lista por esta categoria"}
+            className={`bg-white rounded-xl border overflow-hidden flex flex-col text-left cursor-pointer transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${
+              active ? "border-blue-400 ring-2 ring-blue-100 shadow-sm" : "border-slate-200"
+            }`}
+          >
+            <div className="h-[3px] w-full" style={{ background: stripColor }} />
+            <div className="p-5 flex flex-col flex-1 w-full">
               <div className="flex items-center gap-2 mb-1">
                 <Icon className="w-4 h-4" style={{ color: iconColor }} />
                 <span className="text-xs font-semibold text-slate-600">{title}</span>
@@ -1413,34 +1484,43 @@ export default function RhControlPage() {
                 {children}
               </div>
             </div>
-          </div>
+          </button>
         );
 
         return (
-          <div className="grid grid-cols-4 gap-4">
-            <MetricCard stripColor="#ef4444" icon={AlertTriangle} iconColor="#ef4444" title="Aguardando RH" value={rhTotal}>
-              <MetricLine label="Planejamento" val={rhPlan} color="#ef4444" />
-              <MetricLine label="Comparativo"  val={rhComp} color="#ef4444" />
-              <MetricLine label="Nota Fiscal"  val={rhNf}   color="#ef4444" />
-              {chk > 0 && <MetricLine label="Check-in" val={chk} color="#7C3AED" />}
-            </MetricCard>
+          <div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <MetricCard stripColor="#ef4444" icon={AlertTriangle} iconColor="#ef4444" title="Aguardando RH" value={rhTotal}
+                onClick={() => applyCardFilter("rh_action")} active={filterStatus === "rh_action"}>
+                <MetricLine label="Planejamento" val={rhPlan} color="#ef4444" />
+                <MetricLine label="Comparativo"  val={rhComp} color="#ef4444" />
+                <MetricLine label="Nota Fiscal"  val={rhNf}   color="#ef4444" />
+                {chk > 0 && <MetricLine label="Check-in" val={chk} color="#7C3AED" />}
+              </MetricCard>
 
-            <MetricCard stripColor="#0033CC" icon={Users} iconColor="#0033CC" title="Aguardando Colaborador" value={colTotal}>
-              <MetricLine label="Realizado"    val={colReal}   color="#0033CC" />
-              <MetricLine label="NF devolvida" val={colNfDev}  color="#0033CC" />
-              <MetricLine label="Ag. NF"       val={colNfPend} color="#0033CC" />
-            </MetricCard>
+              <MetricCard stripColor="#0033CC" icon={Users} iconColor="#0033CC" title="Aguardando Colaborador" value={colTotal}
+                onClick={() => applyCardFilter("col_action")} active={filterStatus === "col_action"}>
+                <MetricLine label="Realizado"    val={colReal}   color="#0033CC" />
+                <MetricLine label="NF devolvida" val={colNfDev}  color="#0033CC" />
+                <MetricLine label="Ag. NF"       val={colNfPend} color="#0033CC" />
+              </MetricCard>
 
-            <MetricCard stripColor="#d97706" icon={Clock} iconColor="#d97706" title="Nota Fiscal" value={emAndamento}>
-              <MetricLine label="Ag. envio"    val={nfAgNf}    color="#d97706" />
-              <MetricLine label="Em análise"   val={nfAnalise} color="#d97706" />
-              <MetricLine label="NF devolvida" val={nfDevNf}   color="#d97706" />
-            </MetricCard>
+              <MetricCard stripColor="#d97706" icon={Clock} iconColor="#d97706" title="Nota Fiscal" value={emAndamento}
+                onClick={() => applyCardFilter("nf_andamento")} active={filterStatus === "nf_andamento"}>
+                <MetricLine label="Ag. envio"    val={nfAgNf}    color="#d97706" />
+                <MetricLine label="Em análise"   val={nfAnalise} color="#d97706" />
+                <MetricLine label="NF devolvida" val={nfDevNf}   color="#d97706" />
+              </MetricCard>
 
-            <MetricCard stripColor="#059669" icon={CheckCircle} iconColor="#059669" title="Concluídos" value={concludedCount}>
-              <MetricLine label={`de ${totalForProgress} total`} val={concludedCount} color="#059669" />
-              {recusada > 0 && <MetricLine label={`recusado${recusada !== 1 ? 's' : ''}`} val={recusada} color="#ef4444" />}
-            </MetricCard>
+              <MetricCard stripColor="#059669" icon={CheckCircle} iconColor="#059669" title="Concluídos" value={concludedCount}
+                onClick={() => applyCardFilter("concluidos")} active={filterStatus === "concluidos"}>
+                <MetricLine label={`de ${totalForProgress} total`} val={concludedCount} color="#059669" />
+                {recusada > 0 && <MetricLine label={`recusado${recusada !== 1 ? 's' : ''}`} val={recusada} color="#ef4444" />}
+              </MetricCard>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1.5">
+              Clique em um card para filtrar a lista. As categorias se sobrepõem — um item pode aparecer em mais de um card.
+            </p>
           </div>
         );
       })()}
@@ -1539,16 +1619,18 @@ export default function RhControlPage() {
           </div>
 
           <button
-            className={`h-8 px-3 text-xs rounded-md border flex items-center gap-1.5 transition-colors ${
+            className={`h-8 px-3 text-xs rounded-md border flex items-center gap-1.5 transition-colors whitespace-nowrap ${
               showConcluded ? 'border-blue-300 text-blue-700 bg-blue-50' : 'border-gray-200 text-slate-500 hover:border-gray-300 bg-white'
             }`}
             onClick={() => setShowConcluded(!showConcluded)}
+            aria-pressed={showConcluded}
+            title="Concluídos e recusados ficam ocultos por padrão; ligado, eles são acrescentados à lista"
           >
             <div className={`w-7 h-4 rounded-full relative flex items-center transition-all ${showConcluded ? 'bg-blue-600' : 'bg-gray-200'}`}>
               <div className={`w-3 h-3 rounded-full bg-white shadow transition-transform ${showConcluded ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
             </div>
-            Concluídos
-            {concludedCount > 0 && <span className="text-[9px] text-slate-400">({concludedCount})</span>}
+            Mostrar concluídos e recusados
+            {(concludedCount + recusadaCount) > 0 && <span className="text-[10px] text-slate-400">({concludedCount + recusadaCount})</span>}
           </button>
 
           <Button variant="outline" size="sm"
@@ -1558,8 +1640,16 @@ export default function RhControlPage() {
             <Filter className="w-3.5 h-3.5" />
             Filtros
             {hasActiveFilters && (
-              <span className="bg-blue-600 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
-                {[filterEvent !== "all", filterFunction !== "all", filterCollaborator !== "all", filterStatus !== "all"].filter(Boolean).length}
+              <span className="bg-blue-600 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
+                {[
+                  filterEvent !== "all",
+                  filterFunction !== "all",
+                  filterCollaborator !== "all",
+                  filterStatus !== "all" && filterStatus !== "rh_action",
+                  filterInvoiceStatus !== "all",
+                  searchTerm !== "",
+                  filterCheckinOnly,
+                ].filter(Boolean).length}
               </span>
             )}
           </Button>
@@ -1624,7 +1714,7 @@ export default function RhControlPage() {
       {isRhFilterActive && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-50 border border-gray-200 text-xs text-slate-500">
           <Shield className="w-3.5 h-3.5 text-slate-400" />
-          Mostrando apenas pendências do RH ({rhActionCount} ite{rhActionCount === 1 ? 'm' : 'ns'})
+          Mostrando apenas pendências do RH ({filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'})
           <button className="ml-auto text-blue-600 hover:text-blue-800 font-medium" onClick={() => { setFilterStatus("all"); setFilterCheckinOnly(false); }}>Limpar</button>
         </div>
       )}
@@ -1638,7 +1728,7 @@ export default function RhControlPage() {
       {(filterStatus !== "all" && filterStatus !== "rh_action") && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-50 border border-gray-200 text-xs text-slate-500">
           <Shield className="w-3.5 h-3.5 text-slate-400" />
-          Filtro ativo: {filterStatus === "planejamento_pendente" ? "Planejamento pendente" : filterStatus === "prestacao_recebida" ? "Comparativo recebido" : filterStatus} ({filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'})
+          Filtro ativo: {statusConfig[filterStatus].label} ({filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'})
           <button className="ml-auto text-blue-600 hover:text-blue-800 font-medium" onClick={() => { setFilterStatus("all"); setFilterCheckinOnly(false); }}>Limpar</button>
         </div>
       )}
@@ -1662,8 +1752,8 @@ export default function RhControlPage() {
           <p className="text-sm font-medium text-slate-500">Nenhum item encontrado</p>
           <p className="text-xs text-slate-400 mt-1">
             {hasActiveFilters ? "Ajuste os filtros para ver mais resultados." :
-             showConcluded ? "Nenhum item com nota fiscal aprovada ainda." :
-             "Todos os itens estão em dia. Ative 'Concluídos' para ver os itens com NF aprovada."}
+             showConcluded ? "Nenhum item encontrado." :
+             "Todos os itens estão em dia. Ative 'Mostrar concluídos e recusados' para ver o histórico completo."}
           </p>
           {hasActiveFilters && (
             <Button variant="outline" size="sm" className="mt-3 text-xs"
@@ -1739,14 +1829,14 @@ export default function RhControlPage() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="flex items-center gap-1 shrink-0">
-                          {statuses.prestacao_recebida ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">{statuses.prestacao_recebida} comparativo{statuses.prestacao_recebida !== 1 ? 's' : ''}</span> : null}
-                          {statuses.planejamento_pendente ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">{statuses.planejamento_pendente} planejamento{statuses.planejamento_pendente !== 1 ? 's' : ''}</span> : null}
-                          {statuses.devolvida_para_ajuste ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-200">{statuses.devolvida_para_ajuste} devolvido{statuses.devolvida_para_ajuste !== 1 ? 's' : ''}</span> : null}
-                          {statuses.aguardando_prestacao ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{statuses.aguardando_prestacao} aguardando</span> : null}
-                          {agNfCount > 0 ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">{agNfCount} ag. NF</span> : null}
-                          {checkinPendingGroupCount > 0 ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-300">{checkinPendingGroupCount} check-in</span> : null}
-                          {nfApprovedCount > 0 ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">{nfApprovedCount} concluído{nfApprovedCount !== 1 ? 's' : ''}</span> : null}
-                          {statuses.recusada ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">{statuses.recusada} recusado{statuses.recusada !== 1 ? 's' : ''}</span> : null}
+                          {statuses.prestacao_recebida ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">{statuses.prestacao_recebida} comparativo{statuses.prestacao_recebida !== 1 ? 's' : ''}</span> : null}
+                          {statuses.planejamento_pendente ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">{statuses.planejamento_pendente} planejamento{statuses.planejamento_pendente !== 1 ? 's' : ''}</span> : null}
+                          {statuses.devolvida_para_ajuste ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-200">{statuses.devolvida_para_ajuste} devolvido{statuses.devolvida_para_ajuste !== 1 ? 's' : ''}</span> : null}
+                          {statuses.aguardando_prestacao ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{statuses.aguardando_prestacao} aguardando</span> : null}
+                          {agNfCount > 0 ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">{agNfCount} ag. NF</span> : null}
+                          {checkinPendingGroupCount > 0 ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-300">{checkinPendingGroupCount} check-in</span> : null}
+                          {nfApprovedCount > 0 ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">{nfApprovedCount} concluído{nfApprovedCount !== 1 ? 's' : ''}</span> : null}
+                          {statuses.recusada ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">{statuses.recusada} recusado{statuses.recusada !== 1 ? 's' : ''}</span> : null}
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side="left" className="text-[11px] space-y-1 p-2.5">

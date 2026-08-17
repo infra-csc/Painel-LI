@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
@@ -126,6 +127,7 @@ export default function BudgetActualPage() {
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [modalActualTab, setModalActualTab] = useState<'custos' | 'observacoes' | 'historico'>('custos');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmSendAll, setConfirmSendAll] = useState(false);
   const [splittingItem, setSplittingItem] = useState<BudgetActual | null>(null);
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
   const { toast } = useToast();
@@ -234,7 +236,7 @@ export default function BudgetActualPage() {
       qc.invalidateQueries({ queryKey: ["/api/budget-actual", variables.eventId] });
       toast({
         title: "Enviado para revisão",
-        description: "O orçamento realizado foi enviado para conferência.",
+        description: "O orçamento realizado foi enviado para conferência e a emissão de NF foi liberada para os itens enviados.",
         className: "bg-emerald-50 border-emerald-200 text-emerald-800",
       });
     },
@@ -378,7 +380,7 @@ export default function BudgetActualPage() {
 
   const getItemDayCounts = (item: BudgetActual): { weekdays: number; weekends: number; startDate: string | null; endDate: string | null } => {
     // When workedDays is set (after a split), derive counts from it for accuracy
-    const wd = item.workedDays as string[] | null | undefined;
+    const wd = item.workedDays;
     if (wd && wd.length > 0) {
       const weekdays = wd.filter(d => !isWeekendDate(d)).length;
       const weekends = wd.filter(d => isWeekendDate(d)).length;
@@ -397,6 +399,47 @@ export default function BudgetActualPage() {
     return { weekdays: 0, weekends: 0, startDate: null, endDate: null };
   };
 
+  // Rateio proporcional do planejado para itens de uma escalação dividida:
+  // escala diárias, alimentação (por dias úteis/fds) e mobilidade/translado (por dias)
+  // conforme os dias que couberam a este item dentro do grupo. Usada no card e no modal.
+  const getProportionalPlanned = (item: BudgetActual, rawPlan: BudgetPlanned): BudgetPlanned => {
+    const parentId = item.splitParentId || item.id;
+    const allGroupItems = budgetActual?.filter(a => a.id === parentId || a.splitParentId === parentId) || [];
+    const allGroupDays = Array.from(new Set(allGroupItems.flatMap(a => a.workedDays || []))).sort();
+    const myDays = item.workedDays || [];
+
+    if (myDays.length === 0 || allGroupDays.length === 0 || myDays.length >= allGroupDays.length) return rawPlan;
+
+    const origWkdays = allGroupDays.filter(d => !isWeekendDate(d)).length;
+    const origWknds  = allGroupDays.filter(d =>  isWeekendDate(d)).length;
+    const myWkdays   = myDays.filter(d => !isWeekendDate(d)).length;
+    const myWknds    = myDays.filter(d =>  isWeekendDate(d)).length;
+
+    const wkdayRatio = origWkdays > 0 ? myWkdays / origWkdays : 0;
+    const wkndRatio  = origWknds  > 0 ? myWknds  / origWknds  : 0;
+    const dayRatio   = myDays.length / allGroupDays.length;
+
+    const propDiarias     = myDays.length * rawPlan.dailyValue;
+    const propWkdayLunch  = Math.round(rawPlan.weekdayLunch  * wkdayRatio);
+    const propWkdayDinner = Math.round(rawPlan.weekdayDinner * wkdayRatio);
+    const propWkndLunch   = Math.round(rawPlan.weekendLunch   * wkndRatio);
+    const propWkndDinner  = Math.round(rawPlan.weekendDinner  * wkndRatio);
+    const propMobility    = Math.round(rawPlan.mobility       * dayRatio);
+    const propTransport   = Math.round(rawPlan.transport      * dayRatio);
+
+    return {
+      ...rawPlan,
+      dailyQuantity: myDays.length,
+      weekdayLunch:  propWkdayLunch,
+      weekdayDinner: propWkdayDinner,
+      weekendLunch:  propWkndLunch,
+      weekendDinner: propWkndDinner,
+      mobility:      propMobility,
+      transport:     propTransport,
+      totalValue:    propDiarias + propWkdayLunch + propWkdayDinner + propWkndLunch + propWkndDinner + propMobility + propTransport,
+    };
+  };
+
   const toggleSelect = (id: string) => {
     setSelectedCards(prev => {
       const s = new Set(Array.from(prev));
@@ -406,10 +449,12 @@ export default function BudgetActualPage() {
   };
 
   const selectAll = () => {
-    if (selectedCards.size === filteredItems.length) {
+    // Só itens ainda não enviados têm checkbox — itens travados ficam fora da seleção em lote
+    const selectable = filteredItems.filter(i => !i.sentForReview);
+    if (selectable.length > 0 && selectedCards.size === selectable.length) {
       setSelectedCards(new Set());
     } else {
-      setSelectedCards(new Set(filteredItems.map(i => i.id)));
+      setSelectedCards(new Set(selectable.map(i => i.id)));
     }
   };
 
@@ -422,8 +467,8 @@ export default function BudgetActualPage() {
     });
   };
 
-  const openEditModal = (item: BudgetActual) => {
-    setModalActualTab('custos');
+  const openEditModal = (item: BudgetActual, initialTab: 'custos' | 'observacoes' | 'historico' = 'custos') => {
+    setModalActualTab(initialTab);
     setEditingItem(item);
     const days = getItemDayCounts(item);
     const storedSubtotalDiarias = item.totalValue - item.weekdayLunch - item.weekdayDinner - item.weekendLunch - item.weekendDinner - item.mobility - item.transport;
@@ -451,10 +496,8 @@ export default function BudgetActualPage() {
     let initIda = 0;
     let initVolta = 0;
     if (item.mobility > 0) {
-      const storedIda = (item as any).mobilityIda;
-      initIda = typeof storedIda === 'number' ? storedIda : Math.ceil(item.mobility / 2);
-      const storedVolta = (item as any).mobilityVolta;
-      initVolta = typeof storedVolta === 'number' ? storedVolta : Math.floor(item.mobility / 2);
+      initIda = typeof item.mobilityIda === 'number' ? item.mobilityIda : Math.ceil(item.mobility / 2);
+      initVolta = typeof item.mobilityVolta === 'number' ? item.mobilityVolta : Math.floor(item.mobility / 2);
     }
 
     setEditFormData({
@@ -469,7 +512,7 @@ export default function BudgetActualPage() {
     });
 
     // Build per-day entries from date range
-    const workedDaysList = item.workedDays as string[] | null | undefined;
+    const workedDaysList = item.workedDays;
     const dayEntries: { date: string; valueCents: number; active: boolean; isWeekend: boolean }[] = [];
     if (days.startDate && days.endDate) {
       const cur = new Date(days.startDate + 'T00:00:00');
@@ -589,10 +632,14 @@ export default function BudgetActualPage() {
   // Itens marcados como "não participou" são excluídos das somas do banner (o Comparativo também os zera)
   const isDidNotAttend = (item: BudgetActual): boolean =>
     !!item.didNotAttend || !!getPlannedRef(item)?.didNotAttend;
-  const attendedItems = filteredItems.filter(i => !isDidNotAttend(i));
-  const totalRealizado = attendedItems.reduce((sum, item) => sum + item.totalValue, 0);
-  const totalCasa = attendedItems.filter(i => i.collaboratorType === 'casa').reduce((s, i) => s + i.totalValue, 0);
-  const totalFreela = attendedItems.filter(i => i.collaboratorType === 'freela').reduce((s, i) => s + i.totalValue, 0);
+  const { totalRealizado, totalCasa, totalFreela } = useMemo(() => {
+    const attendedItems = filteredItems.filter(i => !isDidNotAttend(i));
+    return {
+      totalRealizado: attendedItems.reduce((sum, item) => sum + item.totalValue, 0),
+      totalCasa: attendedItems.filter(i => i.collaboratorType === 'casa').reduce((s, i) => s + i.totalValue, 0),
+      totalFreela: attendedItems.filter(i => i.collaboratorType === 'freela').reduce((s, i) => s + i.totalValue, 0),
+    };
+  }, [filteredItems, budgetPlanned]);
   const totalPlanejado = useMemo(() => {
     return filteredItems
       .filter(item => !item.splitParentId)
@@ -602,8 +649,20 @@ export default function BudgetActualPage() {
         return sum + (planned ? planned.totalValue : 0);
       }, 0);
   }, [filteredItems, budgetPlanned]);
-  const prestacaoCount = filteredItems.filter(item => !item.splitParentId).length;
-  const pendingCount = filteredItems.filter(item => !item.splitParentId && !item.sentForReview).length;
+  const { prestacaoCount, pendingCount } = useMemo(() => ({
+    prestacaoCount: filteredItems.filter(item => !item.splitParentId).length,
+    pendingCount: filteredItems.filter(item => !item.splitParentId && !item.sentForReview).length,
+  }), [filteredItems]);
+  // Itens que ainda podem ser selecionados/enviados (não travados por sentForReview)
+  const selectableCount = useMemo(() => filteredItems.filter(i => !i.sentForReview).length, [filteredItems]);
+  // Itens ainda com badge "Não preenchido" (nunca salvos) — informados na confirmação do envio em lote
+  const unfilledCount = useMemo(() => filteredItems.filter(i => {
+    if (i.sentForReview) return false;
+    if (['aprovado', 'devolvido', 'rejeitado'].includes(i.rhStatus || '')) return false;
+    if (i.observations?.includes('Duplicado no Realizado')) return false;
+    const edited = !!(i.updatedAt && i.createdAt && new Date(i.updatedAt).getTime() > new Date(i.createdAt).getTime() + 1000);
+    return !edited;
+  }).length, [filteredItems]);
   const totalDifference = totalRealizado - totalPlanejado;
   const diffLabel = totalDifference === 0
     ? { text: "Dentro do planejado", color: "text-gray-500" }
@@ -657,6 +716,8 @@ export default function BudgetActualPage() {
     const isSelected = selectedCards.has(cardItem.id);
     const isItemLocked = !!cardItem.sentForReview;
     const isItemEditable = !cardItem.sentForReview;
+    // "Não participou": fica fora dos totais do banner — o card sinaliza isso visualmente
+    const notAttended = isDidNotAttend(cardItem);
     const hasBeenEdited = !!(cardItem.updatedAt && cardItem.createdAt && new Date(cardItem.updatedAt).getTime() > new Date(cardItem.createdAt).getTime() + 1000);
     const fmtDT = (d: string | Date) => {
       const dt = new Date(d);
@@ -674,7 +735,7 @@ export default function BudgetActualPage() {
     const collabName = getCollaboratorName(cardItem.collaboratorId);
     const initials = collabName.split(' ').filter(Boolean).slice(0, 2).map((w: string) => w[0]).join('').toUpperCase();
     const avatarBg = avatarColorAct(collabName);
-    const workedDaysStr = formatWorkedDays((cardItem.workedDays as string[]) || []);
+    const workedDaysStr = formatWorkedDays(cardItem.workedDays || []);
     const isInGroup = isGParent || isGChild;
 
     // Proportional planned for split cards using real weekday/weekend counts from the group
@@ -689,46 +750,11 @@ export default function BudgetActualPage() {
       }
       if (!rawPlan) return undefined;
       if (!isInGroup) return rawPlan;
-
-      // Collect all worked days for the entire split group
-      const parentId = cardItem.splitParentId || cardItem.id;
-      const allGroupItems = budgetActual?.filter(a => a.id === parentId || a.splitParentId === parentId) || [];
-      const allGroupDays = Array.from(new Set(allGroupItems.flatMap(a => (a.workedDays as string[] | null) || []))).sort();
-      const myDays = (cardItem.workedDays as string[] | null) || [];
-
-      if (myDays.length === 0 || allGroupDays.length === 0 || myDays.length >= allGroupDays.length) return rawPlan;
-
-      const origWkdays = allGroupDays.filter(d => !isWeekendDate(d)).length;
-      const origWknds  = allGroupDays.filter(d =>  isWeekendDate(d)).length;
-      const myWkdays   = myDays.filter(d => !isWeekendDate(d)).length;
-      const myWknds    = myDays.filter(d =>  isWeekendDate(d)).length;
-
-      const wkdayRatio = origWkdays > 0 ? myWkdays / origWkdays : 0;
-      const wkndRatio  = origWknds  > 0 ? myWknds  / origWknds  : 0;
-      const dayRatio   = myDays.length / allGroupDays.length;
-
-      const propDiarias     = myDays.length * rawPlan.dailyValue;
-      const propWkdayLunch  = Math.round(rawPlan.weekdayLunch  * wkdayRatio);
-      const propWkdayDinner = Math.round(rawPlan.weekdayDinner * wkdayRatio);
-      const propWkndLunch   = Math.round(rawPlan.weekendLunch   * wkndRatio);
-      const propWkndDinner  = Math.round(rawPlan.weekendDinner  * wkndRatio);
-      const propMobility    = Math.round(rawPlan.mobility       * dayRatio);
-      const propTransport   = Math.round(rawPlan.transport      * dayRatio);
-
-      return {
-        ...rawPlan,
-        dailyQuantity: myDays.length,
-        weekdayLunch:  propWkdayLunch,
-        weekdayDinner: propWkdayDinner,
-        weekendLunch:  propWkndLunch,
-        weekendDinner: propWkndDinner,
-        mobility:      propMobility,
-        transport:     propTransport,
-        totalValue:    propDiarias + propWkdayLunch + propWkdayDinner + propWkndLunch + propWkndDinner + propMobility + propTransport,
-      } as BudgetPlanned;
+      return getProportionalPlanned(cardItem, rawPlan);
     })();
 
     const stripeColor = isSelected ? '#7c3aed'
+      : notAttended ? '#94a3b8'
       : cardItem.rhStatus === 'aprovado' ? '#059669'
       : cardItem.rhStatus === 'devolvido' ? '#d97706'
       : cardItem.rhStatus === 'rejeitado' ? '#ef4444'
@@ -741,6 +767,7 @@ export default function BudgetActualPage() {
         data-card-id={cardItem.id}
         className={[
           'rounded-3xl border overflow-hidden transition-all duration-300 bg-white flex flex-col',
+          notAttended ? 'opacity-60 grayscale-[30%]' : '',
           isInGroup ? 'border-l-[3px] border-l-purple-300' : '',
           highlightCardId === cardItem.id ? 'ring-2 ring-violet-400 shadow-[0_8px_32px_rgba(109,40,217,0.14)]'
             : isSelected ? 'ring-2 ring-violet-300 border-violet-200 shadow-md'
@@ -760,7 +787,13 @@ export default function BudgetActualPage() {
                   <Lock className="w-4 h-4 text-slate-300 flex-shrink-0 cursor-default" />
                 </TooltipTrigger><TooltipContent side="right" className="text-xs">Prestação bloqueada para edição</TooltipContent></Tooltip></TooltipProvider>
               ) : isItemEditable ? (
-                <button onClick={() => toggleSelect(cardItem.id)} className="flex-shrink-0">
+                <button
+                  onClick={() => toggleSelect(cardItem.id)}
+                  className="flex-shrink-0"
+                  role="checkbox"
+                  aria-checked={isSelected}
+                  aria-label={`Selecionar prestação de ${collabName}`}
+                >
                   <div className={`w-4 h-4 rounded border-[1.5px] flex items-center justify-center transition-colors ${isSelected ? 'bg-violet-600 border-violet-600' : 'border-slate-300 hover:border-violet-400'}`}>
                     {isSelected && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                   </div>
@@ -775,6 +808,11 @@ export default function BudgetActualPage() {
                   <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md truncate shrink min-w-0">{getFunctionName(cardItem.functionId)}</span>
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 ${isCasa ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
                   <span className="shrink-0">{statusBadge}</span>
+                  {notAttended && (
+                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-slate-100 text-slate-500 border border-slate-200 shrink-0 whitespace-nowrap">
+                      <AlertCircle className="w-2.5 h-2.5" /> Não participou
+                    </span>
+                  )}
                   {cardItem.rhAdjusted && (
                     <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md shrink-0 whitespace-nowrap" style={{background:'#FEF3C7', color:'#D97706', border:'1px solid #FDE68A'}}>
                       ⚠ Realizado ajustado pelo RH
@@ -797,8 +835,9 @@ export default function BudgetActualPage() {
             <div className="flex items-center gap-0.5">
               <button
                 className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-blue-50 transition-colors"
-                onClick={() => openEditModal(cardItem)}
+                onClick={() => openEditModal(cardItem, 'observacoes')}
                 title="Ver observações"
+                aria-label={`Ver observações de ${collabName}`}
               >
                 <BudgetNotesBadge notes={eventNotes} entityId={cardItem.id} />
               </button>
@@ -823,7 +862,7 @@ export default function BudgetActualPage() {
             const plannedAlim = planned ? (planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner) : 0;
             const plannedDiarias = planned ? (planned.totalValue - plannedAlim - planned.mobility - planned.transport) : 0;
             const rhFields: Record<string, {from: number; to: number; label: string}> =
-              cardItem.rhAdjustedFields ? JSON.parse(cardItem.rhAdjustedFields as string) : {};
+              cardItem.rhAdjustedFields ? JSON.parse(cardItem.rhAdjustedFields) : {};
             const diffInline = (actual: number, plan: number) => {
               if (!planned) return null;
               const d = actual - plan;
@@ -842,23 +881,28 @@ export default function BudgetActualPage() {
                         O RH ajustou alguns valores do seu realizado. Veja o histórico para detalhes.
                       </span>
                     </div>
-                    <a href="#historico" className="shrink-0 text-[11px] font-semibold px-2 py-1 rounded-lg whitespace-nowrap" style={{background:'#F59E0B', color:'white'}}>
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(cardItem, 'historico')}
+                      className="shrink-0 text-[11px] font-semibold px-2 py-1 rounded-lg whitespace-nowrap cursor-pointer border-0 hover:opacity-90 transition-opacity"
+                      style={{background:'#F59E0B', color:'white'}}
+                    >
                       Ver alterações
-                    </a>
+                    </button>
                   </div>
                 )}
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {/* Diárias */}
                   <div className="rounded-xl p-2.5 border border-blue-100 bg-blue-50/50">
                     <div className="flex items-center gap-1 mb-2">
                       <div className="w-3.5 h-3.5 rounded bg-blue-500 flex items-center justify-center shrink-0"><Calendar className="w-2 h-2 text-white" /></div>
-                      <span className="text-[9px] font-semibold text-blue-700 uppercase tracking-wide">Diárias</span>
+                      <span className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide">Diárias</span>
                     </div>
                     <div className="flex items-baseline gap-0.5">
                       <span className="text-[14px] font-medium text-slate-800 tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
                       {diffInline(cardSubtotalDiarias, plannedDiarias)}
                     </div>
-                    {planned && Math.abs(cardSubtotalDiarias - plannedDiarias) > 1 && <div className="text-[9px] text-slate-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedDiarias)}</div>}
+                    {planned && Math.abs(cardSubtotalDiarias - plannedDiarias) > 1 && <div className="text-[10px] text-slate-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedDiarias)}</div>}
                     <div className="mt-1.5 space-y-0.5">
                       {cardDays.weekdays > 0 && <div className="text-[10px] text-blue-600 tabular-nums">{formatDiasUteis(cardDays.weekdays)} × {formatCurrency(cardValorUtil)}</div>}
                       {cardDays.weekends > 0 && <div className="text-[10px] text-indigo-500 tabular-nums">{formatFds(cardDays.weekends)} × {formatCurrency(cardValorFds)}</div>}
@@ -868,13 +912,13 @@ export default function BudgetActualPage() {
                   <div className="rounded-xl p-2.5 border border-orange-100 bg-orange-50/50">
                     <div className="flex items-center gap-1 mb-2">
                       <div className="w-3.5 h-3.5 rounded bg-orange-400 flex items-center justify-center shrink-0"><Utensils className="w-2 h-2 text-white" /></div>
-                      <span className="text-[9px] font-semibold text-orange-700 uppercase tracking-wide">Alimentação</span>
+                      <span className="text-[10px] font-semibold text-orange-700 uppercase tracking-wide">Alimentação</span>
                     </div>
                     <div className="flex items-baseline gap-0.5">
                       <span className="text-[14px] font-medium text-slate-800 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
                       {diffInline(totalAlimentacao, plannedAlim)}
                     </div>
-                    {planned && Math.abs(totalAlimentacao - plannedAlim) > 1 && <div className="text-[9px] text-slate-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedAlim)}</div>}
+                    {planned && Math.abs(totalAlimentacao - plannedAlim) > 1 && <div className="text-[10px] text-slate-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedAlim)}</div>}
                     {(() => {
                       const semana = cardItem.weekdayLunch + cardItem.weekdayDinner;
                       const fds = cardItem.weekendLunch + cardItem.weekendDinner;
@@ -895,20 +939,20 @@ export default function BudgetActualPage() {
                   <div className="rounded-xl p-2.5 border border-violet-100 bg-violet-50/50">
                     <div className="flex items-center gap-1 mb-2">
                       <div className="w-3.5 h-3.5 rounded bg-violet-500 flex items-center justify-center shrink-0"><Car className="w-2 h-2 text-white" /></div>
-                      <span className="text-[9px] font-semibold text-violet-700 uppercase tracking-wide">Mobilidade</span>
+                      <span className="text-[10px] font-semibold text-violet-700 uppercase tracking-wide">Mobilidade</span>
                     </div>
                     <div className="flex items-baseline gap-0.5">
                       <span className="text-[14px] font-medium text-slate-800 tabular-nums">{formatCurrency(cardItem.mobility)}</span>
                       {diffInline(cardItem.mobility, planned?.mobility ?? 0)}
                     </div>
                     {(() => {
-                      const ida = (cardItem as any).mobilityIda;
-                      const volta = (cardItem as any).mobilityVolta;
-                      if (typeof ida === 'number' && (ida > 0 || volta > 0)) {
-                        return <div className="text-[9px] text-violet-400 tabular-nums mt-0.5">Ida: {formatCurrency(ida)} · Volta: {formatCurrency(volta ?? 0)}</div>;
+                      const ida = cardItem.mobilityIda;
+                      const volta = cardItem.mobilityVolta;
+                      if (typeof ida === 'number' && (ida > 0 || (volta ?? 0) > 0)) {
+                        return <div className="text-[10px] text-violet-400 tabular-nums mt-0.5">Ida: {formatCurrency(ida)} · Volta: {formatCurrency(volta ?? 0)}</div>;
                       }
                       return planned && Math.abs(cardItem.mobility - (planned?.mobility ?? 0)) > 1
-                        ? <div className="text-[9px] text-slate-400 tabular-nums mt-0.5">plan: {formatCurrency(planned.mobility)}</div>
+                        ? <div className="text-[10px] text-slate-400 tabular-nums mt-0.5">plan: {formatCurrency(planned.mobility)}</div>
                         : null;
                     })()}
                   </div>
@@ -917,7 +961,7 @@ export default function BudgetActualPage() {
                 {/* Campos ajustados pelo RH — inline */}
                 {hasRhFields && (
                   <div className="rounded-xl px-3 py-2.5 space-y-1" style={{background:'#FFFBEB', border:'1px solid #FDE68A'}}>
-                    <span className="text-[9px] font-bold uppercase tracking-widest" style={{color:'#92400E'}}>Ajustes do RH</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest" style={{color:'#92400E'}}>Ajustes do RH</span>
                     {Object.values(rhFields).map((f, i) => (
                       <div key={i} className="flex items-center gap-1 text-[11px]" style={{color:'#6B7280'}}>
                         <span>·</span>
@@ -925,7 +969,7 @@ export default function BudgetActualPage() {
                         <span className="tabular-nums line-through" style={{color:'#9CA3AF'}}>{formatCurrency(f.from)}</span>
                         <span>→</span>
                         <span className="tabular-nums font-semibold" style={{color:'#D97706'}}>{formatCurrency(f.to)}</span>
-                        <span className="text-[9px]" style={{color:'#D97706'}}>(RH)</span>
+                        <span className="text-[10px]" style={{color:'#D97706'}}>(RH)</span>
                       </div>
                     ))}
                   </div>
@@ -940,7 +984,7 @@ export default function BudgetActualPage() {
           return (
             <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/40 mt-auto">
               <div className="flex flex-col gap-0.5">
-                <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">Total Realizado</span>
+                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Total Realizado</span>
                 <span className="text-[17px] font-medium tabular-nums text-violet-700" style={{letterSpacing:'-0.02em'}}>{formatCurrency(cardItem.totalValue)}</span>
               </div>
               <div>
@@ -985,6 +1029,20 @@ export default function BudgetActualPage() {
           </div>
         )}
       </div>
+
+      {/* ── Banner: prestação devolvida pelo RH ── */}
+      {selectedEventId && budgetComparison?.status === 'devolvido' && (
+        <div className="flex items-start gap-3 px-4 py-3.5 rounded-2xl border border-amber-200 bg-amber-50 shadow-sm">
+          <div className="w-8 h-8 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0">
+            <AlertCircle className="w-4 h-4 text-amber-600" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[13px] font-bold text-amber-800 m-0">Prestação devolvida pelo RH</p>
+            {rhComment && <p className="text-xs text-amber-700 mt-0.5 m-0">{rhComment}</p>}
+            <p className="text-[11px] text-amber-600/80 mt-1 m-0">Corrija os itens marcados como "Devolvido" e reenvie para revisão.</p>
+          </div>
+        </div>
+      )}
 
       {/* ── Tela 1: Seleção de evento ── */}
       {!selectedEventId ? (
@@ -1032,7 +1090,10 @@ export default function BudgetActualPage() {
         <>
           {/* ── Stepper ── */}
           {(() => {
-            const currentStep = 2;
+            // Avança para "Aprovação RH" quando todos os itens do evento já foram enviados ou aprovados
+            const eventItems = (budgetActual || []).filter(a => a.eventId === selectedEventId);
+            const allSentOrApproved = eventItems.length > 0 && eventItems.every(i => i.sentForReview || i.rhStatus === 'aprovado');
+            const currentStep = allSentOrApproved ? 3 : 2;
             const steps = [
               { label: "Escalação", desc: "Inclusões confirmadas" },
               { label: "Planejamento RH", desc: "Valores previstos" },
@@ -1066,7 +1127,7 @@ export default function BudgetActualPage() {
                               isActive ? 'text-violet-700 dark:text-violet-300' :
                               'text-gray-400'
                             }`}>{step.label}</div>
-                            <div className="text-[9px] text-gray-400 mt-0.5 hidden sm:block">{step.desc}</div>
+                            <div className="text-[10px] text-gray-400 mt-0.5 hidden sm:block">{step.desc}</div>
                           </div>
                         </div>
                         {!isLast && (
@@ -1100,13 +1161,12 @@ export default function BudgetActualPage() {
               }}>
                 {/* Faixa accent roxo topo */}
                 <div style={{height: 3, background: 'linear-gradient(90deg, #5b21b6 0%, #7c3aed 60%, #059669 100%)'}} />
-                <div className="flex items-stretch">
+                <div className="flex items-stretch flex-wrap">
                   {/* Esquerda — total */}
-                  <div className="px-7 py-5 flex flex-col justify-center gap-1 relative overflow-hidden" style={{
+                  <div className="px-7 py-5 flex flex-col justify-center gap-1 relative overflow-hidden w-full sm:w-auto sm:min-w-[230px]" style={{
                     background: 'linear-gradient(135deg, #5b21b6 0%, #6d28d9 50%, #7c3aed 100%)',
-                    minWidth: 230,
                   }}>
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/60">Total Realizado</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/60">Total Realizado</p>
                     <div className="text-[30px] font-semibold text-white leading-none mt-1.5" style={{letterSpacing:'-0.03em'}}>
                       {formatCurrency(totalRealizado)}
                     </div>
@@ -1125,27 +1185,27 @@ export default function BudgetActualPage() {
                   <div style={{width:1, background:'rgba(109,40,217,0.1)'}} />
                   {/* Direita — KPIs + barra */}
                   <div className="flex-1 px-6 py-5 flex flex-col justify-between">
-                    <div className="flex items-start gap-0">
+                    <div className="flex items-start gap-0 flex-wrap gap-y-3">
                       <div className="flex-1 flex flex-col items-center gap-1 px-3">
                         <div className="text-[26px] font-bold leading-none tracking-tight text-violet-700">{prestacaoCount}</div>
-                        <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 flex items-center gap-1"><Users className="w-3 h-3" />Prestações</div>
+                        <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400 flex items-center gap-1"><Users className="w-3 h-3" />Prestações</div>
                       </div>
                       <div style={{width:1, height:36, background:'rgba(109,40,217,0.08)'}} />
                       <div className="flex-1 flex flex-col items-center gap-1 px-3">
                         <div className="text-[26px] font-bold leading-none tracking-tight text-blue-600">{nRevisao}</div>
-                        <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 flex items-center gap-1"><Clock className="w-3 h-3" />Em Revisão</div>
+                        <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400 flex items-center gap-1"><Clock className="w-3 h-3" />Em Revisão</div>
                       </div>
                       <div style={{width:1, height:36, background:'rgba(109,40,217,0.08)'}} />
                       <div className="flex-1 flex flex-col items-center gap-1 px-3">
                         <div className="text-[26px] font-bold leading-none tracking-tight text-emerald-600">{nAprovadas}</div>
-                        <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />Aprovadas</div>
+                        <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />Aprovadas</div>
                       </div>
                       {nDevolvidas > 0 && (
                         <>
                           <div style={{width:1, height:36, background:'rgba(109,40,217,0.08)'}} />
                           <div className="flex-1 flex flex-col items-center gap-1 px-3">
                             <div className="text-[26px] font-bold leading-none tracking-tight text-amber-600">{nDevolvidas}</div>
-                            <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" />Devolvidas</div>
+                            <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" />Devolvidas</div>
                           </div>
                         </>
                       )}
@@ -1155,7 +1215,7 @@ export default function BudgetActualPage() {
                         <div className="h-2 rounded-full overflow-hidden" style={{background:'rgba(109,40,217,0.25)'}}>
                           <div className="h-full bg-emerald-400 rounded-full transition-all duration-500" style={{width:`${pctAprovado}%`}} />
                         </div>
-                        <div className="text-[9px] text-slate-400 mt-1.5 font-light">{nAprovadas} de {prestacaoCount} aprovadas</div>
+                        <div className="text-[10px] text-slate-400 mt-1.5 font-light">{nAprovadas} de {prestacaoCount} aprovadas</div>
                       </div>
                     )}
                   </div>
@@ -1167,15 +1227,16 @@ export default function BudgetActualPage() {
           {/* ── Filtros ── */}
           <div className="flex flex-wrap items-center gap-3 px-0">
             {/* Busca */}
-            <div className="relative">
+            <div className="relative w-full sm:w-[200px]">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-300" />
               <input
                 type="text"
                 placeholder="Buscar colaborador..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
+                className="w-full"
                 style={{
-                  height: 34, paddingLeft: 26, paddingRight: 12, width: 200,
+                  height: 34, paddingLeft: 26, paddingRight: 12,
                   background: '#F8FAFC', border: 'none',
                   borderBottom: `1.5px solid ${searchTerm ? '#6d28d9' : '#E2E8F0'}`,
                   borderRadius: '6px 6px 0 0',
@@ -1238,7 +1299,7 @@ export default function BudgetActualPage() {
                 className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
               >
                 <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                  selectedCards.size === filteredItems.length && selectedCards.size > 0
+                  selectedCards.size === selectableCount && selectedCards.size > 0
                     ? 'bg-purple-600 border-purple-600'
                     : selectedCards.size > 0
                       ? 'bg-purple-200 border-purple-400'
@@ -1246,7 +1307,7 @@ export default function BudgetActualPage() {
                 }`}>
                   {selectedCards.size > 0 && (
                     <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                      {selectedCards.size === filteredItems.length
+                      {selectedCards.size === selectableCount
                         ? <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         : <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
                       }
@@ -1346,7 +1407,7 @@ export default function BudgetActualPage() {
           <div className="max-w-5xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div>
-                <div className="text-[9px] uppercase tracking-widest font-semibold text-violet-400">Total Realizado</div>
+                <div className="text-[10px] uppercase tracking-widest font-semibold text-violet-400">Total Realizado</div>
                 <div className="text-[18px] font-semibold tabular-nums leading-tight text-violet-700">{formatCurrency(totalRealizado)}</div>
               </div>
               <div className="h-8 w-px bg-slate-200" />
@@ -1397,7 +1458,7 @@ export default function BudgetActualPage() {
                     disabled={sendForReviewMutation.isPending}
                     onClick={() => {
                       if (!selectedEventId) return;
-                      sendForReviewMutation.mutate({ eventId: selectedEventId });
+                      setConfirmSendAll(true);
                     }}
                   >
                     <Send className="w-3.5 h-3.5" />
@@ -1442,42 +1503,7 @@ export default function BudgetActualPage() {
             const planned = (() => {
               if (!rawPlannedModal) return undefined;
               if (!editingItem.splitParentId) return rawPlannedModal;
-
-              const parentId = editingItem.splitParentId;
-              const allGroupItems = budgetActual?.filter(a => a.id === parentId || a.splitParentId === parentId) || [];
-              const allGroupDays = Array.from(new Set(allGroupItems.flatMap(a => (a.workedDays as string[] | null) || []))).sort();
-              const myDays = (editingItem.workedDays as string[] | null) || [];
-
-              if (myDays.length === 0 || allGroupDays.length === 0 || myDays.length >= allGroupDays.length) return rawPlannedModal;
-
-              const origWkdays = allGroupDays.filter(d => !isWeekendDate(d)).length;
-              const origWknds  = allGroupDays.filter(d =>  isWeekendDate(d)).length;
-              const myWkdays   = myDays.filter(d => !isWeekendDate(d)).length;
-              const myWknds    = myDays.filter(d =>  isWeekendDate(d)).length;
-
-              const wkdayRatio = origWkdays > 0 ? myWkdays / origWkdays : 0;
-              const wkndRatio  = origWknds  > 0 ? myWknds  / origWknds  : 0;
-              const dayRatio   = myDays.length / allGroupDays.length;
-
-              const propDiarias     = myDays.length * rawPlannedModal.dailyValue;
-              const propWkdayLunch  = Math.round(rawPlannedModal.weekdayLunch  * wkdayRatio);
-              const propWkdayDinner = Math.round(rawPlannedModal.weekdayDinner * wkdayRatio);
-              const propWkndLunch   = Math.round(rawPlannedModal.weekendLunch   * wkndRatio);
-              const propWkndDinner  = Math.round(rawPlannedModal.weekendDinner  * wkndRatio);
-              const propMobility    = Math.round(rawPlannedModal.mobility       * dayRatio);
-              const propTransport   = Math.round(rawPlannedModal.transport      * dayRatio);
-
-              return {
-                ...rawPlannedModal,
-                dailyQuantity: myDays.length,
-                weekdayLunch:  propWkdayLunch,
-                weekdayDinner: propWkdayDinner,
-                weekendLunch:  propWkndLunch,
-                weekendDinner: propWkndDinner,
-                mobility:      propMobility,
-                transport:     propTransport,
-                totalValue:    propDiarias + propWkdayLunch + propWkdayDinner + propWkndLunch + propWkndDinner + propMobility + propTransport,
-              } as BudgetPlanned;
+              return getProportionalPlanned(editingItem, rawPlannedModal);
             })();
             const plannedSubDiarias = planned ? planned.totalValue - planned.weekdayLunch - planned.weekdayDinner - planned.weekendLunch - planned.weekendDinner - planned.mobility - planned.transport : 0;
             const { valorUtil: plannedValorUtil, valorFds: plannedValorFds } =
@@ -1503,7 +1529,7 @@ export default function BudgetActualPage() {
             return (
               <>
                 {/* ── Header ── */}
-                <div style={{background:'linear-gradient(135deg, #1d4ed8 0%, #3b5fe4 100%)'}} className="shrink-0">
+                <div style={{background:'linear-gradient(135deg, #5b21b6 0%, #6d28d9 50%, #7c3aed 100%)'}} className="shrink-0">
                   <div className="flex items-center gap-3" style={{padding:'14px 20px'}}>
                     {(() => {
                       const mName = getCollaboratorName(editingItem.collaboratorId);
@@ -1556,13 +1582,14 @@ export default function BudgetActualPage() {
                       </div>
                     )}
                   </div>
-                  {rhComment && (
+                  {/* Comentário do RH: apenas em itens efetivamente devolvidos — não em aprovados/pendentes */}
+                  {editingItem.rhStatus === 'devolvido' && (editingItem.rhComment || rhComment) && (
                     <div className="mt-2.5 p-2 rounded-xl bg-white/10 border border-white/20">
                       <div className="flex items-start gap-2">
                         <AlertTriangle className="w-3.5 h-3.5 text-amber-300 mt-0.5 flex-shrink-0" />
                         <div>
-                          <span className="text-[9px] uppercase text-amber-300 font-bold tracking-wider">Comentário do RH</span>
-                          <p className="text-[11px] text-white/80 mt-0.5">{rhComment}</p>
+                          <span className="text-[10px] uppercase text-amber-300 font-bold tracking-wider">Comentário do RH</span>
+                          <p className="text-[11px] text-white/80 mt-0.5">{editingItem.rhComment || rhComment}</p>
                         </div>
                       </div>
                     </div>
@@ -1590,7 +1617,7 @@ export default function BudgetActualPage() {
                       className={[
                         'flex-1 h-10 text-[13px] font-medium transition-colors',
                         modalActualTab === id
-                          ? 'text-[#1d4ed8] border-b-2 border-[#1d4ed8] bg-blue-50/40'
+                          ? 'text-[#6d28d9] border-b-2 border-[#6d28d9] bg-violet-50/40'
                           : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50',
                       ].join(' ')}
                     >
@@ -1604,21 +1631,21 @@ export default function BudgetActualPage() {
                 <div className="flex-1 overflow-y-auto min-h-0 px-6 py-5 space-y-4 bg-slate-50" style={{maxHeight:'52vh'}}>
 
                   {/* ── Diárias — editável ── */}
-                  <div className="rounded-xl border border-slate-200 overflow-hidden" style={{borderLeft:'3px solid #3B4FE4', background:'#FAFBFF'}}>
-                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-blue-100" style={{background:'rgba(59,79,228,0.05)'}}>
+                  <div className="rounded-xl border border-slate-200 overflow-hidden" style={{borderLeft:'3px solid #6d28d9', background:'#FAFBFF'}}>
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-violet-100" style={{background:'rgba(109,40,217,0.05)'}}>
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-md bg-[#3B4FE4] flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-md bg-[#6d28d9] flex items-center justify-center">
                           <Calendar className="w-3 h-3 text-white" />
                         </div>
-                        <span className="text-[11px] font-semibold text-[#3B4FE4] uppercase tracking-wide">Diárias</span>
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{background:'#EEF2FF', color:'#3B4FE4'}}>
+                        <span className="text-[11px] font-semibold text-[#6d28d9] uppercase tracking-wide">Diárias</span>
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{background:'#EDE9FE', color:'#6d28d9'}}>
                           {activeDayEntries.length} {activeDayEntries.length === 1 ? 'dia ativo' : 'dias ativos'}
                         </span>
                       </div>
-                      <span className="text-[13px] font-bold font-mono text-[#3B4FE4] tabular-nums">{formatCurrency(subtotalDiariasRaw)}</span>
+                      <span className="text-[13px] font-bold font-mono text-[#6d28d9] tabular-nums">{formatCurrency(subtotalDiariasRaw)}</span>
                     </div>
                     {/* Col headers */}
-                    <div className="grid grid-cols-[auto_1fr_auto_auto] gap-2 bg-slate-50 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                    <div className="grid grid-cols-[auto_1fr_auto_auto] gap-2 bg-slate-50 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
                       <span className="w-5" />
                       <span>Data</span>
                       <span className="text-right">Planejado</span>
@@ -1649,7 +1676,7 @@ export default function BudgetActualPage() {
                               disabled={isReadOnly}
                               onClick={() => setEditDayEntries(prev => prev.map((e, i) => i === idx ? { ...e, active: !e.active } : e))}
                               className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors
-                                ${entry.active ? 'bg-[#3B4FE4] text-white' : 'bg-slate-200 text-slate-400'}
+                                ${entry.active ? 'bg-[#6d28d9] text-white' : 'bg-slate-200 text-slate-400'}
                                 ${isReadOnly ? 'cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
                             >
                               {entry.active && <Check className="w-2.5 h-2.5" />}
@@ -1659,7 +1686,7 @@ export default function BudgetActualPage() {
                               <span className="text-[12px] font-semibold text-slate-700 tabular-nums">{dateLabel}</span>
                               <span className="text-[10px] text-slate-400 capitalize">{dayLabel}</span>
                               {entry.isWeekend && (
-                                <span className="text-[9px] font-semibold text-amber-600 bg-amber-50 border border-amber-100 px-1.5 rounded-full shrink-0">FDS</span>
+                                <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-100 px-1.5 rounded-full shrink-0">FDS</span>
                               )}
                             </div>
                             {/* Planned reference */}
@@ -1675,7 +1702,7 @@ export default function BudgetActualPage() {
                               onChange={v => setEditDayEntries(prev => prev.map((e, i) => i === idx ? { ...e, valueCents: v } : e))}
                               disabled={!entry.active || isReadOnly}
                               className={`text-right w-24 font-mono tabular-nums border rounded-[6px] font-semibold
-                                focus:border-[#3B4FE4] focus:ring-2 focus:ring-[#3B4FE4]/15 focus:bg-white
+                                focus:border-[#6d28d9] focus:ring-2 focus:ring-[#6d28d9]/15 focus:bg-white
                                 ${!entry.active || isReadOnly
                                   ? 'bg-slate-50 border-slate-200 opacity-40 cursor-not-allowed'
                                   : isChanged
@@ -1695,7 +1722,7 @@ export default function BudgetActualPage() {
                             <input
                               type="date"
                               autoFocus
-                              className="h-7 text-xs border border-[#3B4FE4] rounded-lg px-2 text-slate-700 bg-blue-50 focus:outline-none focus:ring-2 focus:ring-[#3B4FE4]/20"
+                              className="h-7 text-xs border border-[#6d28d9] rounded-lg px-2 text-slate-700 bg-violet-50 focus:outline-none focus:ring-2 focus:ring-[#6d28d9]/20"
                               onChange={e => {
                                 const newDate = e.target.value;
                                 if (!newDate) return;
@@ -1720,7 +1747,7 @@ export default function BudgetActualPage() {
                           <button
                             type="button"
                             onClick={() => setShowAddDay(true)}
-                            className="flex items-center gap-1.5 text-[11px] font-semibold text-[#3B4FE4] hover:text-[#2233cc] transition-colors py-0.5"
+                            className="flex items-center gap-1.5 text-[11px] font-semibold text-[#6d28d9] hover:text-[#5b21b6] transition-colors py-0.5"
                           >
                             <Plus className="w-3 h-3" />
                             Adicionar Dia Extra
@@ -1751,7 +1778,7 @@ export default function BudgetActualPage() {
                           <Car className="w-3 h-3 text-white" />
                         </div>
                         <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Mobilidade</span>
-                        <span className="text-[9px] font-medium text-slate-400 flex items-center gap-0.5">
+                        <span className="text-[10px] font-medium text-slate-400 flex items-center gap-0.5">
                           <Lock className="w-2.5 h-2.5" />
                           Definido pelo RH
                         </span>
@@ -1788,7 +1815,7 @@ export default function BudgetActualPage() {
                           <Utensils className="w-3 h-3 text-white" />
                         </div>
                         <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Alimentação</span>
-                        <span className="text-[9px] font-medium text-slate-400 flex items-center gap-0.5">
+                        <span className="text-[10px] font-medium text-slate-400 flex items-center gap-0.5">
                           <Lock className="w-2.5 h-2.5" />
                           Definido pelo RH
                         </span>
@@ -1911,7 +1938,7 @@ export default function BudgetActualPage() {
                           onClick={saveEdit}
                           disabled={updateMutation.isPending}
                           className="h-10 px-5 text-[13px] font-semibold rounded-xl text-white shadow-sm"
-                          style={{background: '#3B4FE4'}}
+                          style={{background: '#6d28d9'}}
                         >
                           <Check className="w-4 h-4 mr-1.5" />
                           {updateMutation.isPending ? 'Salvando...' : 'Salvar Prestação'}
@@ -1925,6 +1952,46 @@ export default function BudgetActualPage() {
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* ── Confirmação: Enviar todas ── */}
+      <AlertDialog open={confirmSendAll} onOpenChange={setConfirmSendAll}>
+        <AlertDialogContent className="max-w-md rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Enviar todas as prestações para revisão?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-slate-600">
+                {unfilledCount > 0 ? (
+                  <p>
+                    <strong className="text-amber-600">
+                      {unfilledCount} {unfilledCount === 1 ? 'item está como "Não preenchido"' : 'itens estão como "Não preenchido"'}
+                    </strong>{' '}
+                    e {unfilledCount === 1 ? 'será enviado' : 'serão enviados'} com os valores atuais.
+                  </p>
+                ) : (
+                  <p>Todos os itens pendentes serão enviados para conferência do RH.</p>
+                )}
+                <p>
+                  Após o envio, os itens ficam <strong>bloqueados para edição</strong> e a{' '}
+                  <strong>emissão de NF é liberada</strong> para os colaboradores enviados.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl text-white"
+              style={{background:'#059669'}}
+              onClick={() => {
+                if (selectedEventId) sendForReviewMutation.mutate({ eventId: selectedEventId });
+              }}
+            >
+              <Send className="w-3.5 h-3.5 mr-1.5" />
+              Enviar todas
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={!!confirmDeleteId} onOpenChange={() => setConfirmDeleteId(null)}>
         <DialogContent className="max-w-sm">
@@ -1950,13 +2017,15 @@ export default function BudgetActualPage() {
       {/* ── Split Escalação Modal ── */}
       {splittingItem && (() => {
         const takenDays = (budgetActual || [])
-          .filter((a: any) => a.splitParentId === splittingItem.id)
-          .flatMap((a: any) => (a.workedDays as string[]) || []);
+          .filter(a => a.splitParentId === splittingItem.id)
+          .flatMap(a => a.workedDays || []);
         return (
           <SplitVagaModal
             item={splittingItem}
             collaborators={collaborators || []}
             teamInclusion={getItemInclusion(splittingItem)}
+            eventStartDate={selectedEvent?.startDate}
+            eventEndDate={selectedEvent?.endDate}
             takenDays={takenDays}
             onClose={() => setSplittingItem(null)}
             isPending={splitMutation.isPending}

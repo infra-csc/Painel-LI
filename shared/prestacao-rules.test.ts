@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   isNfEligible, contaNosTotais, podeDecidirPrestacao, podeEnviarParaRevisao,
   prestacaoEstaTravada, podeAprovarNota, podeDevolverNota, podeFazerCheckin,
+  nfIsentaPorEscalacao,
 } from "./prestacao-rules";
 
 describe("isNfEligible (NF libera no envio do Realizado)", () => {
@@ -27,6 +28,56 @@ describe("isNfEligible (NF libera no envio do Realizado)", () => {
   it("nulo/indefinido não é elegível", () => {
     expect(isNfEligible(null)).toBe(false);
     expect(isNfEligible(undefined)).toBe(false);
+  });
+});
+
+describe("nfIsentaPorEscalacao (flag 'não emite NF' da escalação)", () => {
+  const base = { collaboratorId: "col-1", functionId: "fn-1", eventId: "ev-1" };
+
+  it("isenta quando a escalação marca emitsNf = false", () => {
+    expect(nfIsentaPorEscalacao([{ ...base, emitsNf: false }], "col-1", "fn-1", "ev-1")).toBe(true);
+  });
+
+  it("não isenta quando emitsNf é true ou indefinido", () => {
+    expect(nfIsentaPorEscalacao([{ ...base, emitsNf: true }], "col-1", "fn-1", "ev-1")).toBe(false);
+    expect(nfIsentaPorEscalacao([{ ...base }], "col-1", "fn-1", "ev-1")).toBe(false);
+  });
+
+  it("ignora inclusões deletadas", () => {
+    expect(nfIsentaPorEscalacao(
+      [{ ...base, emitsNf: false, deletedAt: new Date() }],
+      "col-1", "fn-1", "ev-1",
+    )).toBe(false);
+  });
+
+  it("ignora inclusões de outro evento (a cópia antiga não filtrava eventId)", () => {
+    expect(nfIsentaPorEscalacao(
+      [{ ...base, eventId: "ev-OUTRO", emitsNf: false }],
+      "col-1", "fn-1", "ev-1",
+    )).toBe(false);
+  });
+
+  it("sem match de colaborador na escalação, assume que emite", () => {
+    expect(nfIsentaPorEscalacao([{ ...base, emitsNf: false }], "col-999", "fn-1", "ev-1")).toBe(false);
+  });
+
+  it("com colaborador escalado mas sem match exato de função, assume que emite", () => {
+    expect(nfIsentaPorEscalacao([{ ...base, emitsNf: false }], "col-1", "fn-OUTRA", "ev-1")).toBe(false);
+  });
+
+  it("usa a função certa quando o colaborador tem múltiplas escalações no evento", () => {
+    const incl = [
+      { ...base, functionId: "fn-1", emitsNf: false },
+      { ...base, functionId: "fn-2", emitsNf: true },
+    ];
+    expect(nfIsentaPorEscalacao(incl, "col-1", "fn-1", "ev-1")).toBe(true);
+    expect(nfIsentaPorEscalacao(incl, "col-1", "fn-2", "ev-1")).toBe(false);
+  });
+
+  it("lista vazia/nula não isenta ninguém", () => {
+    expect(nfIsentaPorEscalacao([], "col-1", "fn-1", "ev-1")).toBe(false);
+    expect(nfIsentaPorEscalacao(null, "col-1", "fn-1", "ev-1")).toBe(false);
+    expect(nfIsentaPorEscalacao(undefined, "col-1", "fn-1", "ev-1")).toBe(false);
   });
 });
 

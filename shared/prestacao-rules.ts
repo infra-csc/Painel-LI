@@ -26,6 +26,15 @@ export interface NotaLike {
   checkinAt?: Date | string | null;
 }
 
+/** O que estas regras precisam saber de uma inclusão de escalação. */
+export interface EscalacaoLike {
+  collaboratorId?: string | null;
+  functionId?: string | null;
+  eventId?: string | null;
+  emitsNf?: boolean | null;
+  deletedAt?: Date | string | null;
+}
+
 /** Resultado de uma verificação de transição: ok, ou o motivo da recusa. */
 export type Permissao = { ok: true } | { ok: false; motivo: string };
 
@@ -41,6 +50,36 @@ export function isNfEligible(p: PrestacaoLike | null | undefined): boolean {
   if (!p) return false;
   if (p.rhStatus === "aprovado") return true;
   return Boolean(p.sentForReview) && p.rhStatus === "pendente";
+}
+
+/**
+ * Isenção de NF definida na escalação: se o escalado (colaborador+função no
+ * evento) está marcado com `emitsNf === false`, nenhuma nota é cobrada dele.
+ *
+ * Sem match de colaborador na escalação, ou sem match exato de função, assume
+ * que emite (cobra NF). Inclusões deletadas e de outros eventos são ignoradas.
+ * Antes cada tela reimplementava esta regra e as cópias divergiram (uma não
+ * filtrava deletedAt nem eventId).
+ *
+ * Retorna true quando o colaborador está ISENTO (não emite NF).
+ */
+export function nfIsentaPorEscalacao(
+  inclusions: readonly EscalacaoLike[] | null | undefined,
+  collaboratorId: string | null | undefined,
+  functionId: string | null | undefined,
+  eventId: string | null | undefined,
+): boolean {
+  if (!inclusions || !collaboratorId) return false;
+  const matches = inclusions.filter(ti =>
+    !ti.deletedAt &&
+    ti.collaboratorId &&
+    ti.collaboratorId === collaboratorId &&
+    ti.eventId === eventId
+  );
+  if (matches.length === 0) return false;
+  const byFunction = matches.find(ti => ti.functionId === functionId);
+  if (!byFunction) return false;
+  return byFunction.emitsNf === false;
 }
 
 /** Itens que entram nos totais do evento (filhos de divisão não duplicam). */

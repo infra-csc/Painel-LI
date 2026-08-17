@@ -9,17 +9,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   FileText, Upload, CheckCircle2, RotateCcw, Clock,
   ChevronDown, ChevronUp, Paperclip, Calendar, Building2,
-  FileCheck, AlertCircle, AlertTriangle, Send, Eye, ExternalLink, Info, X, CircleDot
+  FileCheck, AlertCircle, AlertTriangle, Send, Eye, ExternalLink, Info, X, CircleDot, Ban
 } from "lucide-react";
 import { Link, useSearch } from "wouter";
 import type { Event, Invoice } from "@shared/schema";
-import { isNfEligible } from "@shared/prestacao-rules";
+import { isNfEligible, nfIsentaPorEscalacao } from "@shared/prestacao-rules";
 
-function toTitleCase(str: string) {
-  if (!str || str === "—") return str;
-  return str.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+// Mesma implementação da tela Controle de Prestações (rh-control.tsx) — manter idênticas.
+function toTitleCase(str: string): string {
+  if (!str || str === "—" || str === "-") return str;
+  return str.toLowerCase().replace(/(?:^|\s)\S/g, a => a.toUpperCase());
 }
 function formatCurrency(v: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v / 100);
@@ -32,7 +37,7 @@ function fmtDate(d?: string | null) {
 }
 
 // Effective status for display (aprovada splits into checkin-pendente / checkin-realizado)
-type EffStatus = "pendente" | "enviada" | "devolvida" | "aprovada" | "checkin-pendente" | "checkin-realizado";
+type EffStatus = "pendente" | "enviada" | "devolvida" | "recusada" | "aprovada" | "checkin-pendente" | "checkin-realizado";
 
 function getEffectiveStatus(inv: any): EffStatus {
   if (!inv) return "pendente";
@@ -43,43 +48,69 @@ function getEffectiveStatus(inv: any): EffStatus {
   return inv.status as EffStatus;
 }
 
-const STATUS_CFG: Record<EffStatus, { label: string; pill: string; border: string; avatarCls: string }> = {
+type StatusCfg = { label: string; pill: string; border: string; avatarCls: string };
+
+const STATUS_CFG: Record<EffStatus, StatusCfg> = {
   pendente:          { label: "Pendente",            pill: "bg-gray-100 text-gray-500",                              border: "#e5e7eb", avatarCls: "bg-slate-100 text-slate-500" },
   enviada:           { label: "Aguardando RH",        pill: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",       border: "#f59e0b", avatarCls: "bg-amber-100 text-amber-700" },
   devolvida:         { label: "Devolvida",            pill: "bg-orange-50 text-orange-600 ring-1 ring-orange-200",    border: "#f97316", avatarCls: "bg-orange-100 text-orange-600" },
+  recusada:          { label: "NF recusada",          pill: "bg-red-100 text-red-900 ring-1 ring-red-200",            border: "#991b1b", avatarCls: "bg-red-100 text-red-800" },
   aprovada:          { label: "Aprovada",             pill: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200", border: "#10b981", avatarCls: "bg-emerald-100 text-emerald-700" },
   "checkin-pendente":{ label: "Aguard. Check-in",    pill: "bg-blue-50 text-[#0033CC] ring-1 ring-blue-200",         border: "#0033CC", avatarCls: "bg-blue-100 text-[#0033CC]" },
   "checkin-realizado":{ label: "Check-in Realizado", pill: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-300", border: "#059669", avatarCls: "bg-emerald-100 text-emerald-700" },
 };
 
-// ── Stepper compacto ─────────────────────────────────────────────────────────
-const STEPS = [
-  { id: "lancamento", label: "Lançamento" },
-  { id: "aprovacao",  label: "Aprovação RH" },
-  { id: "checkin",    label: "Check-in" },
-];
+// Fallback defensivo: um status desconhecido vindo do servidor não pode
+// derrubar a tela inteira (foi o que aconteceu quando "recusada" surgiu).
+const STATUS_CFG_FALLBACK: StatusCfg = {
+  label: "Status desconhecido",
+  pill: "bg-slate-100 text-slate-600 ring-1 ring-slate-200",
+  border: "#94a3b8",
+  avatarCls: "bg-slate-100 text-slate-500",
+};
 
-function InvoiceStepper({ currentStep }: { currentStep: "lancamento" | "aprovacao" | "checkin" }) {
-  const stepIdx = STEPS.findIndex(s => s.id === currentStep);
+function getStatusCfg(st: string): StatusCfg {
+  return (STATUS_CFG as Record<string, StatusCfg>)[st] ?? STATUS_CFG_FALLBACK;
+}
+
+// ── Stepper compacto ─────────────────────────────────────────────────────────
+// Reflete o ESTÁGIO real dos itens do evento (quantos aguardam em cada etapa),
+// não a aba ativa. Etapa sem pendências aparece concluída.
+type StepperCounts = { lancamento: number; aprovacao: number; checkin: number };
+
+function InvoiceStepper({ counts }: { counts: StepperCounts }) {
+  const steps = [
+    { id: "lancamento", label: "Lançamento",   count: counts.lancamento },
+    { id: "aprovacao",  label: "Aprovação RH", count: counts.aprovacao },
+    { id: "checkin",    label: "Check-in",     count: counts.checkin },
+  ];
   return (
-    <div className="flex items-center gap-0 h-9">
-      {STEPS.map((step, i) => {
-        const done   = i < stepIdx;
-        const active = i === stepIdx;
-        const color  = done ? "#059669" : active ? "#0033CC" : "#9ca3af";
+    <div className="flex items-center gap-0 h-9 flex-wrap">
+      {steps.map((step, i) => {
+        const done  = step.count === 0;
+        const color = done ? "#059669" : "#0033CC";
         return (
           <div key={step.id} className="flex items-center">
             <div className="flex items-center gap-1.5">
               <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center border-2 shrink-0`}
-                style={{ borderColor: color, background: done || active ? color : "white" }}>
-                {done && <CheckCircle2 className="w-2 h-2 text-white" strokeWidth={3} />}
-                {active && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                style={{ borderColor: color, background: color }}>
+                {done
+                  ? <CheckCircle2 className="w-2 h-2 text-white" strokeWidth={3} />
+                  : <div className="w-1.5 h-1.5 rounded-full bg-white" />}
               </div>
               <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color }}>
                 {step.label}
               </span>
+              {step.count > 0 && (
+                <span
+                  className="text-[10px] font-bold leading-none px-1.5 py-0.5 rounded-full bg-blue-50 text-[#0033CC] ring-1 ring-blue-200 whitespace-nowrap"
+                  title={`${step.count} ite${step.count === 1 ? "m aguardando" : "ns aguardando"} nesta etapa`}
+                >
+                  {step.count} aguardando
+                </span>
+              )}
             </div>
-            {i < STEPS.length - 1 && (
+            {i < steps.length - 1 && (
               <div className="w-10 mx-2 border-t border-slate-300" />
             )}
           </div>
@@ -152,9 +183,11 @@ export default function InvoicesPage() {
   const [highlightActualId, setHighlightActualId] = useState<string>(paramActual);
 
   // Company confirmation state (for the CNPJ blocking screen)
-  const [confirmCompanyId, setConfirmCompanyId] = useState<string>("__manual__");
+  // Vazio de propósito: o usuário deve escolher ativamente a empresa pagadora.
+  const [confirmCompanyId, setConfirmCompanyId] = useState<string>("");
   const [confirmCustomName, setConfirmCustomName] = useState("");
   const [confirmCustomCnpj, setConfirmCustomCnpj] = useState("");
+  const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
 
   const canRH = isRhOrAdmin(user);
 
@@ -178,13 +211,6 @@ export default function InvoicesPage() {
     }
   }, [activeEvents.length]);
 
-  // Pre-select the first registered company as default when companies load
-  useEffect(() => {
-    if ((paymentCompanies as any[]).length > 0 && confirmCompanyId === "__manual__") {
-      setConfirmCompanyId(String((paymentCompanies as any[])[0].id));
-    }
-  }, [(paymentCompanies as any[]).length]);
-
   const eventsWithCnpj = activeEvents.filter((e: any) => e.paymentCompanyCnpj?.trim());
   const selectedEvent = activeEvents.find((e: any) => e.id === selectedEventId);
 
@@ -204,13 +230,13 @@ export default function InvoicesPage() {
     onError: () => toast({ title: "Erro ao salvar empresa pagadora", variant: "destructive" }),
   });
 
-  const { data: invoices = [] } = useQuery<Invoice[]>({
+  const { data: invoices = [], isLoading: invoicesLoading } = useQuery<Invoice[]>({
     queryKey: ["/api/invoices", selectedEventId],
     queryFn: () => apiRequest("GET", `/api/invoices?eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
   });
 
-  const { data: budgetActuals = [] } = useQuery<any[]>({
+  const { data: budgetActuals = [], isLoading: actualsLoading } = useQuery<any[]>({
     queryKey: ["/api/budget-actual", selectedEventId],
     queryFn: () => apiRequest("GET", `/api/budget-actual?eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
@@ -220,25 +246,29 @@ export default function InvoicesPage() {
   const { data: functions   = [] }   = useQuery<any[]>({ queryKey: ["/api/functions"] });
 
   // Escalação do evento — fonte da flag "emite NF" de cada escalado
-  const { data: teamInclusions = [] } = useQuery<any[]>({
+  const { data: teamInclusions = [], isLoading: inclusionsLoading } = useQuery<any[]>({
     queryKey: ["/api/team-inclusions", selectedEventId, "invoices"],
     queryFn: () => apiRequest("GET", `/api/team-inclusions?eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
   });
 
+  // Enquanto os dados do evento carregam, mostra skeleton em vez do empty
+  // state falso ("Nenhum colaborador com Realizado enviado").
+  const dataLoading = !!selectedEventId && (invoicesLoading || actualsLoading || inclusionsLoading);
+
   const getName     = (id?: string | null) => (collaborators as any[]).find(c => c.id === id)?.fullName || "—";
   const getFuncName = (id?: string | null) => (functions     as any[]).find(f => f.id === id)?.name     || "—";
 
   // Definido na escalação: se false, a tela não cobra NF deste colaborador.
-  // Match por colaborador+função; sem escalação correspondente, assume que emite.
-  const emitsNfFor = (actual: any): boolean => {
-    const matches = (teamInclusions as any[]).filter(ti => ti.collaboratorId && ti.collaboratorId === actual.collaboratorId);
-    if (matches.length === 0) return true;
-    const byFunction = matches.find(ti => ti.functionId === actual.functionId);
-    // Sem match exato colaborador+função na escalação, assume que emite (cobra NF)
-    if (!byFunction) return true;
-    return byFunction.emitsNf !== false;
-  };
+  // Regra única em @shared/prestacao-rules — mesma da tela Controle de
+  // Prestações (as cópias locais tinham divergido).
+  const emitsNfFor = (actual: any): boolean =>
+    !nfIsentaPorEscalacao(
+      teamInclusions as any[],
+      actual.collaboratorId,
+      actual.functionId,
+      actual.eventId ?? selectedEventId,
+    );
 
   // Elegibilidade da NF vem de @shared/prestacao-rules — a mesma regra que o
   // servidor aplica. Antes cada tela tinha sua cópia e elas divergiram.
@@ -255,13 +285,12 @@ export default function InvoicesPage() {
     return !inv || inv.status === "pendente" || inv.status === "devolvida";
   }).length;
   const rhPendingCount = (invoices as any[]).filter(i => i.status === "enviada").length;
+  const checkinPendingCount = (invoices as any[]).filter(i => i.status === "aprovada" && !i.checkinAt).length;
 
   const tabs = [
     { id: "lancamento" as const, label: "Lançamento",   count: pendingCount,   countCls: "bg-amber-100 text-amber-700" },
     ...(canRH ? [{ id: "aprovacao" as const, label: "Aprovação RH", count: rhPendingCount, countCls: "bg-orange-100 text-orange-700" }] : []),
   ];
-
-  const stepperStep = activeTab === "aprovacao" ? "aprovacao" : "lancamento";
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-6">
@@ -327,14 +356,16 @@ export default function InvoicesPage() {
           (() => {
             const pcs = paymentCompanies as any[];
             const selectedPc = pcs.find(c => String(c.id) === confirmCompanyId);
-            const isManual = confirmCompanyId === "__manual__";
+            const isManual = confirmCompanyId === "__manual__" || pcs.length === 0;
             const canConfirm = isManual
               ? confirmCustomName.trim() && confirmCustomCnpj.trim()
               : !!selectedPc;
+            const chosenName = isManual ? confirmCustomName.trim() : (selectedPc?.name || "");
+            const chosenCnpj = isManual ? confirmCustomCnpj.trim() : (selectedPc?.cnpj || "");
             const handleConfirm = () => {
-              const name = isManual ? confirmCustomName.trim() : selectedPc.name;
-              const cnpj = isManual ? confirmCustomCnpj.trim() : selectedPc.cnpj;
-              setEventCompanyMutation.mutate({ name, cnpj });
+              if (!chosenName || !chosenCnpj) return;
+              setCompanyDialogOpen(false);
+              setEventCompanyMutation.mutate({ name: chosenName, cnpj: chosenCnpj });
             };
             return (
               <div className="bg-white rounded-2xl border border-amber-200 p-8 max-w-md mx-auto">
@@ -360,6 +391,7 @@ export default function InvoicesPage() {
                         onChange={e => setConfirmCompanyId(e.target.value)}
                         className="w-full h-9 rounded-lg border border-slate-200 px-3 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300/50 focus:border-amber-400"
                       >
+                        <option value="" disabled>Selecione a empresa pagadora...</option>
                         {pcs.map(c => (
                           <option key={c.id} value={c.id}>
                             {c.name} — {c.cnpj}
@@ -411,19 +443,48 @@ export default function InvoicesPage() {
 
                   <button
                     disabled={!canConfirm || setEventCompanyMutation.isPending}
-                    onClick={handleConfirm}
+                    onClick={() => setCompanyDialogOpen(true)}
                     className="w-full h-10 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white text-sm font-semibold transition-colors mt-1"
                   >
                     {setEventCompanyMutation.isPending ? 'Salvando...' : 'Confirmar e Continuar'}
                   </button>
+
+                  <AlertDialog open={companyDialogOpen} onOpenChange={setCompanyDialogOpen}>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Confirmar empresa pagadora</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Definir {chosenName || "esta empresa"}{chosenCnpj ? ` (CNPJ ${chosenCnpj})` : ""} como
+                          pagadora deste evento? Essa escolha vale para todas as NFs.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirm}>Definir empresa</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             );
           })()
+        ) : dataLoading ? (
+          <div className="space-y-3" aria-busy="true" aria-label="Carregando notas fiscais">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="bg-white rounded-2xl border border-gray-100 px-5 py-4 animate-pulse flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-gray-200 shrink-0" />
+                <div className="flex-1 space-y-2 min-w-0">
+                  <div className="h-3 bg-gray-200 rounded w-40 max-w-full" />
+                  <div className="h-2.5 bg-gray-100 rounded w-24" />
+                </div>
+                <div className="h-6 w-24 bg-gray-100 rounded-full shrink-0" />
+              </div>
+            ))}
+          </div>
         ) : (
           <>
-            {/* Stepper */}
-            <InvoiceStepper currentStep={stepperStep} />
+            {/* Stepper — estágio real dos itens (não a aba ativa) */}
+            <InvoiceStepper counts={{ lancamento: pendingCount, aprovacao: rhPendingCount, checkin: checkinPendingCount }} />
 
             {/* Tabs */}
             <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
@@ -488,6 +549,7 @@ const LANC_FILTERS = [
   { id: "pendente",          label: "Pendente",           activeBg: "bg-gray-500 text-white" },
   { id: "enviada",           label: "Aguardando RH",      activeBg: "bg-amber-500 text-white" },
   { id: "devolvida",         label: "Devolvida",          activeBg: "bg-orange-500 text-white" },
+  { id: "recusada",          label: "NF recusada",        activeBg: "bg-red-800 text-white" },
   { id: "checkin-pendente",  label: "Aguard. Check-in",   activeBg: "bg-[#0033CC] text-white" },
   { id: "checkin-realizado", label: "Check-in Realizado", activeBg: "bg-emerald-600 text-white" },
   { id: "sem-nf",            label: "Não emite NF",       activeBg: "bg-slate-500 text-white" },
@@ -613,7 +675,7 @@ function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFu
 // ── Invoice Card (collaborator view) ─────────────────────────────────────────
 function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: any) {
   const effStatus = getEffectiveStatus(invoice);
-  const cfg = STATUS_CFG[effStatus];
+  const cfg = getStatusCfg(effStatus);
 
   const [oc, setOc] = useState(invoice?.oc || "");
   const [file, setFile] = useState<File | null>(null);
@@ -722,16 +784,23 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
             <button
               onClick={() => setHistoryOpen(o => !o)}
               title={historyOpen ? "Fechar histórico" : `${history.length} evento(s)`}
+              aria-expanded={historyOpen}
+              aria-label={historyOpen ? "Fechar histórico" : `Abrir histórico (${history.length} eventos)`}
               className={`inline-flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-1 transition-colors ${
                 historyOpen ? "text-[#3B4FE4] bg-blue-100" : "text-slate-400 hover:text-[#3B4FE4] hover:bg-blue-50"
               }`}
             >
               <Clock className="w-3.5 h-3.5" />
-              {!historyOpen && <span className="text-[9px] font-semibold leading-none tabular-nums">{history.length}</span>}
+              {!historyOpen && <span className="text-[10px] font-semibold leading-none tabular-nums">{history.length}</span>}
             </button>
           )}
           {effStatus === "devolvida" && (
-            <button onClick={() => setExpanded(e => !e)} className="text-slate-400 hover:text-slate-600 transition-colors">
+            <button
+              onClick={() => setExpanded(e => !e)}
+              aria-expanded={expanded}
+              aria-label={expanded ? "Recolher motivo da devolução" : "Ver motivo da devolução"}
+              className="text-slate-400 hover:text-slate-600 transition-colors"
+            >
               {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
           )}
@@ -742,20 +811,22 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
       <div className="px-5 pb-4">
         {/* Editable (pendente / devolvida) */}
         {canEdit && (
-          <div className="flex items-end gap-3 mb-3">
-            <div className="flex-1">
-              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">
+          <div className="flex flex-wrap items-end gap-3 mb-3">
+            <div className="flex-1 min-w-[180px]">
+              <label htmlFor={`nf-oc-${actual.id}`} className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">
                 Número OC <span className="text-red-400">*</span>
               </label>
               <Input
+                id={`nf-oc-${actual.id}`}
                 value={oc}
                 onChange={e => setOc(e.target.value)}
                 placeholder="OC-0000"
                 className="h-9 text-sm rounded-xl border-[#e5e7eb] focus:border-[#3B4FE4]"
               />
+              <p className="text-[10px] text-slate-400 mt-0.5">OCs repetidas no evento devem usar o mesmo anexo.</p>
             </div>
-            <div className="flex-1">
-              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">
+            <div className="flex-1 min-w-[180px]">
+              <label htmlFor={`nf-file-${actual.id}`} className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">
                 Nota fiscal <span className="text-red-400">*</span>
               </label>
               <div className="flex items-center gap-1.5">
@@ -779,7 +850,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
                   </button>
                 )}
               </div>
-              <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
+              <input ref={fileRef} id={`nf-file-${actual.id}`} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
               {invoice?.attachmentUrl && !file && !clearedAttachment && (
                 <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
                   className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-blue-500 hover:underline">
@@ -866,6 +937,35 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
             </div>
           </div>
         )}
+
+        {/* Recusada — estado terminal, sem reenvio */}
+        {effStatus === "recusada" && (
+          <>
+            {(invoice?.oc || invoice?.attachmentUrl) && (
+              <div className="flex items-center gap-4 mb-2">
+                {invoice?.oc && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">OC</span>
+                    <span className="text-[13px] font-mono font-semibold text-slate-700">{invoice.oc}</span>
+                  </div>
+                )}
+                {invoice?.attachmentUrl && (
+                  <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl transition-colors">
+                    <FileText className="w-3.5 h-3.5" /> Ver nota
+                  </a>
+                )}
+              </div>
+            )}
+            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-2">
+              <Ban className="w-3.5 h-3.5 text-red-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[10px] font-semibold text-red-700 mb-0.5 uppercase tracking-wide">NF recusada — decisão definitiva, sem reenvio</p>
+                <p className="text-xs text-red-700">{invoice?.returnComment || "Sem motivo informado."}</p>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* History panel */}
@@ -885,6 +985,7 @@ const APROV_FILTERS = [
   { id: "checkin-pendente",  label: "Aguard. Check-in",   activeBg: "bg-[#0033CC] text-white" },
   { id: "checkin-realizado", label: "Check-in Realizado", activeBg: "bg-emerald-600 text-white" },
   { id: "devolvida",         label: "Devolvida",          activeBg: "bg-orange-500 text-white" },
+  { id: "recusada",          label: "NF recusada",        activeBg: "bg-red-800 text-white" },
 ];
 
 // ── History helpers ───────────────────────────────────────────────────────────
@@ -901,7 +1002,7 @@ function fmtDateTime(iso?: string | null) {
 }
 
 type HistEvent = {
-  type: "enviado" | "reenviado" | "devolvido" | "aprovado" | "checkin";
+  type: "enviado" | "reenviado" | "devolvido" | "recusado" | "aprovado" | "checkin";
   label: string;
   color: string;
   at: string | null;
@@ -916,6 +1017,7 @@ const HIST_CFG: Record<HistEvent["type"], { label: string; color: string; by: "c
   enviado:   { label: "Enviado",   color: "#3B4FE4", by: "colaborador" },
   reenviado: { label: "Reenviado", color: "#3B4FE4", by: "colaborador" },
   devolvido: { label: "Devolvido", color: "#D97706", by: "rh" },
+  recusado:  { label: "Recusado",  color: "#B91C1C", by: "rh" },
   aprovado:  { label: "Aprovado",  color: "#16A34A", by: "rh" },
   checkin:   { label: "Check-in",  color: "#7C3AED", by: "rh" },
 };
@@ -1019,7 +1121,7 @@ function HistoryPanel({ events, collabName }: { events: HistEvent[]; collabName:
   );
 }
 
-type AprovAction = "approve" | "return" | "checkin";
+type AprovAction = "approve" | "return" | "reject" | "checkin";
 type ActiveAprovAction = { invId: string; type: AprovAction } | null;
 
 function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedEventId, qc, toast, initialFilter }: any) {
@@ -1065,6 +1167,18 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
       toast({ title: "Nota devolvida para ajuste." });
     },
     onError: () => toast({ title: "Erro", description: "Erro ao devolver nota", variant: "destructive" }),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiRequest("POST", `/api/invoices/${id}/reject`, { comment }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
+      qc.invalidateQueries({ queryKey: ["/api/invoices"] });
+      closeAction();
+      toast({ title: "Nota recusada.", description: "A recusa é definitiva — esta nota não poderá ser reenviada." });
+    },
+    onError: (e: any) => toast({ title: "Erro", description: e?.body?.message || "Erro ao recusar nota", variant: "destructive" }),
   });
 
   const checkinMutation = useMutation({
@@ -1140,7 +1254,8 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
       <FilterPills filters={APROV_FILTERS} active={filterStatus} countFor={aprovCountFor} onChange={setFilterStatus} alertFor={alertFor} />
 
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-        <table className="w-full" style={{ tableLayout: "fixed" }}>
+        <div className="overflow-x-auto">
+        <table className="w-full" style={{ tableLayout: "fixed", minWidth: "760px" }}>
           <colgroup>
             <col style={{ width: "210px" }} />
             <col style={{ width: "120px" }} />
@@ -1173,7 +1288,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
               const actual   = getActual(inv.budgetActualId);
               const name     = getName(inv.collaboratorId);
               const effSt        = getEffectiveStatus(inv);
-              const cfg          = STATUS_CFG[effSt];
+              const cfg          = getStatusCfg(effSt);
               const isActive     = active?.invId === inv.id;
               const isHistOpen   = historyOpenId === inv.id;
               const initial      = name && name !== "—" ? name.charAt(0).toUpperCase() : "?";
@@ -1206,7 +1321,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                         <div className="min-w-0">
                           <span className="text-[13px] font-medium text-slate-800 truncate block" title={toTitleCase(name)}>{toTitleCase(name)}</span>
                           <div className="flex items-center gap-1 flex-wrap">
-                            <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${cfg.pill}`}>{cfg.label}</span>
+                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${cfg.pill}`}>{cfg.label}</span>
                             {hasReturn && (
                               <span title="Houve devolução" className="text-[10px] text-orange-500 font-bold leading-none">↩</span>
                             )}
@@ -1251,6 +1366,8 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                       <button
                         onClick={() => toggleHistory(inv.id)}
                         title={isHistOpen ? "Fechar histórico" : `${history.length} evento(s)`}
+                        aria-expanded={isHistOpen}
+                        aria-label={isHistOpen ? "Fechar histórico" : `Abrir histórico (${history.length} eventos)`}
                         className={`inline-flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-1 transition-colors ${
                           isHistOpen
                             ? "text-[#3B4FE4] bg-blue-100"
@@ -1259,7 +1376,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                       >
                         <Clock className="w-3.5 h-3.5" />
                         {!isHistOpen && (
-                          <span className="text-[9px] font-semibold leading-none tabular-nums">{history.length}</span>
+                          <span className="text-[10px] font-semibold leading-none tabular-nums">{history.length}</span>
                         )}
                       </button>
                     </td>
@@ -1300,6 +1417,17 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                             >
                               <RotateCcw className="w-3.5 h-3.5" /> Devolver
                             </button>
+                            <button
+                              onClick={() => openAction(inv.id, "reject")}
+                              title="Recusar em definitivo — a nota não poderá ser reenviada"
+                              className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap border ${
+                                isActive && active?.type === "reject"
+                                  ? "bg-red-700 text-white border-red-700"
+                                  : "text-red-700 bg-red-50 border-red-200 hover:bg-red-100"
+                              }`}
+                            >
+                              <Ban className="w-3.5 h-3.5" /> Recusar
+                            </button>
                           </>
                         )}
                         {effSt === "checkin-pendente" && (
@@ -1320,8 +1448,16 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                           </span>
                         )}
                         {effSt === "devolvida" && (
-                          <span className="text-[11px] text-slate-400 italic truncate max-w-[180px]">
+                          <span className="text-[11px] text-slate-400 italic truncate max-w-[180px]" title={inv.returnComment || undefined}>
                             {inv.returnComment || "Devolvida"}
+                          </span>
+                        )}
+                        {effSt === "recusada" && (
+                          <span
+                            className="text-[11px] text-red-600 italic truncate max-w-[180px]"
+                            title={inv.returnComment ? `Recusada: ${inv.returnComment}` : "Recusada"}
+                          >
+                            {inv.returnComment || "Recusada"}
                           </span>
                         )}
                       </div>
@@ -1382,10 +1518,11 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                               <RotateCcw className="w-3.5 h-3.5" /> Devolver para ajuste
                             </span>
                             <div>
-                              <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">
+                              <label htmlFor={`nf-return-${inv.id}`} className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">
                                 Motivo da devolução <span className="text-red-400">*</span>
                               </label>
                               <Textarea
+                                id={`nf-return-${inv.id}`}
                                 rows={3}
                                 value={comment}
                                 onChange={e => setComment(e.target.value)}
@@ -1409,18 +1546,57 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                           </div>
                         )}
 
+                        {/* ── Recusar (terminal) ── */}
+                        {active.type === "reject" && (
+                          <div className="space-y-2.5">
+                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 px-2.5 py-1.5 rounded-lg">
+                              <Ban className="w-3.5 h-3.5" /> Recusar nota fiscal
+                            </span>
+                            <p className="text-[11px] text-red-600">
+                              A recusa é definitiva: a nota não poderá ser corrigida nem reenviada. Para pedir ajustes, use <strong>Devolver</strong>.
+                            </p>
+                            <div>
+                              <label htmlFor={`nf-reject-${inv.id}`} className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">
+                                Motivo da recusa <span className="text-red-400">*</span>
+                              </label>
+                              <Textarea
+                                id={`nf-reject-${inv.id}`}
+                                rows={3}
+                                value={comment}
+                                onChange={e => setComment(e.target.value)}
+                                placeholder="Explique por que esta nota está sendo recusada em definitivo..."
+                                className="text-xs rounded-xl border-slate-200 resize-none w-full"
+                                autoFocus
+                              />
+                            </div>
+                            <div className="flex items-center justify-end gap-2">
+                              <button onClick={closeAction} className="h-8 px-3 text-xs text-slate-500 hover:bg-slate-200 rounded-lg flex items-center gap-1">
+                                <X className="w-3 h-3" /> Cancelar
+                              </button>
+                              <button
+                                onClick={() => rejectMutation.mutate(inv.id)}
+                                disabled={!comment.trim() || rejectMutation.isPending}
+                                className="h-8 px-4 text-xs font-semibold bg-red-700 hover:bg-red-800 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                              >
+                                {rejectMutation.isPending ? "Recusando..." : "Confirmar Recusa"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                         {/* ── Check-in ── */}
                         {active.type === "checkin" && (
                           <div className="space-y-2.5">
                             <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0033CC] bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-lg">
                               <CircleDot className="w-3.5 h-3.5" /> Check-in Financeiro
                             </span>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-wrap">
                               <div>
-                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">
-                                  Data prevista de pagamento <span className="text-red-400">*</span>
+                                <label htmlFor={`nf-checkin-${inv.id}`} className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">
+                                  Data de pagamento <span className="text-red-400">*</span>
                                 </label>
                                 <input
+                                  id={`nf-checkin-${inv.id}`}
                                   type="date"
                                   value={checkinDate}
                                   onChange={e => setCheckinDate(e.target.value)}
@@ -1499,6 +1675,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
             </tfoot>
           )}
         </table>
+        </div>
       </div>
     </div>
   );

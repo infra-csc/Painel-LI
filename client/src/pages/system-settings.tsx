@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
+import type { Control, ControllerRenderProps, FieldPath } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
@@ -12,9 +13,15 @@ import { Link } from "wouter";
 import {
   Calculator, Save, DollarSign, Car, Utensils, ShieldAlert,
   Lock, ChevronDown, ChevronUp, Clock, BadgeCheck, ExternalLink,
-  Search, Building2, Plus, Trash2, Pencil, Check, X, AlertCircle, RefreshCw
+  Search, Building2, Users, Plus, Trash2, Pencil, X, RefreshCw
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { isRhOrAdmin } from "@/lib/permissions";
 import type { Function as FunctionType, FunctionValue, PaymentCompany } from "@shared/schema";
@@ -103,6 +110,8 @@ const FIELD_LABELS: Record<string, string> = {
   alimentacao_jantar_ceno: "Alimentação por Refeição — Jantar (Cenotécnica)",
 };
 
+// Histórico gravado APENAS no localStorage deste navegador — em ambiente
+// multiusuário cada pessoa vê só o que ela mesma salvou nesta máquina.
 const HISTORY_KEY = "system_settings_history";
 const LAST_SAVED_KEY = "system_settings_last_saved";
 
@@ -137,38 +146,111 @@ function toTitleCase(str: string): string {
   return str.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
 
-function CurrencyInput({ field }: { field: any }) {
+// Fallback único "freela zerado → usa o valor casa correspondente".
+// Antes esta regra estava duplicada em 3 pontos (reset dos mapas, isFunctionDirty
+// e a renderização da tabela por função) e as cópias podiam divergir.
+function freelaOuCasa(freelaCentavos: number | null | undefined, casaCentavos: number | null | undefined): number {
+  const f = freelaCentavos ?? 0;
+  return f !== 0 ? f : (casaCentavos ?? 0);
+}
+
+// Normaliza dígito decimal pt-BR: aceita vírgula no teclado, mas o valor
+// guardado no form continua com ponto (formato salvo/PUT idêntico ao anterior).
+function normalizeDecimal(raw: string): string {
+  return raw.replace(",", ".");
+}
+
+type AnyFieldProps = ControllerRenderProps<FormValues, FieldPath<FormValues>>;
+
+function CurrencyInput({ field, id }: { field: AnyFieldProps; id?: string }) {
   return (
     <div className="relative">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-gray-400 font-semibold select-none">R$</span>
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 select-none text-[13px] font-semibold text-gray-400">R$</span>
       <input
-        type="number"
-        step="0.01"
-        min="0"
-        {...field}
-        style={{ height: 38, fontSize: 14, fontWeight: 600, paddingLeft: 36, paddingRight: 10, border: '1px solid #E5E7EB', borderRadius: 8, background: '#F9FAFB', width: '100%', outline: 'none', appearance: 'none' }}
-        onFocus={e => { e.target.style.background = '#fff'; e.target.style.borderColor = '#6366F1'; }}
-        onBlur={e => { e.target.style.background = '#F9FAFB'; e.target.style.borderColor = '#E5E7EB'; }}
+        type="text"
+        inputMode="decimal"
+        id={id}
+        name={field.name}
+        ref={field.ref}
+        value={field.value}
+        onBlur={field.onBlur}
+        onChange={e => field.onChange(normalizeDecimal(e.target.value))}
+        className="h-[38px] w-full appearance-none rounded-lg border border-gray-200 bg-gray-50 pl-9 pr-2.5 text-sm font-semibold text-gray-800 outline-none transition-colors focus:border-indigo-500 focus:bg-white"
       />
     </div>
   );
 }
 
 // Input de percentual inteiro (0..100) com sufixo "%". NÃO é monetário.
-function PercentInput({ field }: { field: any }) {
+function PercentInput({ field, id }: { field: AnyFieldProps; id?: string }) {
   return (
     <div className="relative">
       <input
-        type="number"
-        step="1"
-        min="0"
-        max="100"
-        {...field}
-        style={{ height: 38, fontSize: 14, fontWeight: 600, paddingLeft: 12, paddingRight: 34, border: '1px solid #E5E7EB', borderRadius: 8, background: '#F9FAFB', width: '100%', outline: 'none', appearance: 'none' }}
-        onFocus={e => { e.target.style.background = '#fff'; e.target.style.borderColor = '#6366F1'; }}
-        onBlur={e => { e.target.style.background = '#F9FAFB'; e.target.style.borderColor = '#E5E7EB'; }}
+        type="text"
+        inputMode="numeric"
+        id={id}
+        name={field.name}
+        ref={field.ref}
+        value={field.value}
+        onBlur={field.onBlur}
+        onChange={e => field.onChange(normalizeDecimal(e.target.value))}
+        className="h-[38px] w-full appearance-none rounded-lg border border-gray-200 bg-gray-50 pl-3 pr-8 text-sm font-semibold text-gray-800 outline-none transition-colors focus:border-indigo-500 focus:bg-white"
       />
-      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[13px] text-gray-400 font-semibold select-none pointer-events-none">%</span>
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 select-none text-[13px] font-semibold text-gray-400">%</span>
+    </div>
+  );
+}
+
+// Campo monetário com <label htmlFor> apontando para o input (a11y).
+function MoneyField({
+  control, name, label, labelClass = "text-gray-500",
+}: {
+  control: Control<FormValues>;
+  name: FieldPath<FormValues>;
+  label: string;
+  labelClass?: string;
+}) {
+  return (
+    <FormField control={control} name={name} render={({ field }) => (
+      <FormItem>
+        <label htmlFor={name} className={`mb-1 block text-[10px] font-bold uppercase tracking-wider ${labelClass}`}>{label}</label>
+        <FormControl><CurrencyInput field={field} id={name} /></FormControl>
+        <FormMessage />
+      </FormItem>
+    )} />
+  );
+}
+
+function PercentField({
+  control, name, label, labelClass = "text-gray-500",
+}: {
+  control: Control<FormValues>;
+  name: FieldPath<FormValues>;
+  label: string;
+  labelClass?: string;
+}) {
+  return (
+    <FormField control={control} name={name} render={({ field }) => (
+      <FormItem>
+        <label htmlFor={name} className={`mb-1 block text-[10px] font-bold uppercase tracking-wider ${labelClass}`}>{label}</label>
+        <FormControl><PercentInput field={field} id={name} /></FormControl>
+        <FormMessage />
+      </FormItem>
+    )} />
+  );
+}
+
+// Cabeçalho padrão dos cards (sem gradiente, seguindo o padrão do app).
+function SectionHeader({ icon: Icon, iconBg, title, subtitle }: { icon: LucideIcon; iconBg: string; title: string; subtitle: string }) {
+  return (
+    <div className="flex items-center gap-2.5 border-b border-gray-100 bg-gray-50/60 px-4 py-3.5">
+      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
+        <Icon className="h-[18px] w-[18px] text-white" />
+      </div>
+      <div>
+        <p className="text-[13px] font-bold text-gray-800">{title}</p>
+        <p className="text-[11px] text-gray-400">{subtitle}</p>
+      </div>
     </div>
   );
 }
@@ -194,6 +276,7 @@ export default function SystemSettingsPage() {
   const [showAddCompany, setShowAddCompany] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState("");
   const [newCompanyCnpj, setNewCompanyCnpj] = useState("");
+  const [companyToDelete, setCompanyToDelete] = useState<PaymentCompany | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -274,7 +357,7 @@ export default function SystemSettingsPage() {
   });
 
   // Reconstrói os 4 mapas de valores por função a partir do que está salvo.
-  // Usado no carregamento e também pelo "Descartar" do rodapé.
+  // Usado no carregamento e também pelo "Descartar" da barra flutuante.
   const resetFunctionValueStates = () => {
     if (allFunctions.length === 0) return;
     const mapCasaWd: Record<string, string> = {};
@@ -285,10 +368,8 @@ export default function SystemSettingsPage() {
       const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
       mapCasaWd[fn.id] = fv ? centavosToReais(fv.dailyValue) : "0.00";
       mapCasaWe[fn.id] = fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00";
-      const freelaWd = fv?.dailyValueFreela ?? 0;
-      const freelaWe = fv?.dailyValueFreelaWeekend ?? 0;
-      mapFreelaWd[fn.id] = fv ? centavosToReais(freelaWd !== 0 ? freelaWd : (fv.dailyValue ?? 0)) : "0.00";
-      mapFreelaWe[fn.id] = fv ? centavosToReais(freelaWe !== 0 ? freelaWe : (fv.dailyValueWeekend ?? 0)) : "0.00";
+      mapFreelaWd[fn.id] = fv ? centavosToReais(freelaOuCasa(fv.dailyValueFreela, fv.dailyValue)) : "0.00";
+      mapFreelaWe[fn.id] = fv ? centavosToReais(freelaOuCasa(fv.dailyValueFreelaWeekend, fv.dailyValueWeekend)) : "0.00";
     }
     setFunctionDailyValues(mapCasaWd);
     setFnWeekendValues(mapCasaWe);
@@ -313,10 +394,8 @@ export default function SystemSettingsPage() {
     const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
     const savedCasaWd = fv ? centavosToReais(fv.dailyValue) : "0.00";
     const savedCasaWe = fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00";
-    const freeWdDb = fv?.dailyValueFreela ?? 0;
-    const freeWeDb = fv?.dailyValueFreelaWeekend ?? 0;
-    const savedFreelaWd = fv ? centavosToReais(freeWdDb !== 0 ? freeWdDb : (fv.dailyValue ?? 0)) : "0.00";
-    const savedFreelaWe = fv ? centavosToReais(freeWeDb !== 0 ? freeWeDb : (fv.dailyValueWeekend ?? 0)) : "0.00";
+    const savedFreelaWd = fv ? centavosToReais(freelaOuCasa(fv.dailyValueFreela, fv.dailyValue)) : "0.00";
+    const savedFreelaWe = fv ? centavosToReais(freelaOuCasa(fv.dailyValueFreelaWeekend, fv.dailyValueWeekend)) : "0.00";
     return (
       parseFloat(functionDailyValues[fn.id] ?? "0") !== parseFloat(savedCasaWd) ||
       parseFloat(fnWeekendValues[fn.id] ?? "0") !== parseFloat(savedCasaWe) ||
@@ -453,44 +532,6 @@ export default function SystemSettingsPage() {
   const hasAnyChanges = totalUnsaved > 0;
   const isSavingAny = saveFunctionValuesMutation.isPending;
 
-  const [isApplyingDefaults, setIsApplyingDefaults] = useState(false);
-
-  const handleApplyDefaults = async () => {
-    setIsApplyingDefaults(true);
-    try {
-      // 1. Salvar valores do formulário se houver alterações
-      if (hasAnyChanges) {
-        const values = form.getValues();
-        const isValid = await form.trigger();
-        if (!isValid) {
-          toast({ title: "Corrija os valores antes de aplicar", variant: "destructive" });
-          setIsApplyingDefaults(false);
-          return;
-        }
-        await saveMutation.mutateAsync(values);
-        if (dirtyFunctionCount > 0) {
-          await saveFunctionValuesMutation.mutateAsync();
-          queryClient.invalidateQueries({ queryKey: ["/api/function-values"] });
-        }
-      }
-      // 2. Aplicar padrões a todos os orçamentos pendentes
-      const res = await apiRequest("POST", "/api/budget-planned/apply-defaults", {});
-      const data = await res.json();
-      const count = data.updated ?? 0;
-      queryClient.invalidateQueries({ queryKey: ["/api/budget-planned"] });
-      toast({
-        title: count > 0 ? `${count} planejamento${count !== 1 ? 's' : ''} atualizado${count !== 1 ? 's' : ''}` : "Valores salvos",
-        description: count > 0
-          ? "Valores salvos e aplicados aos orçamentos pendentes."
-          : hasAnyChanges ? "Valores salvos. Nenhum orçamento pendente encontrado." : "Nenhum orçamento pendente encontrado.",
-      });
-    } catch {
-      toast({ title: "Erro ao salvar ou aplicar valores", variant: "destructive" });
-    } finally {
-      setIsApplyingDefaults(false);
-    }
-  };
-
   const saveMutation = useMutation({
     mutationFn: async (values: FormValues) => {
       const body: Record<string, number> = {};
@@ -532,33 +573,64 @@ export default function SystemSettingsPage() {
     onError: () => { toast({ title: "Erro ao salvar", variant: "destructive" }); },
   });
 
-  const handleSaveAll = form.handleSubmit(async (values) => {
-    try {
-      await saveMutation.mutateAsync(values);
-      if (dirtyFunctionCount > 0) {
-        await saveFunctionValuesMutation.mutateAsync();
-        queryClient.invalidateQueries({ queryKey: ["/api/function-values"] });
-      }
-      // Apply new defaults to all pending (not-yet-sent) budget_planned records
-      let updatedCount = 0;
+  // ÚNICO fluxo de salvamento da página (barra flutuante): valida, salva as
+  // tarifas + valores por função e aplica os padrões aos planejamentos
+  // pendentes, com um único toast ao final.
+  const handleSaveAll = form.handleSubmit(
+    async (values) => {
       try {
-        const applyRes = await apiRequest("POST", "/api/budget-planned/apply-defaults", {});
-        const applyData = await applyRes.json();
-        updatedCount = applyData.updated ?? 0;
-        if (updatedCount > 0) {
-          queryClient.invalidateQueries({ queryKey: ["/api/budget-planned"] });
+        await saveMutation.mutateAsync(values);
+        if (dirtyFunctionCount > 0) {
+          await saveFunctionValuesMutation.mutateAsync();
+          queryClient.invalidateQueries({ queryKey: ["/api/function-values"] });
         }
-      } catch { /* non-critical */ }
+        // Apply new defaults to all pending (not-yet-sent) budget_planned records
+        let updatedCount = 0;
+        try {
+          const applyRes = await apiRequest("POST", "/api/budget-planned/apply-defaults", {});
+          const applyData = await applyRes.json();
+          updatedCount = applyData.updated ?? 0;
+          if (updatedCount > 0) {
+            queryClient.invalidateQueries({ queryKey: ["/api/budget-planned"] });
+          }
+        } catch { /* non-critical */ }
+        toast({
+          title: "Valores padrão salvos",
+          description: updatedCount > 0
+            ? `${updatedCount} planejamento${updatedCount > 1 ? 's' : ''} pendente${updatedCount > 1 ? 's' : ''} atualizado${updatedCount > 1 ? 's' : ''} com os novos valores.`
+            : "Os novos valores serão aplicados em orçamentos de novos eventos.",
+        });
+      } catch {
+        toast({ title: "Erro ao salvar", variant: "destructive" });
+      }
+    },
+    () => {
+      toast({ title: "Corrija os valores destacados antes de salvar", variant: "destructive" });
+    },
+  );
+
+  // Ação secundária (não salva nada): reaplica os valores padrão JÁ SALVOS a
+  // todos os orçamentos planejados ainda não enviados.
+  const [isApplyingPending, setIsApplyingPending] = useState(false);
+  const handleApplyToPending = async () => {
+    setIsApplyingPending(true);
+    try {
+      const res = await apiRequest("POST", "/api/budget-planned/apply-defaults", {});
+      const data = await res.json();
+      const count = data.updated ?? 0;
+      if (count > 0) queryClient.invalidateQueries({ queryKey: ["/api/budget-planned"] });
       toast({
-        title: "Valores padrão salvos",
-        description: updatedCount > 0
-          ? `${updatedCount} planejamento${updatedCount > 1 ? 's' : ''} pendente${updatedCount > 1 ? 's' : ''} atualizado${updatedCount > 1 ? 's' : ''} com os novos valores.`
-          : "Os novos valores serão aplicados em orçamentos de novos eventos.",
+        title: count > 0
+          ? `${count} planejamento${count !== 1 ? 's' : ''} atualizado${count !== 1 ? 's' : ''}`
+          : "Nenhum orçamento pendente encontrado",
+        description: count > 0 ? "Valores padrão aplicados aos orçamentos pendentes." : undefined,
       });
     } catch {
-      toast({ title: "Erro ao salvar", variant: "destructive" });
+      toast({ title: "Erro ao atualizar o Planejado", variant: "destructive" });
+    } finally {
+      setIsApplyingPending(false);
     }
-  });
+  };
 
   function getCurrentValue(fnId: string, field: 'wd' | 'we'): string {
     if (activeTab === 'casa') {
@@ -613,916 +685,688 @@ export default function SystemSettingsPage() {
     <TooltipProvider>
     <div className="p-6 max-w-6xl space-y-6">
 
-      {/* ── Barra flutuante de salvamento ── */}
+      {/* ── Barra flutuante: ÚNICO ponto de salvamento da página ── */}
       {hasAnyChanges && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 24,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 9999,
-            background: '#1E293B',
-            borderRadius: 14,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.28)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 16,
-            padding: '10px 16px 10px 20px',
-            minWidth: 340,
-            animation: 'fadeIn 0.18s ease',
-          }}
-        >
-          <span style={{ fontSize: 13, color: '#CBD5E1', flex: 1 }}>
-            <span style={{ fontWeight: 700, color: '#F8FAFC' }}>{totalUnsaved}</span>{' '}
+        <div className="fixed bottom-6 left-1/2 z-50 flex min-w-[340px] -translate-x-1/2 items-center gap-4 rounded-2xl bg-slate-800 py-2.5 pl-5 pr-4 shadow-2xl">
+          <span className="flex-1 text-[13px] text-slate-300">
+            <span className="font-bold text-slate-50">{totalUnsaved}</span>{' '}
             alteraç{totalUnsaved === 1 ? 'ão' : 'ões'} não salva{totalUnsaved === 1 ? '' : 's'}
           </span>
           <button
             type="button"
             onClick={() => handleSaveAll()}
             disabled={isSavingAny || saveMutation.isPending}
-            style={{
-              background: (isSavingAny || saveMutation.isPending) ? '#475569' : '#3B4FE4',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 9,
-              padding: '7px 18px',
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
-              boxShadow: '0 2px 10px rgba(59,79,228,0.35)',
-              whiteSpace: 'nowrap',
-            }}
+            className="flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-indigo-600 px-4 py-1.5 text-[13px] font-bold text-white shadow-md transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-600"
           >
-            <Save style={{ width: 14, height: 14 }} />
+            <Save className="h-3.5 w-3.5" />
             {(isSavingAny || saveMutation.isPending) ? 'Salvando...' : 'Salvar'}
           </button>
           <button
             type="button"
             onClick={() => { form.reset(); resetFunctionValueStates(); }}
-            style={{ background: 'transparent', border: 'none', color: '#94A3B8', cursor: 'pointer', padding: '4px 6px', borderRadius: 6, fontSize: 12 }}
+            className="rounded-md p-1.5 text-slate-400 transition-colors hover:text-slate-200"
             title="Descartar alterações"
             aria-label="Descartar alterações"
           >
-            <X style={{ width: 14, height: 14 }} />
+            <X className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
 
       {/* ── Cabeçalho ── */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-200">
-            <Calculator className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Valores Padrão</h1>
-            <p className="text-xs text-gray-500">Defina os valores base utilizados no cálculo de novos eventos</p>
-          </div>
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 shadow-md shadow-blue-200">
+          <Calculator className="w-5 h-5 text-white" />
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Casa / Freela toggle */}
-          <div className="flex items-center bg-slate-100 rounded-xl p-1 gap-1">
-            <button
-              type="button"
-              onClick={() => setActiveTab('casa')}
-              style={{
-                padding: '7px 18px',
-                borderRadius: 10,
-                fontSize: 13,
-                fontWeight: 600,
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'all .18s',
-                background: activeTab === 'casa' ? '#fff' : 'transparent',
-                color: activeTab === 'casa' ? '#1E40AF' : '#94A3B8',
-                boxShadow: activeTab === 'casa' ? '0 1px 4px rgba(0,0,0,0.10)' : 'none',
-              }}
-            >
-              🏢 Casa
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('freela')}
-              style={{
-                padding: '7px 18px',
-                borderRadius: 10,
-                fontSize: 13,
-                fontWeight: 600,
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'all .18s',
-                background: activeTab === 'freela' ? '#fff' : 'transparent',
-                color: activeTab === 'freela' ? '#7C3AED' : '#94A3B8',
-                boxShadow: activeTab === 'freela' ? '0 1px 4px rgba(0,0,0,0.10)' : 'none',
-              }}
-            >
-              🧑‍💻 Freela
-            </button>
-          </div>
-
-          {/* Botão: Aplicar valores padrão ao Planejado */}
-          <button
-            type="button"
-            onClick={handleApplyDefaults}
-            disabled={isApplyingDefaults}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
-              padding: '8px 16px',
-              borderRadius: 10,
-              fontSize: 13,
-              fontWeight: 600,
-              border: '1.5px solid #D1D5DB',
-              background: '#fff',
-              color: isApplyingDefaults ? '#9CA3AF' : '#374151',
-              cursor: isApplyingDefaults ? 'not-allowed' : 'pointer',
-              transition: 'all .15s',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-              whiteSpace: 'nowrap',
-            }}
-            onMouseEnter={e => { if (!isApplyingDefaults) { (e.currentTarget as HTMLElement).style.borderColor = '#3B4FE4'; (e.currentTarget as HTMLElement).style.color = '#3B4FE4'; } }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#D1D5DB'; (e.currentTarget as HTMLElement).style.color = isApplyingDefaults ? '#9CA3AF' : '#374151'; }}
-            title={hasAnyChanges ? "Salva os novos valores e aplica a todos os orçamentos ainda não enviados" : "Aplica os valores padrão atuais a todos os orçamentos planejados ainda não enviados"}
-          >
-            <RefreshCw style={{ width: 14, height: 14, animation: isApplyingDefaults ? 'spin 1s linear infinite' : 'none' }} />
-            {isApplyingDefaults ? 'Salvando...' : hasAnyChanges ? 'Salvar e Aplicar' : 'Atualizar Planejado'}
-          </button>
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Valores Padrão</h1>
+          <p className="text-xs text-gray-500">Defina os valores base utilizados no cálculo de novos eventos</p>
         </div>
       </div>
 
       <Form {...form}>
         <form onSubmit={e => { e.preventDefault(); handleSaveAll(); }} className="space-y-6">
 
-          {/* ── Cards superiores ── */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5" style={{ alignItems: 'flex-start' }}>
+          {/* ════════════════════════════════════════════════════════════════
+              ZONA 1 — VALORES APLICADOS NO CÁLCULO (regras vigentes)
+             ════════════════════════════════════════════════════════════════ */}
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-gray-800">Valores aplicados no cálculo</h2>
+              <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                Aplicado no cálculo
+              </span>
+            </div>
+            <p className="text-xs text-gray-500">
+              Estas são as regras e tarifas efetivamente usadas ao calcular o orçamento dos eventos.
+            </p>
+          </div>
 
-            {/* Diárias */}
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-              <div style={{ background: activeTab === 'casa' ? 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)' : 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)', borderBottom: activeTab === 'casa' ? '1px solid #BFDBFE' : '1px solid #DDD6FE', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 9, background: activeTab === 'casa' ? '#3B82F6' : '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <DollarSign style={{ width: 18, height: 18, color: '#fff' }} />
+          <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
+
+            {/* Diárias Casa (regra por grupo de função) */}
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <SectionHeader icon={DollarSign} iconBg="bg-blue-600" title="Diárias Casa (regra por grupo)" subtitle="Três tarifas conforme o grupo de função" />
+              <div className="p-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <MoneyField control={form.control} name="casa_diaria_dir_prova" label="Dir. de Prova" labelClass="text-blue-700" />
+                  <MoneyField control={form.control} name="casa_diaria_produtor" label="Produtor (produção/ativação/kit/sup ceno)" labelClass="text-blue-700" />
+                  <MoneyField control={form.control} name="casa_diaria_exec_vendas" label="Exec. Vendas O2 Prime" labelClass="text-blue-700" />
                 </div>
-                <div>
-                  <p style={{ fontWeight: 700, fontSize: 13, color: activeTab === 'casa' ? '#1E40AF' : '#5B21B6', margin: 0 }}>Diárias {activeTab === 'casa' ? 'Casa' : 'Freela'}</p>
-                  <p style={{ fontSize: 11, color: activeTab === 'casa' ? '#3B82F6' : '#7C3AED', margin: 0 }}>Valor pago por dia trabalhado</p>
-                </div>
-              </div>
-              <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {activeTab === 'casa' ? (<>
-                  <FormField control={form.control} name="default_daily_value_weekday" render={({ field }) => (
-                    <FormItem>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: '#2563EB', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Dia Útil</p>
-                      <FormControl><CurrencyInput field={field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="default_daily_value_weekend" render={({ field }) => (
-                    <FormItem>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: '#F97316', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Fim de Semana</p>
-                      <FormControl><CurrencyInput field={field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                </>) : (<>
-                  <FormField control={form.control} name="default_daily_value_weekday_freela" render={({ field }) => (
-                    <FormItem>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: '#2563EB', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Dia Útil</p>
-                      <FormControl><CurrencyInput field={field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="default_daily_value_weekend_freela" render={({ field }) => (
-                    <FormItem>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: '#F97316', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Fim de Semana</p>
-                      <FormControl><CurrencyInput field={field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                </>)}
+                <p className="mb-0 mt-3 text-[11px] text-gray-400">
+                  Tarifas do time da casa por grupo de função (slide). Atendimento tem tarifa própria (Key Account/Exec. de Contas); cenotécnica, percurso e montagem seguem seus regimes específicos.
+                </p>
               </div>
             </div>
 
-            {/* Mobilidade */}
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-              <div style={{ background: 'linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%)', borderBottom: '1px solid #FED7AA', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 9, background: '#F97316', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(249,115,22,0.3)', flexShrink: 0 }}>
-                  <Car style={{ width: 18, height: 18, color: '#fff' }} />
+            {/* Diárias Freela (regra por viagem) */}
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <SectionHeader icon={DollarSign} iconBg="bg-violet-600" title="Diárias Freela (regra por viagem)" subtitle="Três tarifas conforme a função e se há viagem" />
+              <div className="p-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <MoneyField control={form.control} name="freela_diaria_local" label="Local (sem viagem)" labelClass="text-violet-700" />
+                  <MoneyField control={form.control} name="freela_diaria_viagem" label="Em viagem" labelClass="text-violet-700" />
+                  <MoneyField control={form.control} name="freela_diaria_dir_prova" label="Dir de Prova" labelClass="text-violet-700" />
                 </div>
-                <div>
-                  <p style={{ fontWeight: 700, fontSize: 13, color: '#9A3412', margin: 0 }}>Mobilidade {activeTab === 'casa' ? 'Casa' : 'Freela'}</p>
-                  <p style={{ fontSize: 11, color: '#F97316', margin: 0 }}>Ajuda de custo de deslocamento</p>
-                </div>
+                <p className="mb-0 mt-3 text-[11px] text-gray-400">
+                  A diária é escolhida automaticamente conforme a função e se a escalação tem passagem. Os valores freela antigos por função deixaram de ser usados no cálculo.
+                </p>
               </div>
-              <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {activeTab === 'casa' ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    <FormField control={form.control} name="default_mobility_ida" render={({ field }) => (
-                      <FormItem>
-                        <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Ida</p>
-                        <FormControl><CurrencyInput field={field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                    <FormField control={form.control} name="default_mobility_volta" render={({ field }) => (
-                      <FormItem>
-                        <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Volta</p>
-                        <FormControl><CurrencyInput field={field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-3">
-                    <FormField control={form.control} name="default_mobility_ida_freela" render={({ field }) => (
-                      <FormItem>
-                        <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Ida</p>
-                        <FormControl><CurrencyInput field={field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                    <FormField control={form.control} name="default_mobility_volta_freela" render={({ field }) => (
-                      <FormItem>
-                        <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Volta</p>
-                        <FormControl><CurrencyInput field={field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                  </div>
-                )}
-                <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 11, color: '#888' }}>Total mobilidade</span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#F97316' }}>
-                    {`R$ ${(activeTab === 'casa' ? mobilityTotal : mobilityTotalFreela).toFixed(2).replace('.', ',')}`}
-                  </span>
+            </div>
+
+            {/* Atendimento (valores fixos, não dependem de Casa/Freela) */}
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <SectionHeader icon={Building2} iconBg="bg-indigo-600" title="Atendimento" subtitle="Tarifas fixas de atendimento" />
+              <div className="p-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <MoneyField control={form.control} name="atendimento_key_account" label="Key Account" labelClass="text-indigo-700" />
+                  <MoneyField control={form.control} name="atendimento_executivo_contas" label="Executivo de Contas" labelClass="text-indigo-700" />
                 </div>
               </div>
             </div>
 
-            {/* Alimentação */}
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-              <div style={{ background: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)', borderBottom: '1px solid #BBF7D0', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 9, background: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(16,185,129,0.3)', flexShrink: 0 }}>
-                  <Utensils style={{ width: 18, height: 18, color: '#fff' }} />
+            {/* Regra de deflação (diárias) */}
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <SectionHeader icon={ChevronDown} iconBg="bg-red-500" title="Regra de deflação (diárias)" subtitle="Fatores aplicados à diária conforme o período trabalhado" />
+              <div className="p-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <PercentField control={form.control} name="deflacao_fator_ate_4" label="Até 4 dias (%)" labelClass="text-red-700" />
+                  <PercentField control={form.control} name="deflacao_fator_5_8" label="Do 5º ao 8º dia (%)" labelClass="text-red-700" />
+                  <PercentField control={form.control} name="deflacao_fator_9_mais" label="A partir do 9º dia (%)" labelClass="text-red-700" />
                 </div>
-                <div>
-                  <p style={{ fontWeight: 700, fontSize: 13, color: '#065F46', margin: 0 }}>Alimentação {activeTab === 'casa' ? 'Casa' : 'Freela'}</p>
-                  <p style={{ fontSize: 11, color: '#10B981', margin: 0 }}>Almoço e jantar por dia</p>
-                </div>
+                <p className="mb-0 mt-3 text-[11px] text-gray-400">
+                  Percentual da diária pago em cada faixa de dias. Ex.: 100% nos primeiros dias, reduzindo conforme a permanência.
+                </p>
               </div>
-              <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            </div>
+
+            {/* Alimentação por refeição (regra por voo) */}
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <SectionHeader icon={Utensils} iconBg="bg-emerald-600" title="Alimentação por refeição (regra por voo)" subtitle="Valores flat por refeição, sem distinção útil/fim de semana" />
+              <div className="p-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <MoneyField control={form.control} name="alimentacao_almoco" label="Almoço — Demais" labelClass="text-emerald-700" />
+                  <MoneyField control={form.control} name="alimentacao_jantar" label="Jantar — Demais" labelClass="text-emerald-700" />
+                  <MoneyField control={form.control} name="alimentacao_almoco_ceno" label="Almoço — Cenotécnica" labelClass="text-emerald-700" />
+                  <MoneyField control={form.control} name="alimentacao_jantar_ceno" label="Jantar — Cenotécnica" labelClass="text-emerald-700" />
+                </div>
+                <p className="mb-0 mt-3 text-[11px] text-gray-400">
+                  Valores por refeição usados no cálculo automático de alimentação (regra por horário de voo). Os campos antigos de alimentação útil/fds continuam valendo apenas para overrides manuais.
+                </p>
+              </div>
+            </div>
+
+            {/* Mobilidade (Casa e Freela, sem depender do toggle) */}
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <SectionHeader icon={Car} iconBg="bg-orange-500" title="Mobilidade" subtitle="Ajuda de custo de deslocamento (ida e volta)" />
+              <div className="grid grid-cols-1 gap-5 p-4 sm:grid-cols-2">
                 <div>
-                  <p style={{ fontSize: 10, fontWeight: 700, color: '#2563EB', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Dias Úteis</p>
+                  <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-blue-700">
+                    <Building2 className="h-3 w-3" /> Casa
+                  </p>
                   <div className="grid grid-cols-2 gap-3">
-                    {activeTab === 'casa' ? (<>
-                      <FormField control={form.control} name="default_weekday_lunch" render={({ field }) => (
-                        <FormItem>
-                          <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Almoço</p>
-                          <FormControl><CurrencyInput field={field} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                      <FormField control={form.control} name="default_weekday_dinner" render={({ field }) => (
-                        <FormItem>
-                          <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Jantar</p>
-                          <FormControl><CurrencyInput field={field} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                    </>) : (<>
-                      <FormField control={form.control} name="default_weekday_lunch_freela" render={({ field }) => (
-                        <FormItem>
-                          <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Almoço</p>
-                          <FormControl><CurrencyInput field={field} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                      <FormField control={form.control} name="default_weekday_dinner_freela" render={({ field }) => (
-                        <FormItem>
-                          <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Jantar</p>
-                          <FormControl><CurrencyInput field={field} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                    </>)}
+                    <MoneyField control={form.control} name="default_mobility_ida" label="Ida" />
+                    <MoneyField control={form.control} name="default_mobility_volta" label="Volta" />
+                  </div>
+                  <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-2.5">
+                    <span className="text-[11px] text-gray-400">Total mobilidade</span>
+                    <span className="text-sm font-bold text-orange-500">{`R$ ${mobilityTotal.toFixed(2).replace('.', ',')}`}</span>
                   </div>
                 </div>
-                <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: 14 }}>
-                  <p style={{ fontSize: 10, fontWeight: 700, color: '#F97316', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Fim de Semana</p>
+                <div>
+                  <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-violet-700">
+                    <Users className="h-3 w-3" /> Freela
+                  </p>
                   <div className="grid grid-cols-2 gap-3">
-                    {activeTab === 'casa' ? (<>
-                      <FormField control={form.control} name="default_weekend_lunch" render={({ field }) => (
-                        <FormItem>
-                          <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Almoço</p>
-                          <FormControl><CurrencyInput field={field} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                      <FormField control={form.control} name="default_weekend_dinner" render={({ field }) => (
-                        <FormItem>
-                          <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Jantar</p>
-                          <FormControl><CurrencyInput field={field} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                    </>) : (<>
-                      <FormField control={form.control} name="default_weekend_lunch_freela" render={({ field }) => (
-                        <FormItem>
-                          <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Almoço</p>
-                          <FormControl><CurrencyInput field={field} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                      <FormField control={form.control} name="default_weekend_dinner_freela" render={({ field }) => (
-                        <FormItem>
-                          <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Jantar</p>
-                          <FormControl><CurrencyInput field={field} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                    </>)}
+                    <MoneyField control={form.control} name="default_mobility_ida_freela" label="Ida" />
+                    <MoneyField control={form.control} name="default_mobility_volta_freela" label="Volta" />
+                  </div>
+                  <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-2.5">
+                    <span className="text-[11px] text-gray-400">Total mobilidade</span>
+                    <span className="text-sm font-bold text-orange-500">{`R$ ${mobilityTotalFreela.toFixed(2).replace('.', ',')}`}</span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* ── Atendimento (valores fixos, não dependem de Casa/Freela) ── */}
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            <div style={{ background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', borderBottom: '1px solid #C7D2FE', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 9, background: '#6366F1', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(99,102,241,0.3)', flexShrink: 0 }}>
-                <Building2 style={{ width: 18, height: 18, color: '#fff' }} />
+          {/* Empresas Pagadoras (aplicadas nas Notas Fiscais) */}
+          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between gap-2.5 border-b border-gray-200 bg-gray-50 px-5 py-4">
+              <div className="flex items-center gap-2.5">
+                <Building2 className="w-4 h-4 text-emerald-600" />
+                <span className="text-sm font-semibold text-gray-700">Empresas Pagadoras</span>
+                <span className="text-xs text-gray-400 font-normal">(usadas nas Notas Fiscais)</span>
               </div>
-              <div>
-                <p style={{ fontWeight: 700, fontSize: 13, color: '#3730A3', margin: 0 }}>Atendimento</p>
-                <p style={{ fontSize: 11, color: '#6366F1', margin: 0 }}>Tarifas fixas de atendimento</p>
-              </div>
+              {!showAddCompany && (
+                <button
+                  type="button"
+                  onClick={() => setShowAddCompany(true)}
+                  className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-600 transition-colors hover:bg-emerald-100 hover:text-emerald-700"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Adicionar empresa
+                </button>
+              )}
             </div>
-            <div style={{ padding: 16 }}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField control={form.control} name="atendimento_key_account" render={({ field }) => (
-                  <FormItem>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#4F46E5', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Key Account</p>
-                    <FormControl><CurrencyInput field={field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="atendimento_executivo_contas" render={({ field }) => (
-                  <FormItem>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#4F46E5', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Executivo de Contas</p>
-                    <FormControl><CurrencyInput field={field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              </div>
-            </div>
-          </div>
-
-          {/* ── Diárias Freela (regra por viagem) — chaves MONETÁRIAS ── */}
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            <div style={{ background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)', borderBottom: '1px solid #DDD6FE', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 9, background: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(124,58,237,0.3)', flexShrink: 0 }}>
-                <DollarSign style={{ width: 18, height: 18, color: '#fff' }} />
-              </div>
-              <div>
-                <p style={{ fontWeight: 700, fontSize: 13, color: '#5B21B6', margin: 0 }}>Diárias Freela (regra por viagem)</p>
-                <p style={{ fontSize: 11, color: '#7C3AED', margin: 0 }}>Três tarifas conforme a função e se há viagem</p>
-              </div>
-            </div>
-            <div style={{ padding: 16 }}>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <FormField control={form.control} name="freela_diaria_local" render={({ field }) => (
-                  <FormItem>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#6D28D9', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Local (sem viagem)</p>
-                    <FormControl><CurrencyInput field={field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="freela_diaria_viagem" render={({ field }) => (
-                  <FormItem>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#6D28D9', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Em viagem</p>
-                    <FormControl><CurrencyInput field={field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="freela_diaria_dir_prova" render={({ field }) => (
-                  <FormItem>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#6D28D9', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Dir de Prova</p>
-                    <FormControl><CurrencyInput field={field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              </div>
-              <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 12, marginBottom: 0 }}>
-                Tarifas do time freela definidas pela regra do slide — a diária é escolhida automaticamente conforme a função e se a escalação tem passagem. Os valores freela antigos por função deixaram de ser usados no cálculo.
-              </p>
-            </div>
-          </div>
-
-          {/* ── Diárias Casa (regra por grupo de função) — chaves MONETÁRIAS ── */}
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            <div style={{ background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)', borderBottom: '1px solid #BFDBFE', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 9, background: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(37,99,235,0.3)', flexShrink: 0 }}>
-                <DollarSign style={{ width: 18, height: 18, color: '#fff' }} />
-              </div>
-              <div>
-                <p style={{ fontWeight: 700, fontSize: 13, color: '#1E40AF', margin: 0 }}>Diárias Casa (regra por grupo de função)</p>
-                <p style={{ fontSize: 11, color: '#2563EB', margin: 0 }}>Três tarifas conforme o grupo de função</p>
-              </div>
-            </div>
-            <div style={{ padding: 16 }}>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <FormField control={form.control} name="casa_diaria_dir_prova" render={({ field }) => (
-                  <FormItem>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Dir. de Prova</p>
-                    <FormControl><CurrencyInput field={field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="casa_diaria_produtor" render={({ field }) => (
-                  <FormItem>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Produtor (produção/ativação/kit/sup ceno)</p>
-                    <FormControl><CurrencyInput field={field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="casa_diaria_exec_vendas" render={({ field }) => (
-                  <FormItem>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Exec. Vendas O2 Prime</p>
-                    <FormControl><CurrencyInput field={field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              </div>
-              <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 12, marginBottom: 0 }}>
-                Tarifas do time da casa por grupo de função (slide). Atendimento tem tarifa própria (Key Account/Exec. de Contas); cenotécnica, percurso e montagem seguem seus regimes específicos.
-              </p>
-            </div>
-          </div>
-
-          {/* ── Regra de deflação (diárias) ── */}
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            <div style={{ background: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)', borderBottom: '1px solid #FECACA', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 9, background: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(239,68,68,0.3)', flexShrink: 0 }}>
-                <ChevronDown style={{ width: 18, height: 18, color: '#fff' }} />
-              </div>
-              <div>
-                <p style={{ fontWeight: 700, fontSize: 13, color: '#991B1B', margin: 0 }}>Regra de deflação (diárias)</p>
-                <p style={{ fontSize: 11, color: '#EF4444', margin: 0 }}>Fatores aplicados à diária conforme o período trabalhado</p>
-              </div>
-            </div>
-            <div style={{ padding: 16 }}>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <FormField control={form.control} name="deflacao_fator_ate_4" render={({ field }) => (
-                  <FormItem>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#B91C1C', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Até 4 dias (%)</p>
-                    <FormControl><PercentInput field={field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="deflacao_fator_5_8" render={({ field }) => (
-                  <FormItem>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#B91C1C', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Do 5º ao 8º dia (%)</p>
-                    <FormControl><PercentInput field={field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="deflacao_fator_9_mais" render={({ field }) => (
-                  <FormItem>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#B91C1C', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>A partir do 9º dia (%)</p>
-                    <FormControl><PercentInput field={field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              </div>
-              <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 12, marginBottom: 0 }}>
-                Percentual da diária pago em cada faixa de dias. Ex.: 100% nos primeiros dias, reduzindo conforme a permanência.
-              </p>
-            </div>
-          </div>
-
-          {/* ── Alimentação por refeição (regra por voo) — chaves MONETÁRIAS ── */}
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            <div style={{ background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)', borderBottom: '1px solid #A7F3D0', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 9, background: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(5,150,105,0.3)', flexShrink: 0 }}>
-                <Utensils style={{ width: 18, height: 18, color: '#fff' }} />
-              </div>
-              <div>
-                <p style={{ fontWeight: 700, fontSize: 13, color: '#065F46', margin: 0 }}>Alimentação por refeição (regra por voo)</p>
-                <p style={{ fontSize: 11, color: '#059669', margin: 0 }}>Valores flat por refeição, sem distinção útil/fim de semana</p>
-              </div>
-            </div>
-            <div style={{ padding: 16 }}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField control={form.control} name="alimentacao_almoco" render={({ field }) => (
-                  <FormItem>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#047857', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Almoço — Demais</p>
-                    <FormControl><CurrencyInput field={field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="alimentacao_jantar" render={({ field }) => (
-                  <FormItem>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#047857', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Jantar — Demais</p>
-                    <FormControl><CurrencyInput field={field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="alimentacao_almoco_ceno" render={({ field }) => (
-                  <FormItem>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#047857', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Almoço — Cenotécnica</p>
-                    <FormControl><CurrencyInput field={field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="alimentacao_jantar_ceno" render={({ field }) => (
-                  <FormItem>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#047857', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Jantar — Cenotécnica</p>
-                    <FormControl><CurrencyInput field={field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              </div>
-              <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 12, marginBottom: 0 }}>
-                Valores por refeição usados no cálculo automático de alimentação (regra por horário de voo). Os campos antigos de alimentação útil/fds continuam valendo apenas para overrides manuais.
-              </p>
-            </div>
-          </div>
-
-          {/* ── Tabela: Diária por Função ── */}
-          {(() => {
-            const isCasaType = (types: string[]) => types.some(t => t === 'casa' || t === 'local');
-            const isFreelaType = (types: string[]) => types.some(t => t === 'freela');
-
-            const coordinator = allFunctions.find(fn => fn.responsibleArea === '__system__');
-            const regularFns = allFunctions
-              .filter(fn => fn.responsibleArea !== '__system__')
-              .filter(fn => {
-                const types = fnCollaboratorTypes[fn.id] ?? [];
-                if (types.length === 0) return true; // sem dados ainda → mostrar em ambas as abas
-                return activeTab === 'casa' ? isCasaType(types) : isFreelaType(types);
-              })
-              .filter(fn => fn.name.toLowerCase().includes(functionSearch.toLowerCase()))
-              .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-            const visibleFns = coordinator && !functionSearch
-              ? [coordinator, ...regularFns]
-              : coordinator && coordinator.name.toLowerCase().includes(functionSearch.toLowerCase())
-              ? [coordinator, ...regularFns]
-              : regularFns;
-
-            return (
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
-                      <BadgeCheck className="w-4 h-4 text-indigo-500" />
+            <div className="space-y-4 bg-white p-5">
+              {paymentCompanies.length === 0 && !showAddCompany ? (
+                <p className="py-3 text-center text-sm text-gray-400">Nenhuma empresa cadastrada.</p>
+              ) : paymentCompanies.length > 0 ? (
+                <div className="divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200">
+                  {paymentCompanies.map(c => (
+                    <div key={c.id} className="flex items-center justify-between bg-white px-4 py-3 transition-colors hover:bg-gray-50">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">{c.name}</p>
+                        <p className="font-mono text-xs text-gray-400">{c.cnpj}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCompanyToDelete(c)}
+                        disabled={deleteCompanyMutation.isPending}
+                        className="rounded-lg p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                        title="Remover empresa"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {/* Formulário expansível */}
+              {showAddCompany ? (
+                <div className="space-y-3 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/40 p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-emerald-700">Nova empresa</p>
+                    <button type="button" onClick={() => { setShowAddCompany(false); setNewCompanyName(""); setNewCompanyCnpj(""); }} className="text-slate-400 hover:text-slate-600">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {/* Enter aqui não deve submeter o formulário de tarifas da página */}
+                  <div className="grid grid-cols-2 gap-3" onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}>
                     <div>
-                      <p className="text-sm font-semibold text-slate-800 leading-tight">Diária por Função</p>
-                      <p className="text-[11px] text-slate-400 font-light">Valor padrão usado ao criar escalações</p>
-                    </div>
-                    {dirtyFunctionCount > 0 && (
-                      <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                        {dirtyFunctionCount} alterada{dirtyFunctionCount > 1 ? 's' : ''}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {allFunctions.length > 0 && (
-                  <div className="px-5 py-3 border-b border-slate-100">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                      <input
-                        type="text"
-                        placeholder="Buscar função..."
-                        value={functionSearch}
-                        onChange={e => setFunctionSearch(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2 text-sm rounded-full bg-slate-100 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 border-none"
+                      <label htmlFor="new-company-name" className="mb-1 block text-xs font-medium text-slate-600">Nome da empresa</label>
+                      <Input
+                        id="new-company-name"
+                        value={newCompanyName}
+                        onChange={e => setNewCompanyName(e.target.value)}
+                        placeholder="Ex.: Produtora Norte Ltda"
+                        className="h-9 rounded-lg border-gray-200 text-sm"
+                        autoFocus
                       />
                     </div>
-                  </div>
-                )}
-
-                {allFunctions.length === 0 ? (
-                  <div className="px-6 py-12 text-center">
-                    <BadgeCheck className="w-8 h-8 text-slate-200 mx-auto mb-3" />
-                    <p className="text-sm font-medium text-slate-500 mb-1">Nenhuma função cadastrada.</p>
-                    <p className="text-xs text-slate-400 mb-4">Acesse a página de Funções para adicionar.</p>
-                    <Link href="/functions" className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:underline">
-                      Ir para Funções <ExternalLink className="w-3 h-3" />
-                    </Link>
-                  </div>
-                ) : visibleFns.length === 0 ? (
-                  <div className="px-6 py-8 text-center text-sm text-slate-400">
-                    Nenhuma função encontrada para "<span className="font-medium">{functionSearch}</span>".
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '8px 20px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Função</span>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-right" style={{color:'#2563EB'}}>Dia Útil</span>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-right" style={{color:'#F97316'}}>Fim de Semana</span>
+                    <div>
+                      <label htmlFor="new-company-cnpj" className="mb-1 block text-xs font-medium text-slate-600">CNPJ</label>
+                      <CnpjInput id="new-company-cnpj" value={newCompanyCnpj} onChange={setNewCompanyCnpj} name="newCompanyCnpj" />
                     </div>
-                    <div className="divide-y divide-slate-100">
-                      {visibleFns.map((fn) => {
-                        const isCoord = fn.responsibleArea === '__system__';
-                        const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
-                        const wdVal = getCurrentValue(fn.id, 'wd');
-                        const weVal = getCurrentValue(fn.id, 'we');
-                        const freeWdRow = fv?.dailyValueFreela ?? 0;
-                        const freeWeRow = fv?.dailyValueFreelaWeekend ?? 0;
-                        const savedWd = activeTab === 'casa'
-                          ? (fv ? centavosToReais(fv.dailyValue) : "0.00")
-                          : (fv ? centavosToReais(freeWdRow !== 0 ? freeWdRow : (fv.dailyValue ?? 0)) : "0.00");
-                        const savedWe = activeTab === 'casa'
-                          ? (fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00")
-                          : (fv ? centavosToReais(freeWeRow !== 0 ? freeWeRow : (fv.dailyValueWeekend ?? 0)) : "0.00");
-                        const isDirtyWd = parseFloat(wdVal) !== parseFloat(savedWd);
-                        const isDirtyWe = parseFloat(weVal) !== parseFloat(savedWe);
-                        const isDirty = isDirtyWd || isDirtyWe;
-                        const isEditingWd = editingFunctionId === fn.id && editingField === 'wd';
-                        const isEditingWe = editingFunctionId === fn.id && editingField === 'we';
-                        const hasWd = fv && (activeTab === 'casa' ? fv.dailyValue > 0 : (freeWdRow !== 0 ? freeWdRow : (fv.dailyValue ?? 0)) > 0);
-                        const hasWe = fv && (activeTab === 'casa' ? (fv.dailyValueWeekend ?? 0) > 0 : (freeWeRow !== 0 ? freeWeRow : (fv.dailyValueWeekend ?? 0)) > 0);
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!newCompanyName.trim() || !validateCnpj(newCompanyCnpj) || createCompanyMutation.isPending}
+                      onClick={() => createCompanyMutation.mutate({ name: newCompanyName.trim(), cnpj: newCompanyCnpj })}
+                      className="h-8 bg-emerald-600 px-4 text-xs text-white hover:bg-emerald-700"
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1.5" />
+                      Cadastrar empresa
+                    </Button>
+                    <button type="button" onClick={() => { setShowAddCompany(false); setNewCompanyName(""); setNewCompanyCnpj(""); }} className="text-xs text-slate-400 hover:text-slate-600">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
 
-                        const renderCell = (field: 'wd' | 'we', isEditing: boolean, currentVal: string, hasCustom: boolean, fallbackVal?: string) => {
-                          const isZero = parseFloat(currentVal) === 0;
-                          const hasFallback = isZero && fallbackVal && parseFloat(fallbackVal) > 0;
-                          return (
-                            <div className="flex items-center justify-end gap-1.5 group/cell" onClick={e => { e.stopPropagation(); if (!isEditing) startEditFunction(fn, field); }}>
-                              {isEditing ? (
-                                <div className="flex items-center gap-1">
-                                  <div className="flex items-center gap-0.5 border border-slate-300 rounded px-1.5 py-0.5 bg-white shadow-sm">
-                                    <span className="text-[10px] text-slate-400 font-medium select-none">R$</span>
-                                    <input
-                                      ref={editInputRef}
-                                      type="number"
-                                      step="0.01"
-                                      min="0"
-                                      value={editingFunctionValue}
-                                      onChange={e => setEditingFunctionValue(e.target.value)}
-                                      onKeyDown={e => {
-                                        if (e.key === 'Enter') { e.preventDefault(); confirmEditFunction(fn.id); }
-                                        if (e.key === 'Escape') cancelEditFunction();
-                                      }}
-                                      onBlur={() => confirmEditFunction(fn.id)}
-                                      className="w-16 text-sm font-mono text-right bg-transparent border-none outline-none focus:outline-none tabular-nums text-slate-700 font-semibold"
-                                    />
-                                  </div>
-                                  <button type="button" onClick={cancelEditFunction} className="opacity-0 group-hover/cell:opacity-100 transition-opacity flex items-center justify-center text-slate-400 hover:text-slate-600">
-                                    <X className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1.5 cursor-pointer">
-                                  {isZero ? (
-                                    hasFallback ? (
-                                      <TooltipProvider delayDuration={200}>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <span className="text-sm tabular-nums font-medium" style={{color:'#F97316'}}>
-                                              R$ {parseFloat(fallbackVal!).toFixed(2).replace('.', ',')}
-                                            </span>
-                                          </TooltipTrigger>
-                                          <TooltipContent side="top" className="text-xs">
-                                            Usa o valor do Dia Útil (sem FDS específico)
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
-                                    ) : (
-                                      <span className="text-sm text-slate-300 italic">—</span>
-                                    )
-                                  ) : (
-                                    <span className={`text-sm font-semibold tabular-nums ${hasCustom ? '' : 'text-slate-400'}`} style={hasCustom ? { color: field === 'we' ? '#F97316' : (activeTab === 'casa' ? '#3B4FE4' : '#7C3AED') } : {}}>
-                                      {`R$ ${parseFloat(currentVal).toFixed(2).replace('.', ',')}`}
-                                    </span>
-                                  )}
-                                  <Pencil className="w-3 h-3 text-slate-300 opacity-0 group-hover/cell:opacity-100 transition-opacity" />
-                                </div>
-                              )}
-                            </div>
-                          );
-                        };
+          {/* ════════════════════════════════════════════════════════════════
+              ZONA 2 — VALORES LEGADOS E OVERRIDES (colapsada por padrão)
+             ════════════════════════════════════════════════════════════════ */}
+          <Collapsible className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50/60">
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="group flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-gray-100/70"
+              >
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <span className="text-sm font-bold text-gray-700">Valores legados e overrides</span>
+                  <span className="rounded-full border border-gray-300 bg-gray-200 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-600">
+                    Legado — usado só como fallback/override
+                  </span>
+                </div>
+                <ChevronDown className="h-4 w-4 shrink-0 text-gray-400 transition-transform group-data-[state=open]:rotate-180" />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="space-y-5 border-t border-gray-200 p-5">
+                <p className="text-xs text-gray-500">
+                  Os valores desta seção <span className="font-semibold">não entram no cálculo automático</span> — servem apenas de fallback quando um orçamento tem valor preenchido manualmente (override) ou quando a função não é coberta pelas regras acima.
+                </p>
 
-                        return (
-                          <div
-                            key={fn.id}
-                            style={{ minHeight: 44, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'center', padding: '6px 20px', gap: 8 }}
-                            className={`transition-colors group
-                              ${isCoord ? 'bg-blue-50/40' : 'bg-white hover:bg-slate-50/70'}
-                              ${isDirty ? 'ring-1 ring-inset ring-amber-200' : ''}
-                            `}
-                          >
-                            {/* Nome + badges */}
-                            <div className="flex items-center gap-2 min-w-0">
-                              {isCoord ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="text-[9px] font-semibold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full shrink-0 cursor-help">Base</span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="max-w-[220px] text-center text-xs leading-snug">
-                                    Função base: valor usado como referência quando a função do colaborador não possui valor personalizado cadastrado
-                                  </TooltipContent>
-                                </Tooltip>
-                              ) : null}
-                              <span
-                                className={`text-sm font-medium truncate ${isCoord ? 'text-blue-700' : isDirty ? 'font-semibold' : ''}`}
-                                style={isCoord ? {} : isDirty
-                                  ? { color: '#B45309' }
-                                  : { color: activeTab === 'freela' ? '#D97706' : '#374151' }
-                                }
-                              >
-                                {toTitleCase(fn.name)}
-                              </span>
-                            </div>
+                {/* Toggle Casa/Freela — afeta APENAS os valores legados abaixo */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-1 rounded-xl bg-slate-200/70 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('casa')}
+                      className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-[13px] font-semibold transition-all ${activeTab === 'casa' ? 'bg-white text-blue-800 shadow-sm' : 'text-slate-400 hover:text-slate-500'}`}
+                    >
+                      <Building2 className="h-3.5 w-3.5" /> Casa
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('freela')}
+                      className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-[13px] font-semibold transition-all ${activeTab === 'freela' ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-400 hover:text-slate-500'}`}
+                    >
+                      <Users className="h-3.5 w-3.5" /> Freela
+                    </button>
+                  </div>
+                  <span className="text-[11px] text-slate-500">
+                    Afeta apenas os valores legados abaixo — as regras aplicadas no cálculo não mudam.
+                  </span>
+                </div>
 
-                            {/* Dia Útil */}
-                            {renderCell('wd', isEditingWd, wdVal, !!hasWd)}
-                            {/* Fim de Semana — passa wdVal como fallback quando FDS não está configurado */}
-                            {renderCell('we', isEditingWe, weVal, !!hasWe, wdVal)}
+                <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
+
+                  {/* Diárias legadas útil/fds */}
+                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                    <SectionHeader
+                      icon={DollarSign}
+                      iconBg={activeTab === 'casa' ? 'bg-blue-500' : 'bg-violet-500'}
+                      title={`Diárias ${activeTab === 'casa' ? 'Casa' : 'Freela'} (legado útil/fds)`}
+                      subtitle="Valor por dia trabalhado — modelo antigo"
+                    />
+                    <div className="flex flex-col gap-3.5 p-4">
+                      {activeTab === 'casa' ? (<>
+                        <MoneyField control={form.control} name="default_daily_value_weekday" label="Dia Útil" labelClass="text-blue-600" />
+                        <MoneyField control={form.control} name="default_daily_value_weekend" label="Fim de Semana" labelClass="text-orange-500" />
+                      </>) : (<>
+                        <MoneyField control={form.control} name="default_daily_value_weekday_freela" label="Dia Útil" labelClass="text-blue-600" />
+                        <MoneyField control={form.control} name="default_daily_value_weekend_freela" label="Fim de Semana" labelClass="text-orange-500" />
+                      </>)}
+                      <p className="mb-0 text-[11px] text-gray-400">
+                        Onde ainda é usado: apenas como fallback/override manual de diária em orçamentos — o cálculo automático usa as regras de "Diárias Casa/Freela" da seção aplicada.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Alimentação legada útil/fds */}
+                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                    <SectionHeader
+                      icon={Utensils}
+                      iconBg="bg-emerald-500"
+                      title={`Alimentação ${activeTab === 'casa' ? 'Casa' : 'Freela'} (legado útil/fds)`}
+                      subtitle="Almoço e jantar por dia — modelo antigo"
+                    />
+                    <div className="flex flex-col gap-3.5 p-4">
+                      <div>
+                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-blue-600">Dias Úteis</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          {activeTab === 'casa' ? (<>
+                            <MoneyField control={form.control} name="default_weekday_lunch" label="Almoço" labelClass="text-gray-400" />
+                            <MoneyField control={form.control} name="default_weekday_dinner" label="Jantar" labelClass="text-gray-400" />
+                          </>) : (<>
+                            <MoneyField control={form.control} name="default_weekday_lunch_freela" label="Almoço" labelClass="text-gray-400" />
+                            <MoneyField control={form.control} name="default_weekday_dinner_freela" label="Jantar" labelClass="text-gray-400" />
+                          </>)}
+                        </div>
+                      </div>
+                      <div className="border-t border-gray-100 pt-3">
+                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-orange-500">Fim de Semana</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          {activeTab === 'casa' ? (<>
+                            <MoneyField control={form.control} name="default_weekend_lunch" label="Almoço" labelClass="text-gray-400" />
+                            <MoneyField control={form.control} name="default_weekend_dinner" label="Jantar" labelClass="text-gray-400" />
+                          </>) : (<>
+                            <MoneyField control={form.control} name="default_weekend_lunch_freela" label="Almoço" labelClass="text-gray-400" />
+                            <MoneyField control={form.control} name="default_weekend_dinner_freela" label="Jantar" labelClass="text-gray-400" />
+                          </>)}
+                        </div>
+                      </div>
+                      <p className="mb-0 text-[11px] text-gray-400">
+                        Onde ainda é usado: apenas em overrides manuais de alimentação — o cálculo automático usa "Alimentação por refeição (regra por voo)" da seção aplicada.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Tabela: Diária por Função (legado) ── */}
+                {(() => {
+                  const isCasaType = (types: string[]) => types.some(t => t === 'casa' || t === 'local');
+                  const isFreelaType = (types: string[]) => types.some(t => t === 'freela');
+
+                  const coordinator = allFunctions.find(fn => fn.responsibleArea === '__system__');
+                  const regularFns = allFunctions
+                    .filter(fn => fn.responsibleArea !== '__system__')
+                    .filter(fn => {
+                      const types = fnCollaboratorTypes[fn.id] ?? [];
+                      if (types.length === 0) return true; // sem dados ainda → mostrar em ambas as abas
+                      return activeTab === 'casa' ? isCasaType(types) : isFreelaType(types);
+                    })
+                    .filter(fn => fn.name.toLowerCase().includes(functionSearch.toLowerCase()))
+                    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+                  const visibleFns = coordinator && !functionSearch
+                    ? [coordinator, ...regularFns]
+                    : coordinator && coordinator.name.toLowerCase().includes(functionSearch.toLowerCase())
+                    ? [coordinator, ...regularFns]
+                    : regularFns;
+
+                  return (
+                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                      <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50">
+                            <BadgeCheck className="w-4 h-4 text-indigo-500" />
                           </div>
-                        );
-                      })}
-                    </div>
-                    <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-[11px] text-slate-400">{allFunctions.length} {allFunctions.length === 1 ? 'função' : 'funções'} cadastradas</span>
-                      <Link href="/functions" className="inline-flex items-center gap-1 text-[11px] text-indigo-500 hover:text-indigo-700 font-medium hover:underline">
-                        Gerenciar funções <ExternalLink className="w-3 h-3" />
-                      </Link>
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })()}
+                          <div>
+                            <p className="text-sm font-semibold leading-tight text-slate-800">Diária por Função (legado)</p>
+                            <p className="text-[11px] font-light text-slate-400">
+                              Onde ainda vale: só para funções fora das regras acima — para o time casa/freela coberto pelas regras, estes valores deixaram de ser usados no cálculo.
+                            </p>
+                          </div>
+                          {dirtyFunctionCount > 0 && (
+                            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-600">
+                              {dirtyFunctionCount} alterada{dirtyFunctionCount > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
-          {/* ── Rodapé com botão único ── */}
-          <div className="flex items-center justify-between gap-4 py-4 border-t border-gray-200 flex-wrap">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 text-sm text-gray-400">
-                <Lock className="w-4 h-4 flex-shrink-0" />
-                <span>Apenas administradores podem alterar estes valores</span>
+                      {allFunctions.length > 0 && (
+                        <div className="border-b border-slate-100 px-5 py-3">
+                          <div className="relative">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                            <input
+                              type="text"
+                              aria-label="Buscar função"
+                              placeholder="Buscar função..."
+                              value={functionSearch}
+                              onChange={e => setFunctionSearch(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
+                              className="w-full rounded-full border-none bg-slate-100 py-2 pl-9 pr-4 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {allFunctions.length === 0 ? (
+                        <div className="px-6 py-12 text-center">
+                          <BadgeCheck className="mx-auto mb-3 h-8 w-8 text-slate-200" />
+                          <p className="mb-1 text-sm font-medium text-slate-500">Nenhuma função cadastrada.</p>
+                          <p className="mb-4 text-xs text-slate-400">Acesse a página de Funções para adicionar.</p>
+                          <Link href="/functions" className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:underline">
+                            Ir para Funções <ExternalLink className="w-3 h-3" />
+                          </Link>
+                        </div>
+                      ) : visibleFns.length === 0 ? (
+                        <div className="px-6 py-8 text-center text-sm text-slate-400">
+                          Nenhuma função encontrada para "<span className="font-medium">{functionSearch}</span>".
+                        </div>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-3 border-b border-slate-200 bg-slate-50 px-5 py-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Função</span>
+                            <span className="text-right text-[10px] font-bold uppercase tracking-wider text-blue-600">Dia Útil</span>
+                            <span className="text-right text-[10px] font-bold uppercase tracking-wider text-orange-500">Fim de Semana</span>
+                          </div>
+                          <div className="divide-y divide-slate-100">
+                            {visibleFns.map((fn) => {
+                              const isCoord = fn.responsibleArea === '__system__';
+                              const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
+                              const wdVal = getCurrentValue(fn.id, 'wd');
+                              const weVal = getCurrentValue(fn.id, 'we');
+                              const savedWdCent = !fv ? 0 : activeTab === 'casa' ? (fv.dailyValue ?? 0) : freelaOuCasa(fv.dailyValueFreela, fv.dailyValue);
+                              const savedWeCent = !fv ? 0 : activeTab === 'casa' ? (fv.dailyValueWeekend ?? 0) : freelaOuCasa(fv.dailyValueFreelaWeekend, fv.dailyValueWeekend);
+                              const savedWd = centavosToReais(savedWdCent);
+                              const savedWe = centavosToReais(savedWeCent);
+                              const isDirtyWd = parseFloat(wdVal) !== parseFloat(savedWd);
+                              const isDirtyWe = parseFloat(weVal) !== parseFloat(savedWe);
+                              const isDirty = isDirtyWd || isDirtyWe;
+                              const isEditingWd = editingFunctionId === fn.id && editingField === 'wd';
+                              const isEditingWe = editingFunctionId === fn.id && editingField === 'we';
+                              const hasWd = !!fv && savedWdCent > 0;
+                              const hasWe = !!fv && savedWeCent > 0;
+
+                              const renderCell = (field: 'wd' | 'we', isEditing: boolean, currentVal: string, hasCustom: boolean, fallbackVal?: string) => {
+                                const isZero = parseFloat(currentVal) === 0;
+                                const hasFallback = isZero && fallbackVal && parseFloat(fallbackVal) > 0;
+                                const valueColor = hasCustom
+                                  ? (field === 'we' ? 'text-orange-500' : activeTab === 'casa' ? 'text-indigo-700' : 'text-violet-700')
+                                  : 'text-slate-400';
+                                return (
+                                  <div
+                                    role={isEditing ? undefined : "button"}
+                                    tabIndex={isEditing ? -1 : 0}
+                                    aria-label={`Editar ${field === 'wd' ? 'dia útil' : 'fim de semana'} de ${toTitleCase(fn.name)}`}
+                                    className="group/cell flex items-center justify-end gap-1.5 rounded outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                                    onClick={e => { e.stopPropagation(); if (!isEditing) startEditFunction(fn, field); }}
+                                    onKeyDown={e => {
+                                      if (!isEditing && (e.key === 'Enter' || e.key === ' ')) {
+                                        e.preventDefault();
+                                        startEditFunction(fn, field);
+                                      }
+                                    }}
+                                  >
+                                    {isEditing ? (
+                                      <div className="flex items-center gap-1">
+                                        <div className="flex items-center gap-0.5 rounded border border-slate-300 bg-white px-1.5 py-0.5 shadow-sm">
+                                          <span className="select-none text-[10px] font-medium text-slate-400">R$</span>
+                                          <input
+                                            ref={editInputRef}
+                                            type="text"
+                                            inputMode="decimal"
+                                            aria-label="Novo valor da diária"
+                                            value={editingFunctionValue}
+                                            onChange={e => setEditingFunctionValue(normalizeDecimal(e.target.value))}
+                                            onKeyDown={e => {
+                                              if (e.key === 'Enter') { e.preventDefault(); confirmEditFunction(fn.id); }
+                                              if (e.key === 'Escape') cancelEditFunction();
+                                            }}
+                                            onBlur={() => confirmEditFunction(fn.id)}
+                                            className="w-16 border-none bg-transparent text-right font-mono text-sm font-semibold tabular-nums text-slate-700 outline-none focus:outline-none"
+                                          />
+                                        </div>
+                                        <button type="button" onClick={cancelEditFunction} className="flex items-center justify-center text-slate-400 opacity-0 transition-opacity hover:text-slate-600 group-hover/cell:opacity-100">
+                                          <X className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div className="flex cursor-pointer items-center gap-1.5">
+                                        {isZero ? (
+                                          hasFallback ? (
+                                            <Tooltip delayDuration={200}>
+                                              <TooltipTrigger asChild>
+                                                <span className="text-sm font-medium tabular-nums text-orange-500">
+                                                  R$ {parseFloat(fallbackVal!).toFixed(2).replace('.', ',')}
+                                                </span>
+                                              </TooltipTrigger>
+                                              <TooltipContent side="top" className="text-xs">
+                                                Usa o valor do Dia Útil (sem FDS específico)
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          ) : (
+                                            <span className="text-sm italic text-slate-300">—</span>
+                                          )
+                                        ) : (
+                                          <span className={`text-sm font-semibold tabular-nums ${valueColor}`}>
+                                            {`R$ ${parseFloat(currentVal).toFixed(2).replace('.', ',')}`}
+                                          </span>
+                                        )}
+                                        <Pencil className="h-3 w-3 text-slate-300 opacity-0 transition-opacity group-hover/cell:opacity-100 group-focus-within/cell:opacity-100" />
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              };
+
+                              return (
+                                <div
+                                  key={fn.id}
+                                  className={`group grid min-h-[44px] grid-cols-3 items-center gap-2 px-5 py-1.5 transition-colors
+                                    ${isCoord ? 'bg-blue-50/40' : 'bg-white hover:bg-slate-50/70'}
+                                    ${isDirty ? 'ring-1 ring-inset ring-amber-200' : ''}
+                                  `}
+                                >
+                                  {/* Nome + badges */}
+                                  <div className="flex min-w-0 items-center gap-2">
+                                    {isCoord ? (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className="shrink-0 cursor-help rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-semibold text-blue-600">Base</span>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top" className="max-w-[220px] text-center text-xs leading-snug">
+                                          Função base: valor usado como referência quando a função do colaborador não possui valor personalizado cadastrado
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    ) : null}
+                                    <span
+                                      className={`truncate text-sm font-medium ${
+                                        isCoord ? 'text-blue-700'
+                                        : isDirty ? 'font-semibold text-amber-700'
+                                        : activeTab === 'freela' ? 'text-amber-600'
+                                        : 'text-gray-700'
+                                      }`}
+                                    >
+                                      {toTitleCase(fn.name)}
+                                    </span>
+                                  </div>
+
+                                  {/* Dia Útil */}
+                                  {renderCell('wd', isEditingWd, wdVal, hasWd)}
+                                  {/* Fim de Semana — passa wdVal como fallback quando FDS não está configurado */}
+                                  {renderCell('we', isEditingWe, weVal, hasWe, wdVal)}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
+                            <span className="text-[11px] text-slate-400">{allFunctions.length} {allFunctions.length === 1 ? 'função' : 'funções'} cadastradas</span>
+                            <Link href="/functions" className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-500 hover:text-indigo-700 hover:underline">
+                              Gerenciar funções <ExternalLink className="w-3 h-3" />
+                            </Link>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
-              {hasAnyChanges && (
-                <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
-                  <AlertCircle className="w-3 h-3" />
-                  {totalUnsaved} alteraç{totalUnsaved === 1 ? 'ão' : 'ões'} não salva{totalUnsaved === 1 ? '' : 's'}
-                </span>
-              )}
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* ── Rodapé informativo (o salvamento acontece na barra flutuante) ── */}
+          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-gray-200 py-4">
+            <div className="flex items-center gap-2 text-sm text-gray-400">
+              <Lock className="w-4 h-4 flex-shrink-0" />
+              <span>Apenas administradores podem alterar estes valores</span>
             </div>
             <div className="flex items-center gap-3">
               {lastSaved && (
-                <span className="text-xs text-gray-400 hidden sm:block">
+                <span className="hidden text-xs text-gray-400 sm:block">
                   Salvo em {formatDateTime(lastSaved.timestamp)} · <span className="font-medium">{lastSaved.user}</span>
                 </span>
               )}
-              <Button
-                type="submit"
-                disabled={!hasAnyChanges || isSavingAny || saveMutation.isPending}
-                style={{ background: hasAnyChanges ? '#3B4FE4' : undefined, boxShadow: hasAnyChanges ? '0 4px 14px rgba(59,79,228,0.3)' : undefined }}
-                className="px-6 text-white disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+              {/* Ação secundária: reaplica os valores JÁ SALVOS ao Planejado pendente
+                  (ao salvar pela barra flutuante isso já acontece automaticamente) */}
+              <button
+                type="button"
+                onClick={handleApplyToPending}
+                disabled={isApplyingPending}
+                title="Aplica os valores padrão já salvos a todos os orçamentos planejados ainda não enviados. Ao salvar alterações, isso já é feito automaticamente."
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-xs font-semibold text-gray-600 transition-colors hover:border-indigo-500 hover:text-indigo-600 disabled:cursor-not-allowed disabled:text-gray-400"
               >
-                <Save className="w-4 h-4 mr-2" />
-                {(isSavingAny || saveMutation.isPending) ? "Salvando..." : "Salvar Valores Padrão"}
-              </Button>
+                <RefreshCw className={`h-3.5 w-3.5 ${isApplyingPending ? 'animate-spin' : ''}`} />
+                {isApplyingPending ? 'Aplicando...' : 'Atualizar Planejado'}
+              </button>
             </div>
           </div>
         </form>
       </Form>
 
-      {/* ── Empresas Pagadoras ── */}
-      <div className="border border-gray-200 rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between gap-2.5 px-5 py-4 bg-gray-50 border-b border-gray-200">
-          <div className="flex items-center gap-2.5">
-            <Building2 className="w-4 h-4 text-emerald-600" />
-            <span className="text-sm font-semibold text-gray-700">Empresas Pagadoras</span>
-            <span className="text-xs text-gray-400 font-normal">(usadas nas Notas Fiscais)</span>
-          </div>
-          {!showAddCompany && (
-            <button
-              type="button"
-              onClick={() => setShowAddCompany(true)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg transition-colors"
+      {/* Confirmação de exclusão de empresa pagadora (padrão do app) */}
+      <AlertDialog open={!!companyToDelete} onOpenChange={open => { if (!open) setCompanyToDelete(null); }}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover empresa pagadora?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {companyToDelete && (
+                <>
+                  A empresa <span className="font-semibold">{companyToDelete.name}</span> (CNPJ {companyToDelete.cnpj}) deixará de aparecer como opção nas Notas Fiscais.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-lg">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-lg bg-red-600 hover:bg-red-700"
+              onClick={() => { if (companyToDelete) deleteCompanyMutation.mutate(companyToDelete.id); setCompanyToDelete(null); }}
             >
-              <Plus className="w-3.5 h-3.5" />
-              Adicionar empresa
-            </button>
-          )}
-        </div>
-        <div className="bg-white p-5 space-y-4">
-          {paymentCompanies.length === 0 && !showAddCompany ? (
-            <p className="text-sm text-gray-400 text-center py-3">Nenhuma empresa cadastrada.</p>
-          ) : paymentCompanies.length > 0 ? (
-            <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 overflow-hidden">
-              {paymentCompanies.map(c => (
-                <div key={c.id} className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50 transition-colors">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">{c.name}</p>
-                    <p className="text-xs text-gray-400 font-mono">{c.cnpj}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => deleteCompanyMutation.mutate(c.id)}
-                    disabled={deleteCompanyMutation.isPending}
-                    className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                    title="Remover empresa"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : null}
+              Remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-          {/* Formulário expansível */}
-          {showAddCompany ? (
-            <div className="border border-dashed border-emerald-200 rounded-xl p-4 bg-emerald-50/40 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-emerald-700">Nova empresa</p>
-                <button type="button" onClick={() => { setShowAddCompany(false); setNewCompanyName(""); setNewCompanyCnpj(""); }} className="text-slate-400 hover:text-slate-600">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium text-slate-600 mb-1 block">Nome da empresa</label>
-                  <Input
-                    value={newCompanyName}
-                    onChange={e => setNewCompanyName(e.target.value)}
-                    placeholder="Ex.: Produtora Norte Ltda"
-                    className="h-9 text-sm border-gray-200 rounded-lg"
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-slate-600 mb-1 block">CNPJ</label>
-                  <CnpjInput value={newCompanyCnpj} onChange={setNewCompanyCnpj} name="newCompanyCnpj" />
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={!newCompanyName.trim() || !validateCnpj(newCompanyCnpj) || createCompanyMutation.isPending}
-                  onClick={() => createCompanyMutation.mutate({ name: newCompanyName.trim(), cnpj: newCompanyCnpj })}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 px-4"
-                >
-                  <Plus className="w-3.5 h-3.5 mr-1.5" />
-                  Cadastrar empresa
-                </Button>
-                <button type="button" onClick={() => { setShowAddCompany(false); setNewCompanyName(""); setNewCompanyCnpj(""); }} className="text-xs text-slate-400 hover:text-slate-600">
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      {/* ── Histórico de Alterações ── */}
-      <div className="border border-gray-200 rounded-xl overflow-hidden">
+      {/* ── Histórico deste navegador (localStorage — não compartilhado) ── */}
+      <div className="overflow-hidden rounded-2xl border border-gray-200">
         {groupedHistory.length === 0 ? (
           <div className="flex items-center gap-2.5 px-5 py-4 text-sm text-gray-400">
             <Clock className="w-4 h-4 text-gray-300" />
-            <span>Histórico de alterações</span>
+            <span>Histórico deste navegador</span>
             <span className="text-gray-300">·</span>
-            <span className="text-gray-400 font-normal">Nenhuma alteração registrada</span>
+            <span className="font-normal text-gray-400">Nenhuma alteração registrada neste navegador</span>
           </div>
         ) : (
           <>
             <button
               type="button"
               onClick={() => setHistoryOpen(o => !o)}
-              className="w-full flex items-center justify-between px-5 py-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+              className="flex w-full items-center justify-between bg-gray-50 px-5 py-4 transition-colors hover:bg-gray-100"
             >
-              <div className="flex items-center gap-2.5 text-sm font-semibold text-gray-700">
+              <div className="flex flex-wrap items-center gap-2.5 text-sm font-semibold text-gray-700">
                 <Clock className="w-4 h-4 text-indigo-500" />
-                Histórico de alterações
-                <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600 text-xs font-bold">
+                Histórico deste navegador
+                <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-bold text-indigo-600">
                   {groupedHistory.length}
+                </span>
+                <span className="text-[11px] font-normal text-gray-400">
+                  registrado localmente — outros usuários não veem estas entradas
                 </span>
               </div>
               {historyOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
             </button>
             {historyOpen && (
-              <div className="bg-white divide-y divide-gray-100">
+              <div className="divide-y divide-gray-100 bg-white">
                 {groupedHistory.map((group, gi) => (
                   <div key={gi} className="flex items-start gap-4 px-5 py-4">
-                    <div style={{
-                      width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                      background: 'linear-gradient(135deg, #3B4FE4, #6366F1)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 11, fontWeight: 700, color: '#fff',
-                    }}>
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-bold text-white">
                       {getUserInitials(group.user)}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1.5 flex flex-wrap items-center gap-2">
                         <span className="text-sm font-semibold text-gray-800">{group.user}</span>
                         <span className="text-xs text-gray-400">{formatDateTime(group.timestamp)}</span>
                         <span className="text-xs text-gray-400">· alterou:</span>
@@ -1534,7 +1378,7 @@ export default function SystemSettingsPage() {
                             <span className="font-medium text-gray-700">{e.field}:</span>
                             <span className="text-red-400 line-through">{e.oldValue}</span>
                             <span className="text-gray-300">→</span>
-                            <span className="text-emerald-600 font-semibold">{e.newValue}</span>
+                            <span className="font-semibold text-emerald-600">{e.newValue}</span>
                           </div>
                         ))}
                       </div>

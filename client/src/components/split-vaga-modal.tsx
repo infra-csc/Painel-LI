@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { fixEncoding } from "@/lib/utils";
+import { fixEncoding, parseBrNumber } from "@/lib/utils";
 import type { BudgetActual, Collaborator, TeamInclusion } from "@shared/schema";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -97,18 +97,18 @@ function ModalCurrencyInput({ value, onChange, disabled, className }: {
       onChange={e => {
         const raw = e.target.value;
         setDisplay(raw);
-        const parsed = parseFloat(raw.replace(",", "."));
-        if (!isNaN(parsed)) onChange(Math.round(parsed * 100));
+        if (raw.trim() === "") return;
+        // parseBrNumber trata "1.500,00" como 1500 (ponto de milhar + vírgula decimal)
+        onChange(Math.round(parseBrNumber(raw) * 100));
       }}
       onBlur={() => {
-        const parsed = parseFloat(display.replace(",", "."));
-        if (!isNaN(parsed)) {
-          const cents = Math.round(parsed * 100);
-          onChange(cents);
-          setDisplay((cents / 100).toFixed(2).replace(".", ","));
-        } else {
+        if (display.trim() === "") {
           setDisplay((value / 100).toFixed(2).replace(".", ","));
+          return;
         }
+        const cents = Math.round(parseBrNumber(display) * 100);
+        onChange(cents);
+        setDisplay((cents / 100).toFixed(2).replace(".", ","));
       }}
       onFocus={() => setTimeout(() => inputRef.current?.select(), 0)}
       disabled={disabled}
@@ -122,6 +122,9 @@ interface SplitVagaModalProps {
   item: BudgetActual;
   collaborators: Collaborator[];
   teamInclusion: TeamInclusion | undefined;
+  /** Datas do evento — fallback quando a escalação não tem período definido */
+  eventStartDate?: string | null;
+  eventEndDate?: string | null;
   takenDays?: string[];
   onClose: () => void;
   onConfirm: (payload: {
@@ -162,7 +165,7 @@ interface Step2Form {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function SplitVagaModal({
-  item, collaborators, teamInclusion, takenDays = [], onClose, onConfirm, isPending,
+  item, collaborators, teamInclusion, eventStartDate, eventEndDate, takenDays = [], onClose, onConfirm, isPending,
 }: SplitVagaModalProps) {
 
   // ── Step 1 state ──────────────────────────────────────────────────────────
@@ -192,8 +195,10 @@ export function SplitVagaModal({
     const s = teamInclusion?.scheduleStartDate;
     const e = teamInclusion?.scheduleEndDate;
     if (s && e) return getDaysInRange(s, e);
+    // Sem datas na escalação: usa as datas do evento (mesmo fallback de getItemDayCounts na página)
+    if (eventStartDate && eventEndDate) return getDaysInRange(eventStartDate, eventEndDate);
     return [];
-  }, [teamInclusion]);
+  }, [teamInclusion, eventStartDate, eventEndDate]);
 
   const parentWorkedDays = useMemo(() => {
     if (item.workedDays && item.workedDays.length > 0) return item.workedDays;
@@ -219,7 +224,7 @@ export function SplitVagaModal({
     const q = collabSearch.toLowerCase();
     return collaborators
       .filter(c => c.id !== item.collaboratorId)
-      .filter(c => (c as any).status === "aprovado" && (c as any).active !== false)
+      .filter(c => c.status === "aprovado" && c.active !== false)
       .filter(c => !q || fixEncoding(c.fullName || "").toLowerCase().includes(q))
       .sort((a, b) => fixEncoding(a.fullName || "").localeCompare(fixEncoding(b.fullName || ""), "pt-BR"))
       .slice(0, 60);
@@ -362,11 +367,66 @@ export function SplitVagaModal({
 
   const canGoNext = !!selectedCollabId && selectedDays.size > 0;
 
+  // ── Acessibilidade: Esc fecha, foco preso dentro do modal ─────────────────
+  const modalRef = useRef<HTMLDivElement>(null);
+  // Refs para o listener (montado uma única vez) enxergar sempre o estado atual
+  // sem re-executar o efeito (o que roubaria o foco a cada re-render do pai)
+  const escStateRef = useRef({ showZeroDayConfirm, collabDropOpen, onClose });
+  escStateRef.current = { showZeroDayConfirm, collabDropOpen, onClose };
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    modalRef.current?.focus();
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        const cur = escStateRef.current;
+        if (cur.showZeroDayConfirm) setShowZeroDayConfirm(false);
+        else if (cur.collabDropOpen) setCollabDropOpen(false);
+        else cur.onClose();
+        return;
+      }
+      if (e.key === "Tab" && modalRef.current) {
+        const focusables = Array.from(
+          modalRef.current.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter(el => el.offsetParent !== null);
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement as HTMLElement | null;
+        if (e.shiftKey) {
+          if (active === first || !modalRef.current.contains(active)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else if (active === last || !modalRef.current.contains(active)) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Render ────────────────────────────────────────────────────────────────
   return createPortal(
     <>
       <div className="fixed inset-0 z-[9998] bg-black/50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl w-full max-w-[680px] max-h-[92vh] flex flex-col shadow-2xl overflow-hidden" style={{border:'1px solid rgba(0,0,0,0.06)'}}>
+        <div
+          ref={modalRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Dividir escalação"
+          tabIndex={-1}
+          className="bg-white rounded-3xl w-full max-w-[680px] max-h-[92vh] flex flex-col shadow-2xl overflow-hidden outline-none"
+          style={{border:'1px solid rgba(0,0,0,0.06)'}}
+        >
 
           {/* ── Title header ── */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
@@ -379,7 +439,7 @@ export function SplitVagaModal({
                 <p className="text-xs text-slate-400 m-0">Atribua dias específicos a outro colaborador</p>
               </div>
             </div>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 rounded-lg hover:bg-slate-100 transition-colors">
+            <button onClick={onClose} aria-label="Fechar" className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 rounded-lg hover:bg-slate-100 transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -434,22 +494,22 @@ export function SplitVagaModal({
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <div className="text-center pl-3 border-l border-violet-200">
-                        <p className="text-[9px] font-semibold text-violet-400 uppercase tracking-wide m-0">Total</p>
+                        <p className="text-[10px] font-semibold text-violet-400 uppercase tracking-wide m-0">Total</p>
                         <p className="text-xl font-bold text-violet-700 m-0 leading-tight">{totalDays}</p>
-                        <p className="text-[9px] text-violet-400 m-0">{totalDays === 1 ? 'dia' : 'dias'}</p>
+                        <p className="text-[10px] text-violet-400 m-0">{totalDays === 1 ? 'dia' : 'dias'}</p>
                       </div>
                       {selCount > 0 && (
                         <div className="text-center pl-3 border-l border-violet-200">
-                          <p className="text-[9px] font-semibold text-violet-400 uppercase tracking-wide m-0">Para novo</p>
+                          <p className="text-[10px] font-semibold text-violet-400 uppercase tracking-wide m-0">Para novo</p>
                           <p className="text-xl font-bold text-violet-600 m-0 leading-tight">{selCount}</p>
-                          <p className="text-[9px] text-violet-400 m-0">{selCount === 1 ? 'dia' : 'dias'}</p>
+                          <p className="text-[10px] text-violet-400 m-0">{selCount === 1 ? 'dia' : 'dias'}</p>
                         </div>
                       )}
                       {selCount > 0 && (
                         <div className="text-center pl-3 border-l border-violet-200">
-                          <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wide m-0">Resta</p>
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Resta</p>
                           <p className={`text-xl font-bold m-0 leading-tight ${remCount === 0 ? 'text-red-500' : 'text-slate-500'}`}>{remCount}</p>
-                          <p className="text-[9px] text-slate-400 m-0">{remCount === 1 ? 'dia' : 'dias'}</p>
+                          <p className="text-[10px] text-slate-400 m-0">{remCount === 1 ? 'dia' : 'dias'}</p>
                         </div>
                       )}
                     </div>
@@ -612,6 +672,8 @@ export function SplitVagaModal({
                           key={day}
                           onClick={() => toggleDay(day)}
                           disabled={isTaken}
+                          aria-pressed={isSel}
+                          aria-label={`${formatDay(day)}${isTaken ? ' — já atribuído' : isSel ? ' — selecionado' : ''}`}
                           title={isTaken ? "Dia já atribuído a outro colaborador desta divisão" : notParent ? "Este dia está fora do período original" : undefined}
                           className="flex flex-col items-center rounded-xl py-2.5 px-1 transition-all relative"
                           style={{
@@ -623,7 +685,7 @@ export function SplitVagaModal({
                           }}
                         >
                           {/* Weekday */}
-                          <span style={{fontSize: 9, fontWeight: 600, color: wdColor, textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: '13px'}}>
+                          <span style={{fontSize: 10, fontWeight: 600, color: wdColor, textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: '13px'}}>
                             {wdShort}
                           </span>
                           {/* Day number */}
@@ -631,7 +693,7 @@ export function SplitVagaModal({
                             {dayNum}
                           </span>
                           {/* Month */}
-                          <span style={{fontSize: 9, color: isTaken ? '#CBD5E1' : '#94A3B8', lineHeight: '13px'}}>
+                          <span style={{fontSize: 10, color: isTaken ? '#CBD5E1' : '#94A3B8', lineHeight: '13px'}}>
                             {moShort}
                           </span>
                           {/* Check badge */}
@@ -643,7 +705,7 @@ export function SplitVagaModal({
                           )}
                           {/* Out-of-parent warning */}
                           {notParent && !isSel && !isTaken && (
-                            <div className="absolute top-0.5 right-0.5 text-amber-400" style={{fontSize: 8}}>⚠</div>
+                            <div className="absolute top-0.5 right-0.5 text-amber-400" style={{fontSize: 10}}>⚠</div>
                           )}
                         </button>
                       );
@@ -945,15 +1007,15 @@ export function SplitVagaModal({
                   <div className="rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="grid grid-cols-3 divide-x divide-slate-200">
                       <div className="px-3 py-3 text-center">
-                        <div className="text-[9px] uppercase text-slate-400 font-semibold tracking-widest mb-1">Planejado prop.</div>
+                        <div className="text-[10px] uppercase text-slate-400 font-semibold tracking-widest mb-1">Planejado prop.</div>
                         <div className="text-sm font-bold text-slate-600 tabular-nums">{fmtR$(proportionalPlanned)}</div>
                       </div>
                       <div className="px-4 py-3 text-center bg-violet-50/60">
-                        <div className="text-[9px] uppercase text-violet-500 font-semibold tracking-widest mb-1">Realizado</div>
+                        <div className="text-[10px] uppercase text-violet-500 font-semibold tracking-widest mb-1">Realizado</div>
                         <div className="text-sm font-bold text-violet-700 tabular-nums">{fmtR$(s2Realizado)}</div>
                       </div>
                       <div className={`px-4 py-3 text-center ${Math.abs(s2Difference) <= 1 ? 'bg-slate-50/60' : s2Difference < 0 ? 'bg-emerald-50/60' : 'bg-red-50/60'}`}>
-                        <div className="text-[9px] uppercase text-slate-400 font-semibold tracking-widest mb-1">Diferença</div>
+                        <div className="text-[10px] uppercase text-slate-400 font-semibold tracking-widest mb-1">Diferença</div>
                         {Math.abs(s2Difference) <= 1 ? (
                           <div className="text-sm font-bold text-slate-300 tabular-nums">—</div>
                         ) : (
@@ -992,7 +1054,7 @@ export function SplitVagaModal({
       {/* Zero-day confirmation */}
       {showZeroDayConfirm && createPortal(
         <div className="fixed inset-0 z-[10001] bg-black/60 flex items-center justify-center p-6">
-          <div className="bg-white rounded-2xl max-w-[420px] w-full p-7 shadow-2xl">
+          <div role="alertdialog" aria-modal="true" aria-label="Colaborador original sem dias" className="bg-white rounded-2xl max-w-[420px] w-full p-7 shadow-2xl">
             <div className="flex gap-3 items-start mb-5">
               <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
                 <AlertTriangle className="w-5 h-5 text-red-500" />

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -15,6 +15,7 @@ import {
 import {
   Wallet, Search, Plus, Download, Trash2, X, UtensilsCrossed, Bus,
   AlertTriangle, CheckCircle2, ArrowUpCircle, ArrowDownCircle, Sparkles,
+  Pencil, UserPlus, ChevronDown,
 } from "lucide-react";
 
 // Valores-alvo do adiantamento: o colaborador deve sempre ter esses saldos
@@ -41,6 +42,28 @@ function todayISO() {
 
 type Balance = { food: number; mobility: number; count: number };
 
+// Formas locais das respostas da API (apenas os campos usados nesta tela)
+interface Collaborator {
+  id: string;
+  fullName: string;
+  active?: boolean | null;
+}
+interface EventItem {
+  id: string;
+  name: string;
+}
+interface FlashMovement {
+  id: string;
+  collaboratorId: string;
+  eventId?: string | null;
+  category: string; // alimentacao | mobilidade
+  type: string;     // credito | debito
+  amountCents: number;
+  movementDate: string;
+  description?: string | null;
+  createdAt?: string | null;
+}
+
 export default function FlashAccountPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -50,14 +73,17 @@ export default function FlashAccountPage() {
   const [search, setSearch] = useState("");
   const [selectedCollabId, setSelectedCollabId] = useState<string>("");
   const [showForm, setShowForm] = useState(false);
-  const [movementToDelete, setMovementToDelete] = useState<any | null>(null);
+  const [formCollabId, setFormCollabId] = useState<string>("");
+  const [movementToEdit, setMovementToEdit] = useState<FlashMovement | null>(null);
+  const [movementToDelete, setMovementToDelete] = useState<FlashMovement | null>(null);
+  const [showNoInitialCredit, setShowNoInitialCredit] = useState(false);
 
-  const { data: collaborators = [] } = useQuery<any[]>({ queryKey: ["/api/collaborators"] });
-  const { data: events = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
-  const { data: movements = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/flash-movements"] });
+  const { data: collaborators = [] } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
+  const { data: events = [] } = useQuery<EventItem[]>({ queryKey: ["/api/events"] });
+  const { data: movements = [], isLoading } = useQuery<FlashMovement[]>({ queryKey: ["/api/flash-movements"] });
 
   const getCollabName = (id: string) => collaborators.find(c => c.id === id)?.fullName || "—";
-  const getEventName = (id?: string | null) => (events as any[]).find(e => e.id === id)?.name || "";
+  const getEventName = (id?: string | null) => events.find(e => e.id === id)?.name || "";
 
   // Saldo por colaborador: créditos somam, débitos subtraem
   const balances = useMemo(() => {
@@ -101,15 +127,32 @@ export default function FlashAccountPage() {
     [movements, selectedCollabId],
   );
 
-  // Extrato com saldo acumulado (por categoria e geral)
+  // Extrato com saldo acumulado (por categoria e geral).
+  // Ordena localmente por data do movimento (createdAt desempata) antes de
+  // acumular — o saldo por linha não pode depender da ordem que a API devolve.
   const extrato = useMemo(() => {
+    const sorted = [...selectedMovements].sort((a, b) => {
+      const byDate = String(a.movementDate || "").localeCompare(String(b.movementDate || ""));
+      if (byDate !== 0) return byDate;
+      return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
+    });
     let food = 0, mobility = 0;
-    return selectedMovements.map(m => {
+    return sorted.map(m => {
       const signed = (m.type === "credito" ? 1 : -1) * (m.amountCents || 0);
       if (m.category === "alimentacao") food += signed; else mobility += signed;
       return { ...m, signed, runningFood: food, runningMobility: mobility };
     });
   }, [selectedMovements]);
+
+  // Admitidos sem crédito inicial: colaboradores ativos sem NENHUM lançamento
+  // (o crédito inicial só vale para conta nova — o servidor rejeita se já houver
+  // movimentos). Fecha o fluxo "crédito na admissão".
+  const admittedWithoutInitialCredit = useMemo(() => {
+    const withMovements = new Set(movements.map(m => m.collaboratorId));
+    return collaborators
+      .filter(c => c.active !== false && !withMovements.has(c.id))
+      .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || "", "pt-BR"));
+  }, [collaborators, movements]);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/flash-movements/${id}`).then(r => r.json()),
@@ -120,6 +163,9 @@ export default function FlashAccountPage() {
     onError: (e: any) => toast({ title: "Erro", description: e?.body?.message || "Erro ao excluir lançamento", variant: "destructive" }),
   });
 
+  // Campo CSV seguro: aspas duplas quando houver ; aspas ou quebra de linha
+  const csvField = (s: string) => (/[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+
   const exportCsv = () => {
     const name = getCollabName(selectedCollabId);
     const header = "Data;Categoria;Tipo;Evento;Descrição;Valor (R$);Saldo Alimentação (R$);Saldo Mobilidade (R$)";
@@ -127,8 +173,8 @@ export default function FlashAccountPage() {
       fmtDate(m.movementDate),
       m.category === "alimentacao" ? "Alimentação" : "Mobilidade",
       m.type === "credito" ? "Crédito" : "Débito",
-      getEventName(m.eventId),
-      (m.description || "").replace(/;/g, ","),
+      csvField(getEventName(m.eventId)),
+      csvField(m.description || ""),
       (m.signed / 100).toFixed(2).replace(".", ","),
       (m.runningFood / 100).toFixed(2).replace(".", ","),
       (m.runningMobility / 100).toFixed(2).replace(".", ","),
@@ -160,7 +206,7 @@ export default function FlashAccountPage() {
             </p>
           </div>
           {canManage && (
-            <Button onClick={() => setShowForm(true)} className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold h-9 px-4 shadow-sm">
+            <Button onClick={() => { setMovementToEdit(null); setFormCollabId(""); setShowForm(true); }} className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold h-9 px-4 shadow-sm">
               <Plus className="w-3.5 h-3.5 mr-1.5" /> Novo Lançamento
             </Button>
           )}
@@ -173,6 +219,48 @@ export default function FlashAccountPage() {
           <SummaryCard label="Saldo mobilidade" value={formatCurrency(totals.mobility)} icon={Bus} color="text-blue-600" bg="bg-blue-50" />
           <SummaryCard label="Abaixo do alvo" value={String(totals.below)} icon={AlertTriangle} color="text-amber-600" bg="bg-amber-50" />
         </div>
+
+        {/* Admitidos sem crédito inicial — fecha o fluxo "crédito na admissão" */}
+        {canManage && !isLoading && admittedWithoutInitialCredit.length > 0 && (
+          <div className="bg-white rounded-2xl border border-amber-200 overflow-hidden">
+            <button
+              onClick={() => setShowNoInitialCredit(v => !v)}
+              aria-expanded={showNoInitialCredit}
+              className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-amber-50/40 transition-colors"
+            >
+              <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+                <UserPlus className="w-4 h-4 text-amber-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-bold text-slate-700">
+                  Admitidos sem crédito inicial
+                  <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                    {admittedWithoutInitialCredit.length}
+                  </span>
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Colaboradores ativos sem nenhum lançamento na conta Flash — lance o crédito inicial da admissão
+                </p>
+              </div>
+              <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${showNoInitialCredit ? "rotate-180" : ""}`} />
+            </button>
+            {showNoInitialCredit && (
+              <div className="max-h-[280px] overflow-y-auto divide-y divide-gray-50 border-t border-gray-100">
+                {admittedWithoutInitialCredit.map(c => (
+                  <div key={c.id} className="flex items-center gap-3 px-5 py-2.5">
+                    <p className="flex-1 min-w-0 text-xs font-medium text-slate-600 truncate">{toTitleCase(c.fullName)}</p>
+                    <button
+                      onClick={() => { setFormCollabId(c.id); setMovementToEdit(null); setShowForm(true); }}
+                      className="flex items-center gap-1.5 h-7 px-2.5 text-[11px] font-semibold text-violet-600 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors shrink-0"
+                    >
+                      <Sparkles className="w-3 h-3" /> Lançar crédito
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           {/* Lista de contas */}
@@ -204,6 +292,7 @@ export default function FlashAccountPage() {
                 <button
                   key={row.collaboratorId}
                   onClick={() => setSelectedCollabId(row.collaboratorId)}
+                  aria-current={selectedCollabId === row.collaboratorId ? "true" : undefined}
                   className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${
                     selectedCollabId === row.collaboratorId ? "bg-violet-50" : "hover:bg-slate-50"
                   }`}
@@ -246,12 +335,17 @@ export default function FlashAccountPage() {
                     <button onClick={exportCsv} title="Exportar extrato em CSV" className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-slate-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                       <Download className="w-3.5 h-3.5" /> CSV
                     </button>
-                    <button onClick={() => setSelectedCollabId("")} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors">
+                    <button
+                      onClick={() => setSelectedCollabId("")}
+                      aria-label="Fechar extrato"
+                      title="Fechar extrato"
+                      className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors"
+                    >
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
-                <div className="max-h-[470px] overflow-y-auto">
+                <div className="max-h-[470px] overflow-y-auto overflow-x-auto">
                   {extrato.length === 0 ? (
                     <p className="text-xs text-slate-400 text-center py-10">Nenhum lançamento para este colaborador.</p>
                   ) : (
@@ -291,7 +385,15 @@ export default function FlashAccountPage() {
                               {formatCurrency(m.category === "alimentacao" ? m.runningFood : m.runningMobility)}
                             </td>
                             {canManage && (
-                              <td className="px-2 py-2.5 text-right">
+                              <td className="px-2 py-2.5 text-right whitespace-nowrap">
+                                <button
+                                  title="Editar lançamento"
+                                  aria-label="Editar lançamento"
+                                  onClick={() => { setMovementToEdit(m); setFormCollabId(""); setShowForm(true); }}
+                                  className="w-6 h-6 inline-flex items-center justify-center rounded-md text-slate-300 hover:text-violet-600 hover:bg-violet-50 transition-colors"
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </button>
                                 <button
                                   title="Excluir lançamento"
                                   aria-label="Excluir lançamento"
@@ -343,10 +445,11 @@ export default function FlashAccountPage() {
         {canManage && (
           <NewMovementDialog
             open={showForm}
-            onClose={() => setShowForm(false)}
+            onClose={() => { setShowForm(false); setMovementToEdit(null); setFormCollabId(""); }}
             collaborators={collaborators}
-            events={events as any[]}
-            defaultCollaboratorId={selectedCollabId}
+            events={events}
+            defaultCollaboratorId={formCollabId || selectedCollabId}
+            editing={movementToEdit}
             hasAccount={(id: string) => balances.has(id)}
             onCreated={(collabId: string) => {
               qc.invalidateQueries({ queryKey: ["/api/flash-movements"] });
@@ -373,7 +476,19 @@ function SummaryCard({ label, value, icon: Icon, color, bg }: any) {
   );
 }
 
-function NewMovementDialog({ open, onClose, collaborators, events, defaultCollaboratorId, hasAccount, onCreated }: any) {
+interface NewMovementDialogProps {
+  open: boolean;
+  onClose: () => void;
+  collaborators: Collaborator[];
+  events: EventItem[];
+  defaultCollaboratorId: string;
+  /** Lançamento em edição (sem rota de update no servidor: salvar = excluir + recriar). */
+  editing: FlashMovement | null;
+  hasAccount: (id: string) => boolean;
+  onCreated: (collabId: string) => void;
+}
+
+function NewMovementDialog({ open, onClose, collaborators, events, defaultCollaboratorId, editing, hasAccount, onCreated }: NewMovementDialogProps) {
   const { toast } = useToast();
   const [collaboratorId, setCollaboratorId] = useState(defaultCollaboratorId || "");
   const [collabSearch, setCollabSearch] = useState("");
@@ -385,16 +500,28 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Sincroniza o colaborador pré-selecionado quando o diálogo abre
-  const [lastOpen, setLastOpen] = useState(false);
-  if (open !== lastOpen) {
-    setLastOpen(open);
-    if (open) setCollaboratorId(defaultCollaboratorId || "");
-  }
+  // Ao abrir: pré-preenche com o lançamento em edição (preservando a data) ou
+  // apenas sincroniza o colaborador pré-selecionado. useEffect no lugar do
+  // antigo setState durante o render.
+  useEffect(() => {
+    if (!open) return;
+    if (editing) {
+      setCollaboratorId(editing.collaboratorId);
+      setCategory(editing.category === "mobilidade" ? "mobilidade" : "alimentacao");
+      setType(editing.type === "debito" ? "debito" : "credito");
+      setAmount(((editing.amountCents || 0) / 100).toFixed(2).replace(".", ","));
+      setMovementDate(String(editing.movementDate || "").split("T")[0] || todayISO());
+      setEventId(editing.eventId || "");
+      setDescription(editing.description || "");
+    } else {
+      setCollaboratorId(defaultCollaboratorId || "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editing]);
 
   const filteredCollabs = useMemo(() => {
     const q = collabSearch.trim().toLowerCase();
-    return (collaborators as any[])
+    return collaborators
       .filter(c => c.active !== false)
       .filter(c => !q || (c.fullName || "").toLowerCase().includes(q))
       .slice(0, 50);
@@ -419,11 +546,17 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
       } else {
         const cents = Math.round(parseBrNumber(amount) * 100);
         if (!cents || cents <= 0) { toast({ title: "Informe um valor válido", variant: "destructive" }); setSaving(false); return; }
+        if (editing) {
+          // Sem rota de update no servidor: excluir + recriar (as duas ações
+          // ficam na auditoria). Se a recriação falhar, o diálogo continua
+          // aberto com os dados para tentar salvar de novo.
+          await apiRequest("DELETE", `/api/flash-movements/${editing.id}`).then(r => r.json());
+        }
         await post({
           collaboratorId, category, type, amountCents: cents, movementDate,
           eventId: eventId || null, description: description.trim() || null,
         });
-        toast({ title: "Lançamento registrado" });
+        toast({ title: editing ? "Lançamento atualizado" : "Lançamento registrado" });
       }
       onCreated(collaboratorId);
       reset();
@@ -445,8 +578,10 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
             <Wallet className="w-4 h-4 text-violet-600" />
           </div>
           <div className="flex-1">
-            <h3 className="text-sm font-bold text-slate-800">Novo Lançamento</h3>
-            <p className="text-[11px] text-slate-400 mt-0.5">Conta corrente Flash</p>
+            <h3 className="text-sm font-bold text-slate-800">{editing ? "Editar Lançamento" : "Novo Lançamento"}</h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {editing ? "O lançamento original é excluído e recriado — as duas ações ficam na auditoria" : "Conta corrente Flash"}
+            </p>
           </div>
           <button onClick={() => { if (!saving) { reset(); onClose(); } }} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors">
             <X className="w-3.5 h-3.5" />
@@ -469,7 +604,7 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
             </select>
           </div>
 
-          {collaboratorId && !hasAccount(collaboratorId) && (
+          {!editing && collaboratorId && !hasAccount(collaboratorId) && (
             <button
               disabled={saving}
               onClick={() => save(true)}
@@ -512,7 +647,7 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
             <label className={lbl}>Evento (opcional)</label>
             <select value={eventId} onChange={e => setEventId(e.target.value)} className="w-full h-9 text-xs rounded-lg border border-gray-200 px-2 bg-white text-slate-700 focus:outline-none focus:border-violet-400">
               <option value="">Sem evento vinculado</option>
-              {(events as any[]).map(ev => (
+              {events.map(ev => (
                 <option key={ev.id} value={ev.id}>{ev.name}</option>
               ))}
             </select>
@@ -529,7 +664,7 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
             Cancelar
           </button>
           <Button disabled={saving} onClick={() => save(false)} className="h-9 px-4 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold">
-            {saving ? "Salvando..." : "Registrar Lançamento"}
+            {saving ? "Salvando..." : editing ? "Salvar Alterações" : "Registrar Lançamento"}
           </Button>
         </div>
       </DialogContent>

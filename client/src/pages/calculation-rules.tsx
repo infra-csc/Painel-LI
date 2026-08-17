@@ -1,13 +1,38 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import {
-  Calculator, Home, Briefcase, Hammer, Bike, Info, UtensilsCrossed, Bus, TrendingDown,
+  Calculator, Home, Briefcase, Hammer, Bike, Info, UtensilsCrossed, Bus, TrendingDown, Settings,
 } from "lucide-react";
 import {
-  DEFLATION_TIERS, calcDeflatedDailies,
+  calcDeflatedDailies, deflationFactorsFromSettings, type DeflationFactors,
   CASA_DAILY_RATES, CASA_FOOD_2026, MOBILITY_2026,
   FREELA_DAILY_RATES, FREELA_EXTRA_DAY_ALLOWANCE,
   EMPREITA_CLOSED_VALUES, PERCURSEIRO_TYPES,
+  CASA_SETTING_KEYS, FREELA_SETTING_KEYS,
 } from "@shared/calculation-rules";
+
+type SystemSettings = Record<string, number>;
+
+/** Valor vigente de uma tarifa: settings do Valores Padrão com fallback na constante 2026. */
+function effectiveCents(settings: SystemSettings | undefined, key: string, fallback: number): number {
+  const v = settings?.[key];
+  return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : fallback;
+}
+
+/** Chave editável (Valores Padrão) correspondente a cada linha das tabelas exibidas. */
+const CASA_RATE_KEYS: Record<string, string> = {
+  "Dir. Prova": CASA_SETTING_KEYS.dirProva,
+  "Produtor (Produção, Ativação, Kit, SupCeno)": CASA_SETTING_KEYS.produtor,
+  "Executivo Vendas O2 Prime": CASA_SETTING_KEYS.execVendas,
+  "Atendimento (Key Account)": "atendimento_key_account",
+  "Atendimento (Executivo de Contas)": "atendimento_executivo_contas",
+};
+const FREELA_RATE_KEYS: Record<string, string> = {
+  "Produtor / Sup Ceno / Kit / Ativação / Percurso — Local": FREELA_SETTING_KEYS.local,
+  "Produtor / Sup Ceno / Kit / Ativação / Percurso — em viagem": FREELA_SETTING_KEYS.viagem,
+  "Dir de Prova": FREELA_SETTING_KEYS.dirProva,
+};
 
 function fmt(cents: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
@@ -22,6 +47,19 @@ const TABS = [
 
 export default function CalculationRulesPage() {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("casa");
+
+  // Valores vigentes: mesmos settings que o motor de cálculo usa (Valores Padrão)
+  const { data: settings } = useQuery<SystemSettings>({ queryKey: ["/api/system-settings"] });
+  const factors = useMemo(() => deflationFactorsFromSettings(settings), [settings]);
+
+  const casaRates = useMemo(
+    () => CASA_DAILY_RATES.map(r => ({ funcao: r.funcao, cents: effectiveCents(settings, CASA_RATE_KEYS[r.funcao], r.cents) })),
+    [settings],
+  );
+  const freelaRates = useMemo(
+    () => FREELA_DAILY_RATES.map(r => ({ funcao: r.funcao, cents: effectiveCents(settings, FREELA_RATE_KEYS[r.funcao], r.cents) })),
+    [settings],
+  );
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-6">
@@ -39,11 +77,25 @@ export default function CalculationRulesPage() {
           </p>
         </div>
 
+        {/* Fonte dos valores aplicados */}
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl px-5 py-3.5 flex items-start gap-3">
+          <Settings className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+          <p className="text-xs text-blue-800">
+            Esta página é referência. Os valores aplicados no cálculo vêm dos{" "}
+            <Link href="/system-settings" className="font-bold underline underline-offset-2 hover:text-blue-900">
+              Valores Padrão
+            </Link>
+            . As tarifas e fatores abaixo já refletem o valor vigente configurado lá.
+          </p>
+        </div>
+
         {/* Tabs */}
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit flex-wrap">
+        <div role="tablist" aria-label="Regimes de contratação" className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit flex-wrap">
           {TABS.map(t => (
             <button
               key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
               onClick={() => setTab(t.id)}
               className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
                 tab === t.id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
@@ -54,8 +106,8 @@ export default function CalculationRulesPage() {
           ))}
         </div>
 
-        {tab === "casa" && <CasaTab />}
-        {tab === "freela" && <FreelaTab />}
+        {tab === "casa" && <CasaTab rates={casaRates} factors={factors} />}
+        {tab === "freela" && <FreelaTab rates={freelaRates} factors={factors} />}
         {tab === "empreita" && <EmpreitaTab />}
         {tab === "percurseiro" && <PercurseiroTab />}
       </div>
@@ -104,32 +156,42 @@ function RateTable({ rows, headers }: { rows: (string | number)[][]; headers: st
   );
 }
 
-function DeflationBanner() {
+/** Faixas de deflação para exibição, montadas com os fatores vigentes. */
+function deflationTiersDisplay(factors: DeflationFactors) {
+  return [
+    { label: "até 4 dias", factor: factors.ate4 },
+    { label: "do 5º ao 8º dia", factor: factors.d5a8 },
+    { label: "a partir do 9º dia", factor: factors.d9mais },
+  ];
+}
+
+function DeflationBanner({ factors }: { factors: DeflationFactors }) {
   return (
     <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3.5 flex items-start gap-3">
       <TrendingDown className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
       <div className="text-xs text-amber-800">
         <p className="font-bold mb-1">Regra de deflação por período (aplicada por dia trabalhado)</p>
         <div className="flex flex-wrap gap-x-5 gap-y-1">
-          {DEFLATION_TIERS.map(t => (
+          {deflationTiersDisplay(factors).map(t => (
             <span key={t.label}>
               <span className="font-semibold">{t.label}:</span> {Math.round(t.factor * 100)}% da diária
             </span>
           ))}
         </div>
+        <p className="mt-1 text-amber-600">Fatores vigentes (editáveis no Valores Padrão).</p>
       </div>
     </div>
   );
 }
 
-/** Calculadora de diárias com deflação (casa e freela). */
-function DeflationCalculator({ rates }: { rates: readonly { funcao: string; cents: number }[] }) {
+/** Calculadora de diárias com deflação (casa e freela), com os fatores vigentes. */
+function DeflationCalculator({ rates, factors }: { rates: readonly { funcao: string; cents: number }[]; factors: DeflationFactors }) {
   const [funcIdx, setFuncIdx] = useState(0);
   const [days, setDays] = useState(4);
   const rate = rates[funcIdx];
 
-  const result = useMemo(() => calcDeflatedDailies(rate.cents, Math.max(1, days)), [rate, days]);
-  const noDeflation = rate.cents * Math.max(1, days);
+  const result = useMemo(() => calcDeflatedDailies(rate.cents, days, factors), [rate, days, factors]);
+  const noDeflation = rate.cents * days;
 
   return (
     <Card title="Calculadora de diárias com deflação" icon={Calculator} accent="text-cyan-600">
@@ -151,7 +213,7 @@ function DeflationCalculator({ rates }: { rates: readonly { funcao: string; cent
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Dias de evento</label>
             <input
               type="number" min={1} max={30} value={days}
-              onChange={e => setDays(Number(e.target.value) || 1)}
+              onChange={e => setDays(Math.min(30, Math.max(1, Number(e.target.value) || 1)))}
               className="w-full h-9 text-xs rounded-lg border border-gray-200 px-3 bg-white text-slate-700 font-mono focus:outline-none focus:border-cyan-400"
             />
           </div>
@@ -197,17 +259,22 @@ function MobilityCard() {
 
 // ── Abas ─────────────────────────────────────────────────────────────────────
 
-function CasaTab() {
+type TabRatesProps = { rates: { funcao: string; cents: number }[]; factors: DeflationFactors };
+
+function CasaTab({ rates, factors }: TabRatesProps) {
   return (
     <div className="space-y-4">
-      <DeflationBanner />
-      <DeflationCalculator rates={CASA_DAILY_RATES} />
+      <DeflationBanner factors={factors} />
+      <DeflationCalculator rates={rates} factors={factors} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card title="Horas eventos — diárias por função" icon={Home} accent="text-cyan-600">
           <RateTable
             headers={["Função", "Valor/dia"]}
-            rows={CASA_DAILY_RATES.map(r => [r.funcao, fmt(r.cents)])}
+            rows={rates.map(r => [r.funcao, fmt(r.cents)])}
           />
+          <p className="text-[11px] text-slate-400 px-4 py-3 border-t border-gray-50">
+            Valor vigente (editável no Valores Padrão).
+          </p>
         </Card>
         <div className="space-y-4">
           <Card title="Alimentação 2026" icon={UtensilsCrossed} accent="text-emerald-600">
@@ -227,19 +294,19 @@ function CasaTab() {
   );
 }
 
-function FreelaTab() {
+function FreelaTab({ rates, factors }: TabRatesProps) {
   return (
     <div className="space-y-4">
-      <DeflationBanner />
-      <DeflationCalculator rates={FREELA_DAILY_RATES} />
+      <DeflationBanner factors={factors} />
+      <DeflationCalculator rates={rates} factors={factors} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card title="Horas eventos — valores de diária" icon={Briefcase} accent="text-cyan-600">
           <RateTable
             headers={["Função", "Valor/dia"]}
-            rows={FREELA_DAILY_RATES.map(r => [r.funcao, fmt(r.cents)])}
+            rows={rates.map(r => [r.funcao, fmt(r.cents)])}
           />
           <p className="text-[11px] text-slate-400 px-4 py-3 border-t border-gray-50">
-            * do 5º ao 8º dia — redução de 10% do valor desses dias; a partir do 9º dia, desconto de 20% do valor desses dias.
+            Valor vigente (editável no Valores Padrão).
           </p>
         </Card>
         <div className="space-y-4">
