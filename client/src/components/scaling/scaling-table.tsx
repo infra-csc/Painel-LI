@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDiarias, formatDateRange } from "@/lib/utils";
 import type { TeamInclusion, Ticket, Accommodation } from "@shared/schema";
-import { isPercursoFunction } from "@shared/calculation-rules";
+import { isPercursoFunction, diasPercurseiro } from "@shared/calculation-rules";
 import { ATENDIMENTO_SHORT, PERCURSEIRO_SHORT, type NormalizedSwap } from "./scaling-utils";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -279,6 +279,12 @@ export default function ScalingTable({
               const atendimento = ATENDIMENTO_SHORT[(inclusion as any).atendimentoTipo ?? ""];
               const isPercurso = isPercursoFunction(getFunctionName(inclusion.functionId));
               const percurseiro = isPercurso ? PERCURSEIRO_SHORT[(inclusion as any).percurseiroTipo ?? ""] : undefined;
+              // Percurso: regra fixa de diárias (2 em viagem / 1 local). Se a escala
+              // veio com outro número (erro de quem escalou), avisa — o Planejado já
+              // ignora e usa a regra; a correção é na escala.
+              const percursoDiariasEsperadas = isPercurso ? diasPercurseiro(inclusion.needsTicket) : null;
+              const percursoDiariasDivergem =
+                percursoDiariasEsperadas !== null && inclusion.dailyRates != null && inclusion.dailyRates !== percursoDiariasEsperadas;
               const idLabel = `#${inclusion.inclusionNumber ?? ""}`;
               return (
                 <tr
@@ -401,6 +407,17 @@ export default function ScalingTable({
                           <Bike className="w-2.5 h-2.5" />definir tipo
                         </span>
                       ))}
+                      {percursoDiariasDivergem && (
+                        <span
+                          role="img"
+                          aria-label={`Percurso ${inclusion.needsTicket ? "em viagem" : "local"}: a regra é ${percursoDiariasEsperadas} ${percursoDiariasEsperadas === 1 ? "diária" : "diárias"}, mas a escala está com ${inclusion.dailyRates}. O Planejado usa a regra; corrija a escala.`}
+                          title={`Percurso ${inclusion.needsTicket ? "em viagem" : "local (SP/Grande SP)"}: a regra é ${percursoDiariasEsperadas} ${percursoDiariasEsperadas === 1 ? "diária" : "diárias"}, mas a escala está com ${inclusion.dailyRates}. O Planejado já usa a regra — corrija a escala.`}
+                          data-testid="badge-percurso-diarias-divergem"
+                          className="inline-flex items-center justify-center gap-0.5 h-6 px-1 rounded-md border text-[10px] font-bold bg-red-50 border-red-200 text-red-700"
+                        >
+                          <Bike className="w-2.5 h-2.5" />{inclusion.dailyRates}≠{percursoDiariasEsperadas} diária{percursoDiariasEsperadas === 1 ? "" : "s"}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3">
