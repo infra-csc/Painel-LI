@@ -46,6 +46,10 @@ const formSchema = z.object({
   freela_diaria_local: z.string().min(1, "Obrigatório"),
   freela_diaria_viagem: z.string().min(1, "Obrigatório"),
   freela_diaria_dir_prova: z.string().min(1, "Obrigatório"),
+  // Diárias Casa (regra por grupo de função) — monetárias normais (reais<->centavos)
+  casa_diaria_dir_prova: z.string().min(1, "Obrigatório"),
+  casa_diaria_produtor: z.string().min(1, "Obrigatório"),
+  casa_diaria_exec_vendas: z.string().min(1, "Obrigatório"),
   // Regra de deflação (diárias) — percentuais inteiros 0..100, NÃO monetários
   deflacao_fator_ate_4: z.string().min(1, "Obrigatório"),
   deflacao_fator_5_8: z.string().min(1, "Obrigatório"),
@@ -87,6 +91,9 @@ const FIELD_LABELS: Record<string, string> = {
   freela_diaria_local: "Diária Freela — Local (sem viagem)",
   freela_diaria_viagem: "Diária Freela — Em viagem",
   freela_diaria_dir_prova: "Diária Freela — Dir de Prova",
+  casa_diaria_dir_prova: "Diária Casa — Dir. de Prova",
+  casa_diaria_produtor: "Diária Casa — Produtor",
+  casa_diaria_exec_vendas: "Diária Casa — Exec. Vendas O2 Prime",
   deflacao_fator_ate_4: "Deflação — Até 4 dias (%)",
   deflacao_fator_5_8: "Deflação — Do 5º ao 8º dia (%)",
   deflacao_fator_9_mais: "Deflação — A partir do 9º dia (%)",
@@ -377,6 +384,9 @@ export default function SystemSettingsPage() {
       freela_diaria_local: "465.00",
       freela_diaria_viagem: "540.00",
       freela_diaria_dir_prova: "820.00",
+      casa_diaria_dir_prova: "750.00",
+      casa_diaria_produtor: "465.00",
+      casa_diaria_exec_vendas: "260.00",
       deflacao_fator_ate_4: "100",
       deflacao_fator_5_8: "90",
       deflacao_fator_9_mais: "80",
@@ -414,6 +424,9 @@ export default function SystemSettingsPage() {
         freela_diaria_local: centavosToReais(s.freela_diaria_local ?? 46500),
         freela_diaria_viagem: centavosToReais(s.freela_diaria_viagem ?? 54000),
         freela_diaria_dir_prova: centavosToReais(s.freela_diaria_dir_prova ?? 82000),
+        casa_diaria_dir_prova: centavosToReais(s.casa_diaria_dir_prova ?? 75000),
+        casa_diaria_produtor: centavosToReais(s.casa_diaria_produtor ?? 46500),
+        casa_diaria_exec_vendas: centavosToReais(s.casa_diaria_exec_vendas ?? 26000),
         // Percentuais inteiros — usar o valor cru do GET, SEM centavosToReais
         deflacao_fator_ate_4: String(s.deflacao_fator_ate_4 ?? 100),
         deflacao_fator_5_8: String(s.deflacao_fator_5_8 ?? 90),
@@ -1006,6 +1019,47 @@ export default function SystemSettingsPage() {
               </div>
               <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 12, marginBottom: 0 }}>
                 Tarifas do time freela definidas pela regra do slide — a diária é escolhida automaticamente conforme a função e se a escalação tem passagem. Os valores freela antigos por função deixaram de ser usados no cálculo.
+              </p>
+            </div>
+          </div>
+
+          {/* ── Diárias Casa (regra por grupo de função) — chaves MONETÁRIAS ── */}
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            <div style={{ background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)', borderBottom: '1px solid #BFDBFE', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 9, background: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(37,99,235,0.3)', flexShrink: 0 }}>
+                <DollarSign style={{ width: 18, height: 18, color: '#fff' }} />
+              </div>
+              <div>
+                <p style={{ fontWeight: 700, fontSize: 13, color: '#1E40AF', margin: 0 }}>Diárias Casa (regra por grupo de função)</p>
+                <p style={{ fontSize: 11, color: '#2563EB', margin: 0 }}>Três tarifas conforme o grupo de função</p>
+              </div>
+            </div>
+            <div style={{ padding: 16 }}>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <FormField control={form.control} name="casa_diaria_dir_prova" render={({ field }) => (
+                  <FormItem>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Dir. de Prova</p>
+                    <FormControl><CurrencyInput field={field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="casa_diaria_produtor" render={({ field }) => (
+                  <FormItem>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Produtor (produção/ativação/kit/sup ceno)</p>
+                    <FormControl><CurrencyInput field={field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="casa_diaria_exec_vendas" render={({ field }) => (
+                  <FormItem>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Exec. Vendas O2 Prime</p>
+                    <FormControl><CurrencyInput field={field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+              <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 12, marginBottom: 0 }}>
+                Tarifas do time da casa por grupo de função (slide). Atendimento tem tarifa própria (Key Account/Exec. de Contas); cenotécnica, percurso e montagem seguem seus regimes específicos.
               </p>
             </div>
           </div>

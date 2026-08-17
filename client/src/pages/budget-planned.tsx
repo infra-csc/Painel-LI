@@ -21,7 +21,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetNote } from "@shared/schema";
 import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents, ATENDIMENTO_TIPOS, type AtendimentoTipo } from "@shared/atendimento";
-import { calcDeflatedDailies, deflationFactorsFromSettings, freelaDailyCents } from "@shared/calculation-rules";
+import { calcDeflatedDailies, deflationFactorsFromSettings, freelaDailyCents, casaDailyCents } from "@shared/calculation-rules";
 import { calcAlimentacao, isCenotecnicaFunction, refeicaoCents } from "@shared/alimentacao";
 import { useAuth } from "@/hooks/use-auth";
 import { useSearch } from "wouter";
@@ -566,8 +566,14 @@ export default function BudgetPlannedPage() {
       const freelaVal = !collabIsCasa
         ? freelaDailyCents(getFunctionName(inclusion.functionId), !!inclusion.needsTicket, ss)
         : null;
+      // CASA também segue a regra do slide (dir prova / produtor / exec vendas
+      // O2); funções fora dos grupos (cenotécnica, percurso, montagem) caem no
+      // valor por função como antes.
+      const casaVal = collabIsCasa
+        ? casaDailyCents(getFunctionName(inclusion.functionId), ss)
+        : null;
       const valorDiaria = override?.valorDiaria ?? override?.valorDiariaUtil ?? override?.valorDiariaFds ?? atendVal
-        ?? freelaVal ?? (fvDaily > 0 ? fvDaily : null) ?? inclusionDailyValue ?? defaultDailyValueWeekday;
+        ?? freelaVal ?? casaVal ?? (fvDaily > 0 ? fvDaily : null) ?? inclusionDailyValue ?? defaultDailyValueWeekday;
       const valorDiariaUtil = valorDiaria;
       const valorDiariaFds = valorDiaria;
       

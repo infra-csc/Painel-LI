@@ -197,3 +197,47 @@ export function freelaDailyCents(
     ? read(FREELA_SETTING_KEYS.viagem, FREELA_DEFAULTS_CENTS.viagem)
     : read(FREELA_SETTING_KEYS.local, FREELA_DEFAULTS_CENTS.local);
 }
+
+// ── Diária CASA por regra (slide "Regra de cálculo para time da casa") ───────
+// Grupos do slide (o usuário confirmou: "Produtor" = produção/ativação/kit/
+// sup ceno do sistema): Dir. Prova R$750; Produtor R$465; Executivo Vendas O2
+// Prime R$260. Atendimento tem regra própria (Key Account / Exec. de Contas).
+// Cenotécnica, percurso e montagem ficam FORA (empreita/percurseiro/valor por
+// função). Editável no Valores Padrão. Os valores por função no banco estavam
+// inconsistentes (diária útil 0 em quase todas).
+export const CASA_SETTING_KEYS = {
+  dirProva: "casa_diaria_dir_prova",
+  produtor: "casa_diaria_produtor",
+  execVendas: "casa_diaria_exec_vendas",
+} as const;
+
+export const CASA_DEFAULTS_CENTS = {
+  dirProva: 75000,
+  produtor: 46500,
+  execVendas: 26000,
+} as const;
+
+/**
+ * Diária casa (centavos) pela regra do slide, ou null para funções fora dos
+ * grupos (atendimento/cenotécnica/percurso/montagem — cada uma tem seu regime).
+ */
+export function casaDailyCents(
+  functionName: string | null | undefined,
+  settings?: Record<string, number | string | undefined> | null,
+): number | null {
+  if (!functionName) return null;
+  const n = functionName.toLowerCase();
+  const read = (key: string, def: number): number => {
+    const raw = settings?.[key];
+    const v = typeof raw === "string" ? parseInt(raw, 10) : raw;
+    return (typeof v === "number" && Number.isFinite(v) && v > 0) ? v : def;
+  };
+  if (n.includes("atend")) return null; // regra própria (KA/EC)
+  if (isDirProvaFunction(n)) return read(CASA_SETTING_KEYS.dirProva, CASA_DEFAULTS_CENTS.dirProva);
+  if (n.includes("o2") || n.includes("vendas")) return read(CASA_SETTING_KEYS.execVendas, CASA_DEFAULTS_CENTS.execVendas);
+  const isSupCeno = n.includes("sup") && n.includes("ceno");
+  if (isSupCeno || ((n.includes("produç") || n.includes("producao") || n.includes("ativa") || n.includes("kit")) && !n.includes("ceno"))) {
+    return read(CASA_SETTING_KEYS.produtor, CASA_DEFAULTS_CENTS.produtor);
+  }
+  return null;
+}

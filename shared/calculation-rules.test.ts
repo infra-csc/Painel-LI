@@ -112,3 +112,26 @@ describe("freelaDailyCents (regra do slide)", () => {
     expect(isDirProvaFunction("dir prova")).toBe(true);
   });
 });
+
+import { casaDailyCents } from "./calculation-rules";
+
+describe("casaDailyCents (regra do slide, nomes reais do sistema)", () => {
+  it("produtor = produção/ativação/kit/sup ceno -> R$465", () => {
+    for (const f of ["produção", "produção local", "produção sp 1", "ativação sp", "ativação local", "kit", "kit local", "sup ceno", "sup ceno local"]) {
+      expect(casaDailyCents(f, {})).toBe(46500);
+    }
+  });
+  it("dir prova -> R$750; clube o2/vendas -> R$260", () => {
+    expect(casaDailyCents("dir prova", {})).toBe(75000);
+    expect(casaDailyCents("clube o2", {})).toBe(26000);
+  });
+  it("fora da regra: atendimento (KA/EC), cenotécnica, percurso, montagem -> null", () => {
+    for (const f of ["atendimento", "cenotecnica", "cenotecnica local", "cenotecnica sp", "cenotecnico - freela", "percurso", "percurso local", "Montagem - casa", "Mkt"]) {
+      expect(casaDailyCents(f, {})).toBeNull();
+    }
+  });
+  it("valores editáveis", () => {
+    expect(casaDailyCents("produção", { casa_diaria_produtor: 50000 })).toBe(50000);
+    expect(casaDailyCents("dir prova", { casa_diaria_dir_prova: "80000" })).toBe(80000);
+  });
+});
