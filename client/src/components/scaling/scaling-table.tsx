@@ -6,6 +6,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { formatDiarias, formatDateRange } from "@/lib/utils";
 import type { TeamInclusion, Ticket, Accommodation } from "@shared/schema";
 import { isPercursoFunction, diasPercurseiro } from "@shared/calculation-rules";
+
+// Decisão do usuário (17/08): a Escalação não mostra alertas de regra do
+// percurseiro (tipo/diárias) — isso é assunto do Planejado. Religar aqui se mudar.
+const SHOW_PERCURSO_DIARIAS_ALERT = false;
 import { ATENDIMENTO_SHORT, PERCURSEIRO_SHORT, type NormalizedSwap } from "./scaling-utils";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -279,10 +283,10 @@ export default function ScalingTable({
               const atendimento = ATENDIMENTO_SHORT[(inclusion as any).atendimentoTipo ?? ""];
               const isPercurso = isPercursoFunction(getFunctionName(inclusion.functionId));
               const percurseiro = isPercurso ? PERCURSEIRO_SHORT[(inclusion as any).percurseiroTipo ?? ""] : undefined;
-              // Percurso: regra fixa de diárias (2 em viagem / 1 local). Se a escala
-              // veio com outro número (erro de quem escalou), avisa — o Planejado já
-              // ignora e usa a regra; a correção é na escala.
-              const percursoDiariasEsperadas = isPercurso ? diasPercurseiro(inclusion.needsTicket) : null;
+              // Percurso: regra fixa de diárias (2 em viagem / 1 local) vive no
+              // Planejado, que ignora o número da escala. Por decisão do usuário
+              // (17/08) a Escalação NÃO mostra aviso de divergência.
+              const percursoDiariasEsperadas = SHOW_PERCURSO_DIARIAS_ALERT && isPercurso ? diasPercurseiro(inclusion.needsTicket) : null;
               const percursoDiariasDivergem =
                 percursoDiariasEsperadas !== null && inclusion.dailyRates != null && inclusion.dailyRates !== percursoDiariasEsperadas;
               const idLabel = `#${inclusion.inclusionNumber ?? ""}`;
