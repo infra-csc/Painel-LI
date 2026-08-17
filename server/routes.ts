@@ -2060,6 +2060,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await createAuditLog('update', 'team_inclusion', id, inclusion, userId, user?.name || 'Sistema', currentInclusion, req);
       res.json(inclusion);
     } catch (error) {
+      console.error("Error updating team inclusion:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      res.status(400).json({ message: "Erro ao atualizar inclusão", details: errorMessage });
+    }
+  });
+
+  // Define o tipo de atendimento (Key Account / Executivo de Contas) de uma
+  // escalação. Rota dedicada porque o RH — que trabalha no Planejado e precisa
+  // classificar as escalações antigas ao flag — não tem papel no PATCH
+  // genérico de escalação (admin/produção/compras/responsável da função).
+  app.patch("/api/team-inclusions/:id/atendimento-tipo", async (req, res) => {
+    const actor = await requireRoles(req, res, ['admin', 'financial', 'production', 'purchasing']);
+    if (!actor) return;
+    try {
+      const { atendimentoTipo } = req.body as { atendimentoTipo?: string };
+      if (atendimentoTipo !== 'key_account' && atendimentoTipo !== 'executivo_contas') {
+        return res.status(400).json({ message: "Tipo inválido — use Key Account ou Executivo de Contas." });
+      }
+      const current = await storage.getTeamInclusion(req.params.id);
+      if (!current) return res.status(404).json({ message: "Escalação não encontrada" });
+      const func = await storage.getFunction(current.functionId);
+      if (!isAtendimentoFunction(func?.name)) {
+        return res.status(400).json({ message: "Esta escalação não é de atendimento." });
+      }
+      const inclusion = await storage.updateTeamInclusion(req.params.id, {
+        atendimentoTipo,
+        updatedBy: actor.id,
+      } as any);
+      await createAuditLog('update', 'team_inclusion', req.params.id, inclusion, actor.id, actor.name, current, req);
+      res.json(inclusion);
+    } catch (error) {
       console.error("❌ Error updating team inclusion:", error);
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       res.status(400).json({ message: "Erro ao atualizar inclusão", details: errorMessage });

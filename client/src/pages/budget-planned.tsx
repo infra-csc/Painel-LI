@@ -20,7 +20,7 @@ import { EventSearchSelect } from "@/components/event-select";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetNote } from "@shared/schema";
-import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents } from "@shared/atendimento";
+import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents, ATENDIMENTO_TIPOS, type AtendimentoTipo } from "@shared/atendimento";
 import { calcDeflatedDailies, deflationFactorsFromSettings } from "@shared/calculation-rules";
 import { calcAlimentacao, isCenotecnicaFunction, refeicaoCents } from "@shared/alimentacao";
 import { useAuth } from "@/hooks/use-auth";
@@ -106,8 +106,29 @@ export default function BudgetPlannedPage() {
     return p.get("event") || "";
   });
   const [editingBudget, setEditingBudget] = useState<BudgetEdit | null>(null);
-  const [editingBudgetInfo, setEditingBudgetInfo] = useState<{ name: string; functionName: string; type: string; weekdays: number; weekends: number; period: string; vooChegadaIda?: string | null; vooPartidaVolta?: string | null; fonteVoo?: "passagem" | "sugerido" | "nenhum"; alimEstimada?: boolean; voa?: boolean } | null>(null);
+  const [editingBudgetInfo, setEditingBudgetInfo] = useState<{ name: string; functionName: string; type: string; weekdays: number; weekends: number; period: string; vooChegadaIda?: string | null; vooPartidaVolta?: string | null; fonteVoo?: "passagem" | "sugerido" | "nenhum"; alimEstimada?: boolean; voa?: boolean; isAtend?: boolean; atendimentoTipo?: AtendimentoTipo | null; inclusionId?: string } | null>(null);
   const [editingBudgetPlannedId, setEditingBudgetPlannedId] = useState<string | null>(null);
+  // Muitas escalações de atendimento viraram Planejado ANTES do flag existir
+  // (backfill marcou todas como Executivo de Contas). O RH corrige por aqui,
+  // sem voltar à escalação — a rota dedicada aceita o papel financeiro.
+  const setAtendimentoTipoMutation = useMutation({
+    mutationFn: async ({ inclusionId, tipo }: { inclusionId: string; tipo: AtendimentoTipo }) => {
+      const r = await apiRequest("PATCH", `/api/team-inclusions/${inclusionId}/atendimento-tipo`, { atendimentoTipo: tipo });
+      return r.json();
+    },
+    onSuccess: (_updated, { tipo }) => {
+      qc.invalidateQueries({ queryKey: ["/api/team-inclusions", selectedEventId] });
+      qc.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+      // Reflete no modal aberto: tipo novo e, sem override manual, a diária nova
+      setEditingBudgetInfo(prev => prev ? { ...prev, atendimentoTipo: tipo } : prev);
+      const novoValor = atendimentoDailyCents(tipo, systemSettings as any);
+      if (novoValor != null) {
+        setEditingBudget(prev => prev ? { ...prev, valorDiaria: novoValor, valorDiariaUtil: novoValor, valorDiariaFds: novoValor } : prev);
+      }
+      toast({ title: "Tipo de atendimento atualizado", description: "A diária foi recalculada para a tarifa escolhida." });
+    },
+    onError: (e: any) => toast({ title: "Erro ao definir o tipo", description: e?.body?.message || "Tente novamente.", variant: "destructive" }),
+  });
   const [budgetOverrides, setBudgetOverrides] = useState<Record<string, BudgetEdit>>(() => readDraft(selectedEventId));
   // Evento dono do rascunho em memória — impede salvar o rascunho de um evento
   // na chave de outro durante a troca de evento.
@@ -799,6 +820,9 @@ export default function BudgetPlannedPage() {
       fonteVoo: budget.fonteVoo,
       alimEstimada: budget.alimEstimada,
       voa: !!budget.inclusion.needsTicket,
+      isAtend: isAtendimentoFunction(getFunctionName(budget.inclusion.functionId)),
+      atendimentoTipo: ((budget.inclusion as any).atendimentoTipo ?? null) as AtendimentoTipo | null,
+      inclusionId: budget.inclusion.id,
     });
 
     const fv = getFunctionValue(budget.inclusion.functionId);
@@ -1832,6 +1856,17 @@ export default function BudgetPlannedPage() {
                             {/* Linha 3: badges de função/tipo */}
                             <div className="flex items-center gap-1 overflow-hidden flex-wrap">
                               <span className="text-[10px] font-semibold text-slate-600 bg-slate-200 px-2 py-0.5 rounded-full truncate shrink min-w-0">{getFunctionName(budget.inclusion.functionId)}</span>
+                              {isAtendimentoFunction(getFunctionName(budget.inclusion.functionId)) && (
+                                (budget.inclusion as any).atendimentoTipo ? (
+                                  <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full shrink-0" title="Tipo de atendimento — troque no modal de edição">
+                                    {(budget.inclusion as any).atendimentoTipo === 'key_account' ? 'Key Account' : 'Exec. Contas'}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full shrink-0" title="Defina Key Account ou Executivo de Contas no modal de edição">
+                                    definir tipo
+                                  </span>
+                                )
+                              )}
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${isCasa ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
                               {isSent && (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap"
@@ -3101,6 +3136,41 @@ export default function BudgetPlannedPage() {
                     </div>
                     <span className="text-[13px] font-bold text-[#0033CC]">{formatCurrency(totalDiarias)}</span>
                   </div>
+
+                  {/* Atendimento: escolha da tarifa (Key Account × Exec. de Contas).
+                      Necessário aqui porque escalações antigas viraram Planejado
+                      antes do flag existir. */}
+                  {editingBudgetInfo.isAtend && (
+                    <div className="flex items-center gap-2 flex-wrap px-3.5 py-2 bg-blue-50/40 border-b border-blue-100">
+                      <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Tipo de atendimento</span>
+                      <div className="flex rounded-lg border border-blue-200 overflow-hidden">
+                        {ATENDIMENTO_TIPOS.map(op => {
+                          const ativo = editingBudgetInfo.atendimentoTipo === op.value;
+                          const valor = atendimentoDailyCents(op.value, systemSettings as any);
+                          return (
+                            <button
+                              key={op.value}
+                              type="button"
+                              disabled={setAtendimentoTipoMutation.isPending}
+                              onClick={() => {
+                                if (!ativo && editingBudgetInfo.inclusionId) {
+                                  setAtendimentoTipoMutation.mutate({ inclusionId: editingBudgetInfo.inclusionId, tipo: op.value });
+                                }
+                              }}
+                              className={`px-2.5 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
+                                ativo ? 'bg-[#0033CC] text-white' : 'bg-white text-slate-600 hover:bg-blue-50'
+                              }`}
+                            >
+                              {op.label}{valor != null ? ` · ${formatCurrency(valor)}` : ''}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {!editingBudgetInfo.atendimentoTipo && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold">definir o tipo</span>
+                      )}
+                    </div>
+                  )}
                   <div className="divide-y divide-slate-100">
                     {/* Dias Úteis */}
                     <div className="flex items-center px-3.5 py-2 gap-3">
