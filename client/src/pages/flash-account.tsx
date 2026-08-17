@@ -7,7 +7,9 @@ import { isRhOrAdmin } from "@/lib/permissions";
 import { parseBrNumber } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { PageHeader } from "@/components/common/page-header";
+import { usePageTitle } from "@/components/common/use-page-title";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -65,6 +67,7 @@ interface FlashMovement {
 }
 
 export default function FlashAccountPage() {
+  usePageTitle("Conta Corrente Flash");
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -200,24 +203,16 @@ export default function FlashAccountPage() {
     <div className="min-h-screen bg-[#F8FAFC] p-6">
       <div className="max-w-6xl mx-auto space-y-4">
         {/* Header */}
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
-                <Wallet className="w-4 h-4 text-violet-600" />
-              </div>
-              Conta Corrente Flash
-            </h1>
-            <p className="text-xs text-gray-400 mt-0.5 ml-10">
-              Controle do saldo de Flash Benefícios por colaborador — alvo de {formatCurrency(TARGET_FOOD_CENTS)} em alimentação e {formatCurrency(TARGET_MOBILITY_CENTS)} em mobilidade
-            </p>
-          </div>
-          {canManage && (
+        <PageHeader
+          icon={Wallet}
+          title="Conta Corrente Flash"
+          subtitle={<>Controle do saldo de Flash Benefícios por colaborador — alvo de {formatCurrency(TARGET_FOOD_CENTS)} em alimentação e {formatCurrency(TARGET_MOBILITY_CENTS)} em mobilidade</>}
+          actions={canManage && (
             <Button onClick={() => { setMovementToEdit(null); setFormCollabId(""); setShowForm(true); }} className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold h-9 px-4 shadow-sm">
-              <Plus className="w-3.5 h-3.5 mr-1.5" /> Novo Lançamento
+              <Plus className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Novo Lançamento
             </Button>
           )}
-        </div>
+        />
 
         {/* Summary cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -356,7 +351,7 @@ export default function FlashAccountPage() {
                   {extrato.length === 0 ? (
                     <p className="text-xs text-slate-400 text-center py-10">Nenhum lançamento para este colaborador.</p>
                   ) : (
-                    <table className="w-full text-xs">
+                    <table className="w-full min-w-[560px] text-xs">
                       <thead className="sticky top-0 bg-slate-50 text-[10px] uppercase tracking-wider text-slate-400">
                         <tr>
                           <th className="text-left font-bold px-4 py-2.5">Data</th>
@@ -598,13 +593,13 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
             <Wallet className="w-4 h-4 text-violet-600" />
           </div>
           <div className="flex-1">
-            <h3 className="text-sm font-bold text-slate-800">{editing ? "Editar Lançamento" : "Novo Lançamento"}</h3>
-            <p className="text-[11px] text-slate-400 mt-0.5">
+            <DialogTitle className="text-sm font-bold text-slate-800">{editing ? "Editar Lançamento" : "Novo Lançamento"}</DialogTitle>
+            <DialogDescription className="text-[11px] text-slate-400 mt-0.5">
               {editing ? "A alteração é aplicada ao próprio lançamento e fica registrada na auditoria" : "Conta corrente Flash"}
-            </p>
+            </DialogDescription>
           </div>
-          <button onClick={() => { if (!saving) { reset(); onClose(); } }} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors">
-            <X className="w-3.5 h-3.5" />
+          <button aria-label="Fechar" onClick={() => { if (!saving) { reset(); onClose(); } }} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors">
+            <X className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         </div>
 

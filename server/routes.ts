@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import { z } from "zod";
-import { storage } from "./storage";
+import { storage, mapSwapRequestRow } from "./storage";
 import { db } from "./db";
 import { budgetNotes, functionManagers as functionManagersTable, budgetPlanned as budgetPlannedTable, events as eventsTable, swapRequests as swapRequestsTable, teamInclusions as teamInclusionsTable, collaborators as collaboratorsTable } from "@shared/schema";
 import { eq, and, inArray, desc, sql as drizzleSql } from "drizzle-orm";
@@ -33,6 +33,8 @@ import {
   prestacaoEstaTravada, podeAprovarNota, podeDevolverNota, podeFazerCheckin,
 } from "@shared/prestacao-rules";
 import { isAtendimentoFunction } from "@shared/atendimento";
+import { isPercursoFunction } from "@shared/calculation-rules";
+import { nextStatusOnConfirm } from "@shared/scaling-rules";
 import bcrypt from "bcryptjs";
 import { randomBytes, timingSafeEqual } from "crypto";
 
@@ -1292,9 +1294,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Functions routes
+  // Devolve cada função com `managers: {userId, userName}[]` embutido —
+  // a tela de Funções não precisa mais de 1 request por linha
+  // (/api/functions/:id/managers continua existindo por compat).
   app.get("/api/functions", async (req, res) => {
     try {
-      const functions = await storage.getFunctions();
+      const functions = await storage.getFunctionsWithManagers();
       res.json(functions);
     } catch (error) {
       res.status(500).json({ message: "Erro ao buscar funções" });
@@ -2020,7 +2025,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'flightReturnDate', 'flightReturnSuggestedTime',
         'needsTicket', 'needsAccommodation', 'dailyRates', 'workDays', 'dailyValue',
         'actualDailyRates', 'observations', 'actualObservations', 'emergencyRecord',
-        'city', 'status', 'previousStatus', 'phase', 'atendimentoTipo',
+        'city', 'status', 'previousStatus', 'phase', 'atendimentoTipo', 'percurseiroTipo',
       ]);
       const updates: Record<string, any> = { updatedBy: userId };
       for (const [k, v] of Object.entries(bodyData)) {
@@ -2040,6 +2045,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updates.atendimentoTipo = null;
       }
 
+      // Percurso (motoqueiro): ao ter colaborador atribuído, o tipo (Tipo 1 /
+      // Tipo 2) é obrigatório — define o pacote fechado da diária.
+      if (isPercursoFunction(func.name)) {
+        const effColab = updates.collaboratorId !== undefined ? updates.collaboratorId : currentInclusion.collaboratorId;
+        const effTipo = updates.percurseiroTipo !== undefined ? updates.percurseiroTipo : (currentInclusion as any).percurseiroTipo;
+        if (effTipo != null && effTipo !== 'tipo_1' && effTipo !== 'tipo_2') {
+          return res.status(400).json({ message: "Tipo de percurseiro inválido — use Tipo 1 ou Tipo 2." });
+        }
+        if (effColab && !effTipo) {
+          return res.status(400).json({ message: "Defina o tipo do percurseiro (Tipo 1 ou Tipo 2)" });
+        }
+      } else if (updates.percurseiroTipo !== undefined) {
+        updates.percurseiroTipo = null;
+      }
+
       const inclusion = await storage.updateTeamInclusion(id, updates);
       await createAuditLog('update', 'team_inclusion', id, inclusion, userId, user?.name || 'Sistema', currentInclusion, req);
       res.json(inclusion);
@@ -2047,6 +2067,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error updating team inclusion:", error);
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       res.status(400).json({ message: "Erro ao atualizar inclusão", details: errorMessage });
+    }
+  });
+
+  // Confirmar escalação — o SERVIDOR decide status/fase (nextStatusOnConfirm em
+  // shared/scaling-rules.ts). Antes o client calculava e mandava status/phase
+  // pelo PATCH genérico; agora o Confirmar chama esta rota e o Salvar (sem
+  // confirmar) continua no PATCH. Mesma permissão do PATCH.
+  app.post("/api/team-inclusions/:id/confirm", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.session?.userId;
+      if (!userId) return res.status(401).json({ message: "Usuário não autenticado" });
+
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
+
+      const currentInclusion = await storage.getTeamInclusion(id);
+      if (!currentInclusion) return res.status(404).json({ message: "Inclusão de equipe não encontrada" });
+
+      const func = await storage.getFunction(currentInclusion.functionId);
+      if (!func) return res.status(404).json({ message: "Função não encontrada" });
+
+      // Mesma autorização do PATCH: admin, produção, compras ou responsável da função
+      const isAdmin = normalizeRole(user.role) === 'admin';
+      const isProductionOrPurchasing = normalizeRole(user.role) === 'production' || normalizeRole(user.role) === 'purchasing';
+      const isFunctionManager = await storage.isUserFunctionManager(currentInclusion.functionId, userId);
+      const isLegacyResponsible = func.userId === userId;
+      if (!isAdmin && !isProductionOrPurchasing && !isFunctionManager && !isLegacyResponsible) {
+        return res.status(403).json({ message: "Sem permissão para confirmar esta escalação." });
+      }
+
+      if (currentInclusion.status === 'cancelado') {
+        return res.status(400).json({ message: "Escalação cancelada — reative para confirmar." });
+      }
+
+      const body = (req.body ?? {}) as Record<string, any>;
+      const collaboratorId: string | undefined = body.collaboratorId || currentInclusion.collaboratorId || undefined;
+      if (!collaboratorId) {
+        return res.status(400).json({ message: "Selecione um colaborador antes de confirmar." });
+      }
+
+      // Mesma trava do PATCH: colaborador de escalação já confirmada só muda via troca
+      const confirmedStatuses = ['aguardando_producao', 'escalado', 'passagem', 'passagem_comprada', 'hospedagem', 'hospedagem_comprada', 'aprovacao', 'aprovado', 'concluido'];
+      if (collaboratorId !== currentInclusion.collaboratorId && confirmedStatuses.includes(currentInclusion.status)) {
+        return res.status(403).json({
+          message: "Não é possível alterar o colaborador diretamente após a escalação ser confirmada. Use o fluxo de Solicitação de Troca."
+        });
+      }
+
+      // Só os campos que o Confirmar da tela envia
+      const CONFIRM_FIELDS = new Set(['observations', 'city', 'atendimentoTipo', 'percurseiroTipo', 'dailyValue', 'emitsNf', 'needsTicket', 'needsAccommodation']);
+      const updates: Record<string, any> = { updatedBy: userId, collaboratorId };
+      for (const [k, v] of Object.entries(body)) {
+        if (CONFIRM_FIELDS.has(k) && v !== undefined) updates[k] = v;
+      }
+
+      // Atendimento: tipo obrigatório ao escalar (define a tarifa da diária)
+      if (isAtendimentoFunction(func.name)) {
+        const effTipo = updates.atendimentoTipo !== undefined ? updates.atendimentoTipo : (currentInclusion as any).atendimentoTipo;
+        if (!effTipo) {
+          return res.status(400).json({ message: "Para atendimento, selecione o tipo (Key Account ou Executivo de Contas) ao escalar o colaborador." });
+        }
+      } else if (updates.atendimentoTipo !== undefined) {
+        updates.atendimentoTipo = null;
+      }
+
+      // Percurso: tipo (Tipo 1 / Tipo 2) obrigatório ao escalar (pacote da diária)
+      if (isPercursoFunction(func.name)) {
+        const effTipo = updates.percurseiroTipo !== undefined ? updates.percurseiroTipo : (currentInclusion as any).percurseiroTipo;
+        if (effTipo != null && effTipo !== 'tipo_1' && effTipo !== 'tipo_2') {
+          return res.status(400).json({ message: "Tipo de percurseiro inválido — use Tipo 1 ou Tipo 2." });
+        }
+        if (!effTipo) {
+          return res.status(400).json({ message: "Defina o tipo do percurseiro (Tipo 1 ou Tipo 2)" });
+        }
+      } else if (updates.percurseiroTipo !== undefined) {
+        updates.percurseiroTipo = null;
+      }
+
+      const next = nextStatusOnConfirm({
+        functionName: func.name,
+        needsTicket: updates.needsTicket ?? currentInclusion.needsTicket,
+        needsAccommodation: updates.needsAccommodation ?? currentInclusion.needsAccommodation,
+      });
+      updates.status = next.status;
+      updates.phase = next.phase;
+      console.log(`[Escalação ${id}] confirmar: ${currentInclusion.status}/${currentInclusion.phase} → ${next.status}/${next.phase}`);
+
+      // updateTeamInclusion já grava o log "status_changed" no histórico da
+      // escalação (mesmo que o PATCH sempre gerou) — não duplicar aqui.
+      const inclusion = await storage.updateTeamInclusion(id, updates);
+      await createAuditLog('confirm', 'team_inclusion', id, inclusion, userId, user.name || 'Sistema', currentInclusion, req);
+      res.json(inclusion);
+    } catch (error) {
+      console.error("Error confirming team inclusion:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      res.status(400).json({ message: "Erro ao confirmar escalação", details: errorMessage });
     }
   });
 
@@ -2070,6 +2187,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const inclusion = await storage.updateTeamInclusion(req.params.id, {
         atendimentoTipo,
+        updatedBy: actor.id,
+      } as any);
+      await createAuditLog('update', 'team_inclusion', req.params.id, inclusion, actor.id, actor.name, current, req);
+      res.json(inclusion);
+    } catch (error) {
+      console.error("❌ Error updating team inclusion:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      res.status(400).json({ message: "Erro ao atualizar inclusão", details: errorMessage });
+    }
+  });
+
+  // Define o tipo do percurseiro (Tipo 1 / Tipo 2) de uma escalação de
+  // percurso — espelho da rota de atendimento-tipo (RH classifica no Planejado).
+  app.patch("/api/team-inclusions/:id/percurseiro-tipo", async (req, res) => {
+    const actor = await requireRoles(req, res, ['admin', 'financial', 'production', 'purchasing']);
+    if (!actor) return;
+    try {
+      const { percurseiroTipo } = req.body as { percurseiroTipo?: string };
+      if (percurseiroTipo !== 'tipo_1' && percurseiroTipo !== 'tipo_2') {
+        return res.status(400).json({ message: "Tipo inválido — use Tipo 1 ou Tipo 2." });
+      }
+      const current = await storage.getTeamInclusion(req.params.id);
+      if (!current) return res.status(404).json({ message: "Escalação não encontrada" });
+      const func = await storage.getFunction(current.functionId);
+      if (!isPercursoFunction(func?.name)) {
+        return res.status(400).json({ message: "Esta escalação não é de percurso." });
+      }
+      const inclusion = await storage.updateTeamInclusion(req.params.id, {
+        percurseiroTipo,
         updatedBy: actor.id,
       } as any);
       await createAuditLog('update', 'team_inclusion', req.params.id, inclusion, actor.id, actor.name, current, req);
@@ -4011,6 +4157,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         alimentacao_jantar: 4000,
         alimentacao_almoco_ceno: 3500,
         alimentacao_jantar_ceno: 3500,
+        // Almoço do colaborador de casa (CLT) em dia útil — só a diferença do VR
+        alimentacao_almoco_casa_util: 800,
+        alimentacao_almoco_casa_util_ceno: 300,
+        // Percurseiro (motoqueiro) — pacote fechado por diária (tabela 17/08)
+        percurseiro_t1_motoqueiro: 70000,
+        percurseiro_t2_motoqueiro: 80000,
+        percurseiro_fee_pct: 15,
+        percurseiro_alimentacao: 10200,
+        percurseiro_transporte: 5000,
+        percurseiro_nf_pct: 16,
+        percurseiro_t1_nf: 17276,
+        percurseiro_t2_nf: 19467,
         // Tarifas freela (regra do slide)
         freela_diaria_local: 46500,
         freela_diaria_viagem: 54000,
@@ -4052,6 +4210,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "deflacao_fator_ate_4", "deflacao_fator_5_8", "deflacao_fator_9_mais",
         // Refeições flat (alimentação por voo — Demais e Cenotécnica)
         "alimentacao_almoco", "alimentacao_jantar", "alimentacao_almoco_ceno", "alimentacao_jantar_ceno",
+        // Almoço de casa (CLT) em dia útil (demais / cenotécnica)
+        "alimentacao_almoco_casa_util", "alimentacao_almoco_casa_util_ceno",
+        // Percurseiro (motoqueiro) — pacote fechado por diária
+        "percurseiro_t1_motoqueiro", "percurseiro_t2_motoqueiro", "percurseiro_fee_pct",
+        "percurseiro_alimentacao", "percurseiro_transporte", "percurseiro_nf_pct",
+        "percurseiro_t1_nf", "percurseiro_t2_nf",
         // Tarifas freela (regra do slide: local / em viagem / dir de prova)
         "freela_diaria_local", "freela_diaria_viagem", "freela_diaria_dir_prova",
         // Tarifas casa (regra do slide: dir prova / produtor / exec vendas O2)
@@ -4059,7 +4223,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ];
       // Fatores de deflação são PERCENTUAIS inteiros (0..100), não valores
       // monetários — gravados sem o ×100 dos demais.
-      const PERCENT_KEYS = new Set(["deflacao_fator_ate_4", "deflacao_fator_5_8", "deflacao_fator_9_mais"]);
+      const PERCENT_KEYS = new Set(["deflacao_fator_ate_4", "deflacao_fator_5_8", "deflacao_fator_9_mais", "percurseiro_fee_pct", "percurseiro_nf_pct"]);
       // Valida tudo antes de gravar qualquer chave — um valor não numérico
       // gravava "NaN" no banco e quebrava o formulário de todos os usuários
       const updates: Array<[string, number]> = [];
@@ -4813,7 +4977,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         LEFT JOIN team_inclusions ti ON sr.team_inclusion_id = ti.id
         ORDER BY sr.created_at DESC
       `);
-      res.json((rows as any).rows ?? rows);
+      // camelCase (teamInclusionId, newCollaboratorId, requestedByName...) +
+      // snake_case por compat — remover snake_case após migração dos clients.
+      res.json((((rows as any).rows ?? rows) as any[]).map(mapSwapRequestRow));
     } catch (error) {
       console.error("Error fetching swap requests:", error);
       res.status(500).json({ message: "Erro ao buscar solicitações de troca" });
@@ -4834,7 +5000,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         WHERE sr.team_inclusion_id = ${teamInclusionId}
         ORDER BY sr.created_at DESC
       `);
-      res.json((rows as any).rows ?? rows);
+      // camelCase + snake_case por compat — remover snake_case após migração dos clients.
+      res.json((((rows as any).rows ?? rows) as any[]).map(mapSwapRequestRow));
     } catch (error) {
       console.error("Error fetching swap requests for inclusion:", error);
       res.status(500).json({ message: "Erro ao buscar solicitações de troca" });

@@ -5,6 +5,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/common/page-header";
+import { usePageTitle } from "@/components/common/use-page-title";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -122,6 +124,7 @@ const CONCLUDED_STATUSES: PrestacaoStatus[] = ["aprovada_faturamento", "recusada
 const ACTIONABLE_STATUSES: PrestacaoStatus[] = ["planejamento_pendente", "aguardando_prestacao", "prestacao_recebida", "devolvida_para_ajuste"];
 
 export default function RhControlPage() {
+  usePageTitle("Controle RH");
   const [filterEvent, setFilterEvent] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<PrestacaoStatus>("all");
   const [filterCheckinOnly, setFilterCheckinOnly] = useState(false);
@@ -1085,7 +1088,7 @@ export default function RhControlPage() {
             {needsRhAction && navTarget && !isExpanded && (
               <button
                 className="text-[11px] font-semibold h-7 px-3 rounded-md text-white transition-colors"
-                style={{ background: item.status === "prestacao_recebida" ? "#059669" : "#0033CC" }}
+                style={{ background: item.status === "prestacao_recebida" ? "#059669" : "var(--primary)" }}
                 onClick={(e) => { e.stopPropagation(); navigate(navTarget.path); }}
               >
                 {item.status === "prestacao_recebida" ? "Analisar" : "Planejar"}
@@ -1224,7 +1227,7 @@ export default function RhControlPage() {
                   <div className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2 flex items-center gap-3 flex-wrap">
                     <div className="flex items-center gap-2 text-[11px]">
                       <span className="uppercase text-[10px] font-semibold tracking-wide text-slate-400">Planejado</span>
-                      <span className="font-semibold text-[#0033CC] tabular-nums">{fmt(item.planned.totalValue)}</span>
+                      <span className="font-semibold text-primary tabular-nums">{fmt(item.planned.totalValue)}</span>
                       <span className="text-slate-300">→</span>
                       <span className="uppercase text-[10px] font-semibold tracking-wide text-slate-400">Realizado</span>
                       <span className="font-semibold text-[#6d28d9] tabular-nums">{fmt(item.actual!.totalValue)}</span>
@@ -1250,7 +1253,7 @@ export default function RhControlPage() {
                   {showDetails && (
                     <div className="grid grid-cols-2 divide-x divide-gray-100 rounded-lg border border-gray-200 overflow-hidden">
                       <div className="p-3">
-                        <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: '#0033CC' }}>Planejado</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--primary)' }}>Planejado</p>
                         <div className="space-y-1 text-[10px]">
                           <div className="flex justify-between"><span className="text-slate-400">Diárias</span><span className="tabular-nums text-slate-600">{item.planned.dailyQuantity}× {fmt(item.planned.dailyValue)}</span></div>
                           <div className="flex justify-between"><span className="text-slate-400">Alimentação</span><span className="tabular-nums text-slate-600">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span></div>
@@ -1345,7 +1348,7 @@ export default function RhControlPage() {
                 <div className="flex items-center gap-2 ml-auto">
                   {navTarget && (() => {
                     const isPrimary = item.status === "prestacao_recebida" || item.status === "planejamento_pendente";
-                    const bg = item.status === "prestacao_recebida" ? "#059669" : "#0033CC";
+                    const bg = item.status === "prestacao_recebida" ? "#059669" : "var(--primary)";
                     return (
                       <button
                         onClick={() => navigate(navTarget.path)}
@@ -1453,32 +1456,28 @@ export default function RhControlPage() {
     <div className="space-y-5 max-w-6xl mx-auto pb-24">
 
       {/* ── Page header ── */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="h-[3px]" style={{ background: '#059669' }} />
-        <div className="flex items-center gap-4 px-6 py-4">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#059669' }}>
-            <Shield className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold text-slate-800">Controle de Prestações de Contas</h1>
-            <div className="flex items-center gap-1 mt-1.5 flex-wrap">
-              {[
-                { label: "Escalação", color: "#64748b" },
-                { label: "Planejado", color: "#0033CC" },
-                { label: "Realizado", color: "#6d28d9" },
-                { label: "Aprovação", color: "#059669" },
-                { label: "Nota Fiscal", color: "#6d28d9" },
-                { label: "Check-in", color: "#059669" },
-              ].map((step, i, arr) => (
-                <span key={step.label} className="flex items-center gap-1">
-                  <span className="text-xs font-semibold" style={{ color: step.color }}>{step.label}</span>
-                  {i < arr.length - 1 && <span className="text-slate-300 text-xs">→</span>}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={Shield}
+        title="Controle RH"
+        subtitle={
+          <span className="inline-flex items-center gap-1 flex-wrap">
+            <span className="mr-1">Prestações de contas ·</span>
+            {[
+              { label: "Escalação", color: "#64748b" },
+              { label: "Planejado", color: "var(--primary)" },
+              { label: "Realizado", color: "#6d28d9" },
+              { label: "Aprovação", color: "#059669" },
+              { label: "Nota Fiscal", color: "#6d28d9" },
+              { label: "Check-in", color: "#059669" },
+            ].map((step, i, arr) => (
+              <span key={step.label} className="flex items-center gap-1">
+                <span className="font-semibold" style={{ color: step.color }}>{step.label}</span>
+                {i < arr.length - 1 && <span className="text-slate-300" aria-hidden="true">→</span>}
+              </span>
+            ))}
+          </span>
+        }
+      />
 
       {/* ── Metric cards ── */}
       {(() => {
@@ -1564,11 +1563,11 @@ export default function RhControlPage() {
                 {chk > 0 && <MetricLine label="Check-in" val={chk} color="#7C3AED" />}
               </MetricCard>
 
-              <MetricCard stripColor="#0033CC" icon={Users} iconColor="#0033CC" title="Aguardando Colaborador" value={colTotal}
+              <MetricCard stripColor="var(--primary)" icon={Users} iconColor="var(--primary)" title="Aguardando Colaborador" value={colTotal}
                 onClick={() => applyCardFilter("col_action")} active={filterStatus === "col_action"}>
-                <MetricLine label="Realizado"    val={colReal}   color="#0033CC" />
-                <MetricLine label="NF devolvida" val={colNfDev}  color="#0033CC" />
-                <MetricLine label="Aguardando lançamento" val={colNfPend} color="#0033CC" />
+                <MetricLine label="Realizado"    val={colReal}   color="var(--primary)" />
+                <MetricLine label="NF devolvida" val={colNfDev}  color="var(--primary)" />
+                <MetricLine label="Aguardando lançamento" val={colNfPend} color="var(--primary)" />
               </MetricCard>
 
               <MetricCard stripColor="#d97706" icon={Clock} iconColor="#d97706" title="Nota Fiscal" value={emAndamento}
@@ -1842,7 +1841,7 @@ export default function RhControlPage() {
             <div className="flex items-center gap-2">
               <Calendar className="w-3.5 h-3.5 text-slate-400" />
               <span className="text-xs font-medium text-slate-600">Por evento</span>
-              <span className="text-[10px] text-slate-400">
+              <span className="text-[10px] text-slate-400" aria-live="polite">
                 {eventGroups.length} evento{eventGroups.length !== 1 ? 's' : ''} · {filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'}
               </span>
             </div>

@@ -31,6 +31,29 @@ import {
 } from "@shared/schema";
 import { eq, and, sql, isNull, ne, exists, asc, desc } from "drizzle-orm";
 
+/** Responsável embutido em GET /api/functions — só o que a lista precisa. */
+export interface FunctionManagerSummary {
+  userId: string;
+  userName: string;
+}
+export type FunctionWithManagers = Function & { managers: FunctionManagerSummary[] };
+
+/**
+ * Linha bruta de swap_requests (SELECT sr.* + joins) em camelCase.
+ * Mantém TAMBÉM as chaves snake_case originais por um ciclo — os clients de
+ * scaling/tickets/accommodations ainda leem `team_inclusion_id` etc.
+ * TODO: remover snake_case após migração dos clients.
+ */
+export function mapSwapRequestRow(row: Record<string, any>): Record<string, any> {
+  const camel: Record<string, any> = {};
+  for (const [k, v] of Object.entries(row)) {
+    const ck = k.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+    camel[ck] = v;
+  }
+  // remover snake_case após migração dos clients
+  return { ...row, ...camel };
+}
+
 export interface IStorage {
   // Users
   getUsers(): Promise<User[]>;
@@ -52,6 +75,8 @@ export interface IStorage {
   
   // Functions
   getFunctions(): Promise<Function[]>;
+  /** Funções com os responsáveis embutidos (1 query extra, sem N+1 no client). */
+  getFunctionsWithManagers(): Promise<FunctionWithManagers[]>;
   getFunction(id: string): Promise<Function | undefined>;
   createFunction(func: InsertFunction): Promise<Function>;
   updateFunction(id: string, func: Partial<InsertFunction>): Promise<Function>;
@@ -276,6 +301,30 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(functions);
   }
 
+  async getFunctionsWithManagers(): Promise<FunctionWithManagers[]> {
+    // 2 queries no total (funções + responsáveis com join em users), em vez
+    // de 1 + N chamadas a /api/functions/:id/managers a partir do client.
+    const [funcs, managerRows] = await Promise.all([
+      db.select().from(functions),
+      db
+        .select({
+          functionId: functionManagers.functionId,
+          userId: functionManagers.userId,
+          userName: users.name,
+          userEmail: users.email,
+        })
+        .from(functionManagers)
+        .leftJoin(users, eq(users.id, functionManagers.userId)),
+    ]);
+    const byFunction = new Map<string, FunctionManagerSummary[]>();
+    for (const m of managerRows) {
+      const list = byFunction.get(m.functionId) ?? [];
+      list.push({ userId: m.userId, userName: m.userName || m.userEmail || "Usuário" });
+      byFunction.set(m.functionId, list);
+    }
+    return funcs.map(f => ({ ...f, managers: byFunction.get(f.id) ?? [] }));
+  }
+
   async getFunction(id: string): Promise<Function | undefined> {
     const [func] = await db.select().from(functions).where(eq(functions.id, id));
     return func;
@@ -455,6 +504,7 @@ export class DatabaseStorage implements IStorage {
         approvedByProductionAt: teamInclusions.approvedByProductionAt,
         emitsNf: teamInclusions.emitsNf,
         atendimentoTipo: teamInclusions.atendimentoTipo,
+        percurseiroTipo: teamInclusions.percurseiroTipo,
         functionName: functions.name,
         eventName: events.name,
         rowOrder: teamInclusions.rowOrder,

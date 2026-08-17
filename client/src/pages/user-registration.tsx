@@ -1,13 +1,19 @@
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission, getAvailableAreas } from "@/lib/role-utils";
 import { normalizeRole } from "@shared/roles";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/common/page-header";
+import { PageContainer } from "@/components/common/page-container";
+import { LoadingState } from "@/components/common/loading-state";
+import { usePageTitle } from "@/components/common/use-page-title";
 
 const schema = z.object({
   name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
@@ -35,45 +41,25 @@ const ROLES = [
   { value: "financial",     label: "RH",                icon: "groups" },
 ];
 
-const PRIMARY = "#004ac6";
-const PRIMARY_FIXED = "#dbe1ff";
-
-const inputBase: React.CSSProperties = {
-  width: "100%",
-  paddingTop: 10,
-  paddingBottom: 10,
-  paddingRight: 16,
-  fontSize: 14,
-  background: "#f1f3ff",
-  border: "1.5px solid transparent",
-  borderRadius: 8,
-  outline: "none",
-  color: "#141b2b",
-  fontFamily: "inherit",
-  boxSizing: "border-box",
-  transition: "border-color 0.15s, background 0.15s",
-};
+// Estilos compartilhados (tokens, sem hex)
+const INPUT_BASE = "w-full py-2.5 pr-4 text-sm bg-brand-soft border-[1.5px] border-transparent rounded-lg outline-none text-foreground transition-[border-color,background-color] duration-150 focus:bg-card focus:border-primary placeholder:text-muted-foreground";
+const SECTION_TITLE = "text-[11px] font-bold tracking-[0.1em] text-slate-500 uppercase";
+const CARD = "bg-card rounded-xl border border-border shadow-sm";
+const FIELD_LABEL = "block text-xs font-semibold text-slate-700 mb-1.5 ml-0.5";
 
 const FieldError = ({ msg }: { msg?: string }) =>
-  msg ? <p style={{ fontSize: 11, color: "#EF4444", marginTop: 3, marginLeft: 2 }}>{msg}</p> : null;
+  msg ? <p role="alert" className="text-[11px] text-destructive mt-[3px] ml-0.5">{msg}</p> : null;
 
 export default function UserRegistration() {
+  usePageTitle("Cadastro de Usuários");
   const { toast } = useToast();
   const { user, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
-  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", email: "", area: "" },
   });
-
-  // O spread do register já traz onBlur; declarar onBlur depois dele
-  // sobrescrevia o handler do react-hook-form e a validação no blur parava
-  // de rodar. Estes wrappers preservam os dois comportamentos.
-  const nameField  = register("name");
-  const emailField = register("email");
-  const areaField  = register("area");
 
   const nameVal  = watch("name") || "";
   const emailVal = watch("email") || "";
@@ -108,9 +94,9 @@ export default function UserRegistration() {
 
   if (authLoading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
-        <p style={{ fontSize: 13, color: "#94A3B8" }}>Carregando…</p>
-      </div>
+      <PageContainer>
+        <LoadingState count={4} variant="cards" />
+      </PageContainer>
     );
   }
 
@@ -119,17 +105,17 @@ export default function UserRegistration() {
   if (!hasPermission(user, 'canCreateUsers')) {
     const isProduction = normalizeRole(user?.role) === "production";
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
-        <div style={{ textAlign: "center", padding: 40, maxWidth: 420 }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 40, color: isProduction ? "#D97706" : "#EF4444" }}>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center p-10 max-w-[420px]">
+          <span className={cn("material-symbols-outlined text-[40px]", isProduction ? "text-amber-600" : "text-destructive")}>
             {isProduction ? "info" : "gpp_bad"}
           </span>
-          <p style={{ marginTop: 12, fontSize: 15, fontWeight: 700, color: "#0F172A" }}>
+          <p className="mt-3 text-[15px] font-bold text-foreground">
             {isProduction ? "Cadastro de usuários indisponível para o seu perfil" : "Acesso restrito"}
           </p>
-          <p style={{ marginTop: 6, fontSize: 13, color: "#64748B", lineHeight: 1.5 }}>
+          <p className="mt-1.5 text-[13px] text-slate-500 leading-normal">
             {isProduction
-              ? "Solicite ao RH ou à área de Compras a criação de novos usuários. Você continua podendo aprovar, resetar senha e ativar/desativar contas em Gerenciamento de Usuários."
+              ? "Solicite ao RH ou à área de Compras a criação de novos usuários. Você continua podendo aprovar, resetar senha e ativar/desativar contas em Usuários."
               : "Apenas administradores, RH e Compras podem cadastrar usuários."}
           </p>
         </div>
@@ -137,72 +123,63 @@ export default function UserRegistration() {
     );
   }
 
-  const inputStyle = (field: string, hasError?: boolean, valid?: boolean): React.CSSProperties => ({
-    ...inputBase,
-    paddingLeft: 38,
-    borderColor: hasError ? "#EF4444" : valid ? "#22C55E" : focusedField === field ? PRIMARY : "transparent",
-    background: focusedField === field ? "white" : "#f1f3ff",
-  });
+  const inputClass = (hasError?: boolean, valid?: boolean) =>
+    cn(INPUT_BASE, "pl-[38px]", hasError ? "border-destructive" : valid ? "border-green-500" : undefined);
 
   return (
-    <div style={{ padding: "16px 24px", maxWidth: 920, margin: "0 auto" }}>
+    <PageContainer className="max-w-[920px]">
 
       {/* Page header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #e9edff", paddingBottom: 12, marginBottom: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: PRIMARY, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 1px 3px rgba(0,74,198,0.25)" }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 20, color: "white", fontVariationSettings: "'FILL' 1" }}>person_add</span>
+      <PageHeader
+        icon={UserPlus}
+        title="Cadastro de Usuários"
+        subtitle="O acesso ao sistema é feito exclusivamente pelo Portal Norte (Microsoft)"
+        actions={
+          <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-100 rounded-full text-[11px] font-bold text-amber-800 uppercase tracking-[0.05em]">
+            <span className="material-symbols-outlined text-sm [font-variation-settings:'FILL'_1]">lock</span>
+            Acesso restrito
           </div>
-          <div>
-            <h1 style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", margin: 0, lineHeight: 1.2, letterSpacing: "-0.02em" }}>Cadastro de Usuários</h1>
-            <p style={{ fontSize: 12, color: "#94A3B8", margin: 0, fontWeight: 500 }}>O acesso ao sistema é feito exclusivamente pelo Portal Norte (Microsoft)</p>
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px", background: "#FEF3C7", borderRadius: 9999, fontSize: 11, fontWeight: 700, color: "#92400E", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 14, fontVariationSettings: "'FILL' 1" }}>lock</span>
-          Acesso restrito
-        </div>
-      </div>
+        }
+        className="border-b border-border pb-3"
+      />
 
       {/* Microsoft SSO notice */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 14, background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 10 }}>
-        <span className="material-symbols-outlined" style={{ fontSize: 20, color: "#2563EB", flexShrink: 0 }}>info</span>
-        <p style={{ fontSize: 12, color: "#1E40AF", margin: 0, lineHeight: 1.5 }}>
+      <div className="flex items-center gap-2.5 px-3.5 py-2.5 bg-brand-soft border border-primary/20 rounded-[10px]">
+        <span className="material-symbols-outlined text-xl text-primary shrink-0">info</span>
+        <p className="text-xs text-primary m-0 leading-normal">
           <strong>Login via Microsoft:</strong> Não é necessário senha. O usuário cadastrado aqui acessa o sistema pelo Portal Norte usando a conta Microsoft corporativa.
         </p>
       </div>
 
       {/* Two-column layout */}
-      <div style={{ display: "flex", gap: 12, alignItems: "start", flexWrap: "wrap" }}>
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_260px] gap-3 items-start">
 
         {/* ── Form card ── */}
-        <form onSubmit={handleSubmit(d => { if (mutation.isPending) return; mutation.mutate(d); })} style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ background: "white", borderRadius: 12, border: "1px solid #E8ECF8", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden" }}>
+        <form onSubmit={handleSubmit(d => { if (mutation.isPending) return; mutation.mutate(d); })} className="min-w-0">
+          <div className={cn(CARD, "overflow-hidden")}>
 
             {/* Section 1: Dados Pessoais */}
-            <div style={{ padding: "14px 20px", borderBottom: "1px solid rgba(233,237,255,0.5)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, color: "#94A3B8" }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>person</span>
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#505f76", textTransform: "uppercase" }}>Dados Pessoais</span>
+            <div className="px-4 sm:px-5 py-3.5 border-b border-border/50">
+              <div className="flex items-center gap-2 mb-3 text-slate-400">
+                <span className="material-symbols-outlined text-lg">person</span>
+                <span className={SECTION_TITLE}>Dados Pessoais</span>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Nome */}
                 <div>
-                  <label htmlFor="user-name" style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#434655", marginBottom: 6, marginLeft: 2 }}>
-                    Nome completo <span style={{ color: "#EF4444" }}>*</span>
+                  <label htmlFor="user-name" className={FIELD_LABEL}>
+                    Nome completo <span className="text-destructive">*</span>
                   </label>
-                  <div style={{ position: "relative" }}>
-                    <span className="material-symbols-outlined" aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 18, color: "#94A3B8" }}>person</span>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-lg text-slate-400 pointer-events-none" aria-hidden="true">person</span>
                     <input
                       id="user-name"
                       placeholder="Ex: Ana Silva"
                       data-testid="input-name"
                       aria-invalid={!!errors.name}
-                      style={inputStyle("name", !!errors.name)}
-                      {...nameField}
-                      onFocus={() => setFocusedField("name")}
-                      onBlur={(e) => { nameField.onBlur(e); setFocusedField(null); }}
+                      className={inputClass(!!errors.name)}
+                      {...register("name")}
                     />
                   </div>
                   <FieldError msg={errors.name?.message} />
@@ -210,24 +187,22 @@ export default function UserRegistration() {
 
                 {/* Email */}
                 <div>
-                  <label htmlFor="user-email" style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#434655", marginBottom: 6, marginLeft: 2 }}>
-                    E-mail corporativo <span style={{ color: "#EF4444" }}>*</span>
+                  <label htmlFor="user-email" className={FIELD_LABEL}>
+                    E-mail corporativo <span className="text-destructive">*</span>
                   </label>
-                  <div style={{ position: "relative" }}>
-                    <span className="material-symbols-outlined" aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 18, color: emailVal && isEmailValid ? "#22C55E" : "#94A3B8" }}>mail</span>
+                  <div className="relative">
+                    <span className={cn("material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-lg pointer-events-none", emailVal && isEmailValid ? "text-green-500" : "text-slate-400")} aria-hidden="true">mail</span>
                     <input
                       id="user-email"
                       type="email"
                       placeholder="ana.silva@empresa.com"
                       data-testid="input-email"
                       aria-invalid={!!errors.email}
-                      style={{ ...inputStyle("email", !!errors.email, emailVal ? isEmailValid : undefined), paddingRight: 36 }}
-                      {...emailField}
-                      onFocus={() => setFocusedField("email")}
-                      onBlur={(e) => { emailField.onBlur(e); setFocusedField(null); }}
+                      className={cn(inputClass(!!errors.email, emailVal ? isEmailValid : undefined), "pr-9")}
+                      {...register("email")}
                     />
                     {emailVal && (
-                      <span className="material-symbols-outlined" aria-hidden="true" style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 15, color: isEmailValid ? "#22C55E" : "#CBD5E1", fontVariationSettings: "'FILL' 1" }}>
+                      <span className={cn("material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-[15px] [font-variation-settings:'FILL'_1] pointer-events-none", isEmailValid ? "text-green-500" : "text-slate-300")} aria-hidden="true">
                         {isEmailValid ? "check_circle" : "radio_button_unchecked"}
                       </span>
                     )}
@@ -238,13 +213,13 @@ export default function UserRegistration() {
             </div>
 
             {/* Section 2: Perfil de Acesso */}
-            <div style={{ padding: "14px 20px", borderBottom: "1px solid rgba(233,237,255,0.5)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#94A3B8" }}>shield</span>
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#505f76", textTransform: "uppercase" }}>Perfil de Acesso</span>
-                {errors.role && <span style={{ marginLeft: "auto", fontSize: 10, color: "#EF4444", fontWeight: 600 }}>{errors.role.message}</span>}
+            <div className="px-4 sm:px-5 py-3.5 border-b border-border/50">
+              <div className="flex items-center gap-2 mb-2.5">
+                <span className="material-symbols-outlined text-lg text-slate-400">shield</span>
+                <span className={SECTION_TITLE}>Perfil de Acesso</span>
+                {errors.role && <span role="alert" className="ml-auto text-[10px] text-destructive font-semibold">{errors.role.message}</span>}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {/* POST /api/users: só admin cria outro Administrador */}
                 {ROLES.filter(r => r.value !== "admin" || normalizeRole(user?.role) === "admin").map(role => {
                   const isSelected = roleVal === role.value;
@@ -252,20 +227,18 @@ export default function UserRegistration() {
                     <button key={role.value} type="button"
                       aria-pressed={isSelected}
                       onClick={() => setValue("role", role.value as FormData["role"], { shouldValidate: true })}
-                      style={{
-                        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                        textAlign: "center", gap: 4, padding: "10px 8px", borderRadius: 10, cursor: "pointer",
-                        border: `2px solid ${isSelected ? PRIMARY : "transparent"}`,
-                        background: isSelected ? "#dbe1ff4d" : "#f1f3ff",
-                        transition: "all 0.15s", position: "relative",
-                      }}
+                      className={cn(
+                        "relative flex flex-col items-center justify-center text-center gap-1 px-2 py-2.5 rounded-[10px] border-2 transition-all duration-150 cursor-pointer",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                        isSelected ? "border-primary bg-primary/10" : "border-transparent bg-brand-soft hover:border-primary/30",
+                      )}
                     >
-                      <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 20, color: PRIMARY, fontVariationSettings: "'FILL' 1" }}>
+                      <span className="material-symbols-outlined text-xl text-primary [font-variation-settings:'FILL'_1]" aria-hidden="true">
                         {role.icon}
                       </span>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "#141b2b", lineHeight: 1.3 }}>{role.label}</span>
+                      <span className="text-[11px] font-bold text-foreground leading-[1.3]">{role.label}</span>
                       {isSelected && (
-                        <span className="material-symbols-outlined" aria-hidden="true" style={{ position: "absolute", top: 8, right: 8, fontSize: 14, color: PRIMARY, fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                        <span className="material-symbols-outlined absolute top-2 right-2 text-sm text-primary [font-variation-settings:'FILL'_1]" aria-hidden="true">check_circle</span>
                       )}
                     </button>
                   );
@@ -274,11 +247,11 @@ export default function UserRegistration() {
             </div>
 
             {/* Section 3: Área Específica */}
-            <div style={{ padding: "14px 20px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#94A3B8" }}>location_on</span>
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#505f76", textTransform: "uppercase" }}>Área Específica</span>
-                <span style={{ marginLeft: "auto", fontSize: 10, color: "#CBD5E1" }}>{areaVal.length}/80 · opcional</span>
+            <div className="px-4 sm:px-5 py-3.5">
+              <div className="flex items-center gap-2 mb-2.5">
+                <span className="material-symbols-outlined text-lg text-slate-400">location_on</span>
+                <span className={SECTION_TITLE}>Área Específica</span>
+                <span className="ml-auto text-[10px] text-slate-300">{areaVal.length}/80 · opcional</span>
               </div>
               {/* Input com sugestões (datalist) das áreas conhecidas — aceita valor livre */}
               <input
@@ -289,20 +262,8 @@ export default function UserRegistration() {
                 aria-label="Área específica do usuário"
                 maxLength={80}
                 autoComplete="off"
-                style={{
-                  width: "100%", fontSize: 13, padding: "10px 12px", borderRadius: 8,
-                  border: "1.5px solid #E2E8F0", background: "#f1f3ff", outline: "none",
-                  color: "#141b2b", fontFamily: "inherit", boxSizing: "border-box",
-                  transition: "border-color 0.15s, background 0.15s",
-                }}
-                onFocus={e => { e.currentTarget.style.borderColor = PRIMARY; e.currentTarget.style.background = "white"; }}
-                {...areaField}
-                onBlur={e => {
-                  // preserva o onBlur do register (validação/touched) e o efeito visual
-                  areaField.onBlur(e);
-                  e.currentTarget.style.borderColor = "#E2E8F0";
-                  e.currentTarget.style.background = "#f1f3ff";
-                }}
+                className={cn(INPUT_BASE, "text-[13px] px-3 border-input")}
+                {...register("area")}
               />
               <datalist id="user-area-options">
                 {getAvailableAreas().map(a => <option key={a} value={a} />)}
@@ -310,71 +271,56 @@ export default function UserRegistration() {
             </div>
 
             {/* Footer */}
-            <div style={{ padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, background: "#FAFBFF", borderTop: "1px solid rgba(233,237,255,0.5)" }}>
-              <button type="button" onClick={() => reset()} data-testid="button-clear" disabled={mutation.isPending}
-                style={{ height: 34, padding: "0 16px", borderRadius: 8, fontSize: 12, fontWeight: 600, border: "1px solid #E2E8F0", background: "white", color: "#64748B", cursor: mutation.isPending ? "not-allowed" : "pointer", opacity: mutation.isPending ? 0.6 : 1, fontFamily: "inherit", transition: "background 0.15s" }}
-                onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
-                onMouseLeave={e => e.currentTarget.style.background = "white"}
-              >
+            <div className="flex items-center justify-end gap-2.5 px-4 sm:px-5 py-2.5 bg-muted/30 border-t border-border/50">
+              <Button type="button" variant="outline" size="sm" onClick={() => reset()} data-testid="button-clear" disabled={mutation.isPending}
+                className="h-[34px] text-xs font-semibold text-slate-500">
                 Limpar
-              </button>
-              <button type="submit" disabled={mutation.isPending} data-testid="button-submit"
-                style={{
-                  height: 34, padding: "0 16px", borderRadius: 8, fontSize: 12, fontWeight: 700,
-                  border: "none", background: PRIMARY, color: "white", fontFamily: "inherit",
-                  cursor: mutation.isPending ? "not-allowed" : "pointer",
-                  opacity: mutation.isPending ? 0.75 : 1,
-                  display: "flex", alignItems: "center", gap: 8,
-                  boxShadow: mutation.isPending ? "none" : "0 1px 3px rgba(0,74,198,0.3)",
-                  transition: "all 0.15s",
-                }}>
+              </Button>
+              <Button type="submit" size="sm" disabled={mutation.isPending} data-testid="button-submit"
+                className="h-[34px] text-xs font-bold shadow-sm shadow-primary/30 hover:bg-primary-hover disabled:shadow-none">
                 {mutation.isPending ? (
                   <>
-                    <span style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "white", borderRadius: "50%", display: "inline-block" }} className="animate-spin" />
+                    <span className="inline-block w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Criando...
                   </>
                 ) : (
                   <>
-                    <span className="material-symbols-outlined" style={{ fontSize: 17, fontVariationSettings: "'FILL' 1" }}>person_add</span>
+                    <span className="material-symbols-outlined text-[17px] [font-variation-settings:'FILL'_1]">person_add</span>
                     Criar Usuário
                   </>
                 )}
-              </button>
+              </Button>
             </div>
           </div>
         </form>
 
         {/* ── Sidebar ── */}
-        <aside style={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+        <aside className="flex flex-col gap-2.5">
 
           {/* Preview card */}
-          <div style={{ background: "white", borderRadius: 12, border: "1px solid #E8ECF8", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", padding: "14px 16px" }}>
-            <h3 style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 12px" }}>Pré-visualização</h3>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-              <div style={{
-                width: 56, height: 56, borderRadius: "50%", flexShrink: 0,
-                background: nameVal ? PRIMARY_FIXED : "#E9EDFF",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: PRIMARY, fontSize: 18, fontWeight: 700, marginBottom: 8,
-                boxShadow: "inset 0 2px 4px rgba(0,74,198,0.1)",
-                transition: "background 0.2s",
-              }}>
+          <div className={cn(CARD, "px-4 py-3.5")}>
+            <h3 className="text-[11px] font-bold text-slate-400 tracking-[0.08em] uppercase m-0 mb-3">Pré-visualização</h3>
+            <div className="flex flex-col items-center">
+              <div className={cn(
+                "flex items-center justify-center w-14 h-14 rounded-full shrink-0 text-primary text-lg font-bold mb-2 shadow-[inset_0_2px_4px_hsl(226_100%_40%/0.1)] transition-colors duration-200",
+                nameVal ? "bg-primary/15" : "bg-brand-soft",
+              )}>
                 {nameVal
                   ? initials(nameVal)
-                  : <span className="material-symbols-outlined" style={{ fontSize: 22, color: "#C3C6D7" }}>person</span>}
+                  : <span className="material-symbols-outlined text-[22px] text-slate-300">person</span>}
               </div>
-              <p style={{ fontSize: 13, fontWeight: 700, color: nameVal ? "#141b2b" : "#C3C6D7", margin: "0 0 2px", textAlign: "center" }}>
+              <p className={cn("text-[13px] font-bold m-0 mb-0.5 text-center", nameVal ? "text-foreground" : "text-slate-300")}>
                 {nameVal || "Nome do usuário"}
               </p>
-              <p style={{ fontSize: 11, color: emailVal && isEmailValid ? "#434655" : "#C3C6D7", margin: "0 0 10px", textAlign: "center", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <p className={cn("text-[11px] m-0 mb-2.5 text-center max-w-full truncate", emailVal && isEmailValid ? "text-slate-700" : "text-slate-300")}>
                 {emailVal && isEmailValid ? emailVal : "email@empresa.com"}
               </p>
               {selectedRole ? (
-                <span style={{ padding: "4px 12px", background: "#d0e1fb", color: "#38485d", fontSize: 10, fontWeight: 700, borderRadius: 9999, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <span className="px-3 py-1 bg-primary/10 text-primary text-[10px] font-bold rounded-full uppercase tracking-[0.05em]">
                   {selectedRole.label}
                 </span>
               ) : (
-                <span style={{ padding: "4px 12px", background: "#F1F3FF", color: "#C3C6D7", fontSize: 10, fontWeight: 700, borderRadius: 9999, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <span className="px-3 py-1 bg-brand-soft text-slate-300 text-[10px] font-bold rounded-full uppercase tracking-[0.05em]">
                   Sem perfil
                 </span>
               )}
@@ -382,31 +328,31 @@ export default function UserRegistration() {
           </div>
 
           {/* Checklist card */}
-          <div style={{ background: "white", borderRadius: 12, border: "1px solid #E8ECF8", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", padding: "14px 16px" }}>
-            <h3 style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 12px" }}>Status do Cadastro</h3>
-            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className={cn(CARD, "px-4 py-3.5")}>
+            <h3 className="text-[11px] font-bold text-slate-400 tracking-[0.08em] uppercase m-0 mb-3">Status do Cadastro</h3>
+            <ul className="list-none m-0 p-0 flex flex-col gap-2">
               {[
                 { label: "Nome identificado",         ok: nameVal.length >= 2 },
                 { label: "E-mail corporativo válido", ok: isEmailValid },
                 { label: "Perfil selecionado",        ok: !!roleVal },
               ].map((item, i) => (
-                <li key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 18, fontVariationSettings: "'FILL' 1", color: item.ok ? "#22C55E" : "#E1E8FD", transition: "color 0.2s", flexShrink: 0 }}>
+                <li key={i} className="flex items-center gap-2.5">
+                  <span className={cn("material-symbols-outlined text-lg [font-variation-settings:'FILL'_1] shrink-0 transition-colors duration-200", item.ok ? "text-green-500" : "text-slate-200")}>
                     {item.ok ? "check_circle" : "radio_button_checked"}
                   </span>
-                  <span style={{ fontSize: 12, fontWeight: 500, color: item.ok ? "#374151" : "#94A3B8" }}>{item.label}</span>
+                  <span className={cn("text-xs font-medium", item.ok ? "text-slate-700" : "text-slate-400")}>{item.label}</span>
                 </li>
               ))}
             </ul>
           </div>
 
           {/* Microsoft SSO note */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 12px", background: "#EFF6FF", borderRadius: 8, border: "1px solid #BFDBFE" }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 14, color: "#2563EB" }}>verified_user</span>
-            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.04em", color: "#1D4ED8" }}>Acesso via Microsoft 365</span>
+          <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-brand-soft rounded-lg border border-primary/20">
+            <span className="material-symbols-outlined text-sm text-primary">verified_user</span>
+            <span className="text-[10px] font-semibold tracking-[0.04em] text-primary">Acesso via Microsoft 365</span>
           </div>
         </aside>
       </div>
-    </div>
+    </PageContainer>
   );
 }

@@ -234,3 +234,208 @@ describe("hasUnsavedTicketInput", () => {
     expect(hasUnsavedTicketInput({ isOneWay: true })).toBe(true);
   });
 });
+
+// ─── Entrega 2: sugestões, impacto ao vivo, KPI ─────────────────────────────
+
+import {
+  extractTravelSuggestion,
+  formatSuggestionDate,
+  suggestionDateToIso,
+  suggestionTimeToHHMM,
+  suggestionToFormPatch,
+  suggestionDivergences,
+  buildPlannedImpact,
+  formatPlannedImpact,
+  periodDays,
+  purchasedValueKpi,
+  hasAnySuggestion,
+} from "./ticket-form";
+
+describe("extractTravelSuggestion", () => {
+  it("prioriza os campos específicos da inclusão", () => {
+    const s = extractTravelSuggestion({
+      observations: "Ida: 2020-01-01 | Retorno: 2020-01-02",
+      flightDepartureDate: "2026-09-01",
+      flightArrivalSuggestedTime: "9h",
+      flightReturnDate: null,
+      flightReturnSuggestedTime: "20h+",
+      flightDepartureSuggestedTime: "07:15",
+    });
+    expect(s).toEqual({ ida: "2026-09-01", retorno: "Não informado", chegada: "9h", horario: "20h+", partida: "07:15" });
+    expect(hasAnySuggestion(s)).toBe(true);
+  });
+
+  it("cai no texto legado das observações", () => {
+    const s = extractTravelSuggestion({ observations: "Ida: 01/09/2026 | Chegada: 10:30 | Retorno: | Horário: 18h" });
+    expect(s.ida).toBe("01/09/2026");
+    expect(s.chegada).toBe("10:30");
+    expect(s.retorno).toBe("Não definido");
+    expect(s.horario).toBe("18h");
+  });
+
+  it("sem nada → placeholders e hasAnySuggestion false", () => {
+    const s = extractTravelSuggestion({ observations: "" });
+    expect(hasAnySuggestion(s)).toBe(false);
+  });
+});
+
+describe("formatSuggestionDate / suggestionDateToIso", () => {
+  it("formata ISO e mantém DD/MM/YYYY", () => {
+    expect(formatSuggestionDate("2026-09-01")).toBe("01/09/2026");
+    expect(formatSuggestionDate("2026-09-01T00:00:00Z")).toBe("01/09/2026");
+    expect(formatSuggestionDate("01/09/2026")).toBe("01/09/2026");
+    expect(formatSuggestionDate("Não definido")).toBe("Não informado");
+  });
+  it("normaliza para o input date", () => {
+    expect(suggestionDateToIso("01/09/2026")).toBe("2026-09-01");
+    expect(suggestionDateToIso("2026-9-1")).toBe("2026-09-01");
+    expect(suggestionDateToIso("carro")).toBeNull();
+  });
+});
+
+describe("suggestionTimeToHHMM (parseHoraMin de shared/)", () => {
+  it("normaliza texto livre da escalação", () => {
+    expect(suggestionTimeToHHMM("9h")).toBe("09:00");
+    expect(suggestionTimeToHHMM("onibus - 10h")).toBe("10:00");
+    expect(suggestionTimeToHHMM("0930")).toBe("09:30");
+    expect(suggestionTimeToHHMM("22h15")).toBe("22:15");
+    expect(suggestionTimeToHHMM("carro")).toBeNull();
+    expect(suggestionTimeToHHMM("Não informado")).toBeNull();
+  });
+});
+
+describe("suggestionToFormPatch (Usar sugestão)", () => {
+  const s = { ida: "2026-09-01", retorno: "05/09/2026", chegada: "9h", horario: "carro", partida: "07:15" };
+
+  it("preenche data e horários normalizados; horário não parseável → só a data", () => {
+    expect(suggestionToFormPatch(s, {})).toEqual({
+      actualDepartureDate: "2026-09-01",
+      actualDepartureTime: "07:15",
+      actualArrivalTime: "09:00",
+      actualReturnDate: "2026-09-05",
+    });
+  });
+
+  it("não sobrescreve o que já foi digitado (salvo overwrite)", () => {
+    const cur = { actualDepartureDate: "2026-09-02", actualArrivalTime: "" };
+    expect(suggestionToFormPatch(s, cur)).toEqual({
+      actualDepartureTime: "07:15",
+      actualArrivalTime: "09:00",
+      actualReturnDate: "2026-09-05",
+    });
+    expect(suggestionToFormPatch(s, cur, { overwrite: true }).actualDepartureDate).toBe("2026-09-01");
+  });
+
+  it("apenas ida ignora a volta", () => {
+    const p = suggestionToFormPatch(s, { isOneWay: true });
+    expect(p.actualReturnDate).toBeUndefined();
+    expect(p.actualDepartureDate).toBe("2026-09-01");
+  });
+});
+
+describe("suggestionDivergences (aviso informativo)", () => {
+  const s = { ida: "2026-09-01", retorno: "2026-09-05", chegada: "9h", horario: "18:00" };
+
+  it("nada digitado ou van → sem avisos", () => {
+    expect(suggestionDivergences({}, s)).toEqual([]);
+    expect(suggestionDivergences({ transportType: "van", actualDepartureDate: "2026-09-03" }, s)).toEqual([]);
+  });
+
+  it("dia diferente e horário > 4h avisam; < 4h não", () => {
+    const w = suggestionDivergences({
+      actualDepartureDate: "2026-09-02",
+      actualArrivalTime: "14:30",
+      actualReturnDate: "2026-09-05",
+      actualReturnTime: "21:00",
+    }, s);
+    expect(w).toHaveLength(2);
+    expect(w[0]).toContain("Data da ida");
+    expect(w[0]).toContain("02/09/2026");
+    expect(w[1]).toContain("Chegada da ida");
+    expect(w[1]).toContain("6h de diferença");
+  });
+
+  it("apenas ida não compara a volta", () => {
+    const w = suggestionDivergences({ isOneWay: true, actualReturnDate: "2026-09-09" }, s);
+    expect(w).toEqual([]);
+  });
+});
+
+describe("periodDays", () => {
+  it("dias corridos inclusivos, sem UTC", () => {
+    expect(periodDays("2026-09-01", "2026-09-03")).toEqual(["2026-09-01", "2026-09-02", "2026-09-03"]);
+    expect(periodDays("2026-09-03", "2026-09-01")).toEqual([]);
+    expect(periodDays(null, "2026-09-01")).toEqual([]);
+  });
+});
+
+describe("buildPlannedImpact (funções reais de shared/)", () => {
+  it("van → null; sem horários → nada de mobilidade/refeição", () => {
+    expect(buildPlannedImpact({ transportType: "van" })).toBeNull();
+    const i = buildPlannedImpact({ transportType: "aereo" })!;
+    expect(i.mobilidade.ida).toBeNull();
+    expect(i.mobilidade.volta).toBeNull();
+    expect(i.alimentacao.chegada).toBeNull();
+    expect(formatPlannedImpact(i)).toEqual([]);
+  });
+
+  it("chegada de madrugada → R$58 na ida; chegada 10:30 → almoço + jantar no 1º dia", () => {
+    const i = buildPlannedImpact({ actualDepartureTime: "23:50", actualArrivalTime: "01:30", isOneWay: true })!;
+    expect(i.mobilidade.ida).toEqual({ cents: 5800, madrugada: true });
+    expect(i.alimentacao.chegada).toEqual({ almoco: true, jantar: true });
+    expect(i.mobilidade.volta).toBeNull();
+
+    const j = buildPlannedImpact({ actualDepartureTime: "08:00", actualArrivalTime: "10:30", actualReturnTime: "14:00" })!;
+    expect(j.mobilidade.ida).toEqual({ cents: 5800, madrugada: true }); // parte antes das 09:30
+    expect(j.alimentacao.chegada).toEqual({ almoco: true, jantar: true });
+    expect(j.mobilidade.volta).toEqual({ cents: 2900, madrugada: false });
+    expect(j.alimentacao.retorno).toEqual({ almoco: true, jantar: false }); // parte ≥13h → almoça, <21h → não janta
+  });
+
+  it("chegada 15:00 → só jantar; volta 22:00 → almoço + jantar e madrugada", () => {
+    const i = buildPlannedImpact({ actualDepartureTime: "12:00", actualArrivalTime: "15:00", actualReturnTime: "22:00" })!;
+    expect(i.alimentacao.chegada).toEqual({ almoco: false, jantar: true });
+    expect(i.alimentacao.retorno).toEqual({ almoco: true, jantar: true });
+    expect(i.mobilidade.ida).toEqual({ cents: 2900, madrugada: false });
+    // Regra 17/08: VOLTA partindo às 20h ou depois = R$58 (mesma função do Planejado)
+    expect(i.mobilidade.volta).toEqual({ cents: 5800, madrugada: true });
+    expect(i.mobilidade.totalCents).toBe(8700);
+  });
+
+  it("volta partindo 19:59 continua R$29; ida partindo 20:00 continua R$29", () => {
+    const a = buildPlannedImpact({ actualDepartureTime: "12:00", actualArrivalTime: "15:00", actualReturnTime: "19:59" })!;
+    expect(a.mobilidade.volta).toEqual({ cents: 2900, madrugada: false });
+    const b = buildPlannedImpact({ actualDepartureTime: "20:00", actualArrivalTime: "22:30", actualReturnTime: "12:00" })!;
+    expect(b.mobilidade.ida).toEqual({ cents: 5800, madrugada: true }); // chegada 22:30 está em 20h–5h
+    const c = buildPlannedImpact({ actualDepartureTime: "20:00", actualArrivalTime: "19:00", actualReturnTime: "12:00" })!;
+    expect(c.mobilidade.ida).toEqual({ cents: 2900, madrugada: false }); // ida às 20h sem chegada noturna: regra da volta não vaza
+  });
+
+  it("com período de trabalho, soma refeições com os valores informados", () => {
+    const i = buildPlannedImpact(
+      { actualDepartureTime: "08:00", actualArrivalTime: "10:30", actualReturnTime: "14:00" },
+      { workDays: periodDays("2026-09-01", "2026-09-03"), almocoCents: 4000, jantarCents: 4000 },
+    )!;
+    // dia 1: almoço+jantar; dia 2: ambos; dia 3: só almoço → 3 almoços, 2 jantares
+    expect(i.alimentacao.periodo).toEqual({ dias: 3, almocos: 3, jantares: 2, totalCents: 20000, estimado: false });
+    const lines = formatPlannedImpact(i);
+    expect(lines[0]).toBe("Ida: madrugada → R$ 58");
+    expect(lines[1]).toBe("Volta: padrão → R$ 29");
+    expect(lines[2]).toBe("Chegada → almoço + jantar no 1º dia");
+    expect(lines[3]).toBe("Volta → só almoço no último dia");
+    expect(lines[4]).toContain("3 almoços + 2 jantares em 3 dias → R$ 200");
+  });
+
+  it("apenas ida: volta ignorada mesmo se digitada", () => {
+    const i = buildPlannedImpact({ isOneWay: true, actualArrivalTime: "10:00", actualReturnTime: "22:00" })!;
+    expect(i.mobilidade.volta).toBeNull();
+    expect(i.alimentacao.retorno).toBeNull();
+  });
+});
+
+describe("purchasedValueKpi", () => {
+  it("soma e média ignorando nulos/zero", () => {
+    expect(purchasedValueKpi([10000, null, 0, 20000, undefined])).toEqual({ count: 2, totalCents: 30000, avgCents: 15000 });
+    expect(purchasedValueKpi([])).toEqual({ count: 0, totalCents: 0, avgCents: 0 });
+  });
+});

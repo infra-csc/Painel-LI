@@ -7,6 +7,8 @@ import { isRhOrAdmin } from "@/lib/permissions";
 import { EventSearchSelect } from "@/components/event-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/common/page-header";
+import { usePageTitle } from "@/components/common/use-page-title";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -57,7 +59,7 @@ const STATUS_CFG: Record<EffStatus, StatusCfg> = {
   devolvida:         { label: "Devolvida",            pill: "bg-orange-50 text-orange-600 ring-1 ring-orange-200",    border: "#f97316", avatarCls: "bg-orange-100 text-orange-600" },
   recusada:          { label: "NF recusada",          pill: "bg-red-100 text-red-900 ring-1 ring-red-200",            border: "#991b1b", avatarCls: "bg-red-100 text-red-800" },
   aprovada:          { label: "Aprovada",             pill: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200", border: "#10b981", avatarCls: "bg-emerald-100 text-emerald-700" },
-  "checkin-pendente":{ label: "Aguard. Check-in",    pill: "bg-blue-50 text-[#0033CC] ring-1 ring-blue-200",         border: "#0033CC", avatarCls: "bg-blue-100 text-[#0033CC]" },
+  "checkin-pendente":{ label: "Aguard. Check-in",    pill: "bg-blue-50 text-primary ring-1 ring-blue-200",         border: "var(--primary)", avatarCls: "bg-blue-100 text-primary" },
   "checkin-realizado":{ label: "Check-in Realizado", pill: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-300", border: "#059669", avatarCls: "bg-emerald-100 text-emerald-700" },
 };
 
@@ -89,7 +91,7 @@ function InvoiceStepper({ counts }: { counts: StepperCounts }) {
     <div className="flex items-center gap-0 h-9 flex-wrap">
       {steps.map((step, i) => {
         const done  = step.count === 0;
-        const color = done ? "#059669" : "#0033CC";
+        const color = done ? "#059669" : "var(--primary)";
         return (
           <div key={step.id} className="flex items-center">
             <div className="flex items-center gap-1.5">
@@ -104,7 +106,7 @@ function InvoiceStepper({ counts }: { counts: StepperCounts }) {
               </span>
               {step.count > 0 && (
                 <span
-                  className="text-[10px] font-bold leading-none px-1.5 py-0.5 rounded-full bg-blue-50 text-[#0033CC] ring-1 ring-blue-200 whitespace-nowrap"
+                  className="text-[10px] font-bold leading-none px-1.5 py-0.5 rounded-full bg-blue-50 text-primary ring-1 ring-blue-200 whitespace-nowrap"
                   title={`${step.count} ite${step.count === 1 ? "m aguardando" : "ns aguardando"} nesta etapa`}
                 >
                   {step.count} aguardando
@@ -166,6 +168,7 @@ function FilterPills({ filters, active, countFor, onChange, alertFor }: {
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function InvoicesPage() {
+  usePageTitle("Notas Fiscais");
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -311,49 +314,48 @@ export default function InvoicesPage() {
     <div className="min-h-screen bg-[#F8FAFC] p-6">
       <div className="max-w-6xl mx-auto space-y-4">
         {/* Header — flex-wrap: em ~375px o select de evento quebra em vez de estourar */}
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3 min-w-0 flex-wrap">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-                  <FileText className="w-4 h-4 text-emerald-600" />
-                </div>
-                Notas Fiscais
-                <TooltipProvider delayDuration={200}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button type="button" aria-label="Regra de liberação da nota fiscal" className="cursor-default">
-                        <Info className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 transition-colors" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="max-w-[300px] text-xs font-normal">
-                      A nota fiscal é liberada assim que o Realizado é enviado — itens devolvidos ou rejeitados pausam a NF até a regularização. Para geração automática do texto de pagamento, cadastre a empresa pagadora no evento.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </h1>
-              <p className="text-xs text-gray-400 mt-0.5 ml-10">Envio e aprovação de notas por colaborador</p>
-            </div>
-            {/* Empresa pagadora inline */}
-            {selectedEvent?.paymentCompanyName && (
-              <div className="flex items-center gap-1.5 text-[12px] text-slate-500 whitespace-nowrap">
-                <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span className="font-medium text-slate-700">{selectedEvent.paymentCompanyName}</span>
-                {selectedEvent.paymentCompanyCnpj && (
-                  <span className="text-slate-400">· CNPJ {selectedEvent.paymentCompanyCnpj}</span>
-                )}
-              </div>
-            )}
-          </div>
-          {activeEvents.length > 0 && (
+        <PageHeader
+          icon={FileText}
+          title={
+            <span className="inline-flex items-center gap-2">
+              Notas Fiscais
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" aria-label="Regra de liberação da nota fiscal" className="cursor-default">
+                      <Info className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 transition-colors" aria-hidden="true" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-[300px] text-xs font-normal">
+                    A nota fiscal é liberada assim que o Realizado é enviado — itens devolvidos ou rejeitados pausam a NF até a regularização. Para geração automática do texto de pagamento, cadastre a empresa pagadora no evento.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </span>
+          }
+          subtitle={
+            <>
+              Envio e aprovação de notas por colaborador
+              {selectedEvent?.paymentCompanyName && (
+                <span className="inline-flex items-center gap-1.5 ml-2 text-slate-500">
+                  <Building2 className="w-3 h-3 text-slate-400 shrink-0" aria-hidden="true" />
+                  <span className="font-medium text-slate-700">{selectedEvent.paymentCompanyName}</span>
+                  {selectedEvent.paymentCompanyCnpj && (
+                    <span className="text-slate-400">· CNPJ {selectedEvent.paymentCompanyCnpj}</span>
+                  )}
+                </span>
+              )}
+            </>
+          }
+          actions={activeEvents.length > 0 && (
             <EventSearchSelect
               value={selectedEventId}
               onValueChange={setSelectedEventId}
               events={activeEvents}
-              className="w-72 shrink-0"
+              className="w-72 max-w-full shrink-0"
             />
           )}
-        </div>
+        />
 
         {activeEvents.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
@@ -582,7 +584,7 @@ const LANC_FILTERS = [
   { id: "enviada",           label: "Aguardando RH",      activeBg: "bg-amber-500 text-white" },
   { id: "devolvida",         label: "Devolvida",          activeBg: "bg-orange-500 text-white" },
   { id: "recusada",          label: "NF recusada",        activeBg: "bg-red-800 text-white" },
-  { id: "checkin-pendente",  label: "Aguard. Check-in",   activeBg: "bg-[#0033CC] text-white" },
+  { id: "checkin-pendente",  label: "Aguard. Check-in",   activeBg: "bg-primary text-white" },
   { id: "checkin-realizado", label: "Check-in Realizado", activeBg: "bg-emerald-600 text-white" },
   { id: "sem-nf",            label: "Não emite NF",       activeBg: "bg-slate-500 text-white" },
 ];
@@ -789,7 +791,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
   return (
     <div
       className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm transition-shadow hover:shadow-md"
-      style={{ borderLeft: `3px solid ${historyOpen ? "#3B4FE4" : cfg.border}` }}
+      style={{ borderLeft: `3px solid ${historyOpen ? "var(--primary)" : cfg.border}` }}
     >
       {/* Header row */}
       <div className={`flex items-center justify-between px-5 py-4 transition-colors ${historyOpen ? "bg-blue-50/30" : ""}`}>
@@ -819,7 +821,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
               aria-expanded={historyOpen}
               aria-label={historyOpen ? "Fechar histórico" : `Abrir histórico (${history.length} eventos)`}
               className={`inline-flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-1 transition-colors ${
-                historyOpen ? "text-[#3B4FE4] bg-blue-100" : "text-slate-400 hover:text-[#3B4FE4] hover:bg-blue-50"
+                historyOpen ? "text-primary bg-blue-100" : "text-slate-400 hover:text-primary hover:bg-blue-50"
               }`}
             >
               <Clock className="w-3.5 h-3.5" />
@@ -853,7 +855,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
                 value={oc}
                 onChange={e => setOc(e.target.value)}
                 placeholder="OC-0000"
-                className="h-9 text-sm rounded-xl border-[#e5e7eb] focus:border-[#3B4FE4]"
+                className="h-9 text-sm rounded-xl border-[#e5e7eb] focus:border-primary"
               />
               <p className="text-[10px] text-slate-400 mt-0.5">OCs repetidas no evento devem usar o mesmo anexo.</p>
             </div>
@@ -953,7 +955,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
 
         {/* Aguardando Check-in — apenas badge estático no Lançamento */}
         {effStatus === "checkin-pendente" && (
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-blue-50 text-[#0033CC] border border-blue-200">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-blue-50 text-primary border border-blue-200">
             <Clock className="w-3.5 h-3.5" />
             Aprovada · Aguardando Check-in Financeiro
           </div>
@@ -1014,7 +1016,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
 const APROV_FILTERS = [
   { id: "all",               label: "Todos",              activeBg: "bg-slate-700 text-white" },
   { id: "enviada",           label: "Aguardando",         activeBg: "bg-amber-500 text-white" },
-  { id: "checkin-pendente",  label: "Aguard. Check-in",   activeBg: "bg-[#0033CC] text-white" },
+  { id: "checkin-pendente",  label: "Aguard. Check-in",   activeBg: "bg-primary text-white" },
   { id: "checkin-realizado", label: "Check-in Realizado", activeBg: "bg-emerald-600 text-white" },
   { id: "devolvida",         label: "Devolvida",          activeBg: "bg-orange-500 text-white" },
   { id: "recusada",          label: "NF recusada",        activeBg: "bg-red-800 text-white" },
@@ -1046,8 +1048,8 @@ type HistEvent = {
 };
 
 const HIST_CFG: Record<HistEvent["type"], { label: string; color: string; by: "colaborador" | "rh" }> = {
-  enviado:   { label: "Enviado",   color: "#3B4FE4", by: "colaborador" },
-  reenviado: { label: "Reenviado", color: "#3B4FE4", by: "colaborador" },
+  enviado:   { label: "Enviado",   color: "var(--primary)", by: "colaborador" },
+  reenviado: { label: "Reenviado", color: "var(--primary)", by: "colaborador" },
   devolvido: { label: "Devolvido", color: "#D97706", by: "rh" },
   recusado:  { label: "Recusado",  color: "#B91C1C", by: "rh" },
   aprovado:  { label: "Aprovado",  color: "#16A34A", by: "rh" },
@@ -1079,7 +1081,7 @@ function buildHistory(inv: any, collabName: string): HistEvent[] {
   }
   // Fallback reconstruction for old invoices without stored history
   const events: HistEvent[] = [];
-  events.push({ type: "enviado", label: "Enviado", color: "#3B4FE4", at: fmtDateTime(inv.createdAt), by: toTitleCase(collabName) });
+  events.push({ type: "enviado", label: "Enviado", color: "var(--primary)", at: fmtDateTime(inv.createdAt), by: toTitleCase(collabName) });
   if (inv.returnComment) {
     events.push({ type: "devolvido", label: "Devolvido", color: "#D97706", at: null, by: "RH", comment: inv.returnComment });
   }
@@ -1362,7 +1364,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
               const initial      = name && name !== "—" ? name.charAt(0).toUpperCase() : "?";
               const history      = buildHistory(inv, name);
               const hasReturn    = !!inv.returnComment;
-              const borderColor  = isHistOpen ? "#3B4FE4" : cfg.border;
+              const borderColor  = isHistOpen ? "var(--primary)" : cfg.border;
               // Realizado devolvido/rejeitado pausa a aprovação da NF até o reenvio
               const actualBlocked = !!actual && (actual.rhStatus === "devolvido" || actual.rhStatus === "rejeitado");
               const isTarget = !!highlightedId && inv.budgetActualId === highlightedId;
@@ -1445,8 +1447,8 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                         aria-label={isHistOpen ? "Fechar histórico" : `Abrir histórico (${history.length} eventos)`}
                         className={`inline-flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-1 transition-colors ${
                           isHistOpen
-                            ? "text-[#3B4FE4] bg-blue-100"
-                            : "text-slate-400 hover:text-[#3B4FE4] hover:bg-blue-50"
+                            ? "text-primary bg-blue-100"
+                            : "text-slate-400 hover:text-primary hover:bg-blue-50"
                         }`}
                       >
                         <Clock className="w-3.5 h-3.5" />
@@ -1510,8 +1512,8 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                             onClick={() => openAction(inv.id, "checkin")}
                             className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap border ${
                               isActive && active?.type === "checkin"
-                                ? "bg-[#0033CC] text-white border-[#0033CC]"
-                                : "text-[#0033CC] bg-blue-50 border-blue-200 hover:bg-blue-100"
+                                ? "bg-primary text-white border-primary"
+                                : "text-primary bg-blue-50 border-blue-200 hover:bg-blue-100"
                             }`}
                           >
                             <CircleDot className="w-3.5 h-3.5" /> Fazer Check-in
@@ -1662,7 +1664,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                         {/* ── Check-in ── */}
                         {active.type === "checkin" && (
                           <div className="space-y-2.5">
-                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0033CC] bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-lg">
+                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-lg">
                               <CircleDot className="w-3.5 h-3.5" /> Check-in Financeiro
                             </span>
                             <div className="flex items-center gap-3 flex-wrap">
@@ -1676,7 +1678,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                                   value={checkinDate}
                                   onChange={e => setCheckinDate(e.target.value)}
                                   autoFocus
-                                  className="h-9 text-sm border-2 border-blue-200 rounded-xl px-3 text-slate-700 bg-white focus:outline-none focus:border-[#0033CC] focus:ring-2 focus:ring-blue-100"
+                                  className="h-9 text-sm border-2 border-blue-200 rounded-xl px-3 text-slate-700 bg-white focus:outline-none focus:border-primary focus:ring-2 focus:ring-blue-100"
                                 />
                               </div>
                               <div className="flex items-center gap-2 mt-5">
@@ -1686,8 +1688,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                                 <button
                                   onClick={() => checkinMutation.mutate(inv.id)}
                                   disabled={!checkinDate || checkinMutation.isPending}
-                                  className="h-8 px-4 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
-                                  style={{ background: "#0033CC" }}
+                                  className="h-8 px-4 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors bg-primary hover:bg-primary-hover"
                                 >
                                   {checkinMutation.isPending ? "Salvando..." : "Confirmar Check-in"}
                                 </button>
@@ -1741,7 +1742,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                     )}
                     <div className="flex flex-col items-end border-l border-slate-200 pl-5">
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Total</span>
-                      <span className="text-[13px] font-bold tabular-nums font-mono" style={{ color: "#3B4FE4" }}>{formatCurrency(grandTotal)}</span>
+                      <span className="text-[13px] font-bold tabular-nums font-mono text-primary">{formatCurrency(grandTotal)}</span>
                     </div>
                   </div>
                 </td>

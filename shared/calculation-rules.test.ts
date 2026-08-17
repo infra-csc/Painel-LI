@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcDeflatedDailies, DEFLATION_TIERS, PERCURSEIRO_TYPES } from "./calculation-rules";
+import { calcDeflatedDailies, DEFLATION_TIERS, PERCURSEIRO_TYPES, diasComDiaria, regraDiariaPorTipo, percurseiroDiariaCents, diasPercurseiro, isPercursoFunction } from "./calculation-rules";
 
 describe("calcDeflatedDailies (deflação por dia trabalhado)", () => {
   const DIARIA = 46500; // R$ 465,00 — produtor freela local
@@ -49,18 +49,40 @@ describe("calcDeflatedDailies (deflação por dia trabalhado)", () => {
 });
 
 describe("tabela do percurseiro", () => {
-  it("o total da proposta é a soma das parcelas", () => {
+  it("o total é a soma das 5 parcelas (tabela do usuário 17/08)", () => {
     for (const t of PERCURSEIRO_TYPES) {
-      const soma = t.motoqueiroCents + t.feeIvanCents + t.alimentacaoCents + t.transporteCents + t.nfPropostaCents;
-      expect(t.totalPropostaCents).toBe(soma);
+      const soma = t.motoqueiroCents + t.feeIvanCents + t.alimentacaoCents + t.transporteCents + t.nfCents;
+      expect(t.totalCents).toBe(soma);
     }
+    expect(PERCURSEIRO_TYPES[0].totalCents).toBe(112976);
+    expect(PERCURSEIRO_TYPES[1].totalCents).toBe(126667);
   });
 
-  it("o total da planilha base é a soma das parcelas", () => {
-    for (const t of PERCURSEIRO_TYPES) {
-      const soma = t.motoqueiroCents + t.feeIvanCents + t.alimentacaoCents + t.transporteCents + t.nfPlanilhaCents;
-      expect(t.totalPlanilhaCents).toBe(soma);
-    }
+  it("percurseiroDiariaCents: Tipo 1 = 1.129,76 e Tipo 2 = 1.266,67 (defaults)", () => {
+    const t1 = percurseiroDiariaCents("tipo_1", {});
+    expect(t1).toMatchObject({ motoqueiro: 70000, fee: 10500, alimentacao: 10200, transporte: 5000, nf: 17276, total: 112976 });
+    const t2 = percurseiroDiariaCents("tipo_2", {});
+    expect(t2).toMatchObject({ motoqueiro: 80000, fee: 12000, alimentacao: 10200, transporte: 5000, nf: 19467, total: 126667 });
+    expect(percurseiroDiariaCents(null, {})).toBeNull();
+  });
+
+  it("chaves dos Valores Padrão vencem os defaults (fee em % do motoqueiro)", () => {
+    const r = percurseiroDiariaCents("tipo_1", { percurseiro_t1_motoqueiro: "80000", percurseiro_fee_pct: 10, percurseiro_t1_nf: 20000 })!;
+    expect(r.motoqueiro).toBe(80000);
+    expect(r.fee).toBe(8000);
+    expect(r.nf).toBe(20000);
+    expect(r.total).toBe(80000 + 8000 + 10200 + 5000 + 20000);
+  });
+
+  it("diárias: em viagem sempre 2, local 1; isPercursoFunction", () => {
+    expect(diasPercurseiro(true)).toBe(2);
+    expect(diasPercurseiro(false)).toBe(1);
+    expect(diasPercurseiro(null)).toBe(1);
+    expect(isPercursoFunction("Percurso")).toBe(true);
+    expect(isPercursoFunction("percurseiro")).toBe(true);
+    expect(isPercursoFunction("Produção")).toBe(false);
+    // Exemplo do usuário: David Oliveira, percurso freela com passagem, tipo 1
+    expect(diasPercurseiro(true) * percurseiroDiariaCents("tipo_1", {})!.total).toBe(225952);
   });
 });
 
@@ -133,5 +155,42 @@ describe("casaDailyCents (regra do slide, nomes reais do sistema)", () => {
   it("valores editáveis", () => {
     expect(casaDailyCents("produção", { casa_diaria_produtor: 50000 })).toBe(50000);
     expect(casaDailyCents("dir prova", { casa_diaria_dir_prova: "80000" })).toBe(80000);
+  });
+});
+
+describe("diasComDiaria (dias com direito a diária por tipo de colaborador)", () => {
+  it("casa (CLT) só recebe diária nos fins de semana", () => {
+    expect(diasComDiaria("casa", 2, 2)).toBe(2);
+    expect(diasComDiaria("casa", 5, 0)).toBe(0);
+    expect(regraDiariaPorTipo("casa")).toBe("fds");
+    // Caso do screenshot: 2 úteis + 2 fds a R$ 465 → R$ 930,00 (sem deflação)
+    expect(calcDeflatedDailies(46500, diasComDiaria("casa", 2, 2)).totalCents).toBe(93000);
+  });
+
+  it("local (produção local) recebe diária em todos os dias", () => {
+    expect(diasComDiaria("local", 2, 2)).toBe(4);
+    expect(regraDiariaPorTipo("local")).toBe("todos");
+    expect(calcDeflatedDailies(46500, diasComDiaria("local", 2, 2)).totalCents).toBe(186000);
+  });
+
+  it("casa + cenotécnica: nenhuma diária (nem fds) — Erick", () => {
+    expect(regraDiariaPorTipo("casa", "Cenotecnica")).toBe("nenhuma");
+    expect(diasComDiaria("casa", 2, 2, "Cenotécnica")).toBe(0);
+    expect(calcDeflatedDailies(46500, diasComDiaria("casa", 2, 2, "Cenotecnica")).totalCents).toBe(0);
+    // Cenotécnica freela/local: inalterada (todos os dias)
+    expect(diasComDiaria("freela", 2, 2, "Cenotecnica")).toBe(4);
+    expect(diasComDiaria("local", 2, 2, "Cenotecnica")).toBe(4);
+    // Casa em outra função continua "fds"
+    expect(regraDiariaPorTipo("casa", "Produção")).toBe("fds");
+    // "Sup Ceno" (supervisor) é do grupo PRODUTOR, não cenotécnico: casa → fds
+    expect(regraDiariaPorTipo("casa", "Sup Ceno")).toBe("fds");
+    expect(regraDiariaPorTipo("casa", "Supervisor de Cenotecnica")).toBe("fds");
+    expect(diasComDiaria("casa", 2, 2, "Sup Ceno")).toBe(2);
+  });
+
+  it("freela (e tipo ausente) recebe diária em todos os dias", () => {
+    expect(diasComDiaria("freela", 3, 1)).toBe(4);
+    expect(diasComDiaria(undefined, 3, 1)).toBe(4);
+    expect(regraDiariaPorTipo("freela")).toBe("todos");
   });
 });

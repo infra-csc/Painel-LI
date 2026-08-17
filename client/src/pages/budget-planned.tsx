@@ -17,9 +17,11 @@ import { EventSearchSelect } from "@/components/event-select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetNote } from "@shared/schema";
 import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents, ATENDIMENTO_TIPOS, type AtendimentoTipo } from "@shared/atendimento";
-import { calcDeflatedDailies, deflationFactorsFromSettings, freelaDailyCents, casaDailyCents, type DeflationSegment } from "@shared/calculation-rules";
-import { calcAlimentacao, isCenotecnicaFunction, refeicaoCents } from "@shared/alimentacao";
+import { calcDeflatedDailies, deflationFactorsFromSettings, freelaDailyCents, casaDailyCents, diasComDiaria as calcDiasComDiaria, regraDiariaPorTipo, isPercursoFunction, percurseiroDiariaCents, diasPercurseiro, PERCURSEIRO_TIPOS, type DeflationSegment, type RegraDiaria, type PercurseiroTipo, type PercurseiroDiaria } from "@shared/calculation-rules";
+import { calcAlimentacao, isCenotecnicaFunction, refeicaoCents, refeicaoCentsDia } from "@shared/alimentacao";
 import { useAuth } from "@/hooks/use-auth";
+import { PageHeader } from "@/components/common/page-header";
+import { usePageTitle } from "@/components/common/use-page-title";
 import { useSearch } from "wouter";
 import { BudgetChat, BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
 
@@ -72,6 +74,13 @@ interface CalculatedBudget {
   weekdays: number;
   weekends: number;
   hasOverride: boolean;
+  // Dias que efetivamente recebem diária (casa: só fds; local/freela: todos)
+  diasComDiaria: number;
+  regraDiaria: RegraDiaria;
+  // Percurso (motoqueiro): pacote fechado por diária — composição para a memória
+  isPercurso: boolean;
+  percurseiroTipo: PercurseiroTipo | null;   // null = "definir tipo" (Tipo 1 provisório)
+  percurseiro: PercurseiroDiaria | null;
   // Horários de voo exibidos no modal (fonte: passagem > sugerido)
   vooPartidaIda: string | null;
   vooChegadaIda: string | null;
@@ -163,12 +172,12 @@ function BatchPopover({ title, value, onChangeValue, onCancel, onApply }: {
         onChange={e => onChangeValue(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') onApply(); }}
         autoFocus
-        className="w-full h-8 border border-slate-200 rounded-md px-2 text-right text-[12px] font-mono outline-none focus:border-[#3B4FE4] focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)] mb-2"
+        className="w-full h-8 border border-slate-200 rounded-md px-2 text-right text-[12px] font-mono outline-none focus:border-primary focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)] mb-2"
       />
       <p className="text-[10px] text-slate-400 mb-3">Aplica aos pendentes visíveis (filtro atual)</p>
       <div className="flex gap-2">
         <button onClick={onCancel} className="flex-1 h-7 text-[11px] border border-slate-200 rounded-md text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</button>
-        <button onClick={onApply} className="flex-1 h-7 text-[11px] rounded-md text-white font-semibold" style={{background:'#3B4FE4'}}>Aplicar</button>
+        <button onClick={onApply} className="flex-1 h-7 text-[11px] rounded-md text-white font-semibold" style={{background:'var(--primary)'}}>Aplicar</button>
       </div>
     </div>
   );
@@ -267,7 +276,7 @@ const SheetRow = memo(function SheetRow({
   const inputBase = `h-7 text-right font-mono tabular-nums text-[12px] rounded px-2 outline-none transition-all
     ${disabled
       ? 'bg-transparent text-slate-300 cursor-not-allowed'
-      : 'bg-transparent border border-transparent text-slate-700 focus:bg-white focus:border-[#2563EB] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.12)]'}`;
+      : 'bg-transparent border border-transparent text-slate-700 focus:bg-white focus:border-primary focus:shadow-[0_0_0_2px_rgba(37,99,235,0.12)]'}`;
 
   const restoreBtn = (field: SheetField, key: string, hoverColor: string) => {
     const fbKey = `${sid}:${key}`;
@@ -317,7 +326,7 @@ const SheetRow = memo(function SheetRow({
             return (
               <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold mt-0.5"
                 style={isCasaType
-                  ? {background:'#DBEAFE', color:'#1D4ED8'}
+                  ? {background:'#DBEAFE', color:'var(--primary)'}
                   : {background:'#FEE2E2', color:'#B91C1C'}}>
                 {initials}
               </div>
@@ -341,7 +350,7 @@ const SheetRow = memo(function SheetRow({
                 )}
                 <span className="inline-flex items-center justify-center text-[10px] font-semibold rounded-full"
                   style={{
-                    ...(isCasaType ? {background:'#EFF6FF', color:'#1D4ED8'} : {background:'#FFF1F2', color:'#BE123C'}),
+                    ...(isCasaType ? {background:'#EFF6FF', color:'var(--primary)'} : {background:'#FFF1F2', color:'#BE123C'}),
                     padding: '2px 8px',
                     minWidth: 44,
                   }}>
@@ -395,13 +404,38 @@ const SheetRow = memo(function SheetRow({
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="text-[13px] font-semibold tabular-nums font-mono text-slate-600 cursor-default select-none">
-                {budget.weekdays + budget.weekends}
+                {budget.diasComDiaria}
+                {(budget.regraDiaria === 'fds' || budget.regraDiaria === 'nenhuma' || budget.isPercurso) && budget.diasComDiaria !== budget.weekdays + budget.weekends && (
+                  <span className="text-[10px] font-sans font-normal text-slate-400">/{budget.weekdays + budget.weekends}</span>
+                )}
               </span>
             </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs max-w-[220px]">
+            <TooltipContent side="top" className="text-xs max-w-[260px]">
               <div className="flex flex-col gap-0.5">
-                {budget.weekdays > 0 && <span><span style={{color:'#2563EB'}}>●</span> Útil: {budget.weekdays}×</span>}
-                {budget.weekends > 0 && <span><span style={{color:'#F97316'}}>●</span> FDS: {budget.weekends}×</span>}
+                {budget.weekdays > 0 && (
+                  <span>
+                    <span className="text-primary">●</span> Útil: {budget.weekdays}×
+                    {budget.regraDiaria === 'fds' && <span className="text-slate-400"> — sem diária (CLT)</span>}
+                    {budget.regraDiaria === 'nenhuma' && <span className="text-slate-400"> — sem diária</span>}
+                  </span>
+                )}
+                {budget.weekends > 0 && (
+                  <span>
+                    <span style={{color:'#F97316'}}>●</span> FDS: {budget.weekends}×
+                    {budget.regraDiaria === 'nenhuma' && <span className="text-slate-400"> — sem diária</span>}
+                  </span>
+                )}
+                {budget.regraDiaria === 'fds' && (
+                  <span className="text-slate-400 mt-0.5">Casa (CLT): diária só nos fins de semana</span>
+                )}
+                {budget.regraDiaria === 'nenhuma' && (
+                  <span className="text-slate-400 mt-0.5">Cenotécnica de casa (CLT): não recebe diária</span>
+                )}
+                {budget.isPercurso && (
+                  <span className="text-slate-400 mt-0.5">
+                    Percurso: {budget.diasComDiaria} {budget.diasComDiaria === 1 ? 'diária' : 'diárias'} ({budget.inclusion.needsTicket ? 'em viagem — regra fixa de 2 diárias' : 'local — 1 diária'}), pacote fechado por diária
+                  </span>
+                )}
               </div>
             </TooltipContent>
           </Tooltip>
@@ -424,7 +458,7 @@ const SheetRow = memo(function SheetRow({
                   onBlur={commitBlur('valorDia', 'vdia', vdiaDisplay)}
                   onFocus={e => e.target.select()}
                   className={`${inputBase} flex-1 min-w-0 ${!disabled && vdiaEdited ? 'font-bold' : ''}`}
-                  style={!disabled && vdiaEdited ? {color:'#2563EB', borderColor:'#93C5FD'} : !disabled ? {color:'#1e40af'} : {}}
+                  style={!disabled && vdiaEdited ? {color:'var(--primary)', borderColor:'#93C5FD'} : !disabled ? {color:'var(--primary)'} : {}}
                 />
               </TooltipTrigger>
               {!disabled && (
@@ -434,7 +468,7 @@ const SheetRow = memo(function SheetRow({
               )}
             </Tooltip>
           </TooltipProvider>
-          {vdiaEdited && !disabled && restoreBtn('valorDia', 'vdia', 'hover:text-[#2563EB]')}
+          {vdiaEdited && !disabled && restoreBtn('valorDia', 'vdia', 'hover:text-primary')}
         </div>
       </td>
 
@@ -455,7 +489,7 @@ const SheetRow = memo(function SheetRow({
                   onBlur={commitBlur('alimentacaoUtil', 'alimUtil', alimUtilDisplay)}
                   onFocus={e => e.target.select()}
                   className={`${inputBase} flex-1 min-w-0 ${!disabled && budget.weekdays > 0 && alimUtilEdited ? 'font-bold' : ''}`}
-                  style={!disabled && budget.weekdays > 0 && alimUtilEdited ? {color:'#2563EB', borderColor:'#93C5FD'} : !disabled && budget.weekdays > 0 ? {color:'#1e3a8a'} : {color:'#CBD5E1'}}
+                  style={!disabled && budget.weekdays > 0 && alimUtilEdited ? {color:'var(--primary)', borderColor:'#93C5FD'} : !disabled && budget.weekdays > 0 ? {color:'var(--primary)'} : {color:'#CBD5E1'}}
                 />
               </TooltipTrigger>
               {!disabled && budget.weekdays > 0 && (
@@ -467,7 +501,7 @@ const SheetRow = memo(function SheetRow({
               )}
             </Tooltip>
           </TooltipProvider>
-          {alimUtilEdited && !disabled && budget.weekdays > 0 && restoreBtn('alimentacaoUtil', 'alimUtil', 'hover:text-[#2563EB]')}
+          {alimUtilEdited && !disabled && budget.weekdays > 0 && restoreBtn('alimentacaoUtil', 'alimUtil', 'hover:text-primary')}
         </div>
         {/* FDS */}
         <div className="flex items-center justify-end gap-1 rounded-md px-1 -mx-1" style={{background:'#FFF8F2'}}>
@@ -523,7 +557,7 @@ const SheetRow = memo(function SheetRow({
                   onChange={e => setbuf('mob', e.target.value)}
                   onBlur={commitBlur('mobilidade', 'mob', mobDisplay)}
                   onFocus={e => e.target.select()}
-                  className={`${inputBase} w-[80px] ${!disabled && mobEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-slate-900' : ''}`}
+                  className={`${inputBase} w-[80px] ${!disabled && mobEdited ? 'text-primary font-bold' : !disabled ? 'text-slate-900' : ''}`}
                 />
               </TooltipTrigger>
               {!disabled && (
@@ -535,7 +569,7 @@ const SheetRow = memo(function SheetRow({
               )}
             </Tooltip>
           </TooltipProvider>
-          {mobEdited && !disabled && restoreBtn('mobilidade', 'mob', 'hover:text-[#3B4FE4]')}
+          {mobEdited && !disabled && restoreBtn('mobilidade', 'mob', 'hover:text-primary')}
         </div>
       </td>
 
@@ -548,7 +582,7 @@ const SheetRow = memo(function SheetRow({
           aria-label={`Ver memória de cálculo de ${name}`}
           aria-expanded={subtotalOpen}
           className={`text-[14px] font-mono font-bold tabular-nums transition-colors ${isNotAttended ? 'text-slate-300 line-through cursor-default' : 'cursor-pointer hover:opacity-80'}`}
-          style={isNotAttended ? {} : {color:'#0033CC'}}
+          style={isNotAttended ? {} : {color:'var(--primary)'}}
           disabled={isNotAttended}
         >
           {formatCurrency(budget.totalFinal)}
@@ -577,28 +611,46 @@ const SheetRow = memo(function SheetRow({
                 padding:'14px 16px', minWidth:270, textAlign:'left', outline:'none',
               }}
             >
-              <div style={{fontSize:11, fontWeight:700, color:'#0033CC', marginBottom:10, letterSpacing:'0.05em', textTransform:'uppercase'}}>
+              <div style={{fontSize:11, fontWeight:700, color:'var(--primary)', marginBottom:10, letterSpacing:'0.05em', textTransform:'uppercase'}}>
                 Memória de Cálculo · {toTitleCase(name)}
               </div>
               <div style={{fontSize:11, color:'#64748B', marginBottom:8}}>
                 {totalDias} {totalDias === 1 ? 'dia' : 'dias'}
+                {budget.regraDiaria === 'fds' && ` · diária em ${budget.diasComDiaria} (só fins de semana — CLT)`}
+                {budget.regraDiaria === 'nenhuma' && ` · sem diária (cenotécnica CLT)`}
+                {budget.isPercurso && ` · ${budget.diasComDiaria} ${budget.diasComDiaria === 1 ? 'diária' : 'diárias'} (percurso ${budget.inclusion.needsTicket ? 'em viagem — regra fixa' : 'local'}, pacote fechado)`}
                 {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && ` · ${new Date(budget.inclusion.scheduleStartDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})} → ${new Date(budget.inclusion.scheduleEndDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}`}
               </div>
               <table style={{width:'100%', borderCollapse:'collapse', fontSize:12}}>
                 <tbody>
                   {budget.deflationSegments.map((seg, i) => (
                     <tr key={i}>
-                      <td style={{paddingBottom:4, color:'#2563EB', fontWeight:600}}>
+                      <td style={{paddingBottom:4, color:'var(--primary)', fontWeight:600}}>
                         {seg.days} {seg.days === 1 ? 'dia' : 'dias'} × {formatCurrency(seg.dailyCents)}
                         {seg.factor < 1 && <span style={{color:'#9CA3AF', fontWeight:400}}> ({Math.round(seg.factor * 100)}% · {seg.label})</span>}
                       </td>
                       <td style={{paddingBottom:4, textAlign:'right', color:'#374151', fontFamily:'monospace'}}>{formatCurrency(seg.totalCents)}</td>
                     </tr>
                   ))}
+                  {budget.isPercurso && budget.percurseiro && (
+                    ([['Motoqueiro', budget.percurseiro.motoqueiro], ['Fee Ivan', budget.percurseiro.fee], ['Alimentação (3 refeições)', budget.percurseiro.alimentacao], ['Ajuda transporte', budget.percurseiro.transporte], ['NF', budget.percurseiro.nf]] as [string, number][]).map(([lbl, v]) => (
+                      <tr key={lbl}>
+                        <td style={{paddingBottom:2, color:'#9CA3AF', fontSize:10, paddingLeft:8}}>{lbl} <span style={{color:'#CBD5E1'}}>× {budget.diasComDiaria}</span></td>
+                        <td style={{paddingBottom:2, textAlign:'right', color:'#94A3B8', fontFamily:'monospace', fontSize:10}}>{formatCurrency(v * budget.diasComDiaria)}</td>
+                      </tr>
+                    ))
+                  )}
                   <tr>
-                    <td style={{paddingBottom:8, color:'#9CA3AF', fontSize:10, paddingLeft:8}}>Diárias (com deflação por período)</td>
+                    <td style={{paddingBottom:8, color:'#9CA3AF', fontSize:10, paddingLeft:8}}>
+                      {budget.isPercurso ? `Diárias (pacote fechado — ${PERCURSEIRO_TIPOS.find(t => t.value === (budget.percurseiroTipo ?? 'tipo_1'))?.label}${budget.percurseiroTipo ? '' : ' provisório'})` : budget.regraDiaria === 'nenhuma' ? 'Diárias (cenotécnica CLT: sem diária)' : 'Diárias (com deflação por período)'}
+                    </td>
                     <td style={{paddingBottom:8, textAlign:'right', color:'#64748B', fontFamily:'monospace', fontSize:11}}>{formatCurrency(budget.subtotalDiarias)}</td>
                   </tr>
+                  {budget.isPercurso && (
+                    <tr>
+                      <td colSpan={2} style={{paddingBottom:6, color:'#9CA3AF', fontSize:10, paddingLeft:8}}>Alimentação e mobilidade: incluídas no pacote do percurseiro</td>
+                    </tr>
+                  )}
                   {alimTotal > 0 && (
                     <tr>
                       <td style={{paddingBottom:4, color:'#EA580C', fontWeight:600}}>
@@ -616,8 +668,8 @@ const SheetRow = memo(function SheetRow({
                 </tbody>
                 <tfoot>
                   <tr style={{borderTop:'2px solid #E2E8F0'}}>
-                    <td style={{paddingTop:8, fontWeight:700, color:'#0033CC', fontSize:13}}>Total</td>
-                    <td style={{paddingTop:8, textAlign:'right', fontWeight:700, color:'#0033CC', fontFamily:'monospace', fontSize:13}}>{formatCurrency(budget.totalFinal)}</td>
+                    <td style={{paddingTop:8, fontWeight:700, color:'var(--primary)', fontSize:13}}>Total</td>
+                    <td style={{paddingTop:8, textAlign:'right', fontWeight:700, color:'var(--primary)', fontFamily:'monospace', fontSize:13}}>{formatCurrency(budget.totalFinal)}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -634,6 +686,7 @@ const SheetRow = memo(function SheetRow({
 });
 
 export default function BudgetPlannedPage() {
+  usePageTitle("Planejado");
   const searchString = useSearch();
   const { urlCollaboratorId, urlFunctionId } = useMemo(() => {
     const p = new URLSearchParams(searchString);
@@ -649,8 +702,42 @@ export default function BudgetPlannedPage() {
     return p.get("event") || "";
   });
   const [editingBudget, setEditingBudget] = useState<BudgetEdit | null>(null);
-  const [editingBudgetInfo, setEditingBudgetInfo] = useState<{ name: string; functionName: string; type: string; weekdays: number; weekends: number; period: string; vooChegadaIda?: string | null; vooPartidaVolta?: string | null; fonteVoo?: "passagem" | "sugerido" | "nenhum"; alimEstimada?: boolean; voa?: boolean; isAtend?: boolean; atendimentoTipo?: AtendimentoTipo | null; inclusionId?: string } | null>(null);
+  const [editingBudgetInfo, setEditingBudgetInfo] = useState<{ name: string; functionName: string; type: string; weekdays: number; weekends: number; diasComDiaria: number; regraDiaria: RegraDiaria; period: string; vooChegadaIda?: string | null; vooPartidaVolta?: string | null; fonteVoo?: "passagem" | "sugerido" | "nenhum"; alimEstimada?: boolean; voa?: boolean; isAtend?: boolean; atendimentoTipo?: AtendimentoTipo | null; isPercurso?: boolean; percurseiroTipo?: PercurseiroTipo | null; percurseiro?: PercurseiroDiaria | null; inclusionId?: string } | null>(null);
   const [editingBudgetPlannedId, setEditingBudgetPlannedId] = useState<string | null>(null);
+  // Percurso (motoqueiro): Tipo 1 / Tipo 2 definido aqui pelo RH quando a
+  // escalação veio sem tipo (rota dedicada espelha a de atendimento).
+  const setPercurseiroTipoMutation = useMutation({
+    mutationFn: async ({ inclusionId, tipo }: { inclusionId: string; tipo: PercurseiroTipo }) => {
+      const r = await apiRequest("PATCH", `/api/team-inclusions/${inclusionId}/percurseiro-tipo`, { percurseiroTipo: tipo });
+      return r.json();
+    },
+    onSuccess: (_updated, { tipo }) => {
+      qc.invalidateQueries({ queryKey: ["/api/team-inclusions", selectedEventId] });
+      qc.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+      const pacote = percurseiroDiariaCents(tipo, systemSettings as any);
+      setEditingBudgetInfo(prev => prev ? { ...prev, percurseiroTipo: tipo, percurseiro: pacote } : prev);
+      const novoValor = pacote?.total;
+      if (novoValor != null) {
+        const prevDefault = defaultBudgetValues?.valorDiaria;
+        const manualPreserved = !!editingBudget && prevDefault !== undefined && editingBudget.valorDiaria !== prevDefault;
+        if (!manualPreserved) {
+          setEditingBudget(prev => prev ? { ...prev, valorDiaria: novoValor, valorDiariaUtil: novoValor, valorDiariaFds: novoValor } : prev);
+          setModalBufs(p => { const n = { ...p }; delete n.vdia; return n; });
+        }
+        if (originalModalValues) {
+          const dias = editingBudgetInfo?.diasComDiaria ?? 0;
+          const origVal = originalModalValues.valorDiaria;
+          // Percurso: pacote fechado, sem deflação (dias × valor)
+          setOriginalModalTotal(t => t - origVal * dias + novoValor * dias);
+          setOriginalModalValues({ ...originalModalValues, valorDiaria: novoValor, valorDiariaUtil: novoValor, valorDiariaFds: novoValor });
+        }
+        setDefaultBudgetValues(prev => prev ? { ...prev, valorDiaria: novoValor, valorDiariaUtil: novoValor, valorDiariaFds: novoValor } : prev);
+        toast({ title: "Tipo do percurseiro atualizado", description: manualPreserved ? "Sua edição manual da diária foi mantida." : "Diária recalculada com o pacote do tipo escolhido." });
+      }
+    },
+    onError: (e: any) => toast({ title: "Não foi possível definir o tipo", description: e?.message, variant: "destructive" }),
+  });
+
   // Muitas escalações de atendimento viraram Planejado ANTES do flag existir
   // (backfill marcou todas como Executivo de Contas). O RH corrige por aqui,
   // sem voltar à escalação — a rota dedicada aceita o papel financeiro.
@@ -678,7 +765,7 @@ export default function BudgetPlannedPage() {
         // A troca de tipo já está PERSISTIDA no servidor: a nova tarifa vira a
         // linha de base do modal — sem acusar "▲ vs original" por mudança já gravada.
         if (originalModalValues) {
-          const dias = (editingBudgetInfo?.weekdays ?? 0) + (editingBudgetInfo?.weekends ?? 0);
+          const dias = editingBudgetInfo?.diasComDiaria ?? ((editingBudgetInfo?.weekdays ?? 0) + (editingBudgetInfo?.weekends ?? 0));
           const factors = deflationFactorsFromSettings(systemSettings as Record<string, number> | undefined);
           const origVal = originalModalValues.valorDiaria;
           setOriginalModalTotal(t => t
@@ -901,7 +988,8 @@ export default function BudgetPlannedPage() {
 
   const createAndMarkNotAttendedMutation = useMutation({
     mutationFn: async ({ budget, reason }: { budget: any; reason: string }) => {
-      const totalDias = budget.weekdays + budget.weekends;
+      // Dias persistidos = dias que efetivamente recebem diária (casa: só fds)
+      const totalDias = budget.diasComDiaria ?? (budget.weekdays + budget.weekends);
       const weightedDailyValue = totalDias > 0
         ? Math.round(budget.subtotalDiarias / totalDias)
         : budget.valorDiaria;
@@ -1135,6 +1223,15 @@ export default function BudgetPlannedPage() {
       // corrige o dailyValue sujo de R$50/dia da grade antiga.
       const isAtend = isAtendimentoFunction(getFunctionName(inclusion.functionId));
       const atendVal = isAtend ? atendimentoDailyCents((inclusion as any).atendimentoTipo, ss) : null;
+      // PERCURSO (motoqueiro) — regra 17/08: pacote FECHADO por diária (Tipo 1 /
+      // Tipo 2, definido na escalação; sem tipo → Tipo 1 provisório + aviso).
+      // Em viagem SEMPRE 2 diárias, local 1; alimentação e mobilidade = 0 (já
+      // estão no pacote); sem deflação. Regra em shared/calculation-rules.
+      const isPercurso = isPercursoFunction(getFunctionName(inclusion.functionId));
+      const percurseiroTipo = ((inclusion as any).percurseiroTipo ?? null) as PercurseiroTipo | null;
+      const percurseiroTipoEfetivo: PercurseiroTipo | null = isPercurso ? (percurseiroTipo ?? "tipo_1") : null;
+      const percurseiro = isPercurso ? percurseiroDiariaCents(percurseiroTipoEfetivo, ss) : null;
+      const percursoVal = percurseiro ? percurseiro.total : null;
       // Diária FIXA por função — sem distinção útil/fds (decisão de negócio):
       // um único valor aplicado a todos os dias. Prioridade: override manual >
       // atendimento (tipo) > valor da função (útil, senão fds) > inclusão > default.
@@ -1154,7 +1251,7 @@ export default function BudgetPlannedPage() {
         ? casaDailyCents(getFunctionName(inclusion.functionId), ss)
         : null;
       // Valor da REGRA ATUAL (motor), sem override — usado por "Restaurar padrão" e tooltips
-      const sysValorDiaria = atendVal
+      const sysValorDiaria = percursoVal ?? atendVal
         ?? freelaVal ?? casaVal ?? (fvDaily > 0 ? fvDaily : null) ?? inclusionDailyValue ?? defaultDailyValueWeekday;
       const valorDiaria = override?.valorDiaria ?? override?.valorDiariaUtil ?? override?.valorDiariaFds ?? sysValorDiaria;
       const valorDiariaUtil = valorDiaria;
@@ -1163,12 +1260,27 @@ export default function BudgetPlannedPage() {
       // Deflação por período (slide): 100% até 4 dias, 90% do 5º ao 8º, 80% do
       // 9º em diante — fatores editáveis no Valores Padrão. Aplicada sobre a
       // diária plana, por contagem total de dias.
-      const totalDiasDiaria = weekdays + weekends;
-      const deflated = calcDeflatedDailies(valorDiaria, totalDiasDiaria, deflationFactorsFromSettings(ss));
+      // Regra 17/08: colaborador `casa` (CLT) só recebe diária nos fins de
+      // semana (dia útil já é assalariado); `local` e freela: todos os dias.
+      // A REGRA é única em shared/calculation-rules (diasComDiaria) — aqui só
+      // muda QUANTOS dias contam; o valor da diária continua o mesmo.
+      // Casa + CENOTÉCNICA (regra 17/08): diária = 0 sempre ("nenhuma").
+      const fnName = getFunctionName(inclusion.functionId);
+      const regraDiaria: RegraDiaria = isPercurso ? 'todos' : regraDiariaPorTipo(collab?.type, fnName);
+      // Percurso: contagem FIXA (viagem 2 / local 1), independente do período.
+      const diasComDiaria = isPercurso
+        ? diasPercurseiro(inclusion.needsTicket)
+        : calcDiasComDiaria(collab?.type, weekdays, weekends, fnName);
+      // Percurso é pacote fechado: SEM deflação (segmento único a 100%).
+      const deflated = isPercurso
+        ? { totalCents: valorDiaria * diasComDiaria, segments: [{ days: diasComDiaria, factor: 1, dailyCents: valorDiaria, totalCents: valorDiaria * diasComDiaria, label: "pacote fechado" }] as DeflationSegment[] }
+        : calcDeflatedDailies(valorDiaria, diasComDiaria, deflationFactorsFromSettings(ss));
       const subtotalDiarias = deflated.totalCents;
       // Distribui o total deflacionado entre útil/fds só para exibição (a diária
-      // é plana; a deflação é por dia, não por útil/fds).
-      const subtotalDiariasUtil = totalDiasDiaria > 0 ? Math.round(subtotalDiarias * weekdays / totalDiasDiaria) : 0;
+      // é plana; a deflação é por dia, não por útil/fds). Casa: útil = 0.
+      const subtotalDiariasUtil = (regraDiaria === 'fds' || regraDiaria === 'nenhuma')
+        ? 0
+        : (diasComDiaria > 0 && !isPercurso ? Math.round(subtotalDiarias * weekdays / diasComDiaria) : (isPercurso ? subtotalDiarias : 0));
       const subtotalDiariasFds = subtotalDiarias - subtotalDiariasUtil;
       
       // ── Horários de voo: a PASSAGEM registrada manda; os horários sugeridos
@@ -1184,8 +1296,10 @@ export default function BudgetPlannedPage() {
 
       // Mobilidade (slide "Ajuda de custo"): R$58/trecho para voos de madrugada
       // (parte 23h30–9h30 OU chega 20h–5h), R$29 caso contrário; 0 sem voo.
-      const sysMobIda = voa ? mobilidadeTrechoCents(vooPartidaIda, vooChegadaIda) : 0;
-      const sysMobVolta = voa ? mobilidadeTrechoCents(vooPartidaVolta, null) : 0;
+      // Regra 17/08: trecho de VOLTA partindo a partir das 20h também vale R$58.
+      // Percurso: mobilidade já está no pacote → 0.
+      const sysMobIda = voa && !isPercurso ? mobilidadeTrechoCents(vooPartidaIda, vooChegadaIda, { trecho: 'ida' }) : 0;
+      const sysMobVolta = voa && !isPercurso ? mobilidadeTrechoCents(vooPartidaVolta, null, { trecho: 'volta' }) : 0;
       const sysMob = sysMobIda + sysMobVolta;
       const mobilidade = override?.mobilidade ?? sysMob;
       const mobilidadeIda = override?.mobilidadeIda ?? sysMobIda;
@@ -1195,27 +1309,33 @@ export default function BudgetPlannedPage() {
       // (quem não voa fica sem alimentação — decisão de 14/08, reversível)
       const ceno = isCenotecnicaFunction(getFunctionName(inclusion.functionId));
       const { almocoCents, jantarCents } = refeicaoCents(ceno, ss);
+      // Regra 17/08: colaborador `casa` (CLT) em dia ÚTIL tem almoço reduzido
+      // (default R$ 8,00 — só a diferença do VR); jantar e fins de semana
+      // inalterados. Valor por dia vem de shared/alimentacao (refeicaoCentsDia).
+      const refUtil = refeicaoCentsDia(ceno, ss, { tipoColaborador: collab?.type, isWeekend: false });
+      const refFds = refeicaoCentsDia(ceno, ss, { tipoColaborador: collab?.type, isWeekend: true });
       const alim = calcAlimentacao({
-        workDays: diasPeriodo, voa,
+        workDays: diasPeriodo, voa: voa && !isPercurso, // percurso: alimentação no pacote
         chegadaIda: vooChegadaIda, partidaVolta: vooPartidaVolta,
         almocoCents, jantarCents,
       });
       // Distribui as refeições calculadas entre útil/fds (persistência usa os
-      // 4 campos existentes; a regra em si não distingue útil de fds)
+      // 4 campos existentes); o VALOR de cada refeição depende do dia (útil/fds)
       let calcAlmSem = 0, calcJanSem = 0, calcAlmFds = 0, calcJanFds = 0;
       for (const d of alim.dias) {
         const dow = new Date(d.date + 'T12:00:00').getDay();
         const fds = dow === 0 || dow === 6;
-        if (d.almoco) { if (fds) calcAlmFds += almocoCents; else calcAlmSem += almocoCents; }
-        if (d.jantar) { if (fds) calcJanFds += jantarCents; else calcJanSem += jantarCents; }
+        if (d.almoco) { if (fds) calcAlmFds += refFds.almocoCents; else calcAlmSem += refUtil.almocoCents; }
+        if (d.jantar) { if (fds) calcJanFds += refFds.jantarCents; else calcJanSem += refUtil.jantarCents; }
       }
       // Sem intervalo completo de datas (diasPeriodo vazio) mas com dias
       // contados: assume dia cheio na proporção útil/fds já conhecida
-      if (voa && diasPeriodo.length === 0 && (weekdays + weekends) > 0) {
-        calcAlmSem = weekdays * almocoCents; calcJanSem = weekdays * jantarCents;
-        calcAlmFds = weekends * almocoCents; calcJanFds = weekends * jantarCents;
+      if (voa && !isPercurso && diasPeriodo.length === 0 && (weekdays + weekends) > 0) {
+        calcAlmSem = weekdays * refUtil.almocoCents; calcJanSem = weekdays * refUtil.jantarCents;
+        calcAlmFds = weekends * refFds.almocoCents; calcJanFds = weekends * refFds.jantarCents;
       }
-      const alimEstimada = voa && (fonteVoo !== 'passagem' || alim.estimado);
+      // Percurso: alimentação já está no pacote — nada a "estimar"
+      const alimEstimada = voa && !isPercurso && (fonteVoo !== 'passagem' || alim.estimado);
       // Mesmo zeroing EFETIVO do modal: bucket com 0 dias conta 0 — mesmo que
       // um override (ex.: rascunho ou lote antigo) tenha valor gravado nele.
       const almocoSemana = weekdays === 0 ? 0 : (override?.almocoSemana ?? calcAlmSem);
@@ -1223,10 +1343,10 @@ export default function BudgetPlannedPage() {
       const almocoFds = weekends === 0 ? 0 : (override?.almocoFds ?? calcAlmFds);
       const jantarFds = weekends === 0 ? 0 : (override?.jantarFds ?? calcJanFds);
       // unit values for tooltip display
-      const unitAlmocoSemana = almocoCents;
-      const unitJantarSemana = jantarCents;
-      const unitAlmocoFds = almocoCents;
-      const unitJantarFds = jantarCents;
+      const unitAlmocoSemana = refUtil.almocoCents;
+      const unitJantarSemana = refUtil.jantarCents;
+      const unitAlmocoFds = refFds.almocoCents;
+      const unitJantarFds = refFds.jantarCents;
       
       const ajudaCusto = mobilidade + almocoSemana + jantarSemana + almocoFds + jantarFds;
       const totalFinal = subtotalDiarias + ajudaCusto;
@@ -1258,6 +1378,11 @@ export default function BudgetPlannedPage() {
         weekdays,
         weekends,
         hasOverride: !!override,
+        diasComDiaria,
+        regraDiaria,
+        isPercurso,
+        percurseiroTipo,
+        percurseiro,
         vooPartidaIda,
         vooChegadaIda,
         vooPartidaVolta,
@@ -1427,6 +1552,8 @@ export default function BudgetPlannedPage() {
       type: budget.collaborator?.type === 'casa' || budget.collaborator?.type === 'local' ? 'Casa' : 'Freela',
       weekdays: budget.weekdays,
       weekends: budget.weekends,
+      diasComDiaria: budget.diasComDiaria,
+      regraDiaria: budget.regraDiaria,
       period,
       vooChegadaIda: budget.vooChegadaIda,
       vooPartidaVolta: budget.vooPartidaVolta,
@@ -1435,6 +1562,9 @@ export default function BudgetPlannedPage() {
       voa: !!budget.inclusion.needsTicket,
       isAtend: isAtendimentoFunction(getFunctionName(budget.inclusion.functionId)),
       atendimentoTipo: ((budget.inclusion as any).atendimentoTipo ?? null) as AtendimentoTipo | null,
+      isPercurso: budget.isPercurso,
+      percurseiroTipo: budget.percurseiroTipo,
+      percurseiro: budget.percurseiro,
       inclusionId: budget.inclusion.id,
     });
 
@@ -1538,7 +1668,9 @@ export default function BudgetPlannedPage() {
   };
 
   const savePlannedAndSendToActual = async (budget: typeof calculatedBudgets[0], obsLabel: string) => {
-    const totalDias = budget.weekdays + budget.weekends;
+    // Dias persistidos = dias que efetivamente recebem diária (casa: só fds);
+    // Realizado/Comparativo leem dailyQuantity.
+    const totalDias = budget.diasComDiaria;
     const weightedDailyValue = totalDias > 0
       ? Math.round(budget.subtotalDiarias / totalDias)
       : budget.valorDiaria;
@@ -1953,17 +2085,11 @@ export default function BudgetPlannedPage() {
     <div className="space-y-7 max-w-5xl mx-auto pb-32">
 
       {/* ── Cabeçalho ── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-[10px] bg-[#0033CC] flex items-center justify-center shrink-0" style={{boxShadow:'0 4px 14px #0033CC50'}}>
-            <Calculator className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-[18px] font-bold text-gray-900">Orçamento Planejado</h1>
-            <p className="text-xs text-gray-400">Cálculo automático das escalações confirmadas</p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+      <PageHeader
+        icon={Calculator}
+        title="Planejado"
+        subtitle="Orçamento planejado por colaborador — cálculo automático das escalações confirmadas"
+        actions={<>
           {isRhOrAdmin(user) && (
             <Button
               variant="outline"
@@ -1971,7 +2097,7 @@ export default function BudgetPlannedPage() {
               onClick={handleApplyDefaults}
               disabled={isApplyingDefaults}
               title="Aplica os valores padrão configurados em Sistema a todos os orçamentos ainda não enviados"
-              className="gap-1.5 text-xs font-semibold rounded-lg whitespace-nowrap hover:text-[#3B4FE4] hover:border-[#3B4FE4]"
+              className="gap-1.5 text-xs font-semibold rounded-lg whitespace-nowrap hover:text-primary hover:border-primary"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isApplyingDefaults ? 'animate-spin' : ''}`} />
               {isApplyingDefaults ? 'Atualizando...' : 'Atualizar padrões'}
@@ -1988,8 +2114,8 @@ export default function BudgetPlannedPage() {
               )}
             </div>
           )}
-        </div>
-      </div>
+        </>}
+      />
 
       {/* ── Tela 1: Seleção de evento ── */}
       {!selectedEventId ? (
@@ -2028,13 +2154,13 @@ export default function BudgetPlannedPage() {
               overflow: 'hidden',
             }}>
               {/* Faixa accent azul topo */}
-              <div style={{height: 3, background: 'linear-gradient(90deg, #0033CC 0%, #4F7BF5 50%, #059669 100%)'}} />
+              <div style={{height: 3, background: 'linear-gradient(90deg, var(--primary) 0%, var(--primary) 50%, #059669 100%)'}} />
 
               {/* flex-wrap: em telas <900px o hero e os stats quebram em linhas */}
               <div className="flex flex-wrap items-stretch">
                 {/* Total Planejado — hero section */}
                 <div className="px-7 py-5 flex flex-col justify-center gap-1 relative overflow-hidden grow max-[900px]:w-full" style={{
-                  background: 'linear-gradient(135deg, #1D4ED8 0%, #2563EB 50%, #3B82F6 100%)',
+                  background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary) 50%, var(--primary-hover) 100%)',
                   minWidth: 230,
                 }}>
                   <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-white/75 relative">Total Planejado</p>
@@ -2057,7 +2183,7 @@ export default function BudgetPlannedPage() {
                 <div className="flex-1 px-6 py-5 flex flex-wrap items-center gap-y-3 min-w-[280px]">
                   {/* Colaboradores */}
                   <div className="flex-1 min-w-[110px] flex flex-col items-center gap-1 px-4">
-                    <div className="text-[26px] font-black leading-none tracking-tight" style={{color:'#0033CC'}}>{stats.total}</div>
+                    <div className="text-[26px] font-black leading-none tracking-tight" style={{color:'var(--primary)'}}>{stats.total}</div>
                     <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">
                       <Users className="w-3 h-3" />Colaboradores
                     </div>
@@ -2067,7 +2193,7 @@ export default function BudgetPlannedPage() {
 
                   {/* Casa */}
                   <div className="flex-1 min-w-[90px] flex flex-col items-center gap-1 px-4">
-                    <div className="text-[26px] font-black leading-none tracking-tight" style={{color:'#2563EB'}}>{stats.totalCasa}</div>
+                    <div className="text-[26px] font-black leading-none tracking-tight" style={{color:'var(--primary)'}}>{stats.totalCasa}</div>
                     <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">
                       <Home className="w-3 h-3" />Casa
                     </div>
@@ -2125,7 +2251,7 @@ export default function BudgetPlannedPage() {
                   <div className="flex items-center justify-between mb-5">
                     <div>
                       <span className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Etapa atual</span>
-                      <div className="text-[13px] font-bold text-[#0033CC] mt-0.5">{steps[currentStep].label}</div>
+                      <div className="text-[13px] font-bold text-primary mt-0.5">{steps[currentStep].label}</div>
                     </div>
                   </div>
                   {/* flex-wrap + min-width por etapa: abaixo de ~900px o stepper quebra em 2 linhas */}
@@ -2156,7 +2282,7 @@ export default function BudgetPlannedPage() {
                                   boxShadow: '0 2px 8px rgba(5,150,105,0.30)',
                                 } : isActive ? {
                                   width: 36, height: 36, borderRadius: '50%',
-                                  background: 'linear-gradient(135deg, #0033CC, #1a4fd8)',
+                                  background: 'linear-gradient(135deg, var(--primary), var(--primary-hover))',
                                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                                   boxShadow: '0 0 0 4px rgba(0,51,204,0.10), 0 0 18px rgba(0,51,204,0.22)',
                                 } : {
@@ -2181,7 +2307,7 @@ export default function BudgetPlannedPage() {
                             <div className="text-center">
                               <div style={{
                                 fontSize: 11, fontWeight: 700, lineHeight: 1.2,
-                                color: isDone ? '#059669' : isActive ? '#0033CC' : '#CBD5E1',
+                                color: isDone ? '#059669' : isActive ? 'var(--primary)' : '#CBD5E1',
                               }}>{step.label}</div>
                               <div style={{fontSize: 10, color: '#94A3B8', marginTop: 2}}>{step.desc}</div>
                             </div>
@@ -2214,11 +2340,11 @@ export default function BudgetPlannedPage() {
                       <div className="px-5 py-4 pb-4">
                         <div className="flex items-center gap-2.5 mb-3">
                           <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(37,99,235,0.08)'}}>
-                            <Home style={{width:13, height:13, color:'#2563EB'}} />
+                            <Home style={{width:13, height:13, color:'var(--primary)'}} />
                           </div>
                           <span style={{fontSize:10, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Casa</span>
                         </div>
-                        <div style={{fontSize:17, fontWeight:500, color:'#2563EB', letterSpacing:'-0.02em', fontVariantNumeric:'tabular-nums', lineHeight:1}}>
+                        <div style={{fontSize:17, fontWeight:500, color:'var(--primary)', letterSpacing:'-0.02em', fontVariantNumeric:'tabular-nums', lineHeight:1}}>
                           {formatCurrency(stats.valorCasa)}
                         </div>
                         <div className="flex items-center gap-1 mt-2">
@@ -2365,18 +2491,18 @@ export default function BudgetPlannedPage() {
                   style={{
                     height: 34, paddingLeft: 28, paddingRight: 12, width: 180,
                     background: '#F8FAFC', border: 'none',
-                    borderBottom: `1.5px solid ${searchTerm ? '#0033CC' : '#E2E8F0'}`,
+                    borderBottom: `1.5px solid ${searchTerm ? 'var(--primary)' : '#E2E8F0'}`,
                     borderRadius: '6px 6px 0 0',
                     fontSize: 12, color: '#334155', outline: 'none',
                     transition: 'border-color 0.15s',
                   }}
-                  onFocus={e => (e.currentTarget.style.borderBottomColor = '#0033CC')}
-                  onBlur={e => (e.currentTarget.style.borderBottomColor = searchTerm ? '#0033CC' : '#E2E8F0')}
+                  onFocus={e => (e.currentTarget.style.borderBottomColor = 'var(--primary)')}
+                  onBlur={e => (e.currentTarget.style.borderBottomColor = searchTerm ? 'var(--primary)' : '#E2E8F0')}
                 />
               </div>
 
               <Select value={filterFunction} onValueChange={setFilterFunction}>
-                <SelectTrigger className="w-auto min-w-[140px] h-[34px] text-xs shrink-0 bg-[#F8FAFC] border-0 border-b border-slate-200 rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0 focus:border-b-[#0033CC]">
+                <SelectTrigger className="w-auto min-w-[140px] h-[34px] text-xs shrink-0 bg-[#F8FAFC] border-0 border-b border-slate-200 rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0 focus:border-b-primary">
                   <SelectValue placeholder="Função" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl shadow-xl border border-slate-100 min-w-[180px] p-1.5" style={{backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', background:'rgba(255,255,255,0.96)'}}>
@@ -2415,7 +2541,7 @@ export default function BudgetPlannedPage() {
               <span style={{
                 fontSize: 11, color: '#94A3B8', fontWeight: 600,
                 background: '#F8FAFC', borderRadius: 8, padding: '4px 10px',
-              }}>
+              }} aria-live="polite">
                 {filteredBudgets.length} resultado{filteredBudgets.length !== 1 ? 's' : ''}
               </span>
             </div>
@@ -2469,14 +2595,14 @@ export default function BudgetPlannedPage() {
                       data-card-id={budget.inclusion.id}
                       className={`rounded-2xl border transition-all duration-500 ease-in-out overflow-hidden flex flex-col group h-full ${
                         isNotAttended ? 'bg-slate-50 border-slate-200 shadow-sm' :
-                        highlightCardId === budget.inclusion.id ? 'bg-white ring-2 ring-[#0033CC] shadow-[0_8px_32px_rgba(0,51,204,0.14)]' :
+                        highlightCardId === budget.inclusion.id ? 'bg-white ring-2 ring-primary shadow-[0_8px_32px_rgba(0,51,204,0.14)]' :
                         isSelected ? 'bg-white ring-2 ring-emerald-400 border-emerald-200 shadow-md' : 
                         isSent ? 'bg-white border-indigo-200 opacity-85 shadow-sm' :
                         budget.hasOverride ? 'bg-white border-amber-200 shadow-sm' : 'bg-white border-slate-200 shadow-sm'
                       } ${!isNotAttended && !isSelected ? 'hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-100/60 hover:border-blue-200' : ''}`}
                     >
                       {/* stripe top */}
-                      <div className={`h-[3px] ${isSelected ? 'bg-emerald-400' : isSent ? 'bg-blue-400' : isNotAttended ? 'bg-slate-300' : 'bg-[#0033CC]'}`} />
+                      <div className={`h-[3px] ${isSelected ? 'bg-emerald-400' : isSent ? 'bg-blue-400' : isNotAttended ? 'bg-slate-300' : 'bg-primary'}`} />
                       {/* ── Header do card — estado INATIVO (Não Participou) ── */}
                       {isNotAttended ? (
                         <div className="px-4 py-3 bg-white">
@@ -2606,10 +2732,21 @@ export default function BudgetPlannedPage() {
                                   </span>
                                 )
                               )}
+                              {budget.isPercurso && (
+                                budget.percurseiroTipo ? (
+                                  <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full shrink-0" title="Tipo do percurseiro (pacote fechado) — troque no modal de edição">
+                                    {PERCURSEIRO_TIPOS.find(t => t.value === budget.percurseiroTipo)?.label}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full shrink-0" title="Defina Tipo 1 ou Tipo 2 no modal de edição — Tipo 1 usado provisoriamente">
+                                    definir tipo
+                                  </span>
+                                )
+                              )}
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${isCasa ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
                               {isSent && (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap"
-                                  style={{background:'#EFF6FF', color:'#2563EB', border:'1px solid #BFDBFE'}}>
+                                  style={{background:'#EFF6FF', color:'var(--primary)', border:'1px solid #BFDBFE'}}>
                                   <CheckCheck style={{width:10,height:10}} />
                                   Salvo
                                 </span>
@@ -2692,8 +2829,8 @@ export default function BudgetPlannedPage() {
                               <div className="flex items-center px-3 py-2.5 shrink-0" style={{minWidth: 112}}>
                                 <div className="flex flex-col gap-0.5">
                                   <div className="flex items-center gap-1">
-                                    <Calendar className="w-2.5 h-2.5 shrink-0" style={{color:'#0033CC'}} />
-                                    <span className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{color:'#0033CC'}}>Diárias</span>
+                                    <Calendar className="w-2.5 h-2.5 shrink-0" style={{color:'var(--primary)'}} />
+                                    <span className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{color:'var(--primary)'}}>Diárias</span>
                                   </div>
                                   <span className="tabular-nums font-medium text-[14px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em', textDecoration: isNotAttended ? 'line-through' : 'none'}}>{formatCurrency(budget.subtotalDiarias)}</span>
                                 </div>
@@ -2702,24 +2839,54 @@ export default function BudgetPlannedPage() {
                               <div style={{width: 1, background: 'rgba(0,51,204,0.07)', margin: '9px 0'}} />
                               {/* Direita: detalhes */}
                               <div className="flex-1 flex flex-col justify-center gap-1 px-3 py-2.5">
-                                {budget.weekdays > 0 && (
+                                {/* Percurso: pacote fechado × diárias fixas (viagem 2 / local 1) */}
+                                {budget.isPercurso && (
+                                  <>
+                                    <div className="flex items-center justify-between gap-x-2">
+                                      <span className="text-[11px] leading-tight font-normal flex-1" style={{color:'#94A3B8'}}>
+                                        {budget.diasComDiaria} {budget.diasComDiaria === 1 ? 'diária' : 'diárias'} ({budget.inclusion.needsTicket ? 'percurso em viagem — regra fixa' : 'percurso local'})
+                                      </span>
+                                      <span className="font-normal tabular-nums text-[11px] leading-tight shrink-0 tracking-wide text-primary">{formatCurrency(budget.valorDiaria)}</span>
+                                    </div>
+                                    {budget.percurseiro && (
+                                      <span className="text-[10px] leading-tight text-slate-400 tabular-nums"
+                                        title="Composição do pacote por diária: motoqueiro + fee Ivan + alimentação (3 refeições) + ajuda transporte + NF">
+                                        {formatCurrency(budget.percurseiro.motoqueiro)} + fee {formatCurrency(budget.percurseiro.fee)} + alim. {formatCurrency(budget.percurseiro.alimentacao)} + transp. {formatCurrency(budget.percurseiro.transporte)} + NF {formatCurrency(budget.percurseiro.nf)}
+                                      </span>
+                                    )}
+                                  </>
+                                )}
+                                {!budget.isPercurso && budget.regraDiaria === 'nenhuma' && (budget.weekdays > 0 || budget.weekends > 0) && (
+                                  <span className="font-normal text-[11px] leading-tight text-slate-400"
+                                    title="Cenotécnica da casa (CLT): não recebe diária (nem em fim de semana)">
+                                    sem diária (cenotécnica CLT)
+                                  </span>
+                                )}
+                                {!budget.isPercurso && budget.regraDiaria !== 'nenhuma' && budget.weekdays > 0 && (
                                   <div className="flex items-center justify-between gap-x-2">
                                     <span className="text-[11px] leading-tight font-normal flex-1" style={{color:'#94A3B8', minWidth:'fit-content'}}>{formatDiasUteis(budget.weekdays)}</span>
-                                    <span className="font-normal tabular-nums text-[11px] leading-tight shrink-0 tracking-wide" style={{color:'#3B5FCC'}}>{formatCurrency(budget.valorDiariaUtil)}</span>
+                                    {budget.regraDiaria === 'fds' ? (
+                                      <span className="font-normal text-[11px] leading-tight shrink-0 text-slate-400"
+                                        title="Colaborador da casa (CLT): em dia útil já é assalariado — diária só nos fins de semana">
+                                        sem diária (CLT)
+                                      </span>
+                                    ) : (
+                                      <span className="font-normal tabular-nums text-[11px] leading-tight shrink-0 tracking-wide text-primary">{formatCurrency(budget.valorDiariaUtil)}</span>
+                                    )}
                                   </div>
                                 )}
-                                {budget.weekends > 0 && (
+                                {!budget.isPercurso && budget.regraDiaria !== 'nenhuma' && budget.weekends > 0 && (
                                   <div className="flex items-center justify-between gap-x-2">
                                     <span className="text-[11px] leading-tight font-normal flex-1" style={{color:'#94A3B8', minWidth:'fit-content'}}>{formatFds(budget.weekends)}</span>
                                     <span className="font-normal tabular-nums text-[11px] leading-tight shrink-0 tracking-wide" style={{color:'#6d28d9'}}>{formatCurrency(budget.valorDiariaFds)}</span>
                                   </div>
                                 )}
-                                {budget.weekdays === 0 && budget.weekends === 0 && (
+                                {!budget.isPercurso && budget.weekdays === 0 && budget.weekends === 0 && (
                                   <span className="text-[11px] font-normal" style={{color:'#CBD5E1'}}>—</span>
                                 )}
                                 {/* Memória da deflação por período (>4 dias) */}
                                 {budget.deflationSegments.length > 1 && (
-                                  <span className="text-[10px] leading-tight font-normal tabular-nums" style={{color:'#6D7BC4'}}
+                                  <span className="text-[10px] leading-tight font-normal tabular-nums" style={{color:'var(--primary)'}}
                                     title="Deflação por período: 100% até o 4º dia; fatores reduzidos nas faixas seguintes">
                                     {formatSegmentsMemo(budget.deflationSegments)}
                                   </span>
@@ -2760,7 +2927,9 @@ export default function BudgetPlannedPage() {
                                   </div>
                                 )}
                                 {budget.almocoSemana === 0 && budget.jantarSemana === 0 && budget.almocoFds === 0 && budget.jantarFds === 0 && (
-                                  <span className="text-[11px] font-normal" style={{color:'#CBD5E1'}}>—</span>
+                                  budget.isPercurso
+                                    ? <span className="text-[11px] font-normal text-slate-400" title="Alimentação (3 refeições) já está dentro do pacote do percurseiro">incluída no pacote</span>
+                                    : <span className="text-[11px] font-normal" style={{color:'#CBD5E1'}}>—</span>
                                 )}
                               </div>
                             </div>
@@ -2791,7 +2960,9 @@ export default function BudgetPlannedPage() {
                                   </div>
                                 )}
                                 {budget.mobilidadeIda === 0 && budget.mobilidadeVolta === 0 && (
-                                  <span className="text-[11px] font-normal" style={{color:'#CBD5E1'}}>—</span>
+                                  budget.isPercurso
+                                    ? <span className="text-[11px] font-normal text-slate-400" title="Ajuda de custo transporte já está dentro do pacote do percurseiro">incluída no pacote</span>
+                                    : <span className="text-[11px] font-normal" style={{color:'#CBD5E1'}}>—</span>
                                 )}
                               </div>
                             </div>
@@ -2809,12 +2980,12 @@ export default function BudgetPlannedPage() {
                           borderTop: isNotAttended ? '1px solid #E2E8F0' : '1px solid rgba(224,231,255,0.8)',
                           marginTop: 'auto',
                         }}>
-                        <span style={{fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: isNotAttended ? '#94A3B8' : '#6D7BC4'}}>
+                        <span style={{fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: isNotAttended ? '#94A3B8' : 'var(--primary)'}}>
                           {isNotAttended ? 'Não contabilizado' : 'Total Planejado'}
                         </span>
                         <span style={{
                           fontSize: 16, fontWeight: 500, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums',
-                          color: isNotAttended ? '#94A3B8' : '#0033CC',
+                          color: isNotAttended ? '#94A3B8' : 'var(--primary)',
                           textDecoration: isNotAttended ? 'line-through' : 'none',
                         }}>
                           {formatCurrency(budget.totalFinal)}
@@ -2836,7 +3007,7 @@ export default function BudgetPlannedPage() {
               {/* ── Planilha de Edição ── */}
               {/* Toolbar */}
               <div className="flex items-center justify-between px-1 py-1">
-                <span className="text-[11px] text-slate-400 font-medium">{filteredBudgets.length} colaborador{filteredBudgets.length !== 1 ? 'es' : ''}</span>
+                <span className="text-[11px] text-slate-400 font-medium" aria-live="polite">{filteredBudgets.length} colaborador{filteredBudgets.length !== 1 ? 'es' : ''}</span>
                 {confirmReset ? (
                   <div className="flex items-center gap-2 text-[11px]">
                     <span className="text-slate-500">Isso limpa os ajustes manuais de todos os visíveis (filtro atual). Confirmar?</span>
@@ -2849,7 +3020,7 @@ export default function BudgetPlannedPage() {
                         });
                         setConfirmReset(false);
                       }}
-                      className="px-2.5 py-1 rounded-md bg-[#0033CC] text-white font-semibold text-[11px] hover:bg-[#0022aa] transition-colors"
+                      className="px-2.5 py-1 rounded-md bg-primary text-white font-semibold text-[11px] hover:bg-primary-hover transition-colors"
                     >
                       Sim, aplicar
                     </button>
@@ -2902,7 +3073,7 @@ export default function BudgetPlannedPage() {
                       <div className="grid grid-cols-2 gap-2">
                         {(['all','casa','freela','selected'] as const).map(t => (
                           <button key={t} onClick={() => setAdvancedBatch(p => p ? {...p, target: t} : p)}
-                            className={`text-[12px] px-3 py-2 rounded-lg border font-medium transition-colors ${advancedBatch.target === t ? 'border-[#0033CC] bg-blue-50 text-[#0033CC]' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                            className={`text-[12px] px-3 py-2 rounded-lg border font-medium transition-colors ${advancedBatch.target === t ? 'border-primary bg-blue-50 text-primary' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
                             {t === 'all' ? 'Todos' : t === 'casa' ? 'Somente CASA' : t === 'freela' ? 'Somente FREELA' : `Selecionados (${selectedIds.size})`}
                           </button>
                         ))}
@@ -2913,8 +3084,8 @@ export default function BudgetPlannedPage() {
                       <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">O que alterar</div>
                       <div className="grid grid-cols-2 gap-2">
                         {([
-                          ['vdia','Diária (R$/dia)','#2563EB'],
-                          ['alimUtil','Alimentação Útil','#2563EB'],
+                          ['vdia','Diária (R$/dia)','var(--primary)'],
+                          ['alimUtil','Alimentação Útil','var(--primary)'],
                           ['alimFds','Alimentação FDS','#F97316'],
                           ['mob','Mobilidade','#6D28D9'],
                         ] as const).map(([f, label, color]) => (
@@ -2931,7 +3102,7 @@ export default function BudgetPlannedPage() {
                       <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
                         {advancedBatch.field === 'mob' ? 'Novo valor (R$ total Ida+Volta)' : 'Novo valor (R$/dia)'}
                       </div>
-                      <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 focus-within:border-[#0033CC] focus-within:shadow-[0_0_0_2px_rgba(0,51,204,0.1)]">
+                      <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 focus-within:border-primary focus-within:shadow-[0_0_0_2px_rgba(0,51,204,0.1)]">
                         <span className="text-slate-400 text-sm font-medium">R$</span>
                         <input
                           type="text" inputMode="decimal" placeholder="0,00"
@@ -2947,7 +3118,7 @@ export default function BudgetPlannedPage() {
                       <button onClick={() => setAdvancedBatch(null)} className="flex-1 h-10 text-[13px] border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 font-medium transition-colors">Cancelar</button>
                       <button onClick={applyAdvancedBatch}
                         className="flex-1 h-10 text-[13px] rounded-xl text-white font-bold transition-colors"
-                        style={{background:'#0033CC'}}>
+                        style={{background:'var(--primary)'}}>
                         Aplicar Ajuste
                       </button>
                     </div>
@@ -2997,7 +3168,7 @@ export default function BudgetPlannedPage() {
                               <span className="text-[11px] font-semibold text-slate-600">Diária R$/dia</span>
                               <button
                                 onClick={e => { batchTriggerRef.current = e.currentTarget; setBatchPopover(batchPopover?.field === 'vdia' ? null : { field: 'vdia', value: '' }); }}
-                                className={`text-[10px] p-1.5 -m-1 rounded transition-colors cursor-pointer ${batchApplied.has('vdia') ? 'text-[#3B4FE4]' : 'text-slate-300 hover:text-slate-500'}`}
+                                className={`text-[10px] p-1.5 -m-1 rounded transition-colors cursor-pointer ${batchApplied.has('vdia') ? 'text-primary' : 'text-slate-300 hover:text-slate-500'}`}
                                 style={{minWidth:24, minHeight:24}}
                                 title="Editar em lote"
                                 aria-label="Editar diária em lote"
@@ -3021,13 +3192,13 @@ export default function BudgetPlannedPage() {
                               <div className="flex flex-col items-end leading-tight gap-0.5">
                                 <span className="text-[11px] font-semibold text-slate-600">Alim. R$/dia</span>
                                 <div className="flex items-center gap-2 text-[10px] font-medium" style={{color:'#94A3B8'}}>
-                                  <span><span className="inline-block w-1.5 h-1.5 rounded-full mr-0.5" style={{background:'#2563EB', verticalAlign:'middle'}} />Útil</span>
+                                  <span><span className="inline-block w-1.5 h-1.5 rounded-full mr-0.5" style={{background:'var(--primary)', verticalAlign:'middle'}} />Útil</span>
                                   <span><span className="inline-block w-1.5 h-1.5 rounded-full mr-0.5" style={{background:'#F97316', verticalAlign:'middle'}} />FDS</span>
                                 </div>
                               </div>
                               <button
                                 onClick={e => { batchTriggerRef.current = e.currentTarget; setBatchPopover(batchPopover?.field === 'alim' ? null : { field: 'alim', value: '' }); }}
-                                className={`text-[10px] p-1.5 -m-1 rounded transition-colors cursor-pointer ${batchApplied.has('alim') ? 'text-[#3B4FE4]' : 'text-slate-300 hover:text-slate-500'}`}
+                                className={`text-[10px] p-1.5 -m-1 rounded transition-colors cursor-pointer ${batchApplied.has('alim') ? 'text-primary' : 'text-slate-300 hover:text-slate-500'}`}
                                 style={{minWidth:24, minHeight:24}}
                                 title="Editar em lote"
                                 aria-label="Editar alimentação em lote"
@@ -3051,7 +3222,7 @@ export default function BudgetPlannedPage() {
                                 <span className="text-slate-600">Mob. R$ total</span>
                                 <button
                                   onClick={e => { batchTriggerRef.current = e.currentTarget; setBatchPopover(batchPopover?.field === 'mob' ? null : { field: 'mob', value: '' }); }}
-                                  className={`text-[10px] p-1.5 -m-1 rounded transition-colors cursor-pointer ${batchApplied.has('mob') ? 'text-[#3B4FE4]' : 'text-slate-300 hover:text-slate-500'}`}
+                                  className={`text-[10px] p-1.5 -m-1 rounded transition-colors cursor-pointer ${batchApplied.has('mob') ? 'text-primary' : 'text-slate-300 hover:text-slate-500'}`}
                                   style={{minWidth:24, minHeight:24}}
                                   title="Editar em lote"
                                   aria-label="Editar mobilidade em lote"
@@ -3068,19 +3239,19 @@ export default function BudgetPlannedPage() {
                                 />
                               )}
                             </th>
-                          <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 bg-blue-50/60 text-[#3B4FE4]">Subtotal</th>
+                          <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 bg-blue-50/60 text-primary">Subtotal</th>
                         </tr>
 
                         {/* Banner de edição em lote */}
                         {batchApplied.size > 0 && (
                           <tr>
                             <td colSpan={colSpanTotal} style={{background:'#EEF2FF', padding:'4px 16px'}}>
-                              <div className="flex items-center gap-2 text-[11px]" style={{color:'#3B4FE4'}}>
+                              <div className="flex items-center gap-2 text-[11px]" style={{color:'var(--primary)'}}>
                                 <span>✏ {Array.from(batchApplied).map(f => f === 'vdia' ? 'R$/dia' : f === 'alim' ? 'Alimentação' : 'Mobilidade').join(' e ')} editado{batchApplied.size > 1 ? 's' : ''} em lote</span>
                                 {batchHistory && (
                                   <>
                                     <span style={{color:'#a5b4fc'}}>·</span>
-                                    <button onClick={undoBatch} className="cursor-pointer font-semibold px-2 py-0.5 rounded text-[10px] transition-colors hover:opacity-80" style={{background:'#3B4FE4', color:'#fff'}}>Desfazer</button>
+                                    <button onClick={undoBatch} className="cursor-pointer font-semibold px-2 py-0.5 rounded text-[10px] transition-colors hover:opacity-80" style={{background:'var(--primary)', color:'#fff'}}>Desfazer</button>
                                   </>
                                 )}
                               </div>
@@ -3125,7 +3296,7 @@ export default function BudgetPlannedPage() {
                         const totalMobCols = filteredBudgets.reduce((s, b) => s + b.mobilidade, 0);
                         return (
                           <tfoot>
-                            <tr style={{background:'#F0F4FF', borderTop:'2px solid #3B4FE4'}}>
+                            <tr style={{background:'#F0F4FF', borderTop:'2px solid var(--primary)'}}>
                               <td style={{width:40}} />
                               <td className="px-4 py-2.5">
                                 <span className="text-[11px] font-semibold uppercase tracking-wider" style={{color:'#888'}}>
@@ -3153,7 +3324,7 @@ export default function BudgetPlannedPage() {
                                 </span>
                               </td>
                               <td className="px-4 py-2.5 text-right">
-                                <span className="text-[15px] font-extrabold font-mono tabular-nums" style={{color:'#3B4FE4'}}>{formatCurrency(totalGeral)}</span>
+                                <span className="text-[15px] font-extrabold font-mono tabular-nums" style={{color:'var(--primary)'}}>{formatCurrency(totalGeral)}</span>
                               </td>
                             </tr>
                           </tfoot>
@@ -3243,9 +3414,12 @@ export default function BudgetPlannedPage() {
           {editingBudget && editingBudgetInfo && (() => {
             const noWeekdays = editingBudgetInfo.weekdays === 0;
             const noWeekends = editingBudgetInfo.weekends === 0;
-            const totalDiasModal = editingBudgetInfo.weekdays + editingBudgetInfo.weekends;
+            // Dias que recebem diária (casa: só fds) — mesma regra do motor
+            const diasDiariaModal = editingBudgetInfo.diasComDiaria;
             // Mesma conta do card: diária plana COM deflação por período
-            const deflatedModal = calcDeflatedDailies(editingBudget.valorDiaria, totalDiasModal, deflationFactorsFromSettings(systemSettings));
+            const deflatedModal = editingBudgetInfo.isPercurso
+              ? { totalCents: editingBudget.valorDiaria * diasDiariaModal, segments: [] as DeflationSegment[] } // pacote fechado: sem deflação
+              : calcDeflatedDailies(editingBudget.valorDiaria, diasDiariaModal, deflationFactorsFromSettings(systemSettings));
             const totalDiarias = deflatedModal.totalCents;
             const effectiveAlmocoSemana = noWeekdays ? 0 : editingBudget.almocoSemana;
             const effectiveJantarSemana = noWeekdays ? 0 : editingBudget.jantarSemana;
@@ -3271,7 +3445,7 @@ export default function BudgetPlannedPage() {
               }
             };
 
-            const inputCls = "h-9 text-sm w-[88px] text-right font-semibold border-slate-200 focus:border-[#0033CC] focus:ring-2 focus:ring-[#0033CC]/10 rounded-lg bg-white";
+            const inputCls = "h-9 text-sm w-[88px] text-right font-semibold border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-lg bg-white";
             // Buffer de digitação por campo: preserva o texto enquanto o usuário
             // digita ("540,50" funciona) e normaliza no blur.
             const mBuf = (key: string, fallback: number) => modalBufs[key] ?? String(fallback / 100);
@@ -3282,7 +3456,7 @@ export default function BudgetPlannedPage() {
             return (
             <>
               {/* ── Header ── */}
-              <div className="px-5 py-3.5 relative shrink-0" style={{background:'linear-gradient(135deg, #0033CC 0%, #1a4fd8 100%)'}}>
+              <div className="px-5 py-3.5 relative shrink-0" style={{background:'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)'}}>
                 <div className="flex items-center gap-3">
                   {/* Avatar 40px */}
                   <div className="w-10 h-10 rounded-[10px] flex items-center justify-center font-black text-[15px] shrink-0" style={{background:'rgba(255,255,255,0.15)', color:'#fff', border:'1.5px solid rgba(255,255,255,0.25)'}}>
@@ -3302,6 +3476,8 @@ export default function BudgetPlannedPage() {
                       <span className="inline-flex items-center gap-1 h-[22px] text-[11px] px-2 rounded-md" style={{background:'rgba(255,255,255,0.12)', color:'rgba(255,255,255,0.85)'}}>
                         <Briefcase className="w-3 h-3" />
                         {editingBudgetInfo.weekdays}d úteis
+                        {editingBudgetInfo.regraDiaria === 'fds' && <span className="opacity-70">· sem diária (CLT)</span>}
+                        {editingBudgetInfo.regraDiaria === 'nenhuma' && <span className="opacity-70">· sem diária (ceno CLT)</span>}
                       </span>
                       <span className="inline-flex items-center gap-1 h-[22px] text-[11px] px-2 rounded-md" style={{background:'rgba(255,200,0,0.2)', color:'rgba(255,220,80,1)'}}>
                         <Sun className="w-3 h-3" />
@@ -3335,7 +3511,7 @@ export default function BudgetPlannedPage() {
                     className={[
                       'flex-1 h-10 text-[13px] font-medium transition-colors',
                       modalTab === id
-                        ? 'text-[#0033CC] border-b-2 border-[#0033CC] bg-blue-50/40'
+                        ? 'text-primary border-b-2 border-primary bg-blue-50/40'
                         : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50',
                     ].join(' ')}
                   >
@@ -3353,12 +3529,12 @@ export default function BudgetPlannedPage() {
                 <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                   <div className="flex items-center justify-between px-3.5 py-2 bg-blue-50 border-b border-blue-100">
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded-md bg-[#0033CC] flex items-center justify-center">
+                      <div className="w-4 h-4 rounded-md bg-primary flex items-center justify-center">
                         <Calendar className="w-2.5 h-2.5 text-white" />
                       </div>
-                      <span className="text-[11px] font-bold text-[#0033CC] uppercase tracking-wider">Diárias</span>
+                      <span className="text-[11px] font-bold text-primary uppercase tracking-wider">Diárias</span>
                     </div>
-                    <span className="text-[13px] font-bold text-[#0033CC]">{formatCurrency(totalDiarias)}</span>
+                    <span className="text-[13px] font-bold text-primary">{formatCurrency(totalDiarias)}</span>
                   </div>
 
                   {/* Atendimento: escolha da tarifa (Key Account × Exec. de Contas).
@@ -3382,7 +3558,7 @@ export default function BudgetPlannedPage() {
                                 }
                               }}
                               className={`px-2.5 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
-                                ativo ? 'bg-[#0033CC] text-white' : 'bg-white text-slate-600 hover:bg-blue-50'
+                                ativo ? 'bg-primary text-white' : 'bg-white text-slate-600 hover:bg-blue-50'
                               }`}
                             >
                               {op.label}{valor != null ? ` · ${formatCurrency(valor)}` : ''}
@@ -3395,13 +3571,57 @@ export default function BudgetPlannedPage() {
                       )}
                     </div>
                   )}
+
+                  {/* Percurso (motoqueiro): pacote fechado Tipo 1 × Tipo 2 */}
+                  {editingBudgetInfo.isPercurso && (
+                    <div className="flex items-center gap-2 flex-wrap px-3.5 py-2 bg-blue-50/40 border-b border-blue-100">
+                      <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Tipo do percurseiro</span>
+                      <div className="flex rounded-lg border border-blue-200 overflow-hidden">
+                        {PERCURSEIRO_TIPOS.map(op => {
+                          const ativo = editingBudgetInfo.percurseiroTipo === op.value;
+                          const valor = percurseiroDiariaCents(op.value, systemSettings as any)?.total;
+                          return (
+                            <button
+                              key={op.value}
+                              type="button"
+                              disabled={setPercurseiroTipoMutation.isPending || modalViewMode}
+                              aria-pressed={ativo}
+                              onClick={() => {
+                                if (!ativo && editingBudgetInfo.inclusionId) {
+                                  setPercurseiroTipoMutation.mutate({ inclusionId: editingBudgetInfo.inclusionId, tipo: op.value });
+                                }
+                              }}
+                              className={`px-2.5 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
+                                ativo ? 'bg-primary text-white' : 'bg-white text-slate-600 hover:bg-blue-50'
+                              }`}
+                            >
+                              {op.label}{valor != null ? ` · ${formatCurrency(valor)}/diária` : ''}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {!editingBudgetInfo.percurseiroTipo && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold" title="Tipo 1 usado provisoriamente até a definição">definir o tipo (Tipo 1 provisório)</span>
+                      )}
+                      {editingBudgetInfo.percurseiro && (
+                        <span className="w-full text-[10px] text-slate-500 tabular-nums">
+                          Pacote por diária: motoqueiro {formatCurrency(editingBudgetInfo.percurseiro.motoqueiro)} + fee Ivan {formatCurrency(editingBudgetInfo.percurseiro.fee)} + alimentação {formatCurrency(editingBudgetInfo.percurseiro.alimentacao)} + transporte {formatCurrency(editingBudgetInfo.percurseiro.transporte)} + NF {formatCurrency(editingBudgetInfo.percurseiro.nf)} = <b>{formatCurrency(editingBudgetInfo.percurseiro.total)}</b> · {editingBudgetInfo.voa ? '2 diárias (em viagem — regra fixa)' : '1 diária (local)'} · alimentação e mobilidade incluídas no pacote
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="divide-y divide-slate-100">
                     {/* Diária PLANA — um único valor para todos os dias */}
                     <div className="flex items-center px-3.5 py-2 gap-3">
                       <div className="flex items-center gap-1.5 flex-1">
                         <Briefcase className="w-3 h-3 text-slate-400 shrink-0" />
                         <span className="text-[12px] font-medium text-slate-700">Diária</span>
-                        <span className="text-[10px] text-slate-400">× {totalDiasModal} {totalDiasModal === 1 ? 'dia' : 'dias'}</span>
+                        <span className="text-[10px] text-slate-400">
+                          × {diasDiariaModal} {diasDiariaModal === 1 ? 'dia' : 'dias'}
+                          {editingBudgetInfo.regraDiaria === 'fds' && ' (só fins de semana)'}
+                          {editingBudgetInfo.regraDiaria === 'nenhuma' && ' (cenotécnica CLT: sem diária)'}
+                          {editingBudgetInfo.isPercurso && (editingBudgetInfo.voa ? ' (percurso em viagem — regra fixa de 2 diárias)' : ' (percurso local)')}
+                        </span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span className="text-[11px] text-slate-400">R$</span>
@@ -3696,7 +3916,7 @@ export default function BudgetPlannedPage() {
                 <div className="px-5 py-3 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] uppercase font-semibold tracking-wider text-slate-400">Total Planejado</div>
-                    <div className="text-[22px] font-extrabold leading-none mt-0.5 transition-all" style={{color:'#3B4FE4'}}>{formatCurrency(modalTotal)}</div>
+                    <div className="text-[22px] font-extrabold leading-none mt-0.5 transition-all" style={{color:'var(--primary)'}}>{formatCurrency(modalTotal)}</div>
                   </div>
                   <div className="text-right">
                     <div className="text-[11px] text-slate-500 leading-tight">
@@ -3722,7 +3942,7 @@ export default function BudgetPlannedPage() {
                       <button
                         onClick={restoreDefaults}
                         title="Volta aos valores da regra atual (atendimento/freela/casa + deflação + voo)"
-                        className="flex items-center gap-1 text-[11px] font-medium text-[#0033CC] hover:text-[#0022aa] transition-colors"
+                        className="flex items-center gap-1 text-[11px] font-medium text-primary hover:text-primary-hover transition-colors"
                       >
                         <RotateCcw className="w-3 h-3" />
                         Restaurar padrão
@@ -3741,8 +3961,7 @@ export default function BudgetPlannedPage() {
                       <Button
                         onClick={saveEdit}
                         disabled={!hasChanges}
-                        className="h-9 px-5 text-white font-semibold rounded-lg gap-2 text-sm"
-                        style={{background: hasChanges ? '#0033CC' : undefined, boxShadow: hasChanges ? '0 4px 12px #0033CC40' : 'none'}}
+                        className={`h-9 px-5 text-white font-semibold rounded-lg gap-2 text-sm ${hasChanges ? 'bg-primary hover:bg-primary-hover shadow-md' : ''}`}
                       >
                         <CheckCheck className="w-4 h-4" />
                         {hasChanges && diff !== 0 ? `Salvar (${diff > 0 ? '+' : ''}${formatCurrency(diff)})` : 'Salvar'}
@@ -3862,7 +4081,7 @@ export default function BudgetPlannedPage() {
               {/* Ícone — círculo azul claro */}
               <div className="w-11 h-11 rounded-full flex items-center justify-center"
                 style={{background:'#EFF6FF', border:'1.5px solid #BFDBFE'}}>
-                <Undo2 style={{color:'#2563EB', width:18, height:18}} />
+                <Undo2 style={{color:'var(--primary)', width:18, height:18}} />
               </div>
 
               {/* Título + subtítulo */}
@@ -3871,7 +4090,7 @@ export default function BudgetPlannedPage() {
                 <p className="text-[12px] font-normal" style={{color:'#94A3B8'}}>{restoreModal.name} · {restoreModal.functionName}</p>
                 {restoreModal.startDate && restoreModal.endDate && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md mt-1"
-                    style={{background:'#EFF6FF', fontSize:11, fontWeight:500, color:'#2563EB', border:'1px solid #BFDBFE'}}>
+                    style={{background:'#EFF6FF', fontSize:11, fontWeight:500, color:'var(--primary)', border:'1px solid #BFDBFE'}}>
                     <Calendar style={{width:10, height:10}} />
                     {new Date(restoreModal.startDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
                     {' – '}
@@ -4005,7 +4224,7 @@ export default function BudgetPlannedPage() {
               </div>
               <div style={{
                 fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em',
-                color: '#0033CC', fontVariantNumeric: 'tabular-nums',
+                color: 'var(--primary)', fontVariantNumeric: 'tabular-nums',
                 fontFeatureSettings: '"tnum"', lineHeight: 1,
               }}>
                 {formatCurrency(totalGeral)}
@@ -4022,7 +4241,7 @@ export default function BudgetPlannedPage() {
                     width: `${stats.progressoEnvio}%`,
                     background: stats.progressoEnvio >= 100
                       ? '#059669'
-                      : 'linear-gradient(90deg, #0033CC 0%, #4F7BF5 60%, #059669 100%)',
+                      : 'linear-gradient(90deg, var(--primary) 0%, var(--primary) 60%, #059669 100%)',
                     boxShadow: stats.progressoEnvio >= 100
                       ? '0 0 6px rgba(5,150,105,0.45)'
                       : 'none',

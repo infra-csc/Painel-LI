@@ -1,6 +1,13 @@
 /**
  * Sistema de permissões centralizado
  * Define quais roles têm acesso a quais funcionalidades
+ *
+ * ATENÇÃO — dois arquivos convivem hoje (não unificar por enquanto):
+ * - `role-utils.ts` é a FONTE das flags de permissão espelhadas do servidor
+ *   (cada flag aponta para a rota de server/routes.ts que ela reflete).
+ *   NOVAS PERMISSÕES VÃO LÁ.
+ * - este `permissions.ts` é a matriz feature × nível de acesso
+ *   ('none' | 'view' | 'edit') usada por telas legadas.
  */
 
 import type { User } from "@shared/schema";

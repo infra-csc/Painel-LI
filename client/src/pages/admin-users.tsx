@@ -22,6 +22,11 @@ import ConfirmModal, { type ConfirmVariant } from "@/components/common/confirm-m
 import type { User } from "@shared/schema";
 import { normalizeRole } from "@shared/roles";
 import { hasPermission } from "@/lib/role-utils";
+import { PageHeader } from "@/components/common/page-header";
+import { PageContainer } from "@/components/common/page-container";
+import { EmptyState } from "@/components/common/empty-state";
+import { LoadingState } from "@/components/common/loading-state";
+import { usePageTitle } from "@/components/common/use-page-title";
 
 // ─── Avatar helpers ─────────────────────────────────────────────────────────
 const AVATAR_COLORS = [
@@ -85,7 +90,7 @@ function MetricCard({
     <button
       onClick={onClick}
       className={`text-left p-4 bg-white rounded-xl border shadow-sm transition-all hover:shadow-md ${
-        active ? "border-blue-300 ring-2 ring-blue-100" : "border-gray-200"
+        active ? "border-primary/40 ring-2 ring-primary/10" : "border-gray-200"
       }`}
     >
       <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{label}</p>
@@ -96,6 +101,7 @@ function MetricCard({
 
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function AdminUsers() {
+  usePageTitle("Usuários");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -255,12 +261,9 @@ export default function AdminUsers() {
   // hooks e o React quebrava com "rendered more hooks than during the previous render".
   if (authLoading) {
     return (
-      <div className="space-y-4 animate-pulse">
-        <div className="h-10 bg-slate-100 rounded-xl w-1/3" />
-        <div className="grid grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-slate-100 rounded-xl" />)}
-        </div>
-      </div>
+      <PageContainer>
+        <LoadingState count={4} variant="cards" />
+      </PageContainer>
     );
   }
 
@@ -296,35 +299,32 @@ export default function AdminUsers() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4 animate-pulse">
-        <div className="h-10 bg-slate-100 rounded-xl w-1/3" />
-        <div className="grid grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-slate-100 rounded-xl" />)}
-        </div>
-        {[...Array(6)].map((_, i) => <div key={i} className="h-14 bg-slate-50 rounded-xl" />)}
-      </div>
+      <PageContainer>
+        <PageHeader icon={ShieldCheck} title="Usuários" subtitle="Aprove, edite e gerencie contas de acesso ao sistema" />
+        <LoadingState count={4} variant="cards" className="lg:grid-cols-4" />
+        <LoadingState count={6} label="Carregando usuários…" />
+      </PageContainer>
     );
   }
 
   return (
     <TooltipProvider>
-      <div className="space-y-5">
+      <PageContainer>
 
         {/* ── Header ── */}
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-base font-bold text-slate-800">Gerenciamento de Usuários</h1>
-            <p className="text-xs text-slate-400 mt-0.5">Aprove, edite e gerencie contas de acesso ao sistema</p>
-          </div>
-          {canCreate && (
+        <PageHeader
+          icon={ShieldCheck}
+          title="Usuários"
+          subtitle="Aprove, edite e gerencie contas de acesso ao sistema"
+          actions={canCreate && (
             <button
               onClick={() => setLocation("/user-registration")}
-              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm shadow-blue-200 hover:shadow-md hover:shadow-blue-200 transition-all"
+              className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold rounded-lg shadow-sm shadow-primary/30 hover:shadow-md transition-all"
             >
               <UserPlus className="w-3.5 h-3.5" /> Novo Usuário
             </button>
           )}
-        </div>
+        />
 
         {/* ── Metric cards ── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -343,7 +343,7 @@ export default function AdminUsers() {
               aria-label="Buscar usuários por nome ou e-mail"
               value={searchQuery}
               onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
-              className="pl-9 h-9 text-sm border-gray-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
+              className="pl-9 h-9 text-sm border-input rounded-lg focus:border-primary focus:ring-1 focus:ring-ring/20"
               data-testid="input-search-users"
             />
             {searchQuery && (
@@ -355,7 +355,7 @@ export default function AdminUsers() {
 
           {/* Perfil filter */}
           <Select value={roleFilter} onValueChange={setRole}>
-            <SelectTrigger aria-label="Filtrar por perfil" className="h-9 w-[175px] text-xs border-gray-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20">
+            <SelectTrigger aria-label="Filtrar por perfil" className="h-9 w-[175px] text-xs border-input rounded-lg focus:border-primary focus:ring-1 focus:ring-ring/20">
               <SelectValue placeholder="Todos os perfis" />
             </SelectTrigger>
             <SelectContent>
@@ -396,10 +396,15 @@ export default function AdminUsers() {
               <tbody>
                 {paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-16 text-center">
-                      <Users className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-                      <p className="text-sm font-medium text-slate-500">Nenhum usuário encontrado</p>
-                      <p className="text-xs text-slate-400 mt-1">Ajuste os filtros ou adicione um novo usuário.</p>
+                    <td colSpan={6} className="p-6">
+                      <EmptyState
+                        icon={Users}
+                        variant={(searchQuery || statusFilter !== "all" || roleFilter !== "all") ? "filtered" : "default"}
+                        title="Nenhum usuário encontrado"
+                        description="Ajuste os filtros ou adicione um novo usuário."
+                        onClearFilters={(searchQuery || statusFilter !== "all" || roleFilter !== "all") ? clearAll : undefined}
+                        className="border-0 py-12"
+                      />
                     </td>
                   </tr>
                 ) : (
@@ -416,8 +421,8 @@ export default function AdminUsers() {
                           isPending
                             ? "bg-amber-50/40 hover:bg-amber-50/70"
                             : isEven
-                            ? "bg-slate-50/40 hover:bg-blue-50/40"
-                            : "bg-white hover:bg-blue-50/40"
+                            ? "bg-slate-50/40 hover:bg-brand-soft/40"
+                            : "bg-white hover:bg-brand-soft/40"
                         } ${isInactive ? "opacity-75" : ""}`}
                       >
                         {/* Usuário */}
@@ -467,7 +472,7 @@ export default function AdminUsers() {
                                 <button
                                   onClick={() => setEditingUser(u)}
                                   aria-label={`Editar usuário ${u.name}`}
-                                  className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                  className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-primary hover:bg-brand-soft transition-colors"
                                   data-testid={`button-edit-${u.id}`}
                                 >
                                   <Edit className="w-3.5 h-3.5" />
@@ -660,7 +665,7 @@ export default function AdminUsers() {
           isPending={resetPasswordMutation.isPending}
           onConfirm={handleConfirmResetPassword}
         />
-      </div>
+      </PageContainer>
 
       <ConfirmModal
         open={confirmState.open}

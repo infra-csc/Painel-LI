@@ -7,9 +7,15 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plane, BedDouble, Loader2, Save, Luggage } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import type { Ticket, Accommodation } from "@shared/schema";
+import type { MirrorRow } from "@shared/operational-mirror-types";
 
 type FieldType = "text" | "money" | "time" | "int" | "bool" | "date" | "select";
-type DrawerKind = "ticket" | "accommodation" | "extras";
+export type DrawerKind = "ticket" | "accommodation" | "extras";
+/** Objeto de origem do drawer: passagem, hospedagem ou a linha inteira (extras). */
+export type DrawerSource = Ticket | Accommodation | MirrorRow | null;
+/** Valor de campo como vai no PATCH do espelho. */
+export type DrawerValue = string | number | boolean | null;
 
 interface FieldDef {
   field: string;
@@ -17,7 +23,7 @@ interface FieldDef {
   type: FieldType;
   span?: 1 | 2;
   placeholder?: string;
-  get?: (row: any) => any;
+  get?: (row: MirrorRow | null) => DrawerValue | undefined;
   /** opções para type === "select" */
   options?: { value: string; label: string }[];
 }
@@ -74,22 +80,22 @@ const EXTRAS_FIELDS: FieldDef[] = [
   { field: "carRental.checkIn", label: "Check-in locação", type: "text", get: (r) => r?.carRental?.checkIn },
 ];
 
-function getValue(source: any, field: string): any {
+function getValue(source: DrawerSource, field: string): DrawerValue | undefined {
   // field like "ticket.value" — source is the ticket/accommodation object directly
   const key = field.split(".")[1];
-  return source ? source[key] : null;
+  return source ? ((source as unknown as Record<string, DrawerValue | undefined>)[key] ?? null) : null;
 }
-function readVal(f: FieldDef, source: any): any {
-  return f.get ? f.get(source) : getValue(source, f.field);
+function readVal(f: FieldDef, source: DrawerSource): DrawerValue | undefined {
+  return f.get ? f.get(source as MirrorRow | null) : getValue(source, f.field);
 }
 
-function toInput(value: any, type: FieldType): string {
+function toInput(value: DrawerValue | undefined, type: FieldType): string {
   if (value === null || value === undefined) return "";
   if (type === "money") return ((value as number) / 100).toString();
   return String(value);
 }
 
-function parseInput(raw: string, type: FieldType): any {
+function parseInput(raw: string, type: FieldType): DrawerValue {
   const t = (raw ?? "").trim();
   if (type === "money") {
     if (t === "") return null;
@@ -110,8 +116,8 @@ export interface EditDrawerProps {
   kind: DrawerKind | null;
   rowId: string | null;
   rowName?: string;
-  source: any; // ticket / accommodation object, or full row for extras
-  onSaveMany: (rowId: string, changes: Record<string, any>) => Promise<void>;
+  source: DrawerSource; // ticket / accommodation object, or full row for extras
+  onSaveMany: (rowId: string, changes: Record<string, DrawerValue>) => Promise<void>;
 }
 
 export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, onSaveMany }: EditDrawerProps) {
@@ -120,12 +126,12 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
   // O rascunho guarda o TEXTO digitado (e boolean para switches). Antes ele guardava
   // centavos e o input relia toInput(): digitar "10," / "10." era desfeito a cada tecla,
   // impossibilitando informar centavos. A conversão acontece só no salvamento.
-  const [draft, setDraft] = useState<Record<string, any>>({});
+  const [draft, setDraft] = useState<Record<string, string | boolean>>({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open || !kind) return;
-    const init: Record<string, any> = {};
+    const init: Record<string, string | boolean> = {};
     for (const f of fields) {
       const v = readVal(f, source);
       init[f.field] = f.type === "bool" ? !!v : toInput(v, f.type);
@@ -135,10 +141,10 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
 
   async function handleSave() {
     if (!rowId || saving) return;
-    const changes: Record<string, any> = {};
+    const changes: Record<string, DrawerValue> = {};
     for (const f of fields) {
       const orig = readVal(f, source);
-      const next = f.type === "bool" ? !!draft[f.field] : parseInput(draft[f.field] ?? "", f.type);
+      const next = f.type === "bool" ? !!draft[f.field] : parseInput(String(draft[f.field] ?? ""), f.type);
       const a = f.type === "money" || f.type === "int" ? (orig ?? null) : f.type === "bool" ? !!orig : (orig ?? "");
       if (String(a) !== String(next)) changes[f.field] = next;
     }
@@ -157,14 +163,15 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
       await onSaveMany(rowId, changes);
       toast({ title: "Salvo", description: `${Object.keys(changes).length} campo(s) atualizado(s).` });
       onOpenChange(false);
-    } catch (err: any) {
+    } catch (err) {
+      const e = err as { status?: number; body?: { message?: string } } | null;
       // Os campos são gravados um a um, então a falha pode ser parcial: não afirmar
       // que nada foi salvo. O painel fica aberto com os valores digitados para revisão.
       toast({
         title: "Erro ao salvar",
-        description: err?.status === 401
+        description: e?.status === 401
           ? "Sua sessão expirou. Entre novamente — parte dos campos pode não ter sido gravada."
-          : (err?.body?.message || "Parte dos campos pode não ter sido gravada. Confira os valores e tente novamente."),
+          : (e?.body?.message || "Parte dos campos pode não ter sido gravada. Confira os valores e tente novamente."),
         variant: "destructive",
       });
     } finally {
@@ -215,7 +222,7 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
                     className="mt-1"
                     type={f.type === "time" ? "time" : f.type === "date" ? "date" : f.type === "money" || f.type === "int" ? "number" : "text"}
                     step={f.type === "money" ? "0.01" : undefined}
-                    value={draft[f.field] ?? ""}
+                    value={typeof draft[f.field] === "string" ? (draft[f.field] as string) : ""}
                     placeholder={f.placeholder}
                     onChange={(e) => setDraft((d) => ({ ...d, [f.field]: e.target.value }))}
                   />

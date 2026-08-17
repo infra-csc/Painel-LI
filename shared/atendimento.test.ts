@@ -91,3 +91,21 @@ describe("parseHoraMin — formatos reais dos campos de texto livre da escalaç�
     expect(parseHoraMin("9h30")).toBe(9 * 60 + 30);
   });
 });
+
+describe("mobilidadeTrechoCents — trecho de volta partindo à noite (regra 17/08)", () => {
+  it("volta partindo às 20:00 → R$ 58; 19:59 → R$ 29", () => {
+    expect(mobilidadeTrechoCents("20:00", null, { trecho: "volta" })).toBe(MOBILIDADE_TRECHO_MADRUGADA_CENTS);
+    expect(mobilidadeTrechoCents("19:59", null, { trecho: "volta" })).toBe(MOBILIDADE_TRECHO_PADRAO_CENTS);
+  });
+  it("ida partindo às 20:00 continua R$ 29 (regra atual das janelas)", () => {
+    expect(mobilidadeTrechoCents("20:00", null, { trecho: "ida" })).toBe(MOBILIDADE_TRECHO_PADRAO_CENTS);
+    expect(mobilidadeTrechoCents("20:00")).toBe(MOBILIDADE_TRECHO_PADRAO_CENTS);
+  });
+  it("caso do usuário (Jamerson): ida 'van - 10h' = 29, volta 'van - 20h+' = 58 → 87", () => {
+    const ida = mobilidadeTrechoCents("van - 10h", null, { trecho: "ida" });
+    const volta = mobilidadeTrechoCents("van - 20h+", null, { trecho: "volta" });
+    expect(ida).toBe(2900);
+    expect(volta).toBe(5800);
+    expect(ida + volta).toBe(8700);
+  });
+});

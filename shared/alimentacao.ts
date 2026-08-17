@@ -115,6 +115,10 @@ export function calcAlimentacao(input: AlimentacaoInput): AlimentacaoResult {
 export function isCenotecnicaFunction(functionName: string | null | undefined): boolean {
   if (!functionName) return false;
   const n = functionName.toLowerCase();
+  // "Sup Ceno" (supervisor de cenotécnica) é do grupo PRODUTOR (o usuário
+  // confirmou: produtor = produção/ativação/kit/sup ceno) — não é cenotécnico:
+  // recebe diária normal e alimentação de "demais".
+  if (n.includes("sup") && n.includes("ceno")) return false;
   return n.includes("cenotecnica") || n.includes("cenotécnica") || n.includes("ceno");
 }
 
@@ -131,4 +135,38 @@ export function refeicaoCents(
   return cenotecnica
     ? { almocoCents: read("alimentacao_almoco_ceno", 3500), jantarCents: read("alimentacao_jantar_ceno", 3500) }
     : { almocoCents: read("alimentacao_almoco", 4000), jantarCents: read("alimentacao_jantar", 4000) };
+}
+
+/** Chave (Valores Padrão) do almoço em dia útil para colaborador `casa` (CLT). */
+export const ALIMENTACAO_ALMOCO_CASA_UTIL_KEY = "alimentacao_almoco_casa_util";
+/** Default: R$ 8,00 — só a "diferença", o vale-refeição cobre o resto. */
+export const ALIMENTACAO_ALMOCO_CASA_UTIL_DEFAULT_CENTS = 800;
+/** Idem para CENOTÉCNICA de casa (regra 17/08): almoço em dia útil R$ 3,00. */
+export const ALIMENTACAO_ALMOCO_CASA_UTIL_CENO_KEY = "alimentacao_almoco_casa_util_ceno";
+export const ALIMENTACAO_ALMOCO_CASA_UTIL_CENO_DEFAULT_CENTS = 300;
+
+/**
+ * Valores de refeição (centavos) para UM dia específico, considerando o tipo
+ * do colaborador (regra de negócio 17/08):
+ * - `casa` (CLT) em dia ÚTIL: almoço = `alimentacao_almoco_casa_util`
+ *   (default R$ 8,00); cenotécnica de casa: `alimentacao_almoco_casa_util_ceno`
+ *   (default R$ 3,00). Jantar inalterado (40 / 35 ceno).
+ * - `casa` em fim de semana, `local`, freela e cenotécnica: iguais a
+ *   `refeicaoCents` (a regra do voo continua decidindo QUAIS refeições existem).
+ */
+export function refeicaoCentsDia(
+  cenotecnica: boolean,
+  settings: Record<string, number | string | undefined> | null | undefined,
+  ctx: { tipoColaborador?: string | null; isWeekend: boolean },
+): { almocoCents: number; jantarCents: number } {
+  const base = refeicaoCents(cenotecnica, settings);
+  if (ctx.tipoColaborador === "casa" && !ctx.isWeekend) {
+    const key = cenotecnica ? ALIMENTACAO_ALMOCO_CASA_UTIL_CENO_KEY : ALIMENTACAO_ALMOCO_CASA_UTIL_KEY;
+    const def = cenotecnica ? ALIMENTACAO_ALMOCO_CASA_UTIL_CENO_DEFAULT_CENTS : ALIMENTACAO_ALMOCO_CASA_UTIL_DEFAULT_CENTS;
+    const raw = settings?.[key];
+    const n = typeof raw === "string" ? parseInt(raw, 10) : raw;
+    const almoco = (typeof n === "number" && Number.isFinite(n) && n > 0) ? n : def;
+    return { almocoCents: almoco, jantarCents: base.jantarCents };
+  }
+  return base;
 }

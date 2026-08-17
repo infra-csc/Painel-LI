@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { Event, TeamInclusion } from "@shared/schema";
 import { STATUS, getEventStatus, statusStyle, parseLocalDate as parseLocalDateOrNull } from "@/lib/event-status";
+import { usePageTitle } from "@/components/common/use-page-title";
 
 // ─── Status config ────────────────────────────────────────────────────────────
 // Cores/labels e a regra de status vêm de @/lib/event-status — a MESMA fonte da
@@ -27,6 +28,18 @@ const VISIBLE_STATUSES = new Set(["concluído", "em andamento", "planejado"]);
 function getCfg(status: string) {
   const s = statusStyle(status);
   return { ...s.tw, label: s.label, icon: STATUS_ICON[status] ?? Clock, pulse: s.pulse, iconName: s.iconName, iconFill: s.iconFill };
+}
+
+// ─── Foco de diálogos flutuantes ─────────────────────────────────────────────
+// Foca o painel ao abrir e devolve o foco ao elemento que o abriu ao fechar.
+function useDialogFocus<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null);
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    ref.current?.focus();
+    return () => { opener?.focus?.(); };
+  }, []);
+  return ref;
 }
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
@@ -236,6 +249,7 @@ function EventPanel({
     : clickPos.x + PANEL_MARGIN;
   const left = Math.max(PANEL_MARGIN, Math.min(window.innerWidth - PANEL_W - PANEL_MARGIN, rawLeft));
 
+  const panelRef = useDialogFocus<HTMLDivElement>();
   const PANEL_H_EST = 260;
   const top = Math.max(PANEL_MARGIN, Math.min(window.innerHeight - PANEL_H_EST - PANEL_MARGIN, clickPos.y - PANEL_H_EST / 2));
 
@@ -246,7 +260,9 @@ function EventPanel({
         role="dialog"
         aria-modal="true"
         aria-labelledby="event-panel-title"
-        className="absolute bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        ref={panelRef}
+        tabIndex={-1}
+        className="absolute bg-white rounded-2xl border border-gray-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         style={{
           width: PANEL_W,
           left,
@@ -257,7 +273,7 @@ function EventPanel({
         <div className={`h-[3px] w-full ${cfg.bar}`} />
         <div className="px-4 pt-3.5 pb-3">
           <div className="flex items-center justify-between gap-2 mb-2">
-            <Badge className={`text-[10px] ${cfg.bg} ${cfg.text} border ${cfg.border} hover:${cfg.bg}`}>
+            <Badge variant="outline" className={`text-[10px] ${cfg.bg} ${cfg.text} border ${cfg.border} hover:bg-inherit`}>
               <StatusIcon className="w-2.5 h-2.5 mr-1" />
               {cfg.label}
             </Badge>
@@ -269,30 +285,30 @@ function EventPanel({
               <X className="w-3 h-3 text-gray-500" />
             </button>
           </div>
-          <h2 id="event-panel-title" className="text-[14px] font-bold text-gray-900 dark:text-gray-100 leading-snug">
+          <h2 id="event-panel-title" className="text-[14px] font-bold text-gray-900 leading-snug">
             {event.name}
           </h2>
         </div>
 
-        <div className="border-t border-gray-100 dark:border-gray-700 mx-4" />
+        <div className="border-t border-gray-100 mx-4" />
 
         <div className="px-4 pt-3.5 pb-4 space-y-3.5">
           <div className="space-y-2.5">
             <div className="flex items-center gap-2.5">
               <MapPin className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
-              <span className="text-[12.5px] text-gray-700 dark:text-gray-300">{event.location}</span>
+              <span className="text-[12.5px] text-gray-700">{event.location}</span>
             </div>
             <div className="flex items-center gap-2.5">
               <CalendarDays className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
-              <span className="text-[12.5px] text-gray-700 dark:text-gray-300">{formatDateRange(event.startDate, event.endDate)}</span>
+              <span className="text-[12.5px] text-gray-700">{formatDateRange(event.startDate, event.endDate)}</span>
             </div>
             <div className="flex items-center gap-2.5">
               <Clock className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
-              <span className="text-[12.5px] text-gray-700 dark:text-gray-300">{days} {days === 1 ? "dia" : "dias"}</span>
+              <span className="text-[12.5px] text-gray-700">{days} {days === 1 ? "dia" : "dias"}</span>
             </div>
           </div>
 
-          <div className="border-t border-dashed border-gray-200 dark:border-gray-700" />
+          <div className="border-t border-dashed border-gray-200" />
 
           <div className="space-y-2.5">
             {/* Nunca mostrar "0 colaboradores" quando na verdade a escala não foi carregada */}
@@ -306,15 +322,15 @@ function EventPanel({
               <>
                 <div className="flex items-center gap-2.5">
                   <Users className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
-                  <span className="text-[12.5px] text-gray-700 dark:text-gray-300">
-                    <span className="font-semibold text-gray-900 dark:text-gray-100">{collaboratorCount}</span>
+                  <span className="text-[12.5px] text-gray-700">
+                    <span className="font-semibold text-gray-900">{collaboratorCount}</span>
                     {" "}{collaboratorCount === 1 ? "colaborador escalado" : "colaboradores escalados"}
                   </span>
                 </div>
                 <div className="flex items-center gap-2.5">
                   <Tag className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
-                  <span className="text-[12.5px] text-gray-700 dark:text-gray-300">
-                    <span className="font-semibold text-gray-900 dark:text-gray-100">{functionCount}</span>
+                  <span className="text-[12.5px] text-gray-700">
+                    <span className="font-semibold text-gray-900">{functionCount}</span>
                     {" "}{functionCount === 1 ? "função envolvida" : "funções envolvidas"}
                   </span>
                 </div>
@@ -322,7 +338,7 @@ function EventPanel({
             )}
           </div>
 
-          <div className="border-t border-dashed border-gray-200 dark:border-gray-700" />
+          <div className="border-t border-dashed border-gray-200" />
 
           {/* Atalhos — Escala não lê query params (abre a tela); o Espelho lê ?eventId= */}
           <div className="flex items-center gap-2">
@@ -398,6 +414,7 @@ function HiddenEventsPopover({ dayEvents, title, x, y, onSelectEvent, onClose }:
   }
   top = Math.max(EDGE, Math.min(window.innerHeight - EDGE - estimatedH, top));
 
+  const popoverRef = useDialogFocus<HTMLDivElement>();
   // Available height for the scroll container: viewport minus header minus edges
   const maxListH = Math.min(MAX_H - HEADER_H, window.innerHeight - top - HEADER_H - EDGE);
 
@@ -415,6 +432,8 @@ function HiddenEventsPopover({ dayEvents, title, x, y, onSelectEvent, onClose }:
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        ref={popoverRef}
+        tabIndex={-1}
         className="absolute bg-white animate-in fade-in zoom-in-95 duration-150 flex flex-col"
         style={{
           width: POPOVER_W,
@@ -600,7 +619,7 @@ function MonthView({
 
   return (
     <>
-      <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-[32px] border border-slate-200 dark:border-gray-700 overflow-hidden" style={{ boxShadow: "0 20px 60px -10px rgba(148,163,184,0.3), 0 4px 16px -4px rgba(148,163,184,0.2)" }}>
+      <div className="flex flex-col h-full bg-white rounded-[32px] border border-slate-200 overflow-hidden" style={{ boxShadow: "0 20px 60px -10px rgba(148,163,184,0.3), 0 4px 16px -4px rgba(148,163,184,0.2)" }}>
         {/* Weekday header */}
         <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/50 shrink-0">
           {WEEKDAY_LABELS.map((d, i) => (
@@ -629,9 +648,9 @@ function MonthView({
             const hasOverflow = bars.some(b => b.lane >= MAX_VISIBLE_LANES);
 
             return (
-              <div key={wi} className={`flex flex-col ${wi > 0 ? "border-t border-gray-100 dark:border-gray-700" : ""}`}>
+              <div key={wi} className={`flex flex-col ${wi > 0 ? "border-t border-gray-100" : ""}`}>
                 {/* ── DAY-NUMBER ZONE: exactly 28px, z-[40], never receives bars ── */}
-                <div className="relative z-[40] shrink-0 h-7 grid grid-cols-7 divide-x divide-gray-100 dark:divide-gray-700">
+                <div className="relative z-[40] shrink-0 h-7 grid grid-cols-7 divide-x divide-gray-100">
                   {week.map((day, di) => {
                     const isCurrentMonth = day.getMonth() === month;
                     const isToday = isSameDay(day, today);
@@ -640,16 +659,16 @@ function MonthView({
                       <div
                         key={di}
                         className={`h-full px-2 flex items-center transition-colors ${
-                          !isCurrentMonth ? "bg-slate-50/30 dark:bg-gray-900/30" :
-                          isWeekend ? "bg-slate-50/40 dark:bg-gray-850" : "bg-white dark:bg-gray-800"
+                          !isCurrentMonth ? "bg-slate-50/30" :
+                          isWeekend ? "bg-slate-50/40" : "bg-white"
                         } ${isCurrentMonth ? "hover:bg-blue-50/20" : ""}`}
                       >
                         <div className={`text-[13px] font-bold w-7 h-7 flex items-center justify-center rounded-full shrink-0 transition-colors ${
                           isToday
-                            ? "bg-[#0033CC] text-white shadow-md z-[50]"
+                            ? "bg-primary text-white shadow-md z-[50]"
                             : isCurrentMonth
-                              ? "text-slate-800 dark:text-gray-300"
-                              : "text-slate-300 dark:text-gray-600"
+                              ? "text-slate-800"
+                              : "text-slate-300"
                         }`}>
                           {day.getDate()}
                         </div>
@@ -779,11 +798,11 @@ function ListView({ events, onSelectEvent, hasFilters }: { events: Event[]; onSe
             {/* Month section header */}
             <div className="flex items-center gap-4 mb-4">
               <div className="flex items-center gap-2 shrink-0">
-                <h3 className={`text-[11px] font-black tracking-[0.2em] uppercase ${isCurrent ? "text-[#0033CC]" : "text-slate-400"}`}>
+                <h3 className={`text-[11px] font-black tracking-[0.2em] uppercase ${isCurrent ? "text-primary" : "text-slate-400"}`}>
                   {group.label}
                 </h3>
                 {isCurrent && (
-                  <span className="text-[9px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
+                  <span className="text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
                     Este mês
                   </span>
                 )}
@@ -823,7 +842,7 @@ function ListView({ events, onSelectEvent, hasFilters }: { events: Event[]; onSe
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-sm group-hover:underline underline-offset-2 truncate text-[#0033CC]">
+                      <h4 className="font-bold text-sm group-hover:underline underline-offset-2 truncate text-primary">
                         {ev.name}
                       </h4>
                       <div className="flex items-center gap-4 mt-1 flex-wrap">
@@ -935,13 +954,13 @@ function WeekView({ weekStart, events, onSelectEvent }: {
                 ${isToday ? "bg-blue-50/70" : ""}
               `}
             >
-              <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isToday ? "text-[#0033CC]" : "text-slate-400"}`}>
+              <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isToday ? "text-primary" : "text-slate-400"}`}>
                 {WEEK_DAY_SHORT[i]}
               </p>
-              <p className={`text-2xl font-black leading-none ${isToday ? "text-[#0033CC]" : "text-slate-800"}`}>
+              <p className={`text-2xl font-black leading-none ${isToday ? "text-primary" : "text-slate-800"}`}>
                 {day.getDate()}
               </p>
-              {isToday && <div className="w-1.5 h-1.5 bg-[#0033CC] rounded-full mx-auto mt-2" />}
+              {isToday && <div className="w-1.5 h-1.5 bg-primary rounded-full mx-auto mt-2" />}
             </div>
           );
         })}
@@ -969,11 +988,11 @@ function WeekView({ weekStart, events, onSelectEvent }: {
               >
                 {/* Cabeçalho do dia (mobile) */}
                 <div className="md:hidden flex items-center gap-2 px-1 pt-1">
-                  <span className={`text-lg font-black leading-none ${isToday ? "text-[#0033CC]" : "text-slate-800"}`}>{day.getDate()}</span>
-                  <span className={`text-[10px] font-bold uppercase tracking-widest ${isToday ? "text-[#0033CC]" : "text-slate-400"}`}>
+                  <span className={`text-lg font-black leading-none ${isToday ? "text-primary" : "text-slate-800"}`}>{day.getDate()}</span>
+                  <span className={`text-[10px] font-bold uppercase tracking-widest ${isToday ? "text-primary" : "text-slate-400"}`}>
                     {WEEK_DAY_LONG[i]}
                   </span>
-                  {isToday && <span className="ml-auto text-[9px] font-bold uppercase tracking-wider bg-blue-50 text-[#0033CC] px-1.5 py-0.5 rounded-full">Hoje</span>}
+                  {isToday && <span className="ml-auto text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-primary px-1.5 py-0.5 rounded-full">Hoje</span>}
                 </div>
                 {dayEvents.length === 0 && (
                   <span className="text-[10px] text-slate-300 select-none px-1 md:mx-auto md:mt-6">
@@ -992,7 +1011,7 @@ function WeekView({ weekStart, events, onSelectEvent }: {
                       {cfg.pulse && (
                         <div className="flex items-center gap-1 mb-1">
                           <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pulse shrink-0`} />
-                          <p className={`text-[9px] font-bold uppercase tracking-tight ${cfg.text}`}>
+                          <p className={`text-[10px] font-bold uppercase tracking-tight ${cfg.text}`}>
                             {cfg.label}
                           </p>
                         </div>
@@ -1001,7 +1020,7 @@ function WeekView({ weekStart, events, onSelectEvent }: {
                         {ev.name}
                       </p>
                       {ev.location && (
-                        <p className={`text-[9px] mt-1 font-medium truncate ${cfg.text} opacity-80`}>
+                        <p className={`text-[10px] mt-1 font-medium truncate ${cfg.text} opacity-80`}>
                           {ev.location}
                         </p>
                       )}
@@ -1020,6 +1039,7 @@ function WeekView({ weekStart, events, onSelectEvent }: {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function CalendarPage() {
+  usePageTitle("Calendário");
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -1107,12 +1127,12 @@ export default function CalendarPage() {
         {/* Left: icon + title + month nav */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(0,51,204,0.08)" }}>
-              <span className="material-symbols-outlined text-lg" style={{ color: "#0033CC", fontVariationSettings: "'FILL' 1" }}>calendar_today</span>
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-brand-soft text-primary shrink-0">
+              <CalendarDays className="w-4 h-4" aria-hidden="true" />
             </div>
             <div>
-              <h1 className="text-base font-bold text-slate-900 leading-tight">Calendário de Eventos</h1>
-              <p className="text-[11px] text-slate-400 leading-tight">
+              <h1 className="text-[18px] font-bold text-slate-900 leading-tight">Calendário</h1>
+              <p className="text-xs text-slate-500 leading-tight" aria-live="polite">
                 {isLoading
                   ? "Carregando eventos…"
                   : loadErrorMessage
@@ -1159,7 +1179,7 @@ export default function CalendarPage() {
                 </button>
                 <div className="flex items-center gap-2 min-w-[200px] justify-center">
                   <span className="text-sm font-bold text-slate-800">{rangeLabel}</span>
-                  <span className="px-2 py-0.5 bg-blue-50 text-[#0033CC] text-[10px] font-bold rounded-full uppercase tracking-wider">
+                  <span className="px-2 py-0.5 bg-blue-50 text-primary text-[10px] font-bold rounded-full uppercase tracking-wider">
                     Sem. {isoWeekNumber(viewWeekStart)}
                   </span>
                 </div>
@@ -1202,7 +1222,7 @@ export default function CalendarPage() {
 
           {/* Status filter pills */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-100">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mr-0.5">Filtros:</span>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-0.5">Filtros:</span>
             {legendItems.map(item => {
               const count = statusCounts[item.key] || 0;
               const isActive = statusFilter === item.key;
@@ -1232,29 +1252,29 @@ export default function CalendarPage() {
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
             <button
               onClick={() => setView("month")}
+              aria-pressed={view === "month"}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                view === "month" ? "text-white shadow-sm" : "text-slate-500 hover:bg-slate-200"
+                view === "month" ? "bg-primary text-white shadow-sm" : "text-slate-500 hover:bg-slate-200"
               }`}
-              style={view === "month" ? { background: "#0033CC" } : {}}
             >
               <LayoutGrid className="w-3.5 h-3.5" /> Mês
             </button>
             <button
               onClick={() => setView("week")}
+              aria-pressed={view === "week"}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                view === "week" ? "text-white shadow-sm" : "text-slate-500 hover:bg-slate-200"
+                view === "week" ? "bg-primary text-white shadow-sm" : "text-slate-500 hover:bg-slate-200"
               }`}
-              style={view === "week" ? { background: "#0033CC" } : {}}
             >
               <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 0" }}>view_week</span>
               Semana
             </button>
             <button
               onClick={() => setView("list")}
+              aria-pressed={view === "list"}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                view === "list" ? "text-white shadow-sm" : "text-slate-500 hover:bg-slate-200"
+                view === "list" ? "bg-primary text-white shadow-sm" : "text-slate-500 hover:bg-slate-200"
               }`}
-              style={view === "list" ? { background: "#0033CC" } : {}}
             >
               <List className="w-3.5 h-3.5" /> Lista
             </button>
@@ -1266,7 +1286,7 @@ export default function CalendarPage() {
       <div className="flex-1 min-h-0">
         {isLoading ? (
           <div className="h-full bg-white rounded-[32px] border border-slate-200 flex items-center justify-center">
-            <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: "#0033CC", borderTopColor: "transparent" }} />
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" role="status" aria-label="Carregando calendário" />
           </div>
         ) : loadErrorMessage ? (
           <div

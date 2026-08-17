@@ -8,11 +8,43 @@
 // volta, o modal não exigia o horário de chegada, os asteriscos da UI não
 // batiam com o que era validado).
 import { parseBrNumber } from "@/lib/utils";
+import { mobilidadeTrechoCents, parseHoraMin, MOBILIDADE_TRECHO_MADRUGADA_CENTS } from "@shared/atendimento";
+import { calcAlimentacao, type AlimentacaoDia } from "@shared/alimentacao";
 
 export type TransportType = "aereo" | "rodoviario" | "van";
 
-/** Estado bruto do formulário (strings vindas dos inputs). */
-export type TicketFormData = Record<string, any>;
+/**
+ * Estado bruto do formulário (strings vindas dos inputs). Os campos conhecidos
+ * são tipados; o index signature mantém o acesso dinâmico por nome de campo
+ * (validação/asteriscos iteram sobre `RequiredField.field`).
+ */
+export interface TicketFormValues {
+  transportType?: TransportType | string;
+  isOneWay?: boolean;
+  value?: string;
+  purchaseDate?: string;
+  purchaseOrderNumber?: string;
+  departureCityOrigin?: string;
+  departureCityDestination?: string;
+  returnCityOrigin?: string;
+  returnCityDestination?: string;
+  departureAirport?: string;
+  destinationAirport?: string;
+  returnOriginAirport?: string;
+  returnDestinationAirport?: string;
+  actualDepartureDate?: string;
+  actualDepartureTime?: string;
+  actualArrivalTime?: string;
+  actualReturnDate?: string;
+  actualReturnTime?: string;
+  cardLastFourDigits?: string;
+  ticketObservations?: string;
+  attachmentIds?: string[];
+  fileUrl?: string | null;
+  [key: string]: unknown;
+}
+
+export type TicketFormData = TicketFormValues;
 
 export interface RequiredField {
   field: string;
@@ -222,4 +254,342 @@ export function hasUnsavedTicketInput(form: TicketFormData | undefined, ignore: 
     if (typeof v === "boolean") return v;
     return !isBlank(v);
   });
+}
+
+// ─── Sugestões da escalação ───────────────────────────────────────────────
+
+/** Datas/horários sugeridos pela escalação (campos específicos ou legado nas observações). */
+export interface TravelSuggestion {
+  ida: string;
+  retorno: string;
+  /** Horário sugerido de CHEGADA da ida (texto livre: "9h", "09:30"). */
+  chegada: string;
+  /** Horário sugerido de PARTIDA da volta (texto livre). */
+  horario: string;
+  /** Horário sugerido de PARTIDA da ida — só existe nos campos específicos. */
+  partida?: string;
+}
+
+const SUGGESTION_EMPTY = new Set(["", "N/A", "Não definido", "Não informado"]);
+
+/** O valor de sugestão tem conteúdo real (não é placeholder)? */
+export function hasSuggestionValue(v: string | null | undefined): v is string {
+  return !!v && !SUGGESTION_EMPTY.has(v);
+}
+
+interface SuggestionSource {
+  observations?: string | null;
+  flightDepartureDate?: string | null;
+  flightDepartureSuggestedTime?: string | null;
+  flightArrivalSuggestedTime?: string | null;
+  flightReturnDate?: string | null;
+  flightReturnSuggestedTime?: string | null;
+}
+
+/**
+ * Extrai a sugestão de viagem: PRIORIDADE para os campos específicos da
+ * inclusão; FALLBACK para o texto legado das observações ("Ida: ... | Retorno: ...").
+ */
+export function extractTravelSuggestion(inclusion: SuggestionSource | null | undefined): TravelSuggestion {
+  if (inclusion && (inclusion.flightDepartureDate || inclusion.flightArrivalSuggestedTime ||
+      inclusion.flightReturnDate || inclusion.flightReturnSuggestedTime)) {
+    return {
+      ida: inclusion.flightDepartureDate || "Não informado",
+      retorno: inclusion.flightReturnDate || "Não informado",
+      chegada: inclusion.flightArrivalSuggestedTime || "Não informado",
+      horario: inclusion.flightReturnSuggestedTime || "Não informado",
+      partida: inclusion.flightDepartureSuggestedTime || undefined,
+    };
+  }
+  const observations = inclusion?.observations;
+  if (observations && observations.trim()) {
+    const pick = (label: string) => {
+      const m = observations.match(new RegExp(`${label}:\\s*([^|]*?)(?:\\s*\\||\\s*$)`));
+      return m && m[1].trim() ? m[1].trim() : null;
+    };
+    const ida = pick("Ida"), retorno = pick("Retorno"), chegada = pick("Chegada"), horario = pick("Horário");
+    if (ida || retorno || chegada || horario) {
+      return {
+        ida: ida ?? "Não definido",
+        retorno: retorno ?? "Não definido",
+        chegada: chegada ?? "Não definido",
+        horario: horario ?? "Não definido",
+      };
+    }
+  }
+  return { ida: "Não informado", retorno: "Não informado", chegada: "Não informado", horario: "Não informado" };
+}
+
+export function hasAnySuggestion(s: TravelSuggestion): boolean {
+  return hasSuggestionValue(s.ida) || hasSuggestionValue(s.retorno) || hasSuggestionValue(s.chegada) || hasSuggestionValue(s.horario);
+}
+
+/** Formata a data sugerida para DD/MM/YYYY sem passar por new Date(). */
+export function formatSuggestionDate(dateStr: string | null | undefined): string {
+  if (!hasSuggestionValue(dateStr)) return "Não informado";
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) return dateStr;
+  const m = dateStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return `${m[3].padStart(2, "0")}/${m[2].padStart(2, "0")}/${m[1]}`;
+  return dateStr;
+}
+
+/** "YYYY-MM-DD" a partir de "YYYY-MM-DD..." ou "DD/MM/YYYY"; null se não reconhecer. */
+export function suggestionDateToIso(dateStr: string | null | undefined): string | null {
+  if (!hasSuggestionValue(dateStr)) return null;
+  let m = dateStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  m = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  return null;
+}
+
+/** Minutos desde a meia-noite → "HH:MM" (valor aceito por <input type="time">). */
+export function minutesToHHMM(min: number | null): string | null {
+  if (min === null || !Number.isFinite(min)) return null;
+  const h = Math.floor(min / 60), m = min % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** Texto livre da escalação ("9h", "0930", "onibus - 10h") → "HH:MM" ou null. */
+export function suggestionTimeToHHMM(texto: string | null | undefined): string | null {
+  if (!hasSuggestionValue(texto)) return null;
+  return minutesToHHMM(parseHoraMin(texto));
+}
+
+/**
+ * "Usar sugestão": campos a preencher a partir da sugestão da escalação.
+ * Só devolve o que conseguiu normalizar — se o horário não parseia, preenche
+ * só a data. Por padrão não apaga o que o usuário já digitou (`overwrite`).
+ */
+export function suggestionToFormPatch(
+  s: TravelSuggestion,
+  current: TicketFormValues | undefined,
+  opts: { overwrite?: boolean } = {},
+): Partial<TicketFormValues> {
+  const patch: Partial<TicketFormValues> = {};
+  const set = (field: keyof TicketFormValues & string, value: string | null) => {
+    if (!value) return;
+    if (!opts.overwrite && !isBlank(current?.[field])) return;
+    patch[field] = value;
+  };
+  set("actualDepartureDate", suggestionDateToIso(s.ida));
+  set("actualDepartureTime", suggestionTimeToHHMM(s.partida));
+  set("actualArrivalTime", suggestionTimeToHHMM(s.chegada));
+  if (!current?.isOneWay) {
+    set("actualReturnDate", suggestionDateToIso(s.retorno));
+    set("actualReturnTime", suggestionTimeToHHMM(s.horario));
+  }
+  return patch;
+}
+
+/** Limite (minutos) a partir do qual o horário comprado é "muito diferente" da sugestão. */
+export const SUGGESTION_DIVERGENCE_MIN = 4 * 60;
+
+/**
+ * Avisos (informativos) quando o comprado diverge muito da sugestão: dia
+ * diferente ou horário a mais de 4h. Compara ida (data + chegada) e volta
+ * (data + partida). Sem sugestão ou sem valor digitado → sem aviso.
+ */
+export function suggestionDivergences(form: TicketFormValues | undefined, s: TravelSuggestion): string[] {
+  const out: string[] = [];
+  if (!form || normalizeTransportType(form.transportType) === "van") return out;
+
+  const cmpDate = (label: string, bought: unknown, sug: string) => {
+    const b = dateOnly(bought), g = suggestionDateToIso(sug);
+    if (b && g && b !== g) out.push(`${label}: comprada em ${fmtBr(b)}, sugestão era ${fmtBr(g)}.`);
+  };
+  const cmpTime = (label: string, bought: unknown, sug: string) => {
+    const b = parseHoraMin(timeOnly(bought)), g = parseHoraMin(hasSuggestionValue(sug) ? sug : null);
+    if (b === null || g === null) return;
+    const diff = Math.abs(b - g);
+    if (diff > SUGGESTION_DIVERGENCE_MIN) {
+      out.push(`${label}: ${minutesToHHMM(b)}, sugestão era ${minutesToHHMM(g)} (${Math.round(diff / 60)}h de diferença).`);
+    }
+  };
+
+  cmpDate("Data da ida", form.actualDepartureDate, s.ida);
+  cmpTime("Chegada da ida", form.actualArrivalTime, s.chegada);
+  if (!form.isOneWay) {
+    cmpDate("Data da volta", form.actualReturnDate, s.retorno);
+    cmpTime("Horário da volta", form.actualReturnTime, s.horario);
+  }
+  return out;
+}
+
+// ─── Impacto no Planejado (informativo) ───────────────────────────────────
+
+export interface PlannedImpactContext {
+  /** Dias do período de trabalho (YYYY-MM-DD). Se vazio, o resumo de alimentação sai só como "1º/último dia". */
+  workDays?: string[] | null;
+  almocoCents?: number;
+  jantarCents?: number;
+}
+
+export interface PlannedImpact {
+  mobilidade: {
+    ida: { cents: number; madrugada: boolean } | null;
+    volta: { cents: number; madrugada: boolean } | null;
+    totalCents: number;
+  };
+  alimentacao: {
+    /** Refeições no dia da chegada, derivadas do horário de chegada (null se sem horário). */
+    chegada: { almoco: boolean; jantar: boolean } | null;
+    /** Refeições no dia da volta, derivadas do horário de partida da volta (null se sem horário/só ida). */
+    retorno: { almoco: boolean; jantar: boolean } | null;
+    /** Totais do período — só quando `workDays` foi informado. */
+    periodo: { dias: number; almocos: number; jantares: number; totalCents: number; estimado: boolean } | null;
+  };
+}
+
+/** Dias corridos entre início e fim (inclusive), sem passar por UTC. Mesma régua do Planejado. */
+export function periodDays(start: string | null | undefined, end: string | null | undefined): string[] {
+  const s = dateOnly(start), e = dateOnly(end);
+  if (!s || !e || e < s) return [];
+  const out: string[] = [];
+  const cur = new Date(`${s}T12:00:00`);
+  const endD = new Date(`${e}T12:00:00`);
+  let guard = 0;
+  while (cur <= endD && guard++ < 400) {
+    out.push(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`);
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
+}
+
+const dayMeals = (d: AlimentacaoDia | undefined) => (d ? { almoco: d.almoco, jantar: d.jantar } : null);
+
+/**
+ * Impacto no Planejado dos horários digitados — usa as MESMAS funções do
+ * cálculo real (mobilidadeTrechoCents e calcAlimentacao). Van → null.
+ * Somente informativo; não altera regra nenhuma.
+ */
+export function buildPlannedImpact(form: TicketFormValues | undefined, ctx: PlannedImpactContext = {}): PlannedImpact | null {
+  if (!form || normalizeTransportType(form.transportType) === "van") return null;
+  const oneWay = !!form.isOneWay;
+  const depTime = timeOnly(form.actualDepartureTime);
+  const arrTime = timeOnly(form.actualArrivalTime);
+  const retTime = oneWay ? null : timeOnly(form.actualReturnTime);
+
+  // Mesmas funções do Planejado — inclusive a regra da VOLTA (partida ≥ 20h = R$58)
+  const trecho = (partida: string | null, chegada: string | null, kind: "ida" | "volta") => {
+    const cents = mobilidadeTrechoCents(partida, chegada, { trecho: kind });
+    return { cents, madrugada: cents === MOBILIDADE_TRECHO_MADRUGADA_CENTS };
+  };
+  const ida = depTime || arrTime ? trecho(depTime, arrTime, "ida") : null;
+  const volta = retTime ? trecho(retTime, null, "volta") : null;
+
+  const almocoCents = ctx.almocoCents ?? 4000;
+  const jantarCents = ctx.jantarCents ?? 4000;
+
+  // Flags do 1º/último dia: dois dias sintéticos bastam para ler a regra real.
+  const flags = calcAlimentacao({
+    workDays: ["0001-01-01", "0001-01-02"], voa: true,
+    chegadaIda: arrTime, partidaVolta: retTime, almocoCents, jantarCents,
+  });
+  const chegada = arrTime ? dayMeals(flags.dias[0]) : null;
+  const retorno = retTime ? dayMeals(flags.dias[1]) : null;
+
+  let periodo: PlannedImpact["alimentacao"]["periodo"] = null;
+  if (ctx.workDays && ctx.workDays.length > 0) {
+    const r = calcAlimentacao({
+      workDays: ctx.workDays, voa: true,
+      chegadaIda: arrTime, partidaVolta: retTime, almocoCents, jantarCents,
+    });
+    periodo = { dias: r.dias.length, almocos: r.almocos, jantares: r.jantares, totalCents: r.totalCents, estimado: r.estimado };
+  }
+
+  return {
+    mobilidade: { ida, volta, totalCents: (ida?.cents ?? 0) + (volta?.cents ?? 0) },
+    alimentacao: { chegada, retorno, periodo },
+  };
+}
+
+const brl = (cents: number) => `R$ ${(cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+const mealsLabel = (m: { almoco: boolean; jantar: boolean }) =>
+  m.almoco && m.jantar ? "almoço + jantar" : m.almoco ? "só almoço" : m.jantar ? "só jantar" : "sem refeição";
+
+/** Linhas curtas para a UI ("Ida: madrugada → R$ 58"). Vazio se nada foi digitado. */
+export function formatPlannedImpact(impact: PlannedImpact | null): string[] {
+  if (!impact) return [];
+  const lines: string[] = [];
+  const { ida, volta } = impact.mobilidade;
+  if (ida) lines.push(`Ida: ${ida.madrugada ? "madrugada" : "padrão"} → ${brl(ida.cents)}`);
+  if (volta) lines.push(`Volta: ${volta.madrugada ? "madrugada" : "padrão"} → ${brl(volta.cents)}`);
+  const { chegada, retorno, periodo } = impact.alimentacao;
+  if (chegada) lines.push(`Chegada → ${mealsLabel(chegada)} no 1º dia`);
+  if (retorno) lines.push(`Volta → ${mealsLabel(retorno)} no último dia`);
+  if (periodo && (chegada || retorno)) {
+    lines.push(`Alimentação: ${periodo.almocos} almoço${periodo.almocos !== 1 ? "s" : ""} + ${periodo.jantares} jantar${periodo.jantares !== 1 ? "es" : ""} em ${periodo.dias} dia${periodo.dias !== 1 ? "s" : ""} → ${brl(periodo.totalCents)}${periodo.estimado ? " (estimado)" : ""}`);
+  }
+  return lines;
+}
+
+// ─── KPI de valor das compradas ───────────────────────────────────────────
+
+export function purchasedValueKpi(values: Array<number | null | undefined>): { count: number; totalCents: number; avgCents: number } {
+  const valid = values.filter((v): v is number => typeof v === "number" && Number.isFinite(v) && v > 0);
+  const totalCents = valid.reduce((a, b) => a + b, 0);
+  return { count: valid.length, totalCents, avgCents: valid.length ? Math.round(totalCents / valid.length) : 0 };
+}
+
+// ─── Passagem gravada → formulário (Editar Passagem) ──────────────────────
+
+/** Subconjunto do Ticket do banco lido pelo formulário. */
+export interface StoredTicketLike {
+  transportType?: string | null;
+  value?: number | null;
+  purchaseDate?: string | null;
+  departureAirport?: string | null;
+  destinationAirport?: string | null;
+  departureCityOrigin?: string | null;
+  departureCityDestination?: string | null;
+  returnCityOrigin?: string | null;
+  returnCityDestination?: string | null;
+  returnOriginAirport?: string | null;
+  returnDestinationAirport?: string | null;
+  purchaseOrderNumber?: string | null;
+  actualDepartureDate?: string | null;
+  actualReturnDate?: string | null;
+  actualDepartureTime?: string | null;
+  actualArrivalTime?: string | null;
+  actualReturnTime?: string | null;
+  cardLastFourDigits?: string | null;
+  ticketObservations?: string | null;
+  attachmentIds?: string[] | null;
+}
+
+/**
+ * "Só ida" NÃO existe no banco: o formulário grava os campos de volta como
+ * null quando o usuário marca "Apenas ida". Derivamos da ausência desses dados.
+ */
+export function isStoredTicketOneWay(t: StoredTicketLike): boolean {
+  return !t.actualReturnDate && !t.actualReturnTime && !t.returnCityOrigin && !t.returnCityDestination;
+}
+
+/** Prefill do formulário a partir da passagem gravada (valor em centavos → texto). */
+export function ticketToFormValues(t: StoredTicketLike): TicketFormValues {
+  const s = (v: string | null | undefined) => v || "";
+  return {
+    transportType: t.transportType || "aereo",
+    isOneWay: isStoredTicketOneWay(t),
+    value: ((t.value || 0) / 100).toString(),
+    purchaseDate: s(t.purchaseDate),
+    departureAirport: s(t.departureAirport),
+    destinationAirport: s(t.destinationAirport),
+    departureCityOrigin: s(t.departureCityOrigin),
+    departureCityDestination: s(t.departureCityDestination),
+    returnCityOrigin: s(t.returnCityOrigin),
+    returnCityDestination: s(t.returnCityDestination),
+    returnOriginAirport: s(t.returnOriginAirport),
+    returnDestinationAirport: s(t.returnDestinationAirport),
+    purchaseOrderNumber: s(t.purchaseOrderNumber),
+    actualDepartureDate: s(t.actualDepartureDate),
+    actualReturnDate: s(t.actualReturnDate),
+    actualDepartureTime: s(t.actualDepartureTime),
+    actualArrivalTime: s(t.actualArrivalTime),
+    actualReturnTime: s(t.actualReturnTime),
+    cardLastFourDigits: s(t.cardLastFourDigits),
+    ticketObservations: s(t.ticketObservations),
+    attachmentIds: t.attachmentIds || [],
+  };
 }

@@ -24,9 +24,12 @@ import { EventSearchSelect } from "@/components/event-select";
 import { useSearch } from "wouter";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, BudgetComparison, BudgetNote, TeamInclusion } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
+import { PageHeader } from "@/components/common/page-header";
+import { usePageTitle } from "@/components/common/use-page-title";
 import { useSidebar } from "@/contexts/sidebar-context";
 import { BudgetChat, BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
 import { ActivityTimeline, PlannedEditedBadge } from "@/components/activity-timeline";
+import { diasComDiaria } from "@shared/calculation-rules";
 
 const AVATAR_COLORS = [
   'bg-violet-500','bg-blue-500','bg-emerald-500','bg-orange-500',
@@ -100,7 +103,7 @@ function CategoryBlock({ title, icon: Icon, iconColor, bgColor, stripColor, rows
           </div>
           <span className={`text-[10px] font-bold uppercase tracking-wide ${iconColor}`}>{title}</span>
           {badge && (
-            <span className="text-[9px] font-medium text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full leading-none">
+            <span className="text-[10px] font-medium text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full leading-none">
               {badge}
             </span>
           )}
@@ -142,7 +145,7 @@ function CategoryBlock({ title, icon: Icon, iconColor, bgColor, stripColor, rows
       {/* Subtotal */}
       {currencyRows.length > 0 && (
         <div className={`grid grid-cols-4 gap-2 px-3 text-[11px] items-center border-t border-slate-100 ${subtotalDiff > 0 ? 'bg-red-50/40' : subtotalDiff < 0 ? 'bg-emerald-50/40' : 'bg-slate-50'}`} style={{ height: 28 }}>
-          <span className="text-slate-400 uppercase text-[9px] tracking-wider font-semibold">Subtotal</span>
+          <span className="text-slate-400 uppercase text-[10px] tracking-wider font-semibold">Subtotal</span>
           <span className="text-right tabular-nums text-blue-700 font-semibold">{fmt(subtotalPlanned)}</span>
           <span className={`text-right tabular-nums font-semibold ${subtotalDiff !== 0 ? 'text-violet-700' : 'text-violet-500'}`}>{fmt(subtotalActual)}</span>
           <div className="text-right">
@@ -215,6 +218,7 @@ function SectionBlock({ title, icon: Icon, headerBg, iconColor, titleColor, subt
 }
 
 export default function BudgetComparisonPage() {
+  usePageTitle("Comparativo");
   const searchString = useSearch();
   const { urlCollaboratorId, urlFunctionId } = useMemo(() => {
     const p = new URLSearchParams(searchString);
@@ -528,7 +532,10 @@ export default function BudgetComparisonPage() {
     const wkndRatio  = origWknds  > 0 ? myWknds  / origWknds  : 0;
     const dayRatio   = myDays.length / allGroupDays.length;
 
-    const propDiarias      = myDays.length * planned.dailyValue;
+    // Regra 17/08: casa (CLT) só recebe diária nos fins de semana — mesma
+    // função do Planejado (shared/calculation-rules) sobre os dias herdados
+    const myDiasDiaria     = diasComDiaria(planned.collaboratorType, myWkdays, myWknds, getFunctionName(planned.functionId));
+    const propDiarias      = myDiasDiaria * planned.dailyValue;
     const propWkdayLunch   = Math.round(planned.weekdayLunch  * wkdayRatio);
     const propWkdayDinner  = Math.round(planned.weekdayDinner * wkdayRatio);
     const propWkndLunch    = Math.round(planned.weekendLunch   * wkndRatio);
@@ -538,7 +545,7 @@ export default function BudgetComparisonPage() {
 
     return {
       ...planned,
-      dailyQuantity: myDays.length,
+      dailyQuantity: myDiasDiaria,
       weekdayLunch:  propWkdayLunch,
       weekdayDinner: propWkdayDinner,
       weekendLunch:  propWkndLunch,
@@ -709,20 +716,14 @@ export default function BudgetComparisonPage() {
   return (
     <div className="space-y-5 max-w-5xl mx-auto pb-32">
       {/* ── Page header ── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-[10px] flex items-center justify-center shrink-0" style={{background:'#059669', boxShadow:'0 4px 14px rgba(5,150,105,0.4)'}}>
-            <BarChart3 className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-[18px] font-bold text-gray-900">Comparativo Planejado × Realizado</h1>
-            <p className="text-xs text-gray-400">Análise formal do RH — a NF é liberada no envio do Realizado</p>
-          </div>
-        </div>
-        {selectedEventId && (
+      <PageHeader
+        icon={BarChart3}
+        title="Comparativo"
+        subtitle="Planejado × Realizado — análise formal do RH; a NF é liberada no envio do Realizado"
+        actions={selectedEventId && (
           <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); setSelectedItems(new Set()); }} events={events} />
         )}
-      </div>
+      />
 
       {/* ── No event selected ── */}
       {!selectedEventId && (
@@ -792,7 +793,7 @@ export default function BudgetComparisonPage() {
                           </div>
                           <div className="min-w-0">
                             <div className="text-[11px] font-semibold leading-tight" style={{color: (isDone || isActive) ? '#059669' : '#94A3B8'}}>{step.label}</div>
-                            <div className="text-[9px] text-slate-400 leading-tight mt-0.5">{step.desc}</div>
+                            <div className="text-[10px] text-slate-400 leading-tight mt-0.5">{step.desc}</div>
                           </div>
                         </div>
                         {!isLast && (
@@ -1223,7 +1224,7 @@ export default function BudgetComparisonPage() {
                               {hasDiff && !hasJustification && !row.isSplit && (
                                 <>
                                   <span className="text-slate-300 shrink-0">·</span>
-                                  <span className="flex items-center gap-0.5 text-[9px] text-amber-500 font-medium shrink-0">
+                                  <span className="flex items-center gap-0.5 text-[10px] text-amber-500 font-medium shrink-0">
                                     <AlertTriangle className="w-2.5 h-2.5" /> Sem justificativa
                                   </span>
                                 </>
@@ -1237,17 +1238,17 @@ export default function BudgetComparisonPage() {
                           <div className="flex items-center divide-x divide-slate-100 border border-slate-100 rounded-lg overflow-hidden">
                             {/* Plan. — referência discreta */}
                             <div className="px-2 sm:px-3 py-1.5 text-center w-20 sm:w-28">
-                              <span className="text-[9px] uppercase font-medium text-slate-400 tracking-wider block leading-tight">Plan.</span>
+                              <span className="text-[10px] uppercase font-medium text-slate-400 tracking-wider block leading-tight">Plan.</span>
                               <span className="text-sm tabular-nums text-slate-400 font-light">{fmt(plannedTotal)}</span>
                             </div>
                             {/* Real. — protagonista */}
                             <div className="px-2 sm:px-3 py-1.5 text-center w-20 sm:w-28" style={{background:'#F5F3FF'}}>
-                              <span className="text-[9px] uppercase font-medium text-slate-500 tracking-wider block leading-tight">Real.</span>
+                              <span className="text-[10px] uppercase font-medium text-slate-500 tracking-wider block leading-tight">Real.</span>
                               <span className="text-base tabular-nums text-slate-900 font-bold">{fmt(actualTotal)}</span>
                             </div>
                             {/* Dif. — alerta imediato */}
                             <div className={`px-2 sm:px-3 py-1.5 text-center w-20 sm:w-28 ${hasDiff ? (diff > 0 ? 'bg-red-50' : 'bg-emerald-50') : ''}`}>
-                              <span className="text-[9px] uppercase font-medium text-slate-400 tracking-wider block leading-tight">Dif.</span>
+                              <span className="text-[10px] uppercase font-medium text-slate-400 tracking-wider block leading-tight">Dif.</span>
                               {hasDiff ? (
                                 <span className={`text-sm tabular-nums font-bold ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                                   {diff > 0 ? '+' : '−'}{fmt(Math.abs(diff))}
@@ -1320,11 +1321,11 @@ export default function BudgetComparisonPage() {
                                 <div className="overflow-x-auto">
                                 <div className="min-w-[560px]">
                                 <div className="grid grid-cols-6 gap-2 px-3 py-1.5 bg-slate-50 border-b border-slate-100">
-                                  <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider col-span-2">Colaborador</span>
-                                  <span className="text-[9px] uppercase text-blue-500 font-bold tracking-wider text-right">Plan. prop.</span>
-                                  <span className="text-[9px] uppercase text-violet-500 font-bold tracking-wider text-right">Realizado</span>
-                                  <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider text-right">Diferença</span>
-                                  <span className="text-[9px] uppercase text-slate-300 font-semibold tracking-wider text-center"></span>
+                                  <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider col-span-2">Colaborador</span>
+                                  <span className="text-[10px] uppercase text-blue-500 font-bold tracking-wider text-right">Plan. prop.</span>
+                                  <span className="text-[10px] uppercase text-violet-500 font-bold tracking-wider text-right">Realizado</span>
+                                  <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider text-right">Diferença</span>
+                                  <span className="text-[10px] uppercase text-slate-300 font-semibold tracking-wider text-center"></span>
                                 </div>
                                 {[a, ...row.splitChildren].map((colItem, ci) => {
                                   const isParent = ci === 0;
@@ -1338,17 +1339,17 @@ export default function BudgetComparisonPage() {
                                   return (
                                     <div key={ci} className={`grid grid-cols-6 gap-2 px-3 py-2.5 items-center text-[11px] border-b border-slate-50 ${ci % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>
                                       <div className="col-span-2 flex items-center gap-2 min-w-0">
-                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-white text-[9px] font-black flex-shrink-0 ${avatarColor(colItemName)}`}>
+                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-white text-[10px] font-black flex-shrink-0 ${avatarColor(colItemName)}`}>
                                           {initials(colItemName)}
                                         </div>
                                         <div className="min-w-0">
                                           <p className="font-semibold text-slate-700 truncate text-[11px]">{colItemName}</p>
                                           <div className="flex items-center gap-1">
-                                            <span className={`text-[9px] font-bold px-1 py-0 rounded-full ${isParent ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                                            <span className={`text-[10px] font-bold px-1 py-0 rounded-full ${isParent ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
                                               {isParent ? 'Titular' : 'Divisão'}
                                             </span>
                                             {colDays > 0 && (
-                                              <span className="text-[9px] text-slate-400">{colDays}d</span>
+                                              <span className="text-[10px] text-slate-400">{colDays}d</span>
                                             )}
                                           </div>
                                         </div>
@@ -1382,7 +1383,7 @@ export default function BudgetComparisonPage() {
                                   );
                                 })}
                                 <div className={`grid grid-cols-6 gap-2 px-3 py-2 text-[11px] items-center border-t-2 border-slate-100 font-bold ${diff > 0 ? 'bg-red-50/40' : diff < 0 ? 'bg-emerald-50/40' : 'bg-slate-50'}`}>
-                                  <span className="text-slate-500 uppercase text-[9px] tracking-wider col-span-2">Total do Grupo</span>
+                                  <span className="text-slate-500 uppercase text-[10px] tracking-wider col-span-2">Total do Grupo</span>
                                   <span className="text-right tabular-nums text-blue-700">{fmt(plannedTotal)}</span>
                                   <span className="text-right tabular-nums text-violet-700">{fmt(actualTotal)}</span>
                                   <div className="text-right col-span-2">
@@ -1404,10 +1405,10 @@ export default function BudgetComparisonPage() {
                             {!row.isSplit && <>
                             {/* Shared column headers — shown once above all sections */}
                             <div className="grid grid-cols-4 gap-2 px-3 border border-slate-100 rounded-lg bg-slate-50/80" style={{ height: 28 }}>
-                              <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider flex items-center">Item</span>
-                              <span className="text-[9px] uppercase text-[#0033CC] font-semibold tracking-wider flex items-center justify-end">Planejado</span>
-                              <span className="text-[9px] uppercase text-[#6d28d9] font-semibold tracking-wider flex items-center justify-end">Realizado</span>
-                              <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider flex items-center justify-end">Diferença</span>
+                              <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider flex items-center">Item</span>
+                              <span className="text-[10px] uppercase text-primary font-semibold tracking-wider flex items-center justify-end">Planejado</span>
+                              <span className="text-[10px] uppercase text-[#6d28d9] font-semibold tracking-wider flex items-center justify-end">Realizado</span>
+                              <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider flex items-center justify-end">Diferença</span>
                             </div>
                             <CategoryBlock
                               title="Diárias"
@@ -1456,17 +1457,17 @@ export default function BudgetComparisonPage() {
                               diff > 0 ? 'border-red-100' : diff < 0 ? 'border-emerald-100' : 'border-slate-100'
                             }`} style={{ height: 44 }}>
                               <div className="flex-1 flex items-center justify-center gap-2 bg-white border-r border-slate-100 h-full">
-                                <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-widest">Planejado</span>
+                                <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-widest">Planejado</span>
                                 <span className="text-[14px] font-semibold text-slate-500 tabular-nums">{fmt(plannedTotal)}</span>
                               </div>
                               <div className="flex-1 flex items-center justify-center gap-2 h-full" style={{ background: '#F5F3FF' }}>
-                                <span className="text-[9px] uppercase text-violet-500 font-bold tracking-widest">Realizado</span>
+                                <span className="text-[10px] uppercase text-violet-500 font-bold tracking-widest">Realizado</span>
                                 <span className="text-[16px] font-extrabold text-violet-700 tabular-nums">{fmt(actualTotal)}</span>
                               </div>
                               <div className={`flex-1 flex items-center justify-center gap-2 h-full ${
                                 diff > 0 ? 'bg-red-50' : diff < 0 ? 'bg-emerald-50' : 'bg-slate-50'
                               }`}>
-                                <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-widest">Diferença</span>
+                                <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-widest">Diferença</span>
                                 {diff === 0 ? (
                                   <span className="text-[14px] text-slate-300 tabular-nums">—</span>
                                 ) : (
@@ -1475,7 +1476,7 @@ export default function BudgetComparisonPage() {
                                       {diff > 0 ? '+' : '−'}{fmt(Math.abs(diff))}
                                     </span>
                                     {plannedTotal > 0 && (
-                                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                                         diff > 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'
                                       }`}>
                                         {Math.abs(diff / plannedTotal * 100).toFixed(1)}%
@@ -1491,7 +1492,7 @@ export default function BudgetComparisonPage() {
                               <div className="p-3 rounded-xl bg-white border border-slate-100 flex items-start gap-2">
                                 <MessageSquare className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
                                 <div>
-                                  <span className="text-[9px] uppercase text-slate-400 font-bold tracking-wider">Justificativa do Responsável</span>
+                                  <span className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Justificativa do Responsável</span>
                                   <p className="text-xs text-slate-600 mt-0.5">{a.changeReason}</p>
                                 </div>
                               </div>
@@ -1506,7 +1507,7 @@ export default function BudgetComparisonPage() {
                               }`}>
                                 <MessageSquare className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${itemRhStatus === 'aprovado' ? 'text-emerald-500' : itemRhStatus === 'rejeitado' ? 'text-red-500' : 'text-orange-500'}`} />
                                 <div>
-                                  <span className={`text-[9px] uppercase font-bold tracking-wider ${itemRhStatus === 'aprovado' ? 'text-emerald-500' : itemRhStatus === 'rejeitado' ? 'text-red-500' : 'text-orange-500'}`}>
+                                  <span className={`text-[10px] uppercase font-bold tracking-wider ${itemRhStatus === 'aprovado' ? 'text-emerald-500' : itemRhStatus === 'rejeitado' ? 'text-red-500' : 'text-orange-500'}`}>
                                     Comentário do RH
                                   </span>
                                   <p className={`text-xs mt-0.5 ${itemRhStatus === 'aprovado' ? 'text-emerald-700' : itemRhStatus === 'rejeitado' ? 'text-red-700' : 'text-orange-700'}`}>
@@ -1520,7 +1521,7 @@ export default function BudgetComparisonPage() {
                               <div className="p-3 rounded-xl bg-orange-50/60 border border-orange-100 flex items-start gap-2">
                                 <MessageSquare className="w-3.5 h-3.5 text-orange-500 mt-0.5 flex-shrink-0" />
                                 <div>
-                                  <span className="text-[9px] uppercase text-orange-500 font-bold tracking-wider">Comentário do RH (geral)</span>
+                                  <span className="text-[10px] uppercase text-orange-500 font-bold tracking-wider">Comentário do RH (geral)</span>
                                   <p className="text-xs text-orange-700 mt-0.5">{rhComment}</p>
                                 </div>
                               </div>
@@ -1531,7 +1532,7 @@ export default function BudgetComparisonPage() {
                               <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 flex items-start gap-2">
                                 <MessageSquare className="w-3.5 h-3.5 text-amber-500 mt-0.5 flex-shrink-0" />
                                 <div>
-                                  <span className="text-[9px] uppercase text-amber-600 font-bold tracking-wider">Observação do Ajuste (RH)</span>
+                                  <span className="text-[10px] uppercase text-amber-600 font-bold tracking-wider">Observação do Ajuste (RH)</span>
                                   <p className="text-xs text-amber-800 mt-0.5">{a.rhAdjustNote}</p>
                                 </div>
                               </div>
@@ -1870,7 +1871,7 @@ export default function BudgetComparisonPage() {
                       <div>
                         <div className="flex items-center gap-2 flex-wrap mb-0.5">
                           <span className="text-base font-black text-white">{sdName}</span>
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${sd.isParent
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sd.isParent
                             ? 'bg-blue-200/30 text-blue-100 ring-1 ring-blue-200/40'
                             : 'bg-purple-200/30 text-purple-100 ring-1 ring-purple-200/40'}`}>
                             {sd.isParent ? 'Titular' : 'Divisão'}
@@ -1903,7 +1904,7 @@ export default function BudgetComparisonPage() {
                         <div className="bg-white/10 rounded-xl px-3 py-2.5 flex items-start gap-2">
                           <Calendar className="w-3.5 h-3.5 text-purple-200 mt-0.5 flex-shrink-0" />
                           <div>
-                            <p className="text-[9px] uppercase font-bold tracking-wider text-purple-200 mb-0.5">Vaga original</p>
+                            <p className="text-[10px] uppercase font-bold tracking-wider text-purple-200 mb-0.5">Vaga original</p>
                             <p className="text-[11px] text-white font-medium leading-snug">
                               {fmtDateShort(allDays[0])} a {fmtDateShort(allDays[allDays.length - 1])}
                             </p>
@@ -1917,7 +1918,7 @@ export default function BudgetComparisonPage() {
                           <div className="bg-white/10 rounded-xl px-3 py-2.5 flex items-start gap-2">
                             <GitFork className="w-3.5 h-3.5 text-purple-200 mt-0.5 flex-shrink-0" />
                             <div>
-                              <p className="text-[9px] uppercase font-bold tracking-wider text-purple-200 mb-0.5">Dias atribuídos</p>
+                              <p className="text-[10px] uppercase font-bold tracking-wider text-purple-200 mb-0.5">Dias atribuídos</p>
                               <p className="text-[11px] text-white font-medium leading-snug">
                                 {myDays.length === 1
                                   ? fmtDate(myDays[0])
@@ -1938,10 +1939,10 @@ export default function BudgetComparisonPage() {
                 {/* ── Table body ── */}
                 <div className="px-5 py-4 space-y-3 bg-white max-h-[50vh] overflow-y-auto">
                   <div className="grid grid-cols-4 gap-4 px-4 pb-2 border-b-2 border-slate-100">
-                    <span className="text-[9px] uppercase text-slate-400 font-bold tracking-wider">Item</span>
-                    <span className="text-[9px] uppercase text-blue-500 font-bold tracking-wider text-right">Planejado</span>
-                    <span className="text-[9px] uppercase text-violet-500 font-bold tracking-wider text-right">Realizado</span>
-                    <span className="text-[9px] uppercase text-gray-400 font-bold tracking-wider text-right">Diferença</span>
+                    <span className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Item</span>
+                    <span className="text-[10px] uppercase text-blue-500 font-bold tracking-wider text-right">Planejado</span>
+                    <span className="text-[10px] uppercase text-violet-500 font-bold tracking-wider text-right">Realizado</span>
+                    <span className="text-[10px] uppercase text-gray-400 font-bold tracking-wider text-right">Diferença</span>
                   </div>
 
                   {/* Diárias */}
@@ -2095,15 +2096,15 @@ export default function BudgetComparisonPage() {
               {/* Totais do conjunto selecionado */}
               <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-200/70">
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Planejado</p>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Planejado</p>
                   <p className="text-[13px] font-semibold text-blue-700 tabular-nums">{fmt(selectedTotals.planned)}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Realizado</p>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Realizado</p>
                   <p className="text-[13px] font-semibold text-violet-700 tabular-nums">{fmt(selectedTotals.actual)}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Diferença</p>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Diferença</p>
                   <p className={`text-[13px] font-semibold tabular-nums ${selectedTotals.diff > 0 ? 'text-red-600' : selectedTotals.diff < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
                     {selectedTotals.diff > 0 ? '+' : selectedTotals.diff < 0 ? '−' : ''}{fmt(Math.abs(selectedTotals.diff))}
                   </p>

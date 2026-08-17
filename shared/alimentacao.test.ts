@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcAlimentacao, isCenotecnicaFunction, refeicaoCents } from "./alimentacao";
+import { calcAlimentacao, isCenotecnicaFunction, refeicaoCents, refeicaoCentsDia } from "./alimentacao";
 
 const base = { almocoCents: 4000, jantarCents: 4000 };
 const dias3 = ["2026-08-28", "2026-08-29", "2026-08-30"];
@@ -90,7 +90,56 @@ describe("valores por refeição (Valores Padrão)", () => {
   });
   it("isCenotecnicaFunction", () => {
     expect(isCenotecnicaFunction("cenotecnica")).toBe(true);
-    expect(isCenotecnicaFunction("Sup Ceno")).toBe(true);
+    expect(isCenotecnicaFunction("Cenotécnica")).toBe(true);
+    // "Sup Ceno" (supervisor) é do grupo PRODUTOR — regra confirmada pelo usuário:
+    // recebe diária normal e alimentação de "demais", não a de cenotécnica.
+    expect(isCenotecnicaFunction("Sup Ceno")).toBe(false);
+    expect(isCenotecnicaFunction("Supervisor de Cenotecnica")).toBe(false);
     expect(isCenotecnicaFunction("atendimento")).toBe(false);
+  });
+});
+
+describe("refeicaoCentsDia — almoço de casa (CLT) em dia útil", () => {
+  it("casa em dia útil: almoço R$ 8,00 (diferença do VR), jantar R$ 40,00", () => {
+    expect(refeicaoCentsDia(false, {}, { tipoColaborador: "casa", isWeekend: false }))
+      .toEqual({ almocoCents: 800, jantarCents: 4000 });
+  });
+  it("casa em fim de semana: almoço R$ 40,00 e jantar R$ 40,00", () => {
+    expect(refeicaoCentsDia(false, {}, { tipoColaborador: "casa", isWeekend: true }))
+      .toEqual({ almocoCents: 4000, jantarCents: 4000 });
+  });
+  it("freela e local em dia útil: inalterado (R$ 40 / R$ 40)", () => {
+    expect(refeicaoCentsDia(false, {}, { tipoColaborador: "freela", isWeekend: false }))
+      .toEqual({ almocoCents: 4000, jantarCents: 4000 });
+    expect(refeicaoCentsDia(false, {}, { tipoColaborador: "local", isWeekend: false }))
+      .toEqual({ almocoCents: 4000, jantarCents: 4000 });
+  });
+  it("chave alimentacao_almoco_casa_util dos Valores Padrão vence o default", () => {
+    expect(refeicaoCentsDia(false, { alimentacao_almoco_casa_util: "1000" }, { tipoColaborador: "casa", isWeekend: false }).almocoCents).toBe(1000);
+  });
+  it("exemplo do usuário: casa, 2 úteis + 2 fds, almoço+jantar todos os dias → R$ 256,00", () => {
+    const util = refeicaoCentsDia(false, {}, { tipoColaborador: "casa", isWeekend: false });
+    const fds = refeicaoCentsDia(false, {}, { tipoColaborador: "casa", isWeekend: true });
+    expect(2 * (util.almocoCents + util.jantarCents) + 2 * (fds.almocoCents + fds.jantarCents)).toBe(25600);
+  });
+});
+
+describe("refeicaoCentsDia — cenotécnica de casa (regra 17/08)", () => {
+  it("casa ceno dia útil: almoço R$ 3,00 / jantar R$ 35,00", () => {
+    expect(refeicaoCentsDia(true, {}, { tipoColaborador: "casa", isWeekend: false }))
+      .toEqual({ almocoCents: 300, jantarCents: 3500 });
+  });
+  it("casa ceno fim de semana: R$ 35 / R$ 35", () => {
+    expect(refeicaoCentsDia(true, {}, { tipoColaborador: "casa", isWeekend: true }))
+      .toEqual({ almocoCents: 3500, jantarCents: 3500 });
+  });
+  it("cenotécnica freela em dia útil: inalterada (R$ 35 / R$ 35)", () => {
+    expect(refeicaoCentsDia(true, {}, { tipoColaborador: "freela", isWeekend: false }))
+      .toEqual({ almocoCents: 3500, jantarCents: 3500 });
+  });
+  it("exemplo do usuário (Erick): 2 úteis + 2 fds, almoço+jantar → R$ 216,00", () => {
+    const u = refeicaoCentsDia(true, {}, { tipoColaborador: "casa", isWeekend: false });
+    const f = refeicaoCentsDia(true, {}, { tipoColaborador: "casa", isWeekend: true });
+    expect(2 * (u.almocoCents + u.jantarCents) + 2 * (f.almocoCents + f.jantarCents)).toBe(21600);
   });
 });

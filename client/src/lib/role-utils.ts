@@ -1,3 +1,11 @@
+/**
+ * FONTE ÚNICA das flags de permissão do client, espelhadas do servidor.
+ * NOVAS PERMISSÕES VÃO AQUI (com o comentário da rota que espelham).
+ *
+ * `permissions.ts` é a matriz feature × nível ('none' | 'view' | 'edit')
+ * usada por telas legadas — convivem por enquanto; não unificar sem
+ * revisar cada tela.
+ */
 import type { User } from "@shared/schema";
 import { normalizeRole } from "@shared/roles";
 

@@ -99,14 +99,21 @@ const CHEGANDO_INI = 20 * 60;      // 20:00
 const CHEGANDO_FIM = 5 * 60;       // 05:00 (cruza a meia-noite)
 
 /** Valor (centavos) de UM trecho a partir dos horários de partida/chegada. */
+// Regra 17/08: no trecho de VOLTA, partida a partir das 20h00 também vale R$ 58
+// (o colaborador sai do evento à noite). Na ida a regra continua a das janelas.
+export const VOLTA_NOITE_A_PARTIR = 20 * 60; // 20:00
+
 export function mobilidadeTrechoCents(
   horaPartida: string | null | undefined,
   horaChegada?: string | null | undefined,
+  opts?: { trecho?: "ida" | "volta" },
 ): number {
   const p = parseHoraMin(horaPartida);
   const c = parseHoraMin(horaChegada);
+  const trecho = opts?.trecho ?? "ida";
   const madrugada =
     (p !== null && dentroJanela(p, PARTINDO_INI, PARTINDO_FIM)) ||
-    (c !== null && dentroJanela(c, CHEGANDO_INI, CHEGANDO_FIM));
+    (c !== null && dentroJanela(c, CHEGANDO_INI, CHEGANDO_FIM)) ||
+    (trecho === "volta" && p !== null && p >= VOLTA_NOITE_A_PARTIR);
   return madrugada ? MOBILIDADE_TRECHO_MADRUGADA_CENTS : MOBILIDADE_TRECHO_PADRAO_CENTS;
 }

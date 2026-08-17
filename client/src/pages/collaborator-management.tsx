@@ -19,8 +19,12 @@ import BulkUploadModal from "@/components/modals/bulk-upload-modal";
 import type { Collaborator } from "@shared/schema";
 import { normalizeRole } from "@shared/roles";
 import { hasPermission } from "@/lib/role-utils";
+import { PageHeader } from "@/components/common/page-header";
+import { PageContainer } from "@/components/common/page-container";
+import { EmptyState } from "@/components/common/empty-state";
+import { LoadingState } from "@/components/common/loading-state";
+import { usePageTitle } from "@/components/common/use-page-title";
 
-const BLUE = "#0033CC";
 
 // ─── Avatar helpers ────────────────────────────────────────────────────────
 const AVATAR_COLORS = [
@@ -99,6 +103,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 // ─── Component ─────────────────────────────────────────────────────────────
 export default function CollaboratorManagement() {
+  usePageTitle("Colaboradores");
   const [filters, setFilters] = useState({ status: "all", type: "all", search: "" });
   const [page, setPage] = useState(1);
   const [selectedCollaborator, setSelectedCollaborator] = useState<Collaborator | null>(null);
@@ -276,21 +281,10 @@ export default function CollaboratorManagement() {
 
   if (isLoading) {
     return (
-      <div className="space-y-5">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-[10px] bg-slate-200 animate-pulse" />
-          <div className="space-y-1.5">
-            <div className="h-5 w-48 bg-slate-200 rounded animate-pulse" />
-            <div className="h-3 w-64 bg-slate-100 rounded animate-pulse" />
-          </div>
-        </div>
-        <div className="grid grid-cols-5 gap-4">
-          {[...Array(5)].map((_, i) => <div key={i} className="h-24 bg-white rounded-xl border border-slate-200 animate-pulse" />)}
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-8 animate-pulse space-y-4">
-          {[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-slate-50 rounded-xl" />)}
-        </div>
-      </div>
+      <PageContainer>
+        <PageHeader icon={Users} title="Colaboradores" subtitle="Gerencie prestadores, motoristas e colaboradores internos" />
+        <LoadingState count={8} label="Carregando colaboradores…" />
+      </PageContainer>
     );
   }
 
@@ -304,7 +298,7 @@ export default function CollaboratorManagement() {
       : err?.body?.message || "Verifique sua conexão e tente novamente.";
     return (
       /* Antes, uma falha de rede caía no estado vazio e dizia "nenhum colaborador". */
-      <div role="alert" className="bg-white rounded-xl border border-red-200 shadow-sm py-16 px-6 text-center">
+      <div role="alert" className="bg-card rounded-xl border border-red-200 shadow-sm py-16 px-6 text-center">
         <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center mx-auto mb-3">
           <AlertCircle className="w-6 h-6 text-red-500" />
         </div>
@@ -319,40 +313,30 @@ export default function CollaboratorManagement() {
 
   return (
     <TooltipProvider>
-      <div className="space-y-5">
+      <PageContainer>
 
         {/* ── Page Header ── */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-[10px] flex items-center justify-center shrink-0"
-              style={{ background: BLUE, boxShadow: `0 4px 14px ${BLUE}50` }}
-            >
-              <span className="material-symbols-outlined text-white" style={{ fontSize: 20, fontVariationSettings: "'FILL' 1" }}>group</span>
-            </div>
-            <div>
-              <h1 className="text-[18px] font-bold text-slate-900 leading-tight">Colaboradores</h1>
-              <p className="text-xs text-slate-400 mt-0.5">Gerencie prestadores, motoristas e colaboradores internos</p>
-            </div>
-          </div>
-          {canEdit && (
-            <div className="flex items-center gap-2 shrink-0">
+        <PageHeader
+          icon={Users}
+          title="Colaboradores"
+          subtitle="Gerencie prestadores, motoristas e colaboradores internos"
+          actions={canEdit && (
+            <>
               <button
                 onClick={() => setBulkUploadModal(true)}
-                className="h-9 px-3.5 flex items-center gap-1.5 text-xs font-medium text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-lg transition-colors bg-white"
+                className="h-9 px-3.5 flex items-center gap-1.5 text-xs font-medium text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-lg transition-colors bg-card"
               >
                 <Upload className="w-3.5 h-3.5" /> Importar
               </button>
               <button
                 onClick={() => setShowAddModal(true)}
-                className="h-9 px-4 flex items-center gap-1.5 text-white text-xs font-semibold rounded-lg transition-all"
-                style={{ background: BLUE, boxShadow: `0 2px 8px ${BLUE}35` }}
+                className="h-9 px-4 flex items-center gap-1.5 bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold rounded-lg transition-all shadow-sm shadow-primary/30"
               >
                 <UserPlus className="w-3.5 h-3.5" /> Novo Colaborador
               </button>
-            </div>
+            </>
           )}
-        </div>
+        />
 
         {/* ── Stat cards ── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -382,7 +366,7 @@ export default function CollaboratorManagement() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
 
           {/* Filter bar */}
-          <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2.5 bg-[#FAFBFF]">
+          <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2.5 bg-muted/30">
             {/* Search */}
             <div className="relative flex-1 min-w-[180px] max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
@@ -393,7 +377,7 @@ export default function CollaboratorManagement() {
                 placeholder="Buscar por nome ou documento..."
                 value={filters.search}
                 onChange={e => setFilter("search", e.target.value)}
-                className="w-full h-8 pl-9 pr-8 bg-white border border-gray-200 rounded-lg text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
+                className="w-full h-8 pl-9 pr-8 bg-white border border-gray-200 rounded-lg text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-1 focus:ring-ring/20 transition-all"
               />
               {filters.search && (
                 <button onClick={() => setFilter("search", "")} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -404,7 +388,7 @@ export default function CollaboratorManagement() {
 
             {/* Status filter */}
             <Select value={filters.status} onValueChange={v => setFilter("status", v)}>
-              <SelectTrigger aria-label="Filtrar por status" className="h-8 w-[145px] text-xs border-gray-200 rounded-lg bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20">
+              <SelectTrigger aria-label="Filtrar por status" className="h-8 w-[145px] text-xs border-input rounded-lg bg-card focus:border-primary focus:ring-1 focus:ring-ring/20">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
@@ -418,7 +402,7 @@ export default function CollaboratorManagement() {
 
             {/* Type filter */}
             <Select value={filters.type} onValueChange={v => setFilter("type", v)}>
-              <SelectTrigger aria-label="Filtrar por tipo" className="h-8 w-[145px] text-xs border-gray-200 rounded-lg bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20">
+              <SelectTrigger aria-label="Filtrar por tipo" className="h-8 w-[145px] text-xs border-input rounded-lg bg-card focus:border-primary focus:ring-1 focus:ring-ring/20">
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
@@ -447,27 +431,21 @@ export default function CollaboratorManagement() {
 
           {/* Table */}
           {filtered.length === 0 ? (
-            <div className="py-20 text-center">
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center">
-                  <Users className="w-6 h-6 text-slate-400" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-600">Nenhum colaborador encontrado</p>
-                  <p className="text-xs text-slate-400 mt-1">{canEdit ? "Tente ajustar os filtros ou cadastre um novo colaborador." : "Tente ajustar os filtros."}</p>
-                </div>
-                {hasFilters && (
-                  <button onClick={clearFilters} className="text-xs text-blue-500 hover:text-blue-700 font-medium">
-                    Limpar filtros
-                  </button>
-                )}
-              </div>
+            <div className="p-6">
+              <EmptyState
+                icon={Users}
+                variant={hasFilters ? "filtered" : "default"}
+                title="Nenhum colaborador encontrado"
+                description={canEdit ? "Tente ajustar os filtros ou cadastre um novo colaborador." : "Tente ajustar os filtros."}
+                onClearFilters={hasFilters ? clearFilters : undefined}
+                className="border-0 py-14"
+              />
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr style={{ borderBottom: "2px solid #E2E8F0", background: "#F8FAFC" }}>
+                  <tr className="border-b-2 border-border bg-muted/40">
                     <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Colaborador</th>
                     <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Documento</th>
                     <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Tipo</th>
@@ -487,7 +465,7 @@ export default function CollaboratorManagement() {
                     return (
                       <tr
                         key={c.id}
-                        className={`group transition-colors ${isInactive ? "bg-slate-50/60 hover:bg-slate-100/60" : isPending ? "hover:bg-amber-50/30" : "hover:bg-blue-50/30"}`}
+                        className={`group transition-colors ${isInactive ? "bg-slate-50/60 hover:bg-slate-100/60" : isPending ? "hover:bg-amber-50/30" : "hover:bg-brand-soft/30"}`}
                       >
                         {/* Colaborador */}
                         <td className="px-5 py-3.5">
@@ -571,7 +549,7 @@ export default function CollaboratorManagement() {
                             )}
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <button onClick={() => handleView(c)} aria-label={`Ver detalhes de ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                                <button onClick={() => handleView(c)} aria-label={`Ver detalhes de ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-brand-soft hover:text-primary transition-colors">
                                   <Eye className="w-3.5 h-3.5" />
                                 </button>
                               </TooltipTrigger>
@@ -580,7 +558,7 @@ export default function CollaboratorManagement() {
                             {canEdit && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <button onClick={() => handleEdit(c)} aria-label={`Editar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                                  <button onClick={() => handleEdit(c)} aria-label={`Editar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-brand-soft hover:text-primary transition-colors">
                                     <Edit className="w-3.5 h-3.5" />
                                   </button>
                                 </TooltipTrigger>
@@ -650,9 +628,8 @@ export default function CollaboratorManagement() {
                           aria-label={`Página ${p}`}
                           aria-current={currentPage === p ? "page" : undefined}
                           className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-semibold transition-colors ${
-                            currentPage === p ? "text-white" : "text-slate-500 hover:bg-slate-100"
+                            currentPage === p ? "bg-primary text-primary-foreground" : "text-slate-500 hover:bg-slate-100"
                           }`}
-                          style={currentPage === p ? { background: BLUE } : undefined}
                         >
                           {p}
                         </button>
@@ -816,12 +793,12 @@ export default function CollaboratorManagement() {
                     <div>
                       <label htmlFor="approval-cpf" className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1.5">CPF <span className="text-red-400 normal-case tracking-normal">*</span></label>
                       <input id="approval-cpf" value={editCpf} onChange={e => setEditCpf(e.target.value)} placeholder="000.000.000-00"
-                        className="w-full h-9 px-3 font-mono text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
+                        className="w-full h-9 px-3 font-mono text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-ring/20" />
                     </div>
                     <div>
                       <label htmlFor="approval-rg" className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1.5">RG <span className="text-slate-400 font-normal normal-case tracking-normal">(opcional)</span></label>
                       <input id="approval-rg" value={editRg} onChange={e => setEditRg(e.target.value)} placeholder="00.000.000-0"
-                        className="w-full h-9 px-3 font-mono text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
+                        className="w-full h-9 px-3 font-mono text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-ring/20" />
                     </div>
                   </div>
                 )}
@@ -832,7 +809,7 @@ export default function CollaboratorManagement() {
                   </label>
                   <Textarea id="approval-notes" value={approvalNotes} onChange={e => setApprovalNotes(e.target.value)}
                     placeholder={approvalAction === "approve" ? "Comentários sobre a aprovação..." : "Motivo da rejeição..."}
-                    rows={3} className="text-sm border-gray-200 rounded-lg resize-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
+                    rows={3} className="text-sm border-gray-200 rounded-lg resize-none focus:border-primary focus:ring-1 focus:ring-ring/20" />
                 </div>
 
                 <div className="flex gap-2 pt-1">
@@ -932,7 +909,7 @@ export default function CollaboratorManagement() {
         <CollaboratorModal open={showAddModal} onClose={() => setShowAddModal(false)} />
         <CollaboratorModal open={showEditModal} onClose={() => setShowEditModal(false)} collaborator={selectedCollaborator} isEdit={true} />
 
-      </div>
+      </PageContainer>
     </TooltipProvider>
   );
 }

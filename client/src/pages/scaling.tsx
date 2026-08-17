@@ -1,844 +1,118 @@
-import { useState, useMemo, useEffect, useRef } from "react";
-import { fixEncoding } from "@/lib/utils";
+/**
+ * Escalação — Visualização. Só composição: dados/permissões em
+ * components/scaling/use-scaling-data, mutations em use-scaling-mutations,
+ * modal em inclusion-details-dialog, ações em massa em bulk-confirm-bar.
+ */
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { markSwapSeen, getSeenState } from "@/lib/seenSwaps";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Check, CalendarDays, Users, MessageSquare, History, FileText, File, HelpCircle, ArrowLeftRight, ArrowRight, AlertCircle, RotateCcw, CheckCheck, XCircle, MapPin } from "lucide-react";
+import { User, FileSpreadsheet, Plane, Users, AlertCircle } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
-import ScalingTable, { getStatusBadge } from "@/components/scaling/scaling-table";
-import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { TeamInclusion, Event, Function, Collaborator, Comment, Ticket, Accommodation, TeamInclusionLog, SwapRequest } from "@shared/schema";
-import { isAtendimentoFunction, ATENDIMENTO_TIPOS } from "@shared/atendimento";
 import { useAuth } from "@/hooks/use-auth";
-import { isReadOnly } from "@/lib/interactions";
 import { canView } from "@/lib/permissions";
-import { hasRoleIn } from "@shared/roles";
-import * as XLSX from 'xlsx';
-import { eachDayOfInterval, parseISO, format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
+import type { TeamInclusion, Comment } from "@shared/schema";
+import ScalingTable from "@/components/scaling/scaling-table";
+import ScalingTabCards from "@/components/scaling/scaling-tab-cards";
+import { ProductionApprovalsBanner, PendingSwapsBanner } from "@/components/scaling/scaling-banners";
+import InclusionDetailsDialog, { type DetailsTab } from "@/components/scaling/inclusion-details-dialog";
+import ScalingSuccessDialog, { type ScalingSuccessInfo } from "@/components/scaling/scaling-success-dialog";
+import { SentToProductionDialog, type SentToProductionInfo } from "@/components/scaling/production-approval-card";
+import AttachmentLightbox from "@/components/scaling/attachment-lightbox";
+import BulkConfirmBar from "@/components/scaling/bulk-confirm-bar";
+import { useScalingData, useInclusionDetails, DEFAULT_SCALING_FILTERS, type ScalingFilters } from "@/components/scaling/use-scaling-data";
+import { useScalingMutations, type InclusionSavePayload } from "@/components/scaling/use-scaling-mutations";
+import { useAttachments } from "@/components/scaling/use-attachments";
+import { exportScalingXlsx } from "@/components/scaling/export-scaling-xlsx";
+import { getSaveBlockReason, getConfirmBlockReason, getBulkConfirmBlockReason } from "@/components/scaling/scaling-validation";
+import { describeLoadError, isEscalated, modalDataFromInclusion, type ModalData } from "@/components/scaling/scaling-utils";
 
-// Trocas já resolvidas por outra aba (Passagem/Hospedagem) não entram no atalho
-// de "trocas pendentes". Fora do componente para manter identidade estável.
-const ALREADY_HANDLED_SWAP_STATUSES = new Set([
-  'passagem_comprada',
-  'hospedagem_passagem_comprada',
-  'hospedagem_comprada',
-]);
-
-// Converte "YYYY-MM-DD" (ou ISO com timestamp) em Date LOCAL de meia-noite.
-// parseISO de um ISO completo devolve UTC e, em Brasília, joga a data um dia
-// para trás. Retorna null quando a data é inválida.
-const parseDay = (value: string | null | undefined): Date | null => {
-  if (!value) return null;
-  const clean = String(value).split('T')[0];
-  const d = parseISO(clean);
-  return isNaN(d.getTime()) ? null : d;
-};
-
-// Mensagem de erro amigável para falhas de carregamento (distingue sessão expirada
-// de "não há dados": uma falha de rede nunca pode virar estado vazio).
-const describeLoadError = (err: any): string => {
-  if (err?.status === 401) return "Sua sessão expirou. Atualize a página e entre novamente.";
-  if (err?.status === 403) return "Você não tem permissão para ver estes registros.";
-  return err?.body?.message || "Não foi possível carregar os dados. Verifique sua conexão e tente novamente.";
-};
+const EMPTY_MODAL: ModalData = { collaboratorId: "", observations: "", dailyValue: 0, city: "", departureFromSP: true, atendimentoTipo: "", percurseiroTipo: "" };
 
 export default function Scaling() {
-  const [filters, setFilters] = useState<{
-    eventId: string;
-    functionId: string[];
-    collaboratorId: string;
-    escalationStatus: string;
-    ticketStatus: string;
-    accommodationStatus: string;
-    searchId: string;
-    showDeleted: boolean;
-  }>({
-    eventId: "all",
-    functionId: [],
-    collaboratorId: "all",
-    escalationStatus: "all",
-    ticketStatus: "all",
-    accommodationStatus: "all",
-    searchId: "",
-    showDeleted: false,
-  });
-  
-  const [sortConfig, setSortConfig] = useState<SortConfig | null>({ field: 'id', direction: 'desc' });
-  
-  const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
-  const [showModal, setShowModal] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successInfo, setSuccessInfo] = useState<{message:string;inclusionNumber:number|null;eventName:string;collaboratorName:string;functionName:string}|null>(null);
-  const pendingScalingAction = useRef<'save'|'confirm'>('save');
-  const [modalData, setModalData] = useState({
-    collaboratorId: "",
-    observations: "",
-    dailyValue: 0,
-    city: "",
-    departureFromSP: true,
-    atendimentoTipo: "",
-  });
-  
-  // Estado para novo comentário inline
-  const [newComment, setNewComment] = useState("");
+  const { user } = useAuth();
+  const { toast } = useToast();
 
-  // Estados para o modal redesenhado
-  const [modalActiveTab, setModalActiveTab] = useState("resumo");
-  const [showAllLogs, setShowAllLogs] = useState(false);
-
-  // Estado para lightbox de imagens
-  const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null);
-
-  // Estado para modal de solicitação de troca
-  const [showSwapModal, setShowSwapModal] = useState(false);
-  const [swapNewCollaboratorId, setSwapNewCollaboratorId] = useState("");
-  const [swapReason, setSwapReason] = useState("");
-  const [swapSuccess, setSwapSuccess] = useState(false);
-  const [swapSubmitAttempted, setSwapSubmitAttempted] = useState(false);
-  const [showCancelSwapConfirm, setShowCancelSwapConfirm] = useState(false);
-  const [swapConfirmAction, setSwapConfirmAction] = useState<'approve' | 'reject' | null>(null);
-  const [swapRejectReason, setSwapRejectReason] = useState("");
-
-  // Atalho para localizar trocas pendentes na lista de escalação
+  // ── Estado da tela ──────────────────────────────────────────────────────
+  const [filters, setFilters] = useState<ScalingFilters>(DEFAULT_SCALING_FILTERS);
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>({ field: "id", direction: "desc" });
   const [showOnlyPendingSwaps, setShowOnlyPendingSwaps] = useState(false);
   const [scalingTab, setScalingTab] = useState<string>("without-ticket");
   const tabInitialized = useRef(false);
 
-  // Cache de metadados de anexos { [id]: { name, type, viewUrl, downloadUrl } }
-  const [attachmentMeta, setAttachmentMeta] = useState<Record<string, { name?: string; type?: string; viewUrl?: string; downloadUrl?: string }>>({});
-  
-  const { user } = useAuth();
-  const { toast } = useToast();
+  // Modal de detalhes
+  const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [modalInitialTab, setModalInitialTab] = useState<DetailsTab>("resumo");
+  const [modalData, setModalData] = useState<ModalData>(EMPTY_MODAL);
+  const [successInfo, setSuccessInfo] = useState<ScalingSuccessInfo | null>(null);
+  const [sentToProductionInfo, setSentToProductionInfo] = useState<SentToProductionInfo | null>(null);
+
+  // Seleção múltipla (ações em massa)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // IDs de trocas pendentes já visualizadas pelo solicitante
-  const [seenSwapIds, setSeenSwapIds] = useState<Set<string>>(() => {
+  const readSeen = () => {
     if (!user) return new Set<string>();
     const state = getSeenState(user.id);
     return new Set(Object.entries(state).filter(([, v]: [string, any]) => v.pendingSeen).map(([k]) => k));
-  });
-
+  };
+  const [seenSwapIds, setSeenSwapIds] = useState<Set<string>>(readSeen);
   useEffect(() => {
-    const handler = () => {
-      if (!user) return;
-      const state = getSeenState(user.id);
-      setSeenSwapIds(new Set(Object.entries(state).filter(([, v]: [string, any]) => v.pendingSeen).map(([k]) => k)));
-    };
-    window.addEventListener('swapSeenUpdated', handler);
-    return () => window.removeEventListener('swapSeenUpdated', handler);
+    const handler = () => setSeenSwapIds(readSeen());
+    window.addEventListener("swapSeenUpdated", handler);
+    return () => window.removeEventListener("swapSeenUpdated", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Handle column sorting
-  const handleSort = (field: SortField) => {
-    setSortConfig(current => {
-      if (current?.field === field) {
-        return current.direction === 'asc' 
-          ? { field, direction: 'desc' }
-          : null; // Remove sorting on third click
-      } else {
-        return { field, direction: 'asc' };
-      }
-    });
-  };
-
+  // ── Dados ───────────────────────────────────────────────────────────────
+  const data = useScalingData({ filters, sortConfig, user });
   const {
-    data: teamInclusions,
-    isLoading: isLoadingInclusions,
-    isError: isErrorInclusions,
-    error: inclusionsError,
-  } = useQuery<TeamInclusion[]>({
-    queryKey: ["/api/team-inclusions", filters.showDeleted],
-    queryFn: async () => {
-      const suffix = filters.showDeleted ? '?includeDeleted=true' : '';
-      const response = await apiRequest("GET", `/api/team-inclusions${suffix}`);
-      return response.json();
-    },
-  });
+    teamInclusions, isLoading, isErrorInclusions, inclusionsError,
+    scalingInclusions, pendingSwapByInclusion,
+    pendingSwapInclusionsAll, pendingSwapInclusionsInView,
+    pendingProductionApprovals, pendingProductionApprovalsInView,
+    canApproveProduction, canExport, isAdminOrPurchasing,
+    getEventName, getFunctionName, getCollaboratorName, getCollaboratorCity,
+    getTicket, getAccommodation, getPurchasedTicket, firstSwapByInclusion,
+  } = data;
+  const details = useInclusionDetails(selectedInclusion?.id);
+  const hasActiveFilters = data.hasActiveFilters || showOnlyPendingSwaps;
 
-  const { data: events, isLoading: isLoadingEvents } = useQuery<Event[]>({
-    queryKey: ["/api/events"],
-  });
-
-  const { data: functions, isLoading: isLoadingFunctions } = useQuery<Function[]>({
-    queryKey: ["/api/functions"],
-  });
-
-  // Query para buscar managers de todas as funções — uma única requisição
-  const { data: allFunctionManagers, isLoading: isLoadingManagers } = useQuery<{ functionId: string; userId: string }[]>({
-    queryKey: ["/api/function-managers/all"],
-  });
-
-  const { data: collaborators, isLoading: isLoadingCollaborators } = useQuery<Collaborator[]>({
-    queryKey: ["/api/collaborators"],
-  });
-
-  // ── Índices O(1) para as listas usadas em map/sort/render ────────────────
-  // Todos preservam a semântica de Array.find: o PRIMEIRO registro vence.
-  const eventById = useMemo(() => {
-    const m = new Map<string, Event>();
-    (events || []).forEach(e => { if (!m.has(e.id)) m.set(e.id, e); });
-    return m;
-  }, [events]);
-
-  const functionById = useMemo(() => {
-    const m = new Map<string, Function>();
-    (functions || []).forEach(f => { if (!m.has(f.id)) m.set(f.id, f); });
-    return m;
-  }, [functions]);
-
-  const collaboratorById = useMemo(() => {
-    const m = new Map<string, Collaborator>();
-    (collaborators || []).forEach(c => { if (!m.has(c.id)) m.set(c.id, c); });
-    return m;
-  }, [collaborators]);
-
-  // Filtrar teamInclusions baseado nas permissões de visualização
-  const userFunctionIds = useMemo(
-    () => new Set((allFunctionManagers || []).filter(m => m.userId === user?.id).map(m => m.functionId)),
-    [allFunctionManagers, user?.id],
-  );
-
-  // Memoizado: sem isso a lista ganhava identidade nova a cada render e o
-  // useMemo de filtro/ordenação abaixo era recalculado a cada tecla digitada.
-  const filteredTeamInclusions = useMemo(() => (teamInclusions || []).filter(ti => {
-    // Ocultar escalações vinculadas a eventos excluídos
-    const linkedEvent = eventById.get(ti.eventId);
-    if (!linkedEvent || linkedEvent.status === 'excluído') return false;
-    // Administradores veem todas as inclusões (verificando diferentes formatos de role)
-    if (user?.role === 'administrador' || user?.role === 'admin' || user?.role === 'administrator') return true;
-    // Usuários "Logística Interna" (production) veem todas as inclusões
-    if (user?.role === 'production') return true;
-    // Usuários "Área De Função" (function_area) veem todas as inclusões
-    if (user?.role === 'function_area') return true;
-    // Usuários "Compras" (purchasing) veem todas as inclusões
-    if (user?.role === 'purchasing') return true;
-    // Usuários "RH/Financeiro" (financial) veem todas as inclusões
-    if (user?.role === 'financial') return true;
-    // Outros usuários veem apenas suas funções atribuídas como managers
-    return userFunctionIds.has(ti.functionId);
-  }), [teamInclusions, eventById, user?.role, userFunctionIds]);
-
-  // O esqueleto espera TODAS as consultas que alimentam o conteúdo principal
-  // da tabela, não só as inclusões. Antes ele saía assim que /api/team-inclusions
-  // respondia e as demais iam preenchendo as células depois — a tabela aparecia
-  // "pronta" e continuava se mexendo sozinha por mais alguns segundos.
-  // Consultas secundárias (passagens, hospedagens, trocas, comentários) seguem
-  // fora daqui de propósito: alimentam apenas badges e não valem atrasar a
-  // primeira renderização.
-  // Em caso de erro o React Query zera isLoading, então não há risco de o
-  // esqueleto ficar preso na tela.
-  const isLoading =
-    isLoadingInclusions ||
-    isLoadingEvents ||
-    isLoadingFunctions ||
-    isLoadingManagers ||
-    isLoadingCollaborators;
-
-  const { data: accommodations } = useQuery<Accommodation[]>({
-    queryKey: ["/api/accommodations"],
-  });
-
-
-  const { data: tickets } = useQuery<Ticket[]>({
-    queryKey: ["/api/tickets"],
-  });
-
-  // Índices por inclusão — primeiro registro vence, como o find original.
-  const ticketByInclusion = useMemo(() => {
-    const m = new Map<string, Ticket>();
-    (tickets || []).forEach(t => {
-      if (t.teamInclusionId && !m.has(t.teamInclusionId)) m.set(t.teamInclusionId, t);
-    });
-    return m;
-  }, [tickets]);
-
-  // Inclusões com pelo menos uma passagem efetivamente comprada
-  const purchasedTicketInclusionIds = useMemo(() => {
-    const s = new Set<string>();
-    (tickets || []).forEach(t => {
-      if (t.teamInclusionId && t.purchaseDate !== null && t.purchaseDate !== undefined) s.add(t.teamInclusionId);
-    });
-    return s;
-  }, [tickets]);
-
-  const accommodationByInclusion = useMemo(() => {
-    const m = new Map<string, Accommodation>();
-    (accommodations || []).forEach(a => {
-      if (a.teamInclusionId && !m.has(a.teamInclusionId)) m.set(a.teamInclusionId, a);
-    });
-    return m;
-  }, [accommodations]);
-
-  // Query global de swap requests — para badges nas linhas da tabela
-  const { data: allSwapRequests } = useQuery<SwapRequest[]>({
-    queryKey: ["/api/swap-requests"],
-    queryFn: async () => {
-      const r = await apiRequest("GET", "/api/swap-requests");
-      return r.json();
-    },
-  });
-
-  const pendingSwapByInclusion = useMemo(() => {
-    const map = new Map<string, SwapRequest>();
-    allSwapRequests?.filter(s => s.status === 'pendente').forEach(s => {
-      const inclId = (s as any).team_inclusion_id || (s as any).teamInclusionId;
-      if (inclId) map.set(inclId, s);
-    });
-    return map;
-  }, [allSwapRequests]);
-
-  const approvedSwapInclusionIds = useMemo(() => {
-    const ids = new Set<string>();
-    allSwapRequests?.filter(s => s.status === 'aprovado').forEach(s => {
-      const inclId = (s as any).team_inclusion_id || (s as any).teamInclusionId;
-      if (inclId) ids.add(inclId);
-    });
-    return ids;
-  }, [allSwapRequests]);
-
-  // Query lazy — só busca quando o usuário clica em Exportar
+  // Comentários de TODAS as inclusões — só sob demanda (Exportar)
   const { refetch: refetchAllComments } = useQuery<Comment[]>({
     queryKey: ["/api/all-comments"],
-    queryFn: async () => {
-      const response = await apiRequest("GET", "/api/all-comments");
-      return response.json();
-    },
+    queryFn: async () => (await apiRequest("GET", "/api/all-comments")).json(),
     enabled: false,
   });
 
-  // Definir selectedTicket no nível do componente
-  const selectedTicket = useMemo(() => (
-    selectedInclusion ? ticketByInclusion.get(selectedInclusion.id) : undefined
-  ), [selectedInclusion?.id, ticketByInclusion]);
+  // ── Linhas visíveis (aba + atalho de trocas) ────────────────────────────
+  const { withoutTicket, withTicket } = useMemo(() => {
+    const filterSwaps = (rows: TeamInclusion[]) => showOnlyPendingSwaps ? rows.filter(i => pendingSwapByInclusion.has(i.id)) : rows;
+    return {
+      withoutTicket: filterSwaps(scalingInclusions.filter(i => !i.needsTicket)),
+      withTicket: filterSwaps(scalingInclusions.filter(i => i.needsTicket)),
+    };
+  }, [scalingInclusions, showOnlyPendingSwaps, pendingSwapByInclusion]);
+  const visibleRows = scalingTab === "with-ticket" ? withTicket : withoutTicket;
+  const countPending = (rows: TeamInclusion[]) => rows.filter(i => !isEscalated(i) && i.status !== "cancelado").length;
 
-  // Query para buscar comentários da inclusão selecionada
-  const { data: comments } = useQuery<Comment[]>({
-    queryKey: ["/api/comments", selectedInclusion?.id],
-    enabled: !!selectedInclusion?.id,
-  });
-
-  // Query para buscar histórico de logs da inclusão selecionada
-  const { data: inclusionLogs } = useQuery<TeamInclusionLog[]>({
-    queryKey: ["/api/team-inclusions", selectedInclusion?.id, "logs"],
-    enabled: !!selectedInclusion?.id,
-  });
-
-  // Query para buscar swap requests da inclusão selecionada
-  const { data: swapRequests } = useQuery<SwapRequest[]>({
-    queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id],
-    queryFn: async () => {
-      if (!selectedInclusion?.id) return [];
-      const r = await apiRequest("GET", `/api/swap-requests/inclusion/${selectedInclusion.id}`);
-      return r.json();
-    },
-    enabled: !!selectedInclusion?.id,
-  });
-
-  const pendingSwap = swapRequests?.find(s => s.status === 'pendente');
-  const latestSwap = swapRequests?.[0]; // mais recente (pode ser rejeitado/cancelado)
-
-  // Mutation para criar swap request
-  const createSwapRequestMutation = useMutation({
-    mutationFn: async (data: { teamInclusionId: string; newCollaboratorId: string; reason: string }) => {
-      const r = await apiRequest("POST", "/api/swap-requests", data);
-      return r.json();
-    },
-    onSuccess: () => {
-      setSwapSuccess(true);
-      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id] });
-      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests"] });
-    },
-    onError: async (err: any) => {
-      if (err?.status === 401) {
-        toast({
-          title: "Sessão expirada",
-          description: "Sua sessão expirou. Atualize a página e entre novamente para solicitar a troca.",
-          variant: "destructive",
-        });
-        return;
-      }
-      const msg = await err?.response?.json?.().catch(() => null);
-      toast({ title: "Erro", description: msg?.message || "Erro ao criar solicitação", variant: "destructive" });
-    },
-  });
-
-  // Mutation para cancelar swap request
-  const cancelSwapMutation = useMutation({
-    mutationFn: async (swapId: string) => {
-      const r = await apiRequest("PATCH", `/api/swap-requests/${swapId}/cancel`, {});
-      return r.json();
-    },
-    onSuccess: () => {
-      setShowCancelSwapConfirm(false);
-      toast({ title: "Solicitação cancelada", description: "A solicitação de troca foi cancelada com sucesso." });
-      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id] });
-      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests"] });
-    },
-    onError: async (err: any) => {
-      const msg = await err?.response?.json?.().catch(() => null);
-      toast({ title: "Erro", description: msg?.message || "Erro ao cancelar solicitação", variant: "destructive" });
-    },
-  });
-
-  // Mutation para aprovar troca de colaborador (Compras/admin)
-  const approveSwapMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const r = await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, {});
-      return r.json();
-    },
-    onSuccess: () => {
-      toast({ title: "Troca aprovada", description: "O colaborador foi atualizado na escalação." });
-      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id] });
-      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-    },
-    onError: async (err: any) => {
-      const msg = await err?.response?.json?.().catch(() => null);
-      toast({ title: "Erro", description: msg?.message || "Erro ao aprovar troca", variant: "destructive" });
-    },
-  });
-
-  // Mutation para rejeitar troca de colaborador (Compras/admin)
-  const rejectSwapMutation = useMutation({
-    mutationFn: async ({ id, comment }: { id: string; comment?: string }) => {
-      const r = await apiRequest("PATCH", `/api/swap-requests/${id}/reject`, { reviewComment: comment || "" });
-      return r.json();
-    },
-    onSuccess: () => {
-      toast({ title: "Troca rejeitada", description: "A escala permanece com o colaborador atual." });
-      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", selectedInclusion?.id] });
-      queryClient.invalidateQueries({ queryKey: ["/api/swap-requests"] });
-    },
-    onError: async (err: any) => {
-      const msg = await err?.response?.json?.().catch(() => null);
-      toast({ title: "Erro", description: msg?.message || "Erro ao rejeitar troca", variant: "destructive" });
-    },
-  });
-
-  // Mutation para alternar se o escalado emite nota fiscal (slide 4 do deck de melhorias)
-  const toggleEmitsNfMutation = useMutation({
-    mutationFn: async ({ id, emitsNf }: { id: string; emitsNf: boolean }) => {
-      const r = await apiRequest("PATCH", `/api/team-inclusions/${id}`, { emitsNf });
-      return r.json();
-    },
-    onSuccess: (updatedInclusion: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-      setSelectedInclusion((prev: any) => prev && prev.id === updatedInclusion.id ? { ...prev, emitsNf: updatedInclusion.emitsNf } : prev);
-      toast({
-        title: updatedInclusion.emitsNf ? "Marcado como emissor de NF" : "Marcado como não emissor de NF",
-        description: updatedInclusion.emitsNf
-          ? "A tela de Notas Fiscais vai cobrar a nota deste escalado."
-          : "A tela de Notas Fiscais não vai cobrar nota deste escalado.",
-      });
-    },
-    onError: async (err: any) => {
-      const msg = await err?.response?.json?.().catch(() => null);
-      toast({ title: "Erro", description: msg?.message || "Erro ao atualizar emissão de NF", variant: "destructive" });
-    },
-  });
-
-  // Mutation para rejeição de cenotécnica pela Produção (remove colaborador, volta p/ escalacao)
-  const [showRejectProductionConfirm, setShowRejectProductionConfirm] = useState(false);
-  const rejectProductionMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const r = await apiRequest("PATCH", `/api/team-inclusions/${id}/reject-production`, {});
-      return r.json();
-    },
-    onSuccess: () => {
-      setShowRejectProductionConfirm(false);
-      setShowModal(false);
-      toast({ title: "Escalação reprovada", description: "O colaborador foi removido e a vaga voltou para escalação." });
-      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-      queryClient.refetchQueries({ queryKey: ["/api/team-inclusions"] });
-    },
-    onError: async (err: any) => {
-      const msg = await err?.response?.json?.().catch(() => null);
-      toast({ title: "Erro ao reprovar", description: msg?.message || "Erro ao reprovar escalação", variant: "destructive" });
-    },
-  });
-
-  // Mutation para aprovação de cenotécnica pela Produção (Vinicius Alexandre)
-  const [showApproveProductionConfirm, setShowApproveProductionConfirm] = useState(false);
-  const [showSentToProductionModal, setShowSentToProductionModal] = useState(false);
-  const [sentToProductionInfo, setSentToProductionInfo] = useState<{ collaboratorName: string; functionName: string; inclusionNumber: number | null } | null>(null);
-  const approveProductionMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const r = await apiRequest("PATCH", `/api/team-inclusions/${id}/approve-production`, {});
-      return r.json();
-    },
-    onSuccess: () => {
-      setShowApproveProductionConfirm(false);
-      setShowModal(false);
-      toast({ title: "Aprovado pela Produção", description: "Escalação de cenotécnica aprovada e enviada ao fluxo normal." });
-      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-      queryClient.refetchQueries({ queryKey: ["/api/team-inclusions"] });
-    },
-    onError: async (err: any) => {
-      const msg = await err?.response?.json?.().catch(() => null);
-      toast({ title: "Erro ao aprovar", description: msg?.message || "Erro ao aprovar escalação", variant: "destructive" });
-    },
-  });
-
-  // Mutation para reativar escalação cancelada (admin only)
-  const [showReactivateConfirm, setShowReactivateConfirm] = useState(false);
-  const reactivateMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const r = await apiRequest("PATCH", `/api/team-inclusions/${id}/reactivate`, {});
-      return r.json();
-    },
-    onSuccess: (data) => {
-      setShowReactivateConfirm(false);
-      setShowModal(false);
-      toast({ title: "Escalação reativada", description: "A escalação foi reativada e voltou ao status Pendente." });
-      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-    },
-    onError: async (err: any) => {
-      const msg = await err?.response?.json?.().catch(() => null);
-      toast({ title: "Erro", description: msg?.message || "Erro ao reativar escalação", variant: "destructive" });
-    },
-  });
-
-  // Mutation para adicionar comentário inline
-  const addCommentMutation = useMutation({
-    mutationFn: async (content: string) => {
-      if (!user || !selectedInclusion) throw new Error("User or inclusion not found");
-      
-      const payload = {
-        teamInclusionId: selectedInclusion.id,
-        userId: user.id,
-        content,
-        phase: "escalacao",
-      };
-
-      const response = await apiRequest("POST", "/api/comments", payload);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Sucesso",
-        description: "Comentário adicionado com sucesso",
-      });
-      setNewComment("");
-      queryClient.invalidateQueries({ queryKey: ["/api/comments", selectedInclusion?.id] });
-    },
-    onError: (err: any) => {
-      toast({
-        title: err?.status === 401 ? "Sessão expirada" : "Erro",
-        description: err?.status === 401
-          ? "Sua sessão expirou. Atualize a página e entre novamente para comentar."
-          : (err?.body?.message || "Erro ao adicionar comentário"),
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleAddComment = () => {
-    if (newComment.trim()) {
-      addCommentMutation.mutate(newComment.trim());
-    }
-  };
-
-  // Função para buscar ticket de uma inclusão
-  const getTicket = (inclusionId: string): Ticket | undefined => {
-    return ticketByInclusion.get(inclusionId);
-  };
-
-  const { data: users } = useQuery<any[]>({
-    queryKey: ["/api/users"],
-  });
-
-  // Helper function to determine if escalation is completed
-  const isEscalated = (inclusion: TeamInclusion) => {
-    return inclusion.collaboratorId && (
-      inclusion.status === "escalado" ||
-      inclusion.status === "aguardando_producao" ||
-      inclusion.status === "passagem" ||
-      inclusion.status === "passagem_comprada" ||
-      inclusion.status === "hospedagem" ||
-      inclusion.status === "hospedagem_comprada" ||
-      inclusion.status === "aprovacao" ||
-      inclusion.status === "aprovado" ||
-      inclusion.status === "concluido"
-    );
-  };
-
-  // Helper function to determine if escalation is confirmed (após confirmar escalação)
-  const isEscalationConfirmed = (inclusion: TeamInclusion) => {
-    return inclusion.collaboratorId && (
-      inclusion.status === "escalado" ||
-      inclusion.status === "passagem" || 
-      inclusion.status === "passagem_comprada" ||
-      inclusion.status === "hospedagem" || 
-      inclusion.status === "hospedagem_comprada" ||
-      inclusion.status === "aprovacao" ||
-      inclusion.status === "aprovado" ||
-      inclusion.status === "concluido"
-    );
-  };
-
-  // Detecta conflitos de escalação para um colaborador
-  const getCollaboratorConflicts = (collaboratorId: string, excludeInclusionId?: string) => {
-    if (!collaboratorId || !teamInclusions) return { sameEvent: [] as TeamInclusion[], dateOverlap: [] as TeamInclusion[] };
-    const active = ['escalado', 'aguardando_producao', 'passagem', 'passagem_comprada', 'hospedagem', 'hospedagem_comprada', 'aprovacao', 'aprovado'];
-    const others = teamInclusions.filter(ti =>
-      ti.collaboratorId === collaboratorId &&
-      ti.id !== excludeInclusionId &&
-      active.includes(ti.status)
-    );
-    const ref = teamInclusions.find(ti => ti.id === excludeInclusionId) || selectedInclusion;
-    const sameEvent = others.filter(ti => ref && ti.eventId === ref.eventId);
-    const dateOverlap = others.filter(ti => {
-      if (!ref?.scheduleStartDate || !ref?.scheduleEndDate) return false;
-      if (!ti.scheduleStartDate || !ti.scheduleEndDate) return false;
-      // Sobreposição clássica: início de A <= fim de B E início de B <= fim de A
-      return new Date(ti.scheduleStartDate) <= new Date(ref.scheduleEndDate) &&
-             new Date(ref.scheduleStartDate) <= new Date(ti.scheduleEndDate);
-    });
-    return { sameEvent, dateOverlap };
-  };
-
-  // Helper functions for getting names
-  const getEventName = (eventId: string | null) => {
-    if (!eventId) return "Evento não encontrado";
-    return eventById.get(eventId)?.name || "Evento não encontrado";
-  };
-
-  const getFunctionName = (functionId: string | null) => {
-    if (!functionId) return "Função não encontrada";
-    return functionById.get(functionId)?.name || "Função não encontrada";
-  };
-
-  const isCenotecnicaFunction = (functionId: string | null) => {
-    const name = getFunctionName(functionId).toLowerCase();
-    return name.includes('cenotecnica') || name.includes('cenotécnica') || name.includes('sup ceno');
-  };
-
-  const getCollaboratorCity = (collaboratorId?: string | null) => {
-    if (!collaboratorId) return null;
-    return collaboratorById.get(collaboratorId)?.city || null;
-  };
-
-  const getCollaboratorName = (collaboratorId?: string | null) => {
-    if (!collaboratorId) return "Não escalado";
-    return fixEncoding(collaboratorById.get(collaboratorId)?.fullName) || "Colaborador não encontrado";
-  };
-
-  // Helper function to get accommodation for an inclusion
-  const getAccommodation = (inclusionId: string) => {
-    return accommodationByInclusion.get(inclusionId);
-  };
-
-  // Check if user can manage function (is responsible for it)
-  const canManageFunction = (functionId: string) => {
-    if (!user) return false;
-    
-    // Admins and purchasing can manage all functions
-    if (user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator' || user.role === 'purchasing') return true;
-    
-    // Check if user is a manager of this specific function
-    return allFunctionManagers?.some(manager => manager.functionId === functionId && manager.userId === user.id) ?? false;
-  };
-
-  // Check if user can confirm escalation (only responsible for function)
-  const canConfirmEscalation = (inclusion: TeamInclusion) => {
-    return canManageFunction(inclusion.functionId);
-  };
-
-  // Check if user can edit collaborator (admin or function_area, only until ticket/accommodation is purchased)
-  // Regras:
-  // - Se needsTicket = true (com ou sem hospedagem) → bloqueia após passagem comprada
-  // - Se needsTicket = false E needsAccommodation = true → bloqueia após hospedagem comprada
-  // - Se não precisa de nenhum → sempre pode editar
-  const canEditCollaborator = (inclusion: TeamInclusion) => {
-    if (!user) return false;
-    
-    // Check if user is admin, purchasing, function_area or manages the function
-    const hasRole = user.role === 'admin' || user.role === 'administrator' || user.role === 'administrador' || user.role === 'function_area' || user.role === 'purchasing';
-    const isManager = canManageFunction(inclusion.functionId);
-    if (!hasRole && !isManager) return false;
-    
-    // BLOQUEIA SE HÁ COMPRA EFETIVA (passagem OU hospedagem):
-    const ticketPurchased = inclusion.needsTicket
-      ? purchasedTicketInclusionIds.has(inclusion.id)
-      : false;
-
-    const accommodationReserved = inclusion.needsAccommodation
-      ? accommodationByInclusion.has(inclusion.id)
-      : false;
-
-    if (ticketPurchased || accommodationReserved) return false;
-
-    return true;
-  };
-
-  // Permissão de acesso à tela. O return antecipado fica DEPOIS de todos os
-  // hooks (logo antes do JSX) — sair daqui mudava a quantidade de hooks entre
-  // renders (usuário ainda carregando → sem permissão) e quebrava o React.
-  const canViewScaling = canView(user, 'scaling');
-
-  // Filter and sort inclusions using memoization
-  const scalingInclusions = useMemo(() => {
-    // Busca por ID, nome de colaborador ou função (normalizada uma única vez)
-    const q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
-    const filtered = filteredTeamInclusions?.filter(
-      inclusion => {
-        const collaboratorName = inclusion.collaboratorId ? getCollaboratorName(inclusion.collaboratorId).toLowerCase() : '';
-        const functionName = getFunctionName(inclusion.functionId).toLowerCase();
-        const idMatch = !filters.searchId || (
-          String(inclusion.inclusionNumber ?? '').toLowerCase().includes(q) ||
-          collaboratorName.includes(q) ||
-          functionName.includes(q)
-        );
-        
-        // Apply universal filters
-        if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
-        if (filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;
-        if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
-        
-        // Apply escalation status filter
-        if (filters.escalationStatus !== "all") {
-          const escalated = isEscalated(inclusion);
-          const isCanceled = inclusion.status === "cancelado";
-          if (filters.escalationStatus === "pending" && (escalated || isCanceled)) return false;
-          if (filters.escalationStatus === "escalated" && (!escalated || isCanceled || inclusion.status === "aguardando_producao")) return false;
-          if (filters.escalationStatus === "aguardando_producao" && inclusion.status !== "aguardando_producao") return false;
-          if (filters.escalationStatus === "cancelado" && !isCanceled) return false;
-        }
-
-        // Apply ticket status filter — "Comprada" = passagem com purchaseDate
-        // (um registro de passagem ainda sem compra NÃO conta como comprada)
-        if (filters.ticketStatus !== "all") {
-          const purchased = purchasedTicketInclusionIds.has(inclusion.id);
-          if (filters.ticketStatus === "purchased" && !purchased) return false;
-          if (filters.ticketStatus === "not-purchased" && purchased) return false;
-        }
-
-        // Apply accommodation status filter
-        if (filters.accommodationStatus !== "all") {
-          const hasAccommodation = getAccommodation(inclusion.id) !== undefined;
-          if (filters.accommodationStatus === "reserved" && !hasAccommodation) return false;
-          if (filters.accommodationStatus === "not-reserved" && hasAccommodation) return false;
-        }
-        
-        return idMatch;
-      }
-    ) || [];
-
-    // Apply custom sorting if configured
-    if (sortConfig) {
-      const { field, direction } = sortConfig;
-      const multiplier = direction === 'asc' ? 1 : -1;
-      
-      return filtered.sort((a, b) => {
-        switch (field) {
-          case 'id':
-            const idA = a.inclusionNumber || 0;
-            const idB = b.inclusionNumber || 0;
-            return (idA - idB) * multiplier;
-          case 'event':
-            const eventA = getEventName(a.eventId);
-            const eventB = getEventName(b.eventId);
-            return eventA.localeCompare(eventB, 'pt-BR') * multiplier;
-          case 'function':
-            const functionA = getFunctionName(a.functionId);
-            const functionB = getFunctionName(b.functionId);
-            return functionA.localeCompare(functionB, 'pt-BR') * multiplier;
-          case 'collaborator':
-            const collabA = getCollaboratorName(a.collaboratorId);
-            const collabB = getCollaboratorName(b.collaboratorId);
-            return collabA.localeCompare(collabB, 'pt-BR') * multiplier;
-          case 'period':
-            if (!a.scheduleStartDate && !b.scheduleStartDate) return 0;
-            if (!a.scheduleStartDate) return 1 * multiplier;
-            if (!b.scheduleStartDate) return -1 * multiplier;
-            return (new Date(a.scheduleStartDate).getTime() - new Date(b.scheduleStartDate).getTime()) * multiplier;
-          default:
-            return 0;
-        }
-      });
-    }
-    
-    // Default sorting: Event → Function → Date
-    return filtered.sort((a, b) => {
-      const eventA = getEventName(a.eventId);
-      const eventB = getEventName(b.eventId);
-      const eventComparison = eventA.localeCompare(eventB, 'pt-BR');
-      if (eventComparison !== 0) return eventComparison;
-      
-      const functionA = getFunctionName(a.functionId);
-      const functionB = getFunctionName(b.functionId);
-      const functionComparison = functionA.localeCompare(functionB, 'pt-BR');
-      if (functionComparison !== 0) return functionComparison;
-      
-      if (!a.scheduleStartDate && !b.scheduleStartDate) return 0;
-      if (!a.scheduleStartDate) return 1;
-      if (!b.scheduleStartDate) return -1;
-      return new Date(a.scheduleStartDate).getTime() - new Date(b.scheduleStartDate).getTime();
-    });
-  }, [filteredTeamInclusions, filters, sortConfig, eventById, functionById, collaboratorById, purchasedTicketInclusionIds, accommodationByInclusion]);
-
-  // Há algum filtro/busca ativo? (os banners avisam quando a visão está recortada)
-  const hasActiveFilters =
-    filters.eventId !== "all" ||
-    filters.functionId.length > 0 ||
-    filters.collaboratorId !== "all" ||
-    filters.escalationStatus !== "all" ||
-    filters.ticketStatus !== "all" ||
-    filters.accommodationStatus !== "all" ||
-    filters.searchId.trim() !== "" ||
-    showOnlyPendingSwaps;
-
-  const isAdminOrPurchasing = hasRoleIn(user?.role, ['admin', 'purchasing']);
-
-  // Trocas pendentes sobre as quais o usuário PODE agir:
-  // - Compras/admin: analisa qualquer troca ainda não tratada em Passagem/Hospedagem;
-  // - demais papéis: só as trocas que ele mesmo solicitou (pode cancelar).
-  const isActionablePendingSwap = (inclusion: TeamInclusion) => {
-    const swap = pendingSwapByInclusion.get(inclusion.id);
-    if (!swap) return false;
-    if (ALREADY_HANDLED_SWAP_STATUSES.has(inclusion.status ?? '')) return false;
-    if (isAdminOrPurchasing) return true;
-    const requestedBy = (swap as any).requested_by || swap.requestedBy;
-    return !!user?.id && requestedBy === user.id;
-  };
-
-  // Base NÃO filtrada (só o recorte de permissão) — o banner conta o total real
-  const pendingSwapInclusionsAll = useMemo(
-    () => filteredTeamInclusions.filter(isActionablePendingSwap),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filteredTeamInclusions, pendingSwapByInclusion, isAdminOrPurchasing, user?.id]
-  );
-
-  // Inclusões visíveis (após filtros) com troca pendente — usado pelo atalho
-  const pendingSwapInclusionsInView = useMemo(
-    () => scalingInclusions.filter(isActionablePendingSwap),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scalingInclusions, pendingSwapByInclusion, isAdminOrPurchasing, user?.id]
-  );
-
-  // Define a aba inicial assim que os dados carregam (preserva o comportamento antigo)
+  // Aba inicial assim que os dados carregam (preserva o comportamento antigo)
   useEffect(() => {
     if (tabInitialized.current) return;
     if (scalingInclusions.length > 0) {
-      const hasWithout = scalingInclusions.some(i => !i.needsTicket);
-      setScalingTab(hasWithout ? "without-ticket" : "with-ticket");
+      setScalingTab(scalingInclusions.some(i => !i.needsTicket) ? "without-ticket" : "with-ticket");
       tabInitialized.current = true;
     }
   }, [scalingInclusions]);
 
-  // Garante saída do filtro caso não haja mais trocas pendentes na visão atual
+  // Sai do filtro caso não haja mais trocas pendentes na visão atual
   useEffect(() => {
-    if (showOnlyPendingSwaps && pendingSwapInclusionsInView.length === 0) {
-      setShowOnlyPendingSwaps(false);
-    }
+    if (showOnlyPendingSwaps && pendingSwapInclusionsInView.length === 0) setShowOnlyPendingSwaps(false);
   }, [showOnlyPendingSwaps, pendingSwapInclusionsInView.length]);
 
   // Enquanto filtrando, mantém o usuário numa aba que contém a troca pendente
@@ -850,686 +124,206 @@ export default function Scaling() {
     else if (scalingTab === "with-ticket" && !hasWith && hasWithout) setScalingTab("without-ticket");
   }, [showOnlyPendingSwaps, scalingTab, pendingSwapInclusionsInView]);
 
-  // Liga o filtro de trocas pendentes e leva o usuário à aba que contém a troca
+  // Seleção: descarta IDs que saíram da lista ou deixaram de ser elegíveis
+  useEffect(() => {
+    if (selectedIds.size === 0 || !teamInclusions) return;
+    const byId = new Map(teamInclusions.map(i => [i.id, i]));
+    const next = new Set(Array.from(selectedIds).filter(id => { const i = byId.get(id); return !!i && !getBulkConfirmBlockReason(i, data); }));
+    if (next.size !== selectedIds.size) setSelectedIds(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamInclusions]);
+
   const goToPendingSwaps = () => {
     setShowOnlyPendingSwaps(true);
     const match = pendingSwapInclusionsInView[0];
     if (match) setScalingTab(match.needsTicket ? "with-ticket" : "without-ticket");
   };
 
-  const updateTeamInclusionMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const response = await apiRequest("PATCH", `/api/team-inclusions/${id}`, data);
-      return response.json();
-    },
-    onSuccess: (updatedInclusion) => {
-      // CRITICAL: Update selectedInclusion with fresh data from backend
-      if (selectedInclusion && updatedInclusion.id === selectedInclusion.id) {
-        setSelectedInclusion(updatedInclusion);
-      }
-      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-      queryClient.refetchQueries({ queryKey: ["/api/team-inclusions"] });
-      const collabId = updatedInclusion.collaboratorId || modalData.collaboratorId || selectedInclusion?.collaboratorId;
-      const funcName = updatedInclusion.functionId ? getFunctionName(updatedInclusion.functionId) : (selectedInclusion?.functionId ? getFunctionName(selectedInclusion.functionId) : "—");
-      // Se foi confirmada como cenotécnica → mostrar modal de aprovação pendente
-      if (pendingScalingAction.current === 'confirm' && updatedInclusion.status === 'aguardando_producao') {
-        setSentToProductionInfo({
-          collaboratorName: collabId ? getCollaboratorName(collabId) : "—",
-          functionName: funcName,
-          inclusionNumber: updatedInclusion.inclusionNumber ?? selectedInclusion?.inclusionNumber ?? null,
-        });
-        setShowModal(false);
-        setShowSentToProductionModal(true);
+  const handleSort = (field: SortField) => {
+    setSortConfig(current => {
+      if (current?.field === field) return current.direction === "asc" ? { field, direction: "desc" } : null;
+      return { field, direction: "asc" };
+    });
+  };
+
+  // ── Modal: abrir / navegar ──────────────────────────────────────────────
+  const markInclusionSwapSeen = (inclusionId: string) => {
+    if (!user) return;
+    const swap = firstSwapByInclusion.get(inclusionId);
+    if (!swap || swap.requestedBy !== user.id) return;
+    if (swap.status === "pendente") markSwapSeen(user.id, swap.id, "pending");
+    else if (["aprovado", "rejeitado"].includes(swap.status)) markSwapSeen(user.id, swap.id, "responded");
+  };
+
+  const openInclusion = useCallback((inclusion: TeamInclusion, tab: DetailsTab = "resumo") => {
+    setSelectedInclusion(inclusion);
+    setModalData(modalDataFromInclusion(inclusion));
+    setModalInitialTab(tab);
+    setShowModal(true);
+    markInclusionSwapSeen(inclusion.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstSwapByInclusion, user?.id]);
+
+  const handleViewComments = (e: React.MouseEvent, inclusion: TeamInclusion) => {
+    e.stopPropagation();
+    openInclusion(inclusion, "comentarios");
+  };
+
+  const navIndex = selectedInclusion ? visibleRows.findIndex(i => i.id === selectedInclusion.id) : -1;
+  // Navegar (‹ › / atalhos) com edições não salvas pede confirmação — antes
+  // descartava em silêncio (mesmo padrão do "Descartar alterações?" de Passagens).
+  const modalIsDirty = !!selectedInclusion && JSON.stringify(modalData) !== JSON.stringify(modalDataFromInclusion(selectedInclusion));
+  const navigate = useCallback((direction: -1 | 1) => {
+    if (navIndex < 0) return;
+    const next = visibleRows[navIndex + direction];
+    if (!next) return;
+    if (modalIsDirty && !window.confirm("Há alterações não salvas nesta escalação. Descartar e ir para a próxima?")) return;
+    openInclusion(next, "resumo");
+  }, [navIndex, visibleRows, openInclusion, modalIsDirty]);
+
+  // ── Anexos / lightbox ───────────────────────────────────────────────────
+  const prefetchAttachmentIds = useMemo(() => {
+    if (!selectedInclusion) return [] as string[];
+    return [
+      ...(getAccommodation(selectedInclusion.id)?.attachmentIds || []),
+      ...(getPurchasedTicket(selectedInclusion.id)?.attachmentIds || []),
+    ];
+  }, [selectedInclusion, getAccommodation, getPurchasedTicket]);
+  const { openAttachment, lightbox, setLightbox } = useAttachments({
+    prefetchIds: prefetchAttachmentIds,
+    active: showModal && !!selectedInclusion,
+    onBeforeOpenLightbox: () => setShowModal(false),
+  });
+
+  // ── Mutations ───────────────────────────────────────────────────────────
+  const mutations = useScalingMutations({
+    selectedInclusionId: selectedInclusion?.id,
+    currentUserId: user?.id,
+    setSelectedInclusion: (updater) => setSelectedInclusion(prev => updater(prev)),
+    closeModal: () => setShowModal(false),
+    onInclusionSaved: (updated, action, thenNext) => {
+      const collabId = updated.collaboratorId || modalData.collaboratorId || selectedInclusion?.collaboratorId;
+      const funcName = getFunctionName(updated.functionId || selectedInclusion?.functionId || null);
+      const collabName = collabId ? getCollaboratorName(collabId) : "—";
+      const inclusionNumber = updated.inclusionNumber ?? selectedInclusion?.inclusionNumber ?? null;
+      if (thenNext) {
+        // "Salvar e próxima": feedback leve e segue para a próxima da lista
+        toast({ title: "Alterações salvas", description: `Escalação #${inclusionNumber ?? "—"} · ${collabName}` });
+        navigate(1);
         return;
       }
-      // Show success modal instead of toast
-      const msg = pendingScalingAction.current === 'confirm' ? "Escalação confirmada com sucesso!" : "Alterações salvas com sucesso!";
+      // Confirmada como cenotécnica → modal de aprovação pendente
+      if (action === "confirm" && updated.status === "aguardando_producao") {
+        setSentToProductionInfo({ collaboratorName: collabName, functionName: funcName, inclusionNumber });
+        setShowModal(false);
+        return;
+      }
       setSuccessInfo({
-        message: msg,
-        inclusionNumber: updatedInclusion.inclusionNumber ?? selectedInclusion?.inclusionNumber ?? null,
-        eventName: events?.find(e => e.id === (updatedInclusion.eventId || selectedInclusion?.eventId))?.name ?? "—",
-        collaboratorName: collabId ? getCollaboratorName(collabId) : "—",
+        message: action === "confirm" ? "Escalação confirmada com sucesso!" : "Alterações salvas com sucesso!",
+        inclusionNumber,
+        eventName: data.eventById.get(updated.eventId || selectedInclusion?.eventId || "")?.name ?? "—",
+        collaboratorName: collabName,
         functionName: funcName,
       });
       setShowModal(false);
-      setShowSuccessModal(true);
-    },
-    onError: (err: any) => {
-      toast({
-        title: err?.status === 401 ? "Sessão expirada" : "Erro",
-        description: err?.status === 401
-          ? "Sua sessão expirou. Atualize a página e entre novamente — nada foi salvo."
-          : (err?.body?.message || "Erro ao atualizar escalação"),
-        variant: "destructive",
-      });
     },
   });
 
+  // ── Salvar / Confirmar ──────────────────────────────────────────────────
+  const buildPayload = (inclusion: TeamInclusion): InclusionSavePayload => {
+    const payload: InclusionSavePayload = {
+      collaboratorId: modalData.collaboratorId,
+      observations: modalData.observations,
+      city: modalData.departureFromSP ? "São Paulo - SP" : (modalData.city || ""),
+      atendimentoTipo: modalData.atendimentoTipo || null,
+      percurseiroTipo: modalData.percurseiroTipo || null,
+      // CRÍTICO: preservar campos de necessidade de passagem/hospedagem
+      needsTicket: inclusion.needsTicket,
+      needsAccommodation: inclusion.needsAccommodation,
+    };
+    // Só incluir dailyValue se foi especificamente editado (centavos)
+    if (modalData.dailyValue && modalData.dailyValue > 0) payload.dailyValue = Math.round(modalData.dailyValue * 100);
+    return payload;
+  };
+
+  const handleSave = (thenNext: boolean) => {
+    if (!selectedInclusion || mutations.saveInclusion.isPending) return;
+    if (getSaveBlockReason(selectedInclusion, modalData, data)) return; // botão já está desabilitado com o motivo
+    mutations.saveInclusion.mutate({ id: selectedInclusion.id, data: buildPayload(selectedInclusion), action: "save", thenNext });
+  };
+
+  const handleConfirm = () => {
+    if (!selectedInclusion || mutations.saveInclusion.isPending) return;
+    if (getConfirmBlockReason(selectedInclusion, modalData, data)) return;
+    // status/fase são decididos no servidor (POST /confirm)
+    mutations.saveInclusion.mutate({ id: selectedInclusion.id, data: buildPayload(selectedInclusion), action: "confirm" });
+  };
+
+  // ── Exportar ────────────────────────────────────────────────────────────
   const handleExportToExcel = async () => {
-    // A planilha inclui CPF/telefone/nascimento — botão já é escondido, mas
-    // a trava fica aqui também para não depender só da UI.
-    if (!hasRoleIn(user?.role, ['admin', 'purchasing', 'financial'])) {
+    // A planilha inclui CPF/telefone/nascimento — a trava fica aqui também
+    if (!canExport) {
       toast({ title: "Sem permissão", description: "Somente administradores, Compras e RH/Financeiro podem exportar a planilha.", variant: "destructive" });
       return;
     }
-    if (!scalingInclusions || scalingInclusions.length === 0) {
-      toast({
-        title: "Erro",
-        description: "Não há escalações para exportar",
-        variant: "destructive",
-      });
+    if (scalingInclusions.length === 0) {
+      toast({ title: "Erro", description: "Não há escalações para exportar", variant: "destructive" });
       return;
     }
-
-    const activeInclusions = scalingInclusions.filter(inclusion => 
-      inclusion.status !== "cancelado" && !inclusion.deletedAt
-    );
-
+    const activeInclusions = scalingInclusions.filter(i => i.status !== "cancelado" && !i.deletedAt);
     if (activeInclusions.length === 0) {
-      toast({
-        title: "Erro",
-        description: "Não há escalações ativas para exportar",
-        variant: "destructive",
-      });
+      toast({ title: "Erro", description: "Não há escalações ativas para exportar", variant: "destructive" });
       return;
     }
-
-    // Buscar comentários sob demanda (lazy) só agora que o usuário clicou em exportar
-    const { data: freshComments, isError: commentsFailed } = await refetchAllComments();
+    const [{ data: freshComments, isError: commentsFailed }, { data: freshUsers }] = await Promise.all([
+      refetchAllComments(),
+      details.refetchUsers(),
+    ]);
     if (commentsFailed) {
-      // Não bloqueia a exportação, mas o usuário precisa saber que a coluna virá vazia
       toast({
         title: "Comentários indisponíveis",
         description: "Não foi possível carregar os comentários; a planilha será gerada sem essa coluna preenchida.",
         variant: "destructive",
       });
     }
-
-    // Índice por id do comentário → evita varrer a lista inteira por linha exportada
-    const commentsByInclusion = new Map<string, Comment[]>();
-    (freshComments || []).forEach(c => {
-      if (!c.teamInclusionId) return;
-      const list = commentsByInclusion.get(c.teamInclusionId);
-      if (list) list.push(c); else commentsByInclusion.set(c.teamInclusionId, [c]);
+    const { fileName, rowCount } = exportScalingXlsx({
+      inclusions: activeInclusions,
+      eventById: data.eventById,
+      functionById: data.functionById,
+      collaboratorById: data.collaboratorById,
+      ticketByInclusion: data.ticketByInclusion,
+      purchasedTicketByInclusion: data.purchasedTicketByInclusion,
+      comments: freshComments || [],
+      users: freshUsers || [],
     });
-    const userById = new Map<string, any>();
-    (users || []).forEach(u => { if (u?.id && !userById.has(u.id)) userById.set(u.id, u); });
-
-    const exportData = activeInclusions.map(inclusion => {
-      const event = eventById.get(inclusion.eventId);
-      const func = functionById.get(inclusion.functionId);
-      const collaborator = inclusion.collaboratorId ? collaboratorById.get(inclusion.collaboratorId) : undefined;
-
-      const confirmationStatus = inclusion.status === "cancelado" 
-        ? "Cancelado" 
-        : isEscalated(inclusion) 
-        ? "Confirmado" 
-        : "Pendente";
-
-      // Calcular valor total (valor da diária em centavos / 100 * quantidade)
-      const dailyValueInReais = (inclusion.dailyValue || 0) / 100;
-      const totalValue = dailyValueInReais * (inclusion.dailyRates || 0);
-
-      // Buscar comentários desta inclusão
-      const inclusionComments = commentsByInclusion.get(inclusion.id) || [];
-      const commentsText = inclusionComments.length > 0
-        ? inclusionComments.map(c => {
-            const commentUser = userById.get(c.userId);
-            const userName = commentUser?.name || 'Usuário';
-            const date = c.createdAt ? new Date(c.createdAt).toLocaleDateString('pt-BR') : '';
-            return `[${date} - ${userName}] ${c.content}`;
-          }).join(' | ')
-        : 'N/A';
-
-      // Extrair informações de viagem do campo observações (dados antigos)
-      let dataVooIda = inclusion.flightDepartureDate ? formatDate(inclusion.flightDepartureDate) : 'N/A';
-      let horarioSugeridoIda = inclusion.flightArrivalSuggestedTime || 'N/A';
-      let dataVooVolta = inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : 'N/A';
-      let horarioSugeridoVolta = inclusion.flightReturnSuggestedTime || 'N/A';
-      let observacoesLimpas = inclusion.observations || '';
-
-      // Se as observações contêm dados de viagem no formato antigo, extrair
-      if (observacoesLimpas && observacoesLimpas.includes('Ida:') && observacoesLimpas.includes('Chegada:')) {
-        const idaMatch = observacoesLimpas.match(/Ida:\s*([^|]+)/);
-        const chegadaMatch = observacoesLimpas.match(/Chegada:\s*([^|]+)/);
-        const retornoMatch = observacoesLimpas.match(/Retorno:\s*([^|]+)/);
-        const horarioMatch = observacoesLimpas.match(/Horário:\s*([^|]+)/);
-
-        if (idaMatch && idaMatch[1].trim()) {
-          dataVooIda = idaMatch[1].trim();
-        }
-        if (chegadaMatch && chegadaMatch[1].trim()) {
-          horarioSugeridoIda = chegadaMatch[1].trim();
-        }
-        if (retornoMatch && retornoMatch[1].trim()) {
-          dataVooVolta = retornoMatch[1].trim();
-        }
-        if (horarioMatch && horarioMatch[1].trim()) {
-          horarioSugeridoVolta = horarioMatch[1].trim();
-        }
-
-        // Limpar as observações (remover dados de viagem)
-        observacoesLimpas = '';
-      }
-
-      // Extrair apenas CPF do colaborador
-      let cpfColaborador = 'N/A';
-      if (collaborator) {
-        if (collaborator.documentType === 'cpf') {
-          cpfColaborador = collaborator.officialDocument;
-        } else if (collaborator.secondaryDocumentType === 'cpf') {
-          cpfColaborador = collaborator.secondaryDocument || 'N/A';
-        }
-      }
-
-      // Dados reais da passagem (se existir) — prioriza a passagem já comprada
-      const ticket = (tickets || []).find(t => t.teamInclusionId === inclusion.id && t.purchaseDate !== null)
-        || ticketByInclusion.get(inclusion.id);
-      const ticketAny = ticket as any;
-
-      const tipoTransporte = ticket?.transportType
-        ? ({ aereo: 'Aéreo', rodoviario: 'Rodoviário', van: 'Van' }[ticket.transportType] || ticket.transportType)
-        : 'N/A';
-      const passagemLoc = ticket?.purchaseOrderNumber || 'N/A';
-      const passagemDataCompra = ticket?.purchaseDate ? formatDate(ticket.purchaseDate) : 'N/A';
-      const passagemValor = ticket?.value ? (ticket.value / 100).toFixed(2) : 'N/A';
-
-      const idaCidadeOrigem = ticket?.departureCityOrigin || 'N/A';
-      const idaAeroportoOrigem = ticket?.departureAirport || 'N/A';
-      const idaCidadeDestino = ticket?.departureCityDestination || 'N/A';
-      const idaAeroportoDestino = ticket?.destinationAirport || 'N/A';
-      const idaData = ticket?.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : dataVooIda;
-      const idaHorario = ticket?.actualDepartureTime || horarioSugeridoIda;
-
-      const voltaCidadeOrigem = ticket?.returnCityOrigin || 'N/A';
-      const voltaAeroportoOrigem = ticketAny?.returnOriginAirport || 'N/A';
-      const voltaCidadeDestino = ticket?.returnCityDestination || 'N/A';
-      const voltaAeroportoDestino = ticketAny?.returnDestinationAirport || 'N/A';
-      const voltaData = ticket?.actualReturnDate ? formatDate(ticket.actualReturnDate) : dataVooVolta;
-      const voltaHorario = ticket?.actualReturnTime || horarioSugeridoVolta;
-
-      return {
-        'ID': `#${inclusion.inclusionNumber || 'N/A'}`,
-        'Evento': event?.name || 'N/A',
-        'Local do Evento': event?.location || 'N/A',
-        'Início do Evento': event?.startDate ? formatDate(event.startDate) : 'N/A',
-        'Fim do Evento': event?.endDate ? formatDate(event.endDate) : 'N/A',
-        'Função': func?.name || 'N/A',
-        'Área': inclusion.area || 'N/A',
-        'Colaborador': fixEncoding(collaborator?.fullName) || 'Não escalado',
-        'Tipo': collaborator?.type ? (collaborator.type === 'local' ? 'CASA' : collaborator.type.toUpperCase()) : 'N/A',
-        'CPF Colaborador': cpfColaborador,
-        'Data Nascimento': collaborator?.birthDate ? formatDate(collaborator.birthDate) : 'N/A',
-        'Telefone Colaborador': collaborator?.phone || 'N/A',
-        'Cidade Colaborador': collaborator?.city || 'N/A',
-        'Sai de': inclusion.city || 'N/A',
-        'Período Agendado - Início': inclusion.scheduleStartDate ? formatDate(inclusion.scheduleStartDate) : 'N/A',
-        'Período Agendado - Fim': inclusion.scheduleEndDate ? formatDate(inclusion.scheduleEndDate) : 'N/A',
-        'Período Real - Início': inclusion.actualStartDate ? formatDate(inclusion.actualStartDate) : 'N/A',
-        'Período Real - Fim': inclusion.actualEndDate ? formatDate(inclusion.actualEndDate) : 'N/A',
-        'Precisa Passagem': inclusion.needsTicket ? 'Sim' : 'Não',
-        'Tipo de Transporte': tipoTransporte,
-        'Passagem LOC': passagemLoc,
-        'Passagem Data Compra': passagemDataCompra,
-        'Passagem Valor (R$)': passagemValor,
-        'Ida - Cidade Origem': idaCidadeOrigem,
-        'Ida - Aeroporto Origem': idaAeroportoOrigem,
-        'Ida - Cidade Destino': idaCidadeDestino,
-        'Ida - Aeroporto Destino': idaAeroportoDestino,
-        'Ida - Data': idaData,
-        'Ida - Horário': idaHorario,
-        'Horário Sugerido Ida': horarioSugeridoIda,
-        'Volta - Cidade Origem': voltaCidadeOrigem,
-        'Volta - Aeroporto Origem': voltaAeroportoOrigem,
-        'Volta - Cidade Destino': voltaCidadeDestino,
-        'Volta - Aeroporto Destino': voltaAeroportoDestino,
-        'Volta - Data': voltaData,
-        'Volta - Horário': voltaHorario,
-        'Horário Sugerido Volta': horarioSugeridoVolta,
-        'Precisa Hospedagem': inclusion.needsAccommodation ? 'Sim' : 'Não',
-        'Diárias Planejadas': inclusion.dailyRates ?? 0,
-        'Diárias Reais': inclusion.actualDailyRates ?? 'N/A',
-        'Valor da Diária (R$)': dailyValueInReais.toFixed(2),
-        'Valor Total (R$)': totalValue.toFixed(2),
-        'Status': confirmationStatus,
-        'Fase Atual': inclusion.phase || 'N/A',
-        'Registro Emergencial': inclusion.emergencyRecord ? 'Sim' : 'Não',
-        'Observações': observacoesLimpas,
-        'Observações Reais': inclusion.actualObservations || '',
-        'Comentários': commentsText
-      };
-    });
-
-    // Criar workbook e worksheet
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    
-    // Ajustar largura das colunas para melhor visualização
-    const colWidths = [
-      { wch: 10 },  // ID
-      { wch: 30 },  // Evento
-      { wch: 25 },  // Local do Evento
-      { wch: 15 },  // Início do Evento
-      { wch: 15 },  // Fim do Evento
-      { wch: 25 },  // Função
-      { wch: 20 },  // Área
-      { wch: 30 },  // Colaborador
-      { wch: 12 },  // Tipo
-      { wch: 18 },  // CPF
-      { wch: 15 },  // Data Nascimento
-      { wch: 15 },  // Telefone
-      { wch: 20 },  // Cidade
-      { wch: 18 },  // Período Agendado - Início
-      { wch: 18 },  // Período Agendado - Fim
-      { wch: 18 },  // Período Real - Início
-      { wch: 18 },  // Período Real - Fim
-      { wch: 15 },  // Precisa Passagem
-      { wch: 16 },  // Tipo de Transporte
-      { wch: 15 },  // Passagem LOC
-      { wch: 18 },  // Passagem Data Compra
-      { wch: 18 },  // Passagem Valor
-      { wch: 20 },  // Ida - Cidade Origem
-      { wch: 18 },  // Ida - Aeroporto Origem
-      { wch: 20 },  // Ida - Cidade Destino
-      { wch: 18 },  // Ida - Aeroporto Destino
-      { wch: 15 },  // Ida - Data
-      { wch: 12 },  // Ida - Horário
-      { wch: 18 },  // Horário Sugerido Ida
-      { wch: 20 },  // Volta - Cidade Origem
-      { wch: 18 },  // Volta - Aeroporto Origem
-      { wch: 20 },  // Volta - Cidade Destino
-      { wch: 18 },  // Volta - Aeroporto Destino
-      { wch: 15 },  // Volta - Data
-      { wch: 12 },  // Volta - Horário
-      { wch: 18 },  // Horário Sugerido Volta
-      { wch: 18 },  // Precisa Hospedagem
-      { wch: 18 },  // Diárias Planejadas
-      { wch: 15 },  // Diárias Reais
-      { wch: 18 },  // Valor da Diária
-      { wch: 18 },  // Valor Total
-      { wch: 15 },  // Status
-      { wch: 15 },  // Fase Atual
-      { wch: 20 },  // Registro Emergencial
-      { wch: 40 },  // Observações
-      { wch: 40 },  // Observações Reais
-      { wch: 60 }   // Comentários
-    ];
-    ws['!cols'] = colWidths;
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Escalações');
-
-    // Gerar nome do arquivo com data atual
-    const today = new Date();
-    const dateStr = `${today.getDate().toString().padStart(2, '0')}${(today.getMonth() + 1).toString().padStart(2, '0')}${today.getFullYear()}`;
-    const fileName = `Escalacoes_${dateStr}.xlsx`;
-
-    // Baixar arquivo
-    XLSX.writeFile(wb, fileName);
-
-    toast({
-      title: "Sucesso",
-      description: `Arquivo ${fileName} exportado com ${exportData.length} escalações ativas!`,
-    });
+    toast({ title: "Sucesso", description: `Arquivo ${fileName} exportado com ${rowCount} escalações ativas!` });
   };
 
-  const markInclusionSwapSeen = (inclusionId: string) => {
-    if (!user) return;
-    const swap = allSwapRequests?.find(s => {
-      const inclId = (s as any).team_inclusion_id || s.teamInclusionId;
-      return inclId === inclusionId;
-    });
-    if (!swap) return;
-    const requestedBy = (swap as any).requested_by || swap.requestedBy;
-    if (requestedBy === user.id) {
-      if (swap.status === 'pendente') markSwapSeen(user.id, swap.id, 'pending');
-      else if (['aprovado', 'rejeitado'].includes(swap.status)) markSwapSeen(user.id, swap.id, 'responded');
-    }
-  };
+  // ── Seleção múltipla ────────────────────────────────────────────────────
+  // Motivo de bloqueio por linha, memoizado (conflito de datas varre a lista inteira)
+  const bulkBlockReasonById = useMemo(
+    () => new Map(scalingInclusions.map(i => [i.id, getBulkConfirmBlockReason(i, data)])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scalingInclusions, teamInclusions, data.functionById, data.eventById, data.collaboratorById, data.userFunctionIds, user?.id, user?.role],
+  );
+  const getSelectBlockReason = (inclusion: TeamInclusion) => bulkBlockReasonById.get(inclusion.id) ?? getBulkConfirmBlockReason(inclusion, data);
+  const toggleSelect = (id: string) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const toggleAllVisible = (ids: string[], select: boolean) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    ids.forEach(id => { if (select) next.add(id); else next.delete(id); });
+    return next;
+  });
+  const selectedInclusions = useMemo(
+    () => (teamInclusions || []).filter(i => selectedIds.has(i.id)),
+    [teamInclusions, selectedIds],
+  );
 
-  const isCityFromSP = (city: string | null | undefined) => {
-    if (!city) return true; // default SP
-    return city.toLowerCase().includes('paulo') || city.trim().toUpperCase() === 'SP';
-  };
-
-  const handleRowClick = (inclusion: TeamInclusion) => {
-    setSelectedInclusion(inclusion);
-    const city = inclusion.city || "";
-    setModalData({
-      collaboratorId: inclusion.collaboratorId || "",
-      observations: inclusion.observations || "",
-      dailyValue: 0,
-      city,
-      departureFromSP: isCityFromSP(city),
-      atendimentoTipo: (inclusion as any).atendimentoTipo || "",
-    });
-    setShowModal(true);
-    markInclusionSwapSeen(inclusion.id);
-  };
-
-  const handleViewComments = (e: React.MouseEvent, inclusion: TeamInclusion) => {
-    e.stopPropagation();
-    setSelectedInclusion(inclusion);
-    const city = inclusion.city || "";
-    setModalData({
-      collaboratorId: inclusion.collaboratorId || "",
-      observations: inclusion.observations || "",
-      dailyValue: 0,
-      city,
-      departureFromSP: isCityFromSP(city),
-      atendimentoTipo: (inclusion as any).atendimentoTipo || "",
-    });
-    setShowModal(true);
-    markInclusionSwapSeen(inclusion.id);
-  };
-
-  // ── Validação inline (Salvar / Confirmar) ─────────────────────────────────
-  // Devolve o motivo pelo qual a ação está bloqueada (ou null). Usado para
-  // desabilitar o botão + tooltip + marcar campos; os handlers só repetem a
-  // checagem como trava de segurança, sem toast (toast fica para erro de servidor).
-  const isAtendimentoMissing = (inclusion: TeamInclusion) =>
-    !!modalData.collaboratorId &&
-    isAtendimentoFunction(getFunctionName(inclusion.functionId)) &&
-    !modalData.atendimentoTipo;
-
-  const getCollaboratorConflictSummary = (inclusion: TeamInclusion): string | null => {
-    if (!modalData.collaboratorId) return null;
-    const { sameEvent, dateOverlap } = getCollaboratorConflicts(modalData.collaboratorId, inclusion.id);
-    if (sameEvent.length === 0 && dateOverlap.length === 0) return null;
-    const conflict = sameEvent[0] || dateOverlap[0];
-    const startStr = conflict.scheduleStartDate ? new Date(conflict.scheduleStartDate).toLocaleDateString('pt-BR') : '';
-    const endStr = conflict.scheduleEndDate ? new Date(conflict.scheduleEndDate).toLocaleDateString('pt-BR') : '';
-    const periodStr = startStr && endStr ? ` de ${startStr} a ${endStr}` : '';
-    return `${getCollaboratorName(modalData.collaboratorId)} já está escalado em "${getEventName(conflict.eventId)}"${periodStr}.`;
-  };
-
-  const getSaveBlockReason = (inclusion: TeamInclusion | null): string | null => {
-    if (!inclusion) return "Nenhuma escalação selecionada.";
-    if (inclusion.status === 'cancelado') return "Escalação cancelada — reative para editar.";
-    if (isEscalated(inclusion)) {
-      if (!canEditCollaborator(inclusion)) return "Alteração bloqueada: passagem comprada, hospedagem reservada ou sem permissão.";
-    } else if (!canConfirmEscalation(inclusion)) {
-      return "Apenas o responsável pela função pode salvar alterações.";
-    }
-    if (isAtendimentoMissing(inclusion)) return "Selecione o tipo de atendimento (Key Account ou Executivo de Contas).";
-    return null;
-  };
-
-  const getConfirmBlockReason = (inclusion: TeamInclusion | null): string | null => {
-    if (!inclusion) return "Nenhuma escalação selecionada.";
-    if (inclusion.status === 'cancelado') return "Escalação cancelada — reative para confirmar.";
-    if (!canConfirmEscalation(inclusion)) return "Apenas o responsável pela função pode confirmar escalações.";
-    if (!modalData.collaboratorId) return "Selecione um colaborador antes de confirmar.";
-    if (isAtendimentoMissing(inclusion)) return "Selecione o tipo de atendimento (Key Account ou Executivo de Contas).";
-    const conflict = getCollaboratorConflictSummary(inclusion);
-    if (conflict) return `Conflito de datas: ${conflict}`;
-    return null;
-  };
-
-  const handleSave = () => {
-    if (!selectedInclusion) return;
-    if (updateTeamInclusionMutation.isPending) return; // trava duplo clique
-    if (getSaveBlockReason(selectedInclusion)) return; // botão já está desabilitado com o motivo
-
-    const updateData: any = {
-      collaboratorId: modalData.collaboratorId,
-      observations: modalData.observations,
-      city: modalData.departureFromSP ? "São Paulo - SP" : (modalData.city || ""),
-      atendimentoTipo: modalData.atendimentoTipo || null,
-      // CRÍTICO: Preservar campos de necessidade de passagem/hospedagem
-      needsTicket: selectedInclusion.needsTicket,
-      needsAccommodation: selectedInclusion.needsAccommodation,
-    };
-
-    // Só incluir dailyValue se foi especificamente editado
-    if (modalData.dailyValue && modalData.dailyValue > 0) {
-      updateData.dailyValue = Math.round(modalData.dailyValue * 100); // Store in cents
-    }
-
-    pendingScalingAction.current = 'save';
-    updateTeamInclusionMutation.mutate({
-      id: selectedInclusion.id,
-      data: updateData
-    });
-  };
-
-  const handleConfirmEscalation = () => {
-    if (!selectedInclusion) return;
-    if (updateTeamInclusionMutation.isPending) return; // trava duplo clique
-    // Validação inline: o botão já vem desabilitado com o motivo (sem toast aqui)
-    if (getConfirmBlockReason(selectedInclusion)) return;
-
-    // Se é cenotécnica → vai para aprovação da produção (Vinicius Alexandre)
-    const isCenotecnica = isCenotecnicaFunction(selectedInclusion.functionId);
-    const noLogistics = !selectedInclusion.needsTicket && !selectedInclusion.needsAccommodation;
-    // Para cenotécnica: sempre vai para aguardando_producao primeiro
-    // Sem logística: vai direto para aprovado (sem passar por Compras — Compras só entra em trocas)
-    const nextStatus = isCenotecnica ? "aguardando_producao" : (noLogistics ? "aprovado" : "escalado");
-    const nextPhase = isCenotecnica ? "escalacao" : (noLogistics ? "aprovado" : "escalacao");
-
-    const updateData: any = {
-      collaboratorId: modalData.collaboratorId,
-      observations: modalData.observations,
-      city: modalData.departureFromSP ? "São Paulo - SP" : (modalData.city || ""),
-      status: nextStatus,
-      phase: nextPhase,
-      atendimentoTipo: modalData.atendimentoTipo || null,
-      // CRÍTICO: Preservar campos de necessidade de passagem/hospedagem
-      needsTicket: selectedInclusion.needsTicket,
-      needsAccommodation: selectedInclusion.needsAccommodation,
-      // A identidade vem da sessão no servidor — nada de _userId no corpo.
-    };
-
-    // Só incluir dailyValue se foi especificamente editado
-    if (modalData.dailyValue && modalData.dailyValue > 0) {
-      updateData.dailyValue = Math.round(modalData.dailyValue * 100); // Store in cents
-    }
-
-    pendingScalingAction.current = 'confirm';
-    updateTeamInclusionMutation.mutate({
-      id: selectedInclusion.id,
-      data: updateData
-    });
-  };
-
-
-  // Formata data com dia da semana
-  const formatDateWithWeekday = (dateStr: string | null | undefined) => {
-    if (!dateStr) return "N/A";
-    // Recorta qualquer timestamp ("2025-11-06T00:00:00.000Z" -> "2025-11-06") antes
-    // de fixar meia-noite local: sem isso a data vinha em UTC e caía um dia atrás
-    // em Brasília (ou virava Invalid Date, exibindo o ISO cru na tela).
-    const cleanDate = String(dateStr).split('T')[0];
-    const date = new Date(cleanDate + 'T00:00:00');
-    if (isNaN(date.getTime())) return String(dateStr);
-    return new Intl.DateTimeFormat("pt-BR", {
-      weekday: "short",
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).format(date);
-  };
-
-  const formatDate = (dateStr: string | null | undefined) => {
-    if (!dateStr) return "N/A";
-    // Remove timestamp se houver (ex: "2025-11-06T00:00:00.000Z" -> "2025-11-06")
-    const cleanDate = String(dateStr).split('T')[0];
-    const [year, month, day] = cleanDate.split('-');
-    if (!year || !month || !day) return String(dateStr);
-    return `${day}/${month}/${year}`;
-  };
-
-  // Função específica para formatar datas nas sugestões de viagem com dia da semana
-  const formatSuggestionDate = (dateStr: string | null | undefined) => {
-    if (!dateStr || dateStr === 'N/A' || dateStr === 'Não definido' || dateStr === 'Não informado') {
-      return 'Não informado';
-    }
-    
-    // Se está no formato YYYY-MM-DD, converte com dia da semana
-    if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateStr)) {
-      return formatDateWithWeekday(dateStr);
-    }
-    
-    // Se já está no formato DD/MM/YYYY, tenta converter para incluir dia da semana
-    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) {
-      const [day, month, year] = dateStr.split('/');
-      const isoDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-      return formatDateWithWeekday(isoDate);
-    }
-    
-    // Para outros formatos, tenta extrair números que possam ser datas
-    const dateMatch = dateStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
-    if (dateMatch) {
-      const [, year, month, day] = dateMatch;
-      const isoDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-      return formatDateWithWeekday(isoDate);
-    }
-    
-    // Se não conseguir formatar, retorna o valor original
-    return dateStr;
-  };
-
-  const formatDateTime = (date: Date | null) => {
-    if (!date) return "N/A";
-    return new Intl.DateTimeFormat("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(date));
-  };
-
-  const getUserName = (userId: string): string => {
-    if (user?.id === userId) {
-      return "Você";
-    }
-    const commentUser = users?.find(u => u.id === userId);
-    return commentUser?.name || "Usuário";
-  };
-
-  // Função para extrair dados de passagem dos campos específicos (prioridade) ou das observações (legado)
-  const extractTravelInfoFromObservations = (observations: string | undefined, inclusion?: TeamInclusion) => {
-    // PRIORIDADE: Usar campos específicos da inclusão (novos dados)
-    if (inclusion && (inclusion.flightDepartureDate || inclusion.flightArrivalSuggestedTime || 
-        inclusion.flightReturnDate || inclusion.flightReturnSuggestedTime)) {
-      return {
-        ida: inclusion.flightDepartureDate || 'Não informado',
-        retorno: inclusion.flightReturnDate || 'Não informado',
-        chegada: inclusion.flightArrivalSuggestedTime || 'Não informado',
-        horario: inclusion.flightReturnSuggestedTime || 'Não informado'
-      };
-    }
-    
-    // FALLBACK: Tentar extrair das observações (compatibilidade com dados antigos)
-    if (observations && observations.trim()) {
-      const idaMatch = observations.match(/Ida:\s*([^|]*?)(?:\s*\||\s*$)/);
-      const retornoMatch = observations.match(/Retorno:\s*([^|]*?)(?:\s*\||\s*$)/);
-      const chegadaMatch = observations.match(/Chegada:\s*([^|]*?)(?:\s*\||\s*$)/);
-      const horarioMatch = observations.match(/Horário:\s*([^|]*?)(?:\s*\||\s*$)/);
-      
-      if (idaMatch || retornoMatch || chegadaMatch || horarioMatch) {
-        return {
-          ida: (idaMatch && idaMatch[1].trim()) ? idaMatch[1].trim() : 'Não definido',
-          retorno: (retornoMatch && retornoMatch[1].trim()) ? retornoMatch[1].trim() : 'Não definido', 
-          chegada: (chegadaMatch && chegadaMatch[1].trim()) ? chegadaMatch[1].trim() : 'Não definido',
-          horario: (horarioMatch && horarioMatch[1].trim()) ? horarioMatch[1].trim() : 'Não definido'
-        };
-      }
-    }
-    
-    // Se não tem nenhum dado
-    return { ida: 'Não informado', retorno: 'Não informado', chegada: 'Não informado', horario: 'Não informado' };
-  };
-
-  const getPhaseLabel = (phase: string) => {
-    switch (phase) {
-      case "inclusao":
-        return "Inclusão de Equipe";
-      case "escalacao":
-        return "Escalação";
-      case "passagem":
-        return "Compra de Passagem";
-      case "hospedagem":
-        return "Hospedagem";
-      case "aprovado":
-        return "Aprovado";
-      default:
-        return phase;
-    }
-  };
-
-  // Pre-fetch metadata for all attachment IDs when modal opens
-  useEffect(() => {
-    if (!showModal || !selectedInclusion) return;
-    setModalActiveTab("resumo");
-    setShowAllLogs(false);
-    const acc = accommodationByInclusion.get(selectedInclusion.id);
-    const ticket = (tickets || []).find(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null);
-    const ids = [
-      ...(acc?.attachmentIds || []),
-      ...(ticket?.attachmentIds || []),
-    ].filter(id => !attachmentMeta[id]);
-    let active = true;
-    ids.forEach(async (id) => {
-      try {
-        const res = await fetch(`/api/attachments/${id}`, { credentials: "include" });
-        if (res.ok) {
-          const data = await res.json();
-          if (active) setAttachmentMeta(prev => ({ ...prev, [id]: data }));
-        }
-      } catch (_) {}
-    });
-    return () => { active = false; };
-  }, [showModal, selectedInclusion]);
-
-  const isImageFile = (name?: string, type?: string) => {
-    return (name || '').toLowerCase().match(/\.(jpe?g|png|gif|webp|bmp)$/) || (type || '').includes('image/');
-  };
-
-  const isPdfFile = (name?: string, type?: string) => {
-    return (name || '').toLowerCase().endsWith('.pdf') || (type || '').includes('pdf');
-  };
-
-  // Abre anexo: lightbox para imagens, nova aba para PDFs, Google Docs Viewer para outros
-  const openAttachment = async (attachmentId: string, fallbackLabel: string) => {
-    try {
-      let data = attachmentMeta[attachmentId];
-      if (!data) {
-        const res = await fetch(`/api/attachments/${attachmentId}`, { credentials: "include" });
-        if (res.status === 401) throw new Error('Sua sessão expirou. Atualize a página e entre novamente.');
-        if (!res.ok) throw new Error('Erro ao buscar anexo');
-        data = await res.json();
-        setAttachmentMeta(prev => ({ ...prev, [attachmentId]: data! }));
-      }
-      const url = data?.viewUrl;
-      if (!url || url === '#') {
-        toast({ title: 'Anexo não disponível', description: 'O arquivo ainda não possui URL de visualização.', variant: 'destructive' });
-        return;
-      }
-      if (isImageFile(data?.name, data?.type)) {
-        setShowModal(false);
-        setLightbox({ url, name: data?.name || fallbackLabel });
-      } else if (isPdfFile(data?.name, data?.type)) {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      } else {
-        const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
-        window.open(viewerUrl, '_blank', 'noopener,noreferrer');
-      }
-    } catch (err) {
-      toast({ title: 'Erro', description: `Não foi possível abrir o anexo: ${err instanceof Error ? err.message : 'Erro desconhecido'}`, variant: 'destructive' });
-    }
-  };
-
-  // Banner: escalações de cenotécnica aguardando aprovação da produção
-  const canApproveProduction = (user as any)?.canApproveCenotecnica || hasRoleIn(user?.role, ['admin']);
-  // Conta sobre a base NÃO filtrada (só o recorte de permissão); a visão atual é informada à parte
-  const pendingProductionApprovals = filteredTeamInclusions.filter(i => i.status === 'aguardando_producao');
-  const pendingProductionApprovalsInView = scalingInclusions.filter(i => i.status === 'aguardando_producao');
-
-  // Exportação XLSX carrega CPF/telefone/nascimento — só admin, Compras e RH/Financeiro
-  const canExport = hasRoleIn(user?.role, ['admin', 'purchasing', 'financial']);
-
-  // Check if user can access this screen (depois de todos os hooks)
+  // Permissão de acesso à tela — depois de todos os hooks
+  const canViewScaling = canView(user, "scaling");
   if (!canViewScaling) {
     return (
       <div className="bg-card rounded-lg shadow-sm border border-border p-6">
@@ -1544,13 +338,28 @@ export default function Scaling() {
       <div className="bg-card rounded-lg shadow-sm border border-border p-6 animate-pulse">
         <div className="h-8 bg-muted rounded mb-4 w-1/3"></div>
         <div className="space-y-3">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-12 bg-muted rounded"></div>
-          ))}
+          {[...Array(3)].map((_, i) => (<div key={i} className="h-12 bg-muted rounded"></div>))}
         </div>
       </div>
     );
   }
+
+  const tableProps = {
+    sortConfig,
+    onSort: handleSort,
+    onRowClick: (i: TeamInclusion) => openInclusion(i, "resumo"),
+    onViewComments: handleViewComments,
+    getFunctionName, getEventName, getCollaboratorName, getCollaboratorCity, getTicket, getAccommodation,
+    pendingSwapByInclusion,
+    approvedSwapInclusionIds: data.approvedSwapInclusionIds,
+    seenSwapIds,
+    currentUserId: user?.id,
+    isAdminOrPurchasing,
+    selectedIds,
+    getSelectBlockReason,
+    onToggleSelect: toggleSelect,
+    onToggleAllVisible: toggleAllVisible,
+  };
 
   return (
     <div className="space-y-6">
@@ -1564,29 +373,8 @@ export default function Scaling() {
         </div>
       </div>
 
-      {/* ── Banner: Aprovações de cenotécnica pendentes ── */}
-      {canApproveProduction && pendingProductionApprovals.length > 0 && (
-        <div className="flex flex-wrap items-start gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-2xl">
-          <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
-            <AlertCircle className="w-4 h-4 text-red-600" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-bold text-red-700">
-              {pendingProductionApprovals.length === 1
-                ? '1 escalação de cenotécnica aguardando sua aprovação'
-                : `${pendingProductionApprovals.length} escalações de cenotécnica aguardando sua aprovação`}
-              {hasActiveFilters && (
-                <span className="font-medium text-red-500"> ({pendingProductionApprovalsInView.length} na visão atual)</span>
-              )}
-            </p>
-            <p className="text-[11px] text-red-500 mt-0.5 break-words">
-              {pendingProductionApprovals.map(i => `#${i.inclusionNumber}`).join(', ')} — clique na escalação para aprovar ou reprovar.
-            </p>
-          </div>
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-red-600 text-white text-[11px] font-bold shrink-0">
-            {pendingProductionApprovals.length}
-          </span>
-        </div>
+      {canApproveProduction && (
+        <ProductionApprovalsBanner pending={pendingProductionApprovals} inView={pendingProductionApprovalsInView} hasActiveFilters={hasActiveFilters} />
       )}
 
       <UniversalFilters
@@ -1609,2204 +397,104 @@ export default function Scaling() {
         ) : undefined}
       />
 
-
-          {isErrorInclusions && !teamInclusions ? (
-            /* Falha de rede/sessão NÃO pode virar "nenhum dado" */
-            <div className="bg-white rounded-2xl border border-red-200 p-12 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
-                <AlertCircle className="w-7 h-7 text-red-400" />
-              </div>
-              <h3 className="text-[15px] font-bold text-slate-700 mb-1">
-                Não foi possível carregar as escalações
-              </h3>
-              <p className="text-[13px] text-slate-500">
-                {describeLoadError(inclusionsError)}
-              </p>
-            </div>
-          ) : scalingInclusions.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-12 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
-                <Users className="w-7 h-7 text-slate-300" />
-              </div>
-              <h3 className="text-[15px] font-bold text-slate-600 mb-1">
-                Nenhuma escalação encontrada
-              </h3>
-              <p className="text-[13px] text-slate-400">
-                Não há registros de escalação para exibir com os filtros atuais.
-              </p>
-            </div>
-          ) : (() => {
-            const withoutTicketBase = scalingInclusions.filter(inclusion => !inclusion.needsTicket);
-            const withTicketBase = scalingInclusions.filter(inclusion => inclusion.needsTicket);
-            const withoutTicket = showOnlyPendingSwaps
-              ? withoutTicketBase.filter(inclusion => pendingSwapByInclusion.has(inclusion.id))
-              : withoutTicketBase;
-            const withTicket = showOnlyPendingSwaps
-              ? withTicketBase.filter(inclusion => pendingSwapByInclusion.has(inclusion.id))
-              : withTicketBase;
-            
-            // Count pending escalations (excluding canceled ones)
-            const withoutTicketPending = withoutTicket.filter(inclusion => !isEscalated(inclusion) && inclusion.status !== "cancelado").length;
-            const withTicketPending = withTicket.filter(inclusion => !isEscalated(inclusion) && inclusion.status !== "cancelado").length;
-            
-            return (
-              <Tabs value={scalingTab} onValueChange={setScalingTab} className="w-full">
-                {pendingSwapInclusionsAll.length > 0 && (
-                  <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-purple-200 bg-purple-50 px-4 py-3">
-                    <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
-                      <ArrowLeftRight className="w-4 h-4 text-purple-600" />
-                    </div>
-                    <p className="text-[13px] font-medium text-purple-800 flex-1 min-w-0">
-                      {pendingSwapInclusionsAll.length === 1
-                        ? "1 solicitação de troca de colaborador aguardando análise"
-                        : `${pendingSwapInclusionsAll.length} solicitações de troca de colaborador aguardando análise`}
-                      {hasActiveFilters && (
-                        <span className="text-purple-500 font-normal"> ({pendingSwapInclusionsInView.length} na visão atual)</span>
-                      )}
-                    </p>
-                    {pendingSwapInclusionsInView.length === 0 ? (
-                      <span className="shrink-0 text-[12px] text-purple-500">Nenhuma na visão atual — ajuste os filtros.</span>
-                    ) : showOnlyPendingSwaps ? (
-                      <button
-                        type="button"
-                        onClick={() => setShowOnlyPendingSwaps(false)}
-                        className="shrink-0 text-[12px] font-semibold text-purple-700 hover:text-purple-900 underline underline-offset-2"
-                        data-testid="button-clear-pending-swaps"
-                      >
-                        Mostrar todos
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={goToPendingSwaps}
-                        className="shrink-0 rounded-lg bg-purple-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-purple-700 transition-colors"
-                        data-testid="button-show-pending-swaps"
-                      >
-                        Ver trocas pendentes
-                      </button>
-                    )}
-                  </div>
-                )}
-                <TabsList className="grid grid-cols-1 sm:grid-cols-2 gap-4 h-auto bg-transparent p-0 w-full mb-2">
-                  {/* Card: Sem Passagem */}
-                  <TabsTrigger
-                    value="without-ticket"
-                    disabled={withoutTicket.length === 0}
-                    className="group relative overflow-hidden rounded-2xl border-2 border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/20 data-[state=active]:border-[#F97316] data-[state=active]:bg-orange-50/60 data-[state=active]:shadow-lg data-[state=active]:shadow-orange-100 transition-all duration-200 disabled:opacity-40 text-left p-0 h-auto"
-                  >
-                    {/* Faixa superior — só aparece quando ativo */}
-                    <div className="absolute top-0 inset-x-0 h-[3px] bg-[#F97316] rounded-t-[14px] opacity-0 group-data-[state=active]:opacity-100 transition-opacity duration-200" />
-                    {/* Checkmark */}
-                    <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-[#F97316] items-center justify-center shadow hidden group-data-[state=active]:flex">
-                      <Check className="w-3 h-3 text-white" strokeWidth={3.5} />
-                    </span>
-                    <div className="flex items-center gap-3.5 px-4 pt-4 pb-4">
-                      <div className="w-10 h-10 rounded-xl bg-orange-100 group-data-[state=active]:bg-orange-200/60 flex items-center justify-center shrink-0 transition-colors duration-200">
-                        <Clock className="w-[18px] h-[18px] text-[#F97316]" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <h3 className="text-[14px] font-bold text-slate-800 leading-tight">Sem Passagem</h3>
-                          <span className="px-2 py-0.5 rounded-full bg-orange-100 text-[#F97316] text-[11px] font-black tabular-nums group-data-[state=active]:bg-orange-200/70">
-                            {withoutTicket.length}
-                          </span>
-                        </div>
-                        <p className="text-[11px] font-medium leading-tight text-orange-400 group-[&:not([data-state=active])]:text-slate-400">
-                          {withoutTicketPending > 0
-                            ? `${withoutTicketPending} pendente${withoutTicketPending !== 1 ? 's' : ''} de escalação`
-                            : 'Nenhum pendente'}
-                        </p>
-                      </div>
-                    </div>
-                  </TabsTrigger>
-
-                  {/* Card: Com Passagem */}
-                  <TabsTrigger
-                    value="with-ticket"
-                    disabled={withTicket.length === 0}
-                    className="group relative overflow-hidden rounded-2xl border-2 border-slate-200 bg-white hover:border-green-200 hover:bg-green-50/20 data-[state=active]:border-[#16A34A] data-[state=active]:bg-green-50/60 data-[state=active]:shadow-lg data-[state=active]:shadow-green-100 transition-all duration-200 disabled:opacity-40 text-left p-0 h-auto"
-                  >
-                    {/* Faixa superior — só aparece quando ativo */}
-                    <div className="absolute top-0 inset-x-0 h-[3px] bg-[#16A34A] rounded-t-[14px] opacity-0 group-data-[state=active]:opacity-100 transition-opacity duration-200" />
-                    {/* Checkmark */}
-                    <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-[#16A34A] items-center justify-center shadow hidden group-data-[state=active]:flex">
-                      <Check className="w-3 h-3 text-white" strokeWidth={3.5} />
-                    </span>
-                    <div className="flex items-center gap-3.5 px-4 pt-4 pb-4">
-                      <div className="w-10 h-10 rounded-xl bg-slate-100 group-data-[state=active]:bg-green-100 flex items-center justify-center shrink-0 transition-colors duration-200 text-[15px]">✈️</div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <h3 className="text-[14px] font-bold text-slate-800 leading-tight">Com Transporte</h3>
-                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[11px] font-black tabular-nums group-data-[state=active]:bg-green-100 group-data-[state=active]:text-green-700 transition-colors duration-200">
-                            {withTicket.length}
-                          </span>
-                        </div>
-                        <p className="text-[11px] font-medium text-slate-400 leading-tight">Aéreo · Rodoviário · Van</p>
-                        <p className="text-[11px] font-medium text-green-500 group-[&:not([data-state=active])]:text-slate-400 leading-tight">
-                          {withTicketPending > 0
-                            ? `${withTicketPending} pendente${withTicketPending !== 1 ? 's' : ''} de escalação`
-                            : 'Todos escalados'}
-                        </p>
-                      </div>
-                    </div>
-                  </TabsTrigger>
-                </TabsList>
-
-                {/* Aba: Escalações SEM passagem */}
-                <TabsContent value="without-ticket" className="mt-0">
-                  {withoutTicket.length === 0 ? (
-                    <div className="p-12 text-center">
-                      <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-foreground mb-2">
-                        Nenhuma escalação sem passagem
-                      </h3>
-                      <p className="text-muted-foreground">
-                        Não há registros de escalações que não necessitam de passagens.
-                      </p>
-                    </div>
-                  ) : (
-                    <ScalingTable
-                      rows={withoutTicket}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                      onRowClick={handleRowClick}
-                      onViewDetails={handleViewComments}
-                      getFunctionName={getFunctionName}
-                      getEventName={getEventName}
-                      getCollaboratorName={getCollaboratorName}
-                      getCollaboratorCity={getCollaboratorCity}
-                      getTicket={getTicket}
-                      getAccommodation={getAccommodation}
-                      pendingSwapByInclusion={pendingSwapByInclusion}
-                      approvedSwapInclusionIds={approvedSwapInclusionIds}
-                      seenSwapIds={seenSwapIds}
-                      currentUserId={user?.id}
-                      isAdminOrPurchasing={isAdminOrPurchasing}
-                    />
-                  )}
-                </TabsContent>
-
-                {/* Aba: Escalações COM passagem */}
-                <TabsContent value="with-ticket" className="mt-0">
-                  {withTicket.length === 0 ? (
-                    <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-10 text-center mt-4">
-                      <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center mx-auto mb-3">
-                        <Plane className="w-6 h-6 text-green-300" />
-                      </div>
-                      <h3 className="text-[14px] font-bold text-slate-500 mb-1">
-                        Nenhuma escalação com passagem
-                      </h3>
-                      <p className="text-[12px] text-slate-400">
-                        Não há escalações que necessitam de passagens nos filtros atuais.
-                      </p>
-                    </div>
-                  ) : (
-                    <ScalingTable
-                      rows={withTicket}
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                      onRowClick={handleRowClick}
-                      onViewDetails={handleViewComments}
-                      getFunctionName={getFunctionName}
-                      getEventName={getEventName}
-                      getCollaboratorName={getCollaboratorName}
-                      getCollaboratorCity={getCollaboratorCity}
-                      getTicket={getTicket}
-                      getAccommodation={getAccommodation}
-                      pendingSwapByInclusion={pendingSwapByInclusion}
-                      approvedSwapInclusionIds={approvedSwapInclusionIds}
-                      seenSwapIds={seenSwapIds}
-                      currentUserId={user?.id}
-                      isAdminOrPurchasing={isAdminOrPurchasing}
-                    />
-                  )}
-                </TabsContent>
-              </Tabs>
-            );
-          })()}
-
-      {/* Modal de Detalhes da Escalação — redesenhado com abas */}
-      <Dialog open={showModal} onOpenChange={(open) => { setShowModal(open); if (!open) { setSwapConfirmAction(null); setSwapRejectReason(''); setShowCancelSwapConfirm(false); } }} modal={!showSuccessModal}>
-        <DialogContent className="!max-w-[1180px] w-[95vw] max-h-[88vh] !flex !flex-col p-0 gap-0 overflow-hidden">
-          {/* ── Header ── */}
-          <div className="px-6 pt-5 pb-4 border-b border-slate-100 shrink-0 flex items-center gap-4 pr-14" style={{ background: 'linear-gradient(to right, #f8faff 0%, #ffffff 60%)' }}>
-            <div
-              className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0"
-              style={{ background: 'linear-gradient(135deg, #3b7ef8 0%, #1d4ed8 100%)', boxShadow: '0 4px 16px #2563EB30' }}
-            >
-              <Users style={{ width: 20, height: 20 }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <DialogTitle className="text-[17px] font-bold text-slate-900 leading-tight m-0 p-0">
-                Detalhes da Escalação
-              </DialogTitle>
-              <div className="text-[12px] text-slate-400 mt-0.5 truncate">
-                <span className="font-mono font-bold text-slate-500">#{selectedInclusion?.inclusionNumber || 'N/A'}</span>
-                <span className="mx-1.5 text-slate-300">·</span>
-                {selectedInclusion ? getCollaboratorName(selectedInclusion.collaboratorId) : ''}
-              </div>
-            </div>
-            {selectedInclusion && getStatusBadge(selectedInclusion, "lg")}
+      {isErrorInclusions && !teamInclusions ? (
+        /* Falha de rede/sessão NÃO pode virar "nenhum dado" */
+        <div className="bg-white rounded-2xl border border-red-200 p-12 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-7 h-7 text-red-400" />
           </div>
+          <h3 className="text-[15px] font-bold text-slate-700 mb-1">Não foi possível carregar as escalações</h3>
+          <p className="text-[13px] text-slate-500">{describeLoadError(inclusionsError)}</p>
+        </div>
+      ) : scalingInclusions.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-12 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
+            <Users className="w-7 h-7 text-slate-300" />
+          </div>
+          <h3 className="text-[15px] font-bold text-slate-600 mb-1">Nenhuma escalação encontrada</h3>
+          <p className="text-[13px] text-slate-400">Não há registros de escalação para exibir com os filtros atuais.</p>
+        </div>
+      ) : (
+        <Tabs value={scalingTab} onValueChange={setScalingTab} className="w-full">
+          <PendingSwapsBanner
+            all={pendingSwapInclusionsAll}
+            inView={pendingSwapInclusionsInView}
+            hasActiveFilters={hasActiveFilters}
+            showOnlyPendingSwaps={showOnlyPendingSwaps}
+            onShow={goToPendingSwaps}
+            onClear={() => setShowOnlyPendingSwaps(false)}
+          />
+          <ScalingTabCards
+            withoutCount={withoutTicket.length}
+            withoutPending={countPending(withoutTicket)}
+            withCount={withTicket.length}
+            withPending={countPending(withTicket)}
+          />
 
-          {selectedInclusion && (() => {
-            const accommodation = getAccommodation(selectedInclusion.id);
-            const tabTrigger = "relative rounded-none border-b-2 border-transparent data-[state=active]:border-[#2563EB] data-[state=active]:text-[#2563EB] text-slate-500 bg-transparent data-[state=active]:bg-transparent px-4 pb-3 pt-2 text-sm font-medium shadow-none hover:text-slate-700 transition-colors";
-            const lbl = "text-[10px] uppercase tracking-[0.12em] text-slate-400 font-black mb-1";
-            const val = "text-[13px] font-semibold text-slate-700";
-            const renderAttachments = (ids: string[] | null | undefined, label: string) => {
-              if (!ids || ids.length === 0) {
-                return (
-                  <div className="flex items-center gap-2.5 py-3 px-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-                    <File className="w-4 h-4 text-slate-300" />
-                    <span className="text-sm text-slate-400">Nenhum anexo disponível.</span>
-                  </div>
-                );
-              }
-              return (
-                <div className="space-y-2">
-                  {ids.map((attachmentId, index) => (
-                    <div
-                      key={attachmentId}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`Abrir ${label} ${index + 1}`}
-                      className="flex items-center gap-3 bg-white border border-slate-200 hover:border-[#2563EB] hover:bg-blue-50 rounded-xl px-4 py-3 cursor-pointer transition-all group focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
-                      onClick={() => openAttachment(attachmentId, `${label} ${index + 1}`)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          openAttachment(attachmentId, `${label} ${index + 1}`);
-                        }
-                      }}
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
-                        <FileText className="w-4 h-4 text-[#2563EB]" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[13px] font-semibold text-slate-700">{label} {index + 1}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">Documento anexado · clique para visualizar</div>
-                      </div>
-                      <Eye className="w-4 h-4 text-slate-300 group-hover:text-[#2563EB] transition-colors flex-shrink-0" />
-                    </div>
-                  ))}
-                </div>
-              );
-            };
-            return (
-              <>
-                {/* ── Abas ── */}
-                <Tabs value={modalActiveTab} onValueChange={setModalActiveTab} className="flex-1 flex flex-col overflow-hidden min-h-0">
-                  <div className="px-6 border-b border-slate-100 shrink-0">
-                    <TabsList className="bg-transparent p-0 h-auto gap-0 rounded-none -mb-px">
-                      <TabsTrigger value="resumo" className={tabTrigger}>Resumo</TabsTrigger>
-                      <TabsTrigger value="passagem" className={tabTrigger}>
-                        Passagem
-                        {selectedTicket
-                          ? <span className="ml-1.5 bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">✓</span>
-                          : selectedInclusion.needsTicket
-                            ? <span className="ml-1.5 bg-amber-100 text-amber-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">!</span>
-                            : null}
-                      </TabsTrigger>
-                      <TabsTrigger value="hospedagem" className={tabTrigger}>
-                        Hospedagem
-                        {accommodation
-                          ? <span className="ml-1.5 bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">✓</span>
-                          : selectedInclusion.needsAccommodation
-                            ? <span className="ml-1.5 bg-amber-100 text-amber-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">!</span>
-                            : null}
-                      </TabsTrigger>
-                      <TabsTrigger value="comentarios" className={tabTrigger}>
-                        Comentários e Histórico
-                        {comments && comments.length > 0 && (
-                          <span className="ml-1.5 bg-[#2563EB] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{comments.length}</span>
-                        )}
-                      </TabsTrigger>
-                    </TabsList>
-                  </div>
-
-                  {/* Área de conteúdo das abas */}
-                  <div className="flex-1 overflow-y-auto min-h-0">
-
-                    {/* ══ ABA: RESUMO ══ */}
-                    <TabsContent value="resumo" className="m-0 p-4 sm:p-6">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-
-                        {/* Col 1: Informações Básicas */}
-                        <div className="space-y-4">
-                          <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4 space-y-3">
-                            <div>
-                              <div className={lbl}>Evento</div>
-                              <div className="text-[13px] font-semibold text-[#2563EB] leading-snug">{getEventName(selectedInclusion.eventId)}</div>
-                            </div>
-                            <div>
-                              <div className={lbl}>ID</div>
-                              <div className="text-[13px] font-bold text-slate-700 font-mono">#{selectedInclusion.inclusionNumber || 'N/A'}</div>
-                            </div>
-                            <div>
-                              <div className={lbl}>Função</div>
-                              <div className={val}>{getFunctionName(selectedInclusion.functionId)}</div>
-                            </div>
-                            <div>
-                              <div className={lbl}>Status</div>
-                              {getStatusBadge(selectedInclusion, "md")}
-                            </div>
-                            <div>
-                              <div className={lbl}>Nota Fiscal</div>
-                              {(() => {
-                                const emitsNf = (selectedInclusion as any).emitsNf !== false;
-                                // Mesmo gate do Confirmar: responsável pela função, admin ou Compras
-                                const canToggleNf = canManageFunction(selectedInclusion.functionId);
-                                const badgeCls = `inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-full transition-colors ${
-                                  emitsNf ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
-                                }`;
-                                const dot = <span className={`w-1.5 h-1.5 rounded-full ${emitsNf ? 'bg-emerald-500' : 'bg-slate-400'}`} />;
-                                const label = emitsNf ? 'Emite NF' : 'Não emite NF';
-                                if (!canToggleNf) {
-                                  return (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <span tabIndex={0} className={`${badgeCls} cursor-not-allowed opacity-80`} aria-disabled="true" data-testid="badge-emits-nf-readonly">
-                                          {dot}{label}
-                                        </span>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="right" className="max-w-[260px] text-[12px]">
-                                        Somente o responsável pela função, administradores ou Compras podem alterar se este escalado emite nota fiscal.
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  );
-                                }
-                                return (
-                                  <button
-                                    type="button"
-                                    disabled={toggleEmitsNfMutation.isPending}
-                                    onClick={() => toggleEmitsNfMutation.mutate({ id: selectedInclusion.id, emitsNf: !emitsNf })}
-                                    title="Clique para alternar. Define se a tela de Notas Fiscais cobra nota deste escalado."
-                                    className={`${badgeCls} disabled:opacity-50 ${emitsNf ? 'hover:bg-emerald-200' : 'hover:bg-slate-200'}`}
-                                    data-testid="button-toggle-emits-nf"
-                                  >
-                                    {dot}{label}
-                                  </button>
-                                );
-                              })()}
-                            </div>
-                            {(selectedInclusion.needsTicket || selectedInclusion.needsAccommodation) && (
-                              <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
-                                {selectedInclusion.needsTicket && (
-                                  selectedTicket ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-lg border border-blue-100">
-                                      <Plane style={{ width: 9, height: 9 }} />Passagem registrada
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-600 text-[10px] font-bold rounded-lg border border-amber-200">
-                                      <Plane style={{ width: 9, height: 9 }} />Passagem pendente
-                                    </span>
-                                  )
-                                )}
-                                {selectedInclusion.needsAccommodation && (
-                                  accommodation ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 text-[10px] font-bold rounded-lg border border-purple-100">
-                                      🏨 Hospedagem registrada
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-600 text-[10px] font-bold rounded-lg border border-amber-200">
-                                      🏨 Hospedagem pendente
-                                    </span>
-                                  )
-                                )}
-                              </div>
-                            )}
-                            {(() => {
-                              const isAdminOrPurchasing = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
-                              if (!isAdminOrPurchasing) return null;
-                              if (!pendingSwap) return null;
-                              return (
-                                <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
-                                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-600 text-[10px] font-bold rounded-lg border border-amber-200">
-                                    <ArrowLeftRight style={{ width: 9, height: 9 }} />Troca pendente
-                                  </span>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        </div>
-
-                        {/* Col 2: Colaborador */}
-                        <div className="space-y-4">
-                          <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-1.5">
-                              <span className={lbl} style={{marginBottom:0}}>Colaborador <span className="text-red-400">*</span></span>
-                              {(() => {
-                                const ticketPurchased = selectedInclusion.needsTicket
-                                  ? tickets?.some(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null) : false;
-                                const accommodationReserved = selectedInclusion.needsAccommodation
-                                  ? accommodations?.some(a => a.teamInclusionId === selectedInclusion.id) : false;
-                                const blocked = !canEditCollaborator(selectedInclusion);
-                                const blockReason = ticketPurchased && accommodationReserved
-                                  ? "passagem comprada e hospedagem reservada"
-                                  : ticketPurchased ? "passagem já comprada"
-                                  : accommodationReserved ? "hospedagem já reservada"
-                                  : null;
-                                return (
-                                  <div className="relative group inline-flex items-center">
-                                    <HelpCircle className="w-3.5 h-3.5 text-slate-400 hover:text-[#2563EB] cursor-help transition-colors" />
-                                    <div className="pointer-events-none absolute left-0 top-6 z-[9999] w-72 bg-slate-800 text-white rounded-xl px-4 py-3 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <div className="absolute left-3 -top-1.5 border-[6px] border-transparent border-b-slate-800" />
-                                      <div className="text-[12px] font-bold text-white mb-1.5">Troca de colaborador</div>
-                                      <div className="text-[11px] text-slate-300 leading-relaxed">
-                                        A alteração é liberada enquanto não houver passagem comprada ou hospedagem reservada vinculada a esta escalação.
-                                      </div>
-                                      {blocked && blockReason && (
-                                        <div className="mt-2 pt-2 border-t border-slate-600 text-[11px] text-amber-300 font-medium">
-                                          Bloqueio atual: {blockReason}.
-                                        </div>
-                                      )}
-                                      {blocked && !blockReason && (
-                                        <div className="mt-2 pt-2 border-t border-slate-600 text-[11px] text-amber-300 font-medium">
-                                          Você não tem permissão para alterar nesta escalação.
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-                              </div>
-                              {/* Badge tipo do colaborador — lado direito do header */}
-                              {(() => {
-                                const collab = collaborators?.find(c => c.id === (modalData.collaboratorId || selectedInclusion.collaboratorId));
-                                if (!collab) return null;
-                                const typeMap: Record<string, { label: string; cls: string }> = {
-                                  casa:   { label: 'Casa',   cls: 'bg-blue-50 text-blue-700 border-blue-100' },
-                                  freela: { label: 'Freela', cls: 'bg-violet-50 text-violet-700 border-violet-100' },
-                                  local:  { label: 'Local',  cls: 'bg-orange-50 text-orange-700 border-orange-100' },
-                                };
-                                const t = typeMap[collab.type] ?? { label: collab.type ?? '—', cls: 'bg-slate-100 text-slate-600 border-slate-200' };
-                                return (
-                                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border shrink-0 ${t.cls}`}>
-                                    {t.label}
-                                  </span>
-                                );
-                              })()}
-                            </div>
-                            {(!canEditCollaborator(selectedInclusion) || isEscalationConfirmed(selectedInclusion)) ? (
-                              <div className="space-y-2">
-                                <div className="border border-slate-200 rounded-xl bg-white px-3 py-2.5">
-                                  <div className="text-sm font-medium text-slate-700">{getCollaboratorName(modalData.collaboratorId)}</div>
-                                  {(() => {
-                                    const city = modalData.city || getCollaboratorCity(modalData.collaboratorId);
-                                    if (!city) return null;
-                                    return (
-                                      <div className="mt-1.5 rounded-lg bg-blue-50 border border-blue-100 px-2 py-1.5 flex items-center gap-1.5">
-                                        <MapPin className="w-3 h-3 text-blue-500 shrink-0" />
-                                        <div>
-                                          <div className="text-[9px] font-semibold text-blue-400 uppercase tracking-wide leading-none">Sai de</div>
-                                          <div className="text-[12px] font-bold text-blue-700 leading-tight">{city}</div>
-                                        </div>
-                                      </div>
-                                    );
-                                  })()}
-                                </div>
-                                {/* Card de status de troca */}
-                                {(() => {
-                                  const swap = pendingSwap || (latestSwap && ['rejeitado', 'aprovado'].includes(latestSwap.status) ? latestSwap : null);
-                                  if (!swap) return null;
-
-                                  const isAdminOrPurchasing = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
-                                  // O backend pode devolver snake_case ou camelCase — sem os dois o
-                                  // botão "Cancelar solicitação" nunca aparecia para quem pediu a troca.
-                                  const swapRequestedBy = (swap as any).requested_by ?? (swap as any).requestedBy;
-                                  const canCancel = swap.status === 'pendente' && !!user?.id && swapRequestedBy === user.id;
-
-                                  const variants: Record<string, { bg: string; border: string; icon: React.ReactNode; title: string; badge: string; badgeClass: string; msg: string; textColor: string }> = {
-                                    pendente: {
-                                      bg: 'bg-amber-50/80', border: 'border-amber-200',
-                                      icon: <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />,
-                                      title: 'Troca solicitada', badge: 'Aguardando aprovação',
-                                      badgeClass: 'bg-amber-100 text-amber-700 border-amber-200',
-                                      msg: 'O colaborador atual será mantido até a aprovação.',
-                                      textColor: 'text-slate-700',
-                                    },
-                                    aprovado: {
-                                      bg: 'bg-green-50/80', border: 'border-green-200',
-                                      icon: <Check className="w-3.5 h-3.5 text-green-600 shrink-0" />,
-                                      title: 'Troca aprovada', badge: 'Aprovada por Compras',
-                                      badgeClass: 'bg-green-100 text-green-700 border-green-200',
-                                      msg: 'A alteração do colaborador foi liberada.',
-                                      textColor: 'text-slate-700',
-                                    },
-                                    rejeitado: {
-                                      bg: 'bg-red-50/70', border: 'border-red-200',
-                                      icon: <X className="w-3.5 h-3.5 text-red-500 shrink-0" />,
-                                      title: 'Troca recusada', badge: 'Reprovada por Compras',
-                                      badgeClass: 'bg-red-100 text-red-700 border-red-200',
-                                      msg: 'A escala permanece com o colaborador atual.',
-                                      textColor: 'text-slate-700',
-                                    },
-                                  };
-
-                                  const v = variants[swap.status] || variants.pendente;
-
-                                  const reviewedAt = (swap as any).reviewed_at || swap.reviewedAt;
-                                  const reviewedByName = (swap as any).reviewed_by_name || swap.reviewedByName;
-                                  const requestedByName = (swap as any).requested_by_name || swap.requestedByName;
-                                  const swapCreatedAt = (swap as any).created_at || swap.createdAt;
-                                  const fmtDT = (d: unknown) => {
-                                    if (!d) return '';
-                                    const dt = new Date(d as string);
-                                    if (isNaN(dt.getTime())) return '';
-                                    return dt.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
-                                  };
-                                  const currentCollabName = getCollaboratorName((swap as any).current_collaborator_id || (swap as any).currentCollaboratorId);
-                                  const newCollabName = getCollaboratorName((swap as any).new_collaborator_id || (swap as any).newCollaboratorId);
-                                  const isResolved = swap.status === 'aprovado' || swap.status === 'rejeitado';
-
-                                  return (
-                                    <div className={`rounded-xl border ${v.border} ${v.bg} px-3 py-2.5 space-y-2`}>
-                                      {/* Cabeçalho */}
-                                      <div className="flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-1.5">
-                                          {v.icon}
-                                          <span className={`text-[12px] font-semibold ${v.textColor}`}>{v.title}</span>
-                                        </div>
-                                        <span className={`text-[10px] font-medium border rounded-full px-2 py-px leading-tight ${v.badgeClass}`}>{v.badge}</span>
-                                      </div>
-
-                                      {/* Prova da alteração (aprovado/rejeitado) */}
-                                      {isResolved ? (
-                                        <div className="bg-white/70 rounded-lg border border-slate-100 p-2 space-y-1.5">
-                                          {/* Mudança de colaborador */}
-                                          <div className="flex items-center gap-1.5 text-[11px]">
-                                            <span className="text-slate-500 line-through">{currentCollabName || '—'}</span>
-                                            <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
-                                            <span className={`font-semibold ${swap.status === 'aprovado' ? 'text-green-700' : 'text-slate-500'}`}>{newCollabName || '—'}</span>
-                                          </div>
-                                          {/* Quem solicitou */}
-                                          {requestedByName && (
-                                            <div className="flex items-center gap-1 text-[10px] text-slate-400">
-                                              <ArrowLeftRight className="w-2.5 h-2.5 shrink-0" />
-                                              <span>Solicitado por <span className="font-medium text-slate-600">{requestedByName}</span>{swapCreatedAt && <> · {fmtDT(swapCreatedAt)}</>}</span>
-                                            </div>
-                                          )}
-                                          {/* Quem resolveu e quando */}
-                                          {reviewedByName && (
-                                            <div className="flex items-center gap-1 text-[10px] text-slate-400">
-                                              <Check className="w-2.5 h-2.5 shrink-0" />
-                                              <span>{swap.status === 'aprovado' ? 'Aprovado' : 'Recusado'} por <span className="font-medium text-slate-600">{reviewedByName}</span>{reviewedAt && <> · {fmtDT(reviewedAt)}</>}</span>
-                                            </div>
-                                          )}
-                                          {/* Motivo da solicitação */}
-                                          <div className="flex items-start gap-1 text-[10px] text-slate-400">
-                                            <span className="shrink-0">Motivo:</span>
-                                            <span className="text-slate-500 leading-snug">{swap.reason}</span>
-                                          </div>
-                                          {/* Comentário de revisão */}
-                                          {(swap as any).review_comment && (
-                                            <div className="flex items-start gap-1 text-[10px] text-slate-400">
-                                              <span className="shrink-0">Obs.:</span>
-                                              <span className="text-slate-500 leading-snug italic">{(swap as any).review_comment}</span>
-                                            </div>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        <div className="space-y-1">
-                                          <p className="text-[10.5px] text-slate-500 leading-snug">Aguardando análise do time de Compras.</p>
-                                          {requestedByName && (
-                                            <div className="flex items-center gap-1 text-[10px] text-slate-400">
-                                              <ArrowLeftRight className="w-2.5 h-2.5 shrink-0" />
-                                              <span>Solicitado por <span className="font-medium text-slate-600">{requestedByName}</span>{swapCreatedAt && <> · {fmtDT(swapCreatedAt)}</>}</span>
-                                            </div>
-                                          )}
-                                          <div className="flex items-start gap-1.5 text-[11px]">
-                                            <span className="text-slate-400 shrink-0">Novo colaborador:</span>
-                                            <span className="font-medium text-slate-700">{newCollabName}</span>
-                                          </div>
-                                          <div className="flex items-start gap-1.5 text-[11px]">
-                                            <span className="text-slate-400 shrink-0">Motivo:</span>
-                                            <span className="text-slate-600 leading-snug">{swap.reason}</span>
-                                          </div>
-                                          {/* Ações de Compras: aprovar / recusar troca */}
-                                          {isAdminOrPurchasing && (
-                                            <div className="flex gap-2 pt-1.5">
-                                              <button
-                                                type="button"
-                                                onClick={() => setSwapConfirmAction('approve')}
-                                                disabled={approveSwapMutation.isPending || rejectSwapMutation.isPending}
-                                                className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                                                data-testid="button-approve-swap"
-                                              >
-                                                <CheckCheck className="w-3.5 h-3.5" />Aprovar troca
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => { setSwapConfirmAction('reject'); setSwapRejectReason(''); }}
-                                                disabled={approveSwapMutation.isPending || rejectSwapMutation.isPending}
-                                                className="flex-1 flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                                                data-testid="button-reject-swap"
-                                              >
-                                                <XCircle className="w-3.5 h-3.5" />Recusar troca
-                                              </button>
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-
-                                      {/* Rodapé */}
-                                      <div className="flex items-center justify-between pt-0.5">
-                                        <p className="text-[10px] text-slate-400 italic leading-tight">{v.msg}</p>
-                                        {canCancel && (
-                                          <button
-                                            type="button"
-                                            onClick={() => setShowCancelSwapConfirm(true)}
-                                            className="text-[10px] text-slate-400 hover:text-red-500 transition-colors underline underline-offset-2 shrink-0"
-                                          >
-                                            Cancelar solicitação
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  );
-                                })()}
-                                {/* Botão Solicitar Troca — só aparece se escalado, tem colaborador, sem pendência */}
-                                {isEscalationConfirmed(selectedInclusion) && selectedInclusion.collaboratorId && !pendingSwap && (
-                                  <div className="space-y-1">
-                                    <button
-                                      type="button"
-                                      title="Após aprovado pelo time de Compras, a alteração do colaborador será liberada."
-                                      onClick={() => { setSwapNewCollaboratorId(""); setSwapReason(""); setShowSwapModal(true); }}
-                                      className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-blue-200 bg-blue-50/60 text-blue-700 text-[12px] font-medium transition-all hover:bg-blue-100 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-1 active:bg-blue-100"
-                                    >
-                                      <ArrowLeftRight className="w-3.5 h-3.5 shrink-0" />
-                                      Solicitar troca
-                                    </button>
-                                    <p className="text-center text-[10px] text-slate-400 leading-tight">Requer aprovação de Compras</p>
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="space-y-2">
-                                {/* Marcação inline: colaborador é obrigatório para confirmar */}
-                                <div className={!modalData.collaboratorId && !isEscalated(selectedInclusion) ? "rounded-lg ring-1 ring-amber-300" : ""}>
-                                  <CollaboratorCombobox
-                                    collaborators={collaborators}
-                                    value={modalData.collaboratorId}
-                                    onValueChange={(value) => {
-                                      const newCity = getCollaboratorCity(value);
-                                      const fromSP = isCityFromSP(newCity);
-                                      setModalData(prev => ({
-                                        ...prev,
-                                        collaboratorId: value,
-                                        city: fromSP ? "São Paulo - SP" : (newCity || ""),
-                                        departureFromSP: fromSP,
-                                      }));
-                                    }}
-                                    placeholder="Selecione um colaborador"
-                                    testId="select-collaborator-escalation"
-                                    hideAll={true}
-                                  />
-                                </div>
-                                {!modalData.collaboratorId && !isEscalated(selectedInclusion) && (
-                                  <p className="text-[10px] text-amber-600 flex items-center gap-1" data-testid="hint-collaborator-required">
-                                    <AlertCircle className="w-3 h-3 shrink-0" />Obrigatório para confirmar a escalação.
-                                  </p>
-                                )}
-                                {/* Tipo de atendimento — obrigatório quando a função é de atendimento */}
-                                {isAtendimentoFunction(getFunctionName(selectedInclusion?.functionId ?? null)) && (() => {
-                                  const missing = isAtendimentoMissing(selectedInclusion);
-                                  return (
-                                  <div className="space-y-1.5">
-                                    <label htmlFor="select-atendimento-tipo" className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
-                                      <Users className="w-3 h-3" />
-                                      Tipo de atendimento <span className="text-red-500">*</span>
-                                    </label>
-                                    <select
-                                      id="select-atendimento-tipo"
-                                      value={modalData.atendimentoTipo}
-                                      onChange={(e) => setModalData(prev => ({ ...prev, atendimentoTipo: e.target.value }))}
-                                      data-testid="select-atendimento-tipo"
-                                      aria-invalid={missing}
-                                      className={`w-full px-3 py-2 text-[13px] border rounded-xl bg-white focus:outline-none focus:ring-2 focus:border-transparent ${
-                                        missing ? 'border-red-300 focus:ring-red-300' : 'border-slate-200 focus:ring-[#2563EB]'
-                                      }`}
-                                    >
-                                      <option value="">Selecione...</option>
-                                      {ATENDIMENTO_TIPOS.map((t) => (
-                                        <option key={t.value} value={t.value}>{t.label}</option>
-                                      ))}
-                                    </select>
-                                    {missing && (
-                                      <p className="text-[10px] text-red-600 flex items-center gap-1" data-testid="hint-atendimento-required">
-                                        <AlertCircle className="w-3 h-3 shrink-0" />Selecione Key Account ou Executivo de Contas.
-                                      </p>
-                                    )}
-                                  </div>
-                                  );
-                                })()}
-                                {/* Campo de cidade de saída — para todas as funções */}
-                                <div className="space-y-1.5">
-                                  <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
-                                    <MapPin className="w-3 h-3" />
-                                    Sai de
-                                  </label>
-                                  <div className="flex gap-1.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => setModalData(prev => ({ ...prev, departureFromSP: true, city: "São Paulo - SP" }))}
-                                      className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${modalData.departureFromSP ? 'bg-[#2563EB] text-white border-[#2563EB]' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}
-                                    >
-                                      São Paulo - SP
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setModalData(prev => ({ ...prev, departureFromSP: false, city: "" }))}
-                                      className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${!modalData.departureFromSP ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}
-                                    >
-                                      Outra cidade
-                                    </button>
-                                  </div>
-                                  {!modalData.departureFromSP && (
-                                    <input
-                                      type="text"
-                                      value={modalData.city || ''}
-                                      onChange={(e) => setModalData(prev => ({ ...prev, city: e.target.value }))}
-                                      placeholder="Ex: Rio de Janeiro - RJ"
-                                      autoFocus
-                                      className="w-full px-3 py-2 text-[13px] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
-                                    />
-                                  )}
-                                </div>
-                                {/* Bloqueio de conflito de datas */}
-                                {(() => {
-                                  if (!modalData.collaboratorId) return null;
-                                  const { sameEvent, dateOverlap } = getCollaboratorConflicts(modalData.collaboratorId, selectedInclusion?.id);
-                                  if (!sameEvent.length && !dateOverlap.length) return null;
-                                  const conflicts = [...sameEvent, ...dateOverlap].filter((v, i, a) => a.findIndex(x => x.id === v.id) === i);
-                                  return (
-                                    <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
-                                      <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
-                                      <div className="text-[11px] text-red-700 leading-snug space-y-1">
-                                        <p className="font-bold">Escalação bloqueada — colaborador já escalado:</p>
-                                        {conflicts.map(inc => {
-                                          const startStr = inc.scheduleStartDate ? new Date(inc.scheduleStartDate).toLocaleDateString('pt-BR') : '';
-                                          const endStr = inc.scheduleEndDate ? new Date(inc.scheduleEndDate).toLocaleDateString('pt-BR') : '';
-                                          return (
-                                            <p key={inc.id}>
-                                              <span className="font-semibold">{getEventName(inc.eventId)}</span>
-                                              {startStr && endStr && <span className="text-red-500"> · {startStr} a {endStr}</span>}
-                                            </p>
-                                          );
-                                        })}
-                                        <p className="text-red-500 mt-0.5">Só é possível escalar se o colaborador for inativado ou sair da outra prova.</p>
-                                      </div>
-                                    </div>
-                                  );
-                                })()}
-                                {/* Botão Solicitar Troca também no branch editável */}
-                                {isEscalationConfirmed(selectedInclusion) && selectedInclusion.collaboratorId && !pendingSwap && (
-                                  <div className="space-y-1">
-                                    <button
-                                      type="button"
-                                      title="Após aprovado pelo time de Compras, a alteração do colaborador será liberada."
-                                      onClick={() => { setSwapNewCollaboratorId(""); setSwapReason(""); setShowSwapModal(true); }}
-                                      className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-blue-200 bg-blue-50/60 text-blue-700 text-[12px] font-medium transition-all hover:bg-blue-100 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-1 active:bg-blue-100"
-                                    >
-                                      <ArrowLeftRight className="w-3.5 h-3.5 shrink-0" />
-                                      Solicitar troca
-                                    </button>
-                                    <p className="text-center text-[10px] text-slate-400 leading-tight">Requer aprovação de Compras</p>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Col 3: Período de Trabalho */}
-                        <div>
-                          <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                            <div className="bg-[#2563EB]/5 border-b border-slate-200 px-4 py-2.5 flex items-center gap-2">
-                              <CalendarDays className="w-4 h-4 text-[#2563EB]" />
-                              <span className="text-[11px] font-black text-[#2563EB] uppercase tracking-[0.12em]">Período de Trabalho</span>
-                            </div>
-                            <div className="p-4">
-                              <div className="grid grid-cols-2 gap-3 mb-4">
-                                <div>
-                                  <div className={lbl}>Início</div>
-                                  <div className={val}>{formatDateWithWeekday(selectedInclusion.scheduleStartDate)}</div>
-                                </div>
-                                <div>
-                                  <div className={lbl}>Término</div>
-                                  <div className={val}>{formatDateWithWeekday(selectedInclusion.scheduleEndDate)}</div>
-                                </div>
-                              </div>
-                              {(() => {
-                                // Dias de trabalho: prioriza `workDays` (dias específicos, podem ser
-                                // não consecutivos); só cai no intervalo início→fim se estiver vazio.
-                                // parseDay: corta o timestamp e parseia como data LOCAL — com o ISO
-                                // completo o parseISO devolvia UTC e a grade caía um dia para trás.
-                                const explicitDays = ((selectedInclusion.workDays || []) as (string | null)[])
-                                  .map(d => parseDay(d))
-                                  .filter((d): d is Date => d !== null)
-                                  .sort((a, b) => a.getTime() - b.getTime());
-                                let allDays: Date[] = explicitDays;
-                                const usesWorkDays = explicitDays.length > 0;
-                                if (!usesWorkDays) {
-                                  if (!selectedInclusion.scheduleStartDate || !selectedInclusion.scheduleEndDate) return null;
-                                  const startDate = parseDay(selectedInclusion.scheduleStartDate);
-                                  const endDate = parseDay(selectedInclusion.scheduleEndDate);
-                                  // eachDayOfInterval lança RangeError com data inválida ou fim < início
-                                  // (derrubaria o modal inteiro).
-                                  if (!startDate || !endDate || startDate > endDate) return null;
-                                  allDays = eachDayOfInterval({ start: startDate, end: endDate });
-                                }
-                                if (allDays.length === 0) return null;
-                                const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
-                                return (
-                                  <div>
-                                    <div className={lbl + " mb-2"}>
-                                      {allDays.length} {allDays.length === 1 ? 'dia' : 'dias'} {usesWorkDays ? 'de trabalho' : 'no período'}
-                                      {usesWorkDays && <span className="normal-case tracking-normal font-medium text-slate-400"> · dias específicos</span>}
-                                    </div>
-                                    <div className="flex flex-wrap gap-1.5">
-                                      {allDays.map((day, index) => {
-                                        const weekend = isWeekend(day);
-                                        return (
-                                          <div key={index} className={`flex flex-col items-center rounded-xl border text-center px-2 py-1.5 min-w-[40px] ${weekend ? 'bg-orange-50 border-orange-200' : 'bg-white border-slate-200'}`}>
-                                            <div className={`text-[9px] uppercase font-bold ${weekend ? 'text-orange-400' : 'text-slate-400'}`}>
-                                              {format(day, 'EEE', { locale: ptBR })}
-                                            </div>
-                                            <div className={`text-[15px] font-bold leading-tight ${weekend ? 'text-orange-600' : 'text-slate-700'}`}>
-                                              {format(day, 'dd', { locale: ptBR })}
-                                            </div>
-                                            <div className={`text-[8px] ${weekend ? 'text-orange-300' : 'text-slate-300'}`}>
-                                              {format(day, 'MMM', { locale: ptBR })}
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                          </div>
-                        </div>
-
-                      </div>
-
-                      {/* Observações da escalação */}
-                      {selectedInclusion.observations && (
-                        <div className="mt-5">
-                          <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                            <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center gap-2">
-                              <MessageSquare className="w-4 h-4 text-slate-400" />
-                              <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Observações</span>
-                            </div>
-                            <div className="px-4 py-3">
-                              <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-line">{selectedInclusion.observations}</p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* ── Aprovação da Produção (cenotécnica) ── */}
-                      {selectedInclusion.status === 'aguardando_producao' && (
-                        <div className="mt-5">
-                          <div className="border border-red-200 rounded-2xl overflow-hidden">
-                            <div className="bg-red-50 border-b border-red-100 px-4 py-2.5 flex items-center gap-2">
-                              <AlertCircle className="w-4 h-4 text-red-600" />
-                              <span className="text-[11px] font-black text-red-700 uppercase tracking-[0.12em]">Aprovação da Produção</span>
-                            </div>
-                            <div className="p-4">
-                              {((user as any)?.canApproveCenotecnica || user?.role === 'admin' || user?.role === 'administrator' || user?.role === 'administrador') ? (
-                                <div className="space-y-3">
-                                  <p className="text-[12px] text-slate-600 leading-relaxed">
-                                    Esta escalação de cenotécnica aguarda sua aprovação antes de seguir para as próximas etapas. Ao reprovar, o colaborador é removido e a vaga volta para escalação.
-                                  </p>
-                                  <div className="flex gap-2">
-                                    <Button
-                                      onClick={() => setShowRejectProductionConfirm(true)}
-                                      disabled={rejectProductionMutation.isPending || approveProductionMutation.isPending}
-                                      variant="outline"
-                                      className="flex-1 flex items-center justify-center gap-2 border-red-200 text-red-600 hover:bg-red-50 rounded-xl h-9 text-[13px] font-semibold"
-                                    >
-                                      <XCircle className="w-3.5 h-3.5" />
-                                      {rejectProductionMutation.isPending ? "Reprovando..." : "Reprovar"}
-                                    </Button>
-                                    <Button
-                                      onClick={() => setShowApproveProductionConfirm(true)}
-                                      disabled={approveProductionMutation.isPending || rejectProductionMutation.isPending}
-                                      className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white rounded-xl h-9 text-[13px] font-semibold"
-                                    >
-                                      <Check className="w-3.5 h-3.5" />
-                                      {approveProductionMutation.isPending ? "Aprovando..." : "Aprovar"}
-                                    </Button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-3 py-2">
-                                  <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                                    <Clock className="w-4 h-4 text-red-500" />
-                                  </div>
-                                  <div>
-                                    <p className="text-[12px] font-semibold text-slate-700">Aguardando aprovação da Produção</p>
-                                    <p className="text-[11px] text-slate-400 mt-0.5">A Produção precisa aprovar esta escalação de cenotécnica.</p>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-
-                      {/* Seção de Anexos no Resumo */}
-                      {(() => {
-                        const ticketIds = selectedTicket?.attachmentIds || [];
-                        const accommodationIds = accommodation?.attachmentIds || [];
-                        const allAttachments = [
-                          ...ticketIds.map(id => ({ id, label: 'Passagem' })),
-                          ...accommodationIds.map(id => ({ id, label: 'Hospedagem' })),
-                        ];
-                        if (allAttachments.length === 0) return null;
-                        const visible = allAttachments.slice(0, 3);
-                        const hasMore = allAttachments.length > 3;
-                        return (
-                          <div className="mt-5">
-                            <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                              <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center gap-2">
-                                <FileText className="w-4 h-4 text-slate-400" />
-                                <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Anexos</span>
-                                <span className="bg-slate-200 text-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{allAttachments.length}</span>
-                              </div>
-                              <div className="p-4 space-y-2">
-                                {visible.map(({ id, label }, index) => (
-                                  <div
-                                    key={id}
-                                    role="button"
-                                    tabIndex={0}
-                                    aria-label={`Abrir ${label} · Anexo ${index + 1}`}
-                                    className="flex items-center gap-3 bg-white border border-slate-200 hover:border-[#2563EB] hover:bg-blue-50 rounded-xl px-3 py-2.5 cursor-pointer transition-all group focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
-                                    onClick={() => openAttachment(id, `${label} · Anexo ${index + 1}`)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        openAttachment(id, `${label} · Anexo ${index + 1}`);
-                                      }
-                                    }}
-                                  >
-                                    <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
-                                      <FileText className="w-3.5 h-3.5 text-[#2563EB]" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="text-[12px] font-semibold text-slate-700">{label} · Anexo {index + 1}</div>
-                                      <div className="text-[10px] text-slate-400">Documento anexado</div>
-                                    </div>
-                                    <Eye className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#2563EB] transition-colors flex-shrink-0" />
-                                  </div>
-                                ))}
-                                {hasMore && (
-                                  <button
-                                    className="w-full text-center text-[12px] text-[#2563EB] font-semibold py-1.5 hover:bg-blue-50 rounded-lg transition-colors"
-                                    onClick={() => setModalActiveTab('passagem')}
-                                  >
-                                    Ver todos os {allAttachments.length} anexos →
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </TabsContent>
-
-                    {/* ══ ABA: PASSAGEM ══ */}
-                    <TabsContent value="passagem" className="m-0 p-6">
-                      {!selectedInclusion.needsTicket ? (
-                        <div className="flex flex-col items-center justify-center py-10 text-center">
-                          <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center mb-3">
-                            <Plane className="w-5 h-5 text-slate-300" />
-                          </div>
-                          <div className="text-[13px] font-semibold text-slate-500 mb-1">Sem passagem necessária</div>
-                          <div className="text-[11px] text-slate-400">Esta escalação não requer passagem aérea, rodoviária ou van.</div>
-                        </div>
-                      ) : !selectedTicket ? (
-                        <div className="space-y-4">
-                          <div className="flex flex-col items-center justify-center py-8 text-center">
-                            <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-dashed border-amber-200 flex items-center justify-center mb-3">
-                              <Plane className="w-5 h-5 text-amber-300" />
-                            </div>
-                            <div className="text-[13px] font-semibold text-slate-600 mb-1">Nenhuma passagem registrada</div>
-                            <div className="text-[11px] text-slate-400">Aguardando registro de passagem para esta escalação.</div>
-                          </div>
-                          {/* Datas Sugeridas */}
-                          <div className="border border-blue-200 rounded-2xl overflow-hidden">
-                            <div className="bg-blue-50 border-b border-blue-200 px-4 py-2.5 flex items-center gap-2">
-                              <Plane className="w-3.5 h-3.5 text-blue-500" />
-                              <span className="text-[11px] font-black text-blue-600 uppercase tracking-[0.12em]">Datas Sugeridas</span>
-                              <span className="text-[10px] text-blue-400 font-normal ml-1">· da inclusão de equipe</span>
-                            </div>
-                            <div className="p-4">
-                              {(() => {
-                                const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined, selectedInclusion);
-                                return (
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div className="bg-white border border-blue-100 rounded-xl p-3">
-                                      <div className="text-[10px] font-black uppercase tracking-[0.12em] text-blue-400 mb-2">🛫 IDA</div>
-                                      <div className="space-y-1.5">
-                                        <div><div className="text-[10px] text-slate-400">Data</div><div className="text-[12px] font-semibold text-slate-700">{formatSuggestionDate(travelInfo.ida)}</div></div>
-                                        <div><div className="text-[10px] text-slate-400">Horário sugerido</div><div className="text-[12px] font-semibold text-slate-700">{travelInfo.chegada !== 'N/A' && travelInfo.chegada !== 'Não definido' ? travelInfo.chegada : '—'}</div></div>
-                                      </div>
-                                    </div>
-                                    <div className="bg-white border border-blue-100 rounded-xl p-3">
-                                      <div className="text-[10px] font-black uppercase tracking-[0.12em] text-blue-400 mb-2">🛬 VOLTA</div>
-                                      <div className="space-y-1.5">
-                                        <div><div className="text-[10px] text-slate-400">Data</div><div className="text-[12px] font-semibold text-slate-700">{formatSuggestionDate(travelInfo.retorno)}</div></div>
-                                        <div><div className="text-[10px] text-slate-400">Horário sugerido</div><div className="text-[12px] font-semibold text-slate-700">{travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' ? travelInfo.horario : '—'}</div></div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          {/* Resumo Superior */}
-                          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-                            <div className="border-b border-slate-100 px-4 py-3 flex items-center gap-3" style={{ background: 'linear-gradient(to right, #f0f7ff, #ffffff)' }}>
-                              <span className="text-xl">
-                                {selectedTicket.transportType === 'van' ? '🚐' : selectedTicket.transportType === 'rodoviario' ? '🚌' : '✈️'}
-                              </span>
-                              <div>
-                                <div className="text-[12px] font-black text-[#2563EB] uppercase tracking-[0.12em]">
-                                  {selectedTicket.transportType === 'van' ? 'Van' : selectedTicket.transportType === 'rodoviario' ? 'Transporte Rodoviário' : 'Passagem Aérea'}
-                                </div>
-                                {selectedTicket.purchaseDate && (
-                                  <div className="text-[11px] text-slate-400 mt-0.5">Comprada em {formatDate(selectedTicket.purchaseDate)}</div>
-                                )}
-                              </div>
-                              {selectedTicket.purchaseDate && (
-                                <span className="ml-auto inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 text-[10px] font-bold rounded-full border border-green-200">
-                                  ✓ Comprada
-                                </span>
-                              )}
-                            </div>
-                            <div className="px-4 py-3 flex flex-wrap gap-6">
-                              {selectedTicket.purchaseOrderNumber && (
-                                <div>
-                                  <div className={lbl}>{selectedTicket.transportType === 'van' ? 'Empresa / OC' : 'Ordem de Compra'}</div>
-                                  <div className="text-[13px] font-bold text-slate-700 font-mono">{selectedTicket.purchaseOrderNumber}</div>
-                                </div>
-                              )}
-                              {selectedTicket.cardLastFourDigits && (
-                                <div>
-                                  <div className={lbl}>Cartão</div>
-                                  <div className="text-[13px] font-semibold text-slate-700 font-mono">****{selectedTicket.cardLastFourDigits}</div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {selectedTicket.transportType === 'van' ? (
-                            /* ── Van: só observações se preenchidas ── */
-                            selectedTicket.ticketObservations ? (
-                              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-                                <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 mb-2">Observações</div>
-                                <div className="text-sm text-slate-700 whitespace-pre-line">{selectedTicket.ticketObservations}</div>
-                              </div>
-                            ) : null
-                          ) : (
-                            /* ── Aéreo / Rodoviário: IDA + VOLTA ── */
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              {/* IDA */}
-                              <div className="bg-white border border-slate-200 rounded-2xl p-4">
-                                <div className="text-[11px] font-black uppercase tracking-[0.12em] mb-3 flex items-center gap-1.5" style={{ color: '#2563EB' }}>
-                                  {selectedTicket.transportType === 'rodoviario' ? '🚌' : '🛫'} IDA
-                                </div>
-                                <div className="space-y-2.5">
-                                  {selectedTicket.transportType === 'rodoviario' && selectedTicket.departureAirport && (
-                                    <div>
-                                      <div className="text-[10px] text-slate-400 uppercase tracking-wider">Rodoviária de Origem</div>
-                                      <div className="text-sm font-medium text-slate-700">{selectedTicket.departureAirport}</div>
-                                    </div>
-                                  )}
-                                  {selectedTicket.departureCityOrigin && (
-                                    <div>
-                                      <div className="text-[10px] text-slate-400 uppercase tracking-wider">Cidade de Origem</div>
-                                      <div className="text-sm font-medium text-slate-700">{selectedTicket.departureCityOrigin}</div>
-                                    </div>
-                                  )}
-                                  {selectedTicket.transportType === 'aereo' && selectedTicket.departureAirport && (
-                                    <div>
-                                      <div className="text-[10px] text-slate-400 uppercase tracking-wider">Aeroporto de Origem</div>
-                                      <div className="text-sm font-medium text-slate-700">{selectedTicket.departureAirport}</div>
-                                    </div>
-                                  )}
-                                  {selectedTicket.transportType === 'rodoviario' && selectedTicket.destinationAirport && (
-                                    <div>
-                                      <div className="text-[10px] text-slate-400 uppercase tracking-wider">Rodoviária de Destino</div>
-                                      <div className="text-sm font-medium text-slate-700">{selectedTicket.destinationAirport}</div>
-                                    </div>
-                                  )}
-                                  {selectedTicket.departureCityDestination && (
-                                    <div>
-                                      <div className="text-[10px] text-slate-400 uppercase tracking-wider">Cidade de Destino</div>
-                                      <div className="text-sm font-medium text-slate-700">{selectedTicket.departureCityDestination}</div>
-                                    </div>
-                                  )}
-                                  {selectedTicket.transportType === 'aereo' && selectedTicket.destinationAirport && (
-                                    <div>
-                                      <div className="text-[10px] text-slate-400 uppercase tracking-wider">Aeroporto de Destino</div>
-                                      <div className="text-sm font-medium text-slate-700">{selectedTicket.destinationAirport}</div>
-                                    </div>
-                                  )}
-                                  {selectedTicket.actualDepartureDate && (
-                                    <div>
-                                      <div className="text-[10px] text-slate-400 uppercase tracking-wider">Data</div>
-                                      <div className="text-sm font-semibold text-[#2563EB]">{formatDate(selectedTicket.actualDepartureDate)}</div>
-                                    </div>
-                                  )}
-                                  {selectedTicket.actualDepartureTime ? (
-                                    <div>
-                                      <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Horário</div>
-                                      <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2">
-                                        <span className="text-lg font-bold text-green-700">{selectedTicket.actualDepartureTime}</span>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div>
-                                      <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Horário</div>
-                                      <div className="bg-slate-50 border-l-4 border-slate-200 rounded-lg px-3 py-2">
-                                        <span className="text-lg font-bold text-slate-300">--:--</span>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* VOLTA */}
-                              {(selectedTicket.actualReturnDate || selectedTicket.actualReturnTime || selectedTicket.returnCityOrigin || selectedTicket.returnCityDestination) ? (
-                                <div className="bg-white border border-slate-200 rounded-2xl p-4">
-                                  <div className="text-[11px] font-black uppercase tracking-[0.12em] mb-3 flex items-center gap-1.5" style={{ color: '#2563EB' }}>
-                                    {selectedTicket.transportType === 'rodoviario' ? '🚌' : '🛬'} VOLTA
-                                  </div>
-                                  <div className="space-y-2.5">
-                                    {selectedTicket.returnCityOrigin && (
-                                      <div>
-                                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">Cidade de Origem</div>
-                                        <div className="text-sm font-medium text-slate-700">{selectedTicket.returnCityOrigin}</div>
-                                      </div>
-                                    )}
-                                    {selectedTicket.transportType === 'aereo' && (selectedTicket as any).returnOriginAirport && (
-                                      <div>
-                                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">Aeroporto de Origem</div>
-                                        <div className="text-sm font-bold text-slate-700 uppercase font-mono">{(selectedTicket as any).returnOriginAirport}</div>
-                                      </div>
-                                    )}
-                                    {selectedTicket.returnCityDestination && (
-                                      <div>
-                                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">Cidade de Destino</div>
-                                        <div className="text-sm font-medium text-slate-700">{selectedTicket.returnCityDestination}</div>
-                                      </div>
-                                    )}
-                                    {selectedTicket.transportType === 'aereo' && (selectedTicket as any).returnDestinationAirport && (
-                                      <div>
-                                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">Aeroporto de Destino</div>
-                                        <div className="text-sm font-bold text-slate-700 uppercase font-mono">{(selectedTicket as any).returnDestinationAirport}</div>
-                                      </div>
-                                    )}
-                                    {selectedTicket.actualReturnDate && (
-                                      <div>
-                                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">Data</div>
-                                        <div className="text-sm font-semibold text-[#2563EB]">{formatDate(selectedTicket.actualReturnDate)}</div>
-                                      </div>
-                                    )}
-                                    {selectedTicket.actualReturnTime ? (
-                                      <div>
-                                        <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Horário</div>
-                                        <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2">
-                                          <span className="text-lg font-bold text-green-700">{selectedTicket.actualReturnTime}</span>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <div>
-                                        <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Horário</div>
-                                        <div className="bg-slate-50 border-l-4 border-slate-200 rounded-lg px-3 py-2">
-                                          <span className="text-lg font-bold text-slate-300">--:--</span>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-4 flex items-center justify-center">
-                                  <div className="text-center">
-                                    <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400 mb-1">
-                                      {selectedTicket.transportType === 'rodoviario' ? '🚌' : '🛬'} VOLTA
-                                    </div>
-                                    <div className="text-xs text-slate-300">Sem informações de volta</div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Observações (só para não-van) */}
-                          {selectedTicket.ticketObservations && selectedTicket.transportType !== 'van' && (
-                            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-                              <div className={lbl + " mb-1"}>Observações</div>
-                              <div className="text-sm text-slate-700 whitespace-pre-line">{selectedTicket.ticketObservations}</div>
-                            </div>
-                          )}
-
-                          {/* Anexos da Passagem */}
-                          <div>
-                            <div className={lbl + " mb-2"}>📎 Anexos</div>
-                            {renderAttachments(selectedTicket.attachmentIds, 'Passagem')}
-                          </div>
-                        </div>
-                      )}
-                    </TabsContent>
-
-                    {/* ══ ABA: HOSPEDAGEM ══ */}
-                    <TabsContent value="hospedagem" className="m-0 p-6">
-                      {!selectedInclusion.needsAccommodation ? (
-                        <div className="flex flex-col items-center justify-center py-10 text-center">
-                          <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center mb-3 text-xl">🏨</div>
-                          <div className="text-[13px] font-semibold text-slate-500 mb-1">Sem hospedagem necessária</div>
-                          <div className="text-[11px] text-slate-400">Esta escalação não requer reserva de hotel.</div>
-                        </div>
-                      ) : !accommodation ? (
-                        <div className="flex flex-col items-center justify-center py-10 text-center">
-                          <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-dashed border-amber-200 flex items-center justify-center mb-3 text-xl">🏨</div>
-                          <div className="text-[13px] font-semibold text-slate-600 mb-1">Nenhuma hospedagem registrada</div>
-                          <div className="text-[11px] text-slate-400">Aguardando registro de hospedagem para esta escalação.</div>
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                            <div className="border-b border-green-100 px-4 py-3 flex items-center gap-3" style={{ background: 'linear-gradient(to right, #f0fdf4, #ffffff)' }}>
-                              <span className="text-xl">🏨</span>
-                              <div>
-                                <div className="text-[12px] font-black text-green-700 uppercase tracking-[0.12em]">Hospedagem Reservada</div>
-                                <div className="text-[13px] font-bold text-slate-800 mt-0.5">{accommodation.hotelName || 'Hotel não informado'}</div>
-                              </div>
-                              {accommodation.reservationNumber && (
-                                <span className="ml-auto text-[11px] font-bold text-slate-500 font-mono bg-slate-100 px-2.5 py-1 rounded-full">LOC: {accommodation.reservationNumber}</span>
-                              )}
-                            </div>
-                            <div className="p-4">
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {accommodation.hotelLocation && (
-                                  <div>
-                                    <div className={lbl}>Localização</div>
-                                    <div className={val}>{accommodation.hotelLocation}</div>
-                                  </div>
-                                )}
-                                <div>
-                                  <div className={lbl}>Check-in</div>
-                                  <div className={val}>
-                                    {accommodation.checkInDate ? formatDateWithWeekday(accommodation.checkInDate) : 'Não informado'}
-                                    {accommodation.checkInTime && ` às ${accommodation.checkInTime}`}
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className={lbl}>Check-out</div>
-                                  <div className={val}>
-                                    {accommodation.checkOutDate ? formatDateWithWeekday(accommodation.checkOutDate) : 'Não informado'}
-                                    {accommodation.checkOutTime && ` às ${accommodation.checkOutTime}`}
-                                  </div>
-                                </div>
-                                {accommodation.dailyRate && (
-                                  <div>
-                                    <div className={lbl}>Valor da Diária</div>
-                                    <div className={val}>R$ {(accommodation.dailyRate / 100).toFixed(2)}</div>
-                                  </div>
-                                )}
-                              </div>
-                              {accommodation.accommodationObservations && (
-                                <div className="mt-4 pt-4 border-t border-slate-100">
-                                  <div className={lbl}>Observações</div>
-                                  <div className="text-sm text-slate-700 mt-0.5 whitespace-pre-line">{accommodation.accommodationObservations}</div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          {/* Anexos */}
-                          <div>
-                            <div className={lbl + " mb-2"}>📎 Anexos</div>
-                            {renderAttachments(accommodation.attachmentIds, 'Hospedagem')}
-                          </div>
-                        </div>
-                      )}
-                    </TabsContent>
-
-                    {/* ══ ABA: COMENTÁRIOS E HISTÓRICO ══ */}
-                    <TabsContent value="comentarios" className="m-0 p-6">
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-                        {/* Coluna Esquerda: Comentários */}
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2 mb-1">
-                            <MessageSquare className="w-4 h-4 text-slate-400" />
-                            <span className="text-[12px] font-black text-slate-600 uppercase tracking-[0.1em]">Comentários</span>
-                            {comments && comments.length > 0 && (
-                              <span className="bg-[#2563EB] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{comments.length}</span>
-                            )}
-                          </div>
-
-                          {comments && comments.length > 0 ? (
-                            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                              {comments.map((comment) => (
-                                <div key={comment.id} className="bg-white border border-slate-200 p-3 rounded-xl shadow-sm">
-                                  <div className="flex justify-between items-center mb-1.5">
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-5 h-5 rounded-full bg-[#2563EB] text-white flex items-center justify-center text-[9px] font-black shrink-0">
-                                        {getUserName(comment.userId).charAt(0).toUpperCase()}
-                                      </div>
-                                      <div className="text-[12px] font-bold text-slate-700">{getUserName(comment.userId)}</div>
-                                    </div>
-                                    <div className="text-[10px] text-slate-400 shrink-0 ml-2">{formatDateTime(comment.createdAt)}</div>
-                                  </div>
-                                  <div className="text-[12px] text-slate-600 leading-relaxed">{comment.content}</div>
-                                  {comment.phase && (
-                                    <div className="mt-1.5 pt-1.5 border-t border-slate-50">
-                                      <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[9px] font-bold text-slate-500">{getPhaseLabel(comment.phase)}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center py-8">
-                              <MessageSquare className="w-6 h-6 text-slate-200 mx-auto mb-2" />
-                              <div className="text-[12px] text-slate-400">Nenhum comentário registrado.</div>
-                            </div>
-                          )}
-
-                          {/* Adicionar comentário */}
-                          <div className="pt-1 space-y-2">
-                            <Textarea
-                              rows={2}
-                              placeholder="Escreva um comentário..."
-                              value={newComment}
-                              onChange={(e) => setNewComment(e.target.value)}
-                              className="w-full border border-slate-200 rounded-xl bg-white text-[13px] p-3 resize-none min-h-[70px] focus:ring-2 focus:ring-blue-100 focus:border-[#2563EB] transition-all"
-                              data-testid="textarea-comment-inline"
-                              disabled={!selectedInclusion || isReadOnly(selectedInclusion, user) || !canConfirmEscalation(selectedInclusion)}
-                            />
-                            <div className="flex justify-end">
-                              <Button
-                                onClick={handleAddComment}
-                                disabled={addCommentMutation.isPending || !newComment.trim() || !selectedInclusion || isReadOnly(selectedInclusion, user)}
-                                style={{ background: '#2563EB' }}
-                                className="flex items-center gap-2 text-white rounded-xl px-5 py-2 h-9 text-sm font-bold hover:opacity-90"
-                                data-testid="button-add-comment-inline"
-                              >
-                                <MessageSquare className="w-3.5 h-3.5" />
-                                {addCommentMutation.isPending ? "Enviando..." : "Enviar"}
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Coluna Direita: Histórico */}
-                        <div>
-                          <div className="flex items-center gap-2 mb-3">
-                            <History className="w-4 h-4 text-slate-400" />
-                            <span className="text-[12px] font-black text-slate-600 uppercase tracking-[0.1em]">Histórico</span>
-                            {inclusionLogs && inclusionLogs.length > 0 && (
-                              <span className="text-[10px] text-slate-400">{inclusionLogs.length} entr.</span>
-                            )}
-                          </div>
-                          {!inclusionLogs || inclusionLogs.length === 0 ? (
-                            <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center py-8">
-                              <History className="w-6 h-6 text-slate-200 mx-auto mb-2" />
-                              <div className="text-[12px] text-slate-400">Nenhum histórico encontrado.</div>
-                            </div>
-                          ) : (
-                            <div>
-                              <div className="border-l-2 border-slate-100 ml-3 pl-4 space-y-2 max-h-72 overflow-y-auto">
-                                {/* cópia antes do sort: .sort() mutaria o array do cache do React Query */}
-                                {[...inclusionLogs]
-                                  .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-                                  .slice(0, showAllLogs ? undefined : 5)
-                                  .map((log) => {
-                                    const actionLabels: Record<string, string> = {
-                                      'status_changed': '🔄 Status Alterado',
-                                      'collaborator_changed': '👤 Colaborador Alterado',
-                                      'dates_changed': '📅 Período Alterado',
-                                      'travel_dates_changed': '✈️ Datas de Viagem',
-                                      'observations_changed': '📝 Observações',
-                                      'created': '✨ Criado',
-                                      'confirmed': '✅ Confirmado',
-                                      'reopened': '🔓 Reaberto',
-                                      'approve_production': '✅ Aprovado pela Produção',
-                                      'reject_production': '❌ Reprovado pela Produção',
-                                      'daily_rates_changed': '📊 Diárias Alteradas',
-                                      'daily_value_changed': '💰 Valor da Diária Alterado',
-                                      'work_days_changed': '📅 Diárias Editadas',
-                                      'city_changed': '📍 Cidade Alterada',
-                                      'create': '✨ Criado',
-                                      'update': '📝 Atualizado',
-                                      'delete': '🗑️ Excluído',
-                                      'deleted': '🗑️ Excluído',
-                                      'reactivate': '🔓 Reativado',
-                                    };
-                                    return (
-                                      <div key={log.id} className="flex gap-3">
-                                        <div className="w-2.5 h-2.5 bg-[#2563EB] rounded-full -ml-[1.3rem] mt-2.5 flex-shrink-0 ring-4 ring-white" />
-                                        <div className="flex-1 min-w-0 bg-white border border-slate-100 rounded-xl px-3 py-2 shadow-sm">
-                                          <div className="flex items-start justify-between gap-2">
-                                            <div className="text-[11px] font-bold text-slate-700">{actionLabels[log.action] || log.action}</div>
-                                            <div className="text-[10px] text-slate-400 whitespace-nowrap flex-shrink-0">{log.createdAt && formatDateTime(log.createdAt)}</div>
-                                          </div>
-                                          {log.details && <div className="text-[11px] text-slate-500 mt-0.5">{log.details}</div>}
-                                          <div className="text-[10px] font-semibold mt-1" style={{ color: '#2563EB' }}>↳ {log.userName}</div>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                              </div>
-                              {!showAllLogs && inclusionLogs.length > 5 && (
-                                <button
-                                  onClick={() => setShowAllLogs(true)}
-                                  className="text-xs font-medium mt-2 ml-7 hover:underline"
-                                  style={{ color: '#2563EB' }}
-                                >
-                                  Ver todos ({inclusionLogs.length - 5} mais)
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                      </div>
-                    </TabsContent>
-
-                  </div>
-                </Tabs>
-
-                {/* ── Footer ── */}
-                {(() => {
-                  const readOnly = isReadOnly(selectedInclusion, user);
-                  const escalated = !!isEscalated(selectedInclusion);
-                  const saveReason = updateTeamInclusionMutation.isPending ? null : getSaveBlockReason(selectedInclusion);
-                  const confirmReason = updateTeamInclusionMutation.isPending ? null : getConfirmBlockReason(selectedInclusion);
-                  const showSave = !readOnly && (canEditCollaborator(selectedInclusion) || !escalated);
-                  const showConfirm = !readOnly && !escalated;
-                  // Motivo visível ao lado dos botões (validação inline, sem toast)
-                  const inlineReason = showConfirm ? confirmReason : (showSave ? saveReason : null);
-                  return (
-                <div className="px-4 sm:px-6 py-4 border-t border-slate-100 flex flex-wrap items-center justify-end gap-3 shrink-0 bg-white">
-                  {/* Botão Reativar — só aparece para admin em escalações canceladas */}
-                  {selectedInclusion?.status === 'cancelado' && hasRoleIn(user?.role, ['admin']) && (
-                    <Button
-                      onClick={() => setShowReactivateConfirm(true)}
-                      disabled={reactivateMutation.isPending}
-                      className="mr-auto flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 py-2 text-sm font-semibold"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      Reativar escalação
-                    </Button>
-                  )}
-                  {inlineReason && (
-                    <p
-                      className="mr-auto flex items-center gap-1.5 text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 max-w-full sm:max-w-[420px] leading-snug"
-                      role="status"
-                      data-testid="text-confirm-block-reason"
-                    >
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                      <span className="min-w-0">{inlineReason}</span>
-                    </p>
-                  )}
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowModal(false)}
-                    className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl px-5 py-2 text-sm font-medium"
-                  >
-                    Fechar
-                  </Button>
-                  {showSave && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span tabIndex={saveReason ? 0 : -1} className="inline-flex">
-                          <Button
-                            variant="secondary"
-                            onClick={handleSave}
-                            disabled={updateTeamInclusionMutation.isPending || !!saveReason}
-                            className="flex items-center gap-2 border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl px-5 py-2 text-sm font-medium"
-                            data-testid="button-save-scaling"
-                          >
-                            <Save className="w-4 h-4" />
-                            {updateTeamInclusionMutation.isPending ? "Salvando..." : "Salvar Alterações"}
-                          </Button>
-                        </span>
-                      </TooltipTrigger>
-                      {saveReason && (
-                        <TooltipContent side="top" className="max-w-[300px] text-[12px]">
-                          {saveReason}
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
-                  )}
-                  {showConfirm && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span tabIndex={confirmReason ? 0 : -1} className="inline-flex">
-                          <Button
-                            onClick={handleConfirmEscalation}
-                            disabled={updateTeamInclusionMutation.isPending || !!confirmReason}
-                            style={{ background: '#2563EB', boxShadow: '0 4px 14px #2563EB50' }}
-                            className="flex items-center gap-2 text-white rounded-xl px-6 py-2 h-10 text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
-                            data-testid="button-confirm-scaling"
-                          >
-                            <Check className="w-4 h-4" />
-                            {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
-                          </Button>
-                        </span>
-                      </TooltipTrigger>
-                      {confirmReason && (
-                        <TooltipContent side="top" className="max-w-[320px] text-[12px]">
-                          {confirmReason}
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
-                  )}
-                </div>
-                  );
-                })()}
-              </>
-            );
-          })()}
-
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal de sucesso — AlertDialog do shadcn (Esc, foco, role="alertdialog") */}
-      <AlertDialog open={showSuccessModal} onOpenChange={(open) => { if (!open) { setShowSuccessModal(false); setSuccessInfo(null); } }}>
-        <AlertDialogContent className="max-w-[440px] rounded-2xl p-0 gap-0 overflow-hidden" data-testid="dialog-scaling-success">
-          <div className="flex flex-col items-center px-8 py-7">
-            <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ background: '#DCFCE7' }}>
-              <svg width="32" height="32" viewBox="0 0 36 36" fill="none" aria-hidden="true">
-                <circle cx="18" cy="18" r="18" fill="#16A34A" fillOpacity="0.12"/>
-                <path d="M10 18.5L15.5 24L26 13" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            <AlertDialogHeader className="items-center text-center space-y-1 mb-3">
-              <AlertDialogTitle className="text-lg font-bold text-slate-800">Sucesso</AlertDialogTitle>
-              <AlertDialogDescription className="text-sm text-slate-500 text-center">{successInfo?.message}</AlertDialogDescription>
-            </AlertDialogHeader>
-            {successInfo?.inclusionNumber != null && (
-              <span className="mb-4 px-3 py-0.5 rounded-full text-sm font-bold" style={{ background: '#EEF2FF', color: '#4F46E5' }}>#{successInfo.inclusionNumber}</span>
+          <TabsContent value="without-ticket" className="mt-0">
+            {withoutTicket.length === 0 ? (
+              <div className="p-12 text-center">
+                <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">Nenhuma escalação sem passagem</h3>
+                <p className="text-muted-foreground">Não há registros de escalações que não necessitam de passagens.</p>
+              </div>
+            ) : (
+              <ScalingTable rows={withoutTicket} {...tableProps} />
             )}
-            <div className="w-full border-t border-slate-100 mb-4"/>
-            <div className="w-full space-y-2 mb-5">
-              <div className="flex items-start justify-between gap-4 text-sm">
-                <span className="text-slate-400 font-medium shrink-0">Evento</span>
-                <span className="text-slate-700 font-semibold text-right">{successInfo?.eventName}</span>
-              </div>
-              <div className="flex items-start justify-between gap-4 text-sm">
-                <span className="text-slate-400 font-medium shrink-0">Colaborador</span>
-                <span className="text-slate-700 font-semibold text-right">{successInfo?.collaboratorName}</span>
-              </div>
-              <div className="flex items-start justify-between gap-4 text-sm">
-                <span className="text-slate-400 font-medium shrink-0">Função</span>
-                <span className="text-slate-700 font-semibold text-right">{successInfo?.functionName}</span>
-              </div>
-            </div>
-            <AlertDialogFooter className="w-full sm:justify-stretch">
-              <AlertDialogAction
-                onClick={() => { setShowSuccessModal(false); setSuccessInfo(null); }}
-                className="w-full py-2.5 h-auto rounded-xl font-semibold text-white text-sm hover:opacity-90"
-                style={{ background: '#2563EB' }}
-                data-testid="button-success-ok"
-              >
-                OK
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </div>
-        </AlertDialogContent>
-      </AlertDialog>
+          </TabsContent>
 
-      {/* Lightbox de imagens — Dialog do shadcn (Esc fecha, foco preso, role="dialog") */}
-      <Dialog open={!!lightbox} onOpenChange={(open) => { if (!open) setLightbox(null); }}>
-        <DialogContent className="!max-w-5xl w-[95vw] max-h-[90vh] p-0 gap-0 overflow-hidden rounded-2xl flex flex-col" data-testid="dialog-lightbox">
-          {lightbox && (
-            <>
-              {/* Header */}
-              <div className="bg-white border-b border-slate-100 px-5 py-3 pr-12 flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
-                <DialogTitle className="text-sm font-semibold text-slate-700 truncate">Visualizando anexo</DialogTitle>
-                <DialogDescription className="sr-only">{lightbox.name}</DialogDescription>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        // Sem checar res.ok, um 401/404 era baixado como se
-                        // fosse o documento (arquivo com o corpo do erro dentro).
-                        const res = await fetch(lightbox.url, { credentials: "include" });
-                        if (!res.ok) throw new Error(res.status === 401 ? "Sessão expirada" : "Não foi possível baixar o anexo");
-                        const blob = await res.blob();
-                        const blobUrl = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = blobUrl;
-                        a.download = lightbox.name;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(blobUrl);
-                      } catch {
-                        window.open(lightbox.url, '_blank');
-                      }
-                    }}
-                    className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors"
-                  >
-                    <Download className="w-4 h-4" />
-                    Baixar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => window.open(lightbox.url, '_blank', 'noopener,noreferrer')}
-                    className="border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    Abrir em outra aba
-                  </button>
+          <TabsContent value="with-ticket" className="mt-0">
+            {withTicket.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-10 text-center mt-4">
+                <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center mx-auto mb-3">
+                  <Plane className="w-6 h-6 text-green-300" />
                 </div>
+                <h3 className="text-[14px] font-bold text-slate-500 mb-1">Nenhuma escalação com passagem</h3>
+                <p className="text-[12px] text-slate-400">Não há escalações que necessitam de passagens nos filtros atuais.</p>
               </div>
-              {/* Área de conteúdo */}
-              <div className="bg-slate-50 overflow-auto flex items-center justify-center min-h-[60vh] flex-1">
-                <img
-                  src={lightbox.url}
-                  alt={`Visualização do anexo ${lightbox.name}`}
-                  className="max-w-full object-contain"
-                  style={{ maxHeight: '80vh' }}
-                />
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Modal formulário de troca ── */}
-      <Dialog open={showSwapModal && !swapSuccess} onOpenChange={(open) => { if (!open) { setShowSwapModal(false); setSwapNewCollaboratorId(""); setSwapReason(""); setSwapSubmitAttempted(false); } }}>
-        <DialogContent className="max-w-[700px] p-0 gap-0 rounded-2xl overflow-hidden">
-          {selectedInclusion && (() => {
-            const currentCollabName = getCollaboratorName(selectedInclusion.collaboratorId || undefined);
-            const newCollabName = swapNewCollaboratorId ? getCollaboratorName(swapNewCollaboratorId) : null;
-            const isSameCollab = !!(swapNewCollaboratorId && swapNewCollaboratorId === selectedInclusion.collaboratorId);
-            const reasonTooShort = swapReason.trim().length > 0 && swapReason.trim().length < 10;
-            const reasonEmpty = swapSubmitAttempted && !swapReason.trim();
-            const collabEmpty = swapSubmitAttempted && !swapNewCollaboratorId;
-            const canSubmit = !!swapNewCollaboratorId && !isSameCollab && swapReason.trim().length >= 10 && !createSwapRequestMutation.isPending;
-
-            const statusLabels: Record<string, string> = {
-              rascunho: "Rascunho", planejado: "Planejado", confirmado: "Confirmado",
-              pendente: "Pendente", reaberto: "Reaberto", escalacao: "Escalado",
-              passagem: "Aguardando passagem", passagem_comprada: "Passagem comprada",
-              hospedagem: "Aguardando hospedagem", hospedagem_comprada: "Hospedagem reservada",
-              hospedagem_passagem_comprada: "Passagem e hospedagem prontas",
-              aprovacao: "Em aprovação", aprovado: "Aprovado", cancelado: "Cancelado",
-            };
-            const statusLabel = statusLabels[selectedInclusion.status] || selectedInclusion.status;
-            const startDay = parseDay(selectedInclusion.scheduleStartDate);
-            const endDay = parseDay(selectedInclusion.scheduleEndDate);
-            const startDate = startDay ? format(startDay, "dd/MM/yyyy", { locale: ptBR }) : null;
-            const endDate = endDay ? format(endDay, "dd/MM/yyyy", { locale: ptBR }) : null;
-            const periodo = startDate && endDate ? `${startDate} a ${endDate}` : startDate || endDate || "—";
-
-            return (
-              <>
-                {/* ── Header ── */}
-                <div className="px-6 pt-5 pb-4 border-b border-slate-100" style={{ background: 'linear-gradient(135deg, #f0f7ff 0%, #ffffff 55%)' }}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0" style={{ boxShadow: '0 3px 10px #2563EB30' }}>
-                      <ArrowLeftRight style={{ width: 17, height: 17, color: '#fff' }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <DialogTitle className="text-[15px] font-bold text-slate-900 leading-tight">Solicitar troca de colaborador</DialogTitle>
-                      <p className="text-[12px] text-slate-400 mt-0.5">A troca só será efetivada após aprovação do time de Compras.</p>
-                    </div>
-                  </div>
-
-                  {/* Resumo da escala — 4 colunas compactas */}
-                  <div className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 shadow-sm grid grid-cols-4 gap-3">
-                    <div>
-                      <div className="text-[9px] text-slate-400 font-medium uppercase tracking-wide mb-0.5">Evento</div>
-                      <div className="text-[11px] font-semibold text-slate-700 truncate" title={getEventName(selectedInclusion.eventId)}>{getEventName(selectedInclusion.eventId)}</div>
-                    </div>
-                    <div>
-                      <div className="text-[9px] text-slate-400 font-medium uppercase tracking-wide mb-0.5">Função</div>
-                      <div className="text-[11px] font-semibold text-slate-700 truncate" title={getFunctionName(selectedInclusion.functionId)}>{getFunctionName(selectedInclusion.functionId)}</div>
-                    </div>
-                    <div>
-                      <div className="text-[9px] text-slate-400 font-medium uppercase tracking-wide mb-0.5">Período</div>
-                      <div className="text-[11px] font-medium text-slate-600">{periodo}</div>
-                    </div>
-                    <div className="flex flex-col">
-                      <div className="text-[9px] text-slate-400 font-medium uppercase tracking-wide mb-0.5">Status</div>
-                      <div className="flex items-start">
-                        <span className="text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100 rounded-full px-2 py-px leading-[18px]">{statusLabel}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── Body ── */}
-                <div className="px-6 py-4 space-y-3">
-
-                  {/* Linha de comparação atual → novo (compacta) */}
-                  <div className="flex items-center gap-3 bg-slate-50 rounded-xl border border-slate-200 px-4 py-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[9px] uppercase tracking-wide font-semibold text-slate-400 mb-0.5">Colaborador atual</div>
-                      <div className="text-[13px] font-semibold text-slate-800 leading-snug" style={{ wordBreak: 'break-word' }}>{currentCollabName}</div>
-                    </div>
-                    <div className="w-7 h-7 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center shrink-0">
-                      <ArrowLeftRight className="w-3.5 h-3.5 text-slate-400" />
-                    </div>
-                    <div className="flex-1 min-w-0 text-right">
-                      <div className="text-[9px] uppercase tracking-wide font-semibold text-slate-400 mb-0.5">Novo colaborador</div>
-                      {newCollabName
-                        ? <div className="text-[13px] font-semibold text-blue-700 leading-snug" style={{ wordBreak: 'break-word' }}>{newCollabName}</div>
-                        : <div className="text-[12px] text-slate-300 italic">Ainda não selecionado</div>
-                      }
-                    </div>
-                  </div>
-
-                  {/* Campos: colaborador + motivo lado a lado */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[10px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5 block">Novo colaborador</label>
-                      <CollaboratorCombobox
-                        collaborators={(collaborators || []).filter(c => c.id !== selectedInclusion.collaboratorId)}
-                        value={swapNewCollaboratorId}
-                        onValueChange={(v) => { setSwapNewCollaboratorId(v); setSwapSubmitAttempted(false); }}
-                        placeholder="Selecione o colaborador"
-                        hideAll={true}
-                      />
-                      {collabEmpty && <p className="text-[10px] text-red-500 mt-1">Selecione um novo colaborador.</p>}
-                      {isSameCollab && <p className="text-[10px] text-red-500 mt-1">Precisa ser diferente do atual.</p>}
-                      {(() => {
-                        if (!swapNewCollaboratorId) return null;
-                        const { sameEvent, dateOverlap } = getCollaboratorConflicts(swapNewCollaboratorId, selectedInclusion?.id);
-                        if (!sameEvent.length && !dateOverlap.length) return null;
-                        return (
-                          <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 mt-1">
-                            <AlertCircle className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
-                            <p className="text-[10px] text-amber-700 leading-snug">
-                              <span className="font-semibold">Já escalado</span>
-                              {sameEvent.length > 0 && <span> neste evento</span>}
-                              {sameEvent.length > 0 && dateOverlap.length > 0 && <span> e</span>}
-                              {dateOverlap.length > 0 && sameEvent.length === 0 && <span> em datas sobrepostas</span>}
-                              {dateOverlap.length > 0 && sameEvent.length > 0 && <span> em datas sobrepostas</span>}
-                              .
-                            </p>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label htmlFor="swap-reason" className="text-[10px] uppercase tracking-wide font-semibold text-slate-500">Motivo da troca <span className="text-red-500">*</span></label>
-                        <span className={`text-[10px] ${swapReason.trim().length >= 10 ? "text-green-500" : "text-slate-300"}`}>{swapReason.trim().length}/10</span>
-                      </div>
-                      <Textarea
-                        id="swap-reason"
-                        value={swapReason}
-                        onChange={(e) => { setSwapReason(e.target.value); setSwapSubmitAttempted(false); }}
-                        placeholder="Informe o motivo da troca. Ex: colaborador indisponível, ajuste operacional ou substituição solicitada."
-                        className="resize-none text-[12px] rounded-xl"
-                        rows={3}
-                        style={{ minHeight: 82 }}
-                      />
-                      {(reasonEmpty || reasonTooShort) && (
-                        <p className="text-[10px] text-red-500 mt-1">{reasonEmpty ? "Informe um motivo." : "Mínimo de 10 caracteres."}</p>
-                      )}
-                      {!reasonEmpty && !reasonTooShort && <p className="text-[10px] text-slate-400 mt-1">Mínimo de 10 caracteres.</p>}
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* ── Footer ── */}
-                <div className="px-6 pb-5 pt-3 flex gap-3 border-t border-slate-100">
-                  <Button
-                    variant="outline"
-                    className="flex-1 rounded-xl h-10 text-[13px] font-medium"
-                    onClick={() => { setShowSwapModal(false); setSwapSubmitAttempted(false); }}
-                    disabled={createSwapRequestMutation.isPending}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    className="flex-1 h-10 text-[13px] font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-all"
-                    disabled={!canSubmit}
-                    onClick={() => {
-                      setSwapSubmitAttempted(true);
-                      if (!selectedInclusion || !canSubmit) return;
-                      createSwapRequestMutation.mutate({
-                        teamInclusionId: selectedInclusion.id,
-                        newCollaboratorId: swapNewCollaboratorId,
-                        reason: swapReason.trim(),
-                      });
-                    }}
-                  >
-                    {createSwapRequestMutation.isPending ? "Enviando..." : "Enviar para aprovação"}
-                  </Button>
-                </div>
-              </>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Modal de confirmação pós-envio ── */}
-      <Dialog open={swapSuccess} onOpenChange={(open) => { if (!open) { setSwapSuccess(false); setShowSwapModal(false); setSwapNewCollaboratorId(""); setSwapReason(""); setSwapSubmitAttempted(false); } }}>
-        <DialogContent className="max-w-[480px] p-0 gap-0 rounded-2xl overflow-hidden">
-          {selectedInclusion && (() => {
-            const currentCollabName = getCollaboratorName(selectedInclusion.collaboratorId || undefined);
-            const newCollabName = swapNewCollaboratorId ? getCollaboratorName(swapNewCollaboratorId) : null;
-            return (
-              <div className="px-8 py-8">
-                {/* Ícone de sucesso */}
-                <div className="flex flex-col items-center text-center mb-6">
-                  <div className="w-14 h-14 rounded-full bg-green-50 border border-green-100 flex items-center justify-center mb-4">
-                    <svg width="28" height="28" viewBox="0 0 36 36" fill="none">
-                      <circle cx="18" cy="18" r="17" stroke="#16A34A" strokeWidth="1.5" strokeOpacity="0.25"/>
-                      <path d="M10 19L15.5 24.5L26 13" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </div>
-                  <DialogTitle className="text-[16px] font-bold text-slate-900 mb-1">Solicitação enviada para aprovação</DialogTitle>
-                  <p className="text-[12px] text-slate-400 leading-relaxed">A troca foi enviada para análise do time de Compras.</p>
-                </div>
-
-                {/* Resumo compacto */}
-                <div className="bg-slate-50 rounded-xl border border-slate-100 p-4 mb-4 space-y-3">
-                  {/* Topo: evento + função + badge */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[9px] uppercase tracking-wide font-semibold text-slate-400 mb-0.5">Escala</div>
-                      <div className="text-[12px] font-semibold text-slate-800 leading-tight truncate">{getEventName(selectedInclusion.eventId)}</div>
-                      <div className="text-[11px] text-slate-500 leading-tight">Função: {getFunctionName(selectedInclusion.functionId)}</div>
-                    </div>
-                    <span className="text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2.5 py-1 shrink-0 leading-tight">Aguardando aprovação</span>
-                  </div>
-
-                  {/* Comparação atual → solicitado */}
-                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[9px] uppercase tracking-wide font-semibold text-slate-400 mb-0.5">Colaborador atual</div>
-                      <div className="text-[12px] font-semibold text-slate-700 leading-snug">{currentCollabName}</div>
-                    </div>
-                    <div className="w-6 h-6 rounded-full bg-white border border-slate-200 flex items-center justify-center shrink-0">
-                      <ArrowLeftRight className="w-3 h-3 text-slate-400" />
-                    </div>
-                    <div className="flex-1 min-w-0 text-right">
-                      <div className="text-[9px] uppercase tracking-wide font-semibold text-slate-400 mb-0.5">Colaborador solicitado</div>
-                      <div className="text-[12px] font-semibold text-blue-600 leading-snug">{newCollabName || "—"}</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Mensagem principal */}
-                <div className="bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-2.5 mb-5">
-                  <p className="text-[11px] text-blue-800 leading-relaxed">
-                    <span className="font-semibold">A escala continuará com o colaborador atual</span> até que a troca seja aprovada pelo time de Compras.
-                  </p>
-                </div>
-
-                {/* Botão */}
-                <Button
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 font-semibold text-[13px]"
-                  onClick={() => { setSwapSuccess(false); setShowSwapModal(false); setSwapNewCollaboratorId(""); setSwapReason(""); setSwapSubmitAttempted(false); }}
-                >
-                  Entendi
-                </Button>
-              </div>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Dialog de confirmação de cancelamento de troca ── */}
-      <Dialog open={showCancelSwapConfirm} onOpenChange={(open) => { if (!open) setShowCancelSwapConfirm(false); }}>
-        <DialogContent className="max-w-[400px] p-0 gap-0 rounded-2xl overflow-hidden">
-          <div className="px-6 py-6 space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-full bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
-                <X className="w-4 h-4 text-red-500" />
-              </div>
-              <div>
-                <DialogTitle className="text-[14px] font-bold text-slate-900 leading-tight mb-0.5">Cancelar solicitação de troca?</DialogTitle>
-                <p className="text-[12px] text-slate-500 leading-relaxed">A solicitação será cancelada e o colaborador atual será mantido. Uma nova solicitação poderá ser feita.</p>
-              </div>
-            </div>
-            <div className="flex gap-2 pt-1">
-              <Button
-                variant="outline"
-                className="flex-1 rounded-xl h-9 text-[12px] border-slate-200 text-slate-600 hover:bg-slate-50"
-                onClick={() => setShowCancelSwapConfirm(false)}
-                disabled={cancelSwapMutation.isPending}
-              >
-                Manter solicitação
-              </Button>
-              <Button
-                className="flex-1 rounded-xl h-9 text-[12px] bg-red-500 hover:bg-red-600 text-white"
-                onClick={() => { if (pendingSwap) cancelSwapMutation.mutate(pendingSwap.id); }}
-                disabled={cancelSwapMutation.isPending}
-              >
-                {cancelSwapMutation.isPending ? "Cancelando..." : "Sim, cancelar"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Confirm: Aprovar troca de colaborador (Compras) ── */}
-      <Dialog open={swapConfirmAction === 'approve' && !!pendingSwap} onOpenChange={(open) => { if (!open) setSwapConfirmAction(null); }}>
-        <DialogContent className="max-w-[400px] p-0 gap-0 rounded-2xl overflow-hidden">
-          <div className="px-6 py-6 space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
-                <CheckCheck className="w-4 h-4 text-emerald-600" />
-              </div>
-              <div>
-                <DialogTitle className="text-[14px] font-bold text-slate-900 leading-tight mb-0.5">Aprovar troca de colaborador?</DialogTitle>
-                <p className="text-[12px] text-slate-500 leading-relaxed">Ao confirmar, a alteração do colaborador será liberada para esta escala.</p>
-              </div>
-            </div>
-            {pendingSwap && (
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 text-[12px]">
-                <div className="flex items-start gap-2">
-                  <span className="text-slate-400 font-medium shrink-0">Atual:</span>
-                  <span className="font-semibold text-slate-700">{getCollaboratorName((pendingSwap as any).current_collaborator_id || (pendingSwap as any).currentCollaboratorId)}</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="text-slate-400 font-medium shrink-0">Solicitado:</span>
-                  <span className="font-semibold text-blue-700">{getCollaboratorName((pendingSwap as any).new_collaborator_id || (pendingSwap as any).newCollaboratorId)}</span>
-                </div>
-              </div>
+            ) : (
+              <ScalingTable rows={withTicket} {...tableProps} />
             )}
-            <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1 rounded-xl h-9 text-[12px] border-slate-200 text-slate-600 hover:bg-slate-50" onClick={() => setSwapConfirmAction(null)} disabled={approveSwapMutation.isPending}>Cancelar</Button>
-              <Button
-                className="flex-1 rounded-xl h-9 text-[12px] bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => { if (pendingSwap) { approveSwapMutation.mutate(pendingSwap.id); setSwapConfirmAction(null); } }}
-                disabled={approveSwapMutation.isPending}
-              >
-                {approveSwapMutation.isPending ? "Aprovando..." : "Confirmar aprovação"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </TabsContent>
 
-      {/* ── Confirm: Recusar troca de colaborador (Compras) ── */}
-      <Dialog open={swapConfirmAction === 'reject' && !!pendingSwap} onOpenChange={(open) => { if (!open) { setSwapConfirmAction(null); setSwapRejectReason(''); } }}>
-        <DialogContent className="max-w-[400px] p-0 gap-0 rounded-2xl overflow-hidden">
-          <div className="px-6 py-6 space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-full bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
-                <XCircle className="w-4 h-4 text-red-500" />
-              </div>
-              <div>
-                <DialogTitle className="text-[14px] font-bold text-slate-900 leading-tight mb-0.5">Recusar troca de colaborador?</DialogTitle>
-                <p className="text-[12px] text-slate-500 leading-relaxed">A solicitação será recusada e a escala continuará com o colaborador atual.</p>
-              </div>
-            </div>
-            <div>
-              <label htmlFor="swap-reject-reason" className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Motivo da recusa <span className="text-red-400">*</span></label>
-              <textarea
-                id="swap-reject-reason"
-                value={swapRejectReason}
-                onChange={e => setSwapRejectReason(e.target.value)}
-                className="mt-1.5 w-full border border-slate-200 rounded-xl p-2.5 text-[13px] text-slate-700 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300"
-                rows={3}
-                placeholder="Descreva o motivo da recusa..."
-              />
-            </div>
-            <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1 rounded-xl h-9 text-[12px] border-slate-200 text-slate-600 hover:bg-slate-50" onClick={() => { setSwapConfirmAction(null); setSwapRejectReason(''); }} disabled={rejectSwapMutation.isPending}>Cancelar</Button>
-              <Button
-                className="flex-1 rounded-xl h-9 text-[12px] bg-red-500 hover:bg-red-600 text-white"
-                onClick={() => {
-                  if (!swapRejectReason.trim() || !pendingSwap) return;
-                  rejectSwapMutation.mutate({ id: pendingSwap.id, comment: swapRejectReason });
-                  setSwapConfirmAction(null);
-                  setSwapRejectReason('');
-                }}
-                disabled={rejectSwapMutation.isPending || !swapRejectReason.trim()}
-              >
-                {rejectSwapMutation.isPending ? "Recusando..." : "Confirmar recusa"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          <BulkConfirmBar
+            selected={selectedInclusions}
+            onClear={() => setSelectedIds(new Set())}
+            getEventName={getEventName}
+            getFunctionName={getFunctionName}
+            getCollaboratorName={getCollaboratorName}
+            onDone={(results) => {
+              const okIds = new Set(results.filter(r => r.ok).map(r => r.inclusion.id));
+              setSelectedIds(prev => new Set(Array.from(prev).filter(id => !okIds.has(id))));
+              queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+            }}
+          />
+        </Tabs>
+      )}
 
-      {/* ── Info: Escalação de cenotécnica enviada para aprovação da Produção ── */}
-      <Dialog open={showSentToProductionModal} onOpenChange={(open) => { if (!open) setShowSentToProductionModal(false); }}>
-        <DialogContent className="max-w-[420px] p-0 gap-0 rounded-2xl overflow-hidden">
-          <div className="px-6 pt-7 pb-6 space-y-5">
-            {/* Ícone + título */}
-            <div className="flex flex-col items-center text-center gap-3">
-              <div className="w-14 h-14 rounded-full bg-amber-50 border-2 border-amber-200 flex items-center justify-center">
-                <AlertCircle className="w-7 h-7 text-amber-500" />
-              </div>
-              <div>
-                <DialogTitle className="text-[17px] font-bold text-slate-900 leading-tight">Aguardando aprovação da Produção</DialogTitle>
-                <p className="text-[13px] text-slate-500 mt-1">A escalação foi registrada e está em análise.</p>
-              </div>
-            </div>
+      <InclusionDetailsDialog
+        open={showModal}
+        onOpenChange={setShowModal}
+        modal={!successInfo}
+        inclusion={selectedInclusion}
+        initialTab={modalInitialTab}
+        modalData={modalData}
+        setModalData={setModalData}
+        data={data}
+        details={details}
+        mutations={mutations}
+        user={user}
+        openAttachment={openAttachment}
+        navIndex={navIndex}
+        navTotal={visibleRows.length}
+        onNavigate={navigate}
+        onSave={handleSave}
+        onConfirm={handleConfirm}
+      />
 
-            {/* Card de detalhes */}
-            <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3.5 space-y-2">
-              {sentToProductionInfo?.inclusionNumber && (
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Escalação</span>
-                  <span className="text-[12px] font-bold text-slate-700">#{sentToProductionInfo.inclusionNumber}</span>
-                </div>
-              )}
-              {sentToProductionInfo?.collaboratorName && (
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Colaborador</span>
-                  <span className="text-[12px] font-semibold text-slate-700">{sentToProductionInfo.collaboratorName}</span>
-                </div>
-              )}
-              {sentToProductionInfo?.functionName && (
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Função</span>
-                  <span className="text-[12px] font-semibold text-slate-700">{sentToProductionInfo.functionName}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Mensagem explicativa */}
-            <p className="text-[12px] text-slate-500 leading-relaxed text-center">
-              Por ser uma função de <span className="font-semibold text-slate-700">cenotécnica</span>, esta escalação precisa ser aprovada pela Produção antes de seguir para as próximas etapas.
-            </p>
-
-            <Button
-              className="w-full rounded-xl h-10 text-[13px] font-semibold bg-amber-500 hover:bg-amber-600 text-white"
-              onClick={() => setShowSentToProductionModal(false)}
-            >
-              Entendido
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Confirm: Aprovação da Produção (cenotécnica) ── */}
-      <Dialog open={showApproveProductionConfirm} onOpenChange={(open) => { if (!open) setShowApproveProductionConfirm(false); }}>
-        <DialogContent className="max-w-[400px] p-0 gap-0 rounded-2xl overflow-hidden">
-          <div className="px-6 py-6 space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-full bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
-                <Check className="w-4 h-4 text-red-600" />
-              </div>
-              <div>
-                <DialogTitle className="text-[14px] font-bold text-slate-900 leading-tight mb-0.5">Aprovar escalação de cenotécnica?</DialogTitle>
-                <p className="text-[12px] text-slate-500 leading-relaxed">
-                  A escalação será aprovada pela Produção e seguirá para o fluxo normal (passagem, hospedagem ou compras).
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2 pt-1">
-              <Button
-                variant="outline"
-                className="flex-1 rounded-xl h-9 text-[12px] border-slate-200 text-slate-600 hover:bg-slate-50"
-                onClick={() => setShowApproveProductionConfirm(false)}
-                disabled={approveProductionMutation.isPending}
-              >
-                Cancelar
-              </Button>
-              <Button
-                className="flex-1 rounded-xl h-9 text-[12px] bg-red-600 hover:bg-red-700 text-white"
-                onClick={() => { if (selectedInclusion) approveProductionMutation.mutate(selectedInclusion.id); }}
-                disabled={approveProductionMutation.isPending}
-              >
-                {approveProductionMutation.isPending ? "Aprovando..." : "Sim, aprovar"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Confirm: Reprovar escalação de cenotécnica pela Produção ── */}
-      <Dialog open={showRejectProductionConfirm} onOpenChange={(open) => { if (!open) setShowRejectProductionConfirm(false); }}>
-        <DialogContent className="max-w-[400px] p-0 gap-0 rounded-2xl overflow-hidden">
-          <div className="px-6 py-6 space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-full bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0">
-                <XCircle className="w-4 h-4 text-orange-600" />
-              </div>
-              <div>
-                <DialogTitle className="text-[14px] font-bold text-slate-900 leading-tight mb-0.5">Reprovar escalação de cenotécnica?</DialogTitle>
-                <p className="text-[12px] text-slate-500 leading-relaxed">
-                  O colaborador será <span className="font-semibold text-slate-700">removido da vaga</span> e a escalação voltará para o estágio de escalação, aguardando um novo colaborador ser escolhido.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2 pt-1">
-              <Button
-                variant="outline"
-                className="flex-1 rounded-xl h-9 text-[12px] border-slate-200 text-slate-600 hover:bg-slate-50"
-                onClick={() => setShowRejectProductionConfirm(false)}
-                disabled={rejectProductionMutation.isPending}
-              >
-                Cancelar
-              </Button>
-              <Button
-                className="flex-1 rounded-xl h-9 text-[12px] bg-orange-500 hover:bg-orange-600 text-white"
-                onClick={() => { if (selectedInclusion) rejectProductionMutation.mutate(selectedInclusion.id); }}
-                disabled={rejectProductionMutation.isPending}
-              >
-                {rejectProductionMutation.isPending ? "Reprovando..." : "Sim, reprovar"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Confirm: Reativar escalação ── */}
-      <Dialog open={showReactivateConfirm} onOpenChange={(open) => { if (!open) setShowReactivateConfirm(false); }}>
-        <DialogContent className="max-w-[400px] p-0 gap-0 rounded-2xl overflow-hidden">
-          <div className="px-6 py-6 space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
-                <RotateCcw className="w-4 h-4 text-emerald-600" />
-              </div>
-              <div>
-                <DialogTitle className="text-[14px] font-bold text-slate-900 leading-tight mb-0.5">Reativar escalação?</DialogTitle>
-                <p className="text-[12px] text-slate-500 leading-relaxed">
-                  A escalação voltará ao status <span className="font-semibold text-slate-700">Pendente</span> e ficará disponível novamente para edição e confirmação.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2 pt-1">
-              <Button
-                variant="outline"
-                className="flex-1 rounded-xl h-9 text-[12px] border-slate-200 text-slate-600 hover:bg-slate-50"
-                onClick={() => setShowReactivateConfirm(false)}
-                disabled={reactivateMutation.isPending}
-              >
-                Cancelar
-              </Button>
-              <Button
-                className="flex-1 rounded-xl h-9 text-[12px] bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => { if (selectedInclusion) reactivateMutation.mutate(selectedInclusion.id); }}
-                disabled={reactivateMutation.isPending}
-              >
-                {reactivateMutation.isPending ? "Reativando..." : "Sim, reativar"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
+      <ScalingSuccessDialog info={successInfo} onClose={() => setSuccessInfo(null)} />
+      <SentToProductionDialog info={sentToProductionInfo} onClose={() => setSentToProductionInfo(null)} />
+      <AttachmentLightbox item={lightbox} onClose={() => setLightbox(null)} />
     </div>
   );
 }

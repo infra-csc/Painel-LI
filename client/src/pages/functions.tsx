@@ -7,13 +7,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
-import { AlertTriangle, Check, Loader2, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { AlertTriangle, Check, Loader2, X, Tag } from "lucide-react";
 import ConfirmModal from "@/components/common/confirm-modal";
-import type { Function, User as UserType, FunctionManager } from "@shared/schema";
+import { PageHeader } from "@/components/common/page-header";
+import { PageContainer } from "@/components/common/page-container";
+import { EmptyState } from "@/components/common/empty-state";
+import { LoadingState } from "@/components/common/loading-state";
+import { usePageTitle } from "@/components/common/use-page-title";
+import type { Function, User as UserType } from "@shared/schema";
+
+/** Responsável como vem embutido em GET /api/functions. */
+type ManagerSummary = { userId: string; userName: string };
+type FunctionWithManagers = Function & { managers?: ManagerSummary[] };
 
 // ─── Avatar colours ────────────────────────────────────────────────────────
 const AVATAR_LIGHT: [string, string][] = [
@@ -46,6 +57,12 @@ function fnErrMsg(err: any, fallback: string) {
   return err?.body?.message || fallback;
 }
 
+// ─── Estilos compartilhados ────────────────────────────────────────────────
+const LABEL = "block mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em]";
+const SOFT_INPUT = "w-full text-foreground border-0 rounded-[10px] bg-brand-soft outline-none focus-visible:ring-2 focus-visible:ring-ring/25 placeholder:text-muted-foreground";
+const DIALOG_HEADER = "flex items-center justify-between px-6 py-5 border-b border-border";
+const CLOSE_BTN = "flex items-center justify-center w-8 h-8 rounded-full text-slate-400 hover:bg-slate-100 transition-colors";
+
 // ─── Schemas ───────────────────────────────────────────────────────────────
 const functionFormSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -59,7 +76,7 @@ function ManagersPopover({
   functionName, managers, usersById, x, y, canManage, onRemove, onClose,
 }: {
   functionName: string;
-  managers: (FunctionManager & { user?: UserType })[];
+  managers: ManagerSummary[];
   usersById: Map<string, UserType>;
   x: number; y: number;
   canManage: boolean;
@@ -83,31 +100,31 @@ function ManagersPopover({
 
   return (
     <div className="fixed inset-0 z-[70]" role="presentation" onClick={onClose}>
-      <div className="absolute bg-white overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+      <div className="absolute bg-popover overflow-hidden animate-in fade-in zoom-in-95 duration-150 rounded-xl border border-border shadow-[0_8px_32px_-4px_rgba(20,27,43,0.15),0_2px_8px_-1px_rgba(0,0,0,0.06)]"
         role="dialog" aria-label={`Responsáveis por ${functionName}`}
-        style={{ width: MGPOP_W, left, top, borderRadius: 12, border: "1px solid #E9EDFF", boxShadow: "0 8px 32px -4px rgba(20,27,43,0.15), 0 2px 8px -1px rgba(0,0,0,0.06)" }}
+        style={{ width: MGPOP_W, left, top }}
         onClick={e => e.stopPropagation()}>
-        <div style={{ padding: "12px 14px 10px", borderBottom: "1px solid #F1F3FF" }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: "#141b2b", textTransform: "capitalize", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{functionName}</p>
-          <p style={{ fontSize: 10, color: "#94A3B8", marginTop: 2 }}>{managers.length} {managers.length === 1 ? "responsável" : "responsáveis"}</p>
+        <div className="px-3.5 pt-3 pb-2.5 border-b border-border/60">
+          <p className="text-xs font-bold text-foreground capitalize truncate">{functionName}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">{managers.length} {managers.length === 1 ? "responsável" : "responsáveis"}</p>
         </div>
-        <div className="py-1 divide-y divide-[#F8FAFC] max-h-72 overflow-y-auto">
+        <div className="py-1 divide-y divide-border/40 max-h-72 overflow-y-auto">
           {managers.map(fm => {
             const u = usersById.get(fm.userId);
-            const displayName = u?.name || u?.email || "Usuário";
+            const displayName = fm.userName || u?.name || u?.email || "Usuário";
             const [bg, txt] = avatarColor(fm.userId);
             const isConfirming = confirmId === fm.userId;
             return (
-              <div key={fm.id} className="group flex items-center gap-3 px-3.5 py-3">
+              <div key={fm.userId} className="group flex items-center gap-3 px-3.5 py-3">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${bg} ${txt}`}>
                   {initials(displayName)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "#141b2b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{displayName}</p>
+                  <p className="text-[13px] font-semibold text-foreground truncate">{displayName}</p>
                 </div>
                 {!canManage ? null : isConfirming ? (
                   <div className="flex items-center gap-1 shrink-0">
-                    <span style={{ fontSize: 10, color: "#64748B", fontWeight: 500 }}>Remover?</span>
+                    <span className="text-[10px] text-slate-500 font-medium">Remover?</span>
                     <button onClick={e => { e.stopPropagation(); onRemove(fm.userId); setConfirmId(null); }} className="text-[10px] font-bold text-red-500 hover:text-red-600 px-1 py-0.5 rounded hover:bg-red-50 transition-colors">Sim</button>
                     <button onClick={e => { e.stopPropagation(); setConfirmId(null); }} className="text-[10px] text-slate-400 hover:text-slate-600 px-1 py-0.5 rounded hover:bg-slate-100 transition-colors">Não</button>
                   </div>
@@ -115,7 +132,7 @@ function ManagersPopover({
                   <button onClick={e => { e.stopPropagation(); setConfirmId(fm.userId); }}
                     aria-label={`Remover ${displayName} dos responsáveis`}
                     className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-slate-300 hover:text-red-500 p-1 rounded hover:bg-red-50">
-                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>person_remove</span>
+                    <span className="material-symbols-outlined text-lg">person_remove</span>
                   </button>
                 )}
               </div>
@@ -128,23 +145,27 @@ function ManagersPopover({
 }
 
 // ─── FunctionManagersCell ─────────────────────────────────────────────────
-function FunctionManagersCell({ functionId, functionName, canManage }: { functionId: string; functionName: string; canManage: boolean }) {
+// Os responsáveis vêm embutidos em GET /api/functions (`managers`) — nada de
+// uma query por linha. Adicionar/remover invalida "/api/functions".
+function FunctionManagersCell({ functionId, functionName, managers: managersProp, canManage }: { functionId: string; functionName: string; managers?: ManagerSummary[]; canManage: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const [popover, setPopover] = useState<{ x: number; y: number } | null>(null);
   const [selectedUserId, setSelectedUserId] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: functionManagers } = useQuery<(FunctionManager & { user?: UserType })[]>({
-    queryKey: [`/api/functions/${functionId}/managers`],
-    enabled: !!functionId,
-  });
   const { data: users } = useQuery<UserType[]>({ queryKey: ["/api/users"] });
+
+  const invalidateManagers = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/functions"] });
+    // rota antiga ainda existe; quem a usar continua coerente
+    queryClient.invalidateQueries({ queryKey: [`/api/functions/${functionId}/managers`] });
+  };
 
   const addManagerMutation = useMutation({
     mutationFn: async (userId: string) => (await apiRequest("POST", `/api/functions/${functionId}/managers`, { userId })).json(),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/functions/${functionId}/managers`] });
+      invalidateManagers();
       setSelectedUserId(""); setIsOpen(false);
       toast({ title: "Responsável adicionado!" });
     },
@@ -152,11 +173,11 @@ function FunctionManagersCell({ functionId, functionName, canManage }: { functio
   });
   const removeManagerMutation = useMutation({
     mutationFn: async (userId: string) => (await apiRequest("DELETE", `/api/functions/${functionId}/managers/${userId}`)).json(),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: [`/api/functions/${functionId}/managers`] }); toast({ title: "Responsável removido." }); },
+    onSuccess: () => { invalidateManagers(); toast({ title: "Responsável removido." }); },
     onError: (err: any) => toast({ title: "Erro ao remover responsável", description: fnErrMsg(err, "Tente novamente."), variant: "destructive" }),
   });
 
-  const managers = useMemo(() => functionManagers ?? [], [functionManagers]);
+  const managers = useMemo(() => managersProp ?? [], [managersProp]);
   const visible  = managers.slice(0, 3);
   const overflow = managers.length > 3 ? managers.length - 3 : 0;
 
@@ -185,7 +206,7 @@ function FunctionManagersCell({ functionId, functionName, canManage }: { functio
       {managers.length > 0 && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex items-center cursor-pointer rounded focus:outline-none focus:ring-2 focus:ring-blue-600/30"
+            <div className="flex items-center cursor-pointer rounded focus:outline-none focus:ring-2 focus:ring-ring/30"
               role="button" tabIndex={0}
               aria-label={`Ver os ${managers.length} responsáveis por ${functionName}`}
               onClick={e => { e.stopPropagation(); setPopover({ x: e.clientX, y: e.clientY }); }}
@@ -197,21 +218,20 @@ function FunctionManagersCell({ functionId, functionName, canManage }: { functio
               }}>
               {visible.map((fm, i) => {
                 const u = usersById.get(fm.userId);
-                const displayName = u?.name || u?.email || "Usuário";
+                const displayName = fm.userName || u?.name || u?.email || "Usuário";
                 const [bg, txt] = avatarColor(fm.userId);
                 return (
                   /* A remoção fica só no popover (que pede confirmação) — o "X" no
                      hover apagava o responsável com um clique acidental. */
-                  <div key={fm.id} className={`relative w-7 h-7 rounded-full border-2 border-white flex items-center justify-center shrink-0 ${bg}`}
-                    style={{ marginLeft: i === 0 ? 0 : -8, zIndex: visible.length - i }}>
+                  <div key={fm.userId} className={cn("relative w-7 h-7 rounded-full border-2 border-card flex items-center justify-center shrink-0", bg, i > 0 && "-ml-2")}
+                    style={{ zIndex: visible.length - i }}>
                     <span className={`text-[10px] font-bold ${txt}`}>{initials(displayName)}</span>
                   </div>
                 );
               })}
 
               {overflow > 0 && (
-                <div className="relative w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 border-2 border-white text-[9px] font-bold text-slate-500 flex items-center justify-center shrink-0 transition-colors"
-                  style={{ marginLeft: -8, zIndex: 0 }}>
+                <div className="relative -ml-2 z-0 w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 border-2 border-card text-[9px] font-bold text-slate-500 flex items-center justify-center shrink-0 transition-colors">
                   +{overflow}
                 </div>
               )}
@@ -234,27 +254,26 @@ function FunctionManagersCell({ functionId, functionName, canManage }: { functio
       {canManage && <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
           <button type="button" aria-label={`Adicionar responsável a ${functionName}`}
-            className="w-7 h-7 rounded-full border border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-[#004ac6] hover:text-[#004ac6] transition-colors"
+            className="w-7 h-7 rounded-full border border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-primary hover:text-primary transition-colors"
             data-testid={`button-add-function-manager-${functionId}`}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
+            <span className="material-symbols-outlined text-base">add</span>
           </button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[380px] rounded-xl p-0 gap-0 border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden">
-          <div style={{ padding: "20px 24px", borderBottom: "1px solid #E9EDFF", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div className={DIALOG_HEADER}>
             <div>
-              <DialogTitle style={{ fontSize: 16, fontWeight: 800, color: "#141b2b", margin: 0, fontFamily: "Manrope, sans-serif" }}>Adicionar Responsável</DialogTitle>
-              <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 3, textTransform: "capitalize" }}>{functionName}</p>
+              <DialogTitle className="text-base font-extrabold text-foreground m-0">Adicionar Responsável</DialogTitle>
+              <p className="text-[11px] text-slate-400 mt-[3px] capitalize">{functionName}</p>
             </div>
-            <button type="button" onClick={() => setIsOpen(false)} aria-label="Fechar" style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
-              className="hover:bg-slate-100 transition-colors">
+            <button type="button" onClick={() => setIsOpen(false)} aria-label="Fechar" className={CLOSE_BTN}>
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          <div style={{ padding: "20px 24px" }}>
-            <label htmlFor={`select-function-manager-${functionId}`} style={{ display: "block", fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Usuário</label>
+          <div className="px-6 py-5">
+            <label htmlFor={`select-function-manager-${functionId}`} className={LABEL}>Usuário</label>
             <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-              <SelectTrigger id={`select-function-manager-${functionId}`} aria-label="Selecionar usuário responsável" className="h-10 text-sm border-0 bg-[#f1f3ff] rounded-lg focus:ring-2 focus:ring-blue-600/20" data-testid={`select-function-manager-${functionId}`}>
+              <SelectTrigger id={`select-function-manager-${functionId}`} aria-label="Selecionar usuário responsável" className="h-10 text-sm border-0 bg-brand-soft rounded-lg focus:ring-2 focus:ring-ring/25" data-testid={`select-function-manager-${functionId}`}>
                 <SelectValue placeholder="Selecione um usuário..." />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
@@ -276,19 +295,18 @@ function FunctionManagersCell({ functionId, functionName, canManage }: { functio
             </Select>
           </div>
 
-          <div style={{ padding: "12px 24px 20px", display: "flex", gap: 10 }}>
-            <button onClick={() => setIsOpen(false)} style={{ flex: 1, height: 38, fontSize: 13, fontWeight: 600, color: "#64748B", background: "transparent", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}
-              className="hover:text-slate-900 transition-colors">
+          <div className="flex gap-2.5 px-6 pt-3 pb-5">
+            <Button type="button" variant="ghost" onClick={() => setIsOpen(false)} className="flex-1 h-[38px] text-[13px] font-semibold text-slate-500 hover:text-foreground">
               Cancelar
-            </button>
-            <button onClick={() => selectedUserId && addManagerMutation.mutate(selectedUserId)}
+            </Button>
+            <Button type="button" onClick={() => selectedUserId && addManagerMutation.mutate(selectedUserId)}
               disabled={!selectedUserId || addManagerMutation.isPending}
-              style={{ flex: 1, height: 38, fontSize: 13, fontWeight: 700, color: "white", background: "#004ac6", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxShadow: "0 2px 8px rgba(0,74,198,0.3)", opacity: !selectedUserId ? 0.5 : 1 }}
+              className="flex-1 h-[38px] text-[13px] font-bold shadow-md shadow-primary/30 hover:bg-primary-hover"
               data-testid={`button-submit-add-manager-${functionId}`}>
               {addManagerMutation.isPending
                 ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 : <><Check className="w-3.5 h-3.5" strokeWidth={3} /> Adicionar</>}
-            </button>
+            </Button>
           </div>
         </DialogContent>
       </Dialog>}
@@ -298,6 +316,7 @@ function FunctionManagersCell({ functionId, functionName, canManage }: { functio
 
 // ─── Main Component ────────────────────────────────────────────────────────
 export default function Functions() {
+  usePageTitle("Funções");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingFunction, setEditingFunction] = useState<Function | null>(null);
   const [search, setSearch] = useState("");
@@ -316,7 +335,7 @@ export default function Functions() {
     defaultValues: { name: "" },
   });
 
-  const { data: functions, isLoading, isError, error, refetch } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
+  const { data: functions, isLoading, isError, error, refetch } = useQuery<FunctionWithManagers[]>({ queryKey: ["/api/functions"] });
 
   const sortedFunctions = useMemo(() => {
     if (!functions) return [];
@@ -359,244 +378,219 @@ export default function Functions() {
   };
 
   const isPending = createFunctionMutation.isPending || updateFunctionMutation.isPending;
+  const showTable = !isLoading && !(isError && !functions) && sortedFunctions.length > 0;
 
   return (
     <TooltipProvider>
-      <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+      <PageContainer>
 
         {/* ── Page header ── */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 11, background: "#0033CC", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 4px 14px rgba(0,51,204,0.35)" }}>
-              <span className="material-symbols-outlined text-white" style={{ fontSize: 22, fontVariationSettings: "'FILL' 1" }}>label</span>
-            </div>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <h1 style={{ fontSize: 26, fontWeight: 800, color: "#141b2b", margin: 0, letterSpacing: "-0.5px", fontFamily: "Manrope, sans-serif" }}>Funções</h1>
-                {totalCount > 0 && (
-                  <span style={{ background: "#EEF2FF", color: "#004ac6", padding: "3px 12px", borderRadius: 99, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                    {totalCount} funções
-                  </span>
-                )}
-              </div>
-              <p style={{ fontSize: 13, color: "#64748B", margin: "3px 0 0", fontWeight: 500 }}>Gerencie as funções e atribua responsáveis</p>
-            </div>
-          </div>
+        <PageHeader
+          icon={Tag}
+          title={
+            <span className="inline-flex items-center gap-3">
+              Funções
+              {totalCount > 0 && (
+                <span className="bg-brand-soft text-primary px-3 py-[3px] rounded-full text-[11px] font-bold uppercase tracking-[0.06em]">
+                  {totalCount} funções
+                </span>
+              )}
+            </span>
+          }
+          subtitle="Gerencie as funções e atribua responsáveis"
+          actions={
+            /* Fechar por Esc/overlay precisa limpar editingFunction — senão a próxima
+               abertura reaproveitava o estado de edição anterior. */
+            canManage && (
+              <Dialog open={isDialogOpen} onOpenChange={v => { if (v) setIsDialogOpen(true); else handleCloseDialog(); }}>
+                <DialogTrigger asChild>
+                  <Button onClick={() => handleOpenDialog()} data-testid="button-add-function"
+                    className="h-10 px-5 rounded-[10px] text-[13px] font-bold shadow-md shadow-primary/30 hover:bg-primary-hover active:scale-95 transition-all">
+                    <span className="material-symbols-outlined text-xl">add_circle</span>
+                    Nova Função
+                  </Button>
+                </DialogTrigger>
 
-          {/* Fechar por Esc/overlay precisa limpar editingFunction — senão a próxima
-              abertura reaproveitava o estado de edição anterior. */}
-          {canManage && <Dialog open={isDialogOpen} onOpenChange={v => { if (v) setIsDialogOpen(true); else handleCloseDialog(); }}>
-            <DialogTrigger asChild>
-              <button onClick={() => handleOpenDialog()} data-testid="button-add-function"
-                style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", background: "#0033CC", color: "white", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 12px rgba(0,51,204,0.3)" }}
-                className="hover:bg-blue-800 active:scale-95 transition-all">
-                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>add_circle</span>
-                Nova Função
-              </button>
-            </DialogTrigger>
+                {/* Create / Edit dialog */}
+                <DialogContent className="sm:max-w-[420px] rounded-xl p-0 gap-0 border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden">
+                  <div className={cn(DIALOG_HEADER, "py-[22px]")}>
+                    <DialogTitle className="text-lg font-extrabold text-foreground m-0">
+                      {editingFunction ? "Editar Função" : "Nova Função"}
+                    </DialogTitle>
+                    <button type="button" onClick={handleCloseDialog} aria-label="Fechar" className={CLOSE_BTN}>
+                      <span className="material-symbols-outlined text-xl">close</span>
+                    </button>
+                  </div>
 
-            {/* Create / Edit dialog */}
-            <DialogContent className="sm:max-w-[420px] rounded-xl p-0 gap-0 border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden">
-              <div style={{ padding: "22px 24px", borderBottom: "1px solid #E9EDFF", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <DialogTitle style={{ fontSize: 18, fontWeight: 800, color: "#141b2b", margin: 0, fontFamily: "Manrope, sans-serif" }}>
-                  {editingFunction ? "Editar Função" : "Nova Função"}
-                </DialogTitle>
-                <button type="button" onClick={handleCloseDialog} aria-label="Fechar" style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
-                  className="hover:bg-slate-100 transition-colors">
-                  <span className="material-symbols-outlined" style={{ fontSize: 20 }}>close</span>
-                </button>
-              </div>
+                  <div className="px-6 py-[22px]">
+                    <Form {...form}>
+                      <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col gap-4">
+                        <FormField control={form.control} name="name" render={({ field }) => (
+                          <div>
+                            <label htmlFor="function-name" className={LABEL}>
+                              Nome da Função <span className="text-destructive">*</span>
+                            </label>
+                            <FormControl>
+                              <input id="function-name" placeholder="Ex: Atendimento, Palco, Som..."
+                                data-testid="input-function-name"
+                                className={cn(SOFT_INPUT, "h-[42px] text-sm px-4")}
+                                {...field} />
+                            </FormControl>
+                            <FormMessage className="text-[11px] mt-1" />
+                          </div>
+                        )} />
 
-              <div style={{ padding: "22px 24px" }}>
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(handleSubmit)} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                    <FormField control={form.control} name="name" render={({ field }) => (
-                      <div>
-                        <label htmlFor="function-name" style={{ display: "block", fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
-                          Nome da Função <span style={{ color: "#EF4444" }}>*</span>
-                        </label>
-                        <FormControl>
-                          <input id="function-name" placeholder="Ex: Atendimento, Palco, Som..."
-                            data-testid="input-function-name"
-                            style={{ width: "100%", height: 42, fontSize: 14, padding: "0 16px", border: "none", borderRadius: 10, background: "#f1f3ff", color: "#141b2b", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
-                            className="focus:ring-2 focus:ring-blue-600/20"
-                            {...field} />
-                        </FormControl>
-                        <FormMessage className="text-[11px] mt-1" />
-                      </div>
-                    )} />
-
-                    <div style={{ padding: "12px 0 0" }}>
-                      <div style={{ display: "flex", gap: 10 }}>
-                        <button type="button" onClick={handleCloseDialog}
-                          style={{ flex: 1, height: 40, fontSize: 13, fontWeight: 600, color: "#64748B", background: "transparent", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}
-                          className="hover:text-slate-900 transition-colors">
-                          Cancelar
-                        </button>
-                        <button type="submit" disabled={isPending} data-testid="button-save-function"
-                          style={{ flex: 1, height: 40, fontSize: 13, fontWeight: 700, color: "white", background: "#0033CC", border: "none", borderRadius: 8, cursor: isPending ? "not-allowed" : "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, boxShadow: "0 2px 8px rgba(0,51,204,0.3)" }}
-                          className="hover:bg-blue-800 transition-colors">
-                          {isPending
-                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            : <><Check className="w-3.5 h-3.5" strokeWidth={3} /> {editingFunction ? "Atualizar" : "Salvar"} Função</>}
-                        </button>
-                      </div>
-                    </div>
-                  </form>
-                </Form>
-              </div>
-            </DialogContent>
-          </Dialog>}
-        </div>
+                        <div className="flex gap-2.5 pt-3">
+                          <Button type="button" variant="ghost" onClick={handleCloseDialog} className="flex-1 h-10 text-[13px] font-semibold text-slate-500 hover:text-foreground">
+                            Cancelar
+                          </Button>
+                          <Button type="submit" disabled={isPending} data-testid="button-save-function"
+                            className="flex-1 h-10 text-[13px] font-bold shadow-md shadow-primary/30 hover:bg-primary-hover">
+                            {isPending
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              : <><Check className="w-3.5 h-3.5" strokeWidth={3} /> {editingFunction ? "Atualizar" : "Salvar"} Função</>}
+                          </Button>
+                        </div>
+                      </form>
+                    </Form>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )
+          }
+        />
 
         {/* ── Main card ── */}
-        <div style={{ background: "white", borderRadius: 12, border: "1px solid #E9EDFF", boxShadow: "0 20px 40px rgba(20,27,43,0.03)", overflow: "hidden" }}>
+        <div className="bg-card rounded-xl border border-border shadow-[0_20px_40px_rgba(20,27,43,0.03)] overflow-hidden">
 
           {/* Filter bar */}
-          <div style={{ padding: "16px 24px", borderBottom: "1px solid #E9EDFF", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-            <div style={{ position: "relative", flex: 1, maxWidth: 400 }}>
-              <span className="material-symbols-outlined" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 18, color: "#94A3B8", pointerEvents: "none" }}>search</span>
+          <div className="flex flex-wrap items-center justify-between gap-4 px-4 sm:px-6 py-4 border-b border-border">
+            <div className="relative flex-1 min-w-[200px] max-w-[400px]">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-slate-400 pointer-events-none">search</span>
               {/* A busca filtra apenas o nome da função; o texto antigo prometia
                   também "responsável", que não é filtrado aqui. */}
               <input id="functions-search" aria-label="Buscar função pelo nome"
                 placeholder="Buscar função pelo nome..." value={search} onChange={e => setSearch(e.target.value)}
-                style={{ width: "100%", height: 40, fontSize: 13, paddingLeft: 40, paddingRight: search ? 36 : 14, border: "none", borderRadius: 10, background: "#f1f3ff", color: "#374151", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
-                className="focus:ring-2 focus:ring-blue-600/20 transition-shadow" />
+                className={cn(SOFT_INPUT, "h-10 text-[13px] pl-10 transition-shadow", search ? "pr-9" : "pr-3.5")} />
               {search && (
-                <button onClick={() => setSearch("")} aria-label="Limpar busca" style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94A3B8", display: "flex" }}
-                  className="hover:text-slate-600 transition-colors"><X className="w-3.5 h-3.5" /></button>
+                <button onClick={() => setSearch("")} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 flex text-slate-400 hover:text-slate-600 transition-colors"><X className="w-3.5 h-3.5" /></button>
               )}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <div className="flex items-center gap-1">
               {search && sortedFunctions.length > 0 && (
-                <span style={{ fontSize: 11, color: "#94A3B8", marginRight: 8 }} aria-live="polite">{sortedFunctions.length} resultado{sortedFunctions.length !== 1 ? "s" : ""}</span>
+                <span className="text-[11px] text-slate-400 mr-2" aria-live="polite">{sortedFunctions.length} resultado{sortedFunctions.length !== 1 ? "s" : ""}</span>
               )}
             </div>
           </div>
+
+          {/* Carregando e erro precisam de ramos próprios: sem eles, uma sessão
+              expirada ou queda de rede aparecia como "Nenhuma função cadastrada". */}
+          {isLoading && (
+            <div className="p-4 sm:p-6">
+              <LoadingState count={6} label="Carregando funções…" className="border-0 rounded-none" />
+            </div>
+          )}
+
+          {!isLoading && isError && !functions && (
+            <div className="px-6 py-14 text-center" role="alert">
+              <div className="flex flex-col items-center gap-2.5">
+                <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-50">
+                  <AlertTriangle className="w-6 h-6 text-red-500" />
+                </div>
+                <h4 className="text-[15px] font-extrabold text-foreground m-0">Não foi possível carregar as funções</h4>
+                <p className="text-[13px] text-slate-500 m-0 max-w-[320px] leading-normal">
+                  {fnErrMsg(error, "Verifique sua conexão e tente novamente.")}
+                </p>
+                <Button variant="outline" size="sm" className="mt-1.5" onClick={() => refetch()}>Tentar novamente</Button>
+              </div>
+            </div>
+          )}
+
+          {!isLoading && !(isError && !functions) && sortedFunctions.length === 0 && (
+            <div className="p-4 sm:p-6">
+              {search ? (
+                <EmptyState
+                  variant="filtered"
+                  icon={Tag}
+                  title="Nenhuma função encontrada"
+                  description="Ajuste sua busca ou limpe os filtros para ver todos os resultados."
+                  onClearFilters={() => setSearch("")}
+                  className="border-0 py-10"
+                />
+              ) : (
+                <EmptyState
+                  icon={Tag}
+                  title="Nenhuma função cadastrada"
+                  description={canManage ? 'Clique em "Nova Função" para criar a primeira.' : "Ainda não há funções cadastradas."}
+                  className="border-0 py-10"
+                />
+              )}
+            </div>
+          )}
 
           {/* Table */}
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: "rgba(241,243,255,0.5)", borderBottom: "1px solid #E9EDFF" }}>
-                  {["#","Nome da Função","Responsáveis","Ações"].map((h, i) => (
-                    <th key={h} style={{
-                      padding: "14px 24px", fontSize: 10, fontWeight: 700, color: "#94A3B8",
-                      textTransform: "uppercase", letterSpacing: "0.08em", textAlign: i === 3 ? "right" : "left",
-                      width: i === 0 ? 60 : undefined,
-                    }}>{h}</th>
+          {showTable && (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse min-w-[560px]">
+                <thead>
+                  <tr className="bg-muted/40 border-b border-border">
+                    {["#","Nome da Função","Responsáveis","Ações"].map((h, i) => (
+                      <th key={h}
+                        className={cn("px-4 sm:px-6 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-[0.08em]", i === 3 ? "text-right" : "text-left", i === 0 && "w-[60px]")}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedFunctions.map((func, idx) => (
+                    <tr key={func.id} className="group transition-colors hover:bg-brand-soft/30 border-b border-border/50">
+                      <td className="px-4 sm:px-6 py-[18px] text-xs text-slate-300 font-semibold tabular-nums">
+                        {String(idx + 1).padStart(2, "0")}
+                      </td>
+                      <td className="px-4 sm:px-6 py-[18px]">
+                        <span className="text-[15px] font-semibold text-foreground capitalize">{func.name}</span>
+                      </td>
+                      <td className="px-4 sm:px-6 py-[18px]">
+                        <FunctionManagersCell functionId={func.id} functionName={func.name} managers={func.managers} canManage={canManage} />
+                      </td>
+                      <td className="px-4 sm:px-6 py-[18px]">
+                        {/* Editar/excluir só para quem o servidor aceita (CADASTRO_ROLES) */}
+                        {canManage && <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button type="button" onClick={() => handleOpenDialog(func)} data-testid={`button-edit-function-${func.id}`}
+                                aria-label={`Editar função ${func.name}`}
+                                className="p-2 rounded-lg text-slate-400 hover:text-primary hover:bg-brand-soft transition-colors">
+                                <span className="material-symbols-outlined text-xl">edit</span>
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Editar função</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button type="button" onClick={() => handleDelete(func.id)} data-testid={`button-delete-function-${func.id}`}
+                                disabled={deleteFunctionMutation.isPending}
+                                aria-label={`Excluir função ${func.name}`}
+                                className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                                <span className="material-symbols-outlined text-xl">delete</span>
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Excluir função</TooltipContent>
+                          </Tooltip>
+                        </div>}
+                      </td>
+                    </tr>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sortedFunctions.map((func, idx) => (
-                  <tr key={func.id} className="group transition-colors hover:bg-[#f1f3ff]/30"
-                    style={{ borderBottom: "1px solid #F8FAFC" }}>
-                    <td style={{ padding: "18px 24px", fontSize: 12, color: "#CBD5E1", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
-                      {String(idx + 1).padStart(2, "0")}
-                    </td>
-                    <td style={{ padding: "18px 24px" }}>
-                      <span style={{ fontSize: 15, fontWeight: 600, color: "#141b2b", textTransform: "capitalize", fontFamily: "Manrope, sans-serif" }}>{func.name}</span>
-                    </td>
-                    <td style={{ padding: "18px 24px" }}>
-                      <FunctionManagersCell functionId={func.id} functionName={func.name} canManage={canManage} />
-                    </td>
-                    <td style={{ padding: "18px 24px" }}>
-                      {/* Editar/excluir só para quem o servidor aceita (CADASTRO_ROLES) */}
-                      {canManage && <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}
-                        className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button type="button" onClick={() => handleOpenDialog(func)} data-testid={`button-edit-function-${func.id}`}
-                              aria-label={`Editar função ${func.name}`}
-                              style={{ padding: 8, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#94A3B8" }}
-                              className="hover:text-[#004ac6] hover:bg-[#EEF2FF] transition-colors">
-                              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>edit</span>
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent>Editar função</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button type="button" onClick={() => handleDelete(func.id)} data-testid={`button-delete-function-${func.id}`}
-                              disabled={deleteFunctionMutation.isPending}
-                              aria-label={`Excluir função ${func.name}`}
-                              style={{ padding: 8, borderRadius: 8, border: "none", background: "transparent", cursor: deleteFunctionMutation.isPending ? "not-allowed" : "pointer", color: "#94A3B8" }}
-                              className="hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40">
-                              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>delete</span>
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent>Excluir função</TooltipContent>
-                        </Tooltip>
-                      </div>}
-                    </td>
-                  </tr>
-                ))}
-
-                {/* Carregando e erro precisam de ramos próprios: sem eles, uma sessão
-                    expirada ou queda de rede aparecia como "Nenhuma função cadastrada". */}
-                {isLoading && (
-                  <tr>
-                    <td colSpan={4} style={{ padding: "64px 24px", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
-                      <Loader2 className="w-6 h-6 animate-spin" style={{ margin: "0 auto 10px" }} />
-                      Carregando funções...
-                    </td>
-                  </tr>
-                )}
-
-                {!isLoading && isError && !functions && (
-                  <tr>
-                    <td colSpan={4} style={{ padding: "56px 24px", textAlign: "center" }} role="alert">
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-                        <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <AlertTriangle className="w-6 h-6 text-red-500" />
-                        </div>
-                        <h4 style={{ fontSize: 15, fontWeight: 800, color: "#141b2b", margin: 0, fontFamily: "Manrope, sans-serif" }}>
-                          Não foi possível carregar as funções
-                        </h4>
-                        <p style={{ fontSize: 13, color: "#64748B", margin: 0, maxWidth: 320, lineHeight: 1.5 }}>
-                          {fnErrMsg(error, "Verifique sua conexão e tente novamente.")}
-                        </p>
-                        <button onClick={() => refetch()} style={{ marginTop: 6, height: 34, padding: "0 16px", borderRadius: 8, border: "1px solid #E9EDFF", background: "white", fontSize: 12, fontWeight: 700, color: "#141b2b", cursor: "pointer", fontFamily: "inherit" }}
-                          className="hover:bg-[#f1f3ff] transition-colors">
-                          Tentar novamente
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-
-                {!isLoading && !(isError && !functions) && sortedFunctions.length === 0 && (
-                  <tr>
-                    <td colSpan={4} style={{ padding: "64px 24px", textAlign: "center" }}>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-                        <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#f1f3ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <span className="material-symbols-outlined" style={{ fontSize: 30, color: "#94A3B8" }}>label_off</span>
-                        </div>
-                        <h4 style={{ fontSize: 16, fontWeight: 800, color: "#141b2b", margin: 0, fontFamily: "Manrope, sans-serif" }}>
-                          {search ? "Nenhuma função encontrada" : "Nenhuma função cadastrada"}
-                        </h4>
-                        <p style={{ fontSize: 13, color: "#64748B", margin: 0, maxWidth: 280, lineHeight: 1.5 }}>
-                          {search ? "Ajuste sua busca ou limpe os filtros para ver todos os resultados." : canManage ? 'Clique em "Nova Função" para criar a primeira.' : "Ainda não há funções cadastradas."}
-                        </p>
-                        {search && (
-                          <button onClick={() => setSearch("")} style={{ fontSize: 13, fontWeight: 700, color: "#004ac6", background: "none", border: "none", cursor: "pointer", marginTop: 8 }}
-                            className="hover:underline">
-                            Limpar filtro
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Footer */}
           {sortedFunctions.length > 0 && (
-            <div style={{ padding: "14px 24px", borderTop: "1px solid #E9EDFF", background: "rgba(241,243,255,0.3)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, color: "#94A3B8", fontWeight: 500 }}>
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-t border-border bg-muted/30">
+              <span className="text-xs text-slate-400 font-medium">
                 {search
                   ? `Mostrando ${sortedFunctions.length} de ${totalCount} funções`
                   : `${totalCount} ${totalCount === 1 ? "função" : "funções"} no total`}
@@ -604,7 +598,7 @@ export default function Functions() {
             </div>
           )}
         </div>
-      </div>
+      </PageContainer>
 
       <ConfirmModal
         open={confirmState.open} variant="delete"

@@ -14,41 +14,19 @@ import {
   systemSettings,
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import {
+  hotelTotalCents,
+  type MirrorRow,
+  type MirrorResponse,
+  type MirrorSubtotal,
+  type RoomGroup,
+  type UberGroup,
+} from "@shared/operational-mirror-types";
 
 // ---------- Tipos do espelho operacional ----------
-export interface MirrorRow {
-  teamInclusionId: string;
-  collaborator: {
-    id: string | null;
-    fullName: string;
-    gender: string | null;
-    city: string | null;
-    state: string | null;
-    type: string | null;
-  };
-  function: {
-    id: string | null;
-    name: string | null;
-    costCenter: string | null;
-    area: string | null;
-  };
-  schedule: {
-    startDate: string | null;
-    endDate: string | null;
-    flightDepartureDate: string | null;
-    flightReturnDate: string | null;
-    dailyRates: number | null;
-  };
-  ticket: any | null;
-  accommodation: any | null;
-  observations: string | null;
-  baggage: { totalCents: number; extraCents: number; oc: string | null; notes: string | null; checkIn: string | null };
-  uber: { totalCents: number; oc: string | null; notes: string | null; checkIn: string | null; suggestedGroupId: string | null; groupName: string | null };
-  carRental: { company: string | null; totalCents: number; oc: string | null; notes: string | null; checkIn: string | null };
-  suggestedRoomGroupId: string | null;
-  roomGroupLabel: string | null;
-  pendencies: string[];
-}
+// O contrato (MirrorRow, MirrorTotals, MirrorResponse...) vive em
+// shared/operational-mirror-types.ts e é compartilhado com o cliente.
+export type { MirrorRow, MirrorResponse } from "@shared/operational-mirror-types";
 
 // ---------- Config de sugestões ----------
 interface LogisticsConfig {
@@ -80,7 +58,7 @@ function timeToMinutes(t: string | null | undefined): number | null {
 }
 
 // ---------- Buscar dados consolidados ----------
-export async function getOperationalMirror(eventId: string) {
+export async function getOperationalMirror(eventId: string): Promise<MirrorResponse | null> {
   const [event] = await db.select().from(events).where(eq(events.id, eventId));
   if (!event) return null;
 
@@ -112,11 +90,11 @@ export async function getOperationalMirror(eventId: string) {
   const uberGroupIds = new Set(uberGroupRows.map((g: any) => g.id));
   const roomGroupIds = new Set(roomGroupRows.map((g: any) => g.id));
 
-  const uberGroupsWithMembers = uberGroupRows.map((g: any) => ({
+  const uberGroupsWithMembers: UberGroup[] = uberGroupRows.map((g: any) => ({
     ...g,
     members: uberMemberRows.filter((m: any) => m.uberGroupId === g.id),
   }));
-  const roomGroupsWithMembers = roomGroupRows.map((g: any) => ({
+  const roomGroupsWithMembers: RoomGroup[] = roomGroupRows.map((g: any) => ({
     ...g,
     members: roomMemberRows.filter((m: any) => m.hotelRoomGroupId === g.id),
   }));
@@ -230,7 +208,7 @@ export async function getOperationalMirror(eventId: string) {
   let totalTickets = 0, totalHotel = 0, totalBaggage = 0, totalUber = 0, totalCarRental = 0;
   for (const r of rows) {
     totalTickets += r.ticket?.value || 0;
-    totalHotel += r.accommodation?.totalCents || ((r.accommodation?.dailyRate || 0) * (r.accommodation?.nightsCount || r.schedule.dailyRates || 0)) || 0;
+    totalHotel += hotelTotalCents(r);
     totalBaggage += r.baggage.totalCents;
     totalUber += r.uber.totalCents;
     totalCarRental += r.carRental.totalCents;
@@ -238,12 +216,12 @@ export async function getOperationalMirror(eventId: string) {
   const grand = totalTickets + totalHotel + totalBaggage + totalUber + totalCarRental;
 
   // subtotais por função/departamento
-  const byFunction: Record<string, { name: string; tickets: number; hotel: number; baggage: number; uber: number; carRental: number; total: number }> = {};
+  const byFunction: Record<string, MirrorSubtotal> = {};
   for (const r of rows) {
     const key = r.function.name || "(sem função)";
     if (!byFunction[key]) byFunction[key] = { name: key, tickets: 0, hotel: 0, baggage: 0, uber: 0, carRental: 0, total: 0 };
     const t = r.ticket?.value || 0;
-    const h = r.accommodation?.totalCents || ((r.accommodation?.dailyRate || 0) * (r.accommodation?.nightsCount || r.schedule.dailyRates || 0)) || 0;
+    const h = hotelTotalCents(r);
     byFunction[key].tickets += t;
     byFunction[key].hotel += h;
     byFunction[key].baggage += r.baggage.totalCents;
@@ -253,12 +231,12 @@ export async function getOperationalMirror(eventId: string) {
   }
 
   // subtotais por departamento (area)
-  const byDepartment: Record<string, { name: string; tickets: number; hotel: number; baggage: number; uber: number; carRental: number; total: number }> = {};
+  const byDepartment: Record<string, MirrorSubtotal> = {};
   for (const r of rows) {
     const key = r.function.area || r.function.name || "(sem departamento)";
     if (!byDepartment[key]) byDepartment[key] = { name: key, tickets: 0, hotel: 0, baggage: 0, uber: 0, carRental: 0, total: 0 };
     const t = r.ticket?.value || 0;
-    const h = r.accommodation?.totalCents || ((r.accommodation?.dailyRate || 0) * (r.accommodation?.nightsCount || r.schedule.dailyRates || 0)) || 0;
+    const h = hotelTotalCents(r);
     byDepartment[key].tickets += t;
     byDepartment[key].hotel += h;
     byDepartment[key].baggage += r.baggage.totalCents;
@@ -682,7 +660,7 @@ export async function exportOperationalMirrorExcel(eventId: string): Promise<Buf
   aoa.push(header);
 
   for (const r of data.rows) {
-    const hotelTotal = r.accommodation?.totalCents || ((r.accommodation?.dailyRate || 0) * (r.accommodation?.nightsCount || r.schedule.dailyRates || 0)) || 0;
+    const hotelTotal = hotelTotalCents(r);
     aoa.push([
       r.collaborator.fullName,
       r.function.area || r.function.name || "",
@@ -695,7 +673,9 @@ export async function exportOperationalMirrorExcel(eventId: string): Promise<Buf
       r.ticket?.actualDepartureTime || "",
       r.ticket?.actualReturnTime || "",
       r.ticket?.returnOriginAirport || "",
-      r.ticket?.locator || r.ticket?.reservationNumber || "",
+      // reservationNumber é campo legado que não existe mais no schema de tickets;
+      // mantido como fallback para não alterar o comportamento da exportação.
+      r.ticket?.locator || (r.ticket as { reservationNumber?: string | null } | null)?.reservationNumber || "",
       r.ticket?.ticketCompany || "",
       r.ticket?.purchaseOrderNumber || "",
       r.ticket?.checkIn3 || "",

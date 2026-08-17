@@ -19,8 +19,11 @@ import { BudgetChat, BudgetNotesBadge, BudgetNotesSnippet } from "@/components/b
 import { ActivityTimeline, PlannedEditedBadge } from "@/components/activity-timeline";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison, BudgetNote } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
+import { PageHeader } from "@/components/common/page-header";
+import { usePageTitle } from "@/components/common/use-page-title";
 import { useSidebar } from "@/contexts/sidebar-context";
 import { Link, useSearch } from "wouter";
+import { diasComDiaria, regraDiariaPorTipo } from "@shared/calculation-rules";
 
 function CurrencyInput({ value, onChange, className, disabled, style }: {
   value: number;
@@ -91,6 +94,7 @@ function reconstructDailyValues(subtotal: number, weekdays: number, weekends: nu
 }
 
 export default function BudgetActualPage() {
+  usePageTitle("Realizado");
   const searchString = useSearch();
   const { urlEventId, urlCollaboratorId, urlFunctionId } = useMemo(() => {
     const p = new URLSearchParams(searchString);
@@ -443,7 +447,10 @@ export default function BudgetActualPage() {
     const wkndRatio  = origWknds  > 0 ? myWknds  / origWknds  : 0;
     const dayRatio   = myDays.length / allGroupDays.length;
 
-    const propDiarias     = myDays.length * rawPlan.dailyValue;
+    // Regra 17/08: casa (CLT) só recebe diária nos fins de semana — usa a mesma
+    // função do Planejado (shared/calculation-rules) sobre os dias herdados
+    const myDiasDiaria    = diasComDiaria(rawPlan.collaboratorType, myWkdays, myWknds, getFunctionName(rawPlan.functionId));
+    const propDiarias     = myDiasDiaria * rawPlan.dailyValue;
     const propWkdayLunch  = Math.round(rawPlan.weekdayLunch  * wkdayRatio);
     const propWkdayDinner = Math.round(rawPlan.weekdayDinner * wkdayRatio);
     const propWkndLunch   = Math.round(rawPlan.weekendLunch   * wkndRatio);
@@ -453,7 +460,7 @@ export default function BudgetActualPage() {
 
     return {
       ...rawPlan,
-      dailyQuantity: myDays.length,
+      dailyQuantity: myDiasDiaria,
       weekdayLunch:  propWkdayLunch,
       weekdayDinner: propWkdayDinner,
       weekendLunch:  propWkndLunch,
@@ -497,6 +504,11 @@ export default function BudgetActualPage() {
     const days = getItemDayCounts(item);
     const storedSubtotalDiarias = item.totalValue - item.weekdayLunch - item.weekdayDinner - item.weekendLunch - item.weekendDinner - item.mobility - item.transport;
     const totalDays = days.weekdays + days.weekends;
+    // Regra 17/08: casa (CLT) só recebe diária nos fins de semana — o subtotal
+    // é reconstruído SÓ sobre os fds (dias úteis ficam com diária 0), como no Planejado.
+    // (regraDiariaPorTipo === "fds" e há fds → úteis não entram na reconstrução)
+    const recRegra = regraDiariaPorTipo(item.collaboratorType, getFunctionName(item.functionId));
+    const recWeekdays = (recRegra === "fds" && days.weekends > 0) || recRegra === "nenhuma" ? 0 : days.weekdays;
 
     let valorUtil = 0;
     let valorFds = 0;
@@ -505,13 +517,13 @@ export default function BudgetActualPage() {
 
     if (!isUnfilled) {
       // Restore from saved actual values
-      ({ valorUtil, valorFds } = reconstructDailyValues(storedSubtotalDiarias, days.weekdays, days.weekends));
+      ({ valorUtil, valorFds } = reconstructDailyValues(storedSubtotalDiarias, recWeekdays, days.weekends));
     } else {
       // Actual not yet filled — pre-fill DIÁRIAS from planned values so user has a starting point
       const plannedRef = getPlannedRef(item);
       if (plannedRef && plannedRef.dailyValue > 0) {
         const plannedSub = plannedRef.totalValue - plannedRef.weekdayLunch - plannedRef.weekdayDinner - plannedRef.weekendLunch - plannedRef.weekendDinner - plannedRef.mobility - plannedRef.transport;
-        ({ valorUtil, valorFds } = reconstructDailyValues(plannedSub, days.weekdays, days.weekends));
+        ({ valorUtil, valorFds } = reconstructDailyValues(plannedSub, recWeekdays, days.weekends));
       }
     }
 
@@ -557,7 +569,11 @@ export default function BudgetActualPage() {
     if (!editingItem || !editFormData) return;
     const activeDays = editDayEntries.filter(d => d.active);
     const subtotalDiarias = activeDays.reduce((sum, d) => sum + d.valueCents, 0);
-    const qtdDiarias = activeDays.length;
+    // Só dias COM diária contam na quantidade — casa (CLT) tem dias úteis a
+    // R$ 0 e o Planejado envia dailyQuantity = dias com diária; contar todos
+    // os dias aqui fazia o Comparativo acusar diferença falsa em "Qtd. Diárias".
+    const diasComValor = activeDays.filter(d => d.valueCents > 0).length;
+    const qtdDiarias = diasComValor > 0 ? diasComValor : (subtotalDiarias === 0 ? 0 : activeDays.length);
     const dailyValue = qtdDiarias > 0 ? Math.round(subtotalDiarias / qtdDiarias) : editFormData.valorDiariaUtil;
     const totalMobility = editFormData.mobilityIda + editFormData.mobilityVolta;
     // Translado (transport) faz parte do total gravado — sem ele o totalValue encolhia a cada salvamento
@@ -789,7 +805,7 @@ export default function BudgetActualPage() {
       : cardItem.rhStatus === 'aprovado' ? '#059669'
       : cardItem.rhStatus === 'devolvido' ? '#d97706'
       : cardItem.rhStatus === 'rejeitado' ? '#ef4444'
-      : cardItem.sentForReview ? '#2563eb'
+      : cardItem.sentForReview ? 'var(--primary)'
       : diverges ? '#f59e0b'
       : '#6d28d9';
 
@@ -1044,22 +1060,14 @@ export default function BudgetActualPage() {
     <div className="space-y-7 max-w-5xl mx-auto pb-36">
 
       {/* ── Cabeçalho ── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-[10px] bg-[#6d28d9] flex items-center justify-center shrink-0" style={{boxShadow:'0 4px 14px #6d28d950'}}>
-            <ClipboardCheck className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-[18px] font-bold text-gray-900">Orçamento Realizado</h1>
-            <p className="text-xs text-gray-400">Prestação de contas — escalas enviadas do Planejado</p>
-          </div>
-        </div>
-        {selectedEventId && (
-          <div className="flex items-center gap-3">
-            <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} />
-          </div>
+      <PageHeader
+        icon={ClipboardCheck}
+        title="Realizado"
+        subtitle="Prestação de contas — escalas enviadas do Planejado"
+        actions={selectedEventId && (
+          <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} />
         )}
-      </div>
+      />
 
       {/* ── Banner: prestações devolvidas pelo RH (derivado dos itens, item
            a item — o status agregado do comparativo ficava stale) ── */}
@@ -1336,7 +1344,7 @@ export default function BudgetActualPage() {
 
             {/* Contador */}
             <div className="flex-1" />
-            <span style={{fontSize:11, color:'#94A3B8', fontWeight:600, background:'#F8FAFC', borderRadius:8, padding:'4px 10px'}}>
+            <span style={{fontSize:11, color:'#94A3B8', fontWeight:600, background:'#F8FAFC', borderRadius:8, padding:'4px 10px'}} aria-live="polite">
               {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'itens'}
             </span>
           </div>

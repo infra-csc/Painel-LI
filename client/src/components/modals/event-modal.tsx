@@ -2,12 +2,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { cn } from "@/lib/utils";
 import type { Event, PaymentCompany } from "@shared/schema";
 import { useEffect, useRef, useState } from "react";
 import { X, Check, Trash2, Plus, Loader2 } from "lucide-react";
@@ -40,10 +42,12 @@ interface EventModalProps {
   event?: Event | null;
 }
 
-const BLUE = "#0033CC";
-
-// Shared input class — borderless, surface-container-low bg, ring on focus
-const IC = "h-[44px] text-[13px] rounded-lg border-0 bg-[#f1f3ff] focus-visible:ring-2 focus-visible:ring-blue-600/20 focus-visible:border-transparent px-4";
+// Shared input class — borderless, brand-soft bg, ring on focus
+const IC = "h-11 text-[13px] rounded-lg border-0 bg-brand-soft focus-visible:ring-2 focus-visible:ring-ring/25 focus-visible:ring-offset-0 px-4";
+// Label padrão dos campos do modal
+const LABEL = "block mb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em]";
+const LABEL_SM = "block mb-[5px] text-[10px] font-bold text-slate-400 uppercase tracking-[0.07em]";
+const REQ = <span className="text-destructive">*</span>;
 
 export default function EventModal({ open, onClose, event }: EventModalProps) {
   const { toast } = useToast();
@@ -147,6 +151,8 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
   const onInvalid = () => toast({ title: "Verifique os campos destacados.", description: "Há informações obrigatórias ou inválidas no formulário.", variant: "destructive" });
   const pickCompany = (c: PaymentCompany) => { form.setValue("paymentCompanyName", c.name, { shouldDirty: true }); form.setValue("paymentCompanyCnpj", c.cnpj, { shouldDirty: true }); setShowSugg(false); };
 
+  const canAddCompany = !!manName.trim() && validateCnpj(manCnpj) && !addCompany.isPending;
+
   return (
     <>
       <Dialog open={open} onOpenChange={v => { if (!v) handleClose(); }}>
@@ -154,43 +160,41 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
           data-testid="modal-event">
 
           {/* ── Header ── */}
-          <div style={{ padding: "20px 28px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0, background: "white" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 12, background: "#2563EB", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 4px 14px rgba(37,99,235,0.3)" }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 21, color: "white", fontVariationSettings: "'FILL' 1" }}>
+          <div className="flex items-center justify-between shrink-0 px-5 sm:px-7 py-5 border-b border-border bg-card">
+            <div className="flex items-center gap-3.5">
+              <div className="flex items-center justify-center w-[42px] h-[42px] rounded-xl bg-primary text-primary-foreground shrink-0 shadow-md shadow-primary/30">
+                <span className="material-symbols-outlined text-[21px] [font-variation-settings:'FILL'_1]">
                   {isEditing ? "edit_calendar" : "event_upcoming"}
                 </span>
               </div>
-              <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0F172A", margin: 0, letterSpacing: "-0.3px", fontFamily: "Manrope, sans-serif" }}>
+              <DialogTitle className="text-lg font-extrabold text-foreground tracking-tight m-0">
                 {isEditing ? "Editar Evento" : "Novo Evento"}
-              </h2>
+              </DialogTitle>
             </div>
-            <button type="button" onClick={handleClose} aria-label="Fechar" style={{ width: 34, height: 34, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
-              className="hover:bg-slate-100 hover:text-slate-700 transition-colors"><X size={16} /></button>
+            <button type="button" onClick={handleClose} aria-label="Fechar"
+              className="flex items-center justify-center w-[34px] h-[34px] rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors">
+              <X size={16} />
+            </button>
           </div>
 
           {/* ── Body ── */}
-          <div style={{ padding: "24px 28px", overflowY: "auto", flex: 1 }}>
+          <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-6">
             <Form {...form}>
               <form id="event-form" onSubmit={form.handleSubmit(onSubmit, onInvalid)}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                <div className="flex flex-col gap-5">
 
                   {/* Nome + Local (2 cols) */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField control={form.control} name="name" render={({ field }) => (
                       <div>
-                        <label htmlFor="event-name" style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", display: "block", marginBottom: 6, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                          Nome do Evento <span style={{ color: "#EF4444" }}>*</span>
-                        </label>
+                        <label htmlFor="event-name" className={LABEL}>Nome do Evento {REQ}</label>
                         <Input id="event-name" placeholder="Ex: Rock in Rio 2025" data-testid="input-event-name" className={IC} {...field} />
                         <FormMessage className="text-[11px] mt-1" />
                       </div>
                     )} />
                     <FormField control={form.control} name="location" render={({ field }) => (
                       <div>
-                        <label htmlFor="event-location" style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", display: "block", marginBottom: 6, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                          Local <span style={{ color: "#EF4444" }}>*</span>
-                        </label>
+                        <label htmlFor="event-location" className={LABEL}>Local {REQ}</label>
                         <Input id="event-location" placeholder="Ex: Rio de Janeiro, RJ" data-testid="input-event-location" className={IC} {...field} />
                         <FormMessage className="text-[11px] mt-1" />
                       </div>
@@ -198,14 +202,12 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                   </div>
 
                   {/* Datas (2 cols) */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField control={form.control} name="startDate" render={({ field }) => (
                       <div>
-                        <label htmlFor="event-start-date" style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", display: "block", marginBottom: 6, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                          Início <span style={{ color: "#EF4444" }}>*</span>
-                        </label>
-                        <div style={{ position: "relative" }}>
-                          <span className="material-symbols-outlined" style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 16, color: "#CBD5E1", pointerEvents: "none" }}>calendar_today</span>
+                        <label htmlFor="event-start-date" className={LABEL}>Início {REQ}</label>
+                        <div className="relative">
+                          <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-base text-slate-300 pointer-events-none">calendar_today</span>
                           <Input id="event-start-date" type="date" data-testid="input-event-start-date" className={IC} {...field} />
                         </div>
                         <FormMessage className="text-[11px] mt-1" />
@@ -213,11 +215,9 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                     )} />
                     <FormField control={form.control} name="endDate" render={({ field }) => (
                       <div>
-                        <label htmlFor="event-end-date" style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", display: "block", marginBottom: 6, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                          Fim <span style={{ color: "#EF4444" }}>*</span>
-                        </label>
-                        <div style={{ position: "relative" }}>
-                          <span className="material-symbols-outlined" style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 16, color: "#CBD5E1", pointerEvents: "none" }}>calendar_today</span>
+                        <label htmlFor="event-end-date" className={LABEL}>Fim {REQ}</label>
+                        <div className="relative">
+                          <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-base text-slate-300 pointer-events-none">calendar_today</span>
                           <Input id="event-end-date" type="date" min={form.watch("startDate") || undefined} data-testid="input-event-end-date" className={IC} {...field} />
                         </div>
                         <FormMessage className="text-[11px] mt-1" />
@@ -229,9 +229,9 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                   {isEditing && (
                     <FormField control={form.control} name="status" render={({ field }) => (
                       <div>
-                        <label htmlFor="event-status" style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", display: "block", marginBottom: 6, letterSpacing: "0.1em", textTransform: "uppercase" }}>Status</label>
+                        <label htmlFor="event-status" className={LABEL}>Status</label>
                         <select id="event-status" value={field.value ?? ""} onChange={e => field.onChange(e.target.value)} data-testid="select-event-status"
-                          style={{ height: 44, fontSize: 13, width: "100%", padding: "0 14px", border: "none", borderRadius: 8, background: "#f1f3ff", color: "#1E293B", fontFamily: "inherit", cursor: "pointer", outline: "none" }}>
+                          className="h-11 w-full text-[13px] px-3.5 border-0 rounded-lg bg-brand-soft text-foreground cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring/25">
                           <option value="planejado">Planejado</option>
                           <option value="concluído">Concluído</option>
                           <option value="excluído">Excluído</option>
@@ -246,54 +246,51 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                     <a
                       href={`/operational-mirror?eventId=${event.id}`}
                       data-testid="link-operational-mirror"
-                      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, height: 44, fontSize: 13, fontWeight: 700, color: "#004ac6", background: "#EEF2FF", border: "1px solid rgba(0,74,198,0.15)", borderRadius: 8, textDecoration: "none", fontFamily: "inherit" }}
-                      className="hover:bg-blue-100 transition-colors"
+                      className="flex items-center justify-center gap-2 h-11 text-[13px] font-bold text-primary bg-brand-soft border border-primary/15 rounded-lg no-underline hover:bg-primary/10 transition-colors"
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: 18 }}>table_view</span>
+                      <span className="material-symbols-outlined text-lg">table_view</span>
                       Abrir Espelho Operacional
                     </a>
                   )}
 
                   {/* ── Empresa Pagadora ── */}
-                  <div style={{ background: "#F8FAFC", borderRadius: 12, padding: "16px 18px", border: "1px solid rgba(226,232,240,0.5)" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: 8, background: "#D1FAE5", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#059669", fontVariationSettings: "'FILL' 1" }}>account_balance</span>
+                  <div className="bg-muted/40 rounded-xl px-4 sm:px-[18px] py-4 border border-border/50">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3.5">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-100">
+                          <span className="material-symbols-outlined text-lg text-emerald-600 [font-variation-settings:'FILL'_1]">account_balance</span>
                         </div>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>Empresa Pagadora</span>
-                        {isSaved && <span style={{ fontSize: 10, fontWeight: 700, color: "#059669", background: "#D1FAE5", padding: "2px 8px", borderRadius: 99, textTransform: "uppercase", letterSpacing: "0.05em" }}>Salva</span>}
-                        {isNew   && <span style={{ fontSize: 10, fontWeight: 700, color: "#004ac6", background: "#DBE1FF", padding: "2px 8px", borderRadius: 99, textTransform: "uppercase", letterSpacing: "0.05em" }}>Nova</span>}
-                        {!isSaved && !isNew && <span style={{ fontSize: 10, color: "#94A3B8", fontStyle: "italic" }}>opcional</span>}
+                        <span className="text-[13px] font-bold text-slate-700">Empresa Pagadora</span>
+                        {isSaved && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-[0.05em]">Salva</span>}
+                        {isNew   && <span className="text-[10px] font-bold text-primary bg-brand-soft px-2 py-0.5 rounded-full uppercase tracking-[0.05em]">Nova</span>}
+                        {!isSaved && !isNew && <span className="text-[10px] text-slate-400 italic">opcional</span>}
                       </div>
                       <button type="button" onClick={() => setShowManage(true)}
-                        style={{ fontSize: 11, fontWeight: 700, color: "#004ac6", background: "white", border: "1px solid rgba(0,74,198,0.15)", borderRadius: 7, padding: "5px 12px", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}
-                        className="hover:bg-blue-50 transition-colors">
+                        className="flex items-center gap-1 text-[11px] font-bold text-primary bg-card border border-primary/15 rounded-md px-3 py-[5px] hover:bg-brand-soft transition-colors">
                         Gerenciar{companies.length > 0 ? ` (${companies.length})` : ""}
                       </button>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 10 }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-2.5">
                       <FormField control={form.control} name="paymentCompanyName" render={({ field }) => (
                         <div>
-                          <label htmlFor="event-company-name" style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", display: "block", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em" }}>Nome da Empresa</label>
+                          <label htmlFor="event-company-name" className={LABEL_SM}>Nome da Empresa</label>
                           <FormControl>
-                            <div style={{ position: "relative" }}>
+                            <div className="relative">
                               <input id="event-company-name" placeholder="Digite para buscar..." autoComplete="off"
                                 role="combobox" aria-expanded={showSugg && filtered.length > 0} aria-autocomplete="list"
-                                style={{ height: 38, fontSize: 13, width: "100%", padding: "0 12px", border: "1px solid #E2E8F0", borderRadius: 8, background: "white", color: "#1E293B", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+                                className="h-[38px] w-full text-[13px] px-3 border border-input rounded-lg bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/25 placeholder:text-muted-foreground"
                                 {...field}
                                 ref={nameRef}
                                 onFocus={() => setShowSugg(true)}
                                 onChange={e => { field.onChange(e); setShowSugg(true); }} />
                               {showSugg && filtered.length > 0 && (
-                                <div ref={suggRef} style={{ position: "absolute", zIndex: 60, top: "100%", left: 0, right: 0, marginTop: 4, background: "white", border: "1px solid #E2E8F0", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.1)", overflow: "hidden" }}>
+                                <div ref={suggRef} className="absolute z-[60] top-full left-0 right-0 mt-1 bg-popover border border-border rounded-[10px] shadow-lg overflow-hidden">
                                   {filtered.map(c => (
                                     <button key={c.id} type="button" onMouseDown={e => { e.preventDefault(); pickCompany(c); }}
-                                      style={{ width: "100%", textAlign: "left", padding: "9px 14px", background: "none", border: "none", borderBottom: "1px solid #F8FAFC", cursor: "pointer", fontFamily: "inherit" }}
-                                      className="hover:bg-blue-50 transition-colors">
-                                      <p style={{ fontSize: 12, fontWeight: 600, color: "#1E293B", margin: 0 }}>{c.name}</p>
-                                      <p style={{ fontSize: 10, color: "#94A3B8", margin: 0, fontFamily: "monospace" }}>{c.cnpj}</p>
+                                      className="w-full text-left px-3.5 py-[9px] border-b border-border/50 last:border-b-0 hover:bg-brand-soft transition-colors">
+                                      <p className="text-xs font-semibold text-foreground m-0">{c.name}</p>
+                                      <p className="text-[10px] text-slate-400 m-0 font-mono">{c.cnpj}</p>
                                     </button>
                                   ))}
                                 </div>
@@ -306,10 +303,10 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
 
                       <FormField control={form.control} name="paymentCompanyCnpj" render={({ field }) => (
                         <div>
-                          <label htmlFor="event-company-cnpj" style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", display: "block", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em" }}>CNPJ</label>
+                          <label htmlFor="event-company-cnpj" className={LABEL_SM}>CNPJ</label>
                           <FormControl>
                             <CnpjInput id="event-company-cnpj" value={field.value ?? ""} onChange={field.onChange} onBlur={field.onBlur} name={field.name}
-                              className="h-[38px] text-[13px] border-slate-200 rounded-[8px] bg-white" />
+                              className="h-[38px] text-[13px] border-input rounded-lg bg-card" />
                           </FormControl>
                           <FormMessage className="text-[10px] mt-1" />
                         </div>
@@ -320,16 +317,16 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                   {/* ── Observações ── */}
                   <FormField control={form.control} name="observations" render={({ field }) => (
                     <div>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                        <label htmlFor="event-observations" style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                          Observações <span style={{ color: "#CBD5E1", fontWeight: 400, textTransform: "none" }}>· opcional</span>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label htmlFor="event-observations" className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em]">
+                          Observações <span className="text-slate-300 font-normal normal-case">· opcional</span>
                         </label>
-                        <span style={{ fontSize: 10, color: "#D1D5DB" }}>{obsLen}/500</span>
+                        <span className="text-[10px] text-slate-300">{obsLen}/500</span>
                       </div>
                       <FormControl>
                         <Textarea id="event-observations" rows={3} maxLength={500} placeholder="Notas adicionais, requisitos específicos..."
                           data-testid="textarea-event-observations"
-                          className="text-[13px] resize-none rounded-lg border-0 bg-[#f1f3ff] focus-visible:ring-2 focus-visible:ring-blue-600/20 px-4 py-3"
+                          className="text-[13px] resize-none rounded-lg border-0 bg-brand-soft focus-visible:ring-2 focus-visible:ring-ring/25 focus-visible:ring-offset-0 px-4 py-3"
                           {...field} onChange={e => { field.onChange(e); setObsLen(e.target.value.length); }} />
                       </FormControl>
                       <FormMessage className="text-[11px] mt-1" />
@@ -342,26 +339,17 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
           </div>
 
           {/* ── Footer ── */}
-          <div style={{ padding: "16px 28px", borderTop: "1px solid #F1F5F9", background: "rgba(248,250,252,0.5)", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, flexShrink: 0 }}>
-            <button type="button" onClick={handleClose} data-testid="button-cancel-event"
-              style={{ height: 38, padding: "0 18px", borderRadius: 8, border: "none", background: "transparent", color: "#64748B", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-              className="hover:text-slate-900 transition-colors">
+          <div className="flex items-center justify-end gap-2.5 shrink-0 px-5 sm:px-7 py-4 border-t border-border bg-muted/30">
+            <Button type="button" variant="ghost" onClick={handleClose} data-testid="button-cancel-event" className="h-[38px] px-[18px] text-[13px] font-bold text-slate-500 hover:text-foreground">
               Cancelar
-            </button>
-            <button type="submit" form="event-form" disabled={saveEvent.isPending} data-testid="button-save-event"
-              style={{
-                height: 38, padding: "0 22px", borderRadius: 8, border: "none",
-                background: saveEvent.isPending ? "#6B7280" : "linear-gradient(135deg, #2563EB 0%, #1d4ed8 100%)",
-                color: "white", fontSize: 13, fontWeight: 700, cursor: saveEvent.isPending ? "not-allowed" : "pointer",
-                display: "flex", alignItems: "center", gap: 7, fontFamily: "inherit",
-                boxShadow: saveEvent.isPending ? "none" : "0 4px 14px rgba(37,99,235,0.35)",
-                transition: "all 0.2s",
-              }}>
+            </Button>
+            <Button type="submit" form="event-form" disabled={saveEvent.isPending} data-testid="button-save-event"
+              className="h-[38px] px-[22px] text-[13px] font-bold shadow-md shadow-primary/30 hover:bg-primary-hover disabled:shadow-none">
               {saveEvent.isPending
                 ? <><Loader2 size={13} className="animate-spin" /> Salvando...</>
                 : <><Check size={13} strokeWidth={3} /> {isEditing ? "Salvar Alterações" : "Criar Evento"}</>
               }
-            </button>
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -370,32 +358,31 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
       <Dialog open={showManage} onOpenChange={v => { setShowManage(v); if (!v) { setManName(""); setManCnpj(""); } }}>
         <DialogContent className="p-0 gap-0 sm:max-w-[420px] rounded-2xl border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden flex flex-col max-h-[80vh]">
 
-          <div style={{ padding: "14px 18px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 15, color: "#059669", fontVariationSettings: "'FILL' 1" }}>account_balance</span>
-            <h3 style={{ fontSize: 14, fontWeight: 800, color: "#0F172A", margin: 0 }}>Empresas Salvas</h3>
-            <span style={{ fontSize: 11, fontWeight: 700, background: "#F1F5F9", color: "#94A3B8", padding: "1px 7px", borderRadius: 10 }}>{companies.length}</span>
-            <button type="button" onClick={() => setShowManage(false)} aria-label="Fechar empresas salvas" style={{ marginLeft: "auto", width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
-              className="hover:bg-slate-100 transition-colors"><X size={14} /></button>
+          <div className="flex items-center gap-2.5 shrink-0 px-[18px] py-3.5 border-b border-border">
+            <span className="material-symbols-outlined text-[15px] text-emerald-600 [font-variation-settings:'FILL'_1]">account_balance</span>
+            <DialogTitle className="text-sm font-extrabold text-foreground m-0">Empresas Salvas</DialogTitle>
+            <span className="text-[11px] font-bold bg-muted text-slate-400 px-[7px] py-px rounded-[10px]">{companies.length}</span>
+            <button type="button" onClick={() => setShowManage(false)} aria-label="Fechar empresas salvas"
+              className="ml-auto flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:bg-slate-100 transition-colors"><X size={14} /></button>
           </div>
 
-          <div style={{ overflowY: "auto", flex: 1, padding: "10px 18px" }}>
+          <div className="flex-1 overflow-y-auto px-[18px] py-2.5">
             {companies.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "28px 0", color: "#CBD5E1" }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 30, display: "block", marginBottom: 8 }}>account_balance</span>
-                <p style={{ fontSize: 12, margin: 0 }}>Nenhuma empresa cadastrada.</p>
+              <div className="text-center py-7 text-slate-300">
+                <span className="material-symbols-outlined text-[30px] block mb-2">account_balance</span>
+                <p className="text-xs m-0">Nenhuma empresa cadastrada.</p>
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <div className="flex flex-col gap-[5px]">
                 {companies.map(c => (
-                  <div key={c.id} style={{ display: "flex", alignItems: "center", padding: "9px 12px", borderRadius: 8, background: "#F8FAFC", border: "1px solid #F1F5F9" }} className="group">
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 12, fontWeight: 600, color: "#1E293B", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</p>
-                      <p style={{ fontSize: 10, color: "#94A3B8", margin: 0, fontFamily: "monospace" }}>{c.cnpj}</p>
+                  <div key={c.id} className="group flex items-center px-3 py-[9px] rounded-lg bg-muted/40 border border-border/60">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-foreground m-0 truncate">{c.name}</p>
+                      <p className="text-[10px] text-slate-400 m-0 font-mono">{c.cnpj}</p>
                     </div>
                     <button type="button" onClick={() => delCompany.mutate(c.id)} disabled={delCompany.isPending}
                       aria-label={`Remover empresa ${c.name}`}
-                      style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#CBD5E1", flexShrink: 0 }}
-                      className="hover:bg-red-50 hover:!text-red-400 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-40">
+                      className="flex items-center justify-center w-[26px] h-[26px] rounded-md text-slate-300 shrink-0 hover:bg-red-50 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-40">
                       <Trash2 size={12} />
                     </button>
                   </div>
@@ -404,21 +391,21 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
             )}
           </div>
 
-          <div style={{ padding: "12px 18px", borderTop: "1px solid #F1F5F9", background: "#FAFBFF", flexShrink: 0 }}>
-            <p style={{ fontSize: 10, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>Adicionar empresa</p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+          <div className="shrink-0 px-[18px] py-3 border-t border-border bg-muted/30">
+            <p className="text-[10px] font-bold text-slate-700 uppercase tracking-[0.07em] mb-2">Adicionar empresa</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
               <div>
-                <label htmlFor="manage-company-name" style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", display: "block", marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>Nome</label>
+                <label htmlFor="manage-company-name" className="block mb-[3px] text-[10px] font-bold text-slate-400 uppercase tracking-[0.06em]">Nome</label>
                 <Input id="manage-company-name" value={manName} onChange={e => setManName(e.target.value)} placeholder="Nome Fantasia"
-                  className="h-[34px] text-[12px] border-slate-200 rounded-lg bg-white" />
+                  className="h-[34px] text-xs border-input rounded-lg bg-card" />
               </div>
               <div>
-                <label htmlFor="manage-company-cnpj" style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", display: "block", marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>CNPJ</label>
-                <CnpjInput id="manage-company-cnpj" value={manCnpj} onChange={setManCnpj} name="manCnpj" className="h-[34px] text-[12px] border-slate-200 rounded-lg bg-white" />
+                <label htmlFor="manage-company-cnpj" className="block mb-[3px] text-[10px] font-bold text-slate-400 uppercase tracking-[0.06em]">CNPJ</label>
+                <CnpjInput id="manage-company-cnpj" value={manCnpj} onChange={setManCnpj} name="manCnpj" className="h-[34px] text-xs border-input rounded-lg bg-card" />
               </div>
             </div>
             <button type="button" onClick={async () => {
-              if (!manName.trim() || !validateCnpj(manCnpj) || addCompany.isPending) return;
+              if (!canAddCompany) return;
               const exists = companies.some(c => c.cnpj.replace(/\D/g, "") === manCnpj.replace(/\D/g, ""));
               if (exists) { toast({ title: "CNPJ já cadastrado.", variant: "destructive" }); return; }
               // Sem o try/catch a falha virava unhandled rejection (o toast de erro
@@ -428,13 +415,11 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                 setManName(""); setManCnpj("");
                 toast({ title: "Empresa cadastrada." });
               } catch { /* onError da mutação já notifica */ }
-            }} disabled={!manName.trim() || !validateCnpj(manCnpj) || addCompany.isPending}
-              style={{
-                height: 33, padding: "0 14px", borderRadius: 7, border: "none",
-                background: "#059669", color: "white", fontSize: 12, fontWeight: 600,
-                cursor: addCompany.isPending ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 5, fontFamily: "inherit",
-                opacity: !manName.trim() || !validateCnpj(manCnpj) || addCompany.isPending ? 0.4 : 1,
-              }}>
+            }} disabled={!canAddCompany}
+              className={cn(
+                "flex items-center gap-[5px] h-[33px] px-3.5 rounded-md bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors",
+                "disabled:opacity-40 disabled:cursor-not-allowed",
+              )}>
               {addCompany.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Cadastrar
             </button>
           </div>

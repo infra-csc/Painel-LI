@@ -11,8 +11,10 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { parseBrNumber } from "@/lib/utils";
 import { Link } from "wouter";
+import { PageHeader } from "@/components/common/page-header";
+import { usePageTitle } from "@/components/common/use-page-title";
 import {
-  Calculator, Save, DollarSign, Car, Utensils, ShieldAlert,
+  Calculator, Save, DollarSign, Car, Utensils, ShieldAlert, Bike,
   Lock, ChevronDown, ChevronUp, Clock, BadgeCheck, ExternalLink,
   Search, Building2, Users, Plus, Trash2, Pencil, X, RefreshCw
 } from "lucide-react";
@@ -89,7 +91,18 @@ const formSchema = z.object({
   alimentacao_almoco: moneyField(),
   alimentacao_jantar: moneyField(),
   alimentacao_almoco_ceno: moneyField(),
+  alimentacao_almoco_casa_util: moneyField(),
+  alimentacao_almoco_casa_util_ceno: moneyField(),
   alimentacao_jantar_ceno: moneyField(),
+  // Percurseiro (motoqueiro): pacote fechado por diária, Tipo 1 × Tipo 2
+  percurseiro_t1_motoqueiro: moneyField(),
+  percurseiro_t2_motoqueiro: moneyField(),
+  percurseiro_fee_pct: percentField(),
+  percurseiro_alimentacao: moneyField(),
+  percurseiro_transporte: moneyField(),
+  percurseiro_nf_pct: percentField(),
+  percurseiro_t1_nf: moneyField(),
+  percurseiro_t2_nf: moneyField(),
 });
 
 // Chaves percentuais inteiras (0..100). NÃO passam por conversão reais<->centavos.
@@ -97,6 +110,8 @@ const PERCENT_KEYS = new Set<string>([
   "deflacao_fator_ate_4",
   "deflacao_fator_5_8",
   "deflacao_fator_9_mais",
+  "percurseiro_fee_pct",
+  "percurseiro_nf_pct",
 ]);
 
 // Campos que vivem dentro da zona legada (Collapsible fechado por padrão).
@@ -149,6 +164,16 @@ const FIELD_LABELS: Record<string, string> = {
   alimentacao_almoco: "Alimentação por Refeição — Almoço (Demais)",
   alimentacao_jantar: "Alimentação por Refeição — Jantar (Demais)",
   alimentacao_almoco_ceno: "Alimentação por Refeição — Almoço (Cenotécnica)",
+  alimentacao_almoco_casa_util: "Alimentação por Refeição — Almoço (Casa em dia útil)",
+  alimentacao_almoco_casa_util_ceno: "Alimentação por Refeição — Almoço (Cenotécnica de casa em dia útil)",
+  percurseiro_t1_motoqueiro: "Percurseiro — Motoqueiro Tipo 1",
+  percurseiro_t2_motoqueiro: "Percurseiro — Motoqueiro Tipo 2",
+  percurseiro_fee_pct: "Percurseiro — Fee (%)",
+  percurseiro_alimentacao: "Percurseiro — Alimentação (3 refeições)",
+  percurseiro_transporte: "Percurseiro — Ajuda de custo transporte",
+  percurseiro_nf_pct: "Percurseiro — NF (%) informativo",
+  percurseiro_t1_nf: "Percurseiro — NF Tipo 1",
+  percurseiro_t2_nf: "Percurseiro — NF Tipo 2",
   alimentacao_jantar_ceno: "Alimentação por Refeição — Jantar (Cenotécnica)",
 };
 
@@ -300,6 +325,7 @@ function SectionHeader({ icon: Icon, iconBg, title, subtitle }: { icon: LucideIc
 }
 
 export default function SystemSettingsPage() {
+  usePageTitle("Valores Padrão");
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -523,6 +549,16 @@ export default function SystemSettingsPage() {
       alimentacao_almoco: "40.00",
       alimentacao_jantar: "40.00",
       alimentacao_almoco_ceno: "35.00",
+      alimentacao_almoco_casa_util: "8.00",
+      alimentacao_almoco_casa_util_ceno: "3.00",
+      percurseiro_t1_motoqueiro: "700.00",
+      percurseiro_t2_motoqueiro: "800.00",
+      percurseiro_fee_pct: "15",
+      percurseiro_alimentacao: "102.00",
+      percurseiro_transporte: "50.00",
+      percurseiro_nf_pct: "16",
+      percurseiro_t1_nf: "172.76",
+      percurseiro_t2_nf: "194.67",
       alimentacao_jantar_ceno: "35.00",
     },
   });
@@ -564,6 +600,16 @@ export default function SystemSettingsPage() {
         alimentacao_almoco: centavosToReais(s.alimentacao_almoco ?? 4000),
         alimentacao_jantar: centavosToReais(s.alimentacao_jantar ?? 4000),
         alimentacao_almoco_ceno: centavosToReais(s.alimentacao_almoco_ceno ?? 3500),
+        alimentacao_almoco_casa_util: centavosToReais(s.alimentacao_almoco_casa_util ?? 800),
+        alimentacao_almoco_casa_util_ceno: centavosToReais(s.alimentacao_almoco_casa_util_ceno ?? 300),
+        percurseiro_t1_motoqueiro: centavosToReais(s.percurseiro_t1_motoqueiro ?? 70000),
+        percurseiro_t2_motoqueiro: centavosToReais(s.percurseiro_t2_motoqueiro ?? 80000),
+        percurseiro_fee_pct: String(s.percurseiro_fee_pct ?? 15),
+        percurseiro_alimentacao: centavosToReais(s.percurseiro_alimentacao ?? 10200),
+        percurseiro_transporte: centavosToReais(s.percurseiro_transporte ?? 5000),
+        percurseiro_nf_pct: String(s.percurseiro_nf_pct ?? 16),
+        percurseiro_t1_nf: centavosToReais(s.percurseiro_t1_nf ?? 17276),
+        percurseiro_t2_nf: centavosToReais(s.percurseiro_t2_nf ?? 19467),
         alimentacao_jantar_ceno: centavosToReais(s.alimentacao_jantar_ceno ?? 3500),
       });
     }
@@ -840,15 +886,11 @@ export default function SystemSettingsPage() {
       )}
 
       {/* ── Cabeçalho (padrão pastel das páginas irmãs — flash/regras) ── */}
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-          <Calculator className="w-4 h-4 text-blue-600" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Valores Padrão</h1>
-          <p className="text-xs text-gray-400">Defina os valores base utilizados no cálculo de novos eventos</p>
-        </div>
-      </div>
+      <PageHeader
+        icon={Calculator}
+        title="Valores Padrão"
+        subtitle="Defina os valores base utilizados no cálculo de novos eventos"
+      />
 
       <Form {...form}>
         <form onSubmit={e => { e.preventDefault(); handleSaveAll(); }} className="space-y-6">
@@ -935,9 +977,31 @@ export default function SystemSettingsPage() {
                   <MoneyField control={form.control} name="alimentacao_jantar" label="Jantar — Demais" labelClass="text-emerald-700" />
                   <MoneyField control={form.control} name="alimentacao_almoco_ceno" label="Almoço — Cenotécnica" labelClass="text-emerald-700" />
                   <MoneyField control={form.control} name="alimentacao_jantar_ceno" label="Jantar — Cenotécnica" labelClass="text-emerald-700" />
+                  <MoneyField control={form.control} name="alimentacao_almoco_casa_util" label="Almoço — Casa (CLT) em dia útil" labelClass="text-emerald-700" />
+                  <MoneyField control={form.control} name="alimentacao_almoco_casa_util_ceno" label="Almoço — Cenotécnica de casa em dia útil" labelClass="text-emerald-700" />
                 </div>
                 <p className="mb-0 mt-3 text-[11px] text-gray-400">
-                  Valores por refeição usados no cálculo automático de alimentação (regra por horário de voo). Os campos antigos de alimentação útil/fds continuam valendo apenas para overrides manuais.
+                  Valores por refeição usados no cálculo automático de alimentação (regra por horário de voo). Colaborador de casa (CLT) em dia útil recebe só a diferença do almoço (o vale-refeição cobre o resto); jantar e fins de semana usam os valores cheios — para cenotécnica de casa o jantar útil e os fins de semana usam os valores de Cenotécnica. Os campos antigos de alimentação útil/fds continuam valendo apenas para overrides manuais.
+                </p>
+              </div>
+            </div>
+
+            {/* Percurseiro (motoqueiro): pacote fechado por diária */}
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <SectionHeader icon={Bike} iconBg="bg-slate-700" title="Percurseiro (motoqueiro) — pacote por diária" subtitle="Tipo 1 × Tipo 2 · em viagem sempre 2 diárias, local 1 · alimentação e mobilidade já incluídas" />
+              <div className="p-4 space-y-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <MoneyField control={form.control} name="percurseiro_t1_motoqueiro" label="Motoqueiro — Tipo 1" labelClass="text-slate-700" />
+                  <MoneyField control={form.control} name="percurseiro_t2_motoqueiro" label="Motoqueiro — Tipo 2" labelClass="text-slate-700" />
+                  <PercentField control={form.control} name="percurseiro_fee_pct" label="Fee sobre o motoqueiro (%)" labelClass="text-slate-700" />
+                  <MoneyField control={form.control} name="percurseiro_alimentacao" label="Alimentação (3 refeições)" labelClass="text-slate-700" />
+                  <MoneyField control={form.control} name="percurseiro_transporte" label="Ajuda de custo transporte" labelClass="text-slate-700" />
+                  <PercentField control={form.control} name="percurseiro_nf_pct" label="NF (%) — informativo" labelClass="text-slate-700" />
+                  <MoneyField control={form.control} name="percurseiro_t1_nf" label="NF — Tipo 1 (valor)" labelClass="text-slate-700" />
+                  <MoneyField control={form.control} name="percurseiro_t2_nf" label="NF — Tipo 2 (valor)" labelClass="text-slate-700" />
+                </div>
+                <p className="mb-0 text-[11px] text-gray-400">
+                  Total por diária = motoqueiro + fee + alimentação + transporte + NF (Tipo 1: R$ 1.129,76 · Tipo 2: R$ 1.266,67 nos valores padrão). O valor da NF é editável por tipo porque a tabela de origem não segue uma fórmula única — o percentual acima é só referência. O tipo de cada percurseiro é definido na escalação (ou no Planejado, para os já escalados).
                 </p>
               </div>
             </div>
@@ -1029,7 +1093,7 @@ export default function SystemSettingsPage() {
                 <div className="space-y-3 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/40 p-4">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold text-emerald-700">Nova empresa</p>
-                    <button type="button" onClick={() => { setShowAddCompany(false); setNewCompanyName(""); setNewCompanyCnpj(""); }} className="text-slate-400 hover:text-slate-600">
+                    <button type="button" aria-label="Fechar formulário de nova empresa" onClick={() => { setShowAddCompany(false); setNewCompanyName(""); setNewCompanyCnpj(""); }} className="text-slate-400 hover:text-slate-600">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
@@ -1255,7 +1319,7 @@ export default function SystemSettingsPage() {
                           Nenhuma função encontrada para "<span className="font-medium">{functionSearch}</span>".
                         </div>
                       ) : (
-                        <>
+                        <div className="overflow-x-auto"><div className="min-w-[420px]">
                           <div className="grid grid-cols-3 border-b border-slate-200 bg-slate-50 px-5 py-2">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Função</span>
                             <span className="text-right text-[10px] font-bold uppercase tracking-wider text-blue-600">Dia Útil</span>
@@ -1318,7 +1382,7 @@ export default function SystemSettingsPage() {
                                             className="w-16 border-none bg-transparent text-right font-mono text-sm font-semibold tabular-nums text-slate-700 outline-none focus:outline-none"
                                           />
                                         </div>
-                                        <button type="button" onClick={cancelEditFunction} className="flex items-center justify-center text-slate-400 opacity-0 transition-opacity hover:text-slate-600 group-hover/cell:opacity-100">
+                                        <button type="button" aria-label="Cancelar edição" onClick={cancelEditFunction} className="flex items-center justify-center text-slate-400 opacity-0 transition-opacity hover:text-slate-600 group-hover/cell:opacity-100">
                                           <X className="w-3 h-3" />
                                         </button>
                                       </div>
@@ -1364,7 +1428,7 @@ export default function SystemSettingsPage() {
                                     {isCoord ? (
                                       <Tooltip>
                                         <TooltipTrigger asChild>
-                                          <span className="shrink-0 cursor-help rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-semibold text-blue-600">Base</span>
+                                          <span className="shrink-0 cursor-help rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600">Base</span>
                                         </TooltipTrigger>
                                         <TooltipContent side="top" className="max-w-[220px] text-center text-xs leading-snug">
                                           Função base: valor usado como referência quando a função do colaborador não possui valor personalizado cadastrado
@@ -1397,7 +1461,7 @@ export default function SystemSettingsPage() {
                               Gerenciar funções <ExternalLink className="w-3 h-3" />
                             </Link>
                           </div>
-                        </>
+                        </div></div>
                       )}
                     </div>
                   );

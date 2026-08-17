@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { PageHeader } from "@/components/common/page-header";
+import { usePageTitle } from "@/components/common/use-page-title";
 import {
   Calculator, Home, Briefcase, Hammer, Bike, Info, UtensilsCrossed, Bus, TrendingDown, Settings,
 } from "lucide-react";
@@ -8,7 +10,7 @@ import {
   calcDeflatedDailies, deflationFactorsFromSettings, type DeflationFactors,
   CASA_DAILY_RATES, CASA_FOOD_2026, MOBILITY_2026,
   FREELA_DAILY_RATES, FREELA_EXTRA_DAY_ALLOWANCE,
-  EMPREITA_CLOSED_VALUES, PERCURSEIRO_TYPES,
+  EMPREITA_CLOSED_VALUES, PERCURSEIRO_TIPOS, percurseiroDiariaCents, type PercurseiroDiaria,
   CASA_SETTING_KEYS, FREELA_SETTING_KEYS,
 } from "@shared/calculation-rules";
 
@@ -46,6 +48,7 @@ const TABS = [
 ] as const;
 
 export default function CalculationRulesPage() {
+  usePageTitle("Regras de Cálculo");
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("casa");
 
   // Valores vigentes: mesmos settings que o motor de cálculo usa (Valores Padrão)
@@ -82,17 +85,11 @@ export default function CalculationRulesPage() {
     <div className="min-h-screen bg-[#F8FAFC] p-6">
       <div className="max-w-6xl mx-auto space-y-4">
         {/* Header */}
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-cyan-100 flex items-center justify-center shrink-0">
-              <Calculator className="w-4 h-4 text-cyan-600" />
-            </div>
-            Regras de Cálculo
-          </h1>
-          <p className="text-xs text-gray-400 mt-0.5 ml-10">
-            Tabelas de referência — valores vigentes dos Valores Padrão, base 2026 — para diárias, alimentação e mobilidade, com a régua de deflação por período
-          </p>
-        </div>
+        <PageHeader
+          icon={Calculator}
+          title="Regras de Cálculo"
+          subtitle="Tabelas de referência — valores vigentes dos Valores Padrão, base 2026 — para diárias, alimentação e mobilidade, com a régua de deflação por período"
+        />
 
         {/* Fonte dos valores aplicados */}
         <div className="bg-blue-50 border border-blue-200 rounded-2xl px-5 py-3.5 flex items-start gap-3">
@@ -139,7 +136,7 @@ export default function CalculationRulesPage() {
           {tab === "casa" && <CasaTab rates={casaRates} food={casaFood} factors={factors} />}
           {tab === "freela" && <FreelaTab rates={freelaRates} factors={factors} />}
           {tab === "empreita" && <EmpreitaTab />}
-          {tab === "percurseiro" && <PercurseiroTab />}
+          {tab === "percurseiro" && <PercurseiroTab settings={settings} />}
         </div>
       </div>
     </div>
@@ -163,7 +160,7 @@ function Card({ title, icon: Icon, children, accent = "text-slate-500" }: any) {
 function RateTable({ rows, headers }: { rows: (string | number)[][]; headers: string[] }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-xs">
+      <table className="w-full min-w-[560px] text-xs">
         <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-400">
           <tr>
             {headers.map((h, i) => (
@@ -384,37 +381,38 @@ function EmpreitaTab() {
   );
 }
 
-function PercurseiroTab() {
-  const linhas: { label: string; get: (t: (typeof PERCURSEIRO_TYPES)[number]) => string }[] = [
-    { label: "Motoqueiro", get: t => fmt(t.motoqueiroCents) },
-    { label: "Fee Ivan (15%)", get: t => fmt(t.feeIvanCents) },
-    { label: "Alimentação (3 refeições)", get: t => fmt(t.alimentacaoCents) },
-    { label: "Ajuda de custo transporte", get: t => fmt(t.transporteCents) },
-    { label: "NF (16%) — proposta", get: t => fmt(t.nfPropostaCents) },
-    { label: "NF (16%) — planilha base", get: t => fmt(t.nfPlanilhaCents) },
+function PercurseiroTab({ settings }: { settings?: SystemSettings }) {
+  // Valores VIGENTES (Valores Padrão), com fallback na tabela do usuário 17/08
+  const tipos = PERCURSEIRO_TIPOS.map(t => ({ label: t.label, d: percurseiroDiariaCents(t.value, settings)! }));
+  const linhas: { label: string; get: (d: PercurseiroDiaria) => string }[] = [
+    { label: "Motoqueiro", get: d => fmt(d.motoqueiro) },
+    { label: "Fee Ivan (15%)", get: d => fmt(d.fee) },
+    { label: "Alimentação (3 refeições)", get: d => fmt(d.alimentacao) },
+    { label: "Ajuda de custo transporte", get: d => fmt(d.transporte) },
+    { label: "NF (16%)", get: d => fmt(d.nf) },
   ];
   return (
     <div className="space-y-4">
       <div className="bg-blue-50 border border-blue-200 rounded-2xl px-5 py-3.5 flex items-start gap-3">
         <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
         <p className="text-xs text-blue-800">
-          Motoqueiros em viagem: valor <span className="font-bold">fixo por tipo, sempre 2 diárias</span> e sempre com emissão de NF.
+          Motoqueiros: pacote <span className="font-bold">fixo por tipo</span> e sempre com emissão de NF. Em <span className="font-bold">viagem</span> (com passagem) são sempre 2 diárias, independente do período; <span className="font-bold">local</span> (SP/Grande SP) é 1 diária. Alimentação e mobilidade já estão dentro do pacote (não entram no Planejado).
         </p>
       </div>
       <Card title="Motoqueiros em viagem (2 diárias)" icon={Bike} accent="text-cyan-600">
         <RateTable
-          headers={["Composição", ...PERCURSEIRO_TYPES.map(t => t.tipo)]}
+          headers={["Composição", ...tipos.map(t => t.label)]}
           rows={[
-            ...linhas.map(l => [l.label, ...PERCURSEIRO_TYPES.map(t => l.get(t))]),
-            ["Total — proposta", ...PERCURSEIRO_TYPES.map(t => fmt(t.totalPropostaCents))],
-            ["Total — planilha base", ...PERCURSEIRO_TYPES.map(t => fmt(t.totalPlanilhaCents))],
+            ...linhas.map(l => [l.label, ...tipos.map(t => l.get(t.d))]),
+            ["Total por diária", ...tipos.map(t => fmt(t.d.total))],
+            ["Em viagem (2 diárias)", ...tipos.map(t => fmt(t.d.total * 2))],
           ]}
         />
         <div className="flex items-start gap-2 px-4 py-3 border-t border-gray-50 bg-amber-50/50">
           <Info className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
           <p className="text-[11px] text-amber-700">
-            O slide de origem aponta divergência no cálculo dos 16% de NF entre a proposta e a planilha base —
-            os dois valores ficam registrados aqui até a definição final.
+            Os 16% de NF não são deriváveis das demais parcelas (16% do subtotal daria R$ 153,12) — o valor da NF
+            vem da tabela confirmada em 17/08 e é editável nos Valores Padrão, junto com as demais parcelas.
           </p>
         </div>
       </Card>

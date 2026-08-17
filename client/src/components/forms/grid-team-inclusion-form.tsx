@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { formatDiarias } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calendar, Save, Grid3x3, Plus, Trash2, Ticket, Copy, MoreHorizontal, HelpCircle, Download, Upload, Check, ChevronsUpDown } from "lucide-react";
+import { Calendar, Save, Grid3x3, Plus, Trash2, Ticket, Copy, MoreHorizontal, HelpCircle, Download, Upload, Check, ChevronsUpDown, AlertTriangle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -98,6 +98,83 @@ interface ProcessedRange {
   needsAccommodation: boolean;
   rowOrder: number;
 }
+
+// ─── Célula de quantidade da grade ───────────────────────────────────────────
+// Input numérico leve (substitui 1 Radix Select por célula — 130+ por grade):
+//   ↑ / ↓ = +1 / −1 · Delete = zera · ← → = célula ao lado · Enter / Shift+Enter
+//   e Ctrl+↑ / Ctrl+↓ = linha abaixo / acima · clamp 0..15.
+const QTY_MAX = 15;
+const qtyCellSelector = (r: number, c: number) => `[data-qty-cell="${r}-${c}"]`;
+
+interface QtyCellProps {
+  value: number;
+  rowIdx: number;
+  colIdx: number;
+  functionName: string;
+  dayLabel: string;
+  isWeekend: boolean;
+  onChange: (value: number) => void;
+}
+
+const QtyCell = memo(function QtyCell({ value, rowIdx, colIdx, functionName, dayLabel, isWeekend, onChange }: QtyCellProps) {
+  const clamp = (n: number) => Math.max(0, Math.min(QTY_MAX, n));
+
+  const focusCell = (e: React.KeyboardEvent<HTMLInputElement>, dRow: number, dCol: number) => {
+    const table = e.currentTarget.closest("table");
+    const target = table?.querySelector<HTMLInputElement>(qtyCellSelector(rowIdx + dRow, colIdx + dCol));
+    if (target) {
+      e.preventDefault();
+      target.focus();
+      target.select();
+    }
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    switch (e.key) {
+      case "ArrowUp":
+        if (e.ctrlKey || e.metaKey) { focusCell(e, -1, 0); return; }
+        e.preventDefault(); onChange(clamp(value + 1)); return;
+      case "ArrowDown":
+        if (e.ctrlKey || e.metaKey) { focusCell(e, 1, 0); return; }
+        e.preventDefault(); onChange(clamp(value - 1)); return;
+      case "ArrowLeft":  focusCell(e, 0, -1); return;
+      case "ArrowRight": focusCell(e, 0, 1); return;
+      case "Enter":      focusCell(e, e.shiftKey ? -1 : 1, 0); return;
+      case "Delete":     e.preventDefault(); onChange(0); return;
+      default: return;
+    }
+  };
+
+  const onInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, "");
+    if (digits === "") { onChange(0); return; }
+    onChange(clamp(parseInt(digits.slice(-2), 10) || 0));
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      autoComplete="off"
+      data-qty-cell={`${rowIdx}-${colIdx}`}
+      value={value > 0 ? String(value) : ""}
+      placeholder="–"
+      aria-label={`${functionName}, ${dayLabel}`}
+      title="↑/↓ ajusta · ←/→ muda de célula · Enter desce · Delete zera"
+      onChange={onInput}
+      onKeyDown={onKeyDown}
+      onFocus={e => e.currentTarget.select()}
+      className={cn(
+        "h-7 w-12 rounded-lg text-center text-xs font-semibold tabular-nums transition-colors outline-none",
+        "focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-slate-300",
+        value > 0
+          ? "bg-brand-soft text-primary border border-primary/30"
+          : cn("bg-white text-slate-500 border border-slate-200", isWeekend && "bg-orange-50/40"),
+      )}
+    />
+  );
+});
 
 export default function GridTeamInclusionForm() {
   const [functionRows, setFunctionRows] = useState<FunctionRow[]>([]);
@@ -420,11 +497,7 @@ export default function GridTeamInclusionForm() {
 
     setFunctionRows(prev => [...prev, newRow]);
     setShowFunctionSelect(false);
-
-    toast({
-      title: "Função adicionada",
-      description: `${selectedFunction.name} adicionada à grade`,
-    });
+    // Sem toast: a linha nova aparece na grade (feedback visual suficiente)
   };
 
   const openFunctionSelect = () => {
@@ -441,10 +514,6 @@ export default function GridTeamInclusionForm() {
     };
 
     setFunctionRows(prev => [...prev, newRow]);
-    toast({
-      title: "Função duplicada",
-      description: `Função ${originalRow.functionName} duplicada com sucesso.`,
-    });
   };
 
   const duplicateScheduleOnly = (functionId: string) => {
@@ -879,6 +948,42 @@ export default function GridTeamInclusionForm() {
 
   const processGrid = () => processedRanges;
 
+  // Resumo da grade (barra acima da tabela): funções · pessoas-dia · registros
+  const gridSummary = useMemo(() => {
+    let pessoasDia = 0;
+    for (const row of functionRows) {
+      for (const date of dates) pessoasDia += row.dailyRates[date] || 0;
+    }
+    return { funcoes: functionRows.length, pessoasDia, registros: processedRanges.length };
+  }, [functionRows, dates, processedRanges]);
+
+  // Linhas com passagem marcada mas sem data de voo (ida ou retorno) — aviso
+  const rowsMissingFlightDate = useMemo(
+    () => functionRows.filter(r => r.needsTicket && (!r.dataVooIda || !r.dataVooRetorno)),
+    [functionRows],
+  );
+
+  // Prévia agrupada por função (na ordem da grade)
+  const previewGroups = useMemo(() => {
+    const groups: { functionId: string; functionName: string; records: ProcessedRange[] }[] = [];
+    const byId = new Map<string, number>();
+    for (const range of processedRanges) {
+      let idx = byId.get(range.functionId);
+      if (idx === undefined) {
+        const functionRow = functionRows.find(r => r.functionId === range.functionId);
+        const functionName = functionRow?.functionName ||
+          functionMap.get(range.functionId)?.name ||
+          functionMap.get(range.functionId.split('-')[0])?.name ||
+          'Função não encontrada';
+        idx = groups.length;
+        byId.set(range.functionId, idx);
+        groups.push({ functionId: range.functionId, functionName, records: [] });
+      }
+      groups[idx].records.push(range);
+    }
+    return groups;
+  }, [processedRanges, functionRows, functionMap]);
+
   const handleSubmit = async () => {
     // Valida o formulário (evento/período) antes de qualquer coisa: sem evento
     // o backend rejeitaria o lote inteiro e o erro apareceria só num toast.
@@ -980,11 +1085,8 @@ export default function GridTeamInclusionForm() {
     <Card className="border-slate-200 shadow-sm rounded-xl overflow-hidden">
       <CardHeader className="border-b border-slate-100 px-6 py-4" style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
         <div className="flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-[9px] bg-[#0033CC] flex items-center justify-center shrink-0"
-            style={{ boxShadow: "0 4px 12px #0033CC40" }}
-          >
-            <Grid3x3 className="w-4 h-4 text-white" />
+          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-brand-soft text-primary shrink-0">
+            <Grid3x3 className="w-4 h-4" aria-hidden="true" />
           </div>
           <div>
             <CardTitle className="text-[15px] font-bold text-slate-900">Escalação por Grade</CardTitle>
@@ -1060,7 +1162,7 @@ export default function GridTeamInclusionForm() {
             />
 
             {/* Datas */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="startDate"
@@ -1105,8 +1207,7 @@ export default function GridTeamInclusionForm() {
             <button
               type="button"
               onClick={generateGrid}
-              className="w-full h-10 flex items-center justify-center gap-2 text-white text-sm font-semibold rounded-lg transition-all hover:opacity-90 hover:-translate-y-0.5 hover:shadow-lg"
-              style={{ background: "#0033CC", boxShadow: "0 3px 10px #0033CC40" }}
+              className="w-full h-10 flex items-center justify-center gap-2 text-white text-sm font-semibold rounded-lg transition-all bg-primary hover:bg-primary-hover hover:-translate-y-0.5 hover:shadow-lg shadow-sm"
               data-testid="button-generate-grid"
             >
               <Calendar className="w-4 h-4" />
@@ -1145,14 +1246,17 @@ export default function GridTeamInclusionForm() {
             {showGrid && (
               <div className="space-y-3 border-t border-slate-100 mt-6 pt-6">
                 {/* Header com controles */}
-                <div className="flex justify-between items-center gap-3">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-wrap justify-between items-center gap-3">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[13px] font-semibold text-slate-700">Grade de Inclusões</span>
-                    {functionRows.length > 0 && (
-                      <span className="text-[11px] text-slate-400">({functionRows.length} {functionRows.length === 1 ? 'função' : 'funções'})</span>
-                    )}
+                    {/* Barra de resumo — atualiza a cada célula editada */}
+                    <span className="text-[11px] text-slate-500 tabular-nums" aria-live="polite">
+                      {gridSummary.funcoes} {gridSummary.funcoes === 1 ? 'função' : 'funções'}
+                      {' · '}{gridSummary.pessoasDia} pessoas-dia
+                      {' · '}{gridSummary.registros} {gridSummary.registros === 1 ? 'registro' : 'registros'}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <button
                       type="button"
                       onClick={() => setShowHelp(!showHelp)}
@@ -1182,8 +1286,7 @@ export default function GridTeamInclusionForm() {
                     <button
                       type="button"
                       onClick={openFunctionSelect}
-                      className="h-8 px-3 flex items-center gap-1.5 text-xs font-semibold text-white rounded-lg transition-all"
-                      style={{ background: "#0033CC", boxShadow: "0 2px 6px #0033CC40" }}
+                      className="h-8 px-3 flex items-center gap-1.5 text-xs font-semibold text-white rounded-lg transition-colors bg-primary hover:bg-primary-hover shadow-sm"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       Adicionar Função
@@ -1194,7 +1297,7 @@ export default function GridTeamInclusionForm() {
                 {/* Seção de Ajuda */}
                 <Collapsible open={showHelp}>
                   <CollapsibleContent>
-                    <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                       <div className="grid md:grid-cols-2 gap-4 text-sm">
                         <div>
                           <h4 className="font-semibold text-blue-900 mb-2">Como preencher</h4>
@@ -1229,9 +1332,21 @@ export default function GridTeamInclusionForm() {
                     </div>
                   </CollapsibleContent>
                 </Collapsible>
+                {/* Aviso: passagem marcada sem data de voo */}
+                {rowsMissingFlightDate.length > 0 && (
+                  <div role="status" className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />
+                    <span>
+                      {rowsMissingFlightDate.length === 1
+                        ? <>A função <strong>{rowsMissingFlightDate[0].functionName}</strong> está marcada com passagem mas não tem data de voo (ida e retorno).</>
+                        : <>{rowsMissingFlightDate.length} funções estão marcadas com passagem sem data de voo (ida e retorno): <strong>{rowsMissingFlightDate.map(r => r.functionName).join(', ')}</strong>.</>}
+                    </span>
+                  </div>
+                )}
+
                 <div className="rounded-xl border border-slate-200 overflow-hidden">
                   <div className="overflow-x-auto max-h-[550px]">
-                    <table className="w-full text-sm">
+                    <table className="w-full min-w-[720px] text-sm">
                       <thead className="bg-slate-50 sticky top-0">
                         <tr>
                           <th className="px-2 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-12 min-w-[3rem] sticky left-0 bg-slate-50 z-20">
@@ -1263,7 +1378,7 @@ export default function GridTeamInclusionForm() {
                             return (
                               <th key={date} className={`px-2 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest font-semibold w-16 ${isWeekend ? 'bg-orange-50/60 text-orange-400' : 'bg-blue-50/50 text-slate-400'}`}>
                                 <div className="leading-none font-bold">{d}</div>
-                                <div className="text-[9px] mt-0.5 opacity-70 normal-case tracking-normal">{dayName}</div>
+                                <div className="text-[10px] mt-0.5 opacity-70 normal-case tracking-normal">{dayName}</div>
                               </th>
                             );
                           })}
@@ -1285,18 +1400,29 @@ export default function GridTeamInclusionForm() {
                               <span className="block truncate" title={row.functionName}>{row.functionName}</span>
                             </td>
                             <td className="px-2 py-2 border-r border-slate-100 text-center">
-                              <Checkbox
-                                checked={row.needsTicket}
-                                onCheckedChange={(checked) => updateNeedsTicket(row.functionId, checked === true)}
-                                data-testid={`checkbox-needs-ticket-${row.functionId}`}
-                                className="accent-blue-500"
-                              />
+                              <span className="inline-flex items-center gap-1">
+                                <Checkbox
+                                  checked={row.needsTicket}
+                                  onCheckedChange={(checked) => updateNeedsTicket(row.functionId, checked === true)}
+                                  data-testid={`checkbox-needs-ticket-${row.functionId}`}
+                                  aria-label={`Precisa de passagem — ${row.functionName}`}
+                                  className="accent-blue-500"
+                                />
+                                {row.needsTicket && (!row.dataVooIda || !row.dataVooRetorno) && (
+                                  <AlertTriangle
+                                    className="w-3 h-3 text-amber-500"
+                                    role="img"
+                                    aria-label="Passagem marcada sem data de voo"
+                                  />
+                                )}
+                              </span>
                             </td>
                             <td className="px-2 py-2 border-r border-slate-100 text-center">
                               <Checkbox
                                 checked={row.needsAccommodation}
                                 onCheckedChange={(checked) => updateNeedsAccommodation(row.functionId, checked === true)}
                                 data-testid={`checkbox-needs-accommodation-${row.functionId}`}
+                                aria-label={`Precisa de hospedagem — ${row.functionName}`}
                                 className="accent-blue-500"
                               />
                             </td>
@@ -1334,52 +1460,27 @@ export default function GridTeamInclusionForm() {
                                 maxLength={15}
                               />
                             </td>
-                            {dates.map(date => {
-                              const { isWeekend } = formatDateHeader(date);
+                            {dates.map((date, colIdx) => {
+                              const { date: d, dayName, isWeekend } = formatDateHeader(date);
                               const val = row.dailyRates[date] || 0;
                               return (
                                 <td key={date} className={`px-1 py-2 border-r border-slate-100 text-center ${isWeekend ? 'bg-orange-50/30' : ''}`}>
-                                  <Select
-                                    value={val.toString()}
-                                    onValueChange={(v) => updateDailyRate(row.functionId, date, parseInt(v))}
-                                  >
-                                    <SelectTrigger
-                                      className={`!h-7 !px-1.5 rounded-lg text-xs font-semibold transition-colors py-0 ${val >= 10 ? 'w-14' : 'w-12'} ${
-                                        val > 0
-                                          ? 'bg-[#0033CC]/10 text-[#0033CC] border border-[#0033CC]/30'
-                                          : 'bg-white text-slate-300 border border-slate-200'
-                                      }`}
-                                    >
-                                      <SelectValue>
-                                        <span className="tabular-nums">{val > 0 ? val : '–'}</span>
-                                      </SelectValue>
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="0">–</SelectItem>
-                                      <SelectItem value="1">1</SelectItem>
-                                      <SelectItem value="2">2</SelectItem>
-                                      <SelectItem value="3">3</SelectItem>
-                                      <SelectItem value="4">4</SelectItem>
-                                      <SelectItem value="5">5</SelectItem>
-                                      <SelectItem value="6">6</SelectItem>
-                                      <SelectItem value="7">7</SelectItem>
-                                      <SelectItem value="8">8</SelectItem>
-                                      <SelectItem value="9">9</SelectItem>
-                                      <SelectItem value="10">10</SelectItem>
-                                      <SelectItem value="11">11</SelectItem>
-                                      <SelectItem value="12">12</SelectItem>
-                                      <SelectItem value="13">13</SelectItem>
-                                      <SelectItem value="14">14</SelectItem>
-                                      <SelectItem value="15">15</SelectItem>
-                                    </SelectContent>
-                                  </Select>
+                                  <QtyCell
+                                    value={val}
+                                    rowIdx={rowIdx}
+                                    colIdx={colIdx}
+                                    functionName={row.functionName}
+                                    dayLabel={`${dayName} ${d}`}
+                                    isWeekend={isWeekend}
+                                    onChange={(v) => updateDailyRate(row.functionId, date, v)}
+                                  />
                                 </td>
                               );
                             })}
                             <td className="px-2 py-2 text-center">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+                                  <Button variant="ghost" size="sm" aria-label={`Ações da função ${row.functionName}`} className="h-7 w-7 p-0 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
                                     <MoreHorizontal className="w-3 h-3" />
                                   </Button>
                                 </DropdownMenuTrigger>
@@ -1424,7 +1525,7 @@ export default function GridTeamInclusionForm() {
                   type="button"
                   onClick={openFunctionSelect}
                   disabled={dates.length === 0}
-                  className="border-2 border-dashed border-slate-200 text-slate-400 hover:border-[#0033CC]/40 hover:text-[#0033CC] hover:bg-blue-50/30 rounded-xl w-full py-2.5 text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="border-2 border-dashed border-slate-200 text-slate-400 hover:border-primary/40 hover:text-primary hover:bg-brand-soft/60 rounded-xl w-full py-2.5 text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-4 h-4" />
                   Adicionar Função à Grade
@@ -1437,33 +1538,36 @@ export default function GridTeamInclusionForm() {
                     <div className="rounded-xl border border-slate-200 overflow-hidden">
                       <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200">
                         <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Prévia dos registros</span>
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${records.length > 0 ? 'bg-[#0033CC]/10 text-[#0033CC]' : 'bg-slate-100 text-slate-400'}`}>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${records.length > 0 ? 'bg-brand-soft text-primary' : 'bg-slate-100 text-slate-400'}`} aria-live="polite">
                           {records.length} {records.length === 1 ? 'registro' : 'registros'}
                         </span>
                       </div>
-                      <div className="max-h-40 overflow-y-auto">
+                      {/* Agrupada por função, sem altura máxima (nada fica escondido) */}
+                      <div>
                         {records.length === 0 ? (
                           <p className="text-slate-400 text-sm text-center py-4 italic">Nenhum registro configurado ainda.</p>
                         ) : (
-                          records.map((range, index) => {
-                            const functionRow = functionRows.find(r => r.functionId === range.functionId);
-                            const functionName = functionRow?.functionName ||
-                              functionMap.get(range.functionId)?.name ||
-                              functionMap.get(range.functionId.split('-')[0])?.name ||
-                              'Função não encontrada';
-                            return (
-                              <div key={index} className={`flex items-center justify-between px-4 py-2 text-sm ${index % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'}`}>
-                                <div className="flex items-center gap-2">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-[#0033CC]/40 shrink-0" />
-                                  <span className="font-medium text-slate-700">{functionName}</span>
-                                  <span className="text-xs text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">{formatDiarias(range.dailyRate)}</span>
-                                </div>
-                                <span className="text-xs text-slate-400 font-medium shrink-0">
-                                  {formatDateForDisplay(range.startDate)} → {formatDateForDisplay(range.endDate)}
+                          previewGroups.map((group, gi) => (
+                            <div key={group.functionId} className={gi > 0 ? 'border-t border-slate-100' : ''}>
+                              <div className="flex items-center justify-between px-4 py-1.5 bg-slate-50/70">
+                                <span className="flex items-center gap-2 text-[12px] font-semibold text-slate-700">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-primary/40 shrink-0" aria-hidden="true" />
+                                  {group.functionName}
+                                </span>
+                                <span className="text-[11px] text-slate-400 tabular-nums">
+                                  {group.records.length} {group.records.length === 1 ? 'registro' : 'registros'}
                                 </span>
                               </div>
-                            );
-                          })
+                              {group.records.map((range, index) => (
+                                <div key={`${group.functionId}-${index}`} className={`flex items-center justify-between gap-3 pl-8 pr-4 py-1.5 text-sm ${index % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}>
+                                  <span className="text-xs text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">{formatDiarias(range.dailyRate)}</span>
+                                  <span className="text-xs text-slate-400 font-medium shrink-0 tabular-nums">
+                                    {formatDateForDisplay(range.startDate)} → {formatDateForDisplay(range.endDate)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ))
                         )}
                       </div>
                     </div>
@@ -1507,8 +1611,7 @@ export default function GridTeamInclusionForm() {
                     onClick={handleSubmit}
                     disabled={isProcessing || processedRanges.length === 0 || !selectedEventId}
                     title={!selectedEventId ? "Selecione o evento para criar as escalações" : undefined}
-                    className="w-full h-11 flex items-center justify-center gap-2 text-white text-sm font-semibold rounded-lg transition-all hover:opacity-90 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0"
-                    style={{ background: "#0033CC", boxShadow: "0 3px 12px #0033CC40" }}
+                    className="w-full h-11 flex items-center justify-center gap-2 text-white text-sm font-semibold rounded-lg transition-all bg-primary hover:bg-primary-hover hover:-translate-y-0.5 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0"
                     data-testid="button-save-grid"
                   >
                     <Save className="w-4 h-4" />
@@ -1624,12 +1727,12 @@ export default function GridTeamInclusionForm() {
             <DialogTitle>Colar Dados do Excel</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
-              <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">📋 Formato Esperado:</p>
-              <div className="text-xs text-blue-800 dark:text-blue-200 font-mono bg-white dark:bg-gray-900 p-2 rounded">
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+              <p className="text-sm font-semibold text-blue-900 mb-2">📋 Formato Esperado:</p>
+              <div className="text-xs text-blue-800 font-mono bg-white p-2 rounded">
                 Função | Data Voo Ida | Horário Chegada | Data Voo Retorno | Horário Partida | Passagem | Hospedagem | [Diárias por dia...]
               </div>
-              <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
+              <p className="text-xs text-blue-700 mt-2">
                 <strong>Dica:</strong> Copie as linhas do Excel (sem cabeçalho) e cole abaixo. As diárias nas colunas extras serão aplicadas às datas correspondentes.
               </p>
             </div>

@@ -1,8 +1,12 @@
 import type { ReactNode } from "react";
-import { Eye, CalendarDays, MapPin, Plane, Bus, ArrowLeftRight } from "lucide-react";
+import { MessageSquare, CalendarDays, MapPin, Plane, Bus, ArrowLeftRight, BedDouble, Receipt, Headset, Bike } from "lucide-react";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDiarias, formatDateRange } from "@/lib/utils";
-import type { TeamInclusion, Ticket, Accommodation, SwapRequest } from "@shared/schema";
+import type { TeamInclusion, Ticket, Accommodation } from "@shared/schema";
+import { isPercursoFunction } from "@shared/calculation-rules";
+import { ATENDIMENTO_SHORT, PERCURSEIRO_SHORT, type NormalizedSwap } from "./scaling-utils";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Vocabulário ÚNICO de status da tela de Escalação.
@@ -110,6 +114,7 @@ export function getStatusBadge(
   );
 }
 
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tabela de escalações — usada nas duas abas (Sem Passagem / Com Transporte).
 // ─────────────────────────────────────────────────────────────────────────────
@@ -118,20 +123,27 @@ export interface ScalingTableProps {
   sortConfig: SortConfig | null;
   onSort: (field: SortField) => void;
   onRowClick: (inclusion: TeamInclusion) => void;
-  onViewDetails: (e: React.MouseEvent, inclusion: TeamInclusion) => void;
+  /** Abre o modal direto na aba Comentários e Histórico */
+  onViewComments: (e: React.MouseEvent, inclusion: TeamInclusion) => void;
   getFunctionName: (functionId: string | null) => string;
   getEventName: (eventId: string | null) => string;
   getCollaboratorName: (collaboratorId?: string | null) => string;
   getCollaboratorCity: (collaboratorId?: string | null) => string | null;
   getTicket: (inclusionId: string) => Ticket | undefined;
   getAccommodation: (inclusionId: string) => Accommodation | undefined;
-  pendingSwapByInclusion: Map<string, SwapRequest>;
+  pendingSwapByInclusion: Map<string, NormalizedSwap>;
   approvedSwapInclusionIds: Set<string>;
   /** Trocas pendentes que o solicitante já visualizou (não repete o badge) */
   seenSwapIds: Set<string>;
   currentUserId?: string;
   /** admin/purchasing: pode analisar trocas de escalações sem logística */
   isAdminOrPurchasing: boolean;
+  // ── Seleção múltipla (ações em massa) ──
+  selectedIds: Set<string>;
+  /** Motivo pelo qual a linha NÃO pode ser selecionada (null = pode) */
+  getSelectBlockReason: (inclusion: TeamInclusion) => string | null;
+  onToggleSelect: (inclusionId: string) => void;
+  onToggleAllVisible: (ids: string[], select: boolean) => void;
 }
 
 /**
@@ -142,14 +154,13 @@ export interface ScalingTableProps {
  * - os demais papéis não veem.
  */
 export function shouldShowPendingSwapBadge(
-  swap: SwapRequest | undefined,
+  swap: Pick<NormalizedSwap, "id" | "requestedBy"> | undefined,
   inclusion: Pick<TeamInclusion, "needsTicket" | "needsAccommodation">,
   opts: { currentUserId?: string; isAdminOrPurchasing: boolean; seenSwapIds: Set<string> },
 ): boolean {
   if (!swap) return false;
   if (opts.seenSwapIds.has(swap.id)) return false;
-  const requestedBy = (swap as any).requested_by || swap.requestedBy;
-  const isRequester = !!opts.currentUserId && requestedBy === opts.currentUserId;
+  const isRequester = !!opts.currentUserId && swap.requestedBy === opts.currentUserId;
   if (isRequester) return true;
   if (!opts.isAdminOrPurchasing) return false;
   const noLogistics = !inclusion.needsTicket && !inclusion.needsAccommodation;
@@ -163,12 +174,28 @@ const initials = (name: string) => {
     : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 };
 
+/** Ícone de necessidade com rótulo acessível (coluna Necessidades). */
+function NeedIcon({ label, active, children }: { label: string; active: boolean; children: ReactNode }) {
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className={`inline-flex items-center justify-center min-w-6 h-6 px-1 rounded-md border text-[10px] font-bold ${active ? "bg-blue-50 border-blue-100 text-[#2563EB]" : "bg-slate-50 border-slate-100 text-slate-300"}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+const CHECKBOX_CLS = "border-slate-300 data-[state=checked]:bg-[#2563EB] data-[state=checked]:border-[#2563EB]";
+
 export default function ScalingTable({
   rows,
   sortConfig,
   onSort,
   onRowClick,
-  onViewDetails,
+  onViewComments,
   getFunctionName,
   getEventName,
   getCollaboratorName,
@@ -180,24 +207,59 @@ export default function ScalingTable({
   seenSwapIds,
   currentUserId,
   isAdminOrPurchasing,
+  selectedIds,
+  getSelectBlockReason,
+  onToggleSelect,
+  onToggleAllVisible,
 }: ScalingTableProps) {
+  const selectableIds = rows.filter(r => !getSelectBlockReason(r)).map(r => r.id);
+  const selectedVisible = selectableIds.filter(id => selectedIds.has(id)).length;
+  const allVisibleSelected = selectableIds.length > 0 && selectedVisible === selectableIds.length;
+  const someVisibleSelected = selectedVisible > 0 && !allVisibleSelected;
+
   return (
     <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden mt-4">
       <div className="overflow-x-auto">
-        <table className="table-fixed w-full min-w-[860px]">
+        <table className="table-fixed w-full min-w-[980px]">
           <colgroup>
+            <col style={{ width: "44px" }} />
             <col style={{ width: "100px" }} />
-            <col style={{ width: "28%" }} />
-            <col style={{ width: "22%" }} />
+            <col style={{ width: "26%" }} />
+            <col style={{ width: "20%" }} />
             <col style={{ width: "150px" }} />
+            <col style={{ width: "160px" }} />
             <col style={{ width: "220px" }} />
           </colgroup>
           <thead style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
             <tr>
+              <th className="px-3 py-4 text-left">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">
+                      <Checkbox
+                        checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
+                        disabled={selectableIds.length === 0}
+                        onCheckedChange={(v) => onToggleAllVisible(selectableIds, v === true)}
+                        aria-label={allVisibleSelected ? "Desmarcar todas as visíveis" : "Selecionar todas as visíveis que podem ser confirmadas"}
+                        data-testid="checkbox-select-all-visible"
+                        className={CHECKBOX_CLS}
+                      />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-[11px]">
+                    {selectableIds.length === 0
+                      ? "Nenhuma linha visível pode ser confirmada por você"
+                      : `Selecionar as ${selectableIds.length} visíveis que você pode confirmar`}
+                  </TooltipContent>
+                </Tooltip>
+              </th>
               <SortableHeader field="id" sortConfig={sortConfig} onSort={onSort}>ID</SortableHeader>
               <SortableHeader field="function" sortConfig={sortConfig} onSort={onSort}>Função / Evento</SortableHeader>
               <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={onSort}>Colaborador</SortableHeader>
               <SortableHeader field="period" className="whitespace-nowrap" sortConfig={sortConfig} onSort={onSort}>Período / Diárias</SortableHeader>
+              <th className="px-4 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] whitespace-nowrap">
+                Necessidades
+              </th>
               <th className="w-[220px] min-w-[220px] px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
                 Status
               </th>
@@ -211,33 +273,61 @@ export default function ScalingTable({
               const swap = pendingSwapByInclusion.get(inclusion.id);
               const showSwapBadge = shouldShowPendingSwapBadge(swap, inclusion, { currentUserId, isAdminOrPurchasing, seenSwapIds });
               const city = inclusion.city || getCollaboratorCity(inclusion.collaboratorId);
+              const selectBlock = getSelectBlockReason(inclusion);
+              const isSelected = selectedIds.has(inclusion.id);
+              const emitsNf = (inclusion as any).emitsNf !== false;
+              const atendimento = ATENDIMENTO_SHORT[(inclusion as any).atendimentoTipo ?? ""];
+              const isPercurso = isPercursoFunction(getFunctionName(inclusion.functionId));
+              const percurseiro = isPercurso ? PERCURSEIRO_SHORT[(inclusion as any).percurseiroTipo ?? ""] : undefined;
+              const idLabel = `#${inclusion.inclusionNumber ?? ""}`;
               return (
                 <tr
                   key={inclusion.id}
-                  className={`group/row transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'} hover:bg-blue-50/50 ${inclusion.status === 'cancelado' ? 'opacity-50' : ''}`}
+                  className={`group/row transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${isSelected ? "bg-blue-50/70" : rowIdx % 2 === 1 ? "bg-slate-50/50" : "bg-white"} hover:bg-blue-50/50 ${inclusion.status === "cancelado" ? "opacity-50" : ""}`}
                   onClick={() => onRowClick(inclusion)}
                   tabIndex={0}
-                  aria-label={`Abrir detalhes da escalação #${inclusion.inclusionNumber ?? ''}`}
+                  aria-label={`Abrir detalhes da escalação ${idLabel}`}
+                  aria-selected={isSelected}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
+                    if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
                       onRowClick(inclusion);
                     }
                   }}
                 >
+                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex" tabIndex={selectBlock ? 0 : -1}>
+                          <Checkbox
+                            checked={isSelected}
+                            disabled={!!selectBlock}
+                            onCheckedChange={() => onToggleSelect(inclusion.id)}
+                            aria-label={selectBlock ? `Não selecionável: ${selectBlock}` : `Selecionar escalação ${idLabel}`}
+                            data-testid={`checkbox-select-${inclusion.id}`}
+                            className={CHECKBOX_CLS}
+                          />
+                        </span>
+                      </TooltipTrigger>
+                      {selectBlock && (
+                        <TooltipContent side="right" className="text-[11px] max-w-[240px]">{selectBlock}</TooltipContent>
+                      )}
+                    </Tooltip>
+                  </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] font-bold text-[#2563EB] bg-blue-50 px-2.5 py-1 rounded-lg font-mono border border-blue-100">
-                        #{inclusion.inclusionNumber || 'N/A'}
+                        #{inclusion.inclusionNumber || "N/A"}
                       </span>
                       <button
                         type="button"
                         className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 bg-slate-50 border border-slate-200 hover:bg-[#2563EB] hover:text-white hover:border-[#2563EB] transition-all duration-150"
-                        onClick={(e) => onViewDetails(e, inclusion)}
-                        title="Ver detalhes"
-                        aria-label={`Ver detalhes da escalação #${inclusion.inclusionNumber ?? ''}`}
+                        onClick={(e) => onViewComments(e, inclusion)}
+                        title="Comentários e histórico"
+                        aria-label={`Abrir comentários e histórico da escalação ${idLabel}`}
+                        data-testid={`button-comments-${inclusion.id}`}
                       >
-                        <Eye className="w-3.5 h-3.5" />
+                        <MessageSquare className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </td>
@@ -281,15 +371,48 @@ export default function ScalingTable({
                     </div>
                   </td>
                   <td className="px-4 py-3">
+                    <div className="flex items-center gap-1" aria-label="Necessidades da escalação">
+                      <NeedIcon label={inclusion.needsTicket ? "Precisa de passagem" : "Não precisa de passagem"} active={!!inclusion.needsTicket}>
+                        <Plane className="w-3 h-3" />
+                      </NeedIcon>
+                      <NeedIcon label={inclusion.needsAccommodation ? "Precisa de hospedagem" : "Não precisa de hospedagem"} active={!!inclusion.needsAccommodation}>
+                        <BedDouble className="w-3 h-3" />
+                      </NeedIcon>
+                      <NeedIcon label={emitsNf ? "Emite nota fiscal" : "Não emite nota fiscal"} active={emitsNf}>
+                        <Receipt className="w-3 h-3" />
+                      </NeedIcon>
+                      {atendimento && (
+                        <NeedIcon label={`Tipo de atendimento: ${atendimento.label}`} active>
+                          <span className="inline-flex items-center gap-0.5"><Headset className="w-2.5 h-2.5" />{atendimento.short}</span>
+                        </NeedIcon>
+                      )}
+                      {isPercurso && (percurseiro ? (
+                        <NeedIcon label={`Tipo do percurseiro: ${percurseiro.label}`} active>
+                          <span className="inline-flex items-center gap-0.5"><Bike className="w-2.5 h-2.5" />{percurseiro.short}</span>
+                        </NeedIcon>
+                      ) : (
+                        <span
+                          role="img"
+                          aria-label="Percurseiro sem tipo definido (Tipo 1 ou Tipo 2)"
+                          title="Percurseiro sem tipo definido (Tipo 1 ou Tipo 2)"
+                          data-testid="badge-percurseiro-definir-tipo"
+                          className="inline-flex items-center justify-center gap-0.5 h-6 px-1 rounded-md border text-[10px] font-bold bg-amber-50 border-amber-200 text-amber-700"
+                        >
+                          <Bike className="w-2.5 h-2.5" />definir tipo
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
                     <div className="flex flex-col gap-1.5">
                       <div>{getStatusBadge(inclusion, "sm")}</div>
                       <div className="flex flex-wrap gap-1">
                         {ticket && (
-                          ticket.transportType === 'van' ? (
+                          ticket.transportType === "van" ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-semibold border border-blue-100">
                               🚐 Van
                             </span>
-                          ) : ticket.transportType === 'rodoviario' ? (
+                          ) : ticket.transportType === "rodoviario" ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-semibold border border-blue-100">
                               <Bus className="w-2.5 h-2.5" />Rodoviária
                             </span>
@@ -301,7 +424,7 @@ export default function ScalingTable({
                         )}
                         {accommodation && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 text-[10px] font-semibold border border-purple-100">
-                            🏨 Hotel{hasAccommodationAttachments && ' 📎'}
+                            🏨 Hotel{hasAccommodationAttachments && " 📎"}
                           </span>
                         )}
                         {showSwapBadge && (

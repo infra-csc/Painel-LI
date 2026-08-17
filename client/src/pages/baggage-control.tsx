@@ -7,6 +7,8 @@ import { normalizeRole } from "@shared/roles";
 import { parseBrNumber, fixEncoding } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/common/page-header";
+import { usePageTitle } from "@/components/common/use-page-title";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -292,6 +294,7 @@ function EventCombobox({
 // ── Página ───────────────────────────────────────────────────────────────────
 
 export default function BaggageControlPage() {
+  usePageTitle("Controle de Bagagem");
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -730,28 +733,22 @@ export default function BaggageControlPage() {
     <div className="min-h-screen bg-[#F8FAFC] p-6">
       <div className="max-w-6xl mx-auto space-y-4">
         {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-                <Luggage className="w-4 h-4 text-blue-600" />
-              </div>
-              Controle de Bagagem
-            </h1>
-            <p className="text-xs text-gray-400 mt-0.5 ml-10">
-              Solicitações de bagagem por colaborador e evento — valores, localizadores e embarques
-            </p>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-100 px-4 py-2.5 text-right">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total do filtro atual</p>
-            <p className="text-base font-bold text-slate-800 font-mono">
-              {formatCurrency(filterSummary.cents)}
-              <span className="text-xs font-semibold text-slate-400 font-sans ml-2">
-                {filterSummary.bags} {filterSummary.bags === 1 ? "bagagem" : "bagagens"}
-              </span>
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          icon={Luggage}
+          title="Controle de Bagagem"
+          subtitle="Solicitações de bagagem por colaborador e evento — valores, localizadores e embarques"
+          actions={
+            <div className="bg-white rounded-2xl border border-gray-100 px-4 py-2.5 text-right" aria-live="polite">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total do filtro atual</p>
+              <p className="text-base font-bold text-slate-800 font-mono">
+                {formatCurrency(filterSummary.cents)}
+                <span className="text-xs font-semibold text-slate-400 font-sans ml-2">
+                  {filterSummary.bags} {filterSummary.bags === 1 ? "bagagem" : "bagagens"}
+                </span>
+              </p>
+            </div>
+          }
+        />
 
         {/* Abas (roláveis no mobile; setas ← → navegam entre elas) */}
         <div role="tablist" aria-label="Seções do Controle de Bagagem" className="bg-white rounded-2xl border border-gray-100 p-1.5 inline-flex max-w-full overflow-x-auto gap-1">
@@ -1358,7 +1355,7 @@ export default function BaggageControlPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-xs">
+                <table className="w-full min-w-[640px] text-xs">
                   <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-400">
                     <tr>
                       <th className="text-left font-bold px-4 py-2.5">Colaborador</th>
@@ -1477,7 +1474,7 @@ export default function BaggageControlPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-xs">
+                <table className="w-full min-w-[640px] text-xs">
                   <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-400">
                     <tr>
                       <th className="text-left font-bold px-4 py-2.5">Evento</th>

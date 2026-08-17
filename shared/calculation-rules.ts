@@ -9,6 +9,7 @@
  * dias", como descreve o slide do time freela); do 9º em diante cada dia paga
  * 80%. A deflação é por dia trabalhado, não sobre o total.
  */
+import { isCenotecnicaFunction } from "./alimentacao";
 
 export const DEFLATION_TIERS = [
   { fromDay: 1, toDay: 4, factor: 1.0, label: "até 4 dias" },
@@ -129,8 +130,12 @@ export const EMPREITA_CLOSED_VALUES = [
 ] as const;
 
 // ── Slide 10: percurseiro (motoqueiros em viagem — sempre 2 diárias, com NF) ─
-// O slide aponta divergência nos 16% de NF entre a proposta e a planilha base;
-// mantemos os dois conjuntos até a definição final.
+// Tabela CONFIRMADA pelo usuário em 17/08 ("Motoqueiros em viagem (2 diárias)"):
+// NF Tipo 1 = R$ 172,76 e Tipo 2 = R$ 194,67 (totais 1.129,76 / 1.266,67).
+// A versão "planilha base" antiga (172,26 / 192,96) foi descartada.
+// ATENÇÃO: os "16%" da NF NÃO são deriváveis da tabela (16% do subtotal 957,00
+// = 153,12; gross-up 957/0,84 = 1.139,29; 16% do total = 180,76 — nenhum bate
+// com 172,76). Por isso a NF é guardada como VALOR editável, não como fórmula.
 export const PERCURSEIRO_TYPES = [
   {
     tipo: "Tipo 1",
@@ -138,10 +143,8 @@ export const PERCURSEIRO_TYPES = [
     feeIvanCents: 10500,        // Fee Ivan (15%)
     alimentacaoCents: 10200,    // 3 refeições
     transporteCents: 5000,      // ajuda de custo transporte
-    nfPropostaCents: 17276,     // NF (16%) — proposta
-    nfPlanilhaCents: 17226,     // NF (16%) — planilha base
-    totalPropostaCents: 112976,
-    totalPlanilhaCents: 112926,
+    nfCents: 17276,             // NF ("16%") — valor da tabela, não derivável
+    totalCents: 112976,
   },
   {
     tipo: "Tipo 2",
@@ -149,10 +152,8 @@ export const PERCURSEIRO_TYPES = [
     feeIvanCents: 12000,
     alimentacaoCents: 10200,
     transporteCents: 5000,
-    nfPropostaCents: 19467,
-    nfPlanilhaCents: 19296,
-    totalPropostaCents: 126667,
-    totalPlanilhaCents: 126496,
+    nfCents: 19467,
+    totalCents: 126667,
   },
 ] as const;
 
@@ -240,4 +241,123 @@ export function casaDailyCents(
     return read(CASA_SETTING_KEYS.produtor, CASA_DEFAULTS_CENTS.produtor);
   }
   return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dias com direito a diária, por tipo de colaborador (regra de negócio 17/08):
+//   • `casa`  (produção CLT)  → diária SÓ nos fins de semana (sáb/dom); em dia
+//                               útil já é assalariado → diária = 0.
+//   • `local` (produção local) → diária em TODOS os dias.
+//   • freela / demais          → diária em TODOS os dias (inalterado).
+// Atenção: `local` continua usando a TABELA DE VALORES de casa (casaDailyCents);
+// a diferença entre casa e local é apenas na CONTAGEM de dias.
+// ─────────────────────────────────────────────────────────────────────────────
+//   • casa + CENOTÉCNICA (regra 17/08): diária = 0 sempre (nem fds) → "nenhuma".
+export type RegraDiaria = "nenhuma" | "fds" | "todos";
+
+/** A função é de cenotécnica? Fonte única em shared/alimentacao (exclui "Sup Ceno" = produtor). */
+const isCenoName = isCenotecnicaFunction;
+
+/**
+ * Regra de contagem aplicável ao tipo do colaborador (e à função).
+ * Precedência: casa+cenotécnica → "nenhuma" · casa → "fds" · demais → "todos".
+ */
+export function regraDiariaPorTipo(
+  tipoColaborador: string | null | undefined,
+  functionName?: string | null,
+): RegraDiaria {
+  if (tipoColaborador === "casa" && isCenoName(functionName)) return "nenhuma";
+  return tipoColaborador === "casa" ? "fds" : "todos";
+}
+
+/** Quantidade de dias que recebem diária para o tipo (e função) informados. */
+export function diasComDiaria(
+  tipoColaborador: string | null | undefined,
+  weekdays: number,
+  weekends: number,
+  functionName?: string | null,
+): number {
+  const wd = Math.max(0, weekdays || 0);
+  const we = Math.max(0, weekends || 0);
+  const regra = regraDiariaPorTipo(tipoColaborador, functionName);
+  if (regra === "nenhuma") return 0;
+  return regra === "fds" ? we : wd + we;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PERCURSEIRO (função "percurso" — motoqueiro): pacote FECHADO por diária,
+// Tipo 1 x Tipo 2 (regra do usuário 17/08). Alimentação e mobilidade do
+// Planejado ficam em 0 (já estão dentro do pacote). Sem deflação.
+//   • Em VIAGEM (needsTicket): SEMPRE 2 diárias, independente do período.
+//   • LOCAL (sem passagem — SP/Grande SP): 1 diária. Mesma tabela.
+// A NF ("16%") NÃO é derivável da tabela (ver comentário em PERCURSEIRO_TYPES),
+// por isso é um VALOR editável por tipo; o total é a soma das 5 parcelas.
+// ─────────────────────────────────────────────────────────────────────────────
+export type PercurseiroTipo = "tipo_1" | "tipo_2";
+
+export const PERCURSEIRO_TIPOS: { value: PercurseiroTipo; label: string }[] = [
+  { value: "tipo_1", label: "Tipo 1" },
+  { value: "tipo_2", label: "Tipo 2" },
+];
+
+export const PERCURSEIRO_SETTING_KEYS = {
+  t1Motoqueiro: "percurseiro_t1_motoqueiro",
+  t2Motoqueiro: "percurseiro_t2_motoqueiro",
+  feePct: "percurseiro_fee_pct",           // percentual inteiro (15)
+  alimentacao: "percurseiro_alimentacao",  // centavos (3 refeições)
+  transporte: "percurseiro_transporte",    // centavos
+  nfPct: "percurseiro_nf_pct",             // percentual inteiro (16) — informativo
+  t1Nf: "percurseiro_t1_nf",               // centavos (valor da tabela, editável)
+  t2Nf: "percurseiro_t2_nf",
+} as const;
+
+export const PERCURSEIRO_DEFAULTS = {
+  t1Motoqueiro: 70000,
+  t2Motoqueiro: 80000,
+  feePct: 15,
+  alimentacao: 10200,
+  transporte: 5000,
+  nfPct: 16,
+  t1Nf: 17276,
+  t2Nf: 19467,
+} as const;
+
+/** A função é de percurso (motoqueiro/percurseiro)? */
+export function isPercursoFunction(functionName: string | null | undefined): boolean {
+  if (!functionName) return false;
+  return functionName.toLowerCase().includes("percurs");
+}
+
+export interface PercurseiroDiaria {
+  motoqueiro: number;
+  fee: number;
+  alimentacao: number;
+  transporte: number;
+  nf: number;
+  total: number;
+}
+
+/** Composição da diária do percurseiro (centavos) para o tipo, lendo os Valores Padrão. */
+export function percurseiroDiariaCents(
+  tipo: PercurseiroTipo | null | undefined,
+  settings?: Record<string, number | string | undefined> | null,
+): PercurseiroDiaria | null {
+  if (tipo !== "tipo_1" && tipo !== "tipo_2") return null;
+  const read = (key: string, def: number): number => {
+    const raw = settings?.[key];
+    const v = typeof raw === "string" ? parseInt(raw, 10) : raw;
+    return (typeof v === "number" && Number.isFinite(v) && v >= 0) ? v : def;
+  };
+  const K = PERCURSEIRO_SETTING_KEYS, D = PERCURSEIRO_DEFAULTS;
+  const motoqueiro = tipo === "tipo_1" ? read(K.t1Motoqueiro, D.t1Motoqueiro) : read(K.t2Motoqueiro, D.t2Motoqueiro);
+  const fee = Math.round(motoqueiro * read(K.feePct, D.feePct) / 100);
+  const alimentacao = read(K.alimentacao, D.alimentacao);
+  const transporte = read(K.transporte, D.transporte);
+  const nf = tipo === "tipo_1" ? read(K.t1Nf, D.t1Nf) : read(K.t2Nf, D.t2Nf);
+  return { motoqueiro, fee, alimentacao, transporte, nf, total: motoqueiro + fee + alimentacao + transporte + nf };
+}
+
+/** Diárias do percurseiro: em viagem (passagem) sempre 2; local 1. */
+export function diasPercurseiro(needsTicket: boolean | null | undefined): number {
+  return needsTicket ? 2 : 1;
 }

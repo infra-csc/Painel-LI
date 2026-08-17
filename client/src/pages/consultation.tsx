@@ -9,9 +9,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
+import { PageHeader } from "@/components/common/page-header";
+import { PageContainer } from "@/components/common/page-container";
+import { EmptyState } from "@/components/common/empty-state";
+import { LoadingState } from "@/components/common/loading-state";
+import { usePageTitle } from "@/components/common/use-page-title";
+
+/** Classes compartilhadas dos selects de filtro (tokens de marca). */
+const SELECT_TRIGGER_CLASS = "w-44 h-9 text-sm border border-input rounded-lg bg-card text-foreground hover:border-primary/40 transition-colors focus:ring-2 focus:ring-ring/25";
+const SELECT_ITEM_CLASS = "cursor-pointer hover:bg-brand-soft hover:text-primary focus:bg-brand-soft focus:text-primary data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium";
 
 // Campos de CSV precisam ser escapados: "details" pode conter ; e aspas,
 // o que quebrava as colunas do arquivo exportado.
@@ -269,6 +278,7 @@ function LogCard({ log }: { log: SystemLog }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function SystemLogsPage() {
+  usePageTitle("Log de auditoria");
   const { user, isLoading: authLoading } = useAuth();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -326,17 +336,15 @@ export default function SystemLogsPage() {
   // mostrar "Acesso restrito" aqui piscava a tela de erro para o admin.
   if (authLoading) {
     return (
-      <div className="p-6 space-y-2">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-16 w-full rounded-xl" />
-        ))}
-      </div>
+      <PageContainer>
+        <LoadingState count={6} label="Carregando…" />
+      </PageContainer>
     );
   }
 
   if (!hasPermission(user, "canAccessScreen6")) {
     return (
-      <div className="p-6 flex flex-col items-center justify-center min-h-[400px] gap-4 text-center">
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-center">
         <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-950 flex items-center justify-center">
           <ShieldAlert className="w-8 h-8 text-red-500" />
         </div>
@@ -347,19 +355,15 @@ export default function SystemLogsPage() {
   }
 
   return (
-    <div className="p-6 space-y-5">
+    <PageContainer>
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-lg bg-indigo-100 dark:bg-indigo-950 flex items-center justify-center">
-          <Activity className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Consulta Geral</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Histórico completo de atividades do sistema</p>
-        </div>
-        {logsResponse && (
-          <div className="ml-auto flex items-center gap-2">
-            <div className="text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-full">
+      <PageHeader
+        icon={Activity}
+        title="Log de auditoria"
+        subtitle="Histórico completo de atividades do sistema"
+        actions={logsResponse && (
+          <>
+            <div className="text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-full">
               {logsResponse.pagination.total.toLocaleString("pt-BR")} registros
             </div>
             <Button
@@ -385,9 +389,9 @@ export default function SystemLogsPage() {
             >
               <Download className="w-3.5 h-3.5" /> Exportar página
             </Button>
-          </div>
+          </>
         )}
-      </div>
+      />
 
       {/* Search + Filters bar */}
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
@@ -410,56 +414,56 @@ export default function SystemLogsPage() {
 
           {/* Entity type */}
           <Select value={filters.entityType} onValueChange={(v) => { setFilters(f => ({ ...f, entityType: v })); setPage(1); }}>
-            <SelectTrigger className="w-44 h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
+            <SelectTrigger className={SELECT_TRIGGER_CLASS}>
               <SelectValue placeholder="Módulo" />
             </SelectTrigger>
-            <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[200px]">
-              <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos os módulos</SelectItem>
-              <SelectItem value="user" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Usuários</SelectItem>
-              <SelectItem value="event" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Eventos</SelectItem>
-              <SelectItem value="team_inclusion" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Inclusão de Equipe</SelectItem>
-              <SelectItem value="budget_planned" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Orçamento Planejado</SelectItem>
-              <SelectItem value="budget_actual" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Prestação de Contas</SelectItem>
-              <SelectItem value="function" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Funções</SelectItem>
-              <SelectItem value="collaborator" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Colaboradores</SelectItem>
-              <SelectItem value="ticket" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Passagens</SelectItem>
-              <SelectItem value="accommodation" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Hospedagens</SelectItem>
-              <SelectItem value="budget_comparison" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Comparativo</SelectItem>
-              <SelectItem value="system_settings" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Configurações</SelectItem>
-              <SelectItem value="financial" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Financeiro</SelectItem>
+            <SelectContent className="rounded-xl shadow-lg min-w-[200px]">
+              <SelectItem value="all" className={SELECT_ITEM_CLASS}>Todos os módulos</SelectItem>
+              <SelectItem value="user" className={SELECT_ITEM_CLASS}>Usuários</SelectItem>
+              <SelectItem value="event" className={SELECT_ITEM_CLASS}>Eventos</SelectItem>
+              <SelectItem value="team_inclusion" className={SELECT_ITEM_CLASS}>Inclusão de Equipe</SelectItem>
+              <SelectItem value="budget_planned" className={SELECT_ITEM_CLASS}>Orçamento Planejado</SelectItem>
+              <SelectItem value="budget_actual" className={SELECT_ITEM_CLASS}>Prestação de Contas</SelectItem>
+              <SelectItem value="function" className={SELECT_ITEM_CLASS}>Funções</SelectItem>
+              <SelectItem value="collaborator" className={SELECT_ITEM_CLASS}>Colaboradores</SelectItem>
+              <SelectItem value="ticket" className={SELECT_ITEM_CLASS}>Passagens</SelectItem>
+              <SelectItem value="accommodation" className={SELECT_ITEM_CLASS}>Hospedagens</SelectItem>
+              <SelectItem value="budget_comparison" className={SELECT_ITEM_CLASS}>Comparativo</SelectItem>
+              <SelectItem value="system_settings" className={SELECT_ITEM_CLASS}>Configurações</SelectItem>
+              <SelectItem value="financial" className={SELECT_ITEM_CLASS}>Financeiro</SelectItem>
             </SelectContent>
           </Select>
 
           {/* Action */}
           <Select value={filters.action} onValueChange={(v) => { setFilters(f => ({ ...f, action: v })); setPage(1); }}>
-            <SelectTrigger className="w-40 h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
+            <SelectTrigger className={cn(SELECT_TRIGGER_CLASS, "w-40")}>
               <SelectValue placeholder="Ação" />
             </SelectTrigger>
             <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
-              <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todas as ações</SelectItem>
-              <SelectItem value="create" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Criação</SelectItem>
-              <SelectItem value="update" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Alteração</SelectItem>
-              <SelectItem value="delete" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Exclusão</SelectItem>
-              <SelectItem value="login" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Login</SelectItem>
-              <SelectItem value="logout" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Logout</SelectItem>
-              <SelectItem value="send_review" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Envio p/ RH</SelectItem>
-              <SelectItem value="approve" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Aprovação</SelectItem>
-              <SelectItem value="reject" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Rejeição</SelectItem>
-              <SelectItem value="reset_password" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Reset de Senha</SelectItem>
+              <SelectItem value="all" className={SELECT_ITEM_CLASS}>Todas as ações</SelectItem>
+              <SelectItem value="create" className={SELECT_ITEM_CLASS}>Criação</SelectItem>
+              <SelectItem value="update" className={SELECT_ITEM_CLASS}>Alteração</SelectItem>
+              <SelectItem value="delete" className={SELECT_ITEM_CLASS}>Exclusão</SelectItem>
+              <SelectItem value="login" className={SELECT_ITEM_CLASS}>Login</SelectItem>
+              <SelectItem value="logout" className={SELECT_ITEM_CLASS}>Logout</SelectItem>
+              <SelectItem value="send_review" className={SELECT_ITEM_CLASS}>Envio p/ RH</SelectItem>
+              <SelectItem value="approve" className={SELECT_ITEM_CLASS}>Aprovação</SelectItem>
+              <SelectItem value="reject" className={SELECT_ITEM_CLASS}>Rejeição</SelectItem>
+              <SelectItem value="reset_password" className={SELECT_ITEM_CLASS}>Reset de Senha</SelectItem>
             </SelectContent>
           </Select>
 
           {/* Period */}
           <Select value={filters.days} onValueChange={(v) => { setFilters(f => ({ ...f, days: v })); setPage(1); }}>
-            <SelectTrigger className="w-44 h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
+            <SelectTrigger className={SELECT_TRIGGER_CLASS}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
-              <SelectItem value="1" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Últimas 24h</SelectItem>
-              <SelectItem value="7" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Últimos 7 dias</SelectItem>
-              <SelectItem value="30" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Últimos 30 dias</SelectItem>
-              <SelectItem value="90" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Últimos 90 dias</SelectItem>
-              <SelectItem value="365" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Último ano</SelectItem>
+              <SelectItem value="1" className={SELECT_ITEM_CLASS}>Últimas 24h</SelectItem>
+              <SelectItem value="7" className={SELECT_ITEM_CLASS}>Últimos 7 dias</SelectItem>
+              <SelectItem value="30" className={SELECT_ITEM_CLASS}>Últimos 30 dias</SelectItem>
+              <SelectItem value="90" className={SELECT_ITEM_CLASS}>Últimos 90 dias</SelectItem>
+              <SelectItem value="365" className={SELECT_ITEM_CLASS}>Último ano</SelectItem>
             </SelectContent>
           </Select>
 
@@ -483,9 +487,9 @@ export default function SystemLogsPage() {
             </span>
           )}
           {filters.entityType !== "all" && (
-            <span className="flex items-center gap-1 text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
+            <span className="flex items-center gap-1 text-[11px] font-medium bg-brand-soft text-primary border border-primary/20 px-2 py-0.5 rounded-full">
               {ENTITY_CONFIG[filters.entityType]?.label || filters.entityType}
-              <button type="button" aria-label="Remover filtro de módulo" onClick={() => { setFilters(f => ({ ...f, entityType: "all" })); setPage(1); }} className="ml-0.5 hover:text-blue-900"><X className="w-2.5 h-2.5" /></button>
+              <button type="button" aria-label="Remover filtro de módulo" onClick={() => { setFilters(f => ({ ...f, entityType: "all" })); setPage(1); }} className="ml-0.5 hover:text-primary-hover"><X className="w-2.5 h-2.5" /></button>
             </span>
           )}
           {filters.action !== "all" && (
@@ -505,17 +509,7 @@ export default function SystemLogsPage() {
 
       {/* Results */}
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex gap-3">
-              <Skeleton className="w-8 h-8 rounded-lg shrink-0" />
-              <div className="flex-1 space-y-2">
-                <Skeleton className="h-4 w-48" />
-                <Skeleton className="h-3 w-64" />
-              </div>
-            </div>
-          ))}
-        </div>
+        <LoadingState count={8} label="Carregando registros…" />
       ) : isError ? (
         <div className="bg-white dark:bg-gray-800 border border-red-200 dark:border-red-900 rounded-xl flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
           <ShieldAlert className="w-10 h-10 text-red-400" />
@@ -534,15 +528,12 @@ export default function SystemLogsPage() {
           </Button>
         </div>
       ) : logsResponse?.logs.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl flex flex-col items-center justify-center py-16 gap-3">
-          <Search className="w-10 h-10 text-gray-300 dark:text-gray-600" />
-          <p className="text-gray-500 dark:text-gray-400 font-medium">Nenhum registro encontrado</p>
-          {hasActiveFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters} className="text-gray-500">
-              Limpar filtros
-            </Button>
-          )}
-        </div>
+        <EmptyState
+          variant={hasActiveFilters ? "filtered" : "default"}
+          title="Nenhum registro encontrado"
+          description={hasActiveFilters ? "Nenhuma atividade corresponde aos filtros aplicados." : "Ainda não há atividades registradas."}
+          onClearFilters={hasActiveFilters ? clearFilters : undefined}
+        />
       ) : (
         <div className="space-y-2">
           {logsResponse?.logs.map((log) => (
@@ -574,6 +565,6 @@ export default function SystemLogsPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

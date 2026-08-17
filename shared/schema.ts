@@ -111,6 +111,9 @@ export const teamInclusions = pgTable("team_inclusions", {
   // Para funções de "atendimento": qual tarifa usar (Key Account x Executivo de
   // Contas), definida na escalação ao atribuir o colaborador. null nas demais funções.
   atendimentoTipo: text("atendimento_tipo"), // 'key_account' | 'executivo_contas'
+  // Para funções de "percurso" (motoqueiro): pacote fechado Tipo 1 x Tipo 2,
+  // definido na escalação ao atribuir o colaborador. null nas demais funções.
+  percurseiroTipo: text("percurseiro_tipo"), // 'tipo_1' | 'tipo_2'
   rowOrder: integer("row_order"), // posição da linha na planilha para templates
   scheduleStartDate: date("schedule_start_date"),
   scheduleEndDate: date("schedule_end_date"),

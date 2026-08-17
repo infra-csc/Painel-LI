@@ -19,7 +19,12 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { hasRoleIn, ROLE_GROUPS } from "@shared/roles";
-import { EditDrawer, ROOM_TYPE_OPTIONS, ROOM_TYPE_LABEL } from "@/components/operational-mirror-drawers";
+import type { Event } from "@shared/schema";
+import {
+  hotelTotalCents, isHotelTotalDerived,
+  type MirrorRow, type MirrorTotals, type MirrorResponse, type MirrorSubtotal, type RoomGroup, type UberGroup, type MirrorCollaborator,
+} from "@shared/operational-mirror-types";
+import { EditDrawer, ROOM_TYPE_OPTIONS, ROOM_TYPE_LABEL, type DrawerKind, type DrawerSource } from "@/components/operational-mirror-drawers";
 import {
   RefreshCw, FileSpreadsheet, AlertTriangle, Plane, BedDouble, Luggage, Car,
   CheckCircle2, Users, Loader2, CheckCheck, MapPin, Clock, Check, MapPinned, CalendarDays,
@@ -52,6 +57,11 @@ function uberDirectionLabel(direction: string | null | undefined): string {
 }
 
 type CellType = "text" | "money" | "date" | "time" | "int" | "bool" | "select";
+/** Valor de uma célula editável, como vem do servidor e como vai no PATCH. */
+type CellValue = string | number | boolean | null | undefined;
+type SaveCell = (rowId: string, field: string, value: CellValue) => Promise<void>;
+type OpenDrawer = (kind: DrawerKind, r: MirrorRow) => void;
+type SortState = { key: "nome" | "departamento" | null; dir: "asc" | "desc" };
 
 // ---- pendency categories -> matcher ----
 const PEND_CATS: { key: string; label: string; match: (p: string) => boolean }[] = [
@@ -89,6 +99,36 @@ function PendencyBadge({ p, withLink = true }: { p: string; withLink?: boolean }
   );
 }
 
+/**
+ * Resumo compacto das pendências de uma linha: 1 badge "N pend." que abre um
+ * popover com a lista completa. Sem pendências, mostra o check verde.
+ */
+function PendencyCountBadge({ pendencies, testId }: { pendencies: string[]; testId?: string }) {
+  if (pendencies.length === 0) {
+    return <CheckCircle2 className="h-4 w-4 text-green-600" aria-label="Sem pendências" />;
+  }
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          data-testid={testId}
+          aria-label={`${pendencies.length} pendência(s) — ver lista`}
+          className="inline-flex items-center rounded-full border border-amber-400 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {pendencies.length} pend.
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-auto max-w-xs p-2">
+        <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">Pendências</p>
+        <div className="flex flex-col gap-1">
+          {pendencies.map((p, i) => <PendencyBadge key={i} p={p} />)}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // ============ Editable inline cell ============
 type CellVariant = "mono" | "oc" | "checkin" | "room";
 
@@ -123,8 +163,8 @@ function rotuloCampo(field: string): string {
 function EditableCell({
   rowId, field, value, type, onSave, align = "left", compact, onEdit, editMode = true, variant, options,
 }: {
-  rowId: string; field: string; value: any; type: CellType;
-  onSave: (rowId: string, field: string, value: any) => Promise<void>;
+  rowId: string; field: string; value: CellValue; type: CellType;
+  onSave: (rowId: string, field: string, value: CellValue) => Promise<void>;
   align?: "left" | "right" | "center"; compact?: boolean; onEdit?: () => void;
   editMode?: boolean; variant?: CellVariant;
   /** type === "select": opções permitidas */
@@ -159,7 +199,7 @@ function EditableCell({
     if (variant === "checkin") return <Badge variant="outline" className="text-[9px] px-1 py-0 font-normal border-emerald-300 text-emerald-700 dark:text-emerald-300">{s}</Badge>;
     return s;
   }
-  function parseDraft(raw: string): any {
+  function parseDraft(raw: string): CellValue {
     const t = raw.trim();
     if (t === "") return type === "money" || type === "int" ? null : "";
     if (type === "money") { const n = parseFloat(t.replace(",", ".")); return Number.isFinite(n) ? Math.round(n * 100) : null; }
@@ -291,6 +331,13 @@ type ViewKey = typeof VIEWS[number]["key"];
 // abria o espelho já filtrado sem perceber.
 const LS_KEY = "operational-mirror-prefs-v2";
 
+// Abaixo de `md` (768px) a grade de ~36 colunas é inutilizável: a view padrão
+// passa a ser "Colaboradores" (cards) e a preferência salva de view é ignorada.
+function isNarrowViewport(): boolean {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function"
+    && window.matchMedia("(max-width: 767px)").matches;
+}
+
 export default function OperationalMirror() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -303,7 +350,7 @@ export default function OperationalMirror() {
   // server/routes.ts — quem não está no grupo só consulta.
   const canEditMirror = hasRoleIn(user?.role, ROLE_GROUPS.logistica);
 
-  const [view, setView] = useState<ViewKey>("grade");
+  const [view, setView] = useState<ViewKey>(() => isNarrowViewport() ? "colaboradores" : "grade");
   const [editModeWanted, setEditModeWanted] = useState(true);
   const editMode = canEditMirror && editModeWanted;
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
@@ -315,10 +362,10 @@ export default function OperationalMirror() {
   const [hotelFilter, setHotelFilter] = useState("all");
   const [pendCat, setPendCat] = useState<string | null>(null);
   const [flags, setFlags] = useState<Record<string, boolean>>({});
-  const [sort, setSort] = useState<{ key: "nome" | "departamento" | null; dir: "asc" | "desc" }>({ key: null, dir: "asc" });
+  const [sort, setSort] = useState<SortState>({ key: null, dir: "asc" });
   const [hiddenBlocks, setHiddenBlocks] = useState<Set<Block>>(new Set());
   const [collapsedDepts, setCollapsedDepts] = useState<Set<string>>(new Set());
-  const [drawer, setDrawer] = useState<{ kind: "ticket" | "accommodation" | "extras" | null; rowId: string | null; name?: string; source: any }>({ kind: null, rowId: null, source: null });
+  const [drawer, setDrawer] = useState<{ kind: DrawerKind | null; rowId: string | null; name?: string; source: DrawerSource }>({ kind: null, rowId: null, source: null });
 
   // persist prefs (só layout)
   useEffect(() => {
@@ -328,7 +375,7 @@ export default function OperationalMirror() {
         const p = JSON.parse(raw);
         if (p.density === "comfortable" || p.density === "compact") setDensity(p.density);
         if (Array.isArray(p.hiddenBlocks)) setHiddenBlocks(new Set(p.hiddenBlocks));
-        if (VIEWS.some((v) => v.key === p.view)) setView(p.view);
+        if (!isNarrowViewport() && VIEWS.some((v) => v.key === p.view)) setView(p.view);
       }
     } catch {}
   }, []);
@@ -342,20 +389,21 @@ export default function OperationalMirror() {
     setSort({ key: null, dir: "asc" }); setCollapsedDepts(new Set());
   }, [eventId]);
 
-  const { data: events } = useQuery<any[]>({ queryKey: ["/api/events"] });
+  const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const mirrorKey = ["/api/events", eventId, "operational-mirror"];
-  const { data, isLoading, isError, error } = useQuery<any>({ queryKey: mirrorKey, enabled: !!eventId && eventId !== "all" });
+  const { data, isLoading, isError, error } = useQuery<MirrorResponse>({ queryKey: mirrorKey, enabled: !!eventId && eventId !== "all" });
 
-  function saveErrorMessage(err: any, fallback: string) {
-    if (err?.status === 401) return "Sua sessão expirou. Entre novamente para continuar editando.";
-    if (err?.status === 403) return "Você não tem permissão para editar este registro.";
-    return err?.body?.message || fallback;
+  function saveErrorMessage(err: unknown, fallback: string) {
+    const e = err as { status?: number; body?: { message?: string } } | null;
+    if (e?.status === 401) return "Sua sessão expirou. Entre novamente para continuar editando.";
+    if (e?.status === 403) return "Você não tem permissão para editar este registro.";
+    return e?.body?.message || fallback;
   }
 
-  async function saveCell(rowId: string, field: string, value: any) {
+  async function saveCell(rowId: string, field: string, value: CellValue) {
     try {
       await apiRequest("PATCH", `/api/events/${eventId}/operational-mirror/rows/${rowId}`, { field, value });
-    } catch (err: any) {
+    } catch (err) {
       // A célula só piscava em vermelho por 2s e o erro morria aqui.
       toast({
         title: "Não foi possível salvar",
@@ -367,7 +415,7 @@ export default function OperationalMirror() {
     await queryClient.invalidateQueries({ queryKey: mirrorKey });
   }
 
-  async function saveMany(rowId: string, changes: Record<string, any>) {
+  async function saveMany(rowId: string, changes: Record<string, CellValue>) {
     // Sequencial de propósito: o servidor faz "busca a linha; se não existir, insere" a
     // cada campo. Em paralelo, dois campos do mesmo bloco liam "não existe" ao mesmo tempo
     // e criavam linhas duplicadas de hospedagem/passagem/custo extra (custo somado em dobro).
@@ -384,7 +432,7 @@ export default function OperationalMirror() {
   const recalcMutation = useMutation({
     mutationFn: async () => (await apiRequest("POST", `/api/events/${eventId}/recalculate-logistics-suggestions`)).json(),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: mirrorKey }); toast({ title: "Sugestões recalculadas", description: "Grupos confirmados foram preservados." }); },
-    onError: (err: any) => toast({
+    onError: (err: unknown) => toast({
       title: "Erro ao recalcular",
       description: saveErrorMessage(err, "Não foi possível recalcular as sugestões."),
       variant: "destructive",
@@ -393,7 +441,7 @@ export default function OperationalMirror() {
   const confirmRoomMutation = useMutation({
     mutationFn: async (id: string) => apiRequest("POST", `/api/hotel-room-groups/${id}/confirm`),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: mirrorKey }); toast({ title: "Quarto confirmado" }); },
-    onError: (err: any) => toast({
+    onError: (err: unknown) => toast({
       title: "Não foi possível confirmar o quarto",
       description: saveErrorMessage(err, "Tente novamente em instantes."),
       variant: "destructive",
@@ -402,7 +450,7 @@ export default function OperationalMirror() {
   const confirmUberMutation = useMutation({
     mutationFn: async (id: string) => apiRequest("POST", `/api/uber-groups/${id}/confirm`),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: mirrorKey }); toast({ title: "Uber confirmado" }); },
-    onError: (err: any) => toast({
+    onError: (err: unknown) => toast({
       title: "Não foi possível confirmar o Uber",
       description: saveErrorMessage(err, "Tente novamente em instantes."),
       variant: "destructive",
@@ -413,7 +461,7 @@ export default function OperationalMirror() {
 
   const totals = data?.totals;
   const ev = data?.event;
-  const rows: any[] = data?.rows || [];
+  const rows: MirrorRow[] = useMemo(() => data?.rows ?? [], [data]);
 
   const departments = useMemo(() => {
     const set = new Set<string>();
@@ -435,7 +483,7 @@ export default function OperationalMirror() {
     PEND_CATS.forEach((cat) => { c[cat.key] = 0; });
     rows.forEach((r) => {
       PEND_CATS.forEach((cat) => {
-        if (r.pendencies.some((p: string) => cat.match(p))) c[cat.key]++;
+        if (r.pendencies.some((p) => cat.match(p))) c[cat.key]++;
       });
     });
     return c;
@@ -451,21 +499,21 @@ export default function OperationalMirror() {
       const dept = r.function.area || r.function.name || "(sem departamento)";
       if (deptFilter !== "all" && dept !== deptFilter) return false;
       if (hotelFilter !== "all" && r.accommodation?.hotelName !== hotelFilter) return false;
-      if (activeCat && !r.pendencies.some((p: string) => activeCat.match(p))) return false;
+      if (activeCat && !r.pendencies.some((p) => activeCat.match(p))) return false;
       if (flags.comPendencia && r.pendencies.length === 0) return false;
       if (flags.semPassagem && r.ticket) return false;
       if (flags.semHospedagem && r.accommodation) return false;
       if (flags.semLocalizador && r.ticket?.locator) return false;
       if (flags.semOc && r.ticket?.purchaseOrderNumber) return false;
-      if (flags.comBagagem && !(r.baggage?.extraCents > 0)) return false;
-      if (flags.comUber && !(r.uber?.totalCents > 0)) return false;
-      if (flags.comLocacao && !(r.carRental?.totalCents > 0)) return false;
+      if (flags.comBagagem && !(r.baggage.extraCents > 0)) return false;
+      if (flags.comUber && !(r.uber.totalCents > 0)) return false;
+      if (flags.comLocacao && !(r.carRental.totalCents > 0)) return false;
       if (flags.sugQuarto && !r.suggestedRoomGroupId) return false;
       if (flags.sugUber && !r.uber.suggestedGroupId) return false;
       return true;
     });
     if (sort.key) {
-      const get = (r: any) => sort.key === "nome" ? r.collaborator.fullName : (r.function.area || r.function.name || "");
+      const get = (r: MirrorRow) => sort.key === "nome" ? r.collaborator.fullName : (r.function.area || r.function.name || "");
       out.sort((a, b) => String(get(a)).localeCompare(String(get(b)), "pt-BR"));
       if (sort.dir === "desc") out.reverse();
     }
@@ -480,7 +528,7 @@ export default function OperationalMirror() {
   // evento não tivesse dados. Agora a causa é dita em voz alta.
   const loadErrorMessage = (() => {
     if (!isError) return null;
-    const err = error as any;
+    const err = error as { status?: number; body?: { message?: string } } | null;
     if (err?.status === 401) return "Sua sessão expirou. Entre novamente para ver o espelho operacional.";
     if (err?.status === 403) return "Você não tem permissão para consultar o espelho deste evento.";
     return err?.body?.message || "Não foi possível carregar o espelho operacional. Verifique sua conexão e tente novamente.";
@@ -490,19 +538,21 @@ export default function OperationalMirror() {
     ? "Nenhum colaborador corresponde aos filtros aplicados."
     : "Nenhum colaborador escalado neste evento.";
 
-  function openDrawer(kind: "ticket" | "accommodation" | "extras", r: any) {
+  const openDrawer: OpenDrawer = (kind, r) => {
     if (!canEditMirror) return; // somente leitura: sem drawer de edição
-    const source = kind === "ticket" ? r.ticket : kind === "accommodation" ? r.accommodation : r;
+    const source: DrawerSource = kind === "ticket" ? r.ticket : kind === "accommodation" ? r.accommodation : r;
     setDrawer({ kind, rowId: r.teamInclusionId, name: r.collaborator.fullName, source });
-  }
+  };
 
   const compact = density === "compact";
   // Colaboradores por id — os grupos de quarto/Uber vêm do servidor só com collaboratorId.
   const collabById = useMemo(() => {
-    const m = new Map<string, any>();
-    rows.forEach((r) => { if (r.collaborator?.id) m.set(r.collaborator.id, r.collaborator); });
+    const m = new Map<string, MirrorCollaborator>();
+    rows.forEach((r) => { if (r.collaborator.id) m.set(r.collaborator.id, r.collaborator); });
     return m;
   }, [rows]);
+  // Linhas cujo total de hotel é DERIVADO (diária × diárias, sem totalCents informado).
+  const derivedHotelCount = useMemo(() => rows.filter(isHotelTotalDerived).length, [rows]);
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -516,7 +566,15 @@ export default function OperationalMirror() {
             </h1>
             <p className="text-sm text-muted-foreground">Gestão logística completa — passagem, hospedagem, bagagem, Uber e locação por colaborador.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Seletor de evento vem ANTES da toolbar: sem evento não há o que editar,
+              filtrar ou exportar, então a toolbar só aparece depois da escolha. */}
+          <div className="w-full sm:w-auto sm:min-w-[320px] md:min-w-[400px]">
+            <EventCombobox events={events} value={eventId} onValueChange={setEventId} placeholder="Selecione um evento" showAllOption={false} />
+          </div>
+        </div>
+
+        {eventId && (
+          <div className="flex flex-wrap items-center justify-end gap-2" data-testid="mirror-toolbar">
             {canEditMirror ? (
               <>
                 <div className="inline-flex items-center gap-2 h-9 px-3 rounded-md border bg-card">
@@ -609,11 +667,7 @@ export default function OperationalMirror() {
               <FileSpreadsheet className="h-4 w-4 mr-2" /> Exportar Excel
             </Button>
           </div>
-        </div>
-
-        <div className="max-w-md">
-          <EventCombobox events={events} value={eventId} onValueChange={setEventId} placeholder="Selecione um evento" showAllOption={false} />
-        </div>
+        )}
 
         {!eventId && <Card><CardContent className="py-16 text-center text-muted-foreground">Selecione um evento para visualizar o espelho operacional.</CardContent></Card>}
         {eventId && isLoading && <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin mr-2" /> Carregando...</div>}
@@ -629,7 +683,7 @@ export default function OperationalMirror() {
           </Card>
         )}
 
-        {eventId && !isLoading && !loadErrorMessage && data && (
+        {eventId && !isLoading && !loadErrorMessage && data && ev && totals && (
           <>
             {/* ===== EVENT INFO CARDS ===== */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -643,7 +697,9 @@ export default function OperationalMirror() {
             {/* ===== INDICATOR CARDS ===== */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               <KpiCard icon={<Plane className="h-4 w-4" />} tone="indigo" label="Passagens" value={brl(totals.tickets)} hint="Total em voos" />
-              <KpiCard icon={<BedDouble className="h-4 w-4" />} tone="emerald" label="Hotelaria" value={brl(totals.hotel)} hint="Diárias + hotel" />
+              <KpiCard icon={<BedDouble className="h-4 w-4" />} tone="emerald" label="Hotelaria" value={brl(totals.hotel)}
+                derived={derivedHotelCount > 0}
+                hint={derivedHotelCount > 0 ? `${derivedHotelCount} valor(es) derivado(s) de diária × diárias` : "Diárias + hotel"} />
               <KpiCard icon={<Luggage className="h-4 w-4" />} tone="amber" label="Bagagem" value={brl(totals.baggage)} hint="Bagagem extra" />
               <KpiCard icon={<Car className="h-4 w-4" />} tone="fuchsia" label="Uber" value={brl(totals.uber)} hint="Transporte" />
               <KpiCard icon={<Car className="h-4 w-4" />} tone="orange" label="Locação" value={brl(totals.carRental)} hint="Carros" />
@@ -659,14 +715,25 @@ export default function OperationalMirror() {
                   </span>
                   <span className="text-sm font-medium">{data.pendingCount > 0 ? `${data.pendingCount} pendência(s)` : "Sem pendências"}</span>
                 </div>
-                {PEND_CATS.filter((c) => pendCounts[c.key] > 0).map((c) => (
-                  <button key={c.key} onClick={() => setPendCat(pendCat === c.key ? null : c.key)} data-testid={`chip-${c.key}`}
-                    aria-pressed={pendCat === c.key}
-                    title={`${c.label}: ${pendCounts[c.key]} colaborador(es). Clique para filtrar.`}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${pendCat === c.key ? "bg-amber-500 border-amber-500 text-white" : "border-amber-300 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40"}`}>
-                    {c.label} <span className="font-semibold">{pendCounts[c.key]}</span>
-                  </button>
-                ))}
+                {/* Chips com contagem 0 ficam DESABILITADOS (não somem): a barra mantém
+                    a mesma forma entre eventos e o usuário vê que a categoria existe. */}
+                {PEND_CATS.map((c) => {
+                  const count = pendCounts[c.key] ?? 0;
+                  const active = pendCat === c.key;
+                  const empty = count === 0;
+                  return (
+                    <button key={c.key} type="button" onClick={() => setPendCat(active ? null : c.key)} data-testid={`chip-${c.key}`}
+                      aria-pressed={active}
+                      disabled={empty}
+                      title={empty ? `${c.label}: nenhum colaborador.` : `${c.label}: ${count} colaborador(es). Clique para filtrar.`}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                        active ? "bg-amber-500 border-amber-500 text-white"
+                        : empty ? "border-border text-muted-foreground/60 cursor-not-allowed"
+                        : "border-amber-300 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40"}`}>
+                      {c.label} <span className="font-semibold">{count}</span>
+                    </button>
+                  );
+                })}
                 {pendCat && <Button variant="ghost" size="sm" className="h-7 px-2 text-xs ml-auto" onClick={() => setPendCat(null)}><X className="h-3 w-3 mr-1" /> Limpar filtro</Button>}
               </CardContent>
             </Card>
@@ -692,7 +759,7 @@ export default function OperationalMirror() {
                   <Input value={searchText} onChange={(e) => setSearchText(e.target.value)} placeholder="Buscar colaborador..." aria-label="Buscar colaborador pelo nome" className="pl-8 h-9 w-52" data-testid="input-search" />
                 </div>
                 {view === "grade" && (
-                  <ToggleGroup type="single" value={density} onValueChange={(v) => v && setDensity(v as any)} className="border rounded-md">
+                  <ToggleGroup type="single" value={density} onValueChange={(v) => (v === "comfortable" || v === "compact") && setDensity(v)} className="border rounded-md">
                     <ToggleGroupItem value="comfortable" className="h-9 px-2.5" title="Confortável"><Rows3 className="h-4 w-4" /></ToggleGroupItem>
                     <ToggleGroupItem value="compact" className="h-9 px-2.5" title="Compacta"><AlignJustify className="h-4 w-4" /></ToggleGroupItem>
                   </ToggleGroup>
@@ -714,9 +781,9 @@ export default function OperationalMirror() {
             )}
 
             {/* ===== VIEWS ===== */}
-            {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} totals={totals} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
+            {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} totals={totals} hotelDerived={derivedHotelCount > 0} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
             {view === "colaboradores" && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
-            {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
+            {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} hotelDerived={derivedHotelCount > 0} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
             {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} canEdit={canEditMirror} onConfirm={(id: string) => confirmRoomMutation.mutate(id)} pendingId={confirmRoomMutation.isPending ? confirmRoomMutation.variables : null} />}
             {view === "uber" && <UberView groups={data.uberGroups} collabById={collabById} canEdit={canEditMirror} onConfirm={(id: string) => confirmUberMutation.mutate(id)} pendingId={confirmUberMutation.isPending ? confirmUberMutation.variables : null} />}
           </>
@@ -730,10 +797,24 @@ export default function OperationalMirror() {
 }
 
 // ============ GRADE VIEW ============
-function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, sort, onSort, editMode, canEdit, emptyMessage }: any) {
+interface GradeViewProps {
+  rows: MirrorRow[];
+  hiddenBlocks: Set<Block>;
+  compact: boolean;
+  saveCell: SaveCell;
+  openDrawer: OpenDrawer;
+  totals: MirrorTotals;
+  hotelDerived?: boolean;
+  sort: SortState;
+  onSort: (key: "nome" | "departamento") => void;
+  editMode: boolean;
+  canEdit: boolean;
+  emptyMessage: string;
+}
+function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, hotelDerived, sort, onSort, editMode, canEdit, emptyMessage }: GradeViewProps) {
   const show = (b: Block) => !hiddenBlocks.has(b);
   // Lápis "editar em detalhe" só para quem pode abrir o drawer
-  const edit = (kind: "ticket" | "accommodation" | "extras", r: any) => canEdit ? () => openDrawer(kind, r) : undefined;
+  const edit = (kind: DrawerKind, r: MirrorRow) => canEdit ? () => openDrawer(kind, r) : undefined;
   const headPad = compact ? "px-2 py-1" : "px-2 py-1.5";
   const sortIcon = (key: string) => sort?.key === key ? (sort.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ChevronsUpDown className="h-3 w-3 opacity-40" />;
   return (
@@ -777,8 +858,9 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r: any, idx: number) => {
-                  const t = r.ticket || {}; const a = r.accommodation || {};
+                {rows.map((r, idx) => {
+                  const t: Partial<NonNullable<MirrorRow["ticket"]>> = r.ticket || {};
+                  const a: Partial<NonNullable<MirrorRow["accommodation"]>> = r.accommodation || {};
                   const zebra = idx % 2 === 1 ? "bg-muted/20" : "";
                   return (
                     <tr key={r.teamInclusionId} className={`border-b hover:bg-primary/[0.04] group ${zebra}`} data-testid={`row-${r.teamInclusionId}`}>
@@ -833,10 +915,8 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
                         <EditableCell rowId={r.teamInclusionId} field="carRental.checkIn" value={r.carRental.checkIn} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("pendencias") && <>
-                        <td className="px-2 py-1 border-r border-border/30">
-                          {r.pendencies.length === 0 ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : (
-                            <div className="flex flex-col gap-0.5 min-w-[130px]">{r.pendencies.map((p: string, i: number) => <PendencyBadge key={i} p={p} />)}</div>
-                          )}
+                        <td className="px-2 py-1 border-r border-border/30 text-center">
+                          <PendencyCountBadge pendencies={r.pendencies} testId={`pend-${r.teamInclusionId}`} />
                         </td>
                         <EditableCell rowId={r.teamInclusionId} field="observations" value={r.observations} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
                       </>}
@@ -849,7 +929,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
           </div>
         </CardContent>
       </Card>
-      <FooterTotals totals={totals} />
+      <FooterTotals totals={totals} hotelDerived={hotelDerived} />
     </>
   );
 }
@@ -859,14 +939,16 @@ function ColHead({ children, pad }: { children: React.ReactNode; pad: string }) 
 }
 
 // ============ COLABORADORES VIEW ============
-function ColaboradoresView({ rows, openDrawer, canEdit, emptyMessage }: any) {
-  const edit = (kind: "ticket" | "accommodation" | "extras", r: any) => canEdit ? () => openDrawer(kind, r) : undefined;
+interface ColaboradoresViewProps { rows: MirrorRow[]; openDrawer: OpenDrawer; canEdit: boolean; emptyMessage: string }
+function ColaboradoresView({ rows, openDrawer, canEdit, emptyMessage }: ColaboradoresViewProps) {
+  const edit = (kind: DrawerKind, r: MirrorRow) => canEdit ? () => openDrawer(kind, r) : undefined;
   if (rows.length === 0) return <Card><CardContent className="py-12 text-center text-muted-foreground">{emptyMessage}</CardContent></Card>;
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {rows.map((r: any) => {
+      {rows.map((r) => {
         const t = r.ticket; const a = r.accommodation;
-        const hotelTotal = a?.totalCents || (a?.dailyRate || 0) * (a?.nightsCount || 0);
+        const hotelTotal = hotelTotalCents(r);
+        const hotelDerived = isHotelTotalDerived(r);
         const indivTotal = (t?.value || 0) + hotelTotal + (r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0);
         return (
           <Card key={r.teamInclusionId} className="overflow-hidden hover:shadow-md transition-shadow" data-testid={`collab-card-${r.teamInclusionId}`}>
@@ -888,7 +970,7 @@ function ColaboradoresView({ rows, openDrawer, canEdit, emptyMessage }: any) {
             <CardContent className="p-4 grid grid-cols-2 gap-3 text-sm">
               <SummaryBlock icon={<Plane className="h-3.5 w-3.5 text-indigo-500" />} title="Passagem" value={brl(t?.value)} onEdit={edit("ticket", r)}
                 lines={[t?.locator && `Loc: ${t.locator}`, (t?.departureAirport || t?.returnOriginAirport) && `${t?.departureAirport || "?"} → ${t?.returnOriginAirport || "?"}`, t?.purchaseOrderNumber && `OC: ${t.purchaseOrderNumber}`]} />
-              <SummaryBlock icon={<BedDouble className="h-3.5 w-3.5 text-emerald-500" />} title="Hospedagem" value={brl(a?.totalCents || (a?.dailyRate || 0) * (a?.nightsCount || 0))} onEdit={edit("accommodation", r)}
+              <SummaryBlock icon={<BedDouble className="h-3.5 w-3.5 text-emerald-500" />} title="Hospedagem" value={brl(hotelTotal)} derived={hotelDerived} onEdit={edit("accommodation", r)}
                 lines={[a?.hotelName, a?.reservationNumber && `Reserva: ${a.reservationNumber}`, (a?.checkInDate || a?.checkOutDate) && `${fmtDate(a?.checkInDate)} → ${fmtDate(a?.checkOutDate)}`, a?.nightsCount && `${a.nightsCount} diária(s)${a.roomType ? " · " + (ROOM_TYPE_LABEL[a.roomType] ?? a.roomType) : ""}`, a?.hotelOc && `OC: ${a.hotelOc}`]} />
               <SummaryBlock icon={<Luggage className="h-3.5 w-3.5 text-amber-500" />} title="Bagagem" value={brl(r.baggage.extraCents)} onEdit={edit("extras", r)} lines={[r.baggage.oc && `OC: ${r.baggage.oc}`, r.baggage.checkIn && `Check-in: ${r.baggage.checkIn}`]} />
               <SummaryBlock icon={<Car className="h-3.5 w-3.5 text-fuchsia-500" />} title="Uber" value={brl(r.uber.totalCents)} onEdit={edit("extras", r)} lines={[r.uber.groupName, r.uber.oc && `OC: ${r.uber.oc}`]} />
@@ -896,7 +978,7 @@ function ColaboradoresView({ rows, openDrawer, canEdit, emptyMessage }: any) {
               <div className="rounded-lg border bg-muted/20 p-2.5">
                 <div className="text-xs text-muted-foreground mb-1">Pendências</div>
                 {r.pendencies.length === 0 ? <div className="flex items-center gap-1 text-green-600 text-xs"><CheckCircle2 className="h-3.5 w-3.5" /> Tudo certo</div> :
-                  <div className="flex flex-wrap gap-1">{r.pendencies.map((p: string, i: number) => <PendencyBadge key={i} p={p} />)}</div>}
+                  <div className="flex flex-wrap gap-1">{r.pendencies.map((p, i) => <PendencyBadge key={i} p={p} />)}</div>}
               </div>
               <div className="col-span-2 flex items-center justify-between border-t pt-3 mt-1">
                 <div>
@@ -919,31 +1001,43 @@ function ColaboradoresView({ rows, openDrawer, canEdit, emptyMessage }: any) {
   );
 }
 
-function SummaryBlock({ icon, title, value, lines = [], onEdit }: { icon: React.ReactNode; title: string; value: string; lines?: any[]; onEdit?: () => void }) {
+type SummaryLine = string | number | false | null | undefined;
+function SummaryBlock({ icon, title, value, lines = [], onEdit, derived }: { icon: React.ReactNode; title: string; value: string; lines?: SummaryLine[]; onEdit?: () => void; derived?: boolean }) {
   return (
     <div className="rounded-lg border bg-muted/20 p-2.5 group/sb relative">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">{icon} {title}</div>
         {onEdit && <button type="button" onClick={onEdit} title={`Editar ${title}`} aria-label={`Editar ${title}`} className="opacity-0 group-hover/sb:opacity-100 focus-visible:opacity-100 transition-opacity h-5 w-5 inline-flex items-center justify-center rounded hover:bg-muted"><Pencil className="h-3 w-3" /></button>}
       </div>
-      <div className="font-semibold mt-0.5">{value}</div>
+      {/* Itálico = valor derivado (diária × diárias), não informado explicitamente. */}
+      <div className={`font-semibold mt-0.5 ${derived ? "italic" : ""}`} title={derived ? "Valor derivado: diária × diárias (total não informado)" : undefined}>{value}</div>
       {lines.filter(Boolean).map((l, i) => <div key={i} className="text-[11px] text-muted-foreground truncate">{l}</div>)}
     </div>
   );
 }
 
 // ============ DEPARTAMENTOS VIEW ============
-function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, canEdit, emptyMessage }: any) {
+interface DepartamentosViewProps {
+  rows: MirrorRow[];
+  totals: MirrorTotals;
+  hotelDerived?: boolean;
+  collapsed: Set<string>;
+  setCollapsed: React.Dispatch<React.SetStateAction<Set<string>>>;
+  openDrawer: OpenDrawer;
+  canEdit: boolean;
+  emptyMessage: string;
+}
+function DepartamentosView({ rows, totals, hotelDerived, collapsed, setCollapsed, openDrawer, canEdit, emptyMessage }: DepartamentosViewProps) {
   const groups = useMemo(() => {
-    const m = new Map<string, any[]>();
-    rows.forEach((r: any) => { const k = r.function.area || r.function.name || "(sem departamento)"; if (!m.has(k)) m.set(k, []); m.get(k)!.push(r); });
+    const m = new Map<string, MirrorRow[]>();
+    rows.forEach((r) => { const k = r.function.area || r.function.name || "(sem departamento)"; if (!m.has(k)) m.set(k, []); m.get(k)!.push(r); });
     return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [rows]);
   // Antes: um .find() linear em byDepartment dentro do map dos grupos (O(n×m)).
   // Map preserva "o primeiro registro vence", igual ao find().
   const deptTotals = useMemo(() => {
-    const m = new Map<string, any>();
-    (totals?.byDepartment || []).forEach((d: any) => { if (!m.has(d.name)) m.set(d.name, d); });
+    const m = new Map<string, MirrorSubtotal>();
+    (totals?.byDepartment || []).forEach((d) => { if (!m.has(d.name)) m.set(d.name, d); });
     return m;
   }, [totals]);
   if (groups.length === 0) return <Card><CardContent className="py-12 text-center text-muted-foreground">{emptyMessage}</CardContent></Card>;
@@ -953,11 +1047,11 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, 
         const dt = deptTotals.get(name);
         const isOpen = !collapsed.has(name);
         const subtotal = dt?.total ?? 0;
-        const extrasTotal = members.reduce((s: number, r: any) => s + (r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0), 0);
-        const pendCount = members.reduce((s: number, r: any) => s + r.pendencies.length, 0);
+        const extrasTotal = members.reduce((s, r) => s + (r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0), 0);
+        const pendCount = members.reduce((s, r) => s + r.pendencies.length, 0);
         return (
           <Card key={name} data-testid={`dept-${name}`}>
-            <Collapsible open={isOpen} onOpenChange={(o) => setCollapsed((s: Set<string>) => { const n = new Set(s); if (o) n.delete(name); else n.add(name); return n; })}>
+            <Collapsible open={isOpen} onOpenChange={(o) => setCollapsed((s) => { const n = new Set(s); if (o) n.delete(name); else n.add(name); return n; })}>
               <CollapsibleTrigger className="w-full">
                 <div className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors">
                   <div className="flex items-center gap-2">
@@ -980,7 +1074,7 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, 
               <CollapsibleContent>
                 <Separator />
                 <div className="divide-y">
-                  {members.map((r: any) => (
+                  {members.map((r) => (
                     <div key={r.teamInclusionId} className="flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-2.5 text-sm hover:bg-muted/20">
                       <div className="font-medium min-w-[180px] flex items-center gap-2">
                         <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-[10px] font-bold">{r.collaborator.fullName.slice(0, 2).toUpperCase()}</span>
@@ -988,7 +1082,9 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, 
                       </div>
                       <span className="text-xs text-muted-foreground">{fmtDate(r.schedule.startDate)} → {fmtDate(r.schedule.endDate)}</span>
                       <span className="flex items-center gap-1 text-xs"><Plane className="h-3 w-3 text-indigo-500" /> {brl(r.ticket?.value)}</span>
-                      <span className="flex items-center gap-1 text-xs"><BedDouble className="h-3 w-3 text-emerald-500" /> {brl(r.accommodation?.totalCents || (r.accommodation?.dailyRate || 0) * (r.accommodation?.nightsCount || 0))}</span>
+                      <span className={`flex items-center gap-1 text-xs ${isHotelTotalDerived(r) ? "italic" : ""}`} title={isHotelTotalDerived(r) ? "Valor derivado: diária × diárias" : undefined}>
+                        <BedDouble className="h-3 w-3 text-emerald-500" /> {brl(hotelTotalCents(r))}
+                      </span>
                       <span className="flex items-center gap-1 text-xs"><Luggage className="h-3 w-3 text-amber-500" /> {brl((r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0))}</span>
                       {r.pendencies.length > 0 && <Badge variant="outline" className="text-[9px] border-amber-400 text-amber-700 dark:text-amber-400 ml-auto">{r.pendencies.length} pend.</Badge>}
                       {canEdit && <>
@@ -1004,7 +1100,7 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, 
           </Card>
         );
       })}
-      <FooterTotals totals={totals} />
+      <FooterTotals totals={totals} hotelDerived={hotelDerived} />
     </div>
   );
 }
@@ -1012,28 +1108,41 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, 
 // ============ QUARTOS VIEW ============
 // Membros de grupo vêm do servidor como linhas {collaboratorId, ...}; o nome/gênero
 // é resolvido pelas linhas do espelho (collabById).
-function memberInfo(m: any, collabById: Map<string, any>) {
-  const id = typeof m === "string" ? m : m?.collaboratorId || m?.id;
+// Aceita a linha de membro (com collaboratorId) ou um id solto; nome/gênero podem
+// vir denormalizados no próprio membro em respostas mais antigas.
+type GroupMemberLike = string | { collaboratorId?: string | null; id?: string; fullName?: string | null; name?: string | null; gender?: string | null };
+interface MemberInfo { id: string | undefined; name: string; gender: string | null; noGender: boolean }
+function memberInfo(m: GroupMemberLike, collabById: Map<string, MirrorCollaborator>): MemberInfo {
+  const obj = typeof m === "string" ? null : m;
+  const id = typeof m === "string" ? m : (obj?.collaboratorId || obj?.id || undefined);
   const c = id ? collabById.get(id) : undefined;
-  const name = m?.fullName || m?.name || c?.fullName || (id ? `#${String(id).slice(0, 8)}` : "?");
-  const gender = m?.gender ?? c?.gender ?? null;
+  const name = obj?.fullName || obj?.name || c?.fullName || (id ? `#${String(id).slice(0, 8)}` : "?");
+  const gender = obj?.gender ?? c?.gender ?? null;
   return { id, name, gender, noGender: !gender || gender === "unknown" };
 }
 
-function QuartosView({ groups, collabById, canEdit, onConfirm, pendingId }: any) {
+interface GroupViewProps<G> {
+  groups: G[];
+  collabById: Map<string, MirrorCollaborator>;
+  canEdit: boolean;
+  onConfirm: (id: string) => void;
+  pendingId: string | null | undefined;
+}
+
+function QuartosView({ groups, collabById, canEdit, onConfirm, pendingId }: GroupViewProps<RoomGroup>) {
   const emptyHint = canEdit ? ' Clique em "Recalcular sugestões".' : "";
   if (groups.length === 0) return <Card><CardContent className="py-10 text-center text-muted-foreground">Nenhuma sugestão de quarto.{emptyHint}</CardContent></Card>;
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-      {groups.map((g: any) => {
-        const members = (g.members || []).map((m: any) => memberInfo(m, collabById));
-        const missingGender = members.filter((m: any) => m.noGender);
+      {groups.map((g) => {
+        const members = (g.members || []).map((m) => memberInfo(m, collabById));
+        const missingGender = members.filter((m) => m.noGender);
         const genderRule = g.genderRule ? (GENDER_RULE_LABEL[g.genderRule] ?? g.genderRule) : null;
         return (
           <Card key={g.id} className={g.confirmed ? "border-green-400" : "border-dashed"} data-testid={`room-${g.id}`}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center justify-between">
-                <span className="flex items-center gap-2"><BedDouble className="h-4 w-4 text-emerald-500" /> {ROOM_TYPE_LABEL[g.roomType] ?? g.roomType ?? "Quarto"}</span>
+                <span className="flex items-center gap-2"><BedDouble className="h-4 w-4 text-emerald-500" /> {(g.roomType && ROOM_TYPE_LABEL[g.roomType]) ?? g.roomType ?? "Quarto"}</span>
                 {g.confirmed ? <Badge className="bg-green-600">Confirmado</Badge> : <Badge variant="outline">Sugestão</Badge>}
               </CardTitle>
             </CardHeader>
@@ -1045,7 +1154,7 @@ function QuartosView({ groups, collabById, canEdit, onConfirm, pendingId }: any)
                 {genderRule && <Badge variant="outline" className="text-[9px] px-1 py-0 font-normal" title="Regra de gênero do quarto">{genderRule}</Badge>}
               </div>
               <div className="flex flex-wrap gap-1">
-                {members.map((m: any, i: number) => (
+                {members.map((m, i) => (
                   <Badge key={m.id ?? i} variant="secondary" className={`text-[10px] ${m.noGender ? "border border-amber-400" : ""}`}>
                     {m.name}{m.gender && m.gender !== "unknown" ? ` · ${genderLabel[m.gender] ?? m.gender}` : ""}
                   </Badge>
@@ -1069,13 +1178,13 @@ function QuartosView({ groups, collabById, canEdit, onConfirm, pendingId }: any)
 }
 
 // ============ UBER VIEW ============
-function UberView({ groups, collabById, canEdit, onConfirm, pendingId }: any) {
+function UberView({ groups, collabById, canEdit, onConfirm, pendingId }: GroupViewProps<UberGroup>) {
   const emptyHint = canEdit ? ' Clique em "Recalcular sugestões".' : "";
   if (groups.length === 0) return <Card><CardContent className="py-10 text-center text-muted-foreground">Nenhuma sugestão de Uber.{emptyHint}</CardContent></Card>;
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-      {groups.map((g: any) => {
-        const members = (g.members || []).map((m: any) => memberInfo(m, collabById));
+      {groups.map((g) => {
+        const members = (g.members || []).map((m) => memberInfo(m, collabById));
         return (
           <Card key={g.id} className={g.confirmed ? "border-green-400" : "border-dashed"} data-testid={`uber-${g.id}`}>
             <CardHeader className="pb-2">
@@ -1088,7 +1197,7 @@ function UberView({ groups, collabById, canEdit, onConfirm, pendingId }: any) {
               <div className="flex items-center gap-1 text-muted-foreground"><MapPin className="h-3 w-3" /> {g.origin || "?"} → {g.destination || "?"}</div>
               <div className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" /> {fmtDate(g.date)} {g.time || ""}</div>
               <div className="flex items-center gap-1"><Users className="h-3 w-3" /> {members.length} passageiro(s)</div>
-              <div className="flex flex-wrap gap-1">{members.map((m: any, i: number) => <Badge key={m.id ?? i} variant="secondary" className="text-[10px]">{m.name}</Badge>)}</div>
+              <div className="flex flex-wrap gap-1">{members.map((m, i) => <Badge key={m.id ?? i} variant="secondary" className="text-[10px]">{m.name}</Badge>)}</div>
               {!g.confirmed && canEdit && <Button size="sm" className="w-full mt-2" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id} data-testid={`confirm-uber-${g.id}`}>
                 {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />} Confirmar
               </Button>}
@@ -1101,7 +1210,7 @@ function UberView({ groups, collabById, canEdit, onConfirm, pendingId }: any) {
 }
 
 // ============ FOOTER TOTALS ============
-function FooterTotals({ totals }: any) {
+function FooterTotals({ totals, hotelDerived }: { totals: MirrorTotals; hotelDerived?: boolean }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <Card>
@@ -1116,7 +1225,7 @@ function FooterTotals({ totals }: any) {
                 </tr>
               </thead>
               <tbody>
-                {(totals.byDepartment || []).map((d: any) => (
+                {(totals.byDepartment || []).map((d) => (
                   <tr key={d.name} className="border-b last:border-0">
                     <td className="p-2 capitalize">{d.name}</td>
                     <td className="p-2 text-right tabular-nums">{brl(d.tickets)}</td><td className="p-2 text-right tabular-nums">{brl(d.hotel)}</td>
@@ -1132,7 +1241,7 @@ function FooterTotals({ totals }: any) {
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm">Totais Gerais</CardTitle></CardHeader>
         <CardContent className="space-y-1.5 text-sm">
-          <TotalLine label="Total Hotelaria" value={brl(totals.hotel)} />
+          <TotalLine label="Total Hotelaria" value={brl(totals.hotel)} italic={hotelDerived} title={hotelDerived ? "Inclui valores derivados de diária × diárias" : undefined} />
           <TotalLine label="Total Passagens" value={brl(totals.tickets)} />
           <TotalLine label="Total Bagagem Extra" value={brl(totals.baggage)} />
           <TotalLine label="Total Uber" value={brl(totals.uber)} />
@@ -1161,7 +1270,7 @@ const TONES: Record<string, string> = {
   orange: "text-orange-600 bg-orange-50 dark:bg-orange-950/40 dark:text-orange-300",
   primary: "text-primary bg-primary/10",
 };
-function KpiCard({ icon, label, value, hint, tone, highlight }: { icon: React.ReactNode; label: string; value: string; hint: string; tone: string; highlight?: boolean }) {
+function KpiCard({ icon, label, value, hint, tone, highlight, derived }: { icon: React.ReactNode; label: string; value: string; hint: string; tone: string; highlight?: boolean; derived?: boolean }) {
   return (
     <Card className={`hover:shadow-md transition-all hover:-translate-y-0.5 ${highlight ? "border-primary/50 bg-primary/[0.03]" : ""}`}>
       <CardContent className="p-3.5">
@@ -1169,12 +1278,13 @@ function KpiCard({ icon, label, value, hint, tone, highlight }: { icon: React.Re
           <span className="text-xs font-medium text-muted-foreground">{label}</span>
           <span className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${TONES[tone]}`}>{icon}</span>
         </div>
-        <div className="text-lg font-bold mt-1.5 tabular-nums">{value}</div>
+        {/* Itálico = inclui valores derivados (diária × diárias) e não só totais informados. */}
+        <div className={`text-lg font-bold mt-1.5 tabular-nums ${derived ? "italic" : ""}`}>{value}</div>
         <div className="text-[11px] text-muted-foreground">{hint}</div>
       </CardContent>
     </Card>
   );
 }
-function TotalLine({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
-  return <div className={`flex items-center justify-between ${bold ? "font-bold text-base" : ""}`}><span className={bold ? "" : "text-muted-foreground"}>{label}</span><span className="tabular-nums">{value}</span></div>;
+function TotalLine({ label, value, bold, italic, title }: { label: string; value: string; bold?: boolean; italic?: boolean; title?: string }) {
+  return <div className={`flex items-center justify-between ${bold ? "font-bold text-base" : ""}`}><span className={bold ? "" : "text-muted-foreground"}>{label}</span><span className={`tabular-nums ${italic ? "italic" : ""}`} title={title}>{value}</span></div>;
 }
