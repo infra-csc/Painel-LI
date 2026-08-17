@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { parseBrNumber } from "@/lib/utils";
 import { Link } from "wouter";
 import {
   Calculator, Save, DollarSign, Car, Utensils, ShieldAlert,
@@ -27,10 +28,12 @@ import { isAdmin, isRhOrAdmin } from "@/lib/permissions";
 import type { Function as FunctionType, FunctionValue, PaymentCompany } from "@shared/schema";
 import { CnpjInput, validateCnpj } from "@/components/ui/cnpj-input";
 
-// Validação numérica no client: o input normaliza vírgula→ponto, então aqui
-// basta aceitar dígitos com decimal opcional. Sem isso, "12abc" ou "" viravam
-// NaN no PUT e o erro só aparecia (genérico) depois da ida ao servidor.
-const isNumericString = (v: string) => /^\d+(\.\d+)?$/.test(v.trim());
+// Validação numérica no client, entendendo o formato pt-BR completo (vírgula
+// decimal E ponto de milhar): "1.500,00" e "1.500" valem 1500 — a conversão
+// real é sempre do parseBrNumber, o mesmo usado nas telas do Financeiro.
+// Sem isso, "1.500" passava num regex ingênuo e o parseFloat salvava R$ 1,50.
+const isNumericString = (v: string) =>
+  /^[\d.,\s]+$/.test(v.trim()) && /\d/.test(v) && Number.isFinite(parseBrNumber(v));
 
 // Campo monetário (reais<->centavos): número >= 0.
 const moneyField = () =>
@@ -44,7 +47,7 @@ const percentField = () =>
     .min(1, "Obrigatório")
     .refine(isNumericString, "Informe um percentual numérico válido (ex.: 90)")
     .refine(v => {
-      const n = parseFloat(v);
+      const n = parseBrNumber(v);
       return n >= 0 && n <= 100;
     }, "O percentual deve estar entre 0 e 100");
 
@@ -167,7 +170,7 @@ function centavosToReais(centavos: number): string {
 }
 
 function formatCurrency(val: string): string {
-  const n = parseFloat(val);
+  const n = parseBrNumber(val);
   return isNaN(n) ? val : `R$ ${n.toFixed(2).replace(".", ",")}`;
 }
 
@@ -193,10 +196,12 @@ function freelaOuCasa(freelaCentavos: number | null | undefined, casaCentavos: n
   return f !== 0 ? f : (casaCentavos ?? 0);
 }
 
-// Normaliza dígito decimal pt-BR: aceita vírgula no teclado, mas o valor
-// guardado no form continua com ponto (formato salvo/PUT idêntico ao anterior).
+// Mantém no form o texto como o usuário digita (vírgula E ponto de milhar),
+// só barrando caracteres inválidos — quem interpreta é o parseBrNumber.
+// (A troca cega vírgula→ponto de antes transformava "1.500,00" em "1.500.00",
+// que o parser lia como 1,5.)
 function normalizeDecimal(raw: string): string {
-  return raw.replace(",", ".");
+  return raw.replace(/[^\d.,]/g, "");
 }
 
 type AnyFieldProps = ControllerRenderProps<FormValues, FieldPath<FormValues>>;
@@ -443,10 +448,10 @@ export default function SystemSettingsPage() {
     const savedFreelaWd = fv ? centavosToReais(freelaOuCasa(fv.dailyValueFreela, fv.dailyValue)) : "0.00";
     const savedFreelaWe = fv ? centavosToReais(freelaOuCasa(fv.dailyValueFreelaWeekend, fv.dailyValueWeekend)) : "0.00";
     return (
-      parseFloat(functionDailyValues[fn.id] ?? "0") !== parseFloat(savedCasaWd) ||
-      parseFloat(fnWeekendValues[fn.id] ?? "0") !== parseFloat(savedCasaWe) ||
-      parseFloat(fnFreelaValues[fn.id] ?? "0") !== parseFloat(savedFreelaWd) ||
-      parseFloat(fnFreelaWeekendValues[fn.id] ?? "0") !== parseFloat(savedFreelaWe)
+      parseBrNumber(functionDailyValues[fn.id] ?? "0") !== parseBrNumber(savedCasaWd) ||
+      parseBrNumber(fnWeekendValues[fn.id] ?? "0") !== parseBrNumber(savedCasaWe) ||
+      parseBrNumber(fnFreelaValues[fn.id] ?? "0") !== parseBrNumber(savedFreelaWd) ||
+      parseBrNumber(fnFreelaWeekendValues[fn.id] ?? "0") !== parseBrNumber(savedFreelaWe)
     );
   };
 
@@ -455,10 +460,10 @@ export default function SystemSettingsPage() {
       const dirtyFns = allFunctions.filter(isFunctionDirty);
       const promises = dirtyFns.map(async fn => {
         const fv = allFunctionValues.find(v => v.functionId === fn.id);
-        const casaWd = Math.round(parseFloat(functionDailyValues[fn.id] || "0") * 100);
-        const casaWe = Math.round(parseFloat(fnWeekendValues[fn.id] || "0") * 100);
-        const freelaWd = Math.round(parseFloat(fnFreelaValues[fn.id] || "0") * 100);
-        const freelaWe = Math.round(parseFloat(fnFreelaWeekendValues[fn.id] || "0") * 100);
+        const casaWd = Math.round(parseBrNumber(functionDailyValues[fn.id] || "0") * 100);
+        const casaWe = Math.round(parseBrNumber(fnWeekendValues[fn.id] || "0") * 100);
+        const freelaWd = Math.round(parseBrNumber(fnFreelaValues[fn.id] || "0") * 100);
+        const freelaWe = Math.round(parseBrNumber(fnFreelaWeekendValues[fn.id] || "0") * 100);
         if (fv) {
           return apiRequest("PATCH", `/api/function-values/${fv.id}`, {
             dailyValue: casaWd,
@@ -564,12 +569,12 @@ export default function SystemSettingsPage() {
     }
   }, [settings]);
 
-  const mobilityIda = parseFloat(form.watch("default_mobility_ida") || "0");
-  const mobilityVolta = parseFloat(form.watch("default_mobility_volta") || "0");
+  const mobilityIda = parseBrNumber(form.watch("default_mobility_ida") || "0");
+  const mobilityVolta = parseBrNumber(form.watch("default_mobility_volta") || "0");
   const mobilityTotal = isNaN(mobilityIda + mobilityVolta) ? 0 : mobilityIda + mobilityVolta;
 
-  const mobilityIdaFreela = parseFloat(form.watch("default_mobility_ida_freela") || "0");
-  const mobilityVoltaFreela = parseFloat(form.watch("default_mobility_volta_freela") || "0");
+  const mobilityIdaFreela = parseBrNumber(form.watch("default_mobility_ida_freela") || "0");
+  const mobilityVoltaFreela = parseBrNumber(form.watch("default_mobility_volta_freela") || "0");
   const mobilityTotalFreela = isNaN(mobilityIdaFreela + mobilityVoltaFreela) ? 0 : mobilityIdaFreela + mobilityVoltaFreela;
 
   const dirtyFormFields = Object.keys(form.formState.dirtyFields).length;
@@ -582,9 +587,9 @@ export default function SystemSettingsPage() {
     mutationFn: async (values: FormValues) => {
       const body: Record<string, number> = {};
       for (const [key, val] of Object.entries(values)) {
-        body[key] = parseFloat(val);
+        body[key] = parseBrNumber(val);
       }
-      body["default_mobility"] = (parseFloat(values.default_mobility_ida) || 0) + (parseFloat(values.default_mobility_volta) || 0);
+      body["default_mobility"] = (parseBrNumber(values.default_mobility_ida) || 0) + (parseBrNumber(values.default_mobility_volta) || 0);
       return apiRequest("PUT", "/api/system-settings", body);
     },
     onSuccess: (_, values) => {
@@ -598,13 +603,13 @@ export default function SystemSettingsPage() {
           if (PERCENT_KEYS.has(key)) {
             // Percentuais inteiros — o valor salvo já é inteiro cru (sem ×100)
             const oldRaw = String((settings as any)[key] ?? "");
-            if (parseFloat(oldRaw || "NaN") !== parseFloat(newVal)) {
+            if (parseBrNumber(oldRaw || "NaN") !== parseBrNumber(newVal)) {
               newEntries.push({ timestamp: now, user: userName, field: FIELD_LABELS[key] ?? key, oldValue: `${oldRaw || "—"}%`, newValue: `${newVal}%` });
             }
             continue;
           }
           const oldVal = centavosToReais((settings as any)[key] ?? (settings as any)["default_daily_value"] ?? 0);
-          if (parseFloat(oldVal) !== parseFloat(newVal)) {
+          if (parseBrNumber(oldVal) !== parseBrNumber(newVal)) {
             newEntries.push({ timestamp: now, user: userName, field: FIELD_LABELS[key] ?? key, oldValue: formatCurrency(oldVal), newValue: formatCurrency(newVal) });
           }
         }
@@ -639,7 +644,7 @@ export default function SystemSettingsPage() {
         { label: "Freela · Fim de Semana", saved: fv ? centavosToReais(freelaOuCasa(fv.dailyValueFreelaWeekend, fv.dailyValueWeekend)) : "0.00", current: fnFreelaWeekendValues[fn.id] ?? "0" },
       ];
       for (const c of cells) {
-        if (parseFloat(c.current) !== parseFloat(c.saved)) {
+        if (parseBrNumber(c.current) !== parseBrNumber(c.saved)) {
           entries.push({
             timestamp: now,
             user: userName,
@@ -1266,8 +1271,8 @@ export default function SystemSettingsPage() {
                               const savedWeCent = !fv ? 0 : activeTab === 'casa' ? (fv.dailyValueWeekend ?? 0) : freelaOuCasa(fv.dailyValueFreelaWeekend, fv.dailyValueWeekend);
                               const savedWd = centavosToReais(savedWdCent);
                               const savedWe = centavosToReais(savedWeCent);
-                              const isDirtyWd = parseFloat(wdVal) !== parseFloat(savedWd);
-                              const isDirtyWe = parseFloat(weVal) !== parseFloat(savedWe);
+                              const isDirtyWd = parseBrNumber(wdVal) !== parseBrNumber(savedWd);
+                              const isDirtyWe = parseBrNumber(weVal) !== parseBrNumber(savedWe);
                               const isDirty = isDirtyWd || isDirtyWe;
                               const isEditingWd = editingFunctionId === fn.id && editingField === 'wd';
                               const isEditingWe = editingFunctionId === fn.id && editingField === 'we';
@@ -1275,8 +1280,8 @@ export default function SystemSettingsPage() {
                               const hasWe = !!fv && savedWeCent > 0;
 
                               const renderCell = (field: 'wd' | 'we', isEditing: boolean, currentVal: string, hasCustom: boolean, fallbackVal?: string) => {
-                                const isZero = parseFloat(currentVal) === 0;
-                                const hasFallback = isZero && fallbackVal && parseFloat(fallbackVal) > 0;
+                                const isZero = parseBrNumber(currentVal) === 0;
+                                const hasFallback = isZero && fallbackVal && parseBrNumber(fallbackVal) > 0;
                                 const valueColor = hasCustom
                                   ? (field === 'we' ? 'text-orange-500' : activeTab === 'casa' ? 'text-indigo-700' : 'text-violet-700')
                                   : 'text-slate-400';
@@ -1324,7 +1329,7 @@ export default function SystemSettingsPage() {
                                             <Tooltip delayDuration={200}>
                                               <TooltipTrigger asChild>
                                                 <span className="text-sm font-medium tabular-nums text-orange-500">
-                                                  R$ {parseFloat(fallbackVal!).toFixed(2).replace('.', ',')}
+                                                  R$ {parseBrNumber(fallbackVal!).toFixed(2).replace('.', ',')}
                                                 </span>
                                               </TooltipTrigger>
                                               <TooltipContent side="top" className="text-xs">
@@ -1336,7 +1341,7 @@ export default function SystemSettingsPage() {
                                           )
                                         ) : (
                                           <span className={`text-sm font-semibold tabular-nums ${valueColor}`}>
-                                            {`R$ ${parseFloat(currentVal).toFixed(2).replace('.', ',')}`}
+                                            {`R$ ${parseBrNumber(currentVal).toFixed(2).replace('.', ',')}`}
                                           </span>
                                         )}
                                         <Pencil className="h-3 w-3 text-slate-300 opacity-0 transition-opacity group-hover/cell:opacity-100 group-focus-within/cell:opacity-100" />
