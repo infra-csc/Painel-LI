@@ -62,11 +62,14 @@ const allTabs = [
   { id: "admin-users",       path: "/admin-users",       label: "Usuários",              icon: "manage_accounts", permission: "canAccessAdminUsers"    as const },
 ];
 
+// Cor por GRUPO (semântica: ajuda a se localizar no menu). O item ativo usa
+// sempre o azul de marca. Antes a cor alternava azul/laranja por linha, sem
+// significado; a versão só-cinza ficou apagada — esta é o meio-termo.
 const menuGroups = [
-  { title: "Cadastros",   ids: ["user-registration", "events", "calendar", "functions", "collaborators"] },
-  { title: "Operacional", ids: ["team-inclusion", "scaling", "tickets", "accommodations", "operational-mirror", "baggage-control"] },
-  { title: "Financeiro",  ids: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "flash-account", "calculation-rules", "system-settings"] },
-  { title: "Gestão",      ids: ["consultation", "admin-users"] },
+  { title: "Cadastros",   iconClass: "text-primary",     ids: ["user-registration", "events", "calendar", "functions", "collaborators"] },
+  { title: "Operacional", iconClass: "text-orange-500",  ids: ["team-inclusion", "scaling", "tickets", "accommodations", "operational-mirror", "baggage-control"] },
+  { title: "Financeiro",  iconClass: "text-emerald-600", ids: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "flash-account", "calculation-rules", "system-settings"] },
+  { title: "Gestão",      iconClass: "text-violet-600",  ids: ["consultation", "admin-users"] },
 ];
 
 
@@ -372,7 +375,7 @@ export default function Sidebar() {
                         <span
                           className={cn(
                             "flex items-center justify-center w-6 h-6 shrink-0 transition-transform duration-[180ms] group-hover:scale-110",
-                            isActive ? "text-primary" : "text-slate-500",
+                            isActive ? "text-primary" : group.iconClass,
                           )}>
                           <MI name={tab.icon} filled={true} style={{ fontSize: 18 }} />
                         </span>
