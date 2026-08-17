@@ -42,6 +42,10 @@ const formSchema = z.object({
   // Atendimento
   atendimento_key_account: z.string().min(1, "Obrigatório"),
   atendimento_executivo_contas: z.string().min(1, "Obrigatório"),
+  // Diárias Freela (regra por viagem) — monetárias normais (reais<->centavos)
+  freela_diaria_local: z.string().min(1, "Obrigatório"),
+  freela_diaria_viagem: z.string().min(1, "Obrigatório"),
+  freela_diaria_dir_prova: z.string().min(1, "Obrigatório"),
   // Regra de deflação (diárias) — percentuais inteiros 0..100, NÃO monetários
   deflacao_fator_ate_4: z.string().min(1, "Obrigatório"),
   deflacao_fator_5_8: z.string().min(1, "Obrigatório"),
@@ -80,6 +84,9 @@ const FIELD_LABELS: Record<string, string> = {
   default_weekend_dinner_freela: "Jantar Freela — Fim de Semana",
   atendimento_key_account: "Atendimento — Key Account",
   atendimento_executivo_contas: "Atendimento — Executivo de Contas",
+  freela_diaria_local: "Diária Freela — Local (sem viagem)",
+  freela_diaria_viagem: "Diária Freela — Em viagem",
+  freela_diaria_dir_prova: "Diária Freela — Dir de Prova",
   deflacao_fator_ate_4: "Deflação — Até 4 dias (%)",
   deflacao_fator_5_8: "Deflação — Do 5º ao 8º dia (%)",
   deflacao_fator_9_mais: "Deflação — A partir do 9º dia (%)",
@@ -367,6 +374,9 @@ export default function SystemSettingsPage() {
       default_weekend_dinner_freela: "45.00",
       atendimento_key_account: "580.00",
       atendimento_executivo_contas: "465.00",
+      freela_diaria_local: "465.00",
+      freela_diaria_viagem: "540.00",
+      freela_diaria_dir_prova: "820.00",
       deflacao_fator_ate_4: "100",
       deflacao_fator_5_8: "90",
       deflacao_fator_9_mais: "80",
@@ -401,6 +411,9 @@ export default function SystemSettingsPage() {
         default_weekend_dinner_freela: centavosToReais(s.default_weekend_dinner_freela ?? s.default_weekend_dinner ?? 4500),
         atendimento_key_account: centavosToReais(s.atendimento_key_account ?? 58000),
         atendimento_executivo_contas: centavosToReais(s.atendimento_executivo_contas ?? 46500),
+        freela_diaria_local: centavosToReais(s.freela_diaria_local ?? 46500),
+        freela_diaria_viagem: centavosToReais(s.freela_diaria_viagem ?? 54000),
+        freela_diaria_dir_prova: centavosToReais(s.freela_diaria_dir_prova ?? 82000),
         // Percentuais inteiros — usar o valor cru do GET, SEM centavosToReais
         deflacao_fator_ate_4: String(s.deflacao_fator_ate_4 ?? 100),
         deflacao_fator_5_8: String(s.deflacao_fator_5_8 ?? 90),
@@ -953,6 +966,47 @@ export default function SystemSettingsPage() {
                   </FormItem>
                 )} />
               </div>
+            </div>
+          </div>
+
+          {/* ── Diárias Freela (regra por viagem) — chaves MONETÁRIAS ── */}
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            <div style={{ background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)', borderBottom: '1px solid #DDD6FE', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 9, background: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(124,58,237,0.3)', flexShrink: 0 }}>
+                <DollarSign style={{ width: 18, height: 18, color: '#fff' }} />
+              </div>
+              <div>
+                <p style={{ fontWeight: 700, fontSize: 13, color: '#5B21B6', margin: 0 }}>Diárias Freela (regra por viagem)</p>
+                <p style={{ fontSize: 11, color: '#7C3AED', margin: 0 }}>Três tarifas conforme a função e se há viagem</p>
+              </div>
+            </div>
+            <div style={{ padding: 16 }}>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <FormField control={form.control} name="freela_diaria_local" render={({ field }) => (
+                  <FormItem>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#6D28D9', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Local (sem viagem)</p>
+                    <FormControl><CurrencyInput field={field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="freela_diaria_viagem" render={({ field }) => (
+                  <FormItem>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#6D28D9', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Em viagem</p>
+                    <FormControl><CurrencyInput field={field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="freela_diaria_dir_prova" render={({ field }) => (
+                  <FormItem>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#6D28D9', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Dir de Prova</p>
+                    <FormControl><CurrencyInput field={field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+              <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 12, marginBottom: 0 }}>
+                Tarifas do time freela definidas pela regra do slide — a diária é escolhida automaticamente conforme a função e se a escalação tem passagem. Os valores freela antigos por função deixaram de ser usados no cálculo.
+              </p>
             </div>
           </div>
 

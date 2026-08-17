@@ -21,7 +21,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetNote } from "@shared/schema";
 import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents, ATENDIMENTO_TIPOS, type AtendimentoTipo } from "@shared/atendimento";
-import { calcDeflatedDailies, deflationFactorsFromSettings } from "@shared/calculation-rules";
+import { calcDeflatedDailies, deflationFactorsFromSettings, freelaDailyCents } from "@shared/calculation-rules";
 import { calcAlimentacao, isCenotecnicaFunction, refeicaoCents } from "@shared/alimentacao";
 import { useAuth } from "@/hooks/use-auth";
 import { useSearch } from "wouter";
@@ -560,8 +560,14 @@ export default function BudgetPlannedPage() {
       const fvDaily = fvDailyWd > 0 ? fvDailyWd : (fvDailyWe > 0 ? fvDailyWe : 0);
       // Diária plana: enquanto o modal ainda mostra dois campos (útil/fds),
       // editar QUALQUER um deles vira o valor único — nada é ignorado.
+      // FREELA segue a REGRA do slide (local/viagem/dir de prova, editável no
+      // Valores Padrão) — vence os valores freela antigos gravados por função,
+      // que eram legado (ex.: R$250) e não batiam com a tabela.
+      const freelaVal = !collabIsCasa
+        ? freelaDailyCents(getFunctionName(inclusion.functionId), !!inclusion.needsTicket, ss)
+        : null;
       const valorDiaria = override?.valorDiaria ?? override?.valorDiariaUtil ?? override?.valorDiariaFds ?? atendVal
-        ?? (fvDaily > 0 ? fvDaily : null) ?? inclusionDailyValue ?? defaultDailyValueWeekday;
+        ?? freelaVal ?? (fvDaily > 0 ? fvDaily : null) ?? inclusionDailyValue ?? defaultDailyValueWeekday;
       const valorDiariaUtil = valorDiaria;
       const valorDiariaFds = valorDiaria;
       

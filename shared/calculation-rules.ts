@@ -155,3 +155,45 @@ export const PERCURSEIRO_TYPES = [
     totalPlanilhaCents: 126496,
   },
 ] as const;
+
+// ── Diária FREELA por regra (slide "Regra de cálculo para time freela") ──────
+// A tarifa freela não é por função individual: é uma regra de 3 valores —
+// Dir de Prova (R$820), demais funções EM VIAGEM (R$540) ou LOCAL (R$465) —
+// editáveis no Valores Padrão. "Em viagem" = a escalação tem passagem
+// (needsTicket). Os valores freela antigos gravados por função (ex.: R$250)
+// eram legado e não batiam com o slide.
+export const FREELA_SETTING_KEYS = {
+  local: "freela_diaria_local",
+  viagem: "freela_diaria_viagem",
+  dirProva: "freela_diaria_dir_prova",
+} as const;
+
+export const FREELA_DEFAULTS_CENTS = {
+  local: 46500,
+  viagem: 54000,
+  dirProva: 82000,
+} as const;
+
+/** A função é de Direção de Prova? */
+export function isDirProvaFunction(functionName: string | null | undefined): boolean {
+  if (!functionName) return false;
+  const n = functionName.toLowerCase();
+  return n.includes("dir") && n.includes("prova");
+}
+
+/** Diária freela (centavos) pela regra do slide, lendo o Valores Padrão. */
+export function freelaDailyCents(
+  functionName: string | null | undefined,
+  emViagem: boolean,
+  settings?: Record<string, number | string | undefined> | null,
+): number {
+  const read = (key: string, def: number): number => {
+    const raw = settings?.[key];
+    const n = typeof raw === "string" ? parseInt(raw, 10) : raw;
+    return (typeof n === "number" && Number.isFinite(n) && n > 0) ? n : def;
+  };
+  if (isDirProvaFunction(functionName)) return read(FREELA_SETTING_KEYS.dirProva, FREELA_DEFAULTS_CENTS.dirProva);
+  return emViagem
+    ? read(FREELA_SETTING_KEYS.viagem, FREELA_DEFAULTS_CENTS.viagem)
+    : read(FREELA_SETTING_KEYS.local, FREELA_DEFAULTS_CENTS.local);
+}

@@ -17,6 +17,18 @@ function tratarSessaoExpirada(url: string) {
 }
 
 async function throwIfResNotOk(res: Response) {
+  // Rota /api inexistente no servidor RODANDO cai no catch-all do Vite/static
+  // e devolve o index.html com 200 — o .json() do chamador estoura com um
+  // SyntaxError mudo e o usuário vê um erro genérico. Acontece sempre que o
+  // código novo chega por pull mas o workflow do Replit não é reiniciado
+  // (o backend não tem hot-reload). Transformamos isso numa mensagem acionável.
+  if (res.ok && res.url.includes("/api/") && (res.headers.get("content-type") || "").includes("text/html")) {
+    const err = new Error("Servidor desatualizado") as any;
+    err.status = 503;
+    err.body = { message: "O servidor está rodando uma versão antiga — reinicie o workflow no Replit e tente de novo." };
+    err.response = { status: 503, json: async () => err.body };
+    throw err;
+  }
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
     let body: any = null;

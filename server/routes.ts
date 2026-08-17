@@ -4019,6 +4019,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         alimentacao_jantar: 4000,
         alimentacao_almoco_ceno: 3500,
         alimentacao_jantar_ceno: 3500,
+        // Tarifas freela (regra do slide)
+        freela_diaria_local: 46500,
+        freela_diaria_viagem: 54000,
+        freela_diaria_dir_prova: 82000,
       };
       const result: Record<string, number> = { ...defaults };
       for (const s of settings) {
@@ -4052,6 +4056,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "deflacao_fator_ate_4", "deflacao_fator_5_8", "deflacao_fator_9_mais",
         // Refeições flat (alimentação por voo — Demais e Cenotécnica)
         "alimentacao_almoco", "alimentacao_jantar", "alimentacao_almoco_ceno", "alimentacao_jantar_ceno",
+        // Tarifas freela (regra do slide: local / em viagem / dir de prova)
+        "freela_diaria_local", "freela_diaria_viagem", "freela_diaria_dir_prova",
       ];
       // Fatores de deflação são PERCENTUAIS inteiros (0..100), não valores
       // monetários — gravados sem o ×100 dos demais.

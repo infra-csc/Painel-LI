@@ -64,3 +64,30 @@ describe("mobilidade por horário de voo", () => {
     expect(parseHoraMin("")).toBeNull();
   });
 });
+
+describe("parseHoraMin — formatos reais dos campos de texto livre da escalação", () => {
+  it('"9h" e "22h" (formato mais comum)', () => {
+    expect(parseHoraMin("9h")).toBe(9 * 60);
+    expect(parseHoraMin("22h")).toBe(22 * 60);
+  });
+  it('"20h+" e faixas "10h-14h" / "14-18h" usam o primeiro horário', () => {
+    expect(parseHoraMin("20h+")).toBe(20 * 60);
+    expect(parseHoraMin("10h-14h")).toBe(10 * 60);
+    expect(parseHoraMin("14-18h")).toBe(18 * 60); // sem "h" no 14, pega o 18h
+  });
+  it('"onibus - 10h" e "carro - 14h" extraem o horário do meio do texto', () => {
+    expect(parseHoraMin("onibus - 10h")).toBe(10 * 60);
+    expect(parseHoraMin("carro - 14h")).toBe(14 * 60);
+  });
+  it('"0900" militar', () => {
+    expect(parseHoraMin("0900")).toBe(9 * 60);
+    expect(parseHoraMin("1430")).toBe(14 * 60 + 30);
+  });
+  it('"carro" sem horário -> null (alimentação vira estimada)', () => {
+    expect(parseHoraMin("carro")).toBeNull();
+    expect(parseHoraMin("van")).toBeNull();
+  });
+  it('"9h30" com minutos', () => {
+    expect(parseHoraMin("9h30")).toBe(9 * 60 + 30);
+  });
+});

@@ -53,14 +53,38 @@ export function atendimentoDailyCents(
 export const MOBILIDADE_TRECHO_PADRAO_CENTS = 2900;    // R$ 29,00
 export const MOBILIDADE_TRECHO_MADRUGADA_CENTS = 5800; // R$ 58,00
 
-/** "HH:MM" -> minutos desde a meia-noite, ou null se inválido/vazio. */
-export function parseHoraMin(hhmm: string | null | undefined): number | null {
-  if (!hhmm) return null;
-  const m = /^(\d{1,2}):(\d{2})/.exec(hhmm.trim());
-  if (!m) return null;
-  const h = Number(m[1]), min = Number(m[2]);
-  if (h > 23 || min > 59) return null;
-  return h * 60 + min;
+/**
+ * Extrai o PRIMEIRO horário de um texto livre -> minutos desde a meia-noite,
+ * ou null se não houver horário reconhecível.
+ *
+ * Os campos de horário sugerido da escalação são texto livre e o time escreve
+ * de tudo: "9h", "22h", "20h+", "10h-14h", "onibus - 10h", "carro - 14h",
+ * "0900", "09:30". Um parser estrito (só HH:MM) descartava quase todos e o
+ * cálculo caía em "estimado" sem necessidade. "carro" (sem horário) -> null.
+ */
+export function parseHoraMin(texto: string | null | undefined): number | null {
+  if (!texto) return null;
+  const t = texto.trim();
+  // 1) HH:MM em qualquer posição ("chega 09:30")
+  let m = /(\d{1,2}):(\d{2})/.exec(t);
+  if (m) {
+    const h = Number(m[1]), min = Number(m[2]);
+    if (h <= 23 && min <= 59) return h * 60 + min;
+  }
+  // 2) "9h", "22h", "9h30" em qualquer posição ("onibus - 10h", "20h+")
+  m = /(\d{1,2})h(\d{2})?/i.exec(t);
+  if (m) {
+    const h = Number(m[1]), min = Number(m[2] ?? 0);
+    if (h <= 23 && min <= 59) return h * 60 + min;
+  }
+  // 3) "0900"/"1430" (militar, 3-4 dígitos isolados)
+  m = /(?:^|\D)(\d{3,4})(?:\D|$)/.exec(t);
+  if (m) {
+    const raw = m[1].padStart(4, "0");
+    const h = Number(raw.slice(0, 2)), min = Number(raw.slice(2));
+    if (h <= 23 && min <= 59) return h * 60 + min;
+  }
+  return null;
 }
 
 /** Está no intervalo [ini, fim] em minutos, tratando janelas que cruzam a meia-noite. */

@@ -91,3 +91,24 @@ describe("deflationFactorsFromSettings", () => {
     expect(deflationFactorsFromSettings({ deflacao_fator_5_8: "85" }).d5a8).toBe(0.85);
   });
 });
+
+import { freelaDailyCents, isDirProvaFunction } from "./calculation-rules";
+
+describe("freelaDailyCents (regra do slide)", () => {
+  it("local R$465, viagem R$540, dir de prova R$820 (defaults)", () => {
+    expect(freelaDailyCents("produção local", false, {})).toBe(46500);
+    expect(freelaDailyCents("produção local", true, {})).toBe(54000);
+    expect(freelaDailyCents("dir prova", false, {})).toBe(82000);
+    expect(freelaDailyCents("Dir. de Prova", true, {})).toBe(82000);
+  });
+  it("lê os valores editáveis do Valores Padrão", () => {
+    const ss = { freela_diaria_local: 47000, freela_diaria_viagem: "55000", freela_diaria_dir_prova: 90000 };
+    expect(freelaDailyCents("kit", false, ss)).toBe(47000);
+    expect(freelaDailyCents("kit", true, ss)).toBe(55000);
+    expect(freelaDailyCents("dir prova", true, ss)).toBe(90000);
+  });
+  it("isDirProvaFunction não confunde outras funções", () => {
+    expect(isDirProvaFunction("produção")).toBe(false);
+    expect(isDirProvaFunction("dir prova")).toBe(true);
+  });
+});
