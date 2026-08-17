@@ -1,0 +1,328 @@
+import type { ReactNode } from "react";
+import { Eye, CalendarDays, MapPin, Plane, Bus, ArrowLeftRight } from "lucide-react";
+import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
+import { formatDiarias, formatDateRange } from "@/lib/utils";
+import type { TeamInclusion, Ticket, Accommodation, SwapRequest } from "@shared/schema";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Vocabulário ÚNICO de status da tela de Escalação.
+// Usado na tabela, no header do modal e no Resumo — antes cada lugar tinha a
+// sua própria cadeia de ifs ("Escalado" × "Aprovado" para o mesmo registro,
+// "Aguard. Gestor" × "Aguardando Gestor" × "Aprovado pela Produção").
+// Produção = quem aprova cenotécnica (mesmo rótulo de status-badge.tsx).
+// ─────────────────────────────────────────────────────────────────────────────
+export type ScalingStatusKey =
+  | "pendente"
+  | "aguardando_producao"
+  | "escalado"
+  | "em_aprovacao"
+  | "aprovado"
+  | "cancelado";
+
+const ESCALATED_STATUSES = new Set([
+  "escalado",
+  "passagem",
+  "passagem_comprada",
+  "hospedagem",
+  "hospedagem_comprada",
+  "hospedagem_passagem_comprada",
+]);
+
+export function getScalingStatusKey(
+  inclusion: Pick<TeamInclusion, "status" | "collaboratorId">,
+): ScalingStatusKey {
+  const status = inclusion.status ?? "";
+  if (status === "cancelado") return "cancelado";
+  if (status === "aguardando_producao") return "aguardando_producao";
+  // Sem colaborador nunca é "escalado", independentemente do status gravado
+  if (!inclusion.collaboratorId) return "pendente";
+  if (status === "aprovado" || status === "concluido") return "aprovado";
+  if (status === "aprovacao") return "em_aprovacao";
+  if (ESCALATED_STATUSES.has(status)) return "escalado";
+  return "pendente";
+}
+
+const STATUS_META: Record<
+  ScalingStatusKey,
+  { label: string; wrap: string; dot: string; pulse?: boolean }
+> = {
+  pendente: {
+    label: "Pendente",
+    wrap: "bg-orange-50 text-orange-600 border-orange-200",
+    dot: "bg-orange-400",
+    pulse: true,
+  },
+  aguardando_producao: {
+    label: "Aguardando Produção",
+    wrap: "bg-red-50 text-red-700 border-red-200",
+    dot: "bg-red-500",
+    pulse: true,
+  },
+  escalado: {
+    label: "Escalado",
+    wrap: "bg-green-100 text-green-700 border-green-200",
+    dot: "bg-green-500",
+  },
+  em_aprovacao: {
+    label: "Em aprovação",
+    wrap: "bg-blue-100 text-blue-700 border-blue-200",
+    dot: "bg-blue-500",
+    pulse: true,
+  },
+  aprovado: {
+    label: "Aprovado",
+    wrap: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    dot: "bg-emerald-500",
+  },
+  cancelado: {
+    label: "Cancelado",
+    wrap: "bg-slate-100 text-slate-500 border-slate-200",
+    dot: "bg-slate-400",
+  },
+};
+
+export function getScalingStatusLabel(
+  inclusion: Pick<TeamInclusion, "status" | "collaboratorId">,
+): string {
+  return STATUS_META[getScalingStatusKey(inclusion)].label;
+}
+
+const SIZE_CLS = {
+  sm: "gap-1 px-2 py-0.5 text-[10px]",
+  md: "gap-1.5 px-2.5 py-1 text-[11px]",
+  lg: "gap-1.5 px-3 py-1.5 text-[11px] border",
+} as const;
+
+export function getStatusBadge(
+  inclusion: Pick<TeamInclusion, "status" | "collaboratorId">,
+  size: keyof typeof SIZE_CLS = "sm",
+): ReactNode {
+  const key = getScalingStatusKey(inclusion);
+  const meta = STATUS_META[key];
+  return (
+    <span
+      className={`inline-flex items-center rounded-full font-bold shrink-0 ${SIZE_CLS[size]} ${meta.wrap}`}
+      data-testid={`scaling-status-${key}`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${meta.dot} ${meta.pulse ? "animate-pulse" : ""}`} />
+      {meta.label}
+    </span>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tabela de escalações — usada nas duas abas (Sem Passagem / Com Transporte).
+// ─────────────────────────────────────────────────────────────────────────────
+export interface ScalingTableProps {
+  rows: TeamInclusion[];
+  sortConfig: SortConfig | null;
+  onSort: (field: SortField) => void;
+  onRowClick: (inclusion: TeamInclusion) => void;
+  onViewDetails: (e: React.MouseEvent, inclusion: TeamInclusion) => void;
+  getFunctionName: (functionId: string | null) => string;
+  getEventName: (eventId: string | null) => string;
+  getCollaboratorName: (collaboratorId?: string | null) => string;
+  getCollaboratorCity: (collaboratorId?: string | null) => string | null;
+  getTicket: (inclusionId: string) => Ticket | undefined;
+  getAccommodation: (inclusionId: string) => Accommodation | undefined;
+  pendingSwapByInclusion: Map<string, SwapRequest>;
+  approvedSwapInclusionIds: Set<string>;
+  /** Trocas pendentes que o solicitante já visualizou (não repete o badge) */
+  seenSwapIds: Set<string>;
+  currentUserId?: string;
+  /** admin/purchasing: pode analisar trocas de escalações sem logística */
+  isAdminOrPurchasing: boolean;
+}
+
+/**
+ * Regra ÚNICA do badge "Troca pendente" (antes cada aba tinha a sua):
+ * - o solicitante vê o badge da própria troca até abrir o registro;
+ * - Compras/admin vê o badge em escalações SEM passagem/hospedagem (as demais
+ *   são analisadas nas abas Passagem/Hospedagem);
+ * - os demais papéis não veem.
+ */
+export function shouldShowPendingSwapBadge(
+  swap: SwapRequest | undefined,
+  inclusion: Pick<TeamInclusion, "needsTicket" | "needsAccommodation">,
+  opts: { currentUserId?: string; isAdminOrPurchasing: boolean; seenSwapIds: Set<string> },
+): boolean {
+  if (!swap) return false;
+  if (opts.seenSwapIds.has(swap.id)) return false;
+  const requestedBy = (swap as any).requested_by || swap.requestedBy;
+  const isRequester = !!opts.currentUserId && requestedBy === opts.currentUserId;
+  if (isRequester) return true;
+  if (!opts.isAdminOrPurchasing) return false;
+  const noLogistics = !inclusion.needsTicket && !inclusion.needsAccommodation;
+  return noLogistics;
+}
+
+const initials = (name: string) => {
+  const parts = name.trim().split(/\s+/);
+  return parts.length === 1
+    ? parts[0].slice(0, 2).toUpperCase()
+    : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+export default function ScalingTable({
+  rows,
+  sortConfig,
+  onSort,
+  onRowClick,
+  onViewDetails,
+  getFunctionName,
+  getEventName,
+  getCollaboratorName,
+  getCollaboratorCity,
+  getTicket,
+  getAccommodation,
+  pendingSwapByInclusion,
+  approvedSwapInclusionIds,
+  seenSwapIds,
+  currentUserId,
+  isAdminOrPurchasing,
+}: ScalingTableProps) {
+  return (
+    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden mt-4">
+      <div className="overflow-x-auto">
+        <table className="table-fixed w-full min-w-[860px]">
+          <colgroup>
+            <col style={{ width: "100px" }} />
+            <col style={{ width: "28%" }} />
+            <col style={{ width: "22%" }} />
+            <col style={{ width: "150px" }} />
+            <col style={{ width: "220px" }} />
+          </colgroup>
+          <thead style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
+            <tr>
+              <SortableHeader field="id" sortConfig={sortConfig} onSort={onSort}>ID</SortableHeader>
+              <SortableHeader field="function" sortConfig={sortConfig} onSort={onSort}>Função / Evento</SortableHeader>
+              <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={onSort}>Colaborador</SortableHeader>
+              <SortableHeader field="period" className="whitespace-nowrap" sortConfig={sortConfig} onSort={onSort}>Período / Diárias</SortableHeader>
+              <th className="w-[220px] min-w-[220px] px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
+                Status
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((inclusion, rowIdx) => {
+              const ticket = getTicket(inclusion.id);
+              const accommodation = getAccommodation(inclusion.id);
+              const hasAccommodationAttachments = !!(accommodation?.attachmentIds && accommodation.attachmentIds.length > 0);
+              const swap = pendingSwapByInclusion.get(inclusion.id);
+              const showSwapBadge = shouldShowPendingSwapBadge(swap, inclusion, { currentUserId, isAdminOrPurchasing, seenSwapIds });
+              const city = inclusion.city || getCollaboratorCity(inclusion.collaboratorId);
+              return (
+                <tr
+                  key={inclusion.id}
+                  className={`group/row transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'} hover:bg-blue-50/50 ${inclusion.status === 'cancelado' ? 'opacity-50' : ''}`}
+                  onClick={() => onRowClick(inclusion)}
+                  tabIndex={0}
+                  aria-label={`Abrir detalhes da escalação #${inclusion.inclusionNumber ?? ''}`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onRowClick(inclusion);
+                    }
+                  }}
+                >
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-[#2563EB] bg-blue-50 px-2.5 py-1 rounded-lg font-mono border border-blue-100">
+                        #{inclusion.inclusionNumber || 'N/A'}
+                      </span>
+                      <button
+                        type="button"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 bg-slate-50 border border-slate-200 hover:bg-[#2563EB] hover:text-white hover:border-[#2563EB] transition-all duration-150"
+                        onClick={(e) => onViewDetails(e, inclusion)}
+                        title="Ver detalhes"
+                        aria-label={`Ver detalhes da escalação #${inclusion.inclusionNumber ?? ''}`}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="text-[13px] font-bold text-slate-800 leading-tight">
+                      {getFunctionName(inclusion.functionId)}
+                    </div>
+                    <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-blue-50 text-[#2563EB] text-[10px] font-semibold border border-blue-100/80 max-w-full">
+                      <CalendarDays className="w-2.5 h-2.5 shrink-0" />
+                      <span className="truncate max-w-[200px]">{getEventName(inclusion.eventId)}</span>
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {inclusion.collaboratorId ? (() => {
+                      const name = getCollaboratorName(inclusion.collaboratorId);
+                      return (
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-[#2563EB] text-white flex items-center justify-center text-[10px] font-black shrink-0">{initials(name)}</div>
+                          <span className="text-[12px] font-medium text-slate-700 leading-snug">{name}</span>
+                        </div>
+                      );
+                    })() : (
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400 shrink-0">N/E</div>
+                        <span className="text-[12px] italic text-slate-400">Não escalado</span>
+                      </div>
+                    )}
+                    {city && (
+                      <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                        <MapPin className="w-3 h-3" />
+                        {city}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div className="text-[12px] font-semibold text-slate-800 whitespace-nowrap">
+                      {formatDateRange(inclusion.scheduleStartDate, inclusion.scheduleEndDate)}
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">
+                      {formatDiarias(inclusion.dailyRates)}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-col gap-1.5">
+                      <div>{getStatusBadge(inclusion, "sm")}</div>
+                      <div className="flex flex-wrap gap-1">
+                        {ticket && (
+                          ticket.transportType === 'van' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-semibold border border-blue-100">
+                              🚐 Van
+                            </span>
+                          ) : ticket.transportType === 'rodoviario' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-semibold border border-blue-100">
+                              <Bus className="w-2.5 h-2.5" />Rodoviária
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-semibold border border-blue-100">
+                              <Plane className="w-2.5 h-2.5" />Passagem
+                            </span>
+                          )
+                        )}
+                        {accommodation && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 text-[10px] font-semibold border border-purple-100">
+                            🏨 Hotel{hasAccommodationAttachments && ' 📎'}
+                          </span>
+                        )}
+                        {showSwapBadge && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold border border-amber-200">
+                            <ArrowLeftRight className="w-2.5 h-2.5" />Troca pendente
+                          </span>
+                        )}
+                        {approvedSwapInclusionIds.has(inclusion.id) && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[10px] font-bold border border-green-200">
+                            <ArrowLeftRight className="w-2.5 h-2.5" />Troca aprovada
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

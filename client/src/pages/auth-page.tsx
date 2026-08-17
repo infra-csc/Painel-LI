@@ -15,6 +15,14 @@ const loginSchema = z.object({
 });
 type LoginForm = z.infer<typeof loginSchema>;
 
+// Aceita apenas caminhos internos do app ("/tickets", "/events?x=1").
+// Rejeita "//evil.com", "http://...", "/auth" (evita loop) e "/reset-password".
+function isInternalPath(p: string): boolean {
+  if (!p.startsWith("/") || p.startsWith("//") || p.startsWith("/\\")) return false;
+  if (p.startsWith("/auth") || p.startsWith("/reset-password")) return false;
+  return true;
+}
+
 export default function AuthPage() {
   const [, setLocation] = useLocation();
   const { user, login } = useAuth();
@@ -28,6 +36,13 @@ export default function AuthPage() {
   });
 
   const [sessaoExpirada, setSessaoExpirada] = useState(false);
+  // Rota interna para onde voltar após o login (vem do redirect de 401 do
+  // queryClient). Só aceitamos caminhos relativos do próprio app — nada de
+  // "//host" ou URLs absolutas — para não virar open redirect.
+  const [returnTo] = useState<string>(() => {
+    const rt = new URLSearchParams(window.location.search).get("returnTo");
+    return rt && isInternalPath(rt) ? rt : "/";
+  });
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -39,14 +54,14 @@ export default function AuthPage() {
     if (params.get("sessao") === "expirada") setSessaoExpirada(true);
   }, []);
 
-  if (user) return <Redirect to="/" />;
+  if (user) return <Redirect to={returnTo} />;
 
   const handleLogin = async (data: LoginForm) => {
     setIsLoading(true);
     try {
       const success = await login(data.email, data.password);
       if (success) {
-        setLocation("/");
+        setLocation(returnTo);
       } else {
         loginForm.setError("password", { message: "Credenciais inválidas. Verifique e-mail e senha." });
       }
@@ -140,6 +155,9 @@ export default function AuthPage() {
                     onBlur={(e) => (e.currentTarget.style.borderColor = loginForm.formState.errors.email ? "#ef4444" : "#e2e8f0")}
                   />
                 </div>
+                {loginForm.formState.errors.email?.message && (
+                  <p className="text-xs text-red-500" role="alert">{loginForm.formState.errors.email.message}</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700" htmlFor="login-password">Senha</label>
@@ -161,6 +179,8 @@ export default function AuthPage() {
                     onClick={() => setShowPassword(v => !v)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                     tabIndex={-1}
+                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    aria-pressed={showPassword}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -200,8 +220,6 @@ export default function AuthPage() {
             </div>
             <a
               href="https://norte-app-hub.replit.app/"
-              target="_blank"
-              rel="noopener noreferrer"
               className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-lg transition-all duration-150"
               style={{ background: "#2563eb", textDecoration: "none" }}
               onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#1d4ed8"; }}

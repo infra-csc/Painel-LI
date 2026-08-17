@@ -4,10 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plane, BedDouble, Loader2, Save, Luggage } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-type FieldType = "text" | "money" | "time" | "int" | "bool";
+type FieldType = "text" | "money" | "time" | "int" | "bool" | "date" | "select";
 type DrawerKind = "ticket" | "accommodation" | "extras";
 
 interface FieldDef {
@@ -17,7 +18,19 @@ interface FieldDef {
   span?: 1 | 2;
   placeholder?: string;
   get?: (row: any) => any;
+  /** opções para type === "select" */
+  options?: { value: string; label: string }[];
 }
+
+/** Tipos de quarto aceitos pelo servidor (server/operational-mirror.ts). */
+export const ROOM_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "single", label: "Single" },
+  { value: "double", label: "Duplo" },
+  { value: "triple", label: "Triplo" },
+];
+export const ROOM_TYPE_LABEL: Record<string, string> = Object.fromEntries(ROOM_TYPE_OPTIONS.map((o) => [o.value, o.label]));
+// Sentinela do Select: Radix não aceita value="" em SelectItem.
+const SELECT_EMPTY = "__none__";
 
 const TICKET_FIELDS: FieldDef[] = [
   { field: "ticket.value", label: "Valor da passagem (R$)", type: "money", span: 2 },
@@ -32,11 +45,16 @@ const TICKET_FIELDS: FieldDef[] = [
 ];
 
 const ACC_FIELDS: FieldDef[] = [
+  { field: "accommodation.hotelName", label: "Hotel", type: "text", span: 2 },
+  { field: "accommodation.reservationNumber", label: "Nº da reserva", type: "text", placeholder: "Ex: RES-123456" },
+  { field: "accommodation.roomType", label: "Tipo de quarto", type: "select", options: ROOM_TYPE_OPTIONS },
+  { field: "accommodation.checkInDate", label: "Check-in (data)", type: "date" },
+  { field: "accommodation.checkInTime", label: "Check-in (hora)", type: "time" },
+  { field: "accommodation.checkOutDate", label: "Check-out (data)", type: "date" },
+  { field: "accommodation.checkOutTime", label: "Check-out (hora)", type: "time" },
   { field: "accommodation.nightsCount", label: "Diárias (noites)", type: "int" },
-  { field: "accommodation.roomType", label: "Tipo de quarto", type: "text" },
   { field: "accommodation.dailyRate", label: "Valor diária (R$)", type: "money" },
   { field: "accommodation.totalCents", label: "Hotel total (R$)", type: "money" },
-  { field: "accommodation.hotelName", label: "Hotel", type: "text", span: 2 },
   { field: "accommodation.paymentCompany", label: "Empresa pagamento", type: "text" },
   { field: "accommodation.hotelOc", label: "OC", type: "text" },
   { field: "accommodation.checkIn4", label: "Check-in 4", type: "text" },
@@ -125,6 +143,15 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
       if (String(a) !== String(next)) changes[f.field] = next;
     }
     if (Object.keys(changes).length === 0) { onOpenChange(false); return; }
+    // Check-out não pode ser antes do check-in (compara YYYY-MM-DD como texto).
+    if (kind === "accommodation") {
+      const ci = String(draft["accommodation.checkInDate"] ?? "").trim();
+      const co = String(draft["accommodation.checkOutDate"] ?? "").trim();
+      if (ci && co && co < ci) {
+        toast({ title: "Datas inválidas", description: "O check-out deve ser igual ou posterior ao check-in.", variant: "destructive" });
+        return;
+      }
+    }
     setSaving(true);
     try {
       await onSaveMany(rowId, changes);
@@ -171,11 +198,22 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
                     />
                     <span className="text-sm">{draft[f.field] ? "Sim" : "Não"}</span>
                   </div>
+                ) : f.type === "select" ? (
+                  <Select
+                    value={draft[f.field] ? String(draft[f.field]) : SELECT_EMPTY}
+                    onValueChange={(v) => setDraft((d) => ({ ...d, [f.field]: v === SELECT_EMPTY ? "" : v }))}
+                  >
+                    <SelectTrigger id={inputId} className="mt-1" aria-label={f.label}><SelectValue placeholder="—" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={SELECT_EMPTY}>— Não informado —</SelectItem>
+                      {(f.options ?? []).map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 ) : (
                   <Input
                     id={inputId}
                     className="mt-1"
-                    type={f.type === "time" ? "time" : f.type === "money" || f.type === "int" ? "number" : "text"}
+                    type={f.type === "time" ? "time" : f.type === "date" ? "date" : f.type === "money" || f.type === "int" ? "number" : "text"}
                     step={f.type === "money" ? "0.01" : undefined}
                     value={draft[f.field] ?? ""}
                     placeholder={f.placeholder}

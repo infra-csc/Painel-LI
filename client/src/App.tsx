@@ -1,5 +1,5 @@
 import { Suspense, lazy } from "react";
-import { Switch, Route, Redirect } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -25,7 +25,6 @@ const Scaling                = lazy(() => import("@/pages/scaling"));
 const Tickets                = lazy(() => import("@/pages/tickets"));
 const Accommodations         = lazy(() => import("@/pages/accommodations"));
 const OperationalMirror      = lazy(() => import("@/pages/operational-mirror"));
-const Approval               = lazy(() => import("@/pages/approval"));
 const Consultation           = lazy(() => import("@/pages/consultation"));
 const AdminUsers             = lazy(() => import("@/pages/admin-users"));
 const CollaboratorManagement = lazy(() => import("@/pages/collaborator-management"));
@@ -47,6 +46,14 @@ import { useAuth } from "@/hooks/use-auth";
 import { hasPermission, getRoleLabel } from "@/lib/role-utils";
 import type { RolePermissions, UserRole } from "@/lib/role-utils";
 
+// O tema escuro ainda não é suportado pela maioria das telas (5/26). Enquanto
+// isso, o botão de alternância fica escondido e qualquer preferência "dark"
+// persistida é neutralizada antes do ThemeProvider montar.
+if (typeof window !== "undefined" && localStorage.getItem("theme") === "dark") {
+  localStorage.setItem("theme", "light");
+  document.documentElement.classList.remove("dark");
+}
+
 // Placeholder enquanto o chunk da página é baixado. Fica dentro do
 // MainLayout, então a sidebar continua visível e navegável durante a troca —
 // só a área de conteúdo mostra o esqueleto.
@@ -65,7 +72,7 @@ function PageFallback() {
 
 // Primeira página acessível na ordem do sidebar
 const ORDERED_ROUTES: { path: string; permission: keyof RolePermissions }[] = [
-  { path: "/user-registration", permission: "canAccessCadastros"     },
+  { path: "/user-registration", permission: "canCreateUsers"         }, // espelha POST /api/users
   { path: "/events",            permission: "canAccessCadastros"     },
   { path: "/calendar",          permission: "canAccessCalendar"      },
   { path: "/functions",         permission: "canAccessCadastros"     },
@@ -117,6 +124,10 @@ function HomeRedirect() {
 
 function Router() {
   const { user, isLoading } = useAuth();
+  // Chave do ErrorBoundary interno: ao navegar para outra rota o boundary é
+  // remontado e sai do estado de erro (sem isso, um erro numa tela "grudava"
+  // até o usuário recarregar a página inteira).
+  const [location] = useLocation();
 
   if (isLoading) {
     return (
@@ -147,7 +158,7 @@ function Router() {
       {user ? (
         <MainLayout>
           <Suspense fallback={<PageFallback />}>
-          <ErrorBoundary>
+          <ErrorBoundary key={location} variant="content">
           <Switch>
             <Route path="/" component={HomeRedirect} />
             <Route path="/events">
@@ -190,18 +201,13 @@ function Router() {
                 <BaggageControlPage />
               </ProtectedRoute>
             </Route>
-            <Route path="/approval">
-              <ProtectedRoute permission="canAccessScreen5">
-                <Approval />
-              </ProtectedRoute>
-            </Route>
             <Route path="/consultation">
               <ProtectedRoute permission="canAccessScreen6">
                 <Consultation />
               </ProtectedRoute>
             </Route>
             <Route path="/user-registration">
-              <ProtectedRoute permission="canAccessCadastros">
+              <ProtectedRoute permission="canCreateUsers">
                 <UserRegistration />
               </ProtectedRoute>
             </Route>

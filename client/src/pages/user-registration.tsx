@@ -6,7 +6,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
-import { hasPermission } from "@/lib/role-utils";
+import { hasPermission, getAvailableAreas } from "@/lib/role-utils";
+import { normalizeRole } from "@shared/roles";
 
 const schema = z.object({
   name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
@@ -113,12 +114,24 @@ export default function UserRegistration() {
     );
   }
 
-  if (!hasPermission(user, 'canAccessAdminUsers')) {
+  // Espelha POST /api/users: admin, RH (financial) e Compras (purchasing).
+  // Produção enxerga a lista de usuários, mas não cria — aviso em vez de 403.
+  if (!hasPermission(user, 'canCreateUsers')) {
+    const isProduction = normalizeRole(user?.role) === "production";
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
-        <div style={{ textAlign: "center", padding: 40 }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 40, color: "#EF4444" }}>gpp_bad</span>
-          <p style={{ marginTop: 12, fontSize: 14, color: "#64748B" }}>Você não tem permissão para acessar esta página.</p>
+        <div style={{ textAlign: "center", padding: 40, maxWidth: 420 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 40, color: isProduction ? "#D97706" : "#EF4444" }}>
+            {isProduction ? "info" : "gpp_bad"}
+          </span>
+          <p style={{ marginTop: 12, fontSize: 15, fontWeight: 700, color: "#0F172A" }}>
+            {isProduction ? "Cadastro de usuários indisponível para o seu perfil" : "Acesso restrito"}
+          </p>
+          <p style={{ marginTop: 6, fontSize: 13, color: "#64748B", lineHeight: 1.5 }}>
+            {isProduction
+              ? "Solicite ao RH ou à área de Compras a criação de novos usuários. Você continua podendo aprovar, resetar senha e ativar/desativar contas em Gerenciamento de Usuários."
+              : "Apenas administradores, RH e Compras podem cadastrar usuários."}
+          </p>
         </div>
       </div>
     );
@@ -232,7 +245,8 @@ export default function UserRegistration() {
                 {errors.role && <span style={{ marginLeft: "auto", fontSize: 10, color: "#EF4444", fontWeight: 600 }}>{errors.role.message}</span>}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-                {ROLES.filter(r => r.value !== "admin" || user?.role === "admin").map(role => {
+                {/* POST /api/users: só admin cria outro Administrador */}
+                {ROLES.filter(r => r.value !== "admin" || normalizeRole(user?.role) === "admin").map(role => {
                   const isSelected = roleVal === role.value;
                   return (
                     <button key={role.value} type="button"
@@ -266,17 +280,19 @@ export default function UserRegistration() {
                 <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#505f76", textTransform: "uppercase" }}>Área Específica</span>
                 <span style={{ marginLeft: "auto", fontSize: 10, color: "#CBD5E1" }}>{areaVal.length}/80 · opcional</span>
               </div>
-              <textarea
+              {/* Input com sugestões (datalist) das áreas conhecidas — aceita valor livre */}
+              <input
                 id="user-area"
-                placeholder="Descreva o setor ou filial de atuação do colaborador..."
+                list="user-area-options"
+                placeholder="Ex.: Técnica, Cenografia, Logística Interna..."
                 data-testid="input-area"
-                aria-label="Área específica do colaborador"
+                aria-label="Área específica do usuário"
                 maxLength={80}
-                rows={1}
+                autoComplete="off"
                 style={{
                   width: "100%", fontSize: 13, padding: "10px 12px", borderRadius: 8,
                   border: "1.5px solid #E2E8F0", background: "#f1f3ff", outline: "none",
-                  color: "#141b2b", fontFamily: "inherit", resize: "none", boxSizing: "border-box",
+                  color: "#141b2b", fontFamily: "inherit", boxSizing: "border-box",
                   transition: "border-color 0.15s, background 0.15s",
                 }}
                 onFocus={e => { e.currentTarget.style.borderColor = PRIMARY; e.currentTarget.style.background = "white"; }}
@@ -288,6 +304,9 @@ export default function UserRegistration() {
                   e.currentTarget.style.background = "#f1f3ff";
                 }}
               />
+              <datalist id="user-area-options">
+                {getAvailableAreas().map(a => <option key={a} value={a} />)}
+              </datalist>
             </div>
 
             {/* Footer */}

@@ -5,10 +5,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormMessage } from "@/components/ui/form";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
+import { hasPermission } from "@/lib/role-utils";
 import { AlertTriangle, Check, Loader2, X } from "lucide-react";
 import ConfirmModal from "@/components/common/confirm-modal";
 import type { Function, User as UserType, FunctionManager } from "@shared/schema";
@@ -54,12 +56,13 @@ type FunctionFormData = z.infer<typeof functionFormSchema>;
 const MGPOP_W = 260;
 
 function ManagersPopover({
-  functionName, managers, usersById, x, y, onRemove, onClose,
+  functionName, managers, usersById, x, y, canManage, onRemove, onClose,
 }: {
   functionName: string;
   managers: (FunctionManager & { user?: UserType })[];
   usersById: Map<string, UserType>;
   x: number; y: number;
+  canManage: boolean;
   onRemove: (userId: string) => void;
   onClose: () => void;
 }) {
@@ -102,7 +105,7 @@ function ManagersPopover({
                 <div className="flex-1 min-w-0">
                   <p style={{ fontSize: 13, fontWeight: 600, color: "#141b2b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{displayName}</p>
                 </div>
-                {isConfirming ? (
+                {!canManage ? null : isConfirming ? (
                   <div className="flex items-center gap-1 shrink-0">
                     <span style={{ fontSize: 10, color: "#64748B", fontWeight: 500 }}>Remover?</span>
                     <button onClick={e => { e.stopPropagation(); onRemove(fm.userId); setConfirmId(null); }} className="text-[10px] font-bold text-red-500 hover:text-red-600 px-1 py-0.5 rounded hover:bg-red-50 transition-colors">Sim</button>
@@ -125,7 +128,7 @@ function ManagersPopover({
 }
 
 // ─── FunctionManagersCell ─────────────────────────────────────────────────
-function FunctionManagersCell({ functionId, functionName }: { functionId: string; functionName: string }) {
+function FunctionManagersCell({ functionId, functionName, canManage }: { functionId: string; functionName: string; canManage: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const [popover, setPopover] = useState<{ x: number; y: number } | null>(null);
   const [selectedUserId, setSelectedUserId] = useState("");
@@ -197,18 +200,11 @@ function FunctionManagersCell({ functionId, functionName }: { functionId: string
                 const displayName = u?.name || u?.email || "Usuário";
                 const [bg, txt] = avatarColor(fm.userId);
                 return (
-                  <div key={fm.id} className={`group relative w-7 h-7 rounded-full border-2 border-white flex items-center justify-center shrink-0 ${bg}`}
+                  /* A remoção fica só no popover (que pede confirmação) — o "X" no
+                     hover apagava o responsável com um clique acidental. */
+                  <div key={fm.id} className={`relative w-7 h-7 rounded-full border-2 border-white flex items-center justify-center shrink-0 ${bg}`}
                     style={{ marginLeft: i === 0 ? 0 : -8, zIndex: visible.length - i }}>
                     <span className={`text-[10px] font-bold ${txt}`}>{initials(displayName)}</span>
-                    <button
-                      className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-white shadow border border-gray-100 hidden group-hover:flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 z-20 transition-colors disabled:opacity-40"
-                      onClick={e => { e.stopPropagation(); removeManagerMutation.mutate(fm.userId); }}
-                      disabled={removeManagerMutation.isPending}
-                      aria-label={`Remover ${displayName} dos responsáveis`}
-                      data-testid={`button-remove-function-manager-${fm.userId}`}
-                    >
-                      <X className="w-2 h-2" />
-                    </button>
                   </div>
                 );
               })}
@@ -229,13 +225,13 @@ function FunctionManagersCell({ functionId, functionName }: { functionId: string
 
       {popover && (
         <ManagersPopover functionName={functionName} managers={managers} usersById={usersById}
-          x={popover.x} y={popover.y}
+          x={popover.x} y={popover.y} canManage={canManage}
           onRemove={userId => removeManagerMutation.mutate(userId)}
           onClose={() => setPopover(null)} />
       )}
 
-      {/* Add button */}
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      {/* Add button — só para quem o servidor aceita em POST /api/functions/:id/managers */}
+      {canManage && <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
           <button type="button" aria-label={`Adicionar responsável a ${functionName}`}
             className="w-7 h-7 rounded-full border border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-[#004ac6] hover:text-[#004ac6] transition-colors"
@@ -246,7 +242,7 @@ function FunctionManagersCell({ functionId, functionName }: { functionId: string
         <DialogContent className="sm:max-w-[380px] rounded-xl p-0 gap-0 border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden">
           <div style={{ padding: "20px 24px", borderBottom: "1px solid #E9EDFF", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: "#141b2b", margin: 0, fontFamily: "Manrope, sans-serif" }}>Adicionar Responsável</h3>
+              <DialogTitle style={{ fontSize: 16, fontWeight: 800, color: "#141b2b", margin: 0, fontFamily: "Manrope, sans-serif" }}>Adicionar Responsável</DialogTitle>
               <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 3, textTransform: "capitalize" }}>{functionName}</p>
             </div>
             <button type="button" onClick={() => setIsOpen(false)} aria-label="Fechar" style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
@@ -295,7 +291,7 @@ function FunctionManagersCell({ functionId, functionName }: { functionId: string
             </button>
           </div>
         </DialogContent>
-      </Dialog>
+      </Dialog>}
     </div>
   );
 }
@@ -310,6 +306,10 @@ export default function Functions() {
   }>({ open: false, title: '', message: '', confirmLabel: '', onConfirm: () => {} });
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  // Espelha POST/PATCH/DELETE /api/functions e /:id/managers (CADASTRO_ROLES).
+  // RH e Área de Função só visualizam.
+  const canManage = hasPermission(user, "canManageFunctions");
 
   const form = useForm<FunctionFormData>({
     resolver: zodResolver(functionFormSchema),
@@ -385,7 +385,7 @@ export default function Functions() {
 
           {/* Fechar por Esc/overlay precisa limpar editingFunction — senão a próxima
               abertura reaproveitava o estado de edição anterior. */}
-          <Dialog open={isDialogOpen} onOpenChange={v => { if (v) setIsDialogOpen(true); else handleCloseDialog(); }}>
+          {canManage && <Dialog open={isDialogOpen} onOpenChange={v => { if (v) setIsDialogOpen(true); else handleCloseDialog(); }}>
             <DialogTrigger asChild>
               <button onClick={() => handleOpenDialog()} data-testid="button-add-function"
                 style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", background: "#0033CC", color: "white", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 12px rgba(0,51,204,0.3)" }}
@@ -398,9 +398,9 @@ export default function Functions() {
             {/* Create / Edit dialog */}
             <DialogContent className="sm:max-w-[420px] rounded-xl p-0 gap-0 border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden">
               <div style={{ padding: "22px 24px", borderBottom: "1px solid #E9EDFF", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <h3 style={{ fontSize: 18, fontWeight: 800, color: "#141b2b", margin: 0, fontFamily: "Manrope, sans-serif" }}>
+                <DialogTitle style={{ fontSize: 18, fontWeight: 800, color: "#141b2b", margin: 0, fontFamily: "Manrope, sans-serif" }}>
                   {editingFunction ? "Editar Função" : "Nova Função"}
-                </h3>
+                </DialogTitle>
                 <button type="button" onClick={handleCloseDialog} aria-label="Fechar" style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
                   className="hover:bg-slate-100 transition-colors">
                   <span className="material-symbols-outlined" style={{ fontSize: 20 }}>close</span>
@@ -446,7 +446,7 @@ export default function Functions() {
                 </Form>
               </div>
             </DialogContent>
-          </Dialog>
+          </Dialog>}
         </div>
 
         {/* ── Main card ── */}
@@ -499,10 +499,11 @@ export default function Functions() {
                       <span style={{ fontSize: 15, fontWeight: 600, color: "#141b2b", textTransform: "capitalize", fontFamily: "Manrope, sans-serif" }}>{func.name}</span>
                     </td>
                     <td style={{ padding: "18px 24px" }}>
-                      <FunctionManagersCell functionId={func.id} functionName={func.name} />
+                      <FunctionManagersCell functionId={func.id} functionName={func.name} canManage={canManage} />
                     </td>
                     <td style={{ padding: "18px 24px" }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}
+                      {/* Editar/excluir só para quem o servidor aceita (CADASTRO_ROLES) */}
+                      {canManage && <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}
                         className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -527,7 +528,7 @@ export default function Functions() {
                           </TooltipTrigger>
                           <TooltipContent>Excluir função</TooltipContent>
                         </Tooltip>
-                      </div>
+                      </div>}
                     </td>
                   </tr>
                 ))}
@@ -576,7 +577,7 @@ export default function Functions() {
                           {search ? "Nenhuma função encontrada" : "Nenhuma função cadastrada"}
                         </h4>
                         <p style={{ fontSize: 13, color: "#64748B", margin: 0, maxWidth: 280, lineHeight: 1.5 }}>
-                          {search ? "Ajuste sua busca ou limpe os filtros para ver todos os resultados." : 'Clique em "Nova Função" para criar a primeira.'}
+                          {search ? "Ajuste sua busca ou limpe os filtros para ver todos os resultados." : canManage ? 'Clique em "Nova Função" para criar a primeira.' : "Ainda não há funções cadastradas."}
                         </p>
                         {search && (
                           <button onClick={() => setSearch("")} style={{ fontSize: 13, fontWeight: 700, color: "#004ac6", background: "none", border: "none", cursor: "pointer", marginTop: 8 }}

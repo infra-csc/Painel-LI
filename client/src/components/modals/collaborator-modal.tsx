@@ -19,7 +19,8 @@ import {
 const BLUE = "#0033CC";
 
 // ─── CPF validation ─────────────────────────────────────────────────────────
-const validateCPF = (cpf: string): boolean => {
+// Exportado para a tela de Colaboradores reutilizar na aprovação (mesma regra).
+export const validateCPF = (cpf: string): boolean => {
   cpf = cpf.replace(/[^\d]/g, "");
   if (cpf.length !== 11 || /^(\d)\1+$/.test(cpf)) return false;
   let sum = 0, rem;
@@ -141,14 +142,10 @@ export default function CollaboratorModal({
         city: data.city,
       };
 
+      // apiRequest já lança em resposta não-ok (com .status e .body no erro).
       const response = isEdit && collaborator
         ? await apiRequest("PATCH", `/api/collaborators/${collaborator.id}`, collaboratorData)
         : await apiRequest("POST", "/api/collaborators", collaboratorData);
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ message: "Erro desconhecido" }));
-        throw new Error(err.message || "Erro ao salvar colaborador");
-      }
 
       const result = await response.json();
 
@@ -176,8 +173,13 @@ export default function CollaboratorModal({
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
       onClose();
     },
-    onError: (error: Error) => {
-      toast({ title: "Erro", description: error.message || "Erro ao salvar colaborador", variant: "destructive" });
+    onError: (err: any) => {
+      // err.message vem como "400: {...json...}" — o texto legível está em err.body.message.
+      const description =
+        err?.status === 401 ? "Sua sessão expirou. Entre novamente para continuar." :
+        err?.status === 403 ? "Você não tem permissão para salvar colaboradores." :
+        err?.body?.message || "Erro ao salvar colaborador";
+      toast({ title: "Erro", description, variant: "destructive" });
     },
   });
 

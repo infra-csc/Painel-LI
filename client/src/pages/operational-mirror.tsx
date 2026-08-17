@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useDeferredValue } from "react";
-import { useSearch } from "wouter";
+import { useSearch, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import EventCombobox from "@/components/ui/event-combobox";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -15,13 +16,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
-import { EditDrawer } from "@/components/operational-mirror-drawers";
+import { hasRoleIn, ROLE_GROUPS } from "@shared/roles";
+import { EditDrawer, ROOM_TYPE_OPTIONS, ROOM_TYPE_LABEL } from "@/components/operational-mirror-drawers";
 import {
   RefreshCw, FileSpreadsheet, AlertTriangle, Plane, BedDouble, Luggage, Car,
   CheckCircle2, Users, Loader2, CheckCheck, MapPin, Clock, Check, MapPinned, CalendarDays,
   SlidersHorizontal, Columns3, Pencil, ChevronDown, ChevronRight, Search, X, LayoutGrid,
   Table2, Building2, Rows3, AlignJustify, Filter, Eraser, UserRound, ChevronUp, ChevronsUpDown,
+  Lock, ExternalLink,
 } from "lucide-react";
 
 function brl(cents: number | null | undefined): string {
@@ -35,8 +39,19 @@ function fmtDate(d: string | null | undefined): string {
   return String(d);
 }
 const genderLabel: Record<string, string> = { male: "M", female: "F", unknown: "?" };
+// Regra de gênero do quarto (hotel_room_groups.gender_rule)
+const GENDER_RULE_LABEL: Record<string, string> = { male: "Masculino", female: "Feminino", mixed: "Misto", none: "Misto" };
+// Direção do grupo de Uber (uber_groups.direction) — antes tudo que não era "ida" virava "Volta"
+const UBER_DIRECTION_LABEL: Record<string, string> = {
+  ida: "Ida", volta: "Volta", interno: "Deslocamento interno",
+  aeroporto_hotel: "Aeroporto → Hotel", hotel_evento: "Hotel → Evento",
+};
+function uberDirectionLabel(direction: string | null | undefined): string {
+  if (!direction) return "Trajeto";
+  return UBER_DIRECTION_LABEL[direction] ?? direction.replace(/_/g, " → ");
+}
 
-type CellType = "text" | "money" | "date" | "time" | "int" | "bool";
+type CellType = "text" | "money" | "date" | "time" | "int" | "bool" | "select";
 
 // ---- pendency categories -> matcher ----
 const PEND_CATS: { key: string; label: string; match: (p: string) => boolean }[] = [
@@ -44,11 +59,35 @@ const PEND_CATS: { key: string; label: string; match: (p: string) => boolean }[]
   { key: "hospedagem", label: "Sem hospedagem", match: (p) => p === "Sem hospedagem" },
   { key: "oc", label: "Sem OC", match: (p) => /sem OC/i.test(p) },
   { key: "localizador", label: "Sem localizador", match: (p) => /localizador/i.test(p) },
-  { key: "genero", label: "Sem gênero", match: (p) => /(gênero|sexo)/i.test(p) },
+  { key: "genero", label: "Sem gênero", match: (p) => /^Sem (gênero|sexo)/i.test(p) },
   { key: "voucher", label: "Sem voucher/anexo", match: (p) => /(voucher|anexo)/i.test(p) },
-  { key: "reserva", label: "Sem reserva", match: (p) => /reserva/i.test(p) },
+  { key: "reserva", label: "Sem reserva", match: (p) => /sem reserva/i.test(p) },
+  { key: "quarto", label: "Impossível sugerir quarto", match: (p) => /sugerir quarto/i.test(p) },
+  { key: "uber", label: "Uber sem grupo", match: (p) => /^Uber sem grupo/i.test(p) },
   { key: "data", label: "Divergência de data", match: (p) => /(≠|diverg)/i.test(p) },
 ];
+
+// Pendências que só se resolvem em outra tela (anexo/voucher/reserva). As telas de
+// Hospedagens/Passagens não leem query params, então o link é simples.
+function pendencyLink(p: string): { href: string; label: string } | null {
+  if (/^Passagem sem voucher/i.test(p)) return { href: "/tickets", label: "Abrir em Passagens" };
+  if (/^Hospedagem sem anexo/i.test(p)) return { href: "/accommodations", label: "Abrir em Hospedagens" };
+  return null;
+}
+function PendencyBadge({ p, withLink = true }: { p: string; withLink?: boolean }) {
+  const link = withLink ? pendencyLink(p) : null;
+  return (
+    <span className="inline-flex items-center gap-1 w-fit">
+      <Badge variant="outline" className="text-[9px] border-amber-400 text-amber-700 dark:text-amber-400 w-fit">{p}</Badge>
+      {link && (
+        <Link href={link.href} title={link.label} aria-label={link.label}
+          className="inline-flex items-center gap-0.5 text-[9px] text-primary hover:underline whitespace-nowrap">
+          <ExternalLink className="h-2.5 w-2.5" /> {link.label}
+        </Link>
+      )}
+    </span>
+  );
+}
 
 // ============ Editable inline cell ============
 type CellVariant = "mono" | "oc" | "checkin" | "room";
@@ -71,6 +110,8 @@ const NOME_CAMPO: Record<string, string> = {
   dailyRate: "valor da diária", totalCents: "valor total", amountCents: "valor",
   value: "valor", paymentCompany: "empresa pagadora", lateCheckout: "late checkout",
   checkIn: "check-in", checkIn3: "check-in", checkIn4: "check-in",
+  reservationNumber: "número da reserva", checkInDate: "data de check-in", checkOutDate: "data de check-out",
+  checkInTime: "hora de check-in", checkOutTime: "hora de check-out",
   observations: "observações",
 };
 function rotuloCampo(field: string): string {
@@ -80,12 +121,14 @@ function rotuloCampo(field: string): string {
   return grupo ? `${grupo} — ${nome}` : nome;
 }
 function EditableCell({
-  rowId, field, value, type, onSave, align = "left", compact, onEdit, editMode = true, variant,
+  rowId, field, value, type, onSave, align = "left", compact, onEdit, editMode = true, variant, options,
 }: {
   rowId: string; field: string; value: any; type: CellType;
   onSave: (rowId: string, field: string, value: any) => Promise<void>;
   align?: "left" | "right" | "center"; compact?: boolean; onEdit?: () => void;
   editMode?: boolean; variant?: CellVariant;
+  /** type === "select": opções permitidas */
+  options?: { value: string; label: string }[];
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -109,7 +152,7 @@ function EditableCell({
     if (value === null || value === undefined || value === "") return <span className="text-muted-foreground/30">—</span>;
     if (type === "money") return brl(value as number);
     if (type === "date") return fmtDate(value as string);
-    const s = String(value);
+    const s = type === "select" ? (options?.find((o) => o.value === String(value))?.label ?? String(value)) : String(value);
     if (variant === "mono") return <span className="font-mono text-[11px] tracking-tight">{s}</span>;
     if (variant === "oc") return <Badge variant="outline" className="font-mono text-[9px] px-1 py-0 font-normal">{s}</Badge>;
     if (variant === "room") return <Badge variant="secondary" className="text-[9px] uppercase px-1 py-0">{s}</Badge>;
@@ -165,6 +208,21 @@ function EditableCell({
           className={`w-full h-full ${pad} hover:bg-muted/50 transition-colors flex items-center justify-center disabled:cursor-wait`}>
           {state === "saving" ? <Loader2 className="h-3 w-3 animate-spin" /> : display()}
         </button>
+      </td>
+    );
+  }
+  if (editing && type === "select") {
+    // <select> nativo: cabe na célula e fecha no blur/Esc como o input de texto.
+    return (
+      <td className={`p-0 border-r border-border/30 ${ring}`}>
+        <select autoFocus defaultValue={draft} aria-label={rotuloCampo(field)}
+          onChange={(e) => { setDraft(e.target.value); }}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } if (e.key === "Escape") { e.preventDefault(); cancelEdit(); } }}
+          className={`w-full min-w-[80px] ${pad} text-xs bg-background outline-none ring-1 ring-inset ring-primary rounded-sm`}>
+          <option value="">—</option>
+          {(options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
       </td>
     );
   }
@@ -228,17 +286,26 @@ const VIEWS = [
 ] as const;
 type ViewKey = typeof VIEWS[number]["key"];
 
-const LS_KEY = "operational-mirror-prefs-v1";
+// v2: só preferências de layout (density/hiddenBlocks/view). Filtros, flags e
+// ordenação NÃO persistem — eram carregados de um evento para outro e o usuário
+// abria o espelho já filtrado sem perceber.
+const LS_KEY = "operational-mirror-prefs-v2";
 
 export default function OperationalMirror() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const search = useSearch();
   const initialEventId = new URLSearchParams(search).get("eventId") || "";
   const [eventId, setEventId] = useState(initialEventId);
 
+  // Espelha requireRoles(LOGISTICA_ROLES) das rotas PATCH/POST do espelho em
+  // server/routes.ts — quem não está no grupo só consulta.
+  const canEditMirror = hasRoleIn(user?.role, ROLE_GROUPS.logistica);
+
   const [view, setView] = useState<ViewKey>("grade");
-  const [editMode, setEditMode] = useState(true);
+  const [editModeWanted, setEditModeWanted] = useState(true);
+  const editMode = canEditMirror && editModeWanted;
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
   const [searchText, setSearchText] = useState("");
   // A grade tem ~36 colunas por linha: refiltrar e re-renderizar tudo a cada tecla
@@ -253,26 +320,27 @@ export default function OperationalMirror() {
   const [collapsedDepts, setCollapsedDepts] = useState<Set<string>>(new Set());
   const [drawer, setDrawer] = useState<{ kind: "ticket" | "accommodation" | "extras" | null; rowId: string | null; name?: string; source: any }>({ kind: null, rowId: null, source: null });
 
-  // persist prefs
+  // persist prefs (só layout)
   useEffect(() => {
     try {
       const raw = localStorage.getItem(LS_KEY);
       if (raw) {
         const p = JSON.parse(raw);
-        if (p.density) setDensity(p.density);
-        if (typeof p.editMode === "boolean") setEditMode(p.editMode);
-        if (p.hiddenBlocks) setHiddenBlocks(new Set(p.hiddenBlocks));
-        if (p.view) setView(p.view);
-        if (p.deptFilter) setDeptFilter(p.deptFilter);
-        if (p.hotelFilter) setHotelFilter(p.hotelFilter);
-        if (p.flags) setFlags(p.flags);
-        if (p.sort) setSort(p.sort);
+        if (p.density === "comfortable" || p.density === "compact") setDensity(p.density);
+        if (Array.isArray(p.hiddenBlocks)) setHiddenBlocks(new Set(p.hiddenBlocks));
+        if (VIEWS.some((v) => v.key === p.view)) setView(p.view);
       }
     } catch {}
   }, []);
   useEffect(() => {
-    try { localStorage.setItem(LS_KEY, JSON.stringify({ density, editMode, hiddenBlocks: Array.from(hiddenBlocks), view, deptFilter, hotelFilter, flags, sort })); } catch {}
-  }, [density, editMode, hiddenBlocks, view, deptFilter, hotelFilter, flags, sort]);
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ density, hiddenBlocks: Array.from(hiddenBlocks), view })); } catch {}
+  }, [density, hiddenBlocks, view]);
+
+  // Trocar de evento zera filtros/flags/ordenação — cada evento começa "limpo".
+  useEffect(() => {
+    setSearchText(""); setDeptFilter("all"); setHotelFilter("all"); setPendCat(null); setFlags({});
+    setSort({ key: null, dir: "asc" }); setCollapsedDepts(new Set());
+  }, [eventId]);
 
   const { data: events } = useQuery<any[]>({ queryKey: ["/api/events"] });
   const mirrorKey = ["/api/events", eventId, "operational-mirror"];
@@ -423,11 +491,18 @@ export default function OperationalMirror() {
     : "Nenhum colaborador escalado neste evento.";
 
   function openDrawer(kind: "ticket" | "accommodation" | "extras", r: any) {
+    if (!canEditMirror) return; // somente leitura: sem drawer de edição
     const source = kind === "ticket" ? r.ticket : kind === "accommodation" ? r.accommodation : r;
     setDrawer({ kind, rowId: r.teamInclusionId, name: r.collaborator.fullName, source });
   }
 
   const compact = density === "compact";
+  // Colaboradores por id — os grupos de quarto/Uber vêm do servidor só com collaboratorId.
+  const collabById = useMemo(() => {
+    const m = new Map<string, any>();
+    rows.forEach((r) => { if (r.collaborator?.id) m.set(r.collaborator.id, r.collaborator); });
+    return m;
+  }, [rows]);
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -442,13 +517,24 @@ export default function OperationalMirror() {
             <p className="text-sm text-muted-foreground">Gestão logística completa — passagem, hospedagem, bagagem, Uber e locação por colaborador.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant={editMode ? "default" : "outline"} size="sm" onClick={() => setEditMode((v) => !v)} data-testid="button-edit-mode">
-              <Pencil className="h-4 w-4 mr-2" /> {editMode ? "Modo edição: ON" : "Modo edição: OFF"}
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => recalcMutation.mutate()} disabled={!eventId || recalcMutation.isPending} data-testid="button-recalc">
-              {recalcMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-              Recalcular sugestões
-            </Button>
+            {canEditMirror ? (
+              <>
+                <div className="inline-flex items-center gap-2 h-9 px-3 rounded-md border bg-card">
+                  <Switch id="mirror-edit-mode" checked={editModeWanted} onCheckedChange={setEditModeWanted} data-testid="button-edit-mode" />
+                  <Label htmlFor="mirror-edit-mode" className="text-sm cursor-pointer flex items-center gap-1.5">
+                    <Pencil className="h-3.5 w-3.5" /> Modo edição
+                  </Label>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => recalcMutation.mutate()} disabled={!eventId || recalcMutation.isPending} data-testid="button-recalc">
+                  {recalcMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                  Recalcular sugestões
+                </Button>
+              </>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border bg-muted/40 text-xs text-muted-foreground" title="Somente Admin, Compras e Produção editam o espelho." data-testid="mirror-readonly-notice">
+                <Lock className="h-3.5 w-3.5" /> Somente leitura
+              </span>
+            )}
             {/* Filters */}
             <Popover>
               <PopoverTrigger asChild>
@@ -614,6 +700,12 @@ export default function OperationalMirror() {
               </div>
             </div>
 
+            {!canEditMirror && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5" data-testid="mirror-readonly-hint">
+                <Lock className="h-3 w-3" /> Você está consultando o espelho em modo somente leitura — alterações e recálculo de sugestões são feitos por Admin, Compras ou Produção.
+              </p>
+            )}
+
             {activeFilterCount > 0 && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span>Mostrando {filteredRows.length} de {rows.length} colaboradores</span>
@@ -622,11 +714,11 @@ export default function OperationalMirror() {
             )}
 
             {/* ===== VIEWS ===== */}
-            {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} totals={totals} sort={sort} onSort={toggleSort} editMode={editMode} emptyMessage={emptyMessage} />}
-            {view === "colaboradores" && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} emptyMessage={emptyMessage} />}
-            {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} emptyMessage={emptyMessage} />}
-            {view === "quartos" && <QuartosView groups={data.roomGroups} onConfirm={(id: string) => confirmRoomMutation.mutate(id)} pendingId={confirmRoomMutation.isPending ? confirmRoomMutation.variables : null} />}
-            {view === "uber" && <UberView groups={data.uberGroups} onConfirm={(id: string) => confirmUberMutation.mutate(id)} pendingId={confirmUberMutation.isPending ? confirmUberMutation.variables : null} />}
+            {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} totals={totals} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
+            {view === "colaboradores" && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
+            {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
+            {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} canEdit={canEditMirror} onConfirm={(id: string) => confirmRoomMutation.mutate(id)} pendingId={confirmRoomMutation.isPending ? confirmRoomMutation.variables : null} />}
+            {view === "uber" && <UberView groups={data.uberGroups} collabById={collabById} canEdit={canEditMirror} onConfirm={(id: string) => confirmUberMutation.mutate(id)} pendingId={confirmUberMutation.isPending ? confirmUberMutation.variables : null} />}
           </>
         )}
 
@@ -638,8 +730,10 @@ export default function OperationalMirror() {
 }
 
 // ============ GRADE VIEW ============
-function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, sort, onSort, editMode, emptyMessage }: any) {
+function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, sort, onSort, editMode, canEdit, emptyMessage }: any) {
   const show = (b: Block) => !hiddenBlocks.has(b);
+  // Lápis "editar em detalhe" só para quem pode abrir o drawer
+  const edit = (kind: "ticket" | "accommodation" | "extras", r: any) => canEdit ? () => openDrawer(kind, r) : undefined;
   const headPad = compact ? "px-2 py-1" : "px-2 py-1.5";
   const sortIcon = (key: string) => sort?.key === key ? (sort.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ChevronsUpDown className="h-3 w-3 opacity-40" />;
   return (
@@ -653,7 +747,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
                   <th colSpan={2} className="sticky left-0 top-0 z-40 bg-muted px-2 py-1.5 text-left font-semibold border-r border-b border-border">Colaborador</th>
                   <th colSpan={4} className={`${G.schedule} border ${headPad} text-center font-bold sticky top-0 z-30`}>Período de Escala</th>
                   {show("passagem") && <th colSpan={9} className={`${G.ticket} border ${headPad} text-center font-bold sticky top-0 z-30`}>Passagem</th>}
-                  {show("hospedagem") && <th colSpan={9} className={`${G.hotel} border ${headPad} text-center font-bold sticky top-0 z-30`}>Hospedagem</th>}
+                  {show("hospedagem") && <th colSpan={12} className={`${G.hotel} border ${headPad} text-center font-bold sticky top-0 z-30`}>Hospedagem</th>}
                   {show("bagagem") && <th colSpan={3} className={`${G.baggage} border ${headPad} text-center font-bold sticky top-0 z-30`}>Bagagem Extra</th>}
                   {show("uber") && <th colSpan={3} className={`${G.uber} border ${headPad} text-center font-bold sticky top-0 z-30`}>Uber</th>}
                   {show("locacao") && <th colSpan={4} className={`${G.car} border ${headPad} text-center font-bold sticky top-0 z-30`}>Locação de Carro</th>}
@@ -672,8 +766,9 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
                     <ColHead pad={headPad}>Aero Volta</ColHead><ColHead pad={headPad}>Localizador</ColHead><ColHead pad={headPad}>Empresa</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Check-in 3</ColHead>
                   </>}
                   {show("hospedagem") && <>
+                    <ColHead pad={headPad}>Hotel</ColHead><ColHead pad={headPad}>Reserva</ColHead><ColHead pad={headPad}>Check-in</ColHead><ColHead pad={headPad}>Check-out</ColHead>
                     <ColHead pad={headPad}>Diárias</ColHead><ColHead pad={headPad}>Quarto</ColHead><ColHead pad={headPad}>R$ Diária</ColHead><ColHead pad={headPad}>Late C/Out</ColHead>
-                    <ColHead pad={headPad}>Hotel R$</ColHead><ColHead pad={headPad}>Hotel</ColHead><ColHead pad={headPad}>Empresa Pgto</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Check-in 4</ColHead>
+                    <ColHead pad={headPad}>Hotel R$</ColHead><ColHead pad={headPad}>Empresa Pgto</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Check-in 4</ColHead>
                   </>}
                   {show("bagagem") && <><ColHead pad={headPad}>Bagagem R$</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Check-in 1</ColHead></>}
                   {show("uber") && <><ColHead pad={headPad}>Uber R$</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Check-in 2</ColHead></>}
@@ -697,7 +792,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
                       <EditableCell rowId={r.teamInclusionId} field="schedule.endDate" value={r.schedule.endDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
                       <EditableCell rowId={r.teamInclusionId} field="schedule.returnDate" value={r.schedule.flightReturnDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
                       {show("passagem") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.value" value={t.value} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" onEdit={() => openDrawer("ticket", r)} />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.value" value={t.value} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" onEdit={edit("ticket", r)} />
                         <EditableCell rowId={r.teamInclusionId} field="ticket.departureAirport" value={t.departureAirport} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
                         <EditableCell rowId={r.teamInclusionId} field="ticket.actualDepartureTime" value={t.actualDepartureTime} type="time" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
                         <EditableCell rowId={r.teamInclusionId} field="ticket.actualReturnTime" value={t.actualReturnTime} type="time" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
@@ -708,12 +803,15 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
                         <EditableCell rowId={r.teamInclusionId} field="ticket.checkIn3" value={t.checkIn3} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("hospedagem") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.nightsCount" value={a.nightsCount} type="int" onSave={saveCell} compact={compact} editMode={editMode} align="center" onEdit={() => openDrawer("accommodation", r)} />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.roomType" value={a.roomType} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="room" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.hotelName" value={a.hotelName} type="text" onSave={saveCell} compact={compact} editMode={editMode} onEdit={edit("accommodation", r)} />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.reservationNumber" value={a.reservationNumber} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="mono" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.checkInDate" value={a.checkInDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.checkOutDate" value={a.checkOutDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.nightsCount" value={a.nightsCount} type="int" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.roomType" value={a.roomType} type="select" options={ROOM_TYPE_OPTIONS} onSave={saveCell} compact={compact} editMode={editMode} variant="room" />
                         <EditableCell rowId={r.teamInclusionId} field="accommodation.dailyRate" value={a.dailyRate} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
                         <EditableCell rowId={r.teamInclusionId} field="accommodation.lateCheckout" value={a.lateCheckout} type="bool" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
                         <EditableCell rowId={r.teamInclusionId} field="accommodation.totalCents" value={a.totalCents} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.hotelName" value={a.hotelName} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
                         <EditableCell rowId={r.teamInclusionId} field="accommodation.paymentCompany" value={a.paymentCompany} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
                         <EditableCell rowId={r.teamInclusionId} field="accommodation.hotelOc" value={a.hotelOc} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
                         <EditableCell rowId={r.teamInclusionId} field="accommodation.checkIn4" value={a.checkIn4} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
@@ -729,7 +827,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
                         <EditableCell rowId={r.teamInclusionId} field="uber.checkIn" value={r.uber.checkIn} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("locacao") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="carRental.company" value={r.carRental.company} type="text" onSave={saveCell} compact={compact} editMode={editMode} onEdit={() => openDrawer("extras", r)} />
+                        <EditableCell rowId={r.teamInclusionId} field="carRental.company" value={r.carRental.company} type="text" onSave={saveCell} compact={compact} editMode={editMode} onEdit={edit("extras", r)} />
                         <EditableCell rowId={r.teamInclusionId} field="carRental.amountCents" value={r.carRental.totalCents} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
                         <EditableCell rowId={r.teamInclusionId} field="carRental.oc" value={r.carRental.oc} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
                         <EditableCell rowId={r.teamInclusionId} field="carRental.checkIn" value={r.carRental.checkIn} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
@@ -737,7 +835,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
                       {show("pendencias") && <>
                         <td className="px-2 py-1 border-r border-border/30">
                           {r.pendencies.length === 0 ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : (
-                            <div className="flex flex-col gap-0.5 min-w-[130px]">{r.pendencies.map((p: string, i: number) => <Badge key={i} variant="outline" className="text-[9px] border-amber-400 text-amber-700 dark:text-amber-400 w-fit">{p}</Badge>)}</div>
+                            <div className="flex flex-col gap-0.5 min-w-[130px]">{r.pendencies.map((p: string, i: number) => <PendencyBadge key={i} p={p} />)}</div>
                           )}
                         </td>
                         <EditableCell rowId={r.teamInclusionId} field="observations" value={r.observations} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
@@ -745,7 +843,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
                     </tr>
                   );
                 })}
-                {rows.length === 0 && <tr><td colSpan={36} className="p-8 text-center text-muted-foreground">{emptyMessage}</td></tr>}
+                {rows.length === 0 && <tr><td colSpan={39} className="p-8 text-center text-muted-foreground">{emptyMessage}</td></tr>}
               </tbody>
             </table>
           </div>
@@ -761,7 +859,8 @@ function ColHead({ children, pad }: { children: React.ReactNode; pad: string }) 
 }
 
 // ============ COLABORADORES VIEW ============
-function ColaboradoresView({ rows, openDrawer, emptyMessage }: any) {
+function ColaboradoresView({ rows, openDrawer, canEdit, emptyMessage }: any) {
+  const edit = (kind: "ticket" | "accommodation" | "extras", r: any) => canEdit ? () => openDrawer(kind, r) : undefined;
   if (rows.length === 0) return <Card><CardContent className="py-12 text-center text-muted-foreground">{emptyMessage}</CardContent></Card>;
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -787,28 +886,30 @@ function ColaboradoresView({ rows, openDrawer, emptyMessage }: any) {
               </div>
             </CardHeader>
             <CardContent className="p-4 grid grid-cols-2 gap-3 text-sm">
-              <SummaryBlock icon={<Plane className="h-3.5 w-3.5 text-indigo-500" />} title="Passagem" value={brl(t?.value)} onEdit={() => openDrawer("ticket", r)}
+              <SummaryBlock icon={<Plane className="h-3.5 w-3.5 text-indigo-500" />} title="Passagem" value={brl(t?.value)} onEdit={edit("ticket", r)}
                 lines={[t?.locator && `Loc: ${t.locator}`, (t?.departureAirport || t?.returnOriginAirport) && `${t?.departureAirport || "?"} → ${t?.returnOriginAirport || "?"}`, t?.purchaseOrderNumber && `OC: ${t.purchaseOrderNumber}`]} />
-              <SummaryBlock icon={<BedDouble className="h-3.5 w-3.5 text-emerald-500" />} title="Hospedagem" value={brl(a?.totalCents || (a?.dailyRate || 0) * (a?.nightsCount || 0))} onEdit={() => openDrawer("accommodation", r)}
-                lines={[a?.hotelName, a?.nightsCount && `${a.nightsCount} diária(s)${a.roomType ? " · " + a.roomType : ""}`, a?.hotelOc && `OC: ${a.hotelOc}`]} />
-              <SummaryBlock icon={<Luggage className="h-3.5 w-3.5 text-amber-500" />} title="Bagagem" value={brl(r.baggage.extraCents)} onEdit={() => openDrawer("extras", r)} lines={[r.baggage.oc && `OC: ${r.baggage.oc}`, r.baggage.checkIn && `Check-in: ${r.baggage.checkIn}`]} />
-              <SummaryBlock icon={<Car className="h-3.5 w-3.5 text-fuchsia-500" />} title="Uber" value={brl(r.uber.totalCents)} onEdit={() => openDrawer("extras", r)} lines={[r.uber.groupName, r.uber.oc && `OC: ${r.uber.oc}`]} />
-              <SummaryBlock icon={<Car className="h-3.5 w-3.5 text-orange-500" />} title="Locação" value={brl(r.carRental.totalCents)} onEdit={() => openDrawer("extras", r)} lines={[r.carRental.company, r.carRental.oc && `OC: ${r.carRental.oc}`]} />
+              <SummaryBlock icon={<BedDouble className="h-3.5 w-3.5 text-emerald-500" />} title="Hospedagem" value={brl(a?.totalCents || (a?.dailyRate || 0) * (a?.nightsCount || 0))} onEdit={edit("accommodation", r)}
+                lines={[a?.hotelName, a?.reservationNumber && `Reserva: ${a.reservationNumber}`, (a?.checkInDate || a?.checkOutDate) && `${fmtDate(a?.checkInDate)} → ${fmtDate(a?.checkOutDate)}`, a?.nightsCount && `${a.nightsCount} diária(s)${a.roomType ? " · " + (ROOM_TYPE_LABEL[a.roomType] ?? a.roomType) : ""}`, a?.hotelOc && `OC: ${a.hotelOc}`]} />
+              <SummaryBlock icon={<Luggage className="h-3.5 w-3.5 text-amber-500" />} title="Bagagem" value={brl(r.baggage.extraCents)} onEdit={edit("extras", r)} lines={[r.baggage.oc && `OC: ${r.baggage.oc}`, r.baggage.checkIn && `Check-in: ${r.baggage.checkIn}`]} />
+              <SummaryBlock icon={<Car className="h-3.5 w-3.5 text-fuchsia-500" />} title="Uber" value={brl(r.uber.totalCents)} onEdit={edit("extras", r)} lines={[r.uber.groupName, r.uber.oc && `OC: ${r.uber.oc}`]} />
+              <SummaryBlock icon={<Car className="h-3.5 w-3.5 text-orange-500" />} title="Locação" value={brl(r.carRental.totalCents)} onEdit={edit("extras", r)} lines={[r.carRental.company, r.carRental.oc && `OC: ${r.carRental.oc}`]} />
               <div className="rounded-lg border bg-muted/20 p-2.5">
                 <div className="text-xs text-muted-foreground mb-1">Pendências</div>
                 {r.pendencies.length === 0 ? <div className="flex items-center gap-1 text-green-600 text-xs"><CheckCircle2 className="h-3.5 w-3.5" /> Tudo certo</div> :
-                  <div className="flex flex-wrap gap-1">{r.pendencies.map((p: string, i: number) => <Badge key={i} variant="outline" className="text-[9px] border-amber-400 text-amber-700 dark:text-amber-400">{p}</Badge>)}</div>}
+                  <div className="flex flex-wrap gap-1">{r.pendencies.map((p: string, i: number) => <PendencyBadge key={i} p={p} />)}</div>}
               </div>
               <div className="col-span-2 flex items-center justify-between border-t pt-3 mt-1">
                 <div>
                   <span className="text-xs text-muted-foreground">Total individual</span>
                   <div className="text-lg font-bold tabular-nums">{brl(indivTotal)}</div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => openDrawer("ticket", r)}><Plane className="h-3 w-3 mr-1" /> Passagem</Button>
-                  <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => openDrawer("accommodation", r)}><BedDouble className="h-3 w-3 mr-1" /> Hotel</Button>
-                  <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => openDrawer("extras", r)}><Luggage className="h-3 w-3 mr-1" /> Extras</Button>
-                </div>
+                {canEdit && (
+                  <div className="flex items-center gap-1.5">
+                    <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => openDrawer("ticket", r)}><Plane className="h-3 w-3 mr-1" /> Passagem</Button>
+                    <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => openDrawer("accommodation", r)}><BedDouble className="h-3 w-3 mr-1" /> Hotel</Button>
+                    <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => openDrawer("extras", r)}><Luggage className="h-3 w-3 mr-1" /> Extras</Button>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -832,7 +933,7 @@ function SummaryBlock({ icon, title, value, lines = [], onEdit }: { icon: React.
 }
 
 // ============ DEPARTAMENTOS VIEW ============
-function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, emptyMessage }: any) {
+function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, canEdit, emptyMessage }: any) {
   const groups = useMemo(() => {
     const m = new Map<string, any[]>();
     rows.forEach((r: any) => { const k = r.function.area || r.function.name || "(sem departamento)"; if (!m.has(k)) m.set(k, []); m.get(k)!.push(r); });
@@ -890,9 +991,11 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, 
                       <span className="flex items-center gap-1 text-xs"><BedDouble className="h-3 w-3 text-emerald-500" /> {brl(r.accommodation?.totalCents || (r.accommodation?.dailyRate || 0) * (r.accommodation?.nightsCount || 0))}</span>
                       <span className="flex items-center gap-1 text-xs"><Luggage className="h-3 w-3 text-amber-500" /> {brl((r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0))}</span>
                       {r.pendencies.length > 0 && <Badge variant="outline" className="text-[9px] border-amber-400 text-amber-700 dark:text-amber-400 ml-auto">{r.pendencies.length} pend.</Badge>}
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("ticket", r)}><Pencil className="h-3 w-3 mr-1" /> Passagem</Button>
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("accommodation", r)}><Pencil className="h-3 w-3 mr-1" /> Hotel</Button>
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("extras", r)}><Pencil className="h-3 w-3 mr-1" /> Extras</Button>
+                      {canEdit && <>
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("ticket", r)}><Pencil className="h-3 w-3 mr-1" /> Passagem</Button>
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("accommodation", r)}><Pencil className="h-3 w-3 mr-1" /> Hotel</Button>
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("extras", r)}><Pencil className="h-3 w-3 mr-1" /> Extras</Button>
+                      </>}
                     </div>
                   ))}
                 </div>
@@ -907,57 +1010,92 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, 
 }
 
 // ============ QUARTOS VIEW ============
-function QuartosView({ groups, onConfirm, pendingId }: any) {
-  if (groups.length === 0) return <Card><CardContent className="py-10 text-center text-muted-foreground">Nenhuma sugestão de quarto. Clique em "Recalcular sugestões".</CardContent></Card>;
+// Membros de grupo vêm do servidor como linhas {collaboratorId, ...}; o nome/gênero
+// é resolvido pelas linhas do espelho (collabById).
+function memberInfo(m: any, collabById: Map<string, any>) {
+  const id = typeof m === "string" ? m : m?.collaboratorId || m?.id;
+  const c = id ? collabById.get(id) : undefined;
+  const name = m?.fullName || m?.name || c?.fullName || (id ? `#${String(id).slice(0, 8)}` : "?");
+  const gender = m?.gender ?? c?.gender ?? null;
+  return { id, name, gender, noGender: !gender || gender === "unknown" };
+}
+
+function QuartosView({ groups, collabById, canEdit, onConfirm, pendingId }: any) {
+  const emptyHint = canEdit ? ' Clique em "Recalcular sugestões".' : "";
+  if (groups.length === 0) return <Card><CardContent className="py-10 text-center text-muted-foreground">Nenhuma sugestão de quarto.{emptyHint}</CardContent></Card>;
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-      {groups.map((g: any) => (
-        <Card key={g.id} className={g.confirmed ? "border-green-400" : "border-dashed"} data-testid={`room-${g.id}`}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center justify-between">
-              <span className="flex items-center gap-2 capitalize"><BedDouble className="h-4 w-4 text-emerald-500" /> {g.roomType || "quarto"}</span>
-              {g.confirmed ? <Badge className="bg-green-600">Confirmado</Badge> : <Badge variant="outline">Sugestão</Badge>}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-xs">
-            <div className="text-muted-foreground">{g.hotelName || "Hotel a definir"}</div>
-            <div className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" /> {fmtDate(g.checkInDate)} → {fmtDate(g.checkOutDate)}</div>
-            <div className="flex items-center gap-1"><Users className="h-3 w-3" /> {g.members.length} hóspede(s)</div>
-            <div className="flex flex-wrap gap-1">{g.members.map((m: any, i: number) => <Badge key={i} variant="secondary" className="text-[10px]">{m.fullName || m.name || m}</Badge>)}</div>
-            {!g.confirmed && <Button size="sm" className="w-full mt-2" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id} data-testid={`confirm-room-${g.id}`}>
-              {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />} Confirmar
-            </Button>}
-          </CardContent>
-        </Card>
-      ))}
+      {groups.map((g: any) => {
+        const members = (g.members || []).map((m: any) => memberInfo(m, collabById));
+        const missingGender = members.filter((m: any) => m.noGender);
+        const genderRule = g.genderRule ? (GENDER_RULE_LABEL[g.genderRule] ?? g.genderRule) : null;
+        return (
+          <Card key={g.id} className={g.confirmed ? "border-green-400" : "border-dashed"} data-testid={`room-${g.id}`}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center justify-between">
+                <span className="flex items-center gap-2"><BedDouble className="h-4 w-4 text-emerald-500" /> {ROOM_TYPE_LABEL[g.roomType] ?? g.roomType ?? "Quarto"}</span>
+                {g.confirmed ? <Badge className="bg-green-600">Confirmado</Badge> : <Badge variant="outline">Sugestão</Badge>}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-xs">
+              <div className="text-muted-foreground">{g.hotelName || "Hotel a definir"}</div>
+              <div className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" /> {fmtDate(g.checkInDate)} → {fmtDate(g.checkOutDate)}</div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {members.length} hóspede(s)</span>
+                {genderRule && <Badge variant="outline" className="text-[9px] px-1 py-0 font-normal" title="Regra de gênero do quarto">{genderRule}</Badge>}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {members.map((m: any, i: number) => (
+                  <Badge key={m.id ?? i} variant="secondary" className={`text-[10px] ${m.noGender ? "border border-amber-400" : ""}`}>
+                    {m.name}{m.gender && m.gender !== "unknown" ? ` · ${genderLabel[m.gender] ?? m.gender}` : ""}
+                  </Badge>
+                ))}
+              </div>
+              {missingGender.length > 0 && (
+                <div className="flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-2 py-1.5 text-amber-800 dark:text-amber-300" role="note">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" />
+                  <span>{missingGender.length === 1 ? "1 hóspede sem gênero cadastrado" : `${missingGender.length} hóspedes sem gênero cadastrado`} — a regra de compartilhamento não pode ser verificada.</span>
+                </div>
+              )}
+              {!g.confirmed && canEdit && <Button size="sm" className="w-full mt-2" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id} data-testid={`confirm-room-${g.id}`}>
+                {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />} Confirmar
+              </Button>}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }
 
 // ============ UBER VIEW ============
-function UberView({ groups, onConfirm, pendingId }: any) {
-  if (groups.length === 0) return <Card><CardContent className="py-10 text-center text-muted-foreground">Nenhuma sugestão de Uber. Clique em "Recalcular sugestões".</CardContent></Card>;
+function UberView({ groups, collabById, canEdit, onConfirm, pendingId }: any) {
+  const emptyHint = canEdit ? ' Clique em "Recalcular sugestões".' : "";
+  if (groups.length === 0) return <Card><CardContent className="py-10 text-center text-muted-foreground">Nenhuma sugestão de Uber.{emptyHint}</CardContent></Card>;
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-      {groups.map((g: any) => (
-        <Card key={g.id} className={g.confirmed ? "border-green-400" : "border-dashed"} data-testid={`uber-${g.id}`}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center justify-between">
-              <span className="flex items-center gap-2"><Car className="h-4 w-4 text-fuchsia-500" /> {g.direction === "ida" ? "Ida" : "Volta"}</span>
-              {g.confirmed ? <Badge className="bg-green-600">Confirmado</Badge> : <Badge variant="outline">Sugestão</Badge>}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-xs">
-            <div className="flex items-center gap-1 text-muted-foreground"><MapPin className="h-3 w-3" /> {g.origin || "?"} → {g.destination || "?"}</div>
-            <div className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" /> {fmtDate(g.date)} {g.time || ""}</div>
-            <div className="flex items-center gap-1"><Users className="h-3 w-3" /> {g.members.length} passageiro(s)</div>
-            <div className="flex flex-wrap gap-1">{g.members.map((m: any, i: number) => <Badge key={i} variant="secondary" className="text-[10px]">{m.fullName || m.name || m}</Badge>)}</div>
-            {!g.confirmed && <Button size="sm" className="w-full mt-2" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id} data-testid={`confirm-uber-${g.id}`}>
-              {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />} Confirmar
-            </Button>}
-          </CardContent>
-        </Card>
-      ))}
+      {groups.map((g: any) => {
+        const members = (g.members || []).map((m: any) => memberInfo(m, collabById));
+        return (
+          <Card key={g.id} className={g.confirmed ? "border-green-400" : "border-dashed"} data-testid={`uber-${g.id}`}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center justify-between">
+                <span className="flex items-center gap-2"><Car className="h-4 w-4 text-fuchsia-500" /> {uberDirectionLabel(g.direction)}</span>
+                {g.confirmed ? <Badge className="bg-green-600">Confirmado</Badge> : <Badge variant="outline">Sugestão</Badge>}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-xs">
+              <div className="flex items-center gap-1 text-muted-foreground"><MapPin className="h-3 w-3" /> {g.origin || "?"} → {g.destination || "?"}</div>
+              <div className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" /> {fmtDate(g.date)} {g.time || ""}</div>
+              <div className="flex items-center gap-1"><Users className="h-3 w-3" /> {members.length} passageiro(s)</div>
+              <div className="flex flex-wrap gap-1">{members.map((m: any, i: number) => <Badge key={m.id ?? i} variant="secondary" className="text-[10px]">{m.name}</Badge>)}</div>
+              {!g.confirmed && canEdit && <Button size="sm" className="w-full mt-2" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id} data-testid={`confirm-uber-${g.id}`}>
+                {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />} Confirmar
+              </Button>}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }

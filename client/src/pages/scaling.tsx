@@ -1,14 +1,16 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
-import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
+import { fixEncoding } from "@/lib/utils";
 import { markSwapSeen, getSeenState } from "@/lib/seenSwaps";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Bus, Check, CalendarDays, Users, MessageSquare, History, FileText, File, HelpCircle, ArrowLeftRight, ArrowRight, AlertCircle, RotateCcw, CheckCheck, XCircle, MapPin } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Check, CalendarDays, Users, MessageSquare, History, FileText, File, HelpCircle, ArrowLeftRight, ArrowRight, AlertCircle, RotateCcw, CheckCheck, XCircle, MapPin } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
-import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
+import { type SortConfig, type SortField } from "@/components/common/sortable-header";
+import ScalingTable, { getStatusBadge } from "@/components/scaling/scaling-table";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -18,6 +20,7 @@ import { isAtendimentoFunction, ATENDIMENTO_TIPOS } from "@shared/atendimento";
 import { useAuth } from "@/hooks/use-auth";
 import { isReadOnly } from "@/lib/interactions";
 import { canView } from "@/lib/permissions";
+import { hasRoleIn } from "@shared/roles";
 import * as XLSX from 'xlsx';
 import { eachDayOfInterval, parseISO, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -633,22 +636,6 @@ export default function Scaling() {
     return accommodationByInclusion.get(inclusionId);
   };
 
-  // Helper function to format accommodation data
-  const formatAccommodationInfo = (accommodation: Accommodation | undefined) => {
-    if (!accommodation) return null;
-    
-    const checkinDate = accommodation.checkInDate ? new Date(accommodation.checkInDate).toLocaleDateString('pt-BR') : '';
-    const checkoutDate = accommodation.checkOutDate ? new Date(accommodation.checkOutDate).toLocaleDateString('pt-BR') : '';
-    const dates = checkinDate && checkoutDate ? `${checkinDate} - ${checkoutDate}` : '';
-    
-    return {
-      hotel: accommodation.hotelName || 'Hotel não informado',
-      location: accommodation.hotelLocation || '',
-      dates,
-      hasAttachments: accommodation.attachmentIds && accommodation.attachmentIds.length > 0
-    };
-  };
-
   // Check if user can manage function (is responsible for it)
   const canManageFunction = (functionId: string) => {
     if (!user) return false;
@@ -726,11 +713,12 @@ export default function Scaling() {
           if (filters.escalationStatus === "cancelado" && !isCanceled) return false;
         }
 
-        // Apply ticket status filter
+        // Apply ticket status filter — "Comprada" = passagem com purchaseDate
+        // (um registro de passagem ainda sem compra NÃO conta como comprada)
         if (filters.ticketStatus !== "all") {
-          const hasTicket = getTicket(inclusion.id) !== undefined;
-          if (filters.ticketStatus === "purchased" && !hasTicket) return false;
-          if (filters.ticketStatus === "not-purchased" && hasTicket) return false;
+          const purchased = purchasedTicketInclusionIds.has(inclusion.id);
+          if (filters.ticketStatus === "purchased" && !purchased) return false;
+          if (filters.ticketStatus === "not-purchased" && purchased) return false;
         }
 
         // Apply accommodation status filter
@@ -795,15 +783,45 @@ export default function Scaling() {
       if (!b.scheduleStartDate) return -1;
       return new Date(a.scheduleStartDate).getTime() - new Date(b.scheduleStartDate).getTime();
     });
-  }, [filteredTeamInclusions, filters, sortConfig, eventById, functionById, collaboratorById, ticketByInclusion, accommodationByInclusion]);
+  }, [filteredTeamInclusions, filters, sortConfig, eventById, functionById, collaboratorById, purchasedTicketInclusionIds, accommodationByInclusion]);
 
-  // Inclusões visíveis com troca pendente — usado pelo atalho/banner
-  // Exclui inclusões cujo swap já foi tratado por outra aba (Passagem/Hospedagem)
+  // Há algum filtro/busca ativo? (os banners avisam quando a visão está recortada)
+  const hasActiveFilters =
+    filters.eventId !== "all" ||
+    filters.functionId.length > 0 ||
+    filters.collaboratorId !== "all" ||
+    filters.escalationStatus !== "all" ||
+    filters.ticketStatus !== "all" ||
+    filters.accommodationStatus !== "all" ||
+    filters.searchId.trim() !== "" ||
+    showOnlyPendingSwaps;
+
+  const isAdminOrPurchasing = hasRoleIn(user?.role, ['admin', 'purchasing']);
+
+  // Trocas pendentes sobre as quais o usuário PODE agir:
+  // - Compras/admin: analisa qualquer troca ainda não tratada em Passagem/Hospedagem;
+  // - demais papéis: só as trocas que ele mesmo solicitou (pode cancelar).
+  const isActionablePendingSwap = (inclusion: TeamInclusion) => {
+    const swap = pendingSwapByInclusion.get(inclusion.id);
+    if (!swap) return false;
+    if (ALREADY_HANDLED_SWAP_STATUSES.has(inclusion.status ?? '')) return false;
+    if (isAdminOrPurchasing) return true;
+    const requestedBy = (swap as any).requested_by || swap.requestedBy;
+    return !!user?.id && requestedBy === user.id;
+  };
+
+  // Base NÃO filtrada (só o recorte de permissão) — o banner conta o total real
+  const pendingSwapInclusionsAll = useMemo(
+    () => filteredTeamInclusions.filter(isActionablePendingSwap),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filteredTeamInclusions, pendingSwapByInclusion, isAdminOrPurchasing, user?.id]
+  );
+
+  // Inclusões visíveis (após filtros) com troca pendente — usado pelo atalho
   const pendingSwapInclusionsInView = useMemo(
-    () => scalingInclusions.filter(i =>
-      pendingSwapByInclusion.has(i.id) && !ALREADY_HANDLED_SWAP_STATUSES.has(i.status ?? '')
-    ),
-    [scalingInclusions, pendingSwapByInclusion]
+    () => scalingInclusions.filter(isActionablePendingSwap),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scalingInclusions, pendingSwapByInclusion, isAdminOrPurchasing, user?.id]
   );
 
   // Define a aba inicial assim que os dados carregam (preserva o comportamento antigo)
@@ -888,6 +906,12 @@ export default function Scaling() {
   });
 
   const handleExportToExcel = async () => {
+    // A planilha inclui CPF/telefone/nascimento — botão já é escondido, mas
+    // a trava fica aqui também para não depender só da UI.
+    if (!hasRoleIn(user?.role, ['admin', 'purchasing', 'financial'])) {
+      toast({ title: "Sem permissão", description: "Somente administradores, Compras e RH/Financeiro podem exportar a planilha.", variant: "destructive" });
+      return;
+    }
     if (!scalingInclusions || scalingInclusions.length === 0) {
       toast({
         title: "Erro",
@@ -1198,32 +1222,53 @@ export default function Scaling() {
     markInclusionSwapSeen(inclusion.id);
   };
 
+  // ── Validação inline (Salvar / Confirmar) ─────────────────────────────────
+  // Devolve o motivo pelo qual a ação está bloqueada (ou null). Usado para
+  // desabilitar o botão + tooltip + marcar campos; os handlers só repetem a
+  // checagem como trava de segurança, sem toast (toast fica para erro de servidor).
+  const isAtendimentoMissing = (inclusion: TeamInclusion) =>
+    !!modalData.collaboratorId &&
+    isAtendimentoFunction(getFunctionName(inclusion.functionId)) &&
+    !modalData.atendimentoTipo;
+
+  const getCollaboratorConflictSummary = (inclusion: TeamInclusion): string | null => {
+    if (!modalData.collaboratorId) return null;
+    const { sameEvent, dateOverlap } = getCollaboratorConflicts(modalData.collaboratorId, inclusion.id);
+    if (sameEvent.length === 0 && dateOverlap.length === 0) return null;
+    const conflict = sameEvent[0] || dateOverlap[0];
+    const startStr = conflict.scheduleStartDate ? new Date(conflict.scheduleStartDate).toLocaleDateString('pt-BR') : '';
+    const endStr = conflict.scheduleEndDate ? new Date(conflict.scheduleEndDate).toLocaleDateString('pt-BR') : '';
+    const periodStr = startStr && endStr ? ` de ${startStr} a ${endStr}` : '';
+    return `${getCollaboratorName(modalData.collaboratorId)} já está escalado em "${getEventName(conflict.eventId)}"${periodStr}.`;
+  };
+
+  const getSaveBlockReason = (inclusion: TeamInclusion | null): string | null => {
+    if (!inclusion) return "Nenhuma escalação selecionada.";
+    if (inclusion.status === 'cancelado') return "Escalação cancelada — reative para editar.";
+    if (isEscalated(inclusion)) {
+      if (!canEditCollaborator(inclusion)) return "Alteração bloqueada: passagem comprada, hospedagem reservada ou sem permissão.";
+    } else if (!canConfirmEscalation(inclusion)) {
+      return "Apenas o responsável pela função pode salvar alterações.";
+    }
+    if (isAtendimentoMissing(inclusion)) return "Selecione o tipo de atendimento (Key Account ou Executivo de Contas).";
+    return null;
+  };
+
+  const getConfirmBlockReason = (inclusion: TeamInclusion | null): string | null => {
+    if (!inclusion) return "Nenhuma escalação selecionada.";
+    if (inclusion.status === 'cancelado') return "Escalação cancelada — reative para confirmar.";
+    if (!canConfirmEscalation(inclusion)) return "Apenas o responsável pela função pode confirmar escalações.";
+    if (!modalData.collaboratorId) return "Selecione um colaborador antes de confirmar.";
+    if (isAtendimentoMissing(inclusion)) return "Selecione o tipo de atendimento (Key Account ou Executivo de Contas).";
+    const conflict = getCollaboratorConflictSummary(inclusion);
+    if (conflict) return `Conflito de datas: ${conflict}`;
+    return null;
+  };
+
   const handleSave = () => {
     if (!selectedInclusion) return;
     if (updateTeamInclusionMutation.isPending) return; // trava duplo clique
-
-    if (!canConfirmEscalation(selectedInclusion)) {
-      toast({
-        title: "Erro",
-        description: "Você não tem permissão para salvar alterações nesta função",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Atendimento: se há colaborador, o tipo é obrigatório (mesma regra da confirmação)
-    if (
-      modalData.collaboratorId &&
-      isAtendimentoFunction(getFunctionName(selectedInclusion.functionId)) &&
-      !modalData.atendimentoTipo
-    ) {
-      toast({
-        title: "Erro",
-        description: "Selecione o tipo de atendimento (Key Account ou Executivo de Contas)",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (getSaveBlockReason(selectedInclusion)) return; // botão já está desabilitado com o motivo
 
     const updateData: any = {
       collaboratorId: modalData.collaboratorId,
@@ -1250,49 +1295,8 @@ export default function Scaling() {
   const handleConfirmEscalation = () => {
     if (!selectedInclusion) return;
     if (updateTeamInclusionMutation.isPending) return; // trava duplo clique
-
-    if (!canConfirmEscalation(selectedInclusion)) {
-      toast({
-        title: "Erro",
-        description: "Você não tem permissão para confirmar escalações nesta função",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!modalData.collaboratorId) {
-      toast({
-        title: "Erro",
-        description: "Selecione um colaborador antes de confirmar a escalação",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (isAtendimentoFunction(getFunctionName(selectedInclusion.functionId)) && !modalData.atendimentoTipo) {
-      toast({
-        title: "Erro",
-        description: "Selecione o tipo de atendimento (Key Account ou Executivo de Contas)",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // BLOQUEIO: verificar conflito de datas antes de confirmar
-    const { sameEvent: conflictSameEvent, dateOverlap: conflictDateOverlap } = getCollaboratorConflicts(modalData.collaboratorId, selectedInclusion.id);
-    if (conflictSameEvent.length > 0 || conflictDateOverlap.length > 0) {
-      const conflict = conflictSameEvent[0] || conflictDateOverlap[0];
-      const conflictEventName = getEventName(conflict.eventId);
-      const startStr = conflict.scheduleStartDate ? new Date(conflict.scheduleStartDate).toLocaleDateString('pt-BR') : '';
-      const endStr = conflict.scheduleEndDate ? new Date(conflict.scheduleEndDate).toLocaleDateString('pt-BR') : '';
-      const periodStr = startStr && endStr ? ` de ${startStr} a ${endStr}` : '';
-      toast({
-        title: "Escalação bloqueada",
-        description: `${getCollaboratorName(modalData.collaboratorId)} já está escalado em "${conflictEventName}"${periodStr}. Só é possível adicionar se o colaborador for inativado ou sair da outra prova.`,
-        variant: "destructive",
-      });
-      return;
-    }
+    // Validação inline: o botão já vem desabilitado com o motivo (sem toast aqui)
+    if (getConfirmBlockReason(selectedInclusion)) return;
 
     // Se é cenotécnica → vai para aprovação da produção (Vinicius Alexandre)
     const isCenotecnica = isCenotecnicaFunction(selectedInclusion.functionId);
@@ -1517,9 +1521,13 @@ export default function Scaling() {
   };
 
   // Banner: escalações de cenotécnica aguardando aprovação da produção
-  const canApproveProduction = (user as any)?.canApproveCenotecnica ||
-    ['admin', 'administrator', 'administrador'].includes(user?.role ?? '');
-  const pendingProductionApprovals = scalingInclusions.filter(i => i.status === 'aguardando_producao');
+  const canApproveProduction = (user as any)?.canApproveCenotecnica || hasRoleIn(user?.role, ['admin']);
+  // Conta sobre a base NÃO filtrada (só o recorte de permissão); a visão atual é informada à parte
+  const pendingProductionApprovals = filteredTeamInclusions.filter(i => i.status === 'aguardando_producao');
+  const pendingProductionApprovalsInView = scalingInclusions.filter(i => i.status === 'aguardando_producao');
+
+  // Exportação XLSX carrega CPF/telefone/nascimento — só admin, Compras e RH/Financeiro
+  const canExport = hasRoleIn(user?.role, ['admin', 'purchasing', 'financial']);
 
   // Check if user can access this screen (depois de todos os hooks)
   if (!canViewScaling) {
@@ -1558,7 +1566,7 @@ export default function Scaling() {
 
       {/* ── Banner: Aprovações de cenotécnica pendentes ── */}
       {canApproveProduction && pendingProductionApprovals.length > 0 && (
-        <div className="flex items-start gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-2xl">
+        <div className="flex flex-wrap items-start gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-2xl">
           <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
             <AlertCircle className="w-4 h-4 text-red-600" />
           </div>
@@ -1567,8 +1575,11 @@ export default function Scaling() {
               {pendingProductionApprovals.length === 1
                 ? '1 escalação de cenotécnica aguardando sua aprovação'
                 : `${pendingProductionApprovals.length} escalações de cenotécnica aguardando sua aprovação`}
+              {hasActiveFilters && (
+                <span className="font-medium text-red-500"> ({pendingProductionApprovalsInView.length} na visão atual)</span>
+              )}
             </p>
-            <p className="text-[11px] text-red-500 mt-0.5">
+            <p className="text-[11px] text-red-500 mt-0.5 break-words">
               {pendingProductionApprovals.map(i => `#${i.inclusionNumber}`).join(', ')} — clique na escalação para aprovar ou reprovar.
             </p>
           </div>
@@ -1584,17 +1595,18 @@ export default function Scaling() {
         hideStatusFilter={true}
         showTicketFilter={true}
         showAccommodationFilter={true}
-        rightActions={
+        rightActions={canExport ? (
           <Button
             onClick={handleExportToExcel}
             variant="outline"
             className="flex items-center gap-2 border border-green-200 text-green-600 bg-green-50 hover:bg-green-100 rounded-xl px-3 h-10 text-sm font-medium transition-colors whitespace-nowrap"
             data-testid="button-export-excel"
+            title="Exporta a planilha com dados pessoais dos colaboradores (CPF, telefone, nascimento)"
           >
             <FileSpreadsheet className="w-4 h-4" />
             Exportar
           </Button>
-        }
+        ) : undefined}
       />
 
 
@@ -1639,17 +1651,22 @@ export default function Scaling() {
             
             return (
               <Tabs value={scalingTab} onValueChange={setScalingTab} className="w-full">
-                {pendingSwapInclusionsInView.length > 0 && (
-                  <div className="mb-3 flex items-center gap-3 rounded-xl border border-purple-200 bg-purple-50 px-4 py-3">
+                {pendingSwapInclusionsAll.length > 0 && (
+                  <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-purple-200 bg-purple-50 px-4 py-3">
                     <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
                       <ArrowLeftRight className="w-4 h-4 text-purple-600" />
                     </div>
                     <p className="text-[13px] font-medium text-purple-800 flex-1 min-w-0">
-                      {pendingSwapInclusionsInView.length === 1
+                      {pendingSwapInclusionsAll.length === 1
                         ? "1 solicitação de troca de colaborador aguardando análise"
-                        : `${pendingSwapInclusionsInView.length} solicitações de troca de colaborador aguardando análise`}
+                        : `${pendingSwapInclusionsAll.length} solicitações de troca de colaborador aguardando análise`}
+                      {hasActiveFilters && (
+                        <span className="text-purple-500 font-normal"> ({pendingSwapInclusionsInView.length} na visão atual)</span>
+                      )}
                     </p>
-                    {showOnlyPendingSwaps ? (
+                    {pendingSwapInclusionsInView.length === 0 ? (
+                      <span className="shrink-0 text-[12px] text-purple-500">Nenhuma na visão atual — ajuste os filtros.</span>
+                    ) : showOnlyPendingSwaps ? (
                       <button
                         type="button"
                         onClick={() => setShowOnlyPendingSwaps(false)}
@@ -1670,7 +1687,7 @@ export default function Scaling() {
                     )}
                   </div>
                 )}
-                <TabsList className="grid grid-cols-2 gap-4 h-auto bg-transparent p-0 w-full mb-2">
+                <TabsList className="grid grid-cols-1 sm:grid-cols-2 gap-4 h-auto bg-transparent p-0 w-full mb-2">
                   {/* Card: Sem Passagem */}
                   <TabsTrigger
                     value="without-ticket"
@@ -1748,182 +1765,24 @@ export default function Scaling() {
                       </p>
                     </div>
                   ) : (
-                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden mt-4">
-                      <div className="overflow-x-auto">
-                        <table className="table-fixed w-full">
-                          <colgroup>
-                            <col style={{width: "100px"}} />
-                            <col style={{width: "28%"}} />
-                            <col style={{width: "22%"}} />
-                            <col style={{width: "150px"}} />
-                            <col style={{width: "220px"}} />
-                          </colgroup>
-                          <thead style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
-                            <tr>
-                              <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
-                              <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Função / Evento</SortableHeader>
-                              <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
-                              <SortableHeader field="period" className="whitespace-nowrap" sortConfig={sortConfig} onSort={handleSort}>Período / Diárias</SortableHeader>
-                              <th className="w-[220px] min-w-[220px] px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
-                                Status
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {withoutTicket.map((inclusion, rowIdx) => (
-                              <tr
-                                key={inclusion.id}
-                                className={`group/row transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'} hover:bg-blue-50/50 ${inclusion.status === 'cancelado' ? 'opacity-50' : ''}`}
-                                onClick={() => handleRowClick(inclusion)}
-                                tabIndex={0}
-                                aria-label={`Abrir detalhes da escalação #${inclusion.inclusionNumber ?? ''}`}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    handleRowClick(inclusion);
-                                  }
-                                }}
-                              >
-                                <td className="px-4 py-3 whitespace-nowrap">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[11px] font-bold text-[#2563EB] bg-blue-50 px-2.5 py-1 rounded-lg font-mono border border-blue-100">
-                                      #{inclusion.inclusionNumber || 'N/A'}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 bg-slate-50 border border-slate-200 hover:bg-[#2563EB] hover:text-white hover:border-[#2563EB] transition-all duration-150"
-                                      onClick={(e) => handleViewComments(e, inclusion)}
-                                      title="Ver detalhes"
-                                      aria-label={`Ver detalhes da escalação #${inclusion.inclusionNumber ?? ''}`}
-                                    >
-                                      <Eye className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div className="text-[13px] font-bold text-slate-800 leading-tight">
-                                    {getFunctionName(inclusion.functionId)}
-                                  </div>
-                                  <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-blue-50 text-[#2563EB] text-[10px] font-semibold border border-blue-100/80">
-                                    <CalendarDays className="w-2.5 h-2.5 shrink-0" />
-                                    <span className="break-words truncate max-w-[200px]">{getEventName(inclusion.eventId)}</span>
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                  {inclusion.collaboratorId ? (() => {
-                                    const name = getCollaboratorName(inclusion.collaboratorId);
-                                    const parts = name.trim().split(/\s+/);
-                                    const ini = parts.length === 1 ? parts[0].slice(0, 2).toUpperCase() : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-                                    return (
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-7 h-7 rounded-lg bg-[#2563EB] text-white flex items-center justify-center text-[10px] font-black shrink-0">{ini}</div>
-                                        <span className="text-[12px] font-medium text-slate-700 leading-snug">{name}</span>
-                                      </div>
-                                    );
-                                  })() : (
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400 shrink-0">N/E</div>
-                                      <span className="text-[12px] italic text-slate-400">Não escalado</span>
-                                    </div>
-                                  )}
-                                  {/* Cidade do colaborador */}
-                                  {(inclusion.city || getCollaboratorCity(inclusion.collaboratorId)) && (
-                                    <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
-                                      <MapPin className="w-3 h-3" />
-                                      {inclusion.city || getCollaboratorCity(inclusion.collaboratorId)}
-                                    </div>
-                                  )}
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap">
-                                  <div className="text-[12px] font-semibold text-slate-800 whitespace-nowrap">
-                                    {formatDateRange(inclusion.scheduleStartDate, inclusion.scheduleEndDate)}
-                                  </div>
-                                  <div className="text-[11px] text-slate-400 mt-0.5">
-                                    {formatDiarias(inclusion.dailyRates)}
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div className="flex flex-col gap-1.5">
-                                    {/* Status da escalação */}
-                                    <div>
-                                      {inclusion.status === "cancelado" ? (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Cancelado
-                                        </span>
-                                      ) : inclusion.status === "aguardando_producao" ? (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-100">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Aguard. Gestor
-                                        </span>
-                                      ) : isEscalated(inclusion) ? (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Escalado
-                                        </span>
-                                      ) : (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 text-[10px] font-bold">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />Pendente
-                                        </span>
-                                      )}
-                                    </div>
-                                    {/* Status do transporte e hospedagem */}
-                                    <div className="flex flex-wrap gap-1">
-                                      {(() => {
-                                        const ticket = getTicket(inclusion.id);
-                                        if (!ticket) return null;
-                                        if (ticket.transportType === 'van') return (
-                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-semibold border border-blue-100">
-                                            🚐 Van
-                                          </span>
-                                        );
-                                        if (ticket.transportType === 'rodoviario') return (
-                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-semibold border border-blue-100">
-                                            <Bus className="w-2.5 h-2.5" />Rodoviária
-                                          </span>
-                                        );
-                                        return (
-                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-semibold border border-blue-100">
-                                            <Plane className="w-2.5 h-2.5" />Passagem
-                                          </span>
-                                        );
-                                      })()}
-                                      {(() => {
-                                        const accommodation = getAccommodation(inclusion.id);
-                                        const accommodationInfo = formatAccommodationInfo(accommodation);
-                                        return accommodationInfo && (
-                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 text-[10px] font-semibold border border-purple-100">
-                                            🏨 Hotel{accommodationInfo.hasAttachments && ' 📎'}
-                                          </span>
-                                        );
-                                      })()}
-                                      {(() => {
-                                        const swap = pendingSwapByInclusion.get(inclusion.id);
-                                        if (!swap) return null;
-                                        if (seenSwapIds.has(swap.id)) return null;
-                                        const requestedBy = (swap as any).requested_by || swap.requestedBy;
-                                        const isAdminOrPurchasing = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
-                                        const noLogistics = !inclusion.needsTicket && !inclusion.needsAccommodation;
-                                        // Compras/admin vê badge em escalações sem passagem/hospedagem; demais apenas se for o solicitante
-                                        if (!isAdminOrPurchasing && requestedBy !== user?.id) return null;
-                                        if (isAdminOrPurchasing && !noLogistics && requestedBy !== user?.id) return null;
-                                        return (
-                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold border border-amber-200">
-                                            <ArrowLeftRight className="w-2.5 h-2.5" />Troca pendente
-                                          </span>
-                                        );
-                                      })()}
-                                      {approvedSwapInclusionIds.has(inclusion.id) && (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[10px] font-bold border border-green-200">
-                                          <ArrowLeftRight className="w-2.5 h-2.5" />Troca aprovada
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
+                    <ScalingTable
+                      rows={withoutTicket}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                      onRowClick={handleRowClick}
+                      onViewDetails={handleViewComments}
+                      getFunctionName={getFunctionName}
+                      getEventName={getEventName}
+                      getCollaboratorName={getCollaboratorName}
+                      getCollaboratorCity={getCollaboratorCity}
+                      getTicket={getTicket}
+                      getAccommodation={getAccommodation}
+                      pendingSwapByInclusion={pendingSwapByInclusion}
+                      approvedSwapInclusionIds={approvedSwapInclusionIds}
+                      seenSwapIds={seenSwapIds}
+                      currentUserId={user?.id}
+                      isAdminOrPurchasing={isAdminOrPurchasing}
+                    />
                   )}
                 </TabsContent>
 
@@ -1942,178 +1801,24 @@ export default function Scaling() {
                       </p>
                     </div>
                   ) : (
-                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden mt-4">
-                      <div className="overflow-x-auto">
-                        <table className="table-fixed w-full">
-                          <colgroup>
-                            <col style={{width: "100px"}} />
-                            <col style={{width: "28%"}} />
-                            <col style={{width: "22%"}} />
-                            <col style={{width: "150px"}} />
-                            <col style={{width: "220px"}} />
-                          </colgroup>
-                          <thead style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
-                            <tr>
-                              <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
-                              <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Função / Evento</SortableHeader>
-                              <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
-                              <SortableHeader field="period" className="whitespace-nowrap" sortConfig={sortConfig} onSort={handleSort}>Período / Diárias</SortableHeader>
-                              <th className="w-[220px] min-w-[220px] px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
-                                Status
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {withTicket.map((inclusion, rowIdx) => (
-                              <tr
-                                key={inclusion.id}
-                                className={`group/row transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'} hover:bg-blue-50/50 ${inclusion.status === 'cancelado' ? 'opacity-50' : ''}`}
-                                onClick={() => handleRowClick(inclusion)}
-                                tabIndex={0}
-                                aria-label={`Abrir detalhes da escalação #${inclusion.inclusionNumber ?? ''}`}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    handleRowClick(inclusion);
-                                  }
-                                }}
-                              >
-                                <td className="px-4 py-3 whitespace-nowrap">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[11px] font-bold text-[#2563EB] bg-blue-50 px-2.5 py-1 rounded-lg font-mono border border-blue-100">
-                                      #{inclusion.inclusionNumber || 'N/A'}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 bg-slate-50 border border-slate-200 hover:bg-[#2563EB] hover:text-white hover:border-[#2563EB] transition-all duration-150"
-                                      onClick={(e) => handleViewComments(e, inclusion)}
-                                      title="Ver detalhes"
-                                      aria-label={`Ver detalhes da escalação #${inclusion.inclusionNumber ?? ''}`}
-                                    >
-                                      <Eye className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div className="text-[13px] font-bold text-slate-800 leading-tight">
-                                    {getFunctionName(inclusion.functionId)}
-                                  </div>
-                                  <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-blue-50 text-[#2563EB] text-[10px] font-semibold border border-blue-100/80">
-                                    <CalendarDays className="w-2.5 h-2.5 shrink-0" />
-                                    <span className="break-words truncate max-w-[200px]">{getEventName(inclusion.eventId)}</span>
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                  {inclusion.collaboratorId ? (() => {
-                                    const name = getCollaboratorName(inclusion.collaboratorId);
-                                    const parts = name.trim().split(/\s+/);
-                                    const ini = parts.length === 1 ? parts[0].slice(0, 2).toUpperCase() : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-                                    return (
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-7 h-7 rounded-lg bg-[#2563EB] text-white flex items-center justify-center text-[10px] font-black shrink-0">{ini}</div>
-                                        <span className="text-[12px] font-medium text-slate-700 leading-snug">{name}</span>
-                                      </div>
-                                    );
-                                  })() : (
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400 shrink-0">N/E</div>
-                                      <span className="text-[12px] italic text-slate-400">Não escalado</span>
-                                    </div>
-                                  )}
-                                  {/* Cidade do colaborador */}
-                                  {(inclusion.city || getCollaboratorCity(inclusion.collaboratorId)) && (
-                                    <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
-                                      <MapPin className="w-3 h-3" />
-                                      {inclusion.city || getCollaboratorCity(inclusion.collaboratorId)}
-                                    </div>
-                                  )}
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap">
-                                  <div className="text-[12px] font-semibold text-slate-800 whitespace-nowrap">
-                                    {formatDateRange(inclusion.scheduleStartDate, inclusion.scheduleEndDate)}
-                                  </div>
-                                  <div className="text-[11px] text-slate-400 mt-0.5">
-                                    {formatDiarias(inclusion.dailyRates)}
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div className="flex flex-col gap-1.5">
-                                    {/* Status da escalação */}
-                                    <div>
-                                      {inclusion.status === "cancelado" ? (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Cancelado
-                                        </span>
-                                      ) : inclusion.status === "aguardando_producao" ? (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-100">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Aguard. Gestor
-                                        </span>
-                                      ) : isEscalated(inclusion) ? (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Escalado
-                                        </span>
-                                      ) : (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 text-[10px] font-bold">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />Pendente
-                                        </span>
-                                      )}
-                                    </div>
-                                    {/* Status do transporte e hospedagem */}
-                                    <div className="flex flex-wrap gap-1">
-                                      {(() => {
-                                        const ticket = getTicket(inclusion.id);
-                                        if (!ticket) return null;
-                                        if (ticket.transportType === 'van') return (
-                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-semibold border border-blue-100">
-                                            🚐 Van
-                                          </span>
-                                        );
-                                        if (ticket.transportType === 'rodoviario') return (
-                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-semibold border border-blue-100">
-                                            <Bus className="w-2.5 h-2.5" />Rodoviária
-                                          </span>
-                                        );
-                                        return (
-                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-semibold border border-blue-100">
-                                            <Plane className="w-2.5 h-2.5" />Passagem
-                                          </span>
-                                        );
-                                      })()}
-                                      {(() => {
-                                        const accommodation = getAccommodation(inclusion.id);
-                                        const accommodationInfo = formatAccommodationInfo(accommodation);
-                                        return accommodationInfo && (
-                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 text-[10px] font-semibold border border-purple-100">
-                                            🏨 Hotel{accommodationInfo.hasAttachments && ' 📎'}
-                                          </span>
-                                        );
-                                      })()}
-                                      {(() => {
-                                        const swap = pendingSwapByInclusion.get(inclusion.id);
-                                        if (!swap) return null;
-                                        const requestedBy = (swap as any).requested_by || swap.requestedBy;
-                                        if (requestedBy !== user?.id) return null;
-                                        if (seenSwapIds.has(swap.id)) return null;
-                                        return (
-                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold border border-amber-200">
-                                            <ArrowLeftRight className="w-2.5 h-2.5" />Troca pendente
-                                          </span>
-                                        );
-                                      })()}
-                                      {approvedSwapInclusionIds.has(inclusion.id) && (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[10px] font-bold border border-green-200">
-                                          <ArrowLeftRight className="w-2.5 h-2.5" />Troca aprovada
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
+                    <ScalingTable
+                      rows={withTicket}
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                      onRowClick={handleRowClick}
+                      onViewDetails={handleViewComments}
+                      getFunctionName={getFunctionName}
+                      getEventName={getEventName}
+                      getCollaboratorName={getCollaboratorName}
+                      getCollaboratorCity={getCollaboratorCity}
+                      getTicket={getTicket}
+                      getAccommodation={getAccommodation}
+                      pendingSwapByInclusion={pendingSwapByInclusion}
+                      approvedSwapInclusionIds={approvedSwapInclusionIds}
+                      seenSwapIds={seenSwapIds}
+                      currentUserId={user?.id}
+                      isAdminOrPurchasing={isAdminOrPurchasing}
+                    />
                   )}
                 </TabsContent>
               </Tabs>
@@ -2141,25 +1846,7 @@ export default function Scaling() {
                 {selectedInclusion ? getCollaboratorName(selectedInclusion.collaboratorId) : ''}
               </div>
             </div>
-            {selectedInclusion && (
-              selectedInclusion.status === 'cancelado' ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-500 text-[11px] font-bold rounded-full shrink-0 border border-slate-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Cancelado
-                </span>
-              ) : selectedInclusion.status === 'aguardando_producao' ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 text-[11px] font-bold rounded-full shrink-0 border border-red-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Aguardando Gestor
-                </span>
-              ) : isEscalated(selectedInclusion) ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 text-[11px] font-bold rounded-full shrink-0 border border-green-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Escalado
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-600 text-[11px] font-bold rounded-full shrink-0 border border-orange-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />Pendente
-                </span>
-              )
-            )}
+            {selectedInclusion && getStatusBadge(selectedInclusion, "lg")}
           </div>
 
           {selectedInclusion && (() => {
@@ -2242,8 +1929,8 @@ export default function Scaling() {
                   <div className="flex-1 overflow-y-auto min-h-0">
 
                     {/* ══ ABA: RESUMO ══ */}
-                    <TabsContent value="resumo" className="m-0 p-6">
-                      <div className="grid grid-cols-3 gap-5">
+                    <TabsContent value="resumo" className="m-0 p-4 sm:p-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
 
                         {/* Col 1: Informações Básicas */}
                         <div className="space-y-4">
@@ -2262,48 +1949,46 @@ export default function Scaling() {
                             </div>
                             <div>
                               <div className={lbl}>Status</div>
-                              {selectedInclusion.status === 'cancelado' ? (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-500 text-[11px] font-bold rounded-full">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Cancelado
-                                </span>
-                              ) : selectedInclusion.status === 'aprovacao' ? (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-100 text-blue-700 text-[11px] font-bold rounded-full">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />Aguardando aprovação
-                                </span>
-                              ) : selectedInclusion.status === 'aprovado' ? (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 text-emerald-700 text-[11px] font-bold rounded-full">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Aprovado
-                                </span>
-                              ) : selectedInclusion.status === 'aguardando_producao' ? (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-50 text-red-700 text-[11px] font-bold rounded-full border border-red-100">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Aguardando Gestor
-                                </span>
-                              ) : isEscalated(selectedInclusion) ? (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 text-green-700 text-[11px] font-bold rounded-full">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Escalado
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 text-orange-600 text-[11px] font-bold rounded-full">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />Pendente
-                                </span>
-                              )}
+                              {getStatusBadge(selectedInclusion, "md")}
                             </div>
                             <div>
                               <div className={lbl}>Nota Fiscal</div>
-                              <button
-                                type="button"
-                                disabled={toggleEmitsNfMutation.isPending}
-                                onClick={() => toggleEmitsNfMutation.mutate({ id: selectedInclusion.id, emitsNf: (selectedInclusion as any).emitsNf === false })}
-                                title="Clique para alternar. Define se a tela de Notas Fiscais cobra nota deste escalado."
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-full transition-colors disabled:opacity-50 ${
-                                  (selectedInclusion as any).emitsNf !== false
-                                    ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                                }`}
-                              >
-                                <span className={`w-1.5 h-1.5 rounded-full ${(selectedInclusion as any).emitsNf !== false ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                                {(selectedInclusion as any).emitsNf !== false ? 'Emite NF' : 'Não emite NF'}
-                              </button>
+                              {(() => {
+                                const emitsNf = (selectedInclusion as any).emitsNf !== false;
+                                // Mesmo gate do Confirmar: responsável pela função, admin ou Compras
+                                const canToggleNf = canManageFunction(selectedInclusion.functionId);
+                                const badgeCls = `inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-full transition-colors ${
+                                  emitsNf ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                                }`;
+                                const dot = <span className={`w-1.5 h-1.5 rounded-full ${emitsNf ? 'bg-emerald-500' : 'bg-slate-400'}`} />;
+                                const label = emitsNf ? 'Emite NF' : 'Não emite NF';
+                                if (!canToggleNf) {
+                                  return (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span tabIndex={0} className={`${badgeCls} cursor-not-allowed opacity-80`} aria-disabled="true" data-testid="badge-emits-nf-readonly">
+                                          {dot}{label}
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="right" className="max-w-[260px] text-[12px]">
+                                        Somente o responsável pela função, administradores ou Compras podem alterar se este escalado emite nota fiscal.
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                }
+                                return (
+                                  <button
+                                    type="button"
+                                    disabled={toggleEmitsNfMutation.isPending}
+                                    onClick={() => toggleEmitsNfMutation.mutate({ id: selectedInclusion.id, emitsNf: !emitsNf })}
+                                    title="Clique para alternar. Define se a tela de Notas Fiscais cobra nota deste escalado."
+                                    className={`${badgeCls} disabled:opacity-50 ${emitsNf ? 'hover:bg-emerald-200' : 'hover:bg-slate-200'}`}
+                                    data-testid="button-toggle-emits-nf"
+                                  >
+                                    {dot}{label}
+                                  </button>
+                                );
+                              })()}
                             </div>
                             {(selectedInclusion.needsTicket || selectedInclusion.needsAccommodation) && (
                               <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
@@ -2600,43 +2285,63 @@ export default function Scaling() {
                               </div>
                             ) : (
                               <div className="space-y-2">
-                                <CollaboratorCombobox
-                                  collaborators={collaborators}
-                                  value={modalData.collaboratorId}
-                                  onValueChange={(value) => {
-                                    const newCity = getCollaboratorCity(value);
-                                    const fromSP = isCityFromSP(newCity);
-                                    setModalData(prev => ({
-                                      ...prev,
-                                      collaboratorId: value,
-                                      city: fromSP ? "São Paulo - SP" : (newCity || ""),
-                                      departureFromSP: fromSP,
-                                    }));
-                                  }}
-                                  placeholder="Selecione um colaborador"
-                                  testId="select-collaborator-escalation"
-                                  hideAll={true}
-                                />
+                                {/* Marcação inline: colaborador é obrigatório para confirmar */}
+                                <div className={!modalData.collaboratorId && !isEscalated(selectedInclusion) ? "rounded-lg ring-1 ring-amber-300" : ""}>
+                                  <CollaboratorCombobox
+                                    collaborators={collaborators}
+                                    value={modalData.collaboratorId}
+                                    onValueChange={(value) => {
+                                      const newCity = getCollaboratorCity(value);
+                                      const fromSP = isCityFromSP(newCity);
+                                      setModalData(prev => ({
+                                        ...prev,
+                                        collaboratorId: value,
+                                        city: fromSP ? "São Paulo - SP" : (newCity || ""),
+                                        departureFromSP: fromSP,
+                                      }));
+                                    }}
+                                    placeholder="Selecione um colaborador"
+                                    testId="select-collaborator-escalation"
+                                    hideAll={true}
+                                  />
+                                </div>
+                                {!modalData.collaboratorId && !isEscalated(selectedInclusion) && (
+                                  <p className="text-[10px] text-amber-600 flex items-center gap-1" data-testid="hint-collaborator-required">
+                                    <AlertCircle className="w-3 h-3 shrink-0" />Obrigatório para confirmar a escalação.
+                                  </p>
+                                )}
                                 {/* Tipo de atendimento — obrigatório quando a função é de atendimento */}
-                                {isAtendimentoFunction(getFunctionName(selectedInclusion?.functionId ?? null)) && (
+                                {isAtendimentoFunction(getFunctionName(selectedInclusion?.functionId ?? null)) && (() => {
+                                  const missing = isAtendimentoMissing(selectedInclusion);
+                                  return (
                                   <div className="space-y-1.5">
-                                    <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                                    <label htmlFor="select-atendimento-tipo" className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
                                       <Users className="w-3 h-3" />
                                       Tipo de atendimento <span className="text-red-500">*</span>
                                     </label>
                                     <select
+                                      id="select-atendimento-tipo"
                                       value={modalData.atendimentoTipo}
                                       onChange={(e) => setModalData(prev => ({ ...prev, atendimentoTipo: e.target.value }))}
                                       data-testid="select-atendimento-tipo"
-                                      className="w-full px-3 py-2 text-[13px] border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
+                                      aria-invalid={missing}
+                                      className={`w-full px-3 py-2 text-[13px] border rounded-xl bg-white focus:outline-none focus:ring-2 focus:border-transparent ${
+                                        missing ? 'border-red-300 focus:ring-red-300' : 'border-slate-200 focus:ring-[#2563EB]'
+                                      }`}
                                     >
                                       <option value="">Selecione...</option>
                                       {ATENDIMENTO_TIPOS.map((t) => (
                                         <option key={t.value} value={t.value}>{t.label}</option>
                                       ))}
                                     </select>
+                                    {missing && (
+                                      <p className="text-[10px] text-red-600 flex items-center gap-1" data-testid="hint-atendimento-required">
+                                        <AlertCircle className="w-3 h-3 shrink-0" />Selecione Key Account ou Executivo de Contas.
+                                      </p>
+                                    )}
                                   </div>
-                                )}
+                                  );
+                                })()}
                                 {/* Campo de cidade de saída — para todas as funções */}
                                 <div className="space-y-1.5">
                                   <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
@@ -2734,19 +2439,34 @@ export default function Scaling() {
                                   <div className={val}>{formatDateWithWeekday(selectedInclusion.scheduleEndDate)}</div>
                                 </div>
                               </div>
-                              {selectedInclusion.scheduleStartDate && selectedInclusion.scheduleEndDate && (() => {
+                              {(() => {
+                                // Dias de trabalho: prioriza `workDays` (dias específicos, podem ser
+                                // não consecutivos); só cai no intervalo início→fim se estiver vazio.
                                 // parseDay: corta o timestamp e parseia como data LOCAL — com o ISO
                                 // completo o parseISO devolvia UTC e a grade caía um dia para trás.
-                                const startDate = parseDay(selectedInclusion.scheduleStartDate);
-                                const endDate = parseDay(selectedInclusion.scheduleEndDate);
-                                // eachDayOfInterval lança RangeError com data inválida ou fim < início
-                                // (derrubaria o modal inteiro).
-                                if (!startDate || !endDate || startDate > endDate) return null;
-                                const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+                                const explicitDays = ((selectedInclusion.workDays || []) as (string | null)[])
+                                  .map(d => parseDay(d))
+                                  .filter((d): d is Date => d !== null)
+                                  .sort((a, b) => a.getTime() - b.getTime());
+                                let allDays: Date[] = explicitDays;
+                                const usesWorkDays = explicitDays.length > 0;
+                                if (!usesWorkDays) {
+                                  if (!selectedInclusion.scheduleStartDate || !selectedInclusion.scheduleEndDate) return null;
+                                  const startDate = parseDay(selectedInclusion.scheduleStartDate);
+                                  const endDate = parseDay(selectedInclusion.scheduleEndDate);
+                                  // eachDayOfInterval lança RangeError com data inválida ou fim < início
+                                  // (derrubaria o modal inteiro).
+                                  if (!startDate || !endDate || startDate > endDate) return null;
+                                  allDays = eachDayOfInterval({ start: startDate, end: endDate });
+                                }
+                                if (allDays.length === 0) return null;
                                 const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
                                 return (
                                   <div>
-                                    <div className={lbl + " mb-2"}>{allDays.length} {allDays.length === 1 ? 'dia' : 'dias'} no período</div>
+                                    <div className={lbl + " mb-2"}>
+                                      {allDays.length} {allDays.length === 1 ? 'dia' : 'dias'} {usesWorkDays ? 'de trabalho' : 'no período'}
+                                      {usesWorkDays && <span className="normal-case tracking-normal font-medium text-slate-400"> · dias específicos</span>}
+                                    </div>
                                     <div className="flex flex-wrap gap-1.5">
                                       {allDays.map((day, index) => {
                                         const weekend = isWeekend(day);
@@ -2795,7 +2515,7 @@ export default function Scaling() {
                           <div className="border border-red-200 rounded-2xl overflow-hidden">
                             <div className="bg-red-50 border-b border-red-100 px-4 py-2.5 flex items-center gap-2">
                               <AlertCircle className="w-4 h-4 text-red-600" />
-                              <span className="text-[11px] font-black text-red-700 uppercase tracking-[0.12em]">Aprovação do Gestor</span>
+                              <span className="text-[11px] font-black text-red-700 uppercase tracking-[0.12em]">Aprovação da Produção</span>
                             </div>
                             <div className="p-4">
                               {((user as any)?.canApproveCenotecnica || user?.role === 'admin' || user?.role === 'administrator' || user?.role === 'administrador') ? (
@@ -2829,8 +2549,8 @@ export default function Scaling() {
                                     <Clock className="w-4 h-4 text-red-500" />
                                   </div>
                                   <div>
-                                    <p className="text-[12px] font-semibold text-slate-700">Aguardando aprovação do Gestor</p>
-                                    <p className="text-[11px] text-slate-400 mt-0.5">O gestor precisa aprovar esta escalação de cenotécnica.</p>
+                                    <p className="text-[12px] font-semibold text-slate-700">Aguardando aprovação da Produção</p>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">A Produção precisa aprovar esta escalação de cenotécnica.</p>
                                   </div>
                                 </div>
                               )}
@@ -2930,7 +2650,7 @@ export default function Scaling() {
                               {(() => {
                                 const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined, selectedInclusion);
                                 return (
-                                  <div className="grid grid-cols-2 gap-3">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div className="bg-white border border-blue-100 rounded-xl p-3">
                                       <div className="text-[10px] font-black uppercase tracking-[0.12em] text-blue-400 mb-2">🛫 IDA</div>
                                       <div className="space-y-1.5">
@@ -2999,7 +2719,7 @@ export default function Scaling() {
                             ) : null
                           ) : (
                             /* ── Aéreo / Rodoviário: IDA + VOLTA ── */
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               {/* IDA */}
                               <div className="bg-white border border-slate-200 rounded-2xl p-4">
                                 <div className="text-[11px] font-black uppercase tracking-[0.12em] mb-3 flex items-center gap-1.5" style={{ color: '#2563EB' }}>
@@ -3178,7 +2898,7 @@ export default function Scaling() {
                               )}
                             </div>
                             <div className="p-4">
-                              <div className="grid grid-cols-2 gap-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {accommodation.hotelLocation && (
                                   <div>
                                     <div className={lbl}>Localização</div>
@@ -3225,7 +2945,7 @@ export default function Scaling() {
 
                     {/* ══ ABA: COMENTÁRIOS E HISTÓRICO ══ */}
                     <TabsContent value="comentarios" className="m-0 p-6">
-                      <div className="grid grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                         {/* Coluna Esquerda: Comentários */}
                         <div className="space-y-3">
@@ -3275,12 +2995,12 @@ export default function Scaling() {
                               onChange={(e) => setNewComment(e.target.value)}
                               className="w-full border border-slate-200 rounded-xl bg-white text-[13px] p-3 resize-none min-h-[70px] focus:ring-2 focus:ring-blue-100 focus:border-[#2563EB] transition-all"
                               data-testid="textarea-comment-inline"
-                              disabled={!selectedInclusion || isReadOnly(selectedInclusion) || !canConfirmEscalation(selectedInclusion)}
+                              disabled={!selectedInclusion || isReadOnly(selectedInclusion, user) || !canConfirmEscalation(selectedInclusion)}
                             />
                             <div className="flex justify-end">
                               <Button
                                 onClick={handleAddComment}
-                                disabled={addCommentMutation.isPending || !newComment.trim() || !selectedInclusion || isReadOnly(selectedInclusion)}
+                                disabled={addCommentMutation.isPending || !newComment.trim() || !selectedInclusion || isReadOnly(selectedInclusion, user)}
                                 style={{ background: '#2563EB' }}
                                 className="flex items-center gap-2 text-white rounded-xl px-5 py-2 h-9 text-sm font-bold hover:opacity-90"
                                 data-testid="button-add-comment-inline"
@@ -3370,10 +3090,19 @@ export default function Scaling() {
                 </Tabs>
 
                 {/* ── Footer ── */}
-                <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0 bg-white">
+                {(() => {
+                  const readOnly = isReadOnly(selectedInclusion, user);
+                  const escalated = !!isEscalated(selectedInclusion);
+                  const saveReason = updateTeamInclusionMutation.isPending ? null : getSaveBlockReason(selectedInclusion);
+                  const confirmReason = updateTeamInclusionMutation.isPending ? null : getConfirmBlockReason(selectedInclusion);
+                  const showSave = !readOnly && (canEditCollaborator(selectedInclusion) || !escalated);
+                  const showConfirm = !readOnly && !escalated;
+                  // Motivo visível ao lado dos botões (validação inline, sem toast)
+                  const inlineReason = showConfirm ? confirmReason : (showSave ? saveReason : null);
+                  return (
+                <div className="px-4 sm:px-6 py-4 border-t border-slate-100 flex flex-wrap items-center justify-end gap-3 shrink-0 bg-white">
                   {/* Botão Reativar — só aparece para admin em escalações canceladas */}
-                  {selectedInclusion?.status === 'cancelado' &&
-                    (user?.role === 'admin' || user?.role === 'administrator' || user?.role === 'administrador') && (
+                  {selectedInclusion?.status === 'cancelado' && hasRoleIn(user?.role, ['admin']) && (
                     <Button
                       onClick={() => setShowReactivateConfirm(true)}
                       disabled={reactivateMutation.isPending}
@@ -3383,6 +3112,16 @@ export default function Scaling() {
                       Reativar escalação
                     </Button>
                   )}
+                  {inlineReason && (
+                    <p
+                      className="mr-auto flex items-center gap-1.5 text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 max-w-full sm:max-w-[420px] leading-snug"
+                      role="status"
+                      data-testid="text-confirm-block-reason"
+                    >
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span className="min-w-0">{inlineReason}</span>
+                    </p>
+                  )}
                   <Button
                     variant="outline"
                     onClick={() => setShowModal(false)}
@@ -3390,51 +3129,55 @@ export default function Scaling() {
                   >
                     Fechar
                   </Button>
-                  {!isReadOnly(selectedInclusion) && (
-                    <>
-                      {(canEditCollaborator(selectedInclusion) || !isEscalated(selectedInclusion)) && (
-                        <Button
-                          variant="secondary"
-                          onClick={handleSave}
-                          disabled={(() => {
-                            if (!selectedInclusion) return true;
-                            if (updateTeamInclusionMutation.isPending) return true;
-                            if (selectedInclusion.status === 'cancelado') return true;
-                            if (isEscalated(selectedInclusion)) return !canEditCollaborator(selectedInclusion);
-                            if (!canConfirmEscalation(selectedInclusion)) return true;
-                            return false;
-                          })()}
-                          className="flex items-center gap-2 border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl px-5 py-2 text-sm font-medium"
-                        >
-                          <Save className="w-4 h-4" />
-                          {updateTeamInclusionMutation.isPending ? "Salvando..." : "Salvar Alterações"}
-                        </Button>
+                  {showSave && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span tabIndex={saveReason ? 0 : -1} className="inline-flex">
+                          <Button
+                            variant="secondary"
+                            onClick={handleSave}
+                            disabled={updateTeamInclusionMutation.isPending || !!saveReason}
+                            className="flex items-center gap-2 border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl px-5 py-2 text-sm font-medium"
+                            data-testid="button-save-scaling"
+                          >
+                            <Save className="w-4 h-4" />
+                            {updateTeamInclusionMutation.isPending ? "Salvando..." : "Salvar Alterações"}
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      {saveReason && (
+                        <TooltipContent side="top" className="max-w-[300px] text-[12px]">
+                          {saveReason}
+                        </TooltipContent>
                       )}
-                      {!isEscalated(selectedInclusion) && (
-                        <Button
-                          onClick={handleConfirmEscalation}
-                          disabled={(() => {
-                            if (!selectedInclusion) return true;
-                            if (updateTeamInclusionMutation.isPending) return true;
-                            if (selectedInclusion.status === 'cancelado') return true;
-                            if (!canConfirmEscalation(selectedInclusion)) return true;
-                            return false;
-                          })()}
-                          style={{ background: '#2563EB', boxShadow: '0 4px 14px #2563EB50' }}
-                          className="flex items-center gap-2 text-white rounded-xl px-6 py-2 h-10 text-sm font-bold hover:opacity-90 transition-opacity"
-                        >
-                          <Check className="w-4 h-4" />
-                          {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
-                        </Button>
-                      )}
-                    </>
+                    </Tooltip>
                   )}
-                  {!isEscalated(selectedInclusion) && !isReadOnly(selectedInclusion) && !canConfirmEscalation(selectedInclusion) && (
-                    <div className="text-sm text-muted-foreground bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-center">
-                      ⚠️ Apenas o responsável pela função pode confirmar escalações
-                    </div>
+                  {showConfirm && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span tabIndex={confirmReason ? 0 : -1} className="inline-flex">
+                          <Button
+                            onClick={handleConfirmEscalation}
+                            disabled={updateTeamInclusionMutation.isPending || !!confirmReason}
+                            style={{ background: '#2563EB', boxShadow: '0 4px 14px #2563EB50' }}
+                            className="flex items-center gap-2 text-white rounded-xl px-6 py-2 h-10 text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+                            data-testid="button-confirm-scaling"
+                          >
+                            <Check className="w-4 h-4" />
+                            {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      {confirmReason && (
+                        <TooltipContent side="top" className="max-w-[320px] text-[12px]">
+                          {confirmReason}
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
                   )}
                 </div>
+                  );
+                })()}
               </>
             );
           })()}
@@ -3442,20 +3185,22 @@ export default function Scaling() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal de sucesso — portal no body para escapar do transform do Dialog */}
-      {showSuccessModal && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{background:'rgba(0,0,0,0.45)'}}>
-          <div className="bg-white rounded-2xl shadow-2xl flex flex-col items-center px-8 py-7 w-full mx-4" style={{boxShadow:'0 8px 40px rgba(0,0,0,0.18)', maxWidth: 440}}>
-            <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{background:'#DCFCE7'}}>
-              <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
+      {/* Modal de sucesso — AlertDialog do shadcn (Esc, foco, role="alertdialog") */}
+      <AlertDialog open={showSuccessModal} onOpenChange={(open) => { if (!open) { setShowSuccessModal(false); setSuccessInfo(null); } }}>
+        <AlertDialogContent className="max-w-[440px] rounded-2xl p-0 gap-0 overflow-hidden" data-testid="dialog-scaling-success">
+          <div className="flex flex-col items-center px-8 py-7">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ background: '#DCFCE7' }}>
+              <svg width="32" height="32" viewBox="0 0 36 36" fill="none" aria-hidden="true">
                 <circle cx="18" cy="18" r="18" fill="#16A34A" fillOpacity="0.12"/>
                 <path d="M10 18.5L15.5 24L26 13" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </div>
-            <h3 className="text-lg font-bold text-slate-800 mb-1">Sucesso</h3>
-            <p className="text-sm text-slate-500 text-center mb-3">{successInfo?.message}</p>
+            <AlertDialogHeader className="items-center text-center space-y-1 mb-3">
+              <AlertDialogTitle className="text-lg font-bold text-slate-800">Sucesso</AlertDialogTitle>
+              <AlertDialogDescription className="text-sm text-slate-500 text-center">{successInfo?.message}</AlertDialogDescription>
+            </AlertDialogHeader>
             {successInfo?.inclusionNumber != null && (
-              <span className="mb-4 px-3 py-0.5 rounded-full text-sm font-bold" style={{background:'#EEF2FF', color:'#4F46E5'}}>#{successInfo.inclusionNumber}</span>
+              <span className="mb-4 px-3 py-0.5 rounded-full text-sm font-bold" style={{ background: '#EEF2FF', color: '#4F46E5' }}>#{successInfo.inclusionNumber}</span>
             )}
             <div className="w-full border-t border-slate-100 mb-4"/>
             <div className="w-full space-y-2 mb-5">
@@ -3472,92 +3217,79 @@ export default function Scaling() {
                 <span className="text-slate-700 font-semibold text-right">{successInfo?.functionName}</span>
               </div>
             </div>
-            <button
-              onClick={() => { setShowSuccessModal(false); setSuccessInfo(null); }}
-              className="w-full py-2.5 rounded-xl font-semibold text-white text-sm"
-              style={{background:'#2563EB'}}
-            >
-              OK
-            </button>
+            <AlertDialogFooter className="w-full sm:justify-stretch">
+              <AlertDialogAction
+                onClick={() => { setShowSuccessModal(false); setSuccessInfo(null); }}
+                className="w-full py-2.5 h-auto rounded-xl font-semibold text-white text-sm hover:opacity-90"
+                style={{ background: '#2563EB' }}
+                data-testid="button-success-ok"
+              >
+                OK
+              </AlertDialogAction>
+            </AlertDialogFooter>
           </div>
-        </div>,
-        document.body
-      )}
+        </AlertDialogContent>
+      </AlertDialog>
 
-      {/* Lightbox de imagens — renderizado via Portal fora do Dialog para evitar focus trap */}
-      {lightbox && createPortal(
-        <div
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-          onMouseDown={() => setLightbox(null)}
-        >
-          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" />
-          <div
-            className="relative z-10 bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-w-5xl w-full max-h-[90vh]"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="bg-white border-b border-slate-100 px-5 py-3 flex items-center justify-between flex-shrink-0">
-              <span className="text-sm font-semibold text-slate-700">Visualizando anexo</span>
-              <div className="flex items-center gap-2">
-                <button
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={async () => {
-                    try {
-                      // Sem checar res.ok, um 401/404 era baixado como se
-                      // fosse o documento (arquivo com o corpo do erro dentro).
-                      const res = await fetch(lightbox.url, { credentials: "include" });
-                      if (!res.ok) throw new Error(res.status === 401 ? "Sessão expirada" : "Não foi possível baixar o anexo");
-                      const blob = await res.blob();
-                      const blobUrl = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = blobUrl;
-                      a.download = lightbox.name;
-                      document.body.appendChild(a);
-                      a.click();
-                      document.body.removeChild(a);
-                      URL.revokeObjectURL(blobUrl);
-                    } catch {
-                      window.open(lightbox.url, '_blank');
-                    }
-                  }}
-                  className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors"
-                >
-                  <Download className="w-4 h-4" />
-                  Baixar
-                </button>
-                <button
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={() => window.open(lightbox.url, '_blank', 'noopener,noreferrer')}
-                  className="border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Abrir em outra aba
-                </button>
-                <button
-                  type="button"
-                  aria-label="Fechar visualização do anexo"
-                  title="Fechar"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={() => setLightbox(null)}
-                  className="hover:bg-slate-100 rounded-lg p-1.5 text-slate-400 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+      {/* Lightbox de imagens — Dialog do shadcn (Esc fecha, foco preso, role="dialog") */}
+      <Dialog open={!!lightbox} onOpenChange={(open) => { if (!open) setLightbox(null); }}>
+        <DialogContent className="!max-w-5xl w-[95vw] max-h-[90vh] p-0 gap-0 overflow-hidden rounded-2xl flex flex-col" data-testid="dialog-lightbox">
+          {lightbox && (
+            <>
+              {/* Header */}
+              <div className="bg-white border-b border-slate-100 px-5 py-3 pr-12 flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
+                <DialogTitle className="text-sm font-semibold text-slate-700 truncate">Visualizando anexo</DialogTitle>
+                <DialogDescription className="sr-only">{lightbox.name}</DialogDescription>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        // Sem checar res.ok, um 401/404 era baixado como se
+                        // fosse o documento (arquivo com o corpo do erro dentro).
+                        const res = await fetch(lightbox.url, { credentials: "include" });
+                        if (!res.ok) throw new Error(res.status === 401 ? "Sessão expirada" : "Não foi possível baixar o anexo");
+                        const blob = await res.blob();
+                        const blobUrl = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = blobUrl;
+                        a.download = lightbox.name;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(blobUrl);
+                      } catch {
+                        window.open(lightbox.url, '_blank');
+                      }
+                    }}
+                    className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    Baixar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.open(lightbox.url, '_blank', 'noopener,noreferrer')}
+                    className="border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Abrir em outra aba
+                  </button>
+                </div>
               </div>
-            </div>
-            {/* Área de conteúdo */}
-            <div className="bg-slate-50 overflow-auto flex items-center justify-center min-h-[70vh]">
-              <img
-                src={lightbox.url}
-                alt="Visualização do anexo"
-                className="w-full object-contain"
-                style={{ minHeight: '70vh' }}
-              />
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+              {/* Área de conteúdo */}
+              <div className="bg-slate-50 overflow-auto flex items-center justify-center min-h-[60vh] flex-1">
+                <img
+                  src={lightbox.url}
+                  alt={`Visualização do anexo ${lightbox.name}`}
+                  className="max-w-full object-contain"
+                  style={{ maxHeight: '80vh' }}
+                />
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* ── Modal formulário de troca ── */}
       <Dialog open={showSwapModal && !swapSuccess} onOpenChange={(open) => { if (!open) { setShowSwapModal(false); setSwapNewCollaboratorId(""); setSwapReason(""); setSwapSubmitAttempted(false); } }}>
@@ -3645,7 +3377,7 @@ export default function Scaling() {
                   </div>
 
                   {/* Campos: colaborador + motivo lado a lado */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="text-[10px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5 block">Novo colaborador</label>
                       <CollaboratorCombobox
@@ -3925,7 +3657,7 @@ export default function Scaling() {
                 <AlertCircle className="w-7 h-7 text-amber-500" />
               </div>
               <div>
-                <DialogTitle className="text-[17px] font-bold text-slate-900 leading-tight">Aguardando aprovação do Gestor</DialogTitle>
+                <DialogTitle className="text-[17px] font-bold text-slate-900 leading-tight">Aguardando aprovação da Produção</DialogTitle>
                 <p className="text-[13px] text-slate-500 mt-1">A escalação foi registrada e está em análise.</p>
               </div>
             </div>
@@ -3954,7 +3686,7 @@ export default function Scaling() {
 
             {/* Mensagem explicativa */}
             <p className="text-[12px] text-slate-500 leading-relaxed text-center">
-              Por ser uma função de <span className="font-semibold text-slate-700">cenotécnica</span>, esta escalação precisa ser aprovada pelo gestor antes de seguir para as próximas etapas.
+              Por ser uma função de <span className="font-semibold text-slate-700">cenotécnica</span>, esta escalação precisa ser aprovada pela Produção antes de seguir para as próximas etapas.
             </p>
 
             <Button
@@ -3978,7 +3710,7 @@ export default function Scaling() {
               <div>
                 <DialogTitle className="text-[14px] font-bold text-slate-900 leading-tight mb-0.5">Aprovar escalação de cenotécnica?</DialogTitle>
                 <p className="text-[12px] text-slate-500 leading-relaxed">
-                  A escalação será aprovada pelo Gestor e seguirá para o fluxo normal (passagem, hospedagem ou compras).
+                  A escalação será aprovada pela Produção e seguirá para o fluxo normal (passagem, hospedagem ou compras).
                 </p>
               </div>
             </div>

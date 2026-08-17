@@ -14,10 +14,11 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import CollaboratorModal from "@/components/modals/collaborator-modal";
+import CollaboratorModal, { validateCPF } from "@/components/modals/collaborator-modal";
 import BulkUploadModal from "@/components/modals/bulk-upload-modal";
 import type { Collaborator } from "@shared/schema";
 import { normalizeRole } from "@shared/roles";
+import { hasPermission } from "@/lib/role-utils";
 
 const BLUE = "#0033CC";
 
@@ -116,14 +117,20 @@ export default function CollaboratorManagement() {
   const { user } = useAuth();
   // A lista literal deixava de fora papéis legados que o servidor aceita
   // ("compras", "viagens", "Administrador"...): o botão sumia para quem podia agir.
+  // Inativar/reativar: POST /api/collaborators/:id/(in|re)activate → só admin e compras.
   const canManage = ["admin", "purchasing"].includes(normalizeRole(user?.role) ?? "");
+  // Criar/importar/editar/aprovar: espelha POST/PATCH /api/collaborators
+  // (cadastro + área de função). RH só visualiza.
+  const canEdit = hasPermission(user, "canEditCollaborators");
 
   const { data: collaborators, isLoading, isError, error, refetch } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, status, approvalNotes, cpf, rg }: { id: string; status: string; approvalNotes?: string; cpf?: string; rg?: string }) => {
-      const payload: any = { status };
-      if (approvalNotes) { payload.approvalNotes = approvalNotes; payload.approvedAt = new Date().toISOString(); }
+      // approvedAt/approvedBy vão sempre que o status muda (o servidor também
+      // os preenche pela sessão — aqui é só para o cache local ficar coerente).
+      const payload: any = { status, approvedAt: new Date().toISOString(), approvedBy: user?.id ?? null };
+      if (approvalNotes) payload.approvalNotes = approvalNotes;
       if (cpf) { payload.officialDocument = cpf; payload.documentType = "cpf"; if (rg) { payload.secondaryDocument = rg; payload.secondaryDocumentType = "rg"; } }
       else if (rg) { payload.officialDocument = rg; payload.documentType = "rg"; }
       return (await apiRequest("PATCH", `/api/collaborators/${id}`, payload)).json();
@@ -250,6 +257,12 @@ export default function CollaboratorManagement() {
       toast({ title: "Informe CPF ou RG para aprovar.", variant: "destructive" });
       return;
     }
+    // Mesma validação do modal de cadastro: um CPF inválido não pode virar o
+    // documento oficial na aprovação.
+    if (isApprove && editCpf.trim() && !validateCPF(editCpf)) {
+      toast({ title: "CPF inválido", description: "Confira os dígitos do CPF antes de aprovar.", variant: "destructive" });
+      return;
+    }
     updateMutation.mutate({
       id: selectedCollaborator.id,
       status: isApprove ? "aprovado" : "rejeitado",
@@ -322,21 +335,23 @@ export default function CollaboratorManagement() {
               <p className="text-xs text-slate-400 mt-0.5">Gerencie prestadores, motoristas e colaboradores internos</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => setBulkUploadModal(true)}
-              className="h-9 px-3.5 flex items-center gap-1.5 text-xs font-medium text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-lg transition-colors bg-white"
-            >
-              <Upload className="w-3.5 h-3.5" /> Importar
-            </button>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="h-9 px-4 flex items-center gap-1.5 text-white text-xs font-semibold rounded-lg transition-all"
-              style={{ background: BLUE, boxShadow: `0 2px 8px ${BLUE}35` }}
-            >
-              <UserPlus className="w-3.5 h-3.5" /> Novo Colaborador
-            </button>
-          </div>
+          {canEdit && (
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setBulkUploadModal(true)}
+                className="h-9 px-3.5 flex items-center gap-1.5 text-xs font-medium text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-lg transition-colors bg-white"
+              >
+                <Upload className="w-3.5 h-3.5" /> Importar
+              </button>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="h-9 px-4 flex items-center gap-1.5 text-white text-xs font-semibold rounded-lg transition-all"
+                style={{ background: BLUE, boxShadow: `0 2px 8px ${BLUE}35` }}
+              >
+                <UserPlus className="w-3.5 h-3.5" /> Novo Colaborador
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ── Stat cards ── */}
@@ -439,7 +454,7 @@ export default function CollaboratorManagement() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-slate-600">Nenhum colaborador encontrado</p>
-                  <p className="text-xs text-slate-400 mt-1">Tente ajustar os filtros ou cadastre um novo colaborador.</p>
+                  <p className="text-xs text-slate-400 mt-1">{canEdit ? "Tente ajustar os filtros ou cadastre um novo colaborador." : "Tente ajustar os filtros."}</p>
                 </div>
                 {hasFilters && (
                   <button onClick={clearFilters} className="text-xs text-blue-500 hover:text-blue-700 font-medium">
@@ -531,8 +546,10 @@ export default function CollaboratorManagement() {
 
                         {/* Ações */}
                         <td className="px-5 py-3.5">
-                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                            {isPending && (
+                          {/* Ações sempre visíveis: escondê-las até o hover deixava o
+                              usuário sem saber que a linha tinha ações (e some no touch). */}
+                          <div className="flex items-center justify-end gap-1">
+                            {isPending && canEdit && (
                               <>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -560,14 +577,16 @@ export default function CollaboratorManagement() {
                               </TooltipTrigger>
                               <TooltipContent>Ver detalhes</TooltipContent>
                             </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button onClick={() => handleEdit(c)} aria-label={`Editar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                                  <Edit className="w-3.5 h-3.5" />
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent>Editar</TooltipContent>
-                            </Tooltip>
+                            {canEdit && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button onClick={() => handleEdit(c)} aria-label={`Editar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                                    <Edit className="w-3.5 h-3.5" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent>Editar</TooltipContent>
+                              </Tooltip>
+                            )}
                             {canManage && (
                               isInactive ? (
                                 <Tooltip>
@@ -729,7 +748,7 @@ export default function CollaboratorManagement() {
                   </div>
                 )}
 
-                {selectedCollaborator.status === "pendente" && (
+                {selectedCollaborator.status === "pendente" && canEdit && (
                   <div className="flex gap-2 justify-end pt-2 border-t border-gray-100">
                     <button onClick={() => { setShowDetailsModal(false); handleReject(selectedCollaborator); }} className="flex items-center gap-1.5 h-9 px-4 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">
                       <X className="w-3.5 h-3.5" /> Rejeitar

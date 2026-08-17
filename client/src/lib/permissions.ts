@@ -40,7 +40,7 @@ const PERMISSIONS: Record<string, Record<UserRole, AccessLevel>> = {
     financial: 'view'      // Financial: apenas visualização
   },
   
-  // Funções (admin sempre pode gerenciar)
+  // Funções — espelha POST/PATCH/DELETE /api/functions (CADASTRO_ROLES)
   functions: {
     admin: 'edit',         // Administrador: acesso total
     production: 'edit',    // Logística Interna: acesso total
@@ -49,7 +49,7 @@ const PERMISSIONS: Record<string, Record<UserRole, AccessLevel>> = {
     financial: 'view'      // Financial: visualização
   },
   
-  // Colaboradores
+  // Colaboradores — espelha POST/PATCH /api/collaborators (CADASTRO_ROLES + function_area)
   collaborators: {
     admin: 'edit',      // Administrador: acesso total
     production: 'edit', // Logística Interna: acesso total

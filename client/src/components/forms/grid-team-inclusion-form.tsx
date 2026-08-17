@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { formatDiarias } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -16,12 +16,13 @@ import { apiRequest } from "@/lib/queryClient";
 import { Calendar, Save, Grid3x3, Plus, Trash2, Ticket, Copy, MoreHorizontal, HelpCircle, Download, Upload, Check, ChevronsUpDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import type { Event, Function, User } from "@shared/schema";
+import type { Event, Function } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 
@@ -104,65 +105,53 @@ export default function GridTeamInclusionForm() {
   const [showGrid, setShowGrid] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showFunctionSelect, setShowFunctionSelect] = useState(false);
-  const [copiedValue, setCopiedValue] = useState<number | null>(null);
-  const [focusedCell, setFocusedCell] = useState<{functionId: string, date: string} | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [autoSave, setAutoSave] = useState(true);
   const [copiedSchedule, setCopiedSchedule] = useState<{dataVooIda: string, horarioChegadaSugerido: string, dataVooRetorno: string, horarioPartidaSugerido: string, needsTicket: boolean, needsAccommodation: boolean} | null>(null);
   const [showPasteModal, setShowPasteModal] = useState(false);
   const [pastedData, setPastedData] = useState<string>("");
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
-  const [templateLoaded, setTemplateLoaded] = useState<boolean>(false);
   const [openEventCombobox, setOpenEventCombobox] = useState(false);
+  // "Gerar Grade" com grade já preenchida pede confirmação antes de regerar
+  const [confirmRegenerate, setConfirmRegenerate] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const gridRef = useRef<HTMLDivElement>(null);
 
-  // Keyboard event handler for copy/paste
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        if (e.key === 'c' && focusedCell) {
-          e.preventDefault();
-          const row = functionRows.find(r => r.functionId === focusedCell.functionId);
-          if (row) {
-            const value = row.dailyRates[focusedCell.date] || 0;
-            copyValue(value);
-          }
-        } else if (e.key === 'v' && focusedCell && copiedValue !== null && !showPasteModal) {
-          e.preventDefault();
-          pasteValue(focusedCell.functionId, focusedCell.date);
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [focusedCell, copiedValue, functionRows]);
+  // Rascunhos são por usuário: dois usuários na mesma máquina não veem a grade
+  // um do outro, e o rascunho de um não sobrescreve o do outro.
+  const draftKey = `grid-draft-save:${user?.id ?? "anon"}`;
+  const autoSaveKey = `grid-auto-save:${user?.id ?? "anon"}`;
 
   // Auto-save functionality
   useEffect(() => {
     if (autoSave && functionRows.length > 0) {
       const timeoutId = setTimeout(() => {
-        localStorage.setItem('grid-auto-save', JSON.stringify({
+        const { eventId, startDate, endDate } = form.getValues();
+        localStorage.setItem(autoSaveKey, JSON.stringify({
           functionRows,
           dates,
+          eventId,
+          startDate,
+          endDate,
           timestamp: Date.now()
         }));
       }, 2000); // Auto-save after 2 seconds of inactivity
 
       return () => clearTimeout(timeoutId);
     }
-  }, [functionRows, dates, autoSave]);
+  }, [functionRows, dates, autoSave, autoSaveKey]);
 
   // Função para salvar rascunho manualmente
   const saveDraft = () => {
     if (functionRows.length > 0) {
-      localStorage.setItem('grid-draft-save', JSON.stringify({
+      const { eventId, startDate, endDate } = form.getValues();
+      localStorage.setItem(draftKey, JSON.stringify({
         functionRows,
         dates,
-        eventId: form.getValues().eventId,
+        eventId,
+        startDate,
+        endDate,
         timestamp: Date.now()
       }));
       toast({
@@ -180,33 +169,35 @@ export default function GridTeamInclusionForm() {
 
   // Função para carregar rascunho salvo
   const loadDraft = () => {
-    const draftSaved = localStorage.getItem('grid-draft-save');
-    const autoSaved = localStorage.getItem('grid-auto-save');
-    
+    const draftSaved = localStorage.getItem(draftKey);
+    const autoSaved = localStorage.getItem(autoSaveKey);
+
     // Priorizar rascunho manual sobre auto-save
     const savedData = draftSaved || autoSaved;
-    
+
     if (savedData) {
       try {
         const data = JSON.parse(savedData);
         // Carregar rascunho manual (sem limite de tempo) ou auto-save (com limite de 1 hora)
         const isValidData = draftSaved || (Date.now() - data.timestamp < 3600000);
-        
+
         if (isValidData && data.functionRows && data.functionRows.length > 0) {
           setFunctionRows(data.functionRows || []);
           setDates(data.dates || []);
           setShowGrid(true); // Mostrar planilha automaticamente
-          
-          // Carregar dados do evento se salvo
-          if (data.eventId) {
-            form.setValue('eventId', data.eventId);
-          }
-          
+
+          // Restaura evento e período junto com a grade (antes só o evento
+          // voltava, e as datas do formulário ficavam vazias/inconsistentes)
+          if (data.eventId) form.setValue('eventId', data.eventId, { shouldValidate: true });
+          const savedDates: string[] = data.dates || [];
+          form.setValue('startDate', data.startDate || savedDates[0] || "");
+          form.setValue('endDate', data.endDate || savedDates[savedDates.length - 1] || "");
+
           toast({
             title: "Rascunho carregado",
             description: `Dados restaurados de ${draftSaved ? 'rascunho salvo' : 'auto-save'}`
           });
-          
+
           return true;
         }
       } catch (e) {
@@ -233,6 +224,9 @@ export default function GridTeamInclusionForm() {
   });
 
 
+  // Evento escolhido (reativo) — habilita/desabilita o botão de criar
+  const selectedEventId = form.watch("eventId");
+
   const { data: events } = useQuery<Event[]>({
     queryKey: ["/api/events"],
   });
@@ -240,10 +234,6 @@ export default function GridTeamInclusionForm() {
 
   const { data: functions } = useQuery<Function[]>({
     queryKey: ["/api/functions"],
-  });
-
-  const { data: collaborators } = useQuery<User[]>({
-    queryKey: ["/api/collaborators"],
   });
 
   // O(1) lookup map: functionId → Function
@@ -262,77 +252,88 @@ export default function GridTeamInclusionForm() {
   // A criação passou a ser em lote transacional (POST /api/team-inclusions/bulk
   // no handleSubmit) — a mutation unitária antiga saiu.
 
-  const generateGrid = () => {
+  // Lista "YYYY-MM-DD" entre início e fim (inclusive), sem passar por
+  // toISOString (que converte para UTC e pode pular/duplicar um dia).
+  const buildDateList = (startDate: string, endDate: string): string[] => {
+    const list: string[] = [];
+    const [sy, sm, sd] = startDate.split('-').map(Number);
+    const [ey, em, ed] = endDate.split('-').map(Number);
+    const cur = new Date(sy, sm - 1, sd);
+    const end = new Date(ey, em - 1, ed);
+    while (cur <= end) {
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, '0');
+      const d = String(cur.getDate()).padStart(2, '0');
+      list.push(`${y}-${m}-${d}`);
+      cur.setDate(cur.getDate() + 1);
+    }
+    return list;
+  };
+
+  // A grade tem algo que o usuário perderia ao regerar?
+  const gridHasContent = showGrid && functionRows.some(row =>
+    Object.values(row.dailyRates).some(v => v > 0) ||
+    row.dataVooIda || row.dataVooRetorno || row.horarioChegadaSugerido || row.horarioPartidaSugerido ||
+    row.needsTicket || row.needsAccommodation
+  );
+
+  const validateGridPeriod = (): { startDate: string; endDate: string } | null => {
     const { startDate, endDate } = form.getValues();
 
     if (!startDate || !endDate) {
+      form.trigger(["startDate", "endDate"]);
       toast({
-        title: "Erro",
-        description: "Selecione as datas de início e fim",
+        title: "Período incompleto",
+        description: "Selecione as datas de início e fim.",
         variant: "destructive",
       });
-      return;
+      return null;
     }
 
-    if (new Date(startDate) > new Date(endDate)) {
+    if (startDate > endDate) {
+      form.setError("endDate", { message: "A data final não pode ser anterior à inicial" });
       toast({
-        title: "Erro", 
-        description: "Data inicial deve ser menor que a data final",
+        title: "Período inválido",
+        description: "A data inicial deve ser menor ou igual à data final.",
         variant: "destructive",
       });
-      return;
+      return null;
     }
+    return { startDate, endDate };
+  };
 
-    // Gerar datas
-    const datesList: string[] = [];
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+  /**
+   * Monta/regenera a grade para o período do formulário.
+   * `preserve = true` mantém as linhas atuais (inclusive funções adicionadas e
+   * dados de viagem) e só reencaixa as quantidades: dias que continuam no novo
+   * período ficam com o valor; dias novos entram vazios; dias fora saem.
+   */
+  const buildGrid = (preserve: boolean) => {
+    const period = validateGridPeriod();
+    if (!period) return;
+    const datesList = buildDateList(period.startDate, period.endDate);
 
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().split('T')[0];
-      datesList.push(dateStr);
-    }
-
-    // Se há template carregado, usar APENAS essas funções
-    let rows: FunctionRow[] = [];
-    
-    if (templateLoaded && functionRows.length > 0) {
-      // Usar template carregado - aplicar nos novos dates
-      rows = functionRows.map(templateFunc => {
+    let rows: FunctionRow[];
+    if (preserve && functionRows.length > 0) {
+      rows = functionRows.map(row => {
         const dailyRates: { [date: string]: number } = {};
-        
-        datesList.forEach(date => {
-          // Aplicar valor padrão do template
-          dailyRates[date] = (templateFunc as any)?.defaultDailyRate || 1;
-        });
-
-        return {
-          ...templateFunc, // Preserva ida, chegada, retorno, horarioRetorno, needsTicket, needsAccommodation
-          dailyRates, // Aplica nas novas datas
-        };
+        datesList.forEach(date => { dailyRates[date] = row.dailyRates[date] || 0; });
+        return { ...row, dailyRates };
       });
-      
-      // Limpar flag do template
-      setTemplateLoaded(false);
     } else {
       // Grade nova - começar com campos VAZIOS
       rows = sortedFunctions.map(func => {
         const dailyRates: { [date: string]: number } = {};
-        
-        datesList.forEach(date => {
-          // Grade nova = sem valores (0 = célula vazia)
-          dailyRates[date] = 0;
-        });
-
+        datesList.forEach(date => { dailyRates[date] = 0; });
         return {
           functionId: func.id,
           functionName: func.name,
-          dataVooIda: "", // Vazio para grade nova
-          horarioChegadaSugerido: "", // Vazio para grade nova
-          dataVooRetorno: "", // Vazio para grade nova
-          horarioPartidaSugerido: "", // Vazio para grade nova
-          needsTicket: false, // Desmarcado para grade nova
-          needsAccommodation: false, // Desmarcado para grade nova
+          dataVooIda: "",
+          horarioChegadaSugerido: "",
+          dataVooRetorno: "",
+          horarioPartidaSugerido: "",
+          needsTicket: false,
+          needsAccommodation: false,
           dailyRates,
           isCustom: false,
           selected: false,
@@ -342,7 +343,19 @@ export default function GridTeamInclusionForm() {
 
     setDates(datesList);
     setFunctionRows(rows);
+    setSelectedRows(new Set());
     setShowGrid(true);
+  };
+
+  const generateGrid = () => {
+    if (gridHasContent) {
+      // Valida o período antes de perguntar — não faz sentido confirmar para
+      // depois cair num erro de datas.
+      if (!validateGridPeriod()) return;
+      setConfirmRegenerate(true);
+      return;
+    }
+    buildGrid(false);
   };
 
   const updateDailyRate = useCallback((functionId: string, date: string, value: number) => {
@@ -382,9 +395,10 @@ export default function GridTeamInclusionForm() {
     const selectedFunction = functions?.find(f => f.id === functionId);
     if (!selectedFunction) return;
 
+    // Nova linha começa vazia (0 = "–"), como toda a grade
     const dailyRates: { [date: string]: number } = {};
     dates.forEach(date => {
-      dailyRates[date] = 1;
+      dailyRates[date] = 0;
     });
 
     // Criar ID único para permitir múltiplas instâncias da mesma função
@@ -415,39 +429,6 @@ export default function GridTeamInclusionForm() {
 
   const openFunctionSelect = () => {
     setShowFunctionSelect(true);
-  };
-
-  const copyValue = (value: number) => {
-    setCopiedValue(value);
-    toast({
-      title: "Valor copiado",
-      description: `Valor ${value} copiado. Use Ctrl+V para colar.`,
-    });
-  };
-
-  const pasteValue = (functionId: string, date: string) => {
-    if (copiedValue !== null) {
-      updateDailyRate(functionId, date, copiedValue);
-      toast({
-        title: "Valor colado",
-        description: `Valor ${copiedValue} colado com sucesso.`,
-      });
-    }
-  };
-
-  const fillAllDates = (functionId: string, value: number) => {
-    setFunctionRows(prev => prev.map(row => 
-      row.functionId === functionId 
-        ? { 
-            ...row, 
-            dailyRates: dates.reduce((acc, date) => ({ ...acc, [date]: value }), {})
-          }
-        : row
-    ));
-    toast({
-      title: "Valores preenchidos",
-      description: `Todas as datas preenchidas com valor ${value}.`,
-    });
   };
 
   const duplicateFunction = (functionId: string) => {
@@ -533,7 +514,7 @@ export default function GridTeamInclusionForm() {
     // Criar nova linha com os horários copiados mas função diferente
     const dailyRates: { [date: string]: number } = {};
     dates.forEach(date => {
-      dailyRates[date] = 1; // Valores padrão, não copia as diárias
+      dailyRates[date] = 0; // Começa vazia — não copia as quantidades por dia
     });
 
     // Criar ID único para permitir múltiplas instâncias
@@ -826,7 +807,7 @@ export default function GridTeamInclusionForm() {
       
       if (datesWithRates.length === 0) return;
 
-      // Usar originalFunctionId se existir (função carregada de template) ou extrair do ID
+      // Usar originalFunctionId se existir (linha vinda do Excel ou duplicada) ou extrair do ID
       let originalFunctionId = (row as any).originalFunctionId || row.functionId;
       
       // Se não tem originalFunctionId, usar functionMap (O(1)) para resolver
@@ -898,15 +879,22 @@ export default function GridTeamInclusionForm() {
 
   const processGrid = () => processedRanges;
 
-  const calculateDailyRates = (startDate: string, endDate: string): number => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffTime = end.getTime() - start.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-    return diffDays;
-  };
-
   const handleSubmit = async () => {
+    // Valida o formulário (evento/período) antes de qualquer coisa: sem evento
+    // o backend rejeitaria o lote inteiro e o erro apareceria só num toast.
+    const valid = await form.trigger();
+    if (!valid) {
+      const semEvento = !form.getValues().eventId;
+      toast({
+        title: semEvento ? "Selecione o evento" : "Período incompleto",
+        description: semEvento
+          ? "Escolha o evento antes de criar as escalações."
+          : "Informe as datas de início e término antes de criar as escalações.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const { eventId } = form.getValues();
     const ranges = processGrid();
 
@@ -964,8 +952,8 @@ export default function GridTeamInclusionForm() {
       setFunctionRows([]);
       setDates([]);
       setShowGrid(false);
-      localStorage.removeItem("grid-draft-save");
-      localStorage.removeItem("grid-auto-save");
+      localStorage.removeItem(draftKey);
+      localStorage.removeItem(autoSaveKey);
 
     } catch (error: any) {
       // A transação garante que nada foi gravado — mostra a causa e mantém a grade
@@ -1001,7 +989,7 @@ export default function GridTeamInclusionForm() {
           <div>
             <CardTitle className="text-[15px] font-bold text-slate-900">Escalação por Grade</CardTitle>
             <p className="text-xs text-slate-400 mt-0.5">
-              Configure as diárias por função e data. Números consecutivos iguais se tornam um registro único.
+              Em cada célula, informe quantas pessoas daquela função trabalham no dia. Cada pessoa vira 1 registro com os dias em que trabalha.
             </p>
           </div>
         </div>
@@ -1046,7 +1034,7 @@ export default function GridTeamInclusionForm() {
                                 key={event.id}
                                 value={event.name}
                                 onSelect={() => {
-                                  form.setValue("eventId", event.id);
+                                  form.setValue("eventId", event.id, { shouldValidate: true, shouldDirty: true });
                                   setOpenEventCombobox(false);
                                 }}
                               >
@@ -1122,8 +1110,36 @@ export default function GridTeamInclusionForm() {
               data-testid="button-generate-grid"
             >
               <Calendar className="w-4 h-4" />
-              Gerar Grade de Funções
+              {gridHasContent ? "Regerar Grade de Funções" : "Gerar Grade de Funções"}
             </button>
+
+            {/* Confirmação: regerar por cima de uma grade preenchida */}
+            <AlertDialog open={confirmRegenerate} onOpenChange={setConfirmRegenerate}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Regerar a grade para o novo período?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    A grade atual já tem dados. Você pode <strong>ajustar o período</strong> mantendo as
+                    funções, os dados de viagem e as quantidades dos dias que continuam no novo período
+                    (dias que saírem do período são descartados; dias novos entram vazios) — ou
+                    <strong> recomeçar do zero</strong> com todas as funções vazias.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <button
+                    type="button"
+                    onClick={() => { setConfirmRegenerate(false); buildGrid(false); }}
+                    className="h-10 px-4 text-sm font-medium text-red-600 border border-red-200 rounded-md hover:bg-red-50 transition-colors bg-white"
+                  >
+                    Recomeçar do zero
+                  </button>
+                  <AlertDialogAction onClick={() => buildGrid(true)}>
+                    Ajustar período mantendo dados
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
 
             {/* Grade de Escalação */}
             {showGrid && (
@@ -1181,27 +1197,25 @@ export default function GridTeamInclusionForm() {
                     <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
                       <div className="grid md:grid-cols-2 gap-4 text-sm">
                         <div>
-                          <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">📋 Atalhos de Teclado:</h4>
-                          <ul className="space-y-1 text-blue-800 dark:text-blue-200">
-                            <li><strong>Ctrl+C</strong>: Copiar valor da célula selecionada</li>
-                            <li><strong>Ctrl+V</strong>: Colar valor na célula selecionada</li>
-                            <li><strong>Tab</strong>: Navegar para próxima célula</li>
-                            <li><strong>Enter</strong>: Confirmar valor e navegar</li>
+                          <h4 className="font-semibold text-blue-900 mb-2">Como preencher</h4>
+                          <ul className="space-y-1 text-blue-800">
+                            <li><strong>Célula do dia</strong>: número de pessoas daquela função trabalhando no dia (– = ninguém).</li>
+                            <li><strong>Registros</strong>: cada pessoa vira 1 registro com os dias em que trabalha — veja a prévia abaixo da grade.</li>
+                            <li><strong>Passagem / Hospedagem</strong>: marque quando a função precisa de logística; os dados de voo valem para toda a linha.</li>
                           </ul>
                         </div>
                         <div>
-                          <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">⚡ Recursos Rápidos:</h4>
-                          <ul className="space-y-1 text-blue-800 dark:text-blue-200">
-                            <li><strong>Menu de Ações</strong>: Clique nos três pontos da função</li>
-                            <li><strong>Duplicar Função</strong>: Copia todos os dados da função</li>
-                            <li><strong>Preencher Datas</strong>: Aplica mesmo valor em todas as datas</li>
-                            <li><strong>Auto-save</strong>: Salvamento automático a cada 2 segundos</li>
-                            <li><strong>Templates</strong>: Salve e reutilize configurações</li>
+                          <h4 className="font-semibold text-blue-900 mb-2">Recursos</h4>
+                          <ul className="space-y-1 text-blue-800">
+                            <li><strong>Menu de ações (⋯)</strong>: duplicar a função, copiar/colar dados de viagem, remover.</li>
+                            <li><strong>Colar Excel</strong>: cola linhas copiadas de uma planilha (formato indicado no modal).</li>
+                            <li><strong>Rascunho</strong>: salve e carregue a grade depois; o auto-save guarda por 1 hora.</li>
+                            <li><strong>Regerar grade</strong>: mudar o período mantém os dias que continuam.</li>
                           </ul>
                         </div>
                       </div>
-                      <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
-                        <div className="flex items-center gap-4 text-xs text-blue-700 dark:text-blue-300">
+                      <div className="mt-3 pt-3 border-t border-blue-200">
+                        <div className="flex items-center gap-4 text-xs text-blue-700">
                           <label className="flex items-center gap-2">
                             <Checkbox
                               checked={autoSave}
@@ -1210,7 +1224,6 @@ export default function GridTeamInclusionForm() {
                             />
                             Auto-salvar ativo
                           </label>
-                          <span>💡 Clique numa célula de diária para usar os atalhos de copiar/colar</span>
                         </div>
                       </div>
                     </div>
@@ -1221,14 +1234,14 @@ export default function GridTeamInclusionForm() {
                     <table className="w-full text-sm">
                       <thead className="bg-slate-50 sticky top-0">
                         <tr>
-                          <th className="px-2 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-12">
+                          <th className="px-2 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-12 min-w-[3rem] sticky left-0 bg-slate-50 z-20">
                             <Checkbox
                               checked={selectedRows.size === functionRows.length && functionRows.length > 0}
                               onCheckedChange={toggleSelectAll}
                               aria-label="Selecionar todas"
                             />
                           </th>
-                          <th className="px-3 py-2 text-left border-r border-slate-200 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-[180px] max-w-[180px] sticky left-12 bg-slate-50 z-10">Função</th>
+                          <th className="px-3 py-2 text-left border-r border-slate-200 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-[180px] min-w-[180px] max-w-[180px] sticky left-12 bg-slate-50 z-20">Função</th>
                           <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-20">
                             <div className="flex items-center justify-center gap-1">
                               <Ticket className="w-3 h-3" />
@@ -1260,7 +1273,7 @@ export default function GridTeamInclusionForm() {
                       <tbody>
                         {functionRows.map((row, rowIdx) => (
                           <tr key={row.functionId} className={`border-b border-slate-100 hover:bg-blue-50/40 transition-colors ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>
-                            <td className="px-2 py-2 border-r border-slate-100 text-center">
+                            <td className="px-2 py-2 border-r border-slate-100 text-center bg-slate-50 sticky left-0 z-10 w-12 min-w-[3rem]">
                               <Checkbox
                                 checked={selectedRows.has(row.functionId)}
                                 onCheckedChange={() => toggleRowSelection(row.functionId)}
@@ -1268,7 +1281,7 @@ export default function GridTeamInclusionForm() {
                                 className="accent-blue-500"
                               />
                             </td>
-                            <td className="px-3 py-2 border-r border-slate-200 font-semibold text-slate-800 bg-slate-50 sticky left-12 z-10 max-w-[180px]">
+                            <td className="px-3 py-2 border-r border-slate-200 font-semibold text-slate-800 bg-slate-50 sticky left-12 z-10 w-[180px] min-w-[180px] max-w-[180px]">
                               <span className="block truncate" title={row.functionName}>{row.functionName}</span>
                             </td>
                             <td className="px-2 py-2 border-r border-slate-100 text-center">
@@ -1492,13 +1505,18 @@ export default function GridTeamInclusionForm() {
                   <button
                     type="button"
                     onClick={handleSubmit}
-                    disabled={isProcessing || processedRanges.length === 0}
+                    disabled={isProcessing || processedRanges.length === 0 || !selectedEventId}
+                    title={!selectedEventId ? "Selecione o evento para criar as escalações" : undefined}
                     className="w-full h-11 flex items-center justify-center gap-2 text-white text-sm font-semibold rounded-lg transition-all hover:opacity-90 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0"
                     style={{ background: "#0033CC", boxShadow: "0 3px 12px #0033CC40" }}
                     data-testid="button-save-grid"
                   >
                     <Save className="w-4 h-4" />
-                    {isProcessing ? "Criando Escalações..." : `Criar ${processedRanges.length} Escalação(ões)`}
+                    {isProcessing
+                      ? "Criando Escalações..."
+                      : !selectedEventId
+                        ? "Selecione o evento para criar"
+                        : `Criar ${processedRanges.length} Escalação(ões)`}
                   </button>
                 </div>
               </div>
@@ -1584,8 +1602,8 @@ export default function GridTeamInclusionForm() {
             </div>
             <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
               <p className="text-xs text-yellow-800">
-                <strong>Importante:</strong> Os valores das diárias (1, 2, 3) NÃO serão copiados - ficam todos em "1" por padrão.
-                Apenas os horários de viagem serão copiados.
+                <strong>Importante:</strong> as quantidades por dia (quantas pessoas em cada célula) NÃO são copiadas — a nova linha começa vazia (–).
+                Só os dados de viagem (datas/horários de voo, passagem e hospedagem) são copiados.
               </p>
             </div>
             <Button 

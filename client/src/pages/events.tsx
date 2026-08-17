@@ -16,46 +16,17 @@ import {
   addMonths, subMonths, addWeeks, subWeeks, startOfDay, endOfDay,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { STATUS, getEventStatus, parseLocalDate } from "@/lib/event-status";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 const BLUE = "#0033CC";
-
-const STATUS: Record<string, { label: string; dot: string; bg: string; text: string; bar: string; border: string }> = {
-  planejado:      { label: "Planejado",    dot: "#8B5CF6", bg: "#F5F3FF", text: "#6D28D9", bar: "#8B5CF6", border: "#DDD6FE" },
-  "em andamento": { label: "Em andamento", dot: "#F97316", bg: "#FFF7ED", text: "#C2410C", bar: "#F97316", border: "#FED7AA" },
-  concluído:      { label: "Concluído",    dot: "#22C55E", bg: "#F0FDF4", text: "#15803D", bar: "#22C55E", border: "#BBF7D0" },
-  excluído:       { label: "Excluído",     dot: "#94A3B8", bg: "#F8FAFC", text: "#64748B", bar: "#CBD5E1", border: "#E2E8F0" },
-};
 
 const MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const WEEK_SHORT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
-/**
- * startDate/endDate vêm do backend como "YYYY-MM-DD" (coluna `date`).
- * `new Date("2025-01-01")` é interpretado como UTC — em Brasília (UTC-3) isso
- * vira 31/12/2024 21:00 e todo cálculo de dia/mês/ano volta um dia.
- * Aqui a data é montada no fuso local, sem deslocamento.
- */
-function parseLocalDate(value: string | null | undefined): Date | null {
-  if (!value) return null;
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value).trim());
-  const d = m
-    ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
-    : new Date(value as string);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function getEventStatus(ev: Event): string {
-  if (ev.status === "excluído") return "excluído";
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const end   = parseLocalDate(ev.endDate);
-  const start = parseLocalDate(ev.startDate);
-  if (!end || !start) return ev.status;
-  if (end < today)    return "concluído";
-  if (start <= today) return "em andamento";
-  return ev.status;
-}
+// STATUS, getEventStatus e parseLocalDate vivem em @/lib/event-status —
+// compartilhados com o Calendário para que status e paleta nunca divirjam.
 
 function formatPeriod(s: string, e: string) {
   const d1 = parseLocalDate(s), d2 = parseLocalDate(e);

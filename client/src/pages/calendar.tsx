@@ -1,56 +1,39 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import {
   CalendarDays, ChevronLeft, ChevronRight, X, MapPin, Clock,
   CheckCircle, Play, List, LayoutGrid, AlertTriangle,
-  Users, Tag, Search,
+  Users, Tag, Search, ClipboardList, Table2, Ban,
 } from "lucide-react";
 import type { Event, TeamInclusion } from "@shared/schema";
+import { STATUS, getEventStatus, statusStyle, parseLocalDate as parseLocalDateOrNull } from "@/lib/event-status";
 
 // ─── Status config ────────────────────────────────────────────────────────────
+// Cores/labels e a regra de status vêm de @/lib/event-status — a MESMA fonte da
+// tela de Eventos. Aqui só fica o mapeamento de ícone (lucide) por status.
 
-const STATUS_CFG: Record<string, {
-  label: string; bg: string; text: string; border: string;
-  bar: string; barText: string; iconText: string;
-  panelBg: string; panelBorder: string; topBar: string; icon: any;
-  dot: string;
-}> = {
-  concluido: {
-    label: "Concluído",
-    bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200",
-    bar: "bg-emerald-500", barText: "text-white", iconText: "text-emerald-600",
-    panelBg: "bg-emerald-50", panelBorder: "border-emerald-200", topBar: "bg-emerald-500",
-    icon: CheckCircle, dot: "bg-emerald-500",
-  },
-  em_andamento: {
-    label: "Em andamento",
-    bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-200",
-    bar: "bg-amber-400", barText: "text-[#1e293b]", iconText: "text-amber-500",
-    panelBg: "bg-amber-50", panelBorder: "border-amber-200", topBar: "bg-amber-400",
-    icon: Play, dot: "bg-amber-400",
-  },
-  planejado: {
-    label: "Planejado",
-    bg: "bg-blue-100", text: "text-blue-800", border: "border-blue-200",
-    bar: "bg-blue-500", barText: "text-white", iconText: "text-blue-500",
-    panelBg: "bg-blue-50", panelBorder: "border-blue-200", topBar: "bg-blue-500",
-    icon: Clock, dot: "bg-blue-500",
-  },
+const STATUS_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  "concluído": CheckCircle,
+  "em andamento": Play,
+  "planejado": Clock,
+  "excluído": Ban,
 };
 
 // Only these statuses are shown in the calendar
-const VISIBLE_STATUSES = new Set(["concluido", "em_andamento", "planejado"]);
+const VISIBLE_STATUSES = new Set(["concluído", "em andamento", "planejado"]);
 
 function getCfg(status: string) {
-  return STATUS_CFG[status] || STATUS_CFG["planejado"];
+  const s = statusStyle(status);
+  return { ...s.tw, label: s.label, icon: STATUS_ICON[status] ?? Clock, pulse: s.pulse, iconName: s.iconName, iconFill: s.iconFill };
 }
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
+// Datas de evento são obrigatórias no schema; o fallback evita NaN caso venha vazio.
 function parseLocalDate(str: string): Date {
-  const [y, m, d] = str.split("-").map(Number);
-  return new Date(y, m - 1, d);
+  return parseLocalDateOrNull(str) ?? new Date(NaN);
 }
 
 function isSameDay(a: Date, b: Date) {
@@ -87,18 +70,9 @@ function dayCount(startStr: string, endStr: string) {
   return Math.round((e.getTime() - s.getTime()) / 86400000) + 1;
 }
 
-function getEffectiveStatus(event: Event): string {
-  const raw = (event.status || "").toLowerCase();
-  // Normalize: catch "excluído", "excluido", "excluíd", etc.
-  if (raw.startsWith("exclu") || raw === "cancelado" || raw === "inativo") return "excluido";
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const start = parseLocalDate(event.startDate);
-  const end = parseLocalDate(event.endDate);
-  if (today > end) return "concluido";
-  if (today >= start && today <= end) return "em_andamento";
-  return "planejado";
-}
+// Mesma regra da tela de Eventos (respeita `events.status` manual quando o
+// evento ainda não começou; datas decidem "em andamento"/"concluído").
+const getEffectiveStatus = getEventStatus;
 
 const WEEKDAY_LABELS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 const MONTH_NAMES = [
@@ -280,7 +254,7 @@ function EventPanel({
           boxShadow: "0 12px 48px -4px rgba(0,0,0,0.22), 0 4px 16px -2px rgba(0,0,0,0.12)",
         }}
       >
-        <div className={`h-[3px] w-full ${cfg.topBar}`} />
+        <div className={`h-[3px] w-full ${cfg.bar}`} />
         <div className="px-4 pt-3.5 pb-3">
           <div className="flex items-center justify-between gap-2 mb-2">
             <Badge className={`text-[10px] ${cfg.bg} ${cfg.text} border ${cfg.border} hover:${cfg.bg}`}>
@@ -346,6 +320,26 @@ function EventPanel({
                 </div>
               </>
             )}
+          </div>
+
+          <div className="border-t border-dashed border-gray-200 dark:border-gray-700" />
+
+          {/* Atalhos — Escala não lê query params (abre a tela); o Espelho lê ?eventId= */}
+          <div className="flex items-center gap-2">
+            <Link
+              href="/scaling"
+              onClick={onClose}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-lg border border-slate-200 text-[11.5px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <ClipboardList className="w-3.5 h-3.5" /> Ver escala
+            </Link>
+            <Link
+              href={`/operational-mirror?eventId=${encodeURIComponent(event.id)}`}
+              onClick={onClose}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-lg border border-slate-200 text-[11.5px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <Table2 className="w-3.5 h-3.5" /> Espelho operacional
+            </Link>
           </div>
         </div>
       </div>
@@ -602,6 +596,7 @@ function MonthView({
   }, [year, month, events]);
 
   const weekBars = useMemo(() => weeks.map(week => computeWeekBars(week, events)), [weeks, events]);
+  const monthHasEvents = weekBars.some(bars => bars.length > 0);
 
   return (
     <>
@@ -610,10 +605,17 @@ function MonthView({
         <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/50 shrink-0">
           {WEEKDAY_LABELS.map((d, i) => (
             <div key={d} className={`py-4 text-center text-[10px] font-black uppercase tracking-[0.2em] ${i === 0 || i === 6 ? "text-slate-400" : "text-slate-400"}`}>
-              {d}
+              <span className="hidden sm:inline">{d}</span>
+              <span className="sm:hidden">{d.slice(0, 3)}</span>
             </div>
           ))}
         </div>
+
+        {!monthHasEvents && (
+          <div className="shrink-0 border-b border-slate-100">
+            <CalendarEmptyState label="neste mês" />
+          </div>
+        )}
 
         {/* Week rows — minmax ensures minimum height so last row never gets clipped */}
         <div
@@ -711,38 +713,6 @@ function formatListDate(startStr: string, endStr: string): string {
   return `${fmt(start, { day: "numeric", month: "short" })} a ${fmt(end, { day: "numeric", month: "short" })}`;
 }
 
-// ─── List status icon config ──────────────────────────────────────────────────
-
-const LIST_STATUS: Record<string, {
-  iconName: string; iconFill: boolean;
-  iconBg: string; iconText: string;
-  badgeBg: string; badgeText: string;
-  ping: boolean;
-}> = {
-  concluido: {
-    iconName: "check_circle", iconFill: true,
-    iconBg: "bg-emerald-100", iconText: "text-emerald-600",
-    badgeBg: "bg-emerald-100", badgeText: "text-emerald-800",
-    ping: false,
-  },
-  em_andamento: {
-    iconName: "play_circle", iconFill: true,
-    iconBg: "bg-amber-100", iconText: "text-amber-500",
-    badgeBg: "bg-amber-100", badgeText: "text-amber-800",
-    ping: true,
-  },
-  planejado: {
-    iconName: "schedule", iconFill: false,
-    iconBg: "bg-blue-100", iconText: "text-blue-600",
-    badgeBg: "bg-blue-100", badgeText: "text-blue-800",
-    ping: false,
-  },
-};
-
-function getListCfg(status: string) {
-  return LIST_STATUS[status] || LIST_STATUS["planejado"];
-}
-
 // ─── List view ────────────────────────────────────────────────────────────────
 
 function ListView({ events, onSelectEvent, hasFilters }: { events: Event[]; onSelectEvent: SelectEventFn; hasFilters: boolean }) {
@@ -827,9 +797,7 @@ function ListView({ events, onSelectEvent, hasFilters }: { events: Event[]; onSe
             {/* Event cards */}
             <div className="grid gap-3">
               {group.events.map(ev => {
-                const status = getEffectiveStatus(ev);
-                const lcfg = getListCfg(status);
-                const cfg = getCfg(status);
+                const cfg = getCfg(getEffectiveStatus(ev));
 
                 return (
                   <button
@@ -838,17 +806,17 @@ function ListView({ events, onSelectEvent, hasFilters }: { events: Event[]; onSe
                     className="w-full bg-white p-4 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4 group text-left"
                   >
                     {/* Status icon */}
-                    <div className={`w-12 h-12 ${lcfg.iconBg} ${lcfg.iconText} rounded-2xl flex items-center justify-center shrink-0 relative`}>
+                    <div className={`w-12 h-12 ${cfg.bg} ${cfg.iconText} rounded-2xl flex items-center justify-center shrink-0 relative`}>
                       <span
                         className="material-symbols-outlined text-2xl"
-                        style={{ fontVariationSettings: lcfg.iconFill ? "'FILL' 1" : "'FILL' 0" }}
+                        style={{ fontVariationSettings: cfg.iconFill ? "'FILL' 1" : "'FILL' 0" }}
                       >
-                        {lcfg.iconName}
+                        {cfg.iconName}
                       </span>
-                      {lcfg.ping && (
+                      {cfg.pulse && (
                         <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-400" />
+                          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${cfg.dot} opacity-75`} />
+                          <span className={`relative inline-flex rounded-full h-3 w-3 ${cfg.dot}`} />
                         </span>
                       )}
                     </div>
@@ -871,7 +839,7 @@ function ListView({ events, onSelectEvent, hasFilters }: { events: Event[]; onSe
                     </div>
 
                     {/* Status badge */}
-                    <span className={`px-4 py-1.5 rounded-xl ${lcfg.badgeBg} ${lcfg.badgeText} text-[11px] font-bold uppercase tracking-wide shrink-0 hidden sm:block`}>
+                    <span className={`px-4 py-1.5 rounded-xl ${cfg.bg} ${cfg.text} text-[11px] font-bold uppercase tracking-wide shrink-0 hidden sm:block`}>
                       {cfg.label}
                     </span>
                   </button>
@@ -887,10 +855,12 @@ function ListView({ events, onSelectEvent, hasFilters }: { events: Event[]; onSe
 
 // ─── Week helpers ─────────────────────────────────────────────────────────────
 
+// Semana ISO: começa na segunda-feira (getDay(): 0=Dom … 6=Sáb).
 function getWeekStart(d: Date): Date {
   const copy = new Date(d);
   copy.setHours(0, 0, 0, 0);
-  copy.setDate(copy.getDate() - copy.getDay()); // always Sunday
+  const offset = (copy.getDay() + 6) % 7; // Seg=0 … Dom=6
+  copy.setDate(copy.getDate() - offset);
   return copy;
 }
 
@@ -908,15 +878,25 @@ function isoWeekNumber(d: Date): number {
   return Math.ceil(((tmp.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 }
 
-const WEEK_DAY_SHORT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+// Segunda → Domingo (semana ISO)
+const WEEK_DAY_SHORT = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+const WEEK_DAY_LONG = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
+
+// ─── Empty state (Mês/Semana) ─────────────────────────────────────────────────
+
+function CalendarEmptyState({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 py-10 text-center" role="status">
+      <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center">
+        <CalendarDays className="w-6 h-6 text-slate-400" />
+      </div>
+      <p className="text-sm font-semibold text-slate-600">Nenhum evento {label}</p>
+      <p className="text-xs text-slate-400">Use as setas para navegar ou ajuste os filtros.</p>
+    </div>
+  );
+}
 
 // ─── Week view ────────────────────────────────────────────────────────────────
-
-const WEEK_STATUS_CFG: Record<string, { bg: string; border: string; labelText: string; dotBg: string; pulse: boolean }> = {
-  planejado:    { bg: "bg-blue-50",    border: "border-blue-500",   labelText: "text-blue-700",   dotBg: "bg-blue-500",   pulse: false },
-  em_andamento: { bg: "bg-amber-50",   border: "border-amber-500",  labelText: "text-amber-700",  dotBg: "bg-amber-500",  pulse: true  },
-  concluido:    { bg: "bg-emerald-50", border: "border-emerald-500",labelText: "text-emerald-800",dotBg: "bg-emerald-500",pulse: false },
-};
 
 function WeekView({ weekStart, events, onSelectEvent }: {
   weekStart: Date;
@@ -935,15 +915,16 @@ function WeekView({ weekStart, events, onSelectEvent }: {
     });
   }), [days, events]);
 
-  const isWeekend = (i: number) => i === 0 || i === 6;
+  const weekHasEvents = eventsPerDay.some(list => list.length > 0);
 
-  const GRID_7 = { display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" } as const;
+  // Índices Seg=0 … Dom=6 → fim de semana = 5 e 6
+  const isWeekend = (i: number) => i === 5 || i === 6;
 
   return (
     <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm overflow-hidden flex flex-col" style={{ height: "100%" }}>
 
-      {/* Day header row */}
-      <div style={GRID_7} className="border-b border-slate-200 shrink-0">
+      {/* Day header row — só em md+; no mobile cada dia tem seu próprio cabeçalho */}
+      <div className="hidden md:grid grid-cols-7 border-b border-slate-200 shrink-0">
         {days.map((day, i) => {
           const isToday = day.getTime() === today.getTime();
           return (
@@ -966,38 +947,52 @@ function WeekView({ weekStart, events, onSelectEvent }: {
         })}
       </div>
 
-      {/* Day columns body — each column scrolls independently via outer scroll */}
+      {!weekHasEvents && (
+        <div className="shrink-0 border-b border-slate-100">
+          <CalendarEmptyState label="nesta semana" />
+        </div>
+      )}
+
+      {/* Corpo: colunas em md+, lista vertical por dia abaixo de md */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        <div style={{ ...GRID_7, minHeight: "100%" }} className="h-full">
+        <div className="flex flex-col md:grid md:grid-cols-7 md:h-full" style={{ minHeight: "100%" }}>
           {days.map((day, i) => {
             const isToday = day.getTime() === today.getTime();
             const dayEvents = eventsPerDay[i];
             return (
               <div
                 key={i}
-                className={`border-r border-slate-100 last:border-r-0 p-2 flex flex-col gap-2
+                className={`border-b md:border-b-0 md:border-r border-slate-100 last:border-r-0 last:border-b-0 p-2 flex flex-col gap-2 md:min-h-[260px]
                   ${isWeekend(i) ? "bg-slate-50/30" : ""}
                   ${isToday ? "bg-blue-50/20" : ""}
                 `}
-                style={{ minHeight: 260 }}
               >
+                {/* Cabeçalho do dia (mobile) */}
+                <div className="md:hidden flex items-center gap-2 px-1 pt-1">
+                  <span className={`text-lg font-black leading-none ${isToday ? "text-[#0033CC]" : "text-slate-800"}`}>{day.getDate()}</span>
+                  <span className={`text-[10px] font-bold uppercase tracking-widest ${isToday ? "text-[#0033CC]" : "text-slate-400"}`}>
+                    {WEEK_DAY_LONG[i]}
+                  </span>
+                  {isToday && <span className="ml-auto text-[9px] font-bold uppercase tracking-wider bg-blue-50 text-[#0033CC] px-1.5 py-0.5 rounded-full">Hoje</span>}
+                </div>
                 {dayEvents.length === 0 && (
-                  <span className="text-[10px] text-slate-200 select-none mx-auto mt-6">–</span>
+                  <span className="text-[10px] text-slate-300 select-none px-1 md:mx-auto md:mt-6">
+                    <span className="md:hidden">Sem eventos</span>
+                    <span className="hidden md:inline">–</span>
+                  </span>
                 )}
                 {dayEvents.map(ev => {
-                  const status = getEffectiveStatus(ev);
-                  const wcfg = WEEK_STATUS_CFG[status] || WEEK_STATUS_CFG["planejado"];
-                  const cfg = getCfg(status);
+                  const cfg = getCfg(getEffectiveStatus(ev));
                   return (
                     <button
                       key={ev.id}
                       onClick={(e) => onSelectEvent(ev, { x: e.clientX, y: e.clientY })}
-                      className={`w-full text-left rounded-xl p-2.5 border-l-4 shadow-sm hover:shadow-md transition-shadow ${wcfg.bg} ${wcfg.border}`}
+                      className={`w-full text-left rounded-xl p-2.5 border-l-4 shadow-sm hover:shadow-md transition-shadow ${cfg.panelBg} ${cfg.edge}`}
                     >
-                      {wcfg.pulse && (
+                      {cfg.pulse && (
                         <div className="flex items-center gap-1 mb-1">
-                          <span className={`w-1.5 h-1.5 rounded-full ${wcfg.dotBg} animate-pulse shrink-0`} />
-                          <p className={`text-[9px] font-bold uppercase tracking-tight ${wcfg.labelText}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pulse shrink-0`} />
+                          <p className={`text-[9px] font-bold uppercase tracking-tight ${cfg.text}`}>
                             {cfg.label}
                           </p>
                         </div>
@@ -1006,7 +1001,7 @@ function WeekView({ weekStart, events, onSelectEvent }: {
                         {ev.name}
                       </p>
                       {ev.location && (
-                        <p className={`text-[9px] mt-1 font-medium truncate ${wcfg.labelText} opacity-80`}>
+                        <p className={`text-[9px] mt-1 font-medium truncate ${cfg.text} opacity-80`}>
                           {ev.location}
                         </p>
                       )}
@@ -1099,11 +1094,9 @@ export default function CalendarPage() {
     return map;
   }, [visibleEvents]);
 
-  const legendItems = [
-    { key: "concluido",    ...STATUS_CFG.concluido    },
-    { key: "em_andamento", ...STATUS_CFG.em_andamento },
-    { key: "planejado",    ...STATUS_CFG.planejado    },
-  ];
+  const legendItems = (["concluído", "em andamento", "planejado"] as const).map(key => ({
+    key, label: STATUS[key].label, ...STATUS[key].tw,
+  }));
 
   return (
     <div className="flex flex-col gap-3 h-[calc(100vh-48px)] lg:h-[calc(100vh-64px)] max-w-6xl mx-auto">
@@ -1132,13 +1125,13 @@ export default function CalendarPage() {
           {/* Month nav — only in month view */}
           {view === "month" && (
             <div className="flex items-center gap-1 ml-2 border-l border-slate-100 pl-4">
-              <button onClick={prevMonth} className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-500 transition-colors">
+              <button onClick={prevMonth} aria-label="Mês anterior" className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-500 transition-colors">
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <span className="text-sm font-bold text-slate-800 min-w-[140px] text-center">
                 {MONTH_NAMES[viewMonth]} {viewYear}
               </span>
-              <button onClick={nextMonth} className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-500 transition-colors">
+              <button onClick={nextMonth} aria-label="Próximo mês" className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-500 transition-colors">
                 <ChevronRight className="w-4 h-4" />
               </button>
               <button
@@ -1161,7 +1154,7 @@ export default function CalendarPage() {
               : `${viewWeekStart.getDate()} ${MONTH_NAMES[viewWeekStart.getMonth()]} – ${weekEnd.getDate()} ${MONTH_NAMES[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`;
             return (
               <div className="flex items-center gap-1 ml-2 border-l border-slate-100 pl-4">
-                <button onClick={prevWeek} className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-500 transition-colors">
+                <button onClick={prevWeek} aria-label="Semana anterior" className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-500 transition-colors">
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <div className="flex items-center gap-2 min-w-[200px] justify-center">
@@ -1170,7 +1163,7 @@ export default function CalendarPage() {
                     Sem. {isoWeekNumber(viewWeekStart)}
                   </span>
                 </div>
-                <button onClick={nextWeek} className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-500 transition-colors">
+                <button onClick={nextWeek} aria-label="Próxima semana" className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-500 transition-colors">
                   <ChevronRight className="w-4 h-4" />
                 </button>
                 <button

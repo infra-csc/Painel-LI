@@ -1,6 +1,13 @@
 import { useState, useMemo } from "react";
-import { createPortal } from "react-dom";
-import { fixEncoding, parseBrNumber } from "@/lib/utils";
+import { fixEncoding } from "@/lib/utils";
+import {
+  buildTicketPayload,
+  getMissingRequiredFields,
+  isFieldRequired,
+  validateTicketChronology,
+  hasUnsavedTicketInput,
+  todayIso,
+} from "@/lib/ticket-form";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plane, Bus, Truck, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit, CheckCircle, Clock, Ticket as TicketIcon, CreditCard, Paperclip, NotebookPen, ClipboardCheck, History, AlertCircle, ArrowLeftRight, ArrowRight, CheckCheck, XCircle } from "lucide-react";
 import EventCombobox from "@/components/ui/event-combobox";
@@ -13,7 +20,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -30,10 +42,22 @@ export default function Tickets() {
     functionId: [] as string[], 
     collaboratorId: "all",
     searchId: "",
-    ticketStatus: "all", // all, pending, processed
+    ticketStatus: "all", // all, pending, processed, no_arrival (compradas sem horário de chegada)
     inclusionStatus: "active", // all, active (excludes cancelado)
+    transportType: "all", // all, aereo, rodoviario, van
   });
   const [showOnlyPendingSwaps, setShowOnlyPendingSwaps] = useState(false);
+  // Erros inline por formulário ("quick" ou inclusionId) → campo → mensagem.
+  const [fieldErrors, setFieldErrors] = useState<Record<string, Record<string, string>>>({});
+  // Avisos cronológicos não bloqueantes aguardando "continuar mesmo assim".
+  const [pendingWarnings, setPendingWarnings] = useState<{ warnings: string[]; onConfirm: () => void } | null>(null);
+  // Prévia/confirmação do lote e resumo pós-execução.
+  const [showBatchConfirm, setShowBatchConfirm] = useState(false);
+  const [batchResult, setBatchResult] = useState<{ created: number; updated: number; failures: string[] } | null>(null);
+  // "Descartar alterações?" ao fechar o modal com dados digitados.
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  // Snapshot (JSON) do formulário ao entrar em edição — para saber se mudou algo.
+  const [editSnapshot, setEditSnapshot] = useState<string | null>(null);
   
   const [sortConfig, setSortConfig] = useState<SortConfig | null>({ field: 'id', direction: 'desc' });
   const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
@@ -331,14 +355,6 @@ export default function Tickets() {
   const isOneWayTicket = (t: Ticket) =>
     !t.actualReturnDate && !t.actualReturnTime && !t.returnCityOrigin && !t.returnCityDestination;
 
-  // Valor monetário em centavos. Aceita "1.500,00" e "1500.00"; vazio vira null.
-  // Antes usava parseFloat direto e produzia NaN quando o campo era opcional
-  // (rodoviário/van) e valor errado em milhares com ponto.
-  const toCents = (raw: any): number | null => {
-    if (raw === undefined || raw === null || String(raw).trim() === '') return null;
-    return Math.round(parseBrNumber(raw) * 100);
-  };
-
   const toTitleCase = (str: string) => {
     if (!str) return str;
     const lower = str.toLowerCase();
@@ -545,10 +561,16 @@ export default function Tickets() {
   const filteredTicketInclusions = useMemo(() => {
     const filtered = deduplicatedInclusions.filter(inclusion => {
       if (showOnlyPendingSwaps && !pendingSwapByInclusion.has(inclusion.id)) return false;
+      const t = ticketByInclusion.get(inclusion.id);
       if (filters.ticketStatus !== "all") {
-        const hasTicket = ticketByInclusion.has(inclusion.id);
+        const hasTicket = !!t;
         if (filters.ticketStatus === "pending" && hasTicket) return false;
         if (filters.ticketStatus === "processed" && !hasTicket) return false;
+        // Qualidade: compradas (aéreo/rodoviário) sem horário de chegada.
+        if (filters.ticketStatus === "no_arrival" && !(t && t.transportType !== 'van' && !t.actualArrivalTime)) return false;
+      }
+      if (filters.transportType !== "all") {
+        if (!t || (t.transportType || 'aereo') !== filters.transportType) return false;
       }
       return true;
     });
@@ -588,7 +610,7 @@ export default function Tickets() {
     }
     
     return filtered;
-  }, [deduplicatedInclusions, filters.ticketStatus, showOnlyPendingSwaps, pendingSwapByInclusion, ticketByInclusion, sortConfig, eventById, functionById, collaboratorById]);
+  }, [deduplicatedInclusions, filters.ticketStatus, filters.transportType, showOnlyPendingSwaps, pendingSwapByInclusion, ticketByInclusion, sortConfig, eventById, functionById, collaboratorById]);
 
   // Banner: trocas pendentes que aparecem de fato na tabela de Passagem.
   // Derivado da MESMA lista renderizada — com o filtro ligado, todas as linhas
@@ -624,6 +646,111 @@ export default function Tickets() {
         [field]: value
       }
     }));
+    // Corrigiu o campo → some o erro inline dele.
+    setFieldErrors(prev => {
+      if (!prev[inclusionId]?.[field]) return prev;
+      const { [field]: _removed, ...rest } = prev[inclusionId];
+      return { ...prev, [inclusionId]: rest };
+    });
+  };
+
+  // ── Validação compartilhada (modal e lote) ─────────────────────────────
+  // Devolve true quando pode prosseguir. Erros bloqueantes ficam inline (por
+  // campo) + toast; avisos abrem o AlertDialog "continuar mesmo assim" e o
+  // fluxo é retomado por `proceed`.
+  const validateTicketForm = (
+    scope: string,
+    form: Record<string, any>,
+    ctx: { scheduleStartDate?: string | null; scheduleEndDate?: string | null },
+    proceed: () => void,
+  ): void => {
+    const missing = getMissingRequiredFields(form || {});
+    const chrono = validateTicketChronology(form || {}, ctx);
+    const errors: Record<string, string> = { ...chrono.errors };
+    for (const m of missing) errors[m.field] = `${m.label} é obrigatório`;
+    setFieldErrors(prev => ({ ...prev, [scope]: errors }));
+
+    if (missing.length > 0) {
+      toast({
+        title: "Campos obrigatórios",
+        description: `Preencha: ${missing.map(f => f.label).join(', ')}`,
+        variant: "destructive",
+      });
+      return;
+    }
+    const chronoMsgs = Object.values(chrono.errors);
+    if (chronoMsgs.length > 0) {
+      toast({ title: "Datas inconsistentes", description: chronoMsgs.join(' '), variant: "destructive" });
+      return;
+    }
+    if (chrono.warnings.length > 0) {
+      setPendingWarnings({ warnings: chrono.warnings, onConfirm: proceed });
+      return;
+    }
+    proceed();
+  };
+
+  const errCls = (scope: string, field: string) =>
+    fieldErrors[scope]?.[field] ? " border-red-400 focus-visible:ring-red-300 bg-red-50/40" : "";
+  // Funções (não componentes) para não remontar a cada tecla digitada.
+  const fieldErrorMsg = (scope: string, field: string) => {
+    const msg = fieldErrors[scope]?.[field];
+    if (!msg) return null;
+    return <p className="text-[10px] text-red-500 mt-1 leading-snug" role="alert">{msg}</p>;
+  };
+  // Asterisco derivado da MESMA função que valida.
+  const req = (type: any, oneWay: boolean, field: string) =>
+    isFieldRequired(type, oneWay, field) ? <span className="text-red-400"> *</span> : null;
+  const arrivalHint = () => (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-blue-100 text-blue-600 text-[9px] font-bold cursor-help ml-1 normal-case" aria-label="Por que é obrigatório?">?</span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[260px] text-[11px] leading-snug">
+        Horário em que o colaborador chega ao destino. Define alimentação (almoço até 11h, jantar até 19h) e mobilidade (madrugada 20h–5h) no Planejado.
+      </TooltipContent>
+    </Tooltip>
+  );
+
+  // Status resultante ao registrar a passagem: segue a regra existente —
+  // hospedagem já comprada + passagem → hospedagem_passagem_comprada.
+  const statusAfterTicket = (inclusion: TeamInclusion) => {
+    const accommodation = accommodationByInclusion.get(inclusion.id);
+    const accommodationPurchased = accommodation && accommodation.hotelName;
+    if (inclusion.needsAccommodation && accommodationPurchased) {
+      return { status: "hospedagem_passagem_comprada", phase: "hospedagem" };
+    }
+    return { status: "passagem_comprada", phase: "passagem" };
+  };
+
+  // Idempotente: se já existe passagem para a inclusão (falha parcial anterior,
+  // refetch atrasado, duas abas), atualiza em vez de duplicar. Sempre aplica o
+  // status. Consulta a lista fresca do servidor antes de decidir.
+  const upsertTicketForInclusion = async (inclusion: TeamInclusion, form: Record<string, any>) => {
+    let existing = getTicket(inclusion.id);
+    if (!existing) {
+      try {
+        const fresh = await queryClient.fetchQuery<Ticket[]>({ queryKey: ["/api/tickets"], staleTime: 0 });
+        existing = fresh?.find(t => t.teamInclusionId === inclusion.id);
+      } catch { /* sem rede: segue com o cache */ }
+    }
+    let mode: 'created' | 'updated';
+    if (existing) {
+      await updateTicketMutation.mutateAsync({ id: existing.id, data: buildTicketPayload(form) });
+      mode = 'updated';
+    } else {
+      await createTicketMutation.mutateAsync(buildTicketPayload(form, { teamInclusionId: inclusion.id }));
+      mode = 'created';
+    }
+    // Status: ao criar, aplica sempre (regra existente). Ao atualizar uma
+    // passagem já existente, só corrige quando o status ainda não reflete a
+    // compra (falha parcial anterior) — sem regredir aprovadas/canceladas.
+    const target = statusAfterTicket(inclusion);
+    const frozen = ['aprovado', 'cancelado', 'hospedagem_passagem_comprada'];
+    if (mode === 'created' || (!frozen.includes(inclusion.status) && inclusion.status !== target.status)) {
+      await updateTeamInclusionMutation.mutateAsync({ id: inclusion.id, data: target });
+    }
+    return mode;
   };
 
   const handleViewTicketDetails = (inclusion: TeamInclusion) => {
@@ -641,6 +768,44 @@ export default function Tickets() {
         }
       }));
     }
+  };
+
+  // Chaves preenchidas automaticamente ao abrir o modal — não contam como
+  // "alteração" para o "Descartar alterações?".
+  const AUTO_FILLED_KEYS = ['transportType', 'departureCityDestination', 'returnCityOrigin', 'purchaseDate'];
+
+  // Fecha de fato, jogando fora o que estava digitado.
+  const closeModalDiscarding = () => {
+    setShowDiscardConfirm(false);
+    setShowModal(false);
+    setEditingTicketId(null);
+    if (selectedInclusion) {
+      setTicketData(prev => { const d = { ...prev }; delete d[selectedInclusion.id]; return d; });
+      setFieldErrors(prev => { const d = { ...prev }; delete d[selectedInclusion.id]; return d; });
+    }
+  };
+
+  const closeSuccessModal = () => {
+    setShowSuccessModal(false);
+    setSuccessInfo(null);
+    setEditingTicketId(null);
+    if (selectedInclusion) {
+      setTicketData(prev => { const d = { ...prev }; delete d[selectedInclusion.id]; return d; });
+      setFieldErrors(prev => { const d = { ...prev }; delete d[selectedInclusion.id]; return d; });
+    }
+  };
+
+  // Rascunho não existe: ao fechar com dados não salvos, pergunta antes.
+  const requestCloseModal = () => {
+    if (!selectedInclusion) { setShowModal(false); return; }
+    const ticket = getTicket(selectedInclusion.id);
+    const isFormMode = !ticket || editingTicketId === selectedInclusion.id;
+    // Em edição o formulário nasce cheio: "sujo" é diferir do snapshot inicial.
+    const dirty = editingTicketId === selectedInclusion.id
+      ? JSON.stringify(ticketData[selectedInclusion.id] ?? {}) !== editSnapshot
+      : isFormMode && hasUnsavedTicketInput(ticketData[selectedInclusion.id], AUTO_FILLED_KEYS);
+    if (dirty) { setShowDiscardConfirm(true); return; }
+    closeModalDiscarding();
   };
 
   // Toggle seleção de ticket
@@ -677,142 +842,53 @@ export default function Tickets() {
     }));
   };
 
-  // Aplicar dados do registro rápido às passagens selecionadas
-  const handleApplyToSelected = async () => {
+  // Aplicar dados do registro rápido às passagens selecionadas.
+  // Etapa 1 (botão): valida e abre a prévia de confirmação.
+  // Etapa 2 (confirmar): executa o lote e mostra o resumo.
+  const handleApplyToSelected = () => {
     const quickData = ticketData["quick"];
     if (!quickData || effectiveSelectedTickets.length === 0 || createTicketMutation.isPending) return;
+    // No lote não há um único período de trabalho — usamos o do evento
+    // filtrado, quando houver, para os avisos de "ida depois do início".
+    const ev = filters.eventId !== 'all' ? eventById.get(filters.eventId) : undefined;
+    validateTicketForm(
+      "quick",
+      quickData,
+      { scheduleStartDate: ev?.startDate ?? null, scheduleEndDate: ev?.endDate ?? null },
+      () => setShowBatchConfirm(true),
+    );
+  };
 
-    const isVanQuick = quickData.transportType === 'van';
+  const runBatchApply = async () => {
+    const quickData = ticketData["quick"];
+    setShowBatchConfirm(false);
+    if (!quickData || effectiveSelectedTickets.length === 0) return;
 
-    // Validar campos obrigatórios
-    const baseRequiredFields = isVanQuick
-      ? [{ field: 'purchaseOrderNumber', label: 'Nome da Empresa' }]
-      : [
-          { field: 'departureAirport', label: quickData.transportType === 'rodoviario' ? 'Rodoviária Ida' : 'Aeroporto Ida' },
-          { field: 'destinationAirport', label: quickData.transportType === 'rodoviario' ? 'Rodoviária Volta' : 'Aeroporto Volta' },
-          { field: 'purchaseOrderNumber', label: 'LOC' },
-          { field: 'actualDepartureDate', label: 'Data de Ida' },
-          { field: 'actualDepartureTime', label: 'Horário de Ida' }
-        ];
-    
-    // Adicionar campos de volta apenas se não for "apenas ida" e não for van
-    const requiredFields = (!isVanQuick && !quickData.isOneWay) ? [
-      ...baseRequiredFields,
-      { field: 'actualReturnDate', label: 'Data de Volta' },
-      { field: 'actualReturnTime', label: 'Horário de Volta' }
-    ] : baseRequiredFields;
-    
-    const missingFields = requiredFields.filter(({ field }) => {
-      let value = quickData[field];
-      return !value || value === '';
-    });
-    
-    if (missingFields.length > 0) {
-      toast({
-        title: "Erro",
-        description: `Preencha os campos obrigatórios: ${missingFields.map(f => f.label).join(', ')}`,
-        variant: "destructive",
-      });
-      return;
+    let created = 0;
+    let updated = 0;
+    const failures: string[] = [];
+    const processedIds: string[] = [];
+
+    for (const inclusionId of effectiveSelectedTickets) {
+      const inclusion = filteredTicketInclusions.find(inc => inc.id === inclusionId);
+      if (!inclusion) continue;
+      try {
+        // Idempotente: passagem já existente (falha parcial anterior) é
+        // atualizada e recebe o status, em vez de virar duplicata.
+        const mode = await upsertTicketForInclusion(inclusion, quickData);
+        if (mode === 'created') created++; else updated++;
+        processedIds.push(inclusion.id);
+      } catch (error: any) {
+        failures.push(`#${inclusion.inclusionNumber ?? '?'} · ${getCollaboratorName(inclusion.collaboratorId || undefined)}: ${error?.body?.message || 'falha ao registrar'}`);
+      }
     }
 
-    try {
-      let successCount = 0;
-      const errors: string[] = [];
-      const processedIds: string[] = [];
-
-      for (const inclusionId of effectiveSelectedTickets) {
-        const inclusion = filteredTicketInclusions.find(inc => inc.id === inclusionId);
-        if (!inclusion) continue;
-
-        // Verificar se não tem ticket já
-        if (getTicket(inclusion.id)) {
-          errors.push(`Passagem #${inclusion.inclusionNumber} já foi comprada`);
-          continue;
-        }
-
-        try {
-          // Criar ticket com os dados comuns completos
-          await createTicketMutation.mutateAsync({
-            teamInclusionId: inclusion.id,
-            transportType: quickData.transportType || "aereo",
-            value: isVanQuick ? null : toCents(quickData.value),
-            purchaseDate: quickData.purchaseDate || new Date().toISOString().split('T')[0],
-            actualDepartureDate: isVanQuick ? null : (quickData.actualDepartureDate || null),
-            actualDepartureTime: isVanQuick ? null : quickData.actualDepartureTime,
-            actualArrivalTime: isVanQuick ? null : (quickData.actualArrivalTime || null),
-            actualReturnDate: isVanQuick ? null : (quickData.isOneWay ? null : quickData.actualReturnDate),
-            actualReturnTime: isVanQuick ? null : (quickData.isOneWay ? null : quickData.actualReturnTime),
-            departureCityOrigin: isVanQuick ? null : (quickData.departureCityOrigin || null),
-            departureCityDestination: isVanQuick ? null : (quickData.departureCityDestination || null),
-            returnCityOrigin: isVanQuick ? null : (quickData.isOneWay ? null : quickData.returnCityOrigin || null),
-            returnCityDestination: isVanQuick ? null : (quickData.isOneWay ? null : quickData.returnCityDestination || null),
-            departureAirport: isVanQuick ? null : quickData.departureAirport,
-            destinationAirport: isVanQuick ? null : quickData.destinationAirport,
-            purchaseOrderNumber: quickData.purchaseOrderNumber || null,
-            fileUrl: quickData.fileUrl || null,
-            attachmentIds: quickData.attachmentIds && quickData.attachmentIds.length > 0 ? quickData.attachmentIds : null,
-            cardLastFourDigits: isVanQuick ? null : (quickData.cardLastFourDigits || null),
-            ticketObservations: quickData.ticketObservations || null
-          });
-
-          // Atualizar team inclusion status - passagem agora é independente de hospedagem
-          const needsAccommodation = inclusion.needsAccommodation;
-          const accommodation = accommodationByInclusion.get(inclusion.id);
-          const accommodationPurchased = accommodation && accommodation.hotelName;
-          
-          let newStatus = "passagem_comprada";
-          let newPhase = "passagem";
-          
-          // Se precisa hospedagem E hospedagem já foi comprada, marcar como ambos comprados
-          if (needsAccommodation && accommodationPurchased) {
-            newStatus = "hospedagem_passagem_comprada";
-            newPhase = "hospedagem";
-          }
-          // Senão, apenas marcar passagem como comprada (independente se precisa ou não de hospedagem)
-          
-          await updateTeamInclusionMutation.mutateAsync({
-            id: inclusion.id,
-            data: {
-              status: newStatus,
-              phase: newPhase
-            }
-          });
-
-          successCount++;
-          processedIds.push(inclusion.id);
-        } catch (error: any) {
-          errors.push(`#${inclusion.inclusionNumber}: ${error?.body?.message || 'falha ao registrar'}`);
-        }
-      }
-
-      if (successCount > 0) {
-        toast({
-          title: "Sucesso",
-          description: `${successCount} passagem(ns) registrada(s) com os mesmos dados e anexos!`,
-        });
-      }
-
-      if (errors.length > 0) {
-        toast({
-          title: "Alguns erros ocorreram",
-          description: errors.join(" · "),
-          variant: "destructive",
-        });
-      }
-
-      // Tira da fila só o que realmente foi registrado — limpar tudo apagava a
-      // seleção do usuário mesmo quando nenhuma passagem tinha sido criada.
-      if (processedIds.length > 0) {
-        setSelectedTickets(prev => prev.filter(id => !processedIds.includes(id)));
-      }
-    } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao aplicar dados às passagens selecionadas",
-        variant: "destructive",
-      });
+    // Tira da fila só o que realmente foi registrado — limpar tudo apagava a
+    // seleção do usuário mesmo quando nenhuma passagem tinha sido criada.
+    if (processedIds.length > 0) {
+      setSelectedTickets(prev => prev.filter(id => !processedIds.includes(id)));
     }
+    setBatchResult({ created, updated, failures });
   };
 
   // Check if user can access this screen
@@ -886,13 +962,16 @@ export default function Tickets() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             {[
               { label: "Total Geral",  value: filteredTicketInclusions.length, stripe: "bg-slate-700",   iconBg: "bg-slate-100",  iconTx: "text-slate-600",  valTx: "#374151",  Icon: TicketIcon },
               { label: "Compradas",    value: filteredTicketInclusions.filter(inc => getTicket(inc.id)).length,  stripe: "bg-emerald-500", iconBg: "bg-emerald-50", iconTx: "text-emerald-600", valTx: "#059669", Icon: CheckCircle },
               // Inclusão cancelada não é "aguardando": contá-la inflava a fila de
               // trabalho quando o filtro mostrava canceladas.
               { label: "Aguardando",   value: filteredTicketInclusions.filter(inc => !getTicket(inc.id) && inc.status !== 'cancelado').length, stripe: "bg-amber-400",   iconBg: "bg-amber-50",   iconTx: "text-amber-500",  valTx: "#D97706",  Icon: Clock },
+              // Qualidade: comprada mas sem horário de chegada → o Planejado não
+              // consegue calcular alimentação/mobilidade dessa passagem.
+              { label: "Sem chegada",  value: filteredTicketInclusions.filter(inc => { const t = getTicket(inc.id); return !!t && t.transportType !== 'van' && !t.actualArrivalTime; }).length, stripe: "bg-rose-400", iconBg: "bg-rose-50", iconTx: "text-rose-500", valTx: "#E11D48", Icon: AlertCircle },
             ].map(card => (
               <div key={card.label} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className={`h-0.5 w-full ${card.stripe}`} />
@@ -1035,7 +1114,7 @@ export default function Tickets() {
                   !!(q?.transportType), !!(q?.value), !!(q?.purchaseOrderNumber),
                   !!(q?.departureCityOrigin), !!(q?.departureCityDestination),
                   !!(q?.departureAirport), !!(q?.destinationAirport),
-                  !!(q?.actualDepartureDate), !!(q?.actualDepartureTime),
+                  !!(q?.actualDepartureDate), !!(q?.actualDepartureTime), !!(q?.actualArrivalTime),
                   ...(isOneWay ? [] : [
                     !!(q?.returnCityOrigin), !!(q?.returnCityDestination),
                     !!(q?.returnOriginAirport), !!(q?.returnDestinationAirport),
@@ -1078,14 +1157,15 @@ export default function Tickets() {
                         </div>
                         <div className="p-3 bg-white space-y-3">
                           <div className="space-y-1.5">
-                            <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Nome da Empresa *</Label>
+                            <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Nome da Empresa{req('van', true, 'purchaseOrderNumber')}</Label>
                             <Input
                               placeholder="Ex: Transluz Transportes"
                               value={ticketData["quick"]?.purchaseOrderNumber || ""}
                               onChange={(e) => handleTicketDataChange("quick", "purchaseOrderNumber", e.target.value)}
-                              className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
+                              className={`h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs${errCls('quick', 'purchaseOrderNumber')}`}
                               data-testid="input-quick-van-company"
                             />
+                            {fieldErrorMsg('quick', 'purchaseOrderNumber')}
                           </div>
                           <div className="space-y-1.5">
                             <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Observação</Label>
@@ -1104,7 +1184,19 @@ export default function Tickets() {
                   )}
 
                   {/* Card: Dados Financeiros */}
-                  {ticketData["quick"]?.transportType !== 'van' && (<>
+                  {ticketData["quick"]?.transportType !== 'van' && (() => {
+                    const q = ticketData["quick"] || {};
+                    const qType = q.transportType || 'aereo';
+                    const qOneWay = !!q.isOneWay;
+                    const isRodo = qType === "rodoviario";
+                    const L = "text-[11px] font-semibold text-slate-500 uppercase tracking-tight";
+                    const L2 = "text-[11px] font-semibold text-slate-400 uppercase tracking-tight";
+                    const I = "h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs";
+                    const IATA = "h-[34px] bg-slate-50 border-slate-200 rounded-lg text-[10px] font-bold uppercase text-center";
+                    const R = (field: string) => req(qType, qOneWay, field);
+                    const E = (field: string) => errCls("quick", field);
+                    const M = (field: string) => fieldErrorMsg("quick", field);
+                    return (<>
                   <section className="rounded-xl overflow-hidden border border-slate-200">
                     <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
                       <div className="w-5 h-5 rounded-md bg-[#0033CC] flex items-center justify-center shrink-0">
@@ -1112,423 +1204,307 @@ export default function Tickets() {
                       </div>
                       <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Dados Financeiros</h4>
                     </div>
-                    <div className="p-3 bg-white grid grid-cols-2 gap-x-3 gap-y-2">
+                    <div className="p-3 bg-white grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-2">
                       <div className="space-y-1.5">
-                        <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">
-                          {ticketData["quick"]?.transportType === "rodoviario" ? "Número do Bilhete *" : ticketData["quick"]?.transportType === "van" ? "Número da Van *" : "LOC / Reserva *"}
+                        <Label className={L}>
+                          {isRodo ? "Bilhete" : "LOC"}{R('purchaseOrderNumber')}
                         </Label>
-                        <Input placeholder={ticketData["quick"]?.transportType === "rodoviario" ? "Ex: 012345678" : ticketData["quick"]?.transportType === "van" ? "Ex: VAN-001" : "Ex: AX782Q"}
-                          value={ticketData["quick"]?.purchaseOrderNumber || ""}
+                        <Input placeholder={isRodo ? "Ex: 012345678" : "Ex: AX782Q"}
+                          value={q.purchaseOrderNumber || ""}
                           onChange={(e) => handleTicketDataChange("quick", "purchaseOrderNumber", e.target.value)}
-                          className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs font-mono"
+                          className={`${I} font-mono${E('purchaseOrderNumber')}`}
                           data-testid="input-quick-purchase-order"
                         />
+                        {M('purchaseOrderNumber')}
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Data da Compra</Label>
+                        <Label className={L}>Data da Compra</Label>
                         <Input type="date"
-                          value={ticketData["quick"]?.purchaseDate || new Date().toISOString().split('T')[0]}
+                          value={q.purchaseDate || todayIso()}
+                          max={todayIso()}
                           onChange={(e) => handleTicketDataChange("quick", "purchaseDate", e.target.value)}
-                          className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
+                          className={`${I}${E('purchaseDate')}`}
                           data-testid="input-quick-purchase-date"
                         />
+                        {M('purchaseDate')}
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="quick-ticket-value" className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Valor da Passagem</Label>
+                        <Label htmlFor="quick-ticket-value" className={L}>Valor da Passagem{R('value')}</Label>
                         {/* Guarda o texto como digitado; a conversão para centavos
                             usa parseBrNumber (antes o replace de "," por "." quebrava
                             "1.500,00", que virava R$ 1,50). */}
                         <Input placeholder="0,00" type="text" inputMode="decimal"
                           id="quick-ticket-value"
-                          value={ticketData["quick"]?.value || ""}
+                          value={q.value || ""}
                           onChange={(e) => handleTicketDataChange("quick", "value", e.target.value)}
-                          className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
+                          className={`${I}${E('value')}`}
                           data-testid="input-quick-ticket-value"
                         />
+                        {M('value')}
                       </div>
                     </div>
                   </section>
 
                   {/* Cards de voo: Ida | Volta */}
-                  <div className="grid grid-cols-2 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
                     {/* Trecho de Ida / Embarque */}
-                    {(() => {
-                      const qType = ticketData["quick"]?.transportType;
-                      const isRodo = qType === "rodoviario";
-                      const isVan = qType === "van";
-                      const isGround = isRodo || isVan;
-                      return (
-                        <section className="rounded-xl overflow-hidden border border-slate-200">
-                          <div className="flex items-center gap-2 px-3 py-2.5 bg-[#EEF2FF] border-b border-blue-100">
-                            <div className="w-5 h-5 rounded-md bg-[#0033CC] flex items-center justify-center shrink-0">
-                              {isVan ? <Truck className="w-3 h-3 text-white" /> : isRodo ? <Bus className="w-3 h-3 text-white" /> : <Plane className="w-3 h-3 text-white" />}
+                    <section className="rounded-xl overflow-hidden border border-slate-200">
+                      <div className="flex items-center gap-2 px-3 py-2.5 bg-[#EEF2FF] border-b border-blue-100">
+                        <div className="w-5 h-5 rounded-md bg-[#0033CC] flex items-center justify-center shrink-0">
+                          {isRodo ? <Bus className="w-3 h-3 text-white" /> : <Plane className="w-3 h-3 text-white" />}
+                        </div>
+                        <h4 className="text-[11px] font-black uppercase tracking-widest text-[#0033CC]">
+                          {isRodo ? "Embarque" : "Trecho de Ida"}
+                        </h4>
+                      </div>
+                      <div className="p-3 bg-white space-y-2">
+                        {isRodo ? (
+                          <>
+                            <div className="space-y-1.5">
+                              <Label className={L2}>Cidade de Origem{R('departureCityOrigin')}</Label>
+                              <Input placeholder="Ex: São Paulo"
+                                value={q.departureCityOrigin || ""}
+                                onChange={(e) => handleTicketDataChange("quick", "departureCityOrigin", e.target.value)}
+                                className={I}
+                                data-testid="input-quick-departure-city-origin"
+                              />
                             </div>
-                            <h4 className="text-[11px] font-black uppercase tracking-widest text-[#0033CC]">
-                              {isVan ? "Trajeto da Van" : isRodo ? "Embarque" : "Trecho de Ida"}
-                            </h4>
+                            <div className="space-y-1.5">
+                              <Label className={L2}>Rodoviária Origem{R('departureAirport')}</Label>
+                              <Input placeholder="Ex: Rodoviária do Tietê"
+                                value={q.departureAirport || ""}
+                                onChange={(e) => handleTicketDataChange("quick", "departureAirport", e.target.value)}
+                                className={`${I}${E('departureAirport')}`}
+                                data-testid="input-quick-departure-airport"
+                              />
+                              {M('departureAirport')}
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className={L2}>Cidade de Destino{R('departureCityDestination')}</Label>
+                              <Input placeholder="Ex: Rio de Janeiro"
+                                value={q.departureCityDestination || ""}
+                                onChange={(e) => handleTicketDataChange("quick", "departureCityDestination", e.target.value)}
+                                className={I}
+                                data-testid="input-quick-departure-city-destination"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className={L2}>Rodoviária Destino{R('destinationAirport')}</Label>
+                              <Input placeholder="Ex: Rodoviária Novo Rio"
+                                value={q.destinationAirport || ""}
+                                onChange={(e) => handleTicketDataChange("quick", "destinationAirport", e.target.value)}
+                                className={`${I}${E('destinationAirport')}`}
+                                data-testid="input-quick-destination-airport"
+                              />
+                              {M('destinationAirport')}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            {/* Aéreo: Cidade + IATA na mesma linha */}
+                            <div className="space-y-1.5">
+                              <Label className={L2}>Cidade Origem / Aeroporto Origem{R('departureAirport')}</Label>
+                              <div className="flex gap-2">
+                                <Input placeholder="Ex: São Paulo"
+                                  value={q.departureCityOrigin || ""}
+                                  onChange={(e) => handleTicketDataChange("quick", "departureCityOrigin", e.target.value)}
+                                  className={`${I} flex-1`}
+                                  data-testid="input-quick-departure-city-origin"
+                                />
+                                <Input placeholder="GRU"
+                                  value={q.departureAirport || ""}
+                                  onChange={(e) => handleTicketDataChange("quick", "departureAirport", e.target.value)}
+                                  className={`${IATA}${E('departureAirport')}`}
+                                  style={{width:56,fontSize:10,fontWeight:700}}
+                                  data-testid="input-quick-departure-airport"
+                                />
+                              </div>
+                              {M('departureAirport')}
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className={L2}>Cidade Destino / Aeroporto Destino{R('destinationAirport')}</Label>
+                              <div className="flex gap-2">
+                                <Input placeholder="Ex: Manaus"
+                                  value={q.departureCityDestination || ""}
+                                  onChange={(e) => handleTicketDataChange("quick", "departureCityDestination", e.target.value)}
+                                  className={`${I} flex-1`}
+                                  data-testid="input-quick-departure-city-destination"
+                                />
+                                <Input placeholder="MAO"
+                                  value={q.destinationAirport || ""}
+                                  onChange={(e) => handleTicketDataChange("quick", "destinationAirport", e.target.value)}
+                                  className={`${IATA}${E('destinationAirport')}`}
+                                  style={{width:56,fontSize:10,fontWeight:700}}
+                                  data-testid="input-quick-destination-airport"
+                                />
+                              </div>
+                              {M('destinationAirport')}
+                            </div>
+                          </>
+                        )}
+                        {/* Data + Horário + Chegada (comum a aéreo e rodoviário) */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label className={L2}>Data (ida){R('actualDepartureDate')}</Label>
+                            <Input type="date"
+                              value={q.actualDepartureDate || ""}
+                              onChange={(e) => handleTicketDataChange("quick", "actualDepartureDate", e.target.value)}
+                              className={`${I}${E('actualDepartureDate')}`}
+                              data-testid="input-quick-departure-date"
+                            />
+                            {M('actualDepartureDate')}
                           </div>
-                          <div className="p-3 bg-white space-y-2">
-                            {(isRodo || isVan) ? (
-                              <>
-                                {/* Rodoviário/Van: Cidade Origem */}
-                                <div className="space-y-1.5">
-                                  <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Cidade de Origem *</Label>
-                                  <Input placeholder="Ex: São Paulo"
-                                    value={ticketData["quick"]?.departureCityOrigin || ""}
-                                    onChange={(e) => handleTicketDataChange("quick", "departureCityOrigin", e.target.value)}
-                                    className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                                    data-testid="input-quick-departure-city-origin"
-                                  />
-                                </div>
-                                {/* Terminal de Origem (usa campo departureAirport) */}
-                                <div className="space-y-1.5">
-                                  <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Terminal / Rodoviária *</Label>
-                                  <Input placeholder="Ex: Rodoviária do Tietê"
-                                    value={ticketData["quick"]?.departureAirport || ""}
-                                    onChange={(e) => handleTicketDataChange("quick", "departureAirport", e.target.value)}
-                                    className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                                    data-testid="input-quick-departure-airport"
-                                  />
-                                </div>
-                                {/* Cidade Destino */}
-                                <div className="space-y-1.5">
-                                  <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">
-                                    Cidade de Destino *
-                                  </Label>
-                                  <Input placeholder="Ex: Rio de Janeiro"
-                                    value={ticketData["quick"]?.departureCityDestination || ""}
-                                    onChange={(e) => handleTicketDataChange("quick", "departureCityDestination", e.target.value)}
-                                    className="h-[34px] border-slate-200 rounded-lg text-xs bg-slate-50"
-                                    data-testid="input-quick-departure-city-destination"
-                                  />
-                                </div>
-                                {/* Terminal de Destino (usa campo destinationAirport) */}
-                                <div className="space-y-1.5">
-                                  <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Terminal / Rodoviária Destino</Label>
-                                  <Input placeholder="Ex: Rodoviária Novo Rio"
-                                    value={ticketData["quick"]?.destinationAirport || ""}
-                                    onChange={(e) => handleTicketDataChange("quick", "destinationAirport", e.target.value)}
-                                    className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                                    data-testid="input-quick-destination-airport"
-                                  />
-                                </div>
-                                {/* Data + Horário */}
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div className="space-y-1.5">
-                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Data *</Label>
-                                    <Input type="date"
-                                      value={ticketData["quick"]?.actualDepartureDate || ""}
-                                      onChange={(e) => handleTicketDataChange("quick", "actualDepartureDate", e.target.value)}
-                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                                      data-testid="input-quick-departure-date"
-                                    />
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Horário *</Label>
-                                    <Input type="time"
-                                      value={ticketData["quick"]?.actualDepartureTime || ""}
-                                      onChange={(e) => handleTicketDataChange("quick", "actualDepartureTime", e.target.value)}
-                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                                      data-testid="input-quick-departure-time"
-                                    />
-                                  </div>
-                                  <div className="space-y-1.5" title="Horário de chegada do voo de ida — usado no cálculo automático de alimentação">
-                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Chegada (ida)</Label>
-                                    <Input type="time"
-                                      value={ticketData["quick"]?.actualArrivalTime || ""}
-                                      onChange={(e) => handleTicketDataChange("quick", "actualArrivalTime", e.target.value)}
-                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                                      data-testid="input-quick-arrival-time"
-                                    />
-                                  </div>
-                                </div>
-                                {/* Poltrona + Classe */}
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div className="space-y-1.5">
-                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Poltrona <span className="text-slate-300 normal-case">(opcional)</span></Label>
-                                    <Input placeholder="Ex: 42A"
-                                      value={ticketData["quick"]?.busPoltrona || ""}
-                                      onChange={(e) => handleTicketDataChange("quick", "busPoltrona", e.target.value)}
-                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                                    />
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Classe</Label>
-                                    <Select
-                                      value={ticketData["quick"]?.busClasse || "convencional"}
-                                      onValueChange={(v) => handleTicketDataChange("quick", "busClasse", v)}
-                                    >
-                                      <SelectTrigger className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="convencional">Convencional</SelectItem>
-                                        <SelectItem value="executivo">Executivo</SelectItem>
-                                        <SelectItem value="leito">Leito</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                {/* Aéreo: Cidade + IATA na mesma linha */}
-                                <div className="space-y-1.5">
-                                  <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Origem *</Label>
-                                  <div className="flex gap-2">
-                                    <Input placeholder="Ex: São Paulo"
-                                      value={ticketData["quick"]?.departureCityOrigin || ""}
-                                      onChange={(e) => handleTicketDataChange("quick", "departureCityOrigin", e.target.value)}
-                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs flex-1"
-                                      data-testid="input-quick-departure-city-origin"
-                                    />
-                                    <Input placeholder="GRU"
-                                      value={ticketData["quick"]?.departureAirport || ""}
-                                      onChange={(e) => handleTicketDataChange("quick", "departureAirport", e.target.value)}
-                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-[10px] font-bold uppercase text-center"
-                                      style={{width:56,fontSize:10,fontWeight:700}}
-                                      data-testid="input-quick-departure-airport"
-                                    />
-                                  </div>
-                                </div>
-                                <div className="space-y-1.5">
-                                  <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Destino *</Label>
-                                  <div className="flex gap-2">
-                                    <Input placeholder="Ex: Manaus"
-                                      value={ticketData["quick"]?.departureCityDestination || ""}
-                                      onChange={(e) => handleTicketDataChange("quick", "departureCityDestination", e.target.value)}
-                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs flex-1"
-                                      data-testid="input-quick-departure-city-destination"
-                                    />
-                                    <Input placeholder="MAO"
-                                      value={ticketData["quick"]?.destinationAirport || ""}
-                                      onChange={(e) => handleTicketDataChange("quick", "destinationAirport", e.target.value)}
-                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-[10px] font-bold uppercase text-center"
-                                      style={{width:56,fontSize:10,fontWeight:700}}
-                                      data-testid="input-quick-destination-airport"
-                                    />
-                                  </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div className="space-y-1.5">
-                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Data *</Label>
-                                    <Input type="date"
-                                      value={ticketData["quick"]?.actualDepartureDate || ""}
-                                      onChange={(e) => handleTicketDataChange("quick", "actualDepartureDate", e.target.value)}
-                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                                      data-testid="input-quick-departure-date"
-                                    />
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Horário *</Label>
-                                    <Input type="time"
-                                      value={ticketData["quick"]?.actualDepartureTime || ""}
-                                      onChange={(e) => handleTicketDataChange("quick", "actualDepartureTime", e.target.value)}
-                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                                      data-testid="input-quick-departure-time"
-                                    />
-                                  </div>
-                                  <div className="space-y-1.5" title="Horário de chegada do voo de ida — usado no cálculo automático de alimentação">
-                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Chegada (ida)</Label>
-                                    <Input type="time"
-                                      value={ticketData["quick"]?.actualArrivalTime || ""}
-                                      onChange={(e) => handleTicketDataChange("quick", "actualArrivalTime", e.target.value)}
-                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                                      data-testid="input-quick-arrival-time"
-                                    />
-                                  </div>
-                                </div>
-                              </>
-                            )}
+                          <div className="space-y-1.5">
+                            <Label className={L2}>Horário (ida){R('actualDepartureTime')}</Label>
+                            <Input type="time"
+                              value={q.actualDepartureTime || ""}
+                              onChange={(e) => handleTicketDataChange("quick", "actualDepartureTime", e.target.value)}
+                              className={`${I}${E('actualDepartureTime')}`}
+                              data-testid="input-quick-departure-time"
+                            />
+                            {M('actualDepartureTime')}
                           </div>
-                        </section>
-                      );
-                    })()}
+                          <div className="space-y-1.5">
+                            <Label className={`${L2} flex items-center`}>Chegada (ida){R('actualArrivalTime')}{arrivalHint()}</Label>
+                            <Input type="time"
+                              value={q.actualArrivalTime || ""}
+                              onChange={(e) => handleTicketDataChange("quick", "actualArrivalTime", e.target.value)}
+                              className={`${I}${E('actualArrivalTime')}`}
+                              data-testid="input-quick-arrival-time"
+                            />
+                            {M('actualArrivalTime')}
+                            <p className="text-[10px] text-slate-400 leading-snug">Define alimentação e mobilidade no Planejado.</p>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
 
                     {/* Trecho de Volta / Desembarque — com animação */}
                     <div style={{
                       overflow:'hidden',
                       transition:'all 0.3s ease',
-                      opacity: ticketData["quick"]?.isOneWay ? 0 : 1,
-                      maxHeight: ticketData["quick"]?.isOneWay ? '0px' : '800px',
-                      pointerEvents: ticketData["quick"]?.isOneWay ? 'none' : 'auto',
+                      opacity: qOneWay ? 0 : 1,
+                      maxHeight: qOneWay ? '0px' : '800px',
+                      pointerEvents: qOneWay ? 'none' : 'auto',
                     }}>
-                      {(() => {
-                        const qTypeVolta = ticketData["quick"]?.transportType;
-                        const isRodo = qTypeVolta === "rodoviario";
-                        const isVan = qTypeVolta === "van";
-                        return (
-                          <section className="rounded-xl overflow-hidden border border-slate-200">
-                            <div className="flex items-center gap-2 px-3 py-2.5 bg-[#FFF7ED] border-b border-orange-100">
-                              <div className="w-5 h-5 rounded-md bg-[#F97316] flex items-center justify-center shrink-0">
-                                {isVan ? <Truck className="w-3 h-3 text-white" /> : isRodo ? <Bus className="w-3 h-3 text-white" /> : <Plane className="w-3 h-3 text-white rotate-180" />}
+                      <section className="rounded-xl overflow-hidden border border-slate-200">
+                        <div className="flex items-center gap-2 px-3 py-2.5 bg-[#FFF7ED] border-b border-orange-100">
+                          <div className="w-5 h-5 rounded-md bg-[#F97316] flex items-center justify-center shrink-0">
+                            {isRodo ? <Bus className="w-3 h-3 text-white" /> : <Plane className="w-3 h-3 text-white rotate-180" />}
+                          </div>
+                          <h4 className="text-[11px] font-black uppercase tracking-widest text-[#F97316]">
+                            {isRodo ? "Desembarque" : "Trecho de Volta"}
+                          </h4>
+                        </div>
+                        <div className="p-3 bg-white space-y-2">
+                          {isRodo ? (
+                            <>
+                              <div className="space-y-1.5">
+                                <Label className={L2}>Cidade de Origem{R('returnCityOrigin')}</Label>
+                                <Input placeholder="Ex: Rio de Janeiro"
+                                  value={q.returnCityOrigin || ""}
+                                  onChange={(e) => handleTicketDataChange("quick", "returnCityOrigin", e.target.value)}
+                                  className={I}
+                                  data-testid="input-quick-return-city-origin"
+                                />
                               </div>
-                              <h4 className="text-[11px] font-black uppercase tracking-widest text-[#F97316]">
-                                {isVan ? "Volta da Van" : isRodo ? "Desembarque" : "Trecho de Volta"}
-                              </h4>
+                              <div className="space-y-1.5">
+                                <Label className={L2}>Rodoviária Origem (volta){R('returnOriginAirport')}</Label>
+                                <Input placeholder="Ex: Rodoviária Novo Rio"
+                                  value={q.returnOriginAirport || ""}
+                                  onChange={(e) => handleTicketDataChange("quick", "returnOriginAirport", e.target.value)}
+                                  className={I}
+                                  data-testid="input-quick-return-origin-airport"
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className={L2}>Cidade de Destino{R('returnCityDestination')}</Label>
+                                <Input placeholder="Ex: São Paulo"
+                                  value={q.returnCityDestination || ""}
+                                  onChange={(e) => handleTicketDataChange("quick", "returnCityDestination", e.target.value)}
+                                  className={I}
+                                  data-testid="input-quick-return-city-destination"
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className={L2}>Rodoviária Destino (volta){R('returnDestinationAirport')}</Label>
+                                <Input placeholder="Ex: Rodoviária do Tietê"
+                                  value={q.returnDestinationAirport || ""}
+                                  onChange={(e) => handleTicketDataChange("quick", "returnDestinationAirport", e.target.value)}
+                                  className={I}
+                                  data-testid="input-quick-return-destination-airport"
+                                />
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="space-y-1.5">
+                                <Label className={L2}>Cidade Origem / Aeroporto Origem{R('returnOriginAirport')}</Label>
+                                <div className="flex gap-2">
+                                  <Input placeholder="Ex: Manaus"
+                                    value={q.returnCityOrigin || ""}
+                                    onChange={(e) => handleTicketDataChange("quick", "returnCityOrigin", e.target.value)}
+                                    className={`${I} flex-1`}
+                                    data-testid="input-quick-return-city-origin"
+                                  />
+                                  <Input placeholder="MAO"
+                                    value={q.returnOriginAirport || ""}
+                                    onChange={(e) => handleTicketDataChange("quick", "returnOriginAirport", e.target.value)}
+                                    className={IATA}
+                                    style={{width:56,fontSize:10,fontWeight:700}}
+                                    data-testid="input-quick-return-origin-airport"
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className={L2}>Cidade Destino / Aeroporto Destino{R('returnDestinationAirport')}</Label>
+                                <div className="flex gap-2">
+                                  <Input placeholder="Ex: São Paulo"
+                                    value={q.returnCityDestination || ""}
+                                    onChange={(e) => handleTicketDataChange("quick", "returnCityDestination", e.target.value)}
+                                    className={`${I} flex-1`}
+                                    data-testid="input-quick-return-city-destination"
+                                  />
+                                  <Input placeholder="GRU"
+                                    value={q.returnDestinationAirport || ""}
+                                    onChange={(e) => handleTicketDataChange("quick", "returnDestinationAirport", e.target.value)}
+                                    className={IATA}
+                                    style={{width:56,fontSize:10,fontWeight:700}}
+                                    data-testid="input-quick-return-destination-airport"
+                                  />
+                                </div>
+                              </div>
+                            </>
+                          )}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                              <Label className={L2}>Data (volta){R('actualReturnDate')}</Label>
+                              <Input type="date"
+                                value={q.actualReturnDate || ""}
+                                onChange={(e) => handleTicketDataChange("quick", "actualReturnDate", e.target.value)}
+                                className={`${I}${E('actualReturnDate')}`}
+                                data-testid="input-quick-return-date"
+                              />
+                              {M('actualReturnDate')}
                             </div>
-                            <div className="p-3 bg-white space-y-2">
-                              {(isRodo || isVan) ? (
-                                <>
-                                  {/* Rodoviário/Van: Cidade Origem */}
-                                  <div className="space-y-1.5">
-                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">
-                                      Cidade de Origem *
-                                    </Label>
-                                    <Input placeholder="Ex: Rio de Janeiro"
-                                      value={ticketData["quick"]?.returnCityOrigin || ""}
-                                      onChange={(e) => handleTicketDataChange("quick", "returnCityOrigin", e.target.value)}
-                                      className="h-[34px] border-slate-200 rounded-lg text-xs bg-slate-50"
-                                      data-testid="input-quick-return-city-origin"
-                                    />
-                                  </div>
-                                  {/* Terminal de Origem volta (usa returnOriginAirport) */}
-                                  <div className="space-y-1.5">
-                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Terminal / Rodoviária *</Label>
-                                    <Input placeholder="Ex: Rodoviária Novo Rio"
-                                      value={ticketData["quick"]?.returnOriginAirport || ""}
-                                      onChange={(e) => handleTicketDataChange("quick", "returnOriginAirport", e.target.value)}
-                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                                      data-testid="input-quick-return-origin-airport"
-                                    />
-                                  </div>
-                                  {/* Cidade Destino volta */}
-                                  <div className="space-y-1.5">
-                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Cidade de Destino *</Label>
-                                    <Input placeholder="Ex: São Paulo"
-                                      value={ticketData["quick"]?.returnCityDestination || ""}
-                                      onChange={(e) => handleTicketDataChange("quick", "returnCityDestination", e.target.value)}
-                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                                      data-testid="input-quick-return-city-destination"
-                                    />
-                                  </div>
-                                  {/* Terminal de Destino volta (usa returnDestinationAirport) */}
-                                  <div className="space-y-1.5">
-                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Terminal / Rodoviária Destino</Label>
-                                    <Input placeholder="Ex: Rodoviária do Tietê"
-                                      value={ticketData["quick"]?.returnDestinationAirport || ""}
-                                      onChange={(e) => handleTicketDataChange("quick", "returnDestinationAirport", e.target.value)}
-                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                                      data-testid="input-quick-return-destination-airport"
-                                    />
-                                  </div>
-                                  {/* Data + Horário */}
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1.5">
-                                      <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Data *</Label>
-                                      <Input type="date"
-                                        value={ticketData["quick"]?.actualReturnDate || ""}
-                                        onChange={(e) => handleTicketDataChange("quick", "actualReturnDate", e.target.value)}
-                                        className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                                        data-testid="input-quick-return-date"
-                                      />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Horário *</Label>
-                                      <Input type="time"
-                                        value={ticketData["quick"]?.actualReturnTime || ""}
-                                        onChange={(e) => handleTicketDataChange("quick", "actualReturnTime", e.target.value)}
-                                        className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                                        data-testid="input-quick-return-time"
-                                      />
-                                    </div>
-                                  </div>
-                                  {/* Poltrona + Classe volta */}
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1.5">
-                                      <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Poltrona <span className="text-slate-300 normal-case">(opcional)</span></Label>
-                                      <Input placeholder="Ex: 12B"
-                                        value={ticketData["quick"]?.busPoltronaVolta || ""}
-                                        onChange={(e) => handleTicketDataChange("quick", "busPoltronaVolta", e.target.value)}
-                                        className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                                      />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Classe</Label>
-                                      <Select
-                                        value={ticketData["quick"]?.busClasseVolta || "convencional"}
-                                        onValueChange={(v) => handleTicketDataChange("quick", "busClasseVolta", v)}
-                                      >
-                                        <SelectTrigger className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs">
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="convencional">Convencional</SelectItem>
-                                          <SelectItem value="executivo">Executivo</SelectItem>
-                                          <SelectItem value="leito">Leito</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-                                  </div>
-                                </>
-                              ) : (
-                                <>
-                                  <div className="space-y-1.5">
-                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Origem *</Label>
-                                    <div className="flex gap-2">
-                                      <Input placeholder="Ex: Manaus"
-                                        value={ticketData["quick"]?.returnCityOrigin || ""}
-                                        onChange={(e) => handleTicketDataChange("quick", "returnCityOrigin", e.target.value)}
-                                        className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs flex-1"
-                                        data-testid="input-quick-return-city-origin"
-                                      />
-                                      <Input placeholder="MAO"
-                                        value={ticketData["quick"]?.returnOriginAirport || ""}
-                                        onChange={(e) => handleTicketDataChange("quick", "returnOriginAirport", e.target.value)}
-                                        className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-[10px] font-bold uppercase text-center"
-                                        style={{width:56,fontSize:10,fontWeight:700}}
-                                        data-testid="input-quick-return-origin-airport"
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Destino *</Label>
-                                    <div className="flex gap-2">
-                                      <Input placeholder="Ex: São Paulo"
-                                        value={ticketData["quick"]?.returnCityDestination || ""}
-                                        onChange={(e) => handleTicketDataChange("quick", "returnCityDestination", e.target.value)}
-                                        className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs flex-1"
-                                        data-testid="input-quick-return-city-destination"
-                                      />
-                                      <Input placeholder="GRU"
-                                        value={ticketData["quick"]?.returnDestinationAirport || ""}
-                                        onChange={(e) => handleTicketDataChange("quick", "returnDestinationAirport", e.target.value)}
-                                        className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-[10px] font-bold uppercase text-center"
-                                        style={{width:56,fontSize:10,fontWeight:700}}
-                                        data-testid="input-quick-return-destination-airport"
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1.5">
-                                      <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Data *</Label>
-                                      <Input type="date"
-                                        value={ticketData["quick"]?.actualReturnDate || ""}
-                                        onChange={(e) => handleTicketDataChange("quick", "actualReturnDate", e.target.value)}
-                                        className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                                        data-testid="input-quick-return-date"
-                                      />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Horário *</Label>
-                                      <Input type="time"
-                                        value={ticketData["quick"]?.actualReturnTime || ""}
-                                        onChange={(e) => handleTicketDataChange("quick", "actualReturnTime", e.target.value)}
-                                        className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
-                                        data-testid="input-quick-return-time"
-                                      />
-                                    </div>
-                                  </div>
-                                </>
-                              )}
+                            <div className="space-y-1.5">
+                              <Label className={L2}>Horário (volta){R('actualReturnTime')}</Label>
+                              <Input type="time"
+                                value={q.actualReturnTime || ""}
+                                onChange={(e) => handleTicketDataChange("quick", "actualReturnTime", e.target.value)}
+                                className={`${I}${E('actualReturnTime')}`}
+                                data-testid="input-quick-return-time"
+                              />
+                              {M('actualReturnTime')}
                             </div>
-                          </section>
-                        );
-                      })()}
+                          </div>
+                        </div>
+                      </section>
                     </div>
                   </div>
-                  </>)}
+                  </>);
+                  })()}
                 </div>
 
                 {/* Coluna direita (4 cols) */}
@@ -1577,7 +1553,7 @@ export default function Tickets() {
                                         const hasLoc = !!(q?.purchaseOrderNumber);
                     const hasOrigin = !!(q?.departureCityOrigin && q?.departureAirport);
                     const hasDestination = !!(q?.departureCityDestination && q?.destinationAirport);
-                    const hasDates = !!(q?.actualDepartureDate && q?.actualDepartureTime);
+                    const hasDates = !!(q?.actualDepartureDate && q?.actualDepartureTime && q?.actualArrivalTime);
                     const attachCount = q?.attachmentIds?.length || 0;
 
                     // 3-state logic: green=done, yellow=partial, red=empty
@@ -1619,7 +1595,7 @@ export default function Tickets() {
                                 {q?.transportType === "rodoviario" ? "Trecho de embarque" : q?.transportType === "van" ? "Trajeto da van" : "Trecho de ida"}
                               </p>
                               <p className="text-[10px] text-slate-400">
-                                {idaStatus === 'done' ? 'Origem, destino e data OK' : idaStatus === 'partial' ? 'Informações incompletas' : 'Nenhum campo preenchido'}
+                                {idaStatus === 'done' ? 'Origem, destino, data e chegada OK' : idaStatus === 'partial' ? 'Informações incompletas' : 'Nenhum campo preenchido'}
                               </p>
                             </div>
                           </li>
@@ -1663,8 +1639,9 @@ export default function Tickets() {
                   {/* Pill de status */}
                   {(() => {
                     const q = ticketData["quick"];
-                    const ready = effectiveSelectedTickets.length > 0 && !!(q?.value) && !!(q?.purchaseOrderNumber) && !!(q?.departureAirport) && !!(q?.destinationAirport) && !!(q?.actualDepartureDate);
-                    const partial = !ready && (effectiveSelectedTickets.length > 0 || !!(q?.value));
+                    // "Pronto" = mesma régua da validação (getRequiredFields).
+                    const ready = effectiveSelectedTickets.length > 0 && !!q && getMissingRequiredFields(q).length === 0;
+                    const partial = !ready && (effectiveSelectedTickets.length > 0 || hasUnsavedTicketInput(q));
                     if (ready) return (
                       <span className="flex items-center gap-1.5 px-4 py-1.5 bg-green-100 text-green-700 rounded-full text-[11px] font-bold uppercase tracking-wide">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
@@ -1692,7 +1669,10 @@ export default function Tickets() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => { setTicketData(prev => { const d = {...prev}; delete d["quick"]; return d; }); }}
+                        onClick={() => {
+                          setTicketData(prev => { const d = {...prev}; delete d["quick"]; return d; });
+                          setFieldErrors(prev => { const d = {...prev}; delete d["quick"]; return d; });
+                        }}
                         disabled={!ticketData["quick"] || Object.keys(ticketData["quick"]).length === 0}
                         className="h-[34px] rounded-lg border-slate-200 text-[12px] text-slate-500 hover:text-slate-700"
                         data-testid="button-clear-quick"
@@ -1701,7 +1681,7 @@ export default function Tickets() {
                       </Button>
                       <Button
                         onClick={handleApplyToSelected}
-                        disabled={effectiveSelectedTickets.length === 0 || createTicketMutation.isPending}
+                        disabled={effectiveSelectedTickets.length === 0 || createTicketMutation.isPending || updateTicketMutation.isPending}
                         data-testid="button-apply-to-selected"
                         className="h-[34px] px-5 font-bold rounded-lg text-[12px] flex items-center gap-2 transition-all"
                         style={{
@@ -1789,6 +1769,21 @@ export default function Tickets() {
                   <option value="all">Todos os status</option>
                   <option value="pending">Pendentes</option>
                   <option value="processed">Compradas</option>
+                  <option value="no_arrival">Compradas sem horário de chegada</option>
+                </select>
+
+                {/* Tipo de transporte (só faz sentido para compradas) */}
+                <select
+                  value={filters.transportType}
+                  onChange={(e) => setFilters(prev => ({ ...prev, transportType: e.target.value }))}
+                  className="h-8 px-2 pr-7 bg-white border border-gray-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
+                  data-testid="filter-transport-type"
+                  aria-label="Filtrar por tipo de transporte"
+                >
+                  <option value="all">Todos os transportes</option>
+                  <option value="aereo">Aéreo</option>
+                  <option value="rodoviario">Rodoviário</option>
+                  <option value="van">Van</option>
                 </select>
 
                 {/* Status Inclusão */}
@@ -1810,7 +1805,7 @@ export default function Tickets() {
 
                 {/* Limpar */}
                 <button
-                  onClick={() => setFilters({ eventId: "all", functionId: [], collaboratorId: "all", searchId: "", ticketStatus: "all", inclusionStatus: "active" })}
+                  onClick={() => setFilters({ eventId: "all", functionId: [], collaboratorId: "all", searchId: "", ticketStatus: "all", inclusionStatus: "active", transportType: "all" })}
                   className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-slate-500 border border-gray-200 hover:border-red-200 hover:text-red-500 hover:bg-red-50 rounded-lg bg-white transition-colors whitespace-nowrap"
                   data-testid="button-clear-filters"
                 >
@@ -1825,15 +1820,18 @@ export default function Tickets() {
                 <Plane className="w-7 h-7 text-blue-200" />
               </div>
               <h3 className="text-[15px] font-bold text-slate-600 mb-1">
-                {filters.ticketStatus === "pending" ? "Nenhuma passagem pendente" : 
-                 filters.ticketStatus === "processed" ? "Nenhuma passagem comprada" : 
+                {filters.ticketStatus === "pending" ? "Nenhuma passagem pendente" :
+                 filters.ticketStatus === "processed" ? "Nenhuma passagem comprada" :
+                 filters.ticketStatus === "no_arrival" ? "Todas as compradas têm horário de chegada" :
                  "Nenhuma passagem encontrada"}
               </h3>
               <p className="text-[13px] text-slate-400">
-                {filters.ticketStatus === "pending" 
+                {filters.ticketStatus === "pending"
                   ? "Todas as passagens foram compradas ou não há colaboradores escalados."
                   : filters.ticketStatus === "processed"
                   ? "Nenhuma passagem foi comprada ainda."
+                  : filters.ticketStatus === "no_arrival"
+                  ? "Nenhuma passagem comprada está sem o horário de chegada da ida."
                   : "Não há colaboradores escalados que necessitem de passagens."}
               </p>
             </div>
@@ -1870,7 +1868,9 @@ export default function Tickets() {
                     return (
                       <tr
                         key={inclusion.id}
-                        className={`transition-colors group border-b border-slate-100 last:border-0 ${pendingSwapByInclusion.has(inclusion.id) ? 'bg-amber-50/40' : rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}
+                        /* Hover por classe: o style.backgroundColor inline no
+                           mouseleave apagava o âmbar da linha com troca pendente. */
+                        className={`transition-colors group border-b border-slate-100 last:border-0 ${pendingSwapByInclusion.has(inclusion.id) ? 'bg-amber-50/40 hover:bg-amber-50/70' : rowIdx % 2 === 1 ? 'bg-slate-50/50 hover:bg-[#EEF2FF]/40' : 'bg-white hover:bg-[#EEF2FF]/40'}`}
                         style={{
                           opacity: inclusion.status === 'cancelado' ? 0.5 : 1,
                           borderLeft: pendingSwapByInclusion.has(inclusion.id)
@@ -1880,13 +1880,6 @@ export default function Tickets() {
                             : ticket
                             ? '3px solid #22C55E'
                             : '3px solid #F97316'
-                        }}
-                        onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLTableRowElement).style.backgroundColor = '#EEF2FF33';
-                        }}
-                        onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLTableRowElement).style.backgroundColor =
-                            rowIdx % 2 === 1 ? '#F8FAFC80' : '#ffffff';
                         }}
                       >
                         {/* Checkbox — só para PENDENTES */}
@@ -2168,7 +2161,7 @@ export default function Tickets() {
         </div>
 
         {/* Modal de Detalhes da Passagem — com abas */}
-        <Dialog open={showModal} onOpenChange={(open) => { setShowModal(open); if (!open) setEditingTicketId(null); }} modal={!showSuccessModal}>
+        <Dialog open={showModal} onOpenChange={(open) => { if (!open) requestCloseModal(); else setShowModal(true); }} modal={!showSuccessModal}>
           <DialogContent className="!max-w-[1100px] w-[95vw] max-h-[88vh] !flex !flex-col p-0 gap-0 overflow-hidden">
             {selectedInclusion && (() => {
               const lbl = "text-[10px] uppercase tracking-[0.12em] text-slate-400 font-black mb-1";
@@ -2236,7 +2229,7 @@ export default function Tickets() {
 
                       {/* ══ ABA: RESUMO ══ */}
                       <TabsContent value="resumo" className="m-0 p-6">
-                        <div className="grid grid-cols-3 gap-5">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
                           {/* Col 1: Informações Básicas */}
                           <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4 space-y-3">
@@ -2516,7 +2509,7 @@ export default function Tickets() {
 
                             {/* IDA + VOLTA */}
                             {ticket.transportType !== 'van' && (
-                              <div className="grid grid-cols-2 gap-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="bg-white border border-slate-200 rounded-2xl p-4">
                                   <div className="text-[11px] font-black uppercase tracking-[0.12em] mb-3 flex items-center gap-1.5" style={{ color: '#2563EB' }}>
                                     {ticket.transportType === 'rodoviario' ? '🚌' : '🛫'} IDA
@@ -2734,68 +2727,88 @@ export default function Tickets() {
                               </div>
                             </div>
 
+                            {/* Campos com asterisco/erro derivados da MESMA função que valida */}
+                            {(() => {
+                              const sid = selectedInclusion.id;
+                              const mType = data.transportType || 'aereo';
+                              const mOneWay = !!data.isOneWay;
+                              const isRodo = mType === 'rodoviario';
+                              const L = "text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block";
+                              const R = (field: string) => req(mType, mOneWay, field);
+                              const E = (field: string) => errCls(sid, field);
+                              const M = (field: string) => fieldErrorMsg(sid, field);
+                              const dis = roMode || !canEditTicket;
+                              return (<>
                             {/* VAN */}
-                            {data.transportType === 'van' && (
+                            {mType === 'van' && (
                               <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
                                 <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">Dados da Van</div>
                                 <div>
-                                  <Label htmlFor={`vanCompany-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Nome da Empresa *</Label>
+                                  <Label htmlFor={`vanCompany-${sid}`} className={L}>Nome da Empresa{R('purchaseOrderNumber')}</Label>
                                   <Input
-                                    id={`vanCompany-${selectedInclusion.id}`}
+                                    id={`vanCompany-${sid}`}
                                     placeholder="Ex: Transluz Transportes"
                                     value={data.purchaseOrderNumber || ""}
-                                    onChange={(e) => handleTicketDataChange(selectedInclusion.id, "purchaseOrderNumber", e.target.value)}
-                                    disabled={roMode || !canEditTicket}
+                                    onChange={(e) => handleTicketDataChange(sid, "purchaseOrderNumber", e.target.value)}
+                                    className={E('purchaseOrderNumber')}
+                                    disabled={dis}
                                   />
+                                  {M('purchaseOrderNumber')}
                                 </div>
                               </div>
                             )}
 
                             {/* Aéreo / Rodoviário */}
-                            {data.transportType !== 'van' && (
+                            {mType !== 'van' && (
                               <>
                                 {/* Informações da Compra */}
                                 <div className="bg-white border border-slate-200 rounded-2xl p-4">
                                   <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 mb-3">Informações da Compra</div>
-                                  <div className="grid grid-cols-2 gap-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                      <Label htmlFor={`purchaseOrderNumber-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">
-                                        {data.transportType === 'rodoviario' ? 'Bilhete' : 'LOC'} *
+                                      <Label htmlFor={`purchaseOrderNumber-${sid}`} className={L}>
+                                        {isRodo ? 'Bilhete' : 'LOC'}{R('purchaseOrderNumber')}
                                       </Label>
                                       <Input
-                                        id={`purchaseOrderNumber-${selectedInclusion.id}`}
-                                        placeholder={data.transportType === 'rodoviario' ? 'Número do bilhete' : 'Número da LOC'}
+                                        id={`purchaseOrderNumber-${sid}`}
+                                        placeholder={isRodo ? 'Número do bilhete' : 'Número da LOC'}
                                         value={data.purchaseOrderNumber || ""}
-                                        onChange={(e) => handleTicketDataChange(selectedInclusion.id, "purchaseOrderNumber", e.target.value)}
-                                        data-testid={`input-purchase-order-${selectedInclusion.id}`}
-                                        disabled={roMode || !canEditTicket}
+                                        onChange={(e) => handleTicketDataChange(sid, "purchaseOrderNumber", e.target.value)}
+                                        data-testid={`input-purchase-order-${sid}`}
+                                        className={E('purchaseOrderNumber')}
+                                        disabled={dis}
                                       />
+                                      {M('purchaseOrderNumber')}
                                     </div>
                                     <div>
-                                      <Label htmlFor={`purchaseDate-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Data da Compra *</Label>
+                                      <Label htmlFor={`purchaseDate-${sid}`} className={L}>Data da Compra</Label>
                                       <Input
-                                        id={`purchaseDate-${selectedInclusion.id}`}
+                                        id={`purchaseDate-${sid}`}
                                         type="date"
+                                        max={todayIso()}
                                         value={data.purchaseDate || ""}
-                                        onChange={(e) => handleTicketDataChange(selectedInclusion.id, "purchaseDate", e.target.value)}
-                                        data-testid={`input-purchase-date-${selectedInclusion.id}`}
-                                        disabled={roMode || !canEditTicket}
+                                        onChange={(e) => handleTicketDataChange(sid, "purchaseDate", e.target.value)}
+                                        data-testid={`input-purchase-date-${sid}`}
+                                        className={E('purchaseDate')}
+                                        disabled={dis}
                                       />
+                                      {M('purchaseDate')}
                                     </div>
                                   </div>
                                   <div className="mt-3">
-                                    <Label htmlFor={`value-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Valor da Passagem</Label>
+                                    <Label htmlFor={`value-${sid}`} className={L}>Valor da Passagem{R('value')}</Label>
                                     <Input
-                                      id={`value-${selectedInclusion.id}`}
+                                      id={`value-${sid}`}
                                       placeholder="0,00"
                                       type="text"
                                       inputMode="decimal"
                                       value={data.value || ""}
-                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "value", e.target.value)}
-                                      className="max-w-[160px]"
-                                      data-testid={`input-ticket-value-${selectedInclusion.id}`}
-                                      disabled={roMode || !canEditTicket}
+                                      onChange={(e) => handleTicketDataChange(sid, "value", e.target.value)}
+                                      className={`max-w-[160px]${E('value')}`}
+                                      data-testid={`input-ticket-value-${sid}`}
+                                      disabled={dis}
                                     />
+                                    {M('value')}
                                   </div>
                                 </div>
 
@@ -2804,84 +2817,92 @@ export default function Tickets() {
                                   {/* IDA */}
                                   <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
                                     <div className="text-[11px] font-black uppercase tracking-[0.12em] flex items-center gap-1.5" style={{ color: '#2563EB' }}>
-                                      {data.transportType === "rodoviario" ? '🚌' : '🛫'} IDA
+                                      {isRodo ? '🚌' : '🛫'} IDA
                                     </div>
                                     <div>
-                                      <Label htmlFor={`departureCityOrigin-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Cidade Origem *</Label>
-                                      <Input id={`departureCityOrigin-${selectedInclusion.id}`} placeholder="Ex: São Paulo" value={data.departureCityOrigin || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureCityOrigin", e.target.value)} data-testid={`input-departure-city-origin-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                      <Label htmlFor={`departureCityOrigin-${sid}`} className={L}>Cidade Origem{R('departureCityOrigin')}</Label>
+                                      <Input id={`departureCityOrigin-${sid}`} placeholder="Ex: São Paulo" value={data.departureCityOrigin || ""} onChange={(e) => handleTicketDataChange(sid, "departureCityOrigin", e.target.value)} data-testid={`input-departure-city-origin-${sid}`} disabled={dis} />
                                     </div>
                                     <div>
-                                      <Label htmlFor={`departureCityDestination-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block flex items-center gap-1.5">
-                                        Cidade Destino *
+                                      <Label htmlFor={`departureCityDestination-${sid}`} className={`${L} flex items-center gap-1.5`}>
+                                        Cidade Destino{R('departureCityDestination')}
                                         <span className="text-[10px] font-medium bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full normal-case">Local do evento</span>
                                       </Label>
-                                      <Input id={`departureCityDestination-${selectedInclusion.id}`} placeholder="Ex: Rio de Janeiro" value={data.departureCityDestination || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureCityDestination", e.target.value)} data-testid={`input-departure-city-destination-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                      <Input id={`departureCityDestination-${sid}`} placeholder="Ex: Rio de Janeiro" value={data.departureCityDestination || ""} onChange={(e) => handleTicketDataChange(sid, "departureCityDestination", e.target.value)} data-testid={`input-departure-city-destination-${sid}`} disabled={dis} />
                                     </div>
                                     <div>
-                                      <Label htmlFor={`departureAirport-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">
-                                        {data.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"} *
+                                      <Label htmlFor={`departureAirport-${sid}`} className={L}>
+                                        {isRodo ? "Rodoviária Origem" : "Aeroporto Origem"}{R('departureAirport')}
                                       </Label>
-                                      <Input id={`departureAirport-${selectedInclusion.id}`} placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: GRU, CGH, BSB"} value={data.departureAirport || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureAirport", e.target.value)} data-testid={`input-departure-airport-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                      <Input id={`departureAirport-${sid}`} placeholder={isRodo ? "Ex: Terminal Rodoviário" : "Ex: GRU, CGH, BSB"} value={data.departureAirport || ""} onChange={(e) => handleTicketDataChange(sid, "departureAirport", e.target.value)} data-testid={`input-departure-airport-${sid}`} className={E('departureAirport')} disabled={dis} />
+                                      {M('departureAirport')}
                                     </div>
                                     <div>
-                                      <Label htmlFor={`destinationAirport-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">
-                                        {data.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"} *
+                                      <Label htmlFor={`destinationAirport-${sid}`} className={L}>
+                                        {isRodo ? "Rodoviária Destino" : "Aeroporto Destino"}{R('destinationAirport')}
                                       </Label>
-                                      <Input id={`destinationAirport-${selectedInclusion.id}`} placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: SDU, GIG, RJ"} value={data.destinationAirport || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "destinationAirport", e.target.value)} data-testid={`input-destination-airport-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                      <Input id={`destinationAirport-${sid}`} placeholder={isRodo ? "Ex: Terminal Rodoviário" : "Ex: SDU, GIG, RJ"} value={data.destinationAirport || ""} onChange={(e) => handleTicketDataChange(sid, "destinationAirport", e.target.value)} data-testid={`input-destination-airport-${sid}`} className={E('destinationAirport')} disabled={dis} />
+                                      {M('destinationAirport')}
                                     </div>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                       <div>
-                                        <Label htmlFor={`actualDepartureDate-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Data *</Label>
-                                        <Input id={`actualDepartureDate-${selectedInclusion.id}`} type="date" value={data.actualDepartureDate || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureDate", e.target.value)} data-testid={`input-departure-date-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                        <Label htmlFor={`actualDepartureDate-${sid}`} className={L}>Data (ida){R('actualDepartureDate')}</Label>
+                                        <Input id={`actualDepartureDate-${sid}`} type="date" value={data.actualDepartureDate || ""} onChange={(e) => handleTicketDataChange(sid, "actualDepartureDate", e.target.value)} data-testid={`input-departure-date-${sid}`} className={E('actualDepartureDate')} disabled={dis} />
+                                        {M('actualDepartureDate')}
                                       </div>
                                       <div>
-                                        <Label htmlFor={`actualDepartureTime-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Horário *</Label>
-                                        <Input id={`actualDepartureTime-${selectedInclusion.id}`} type="time" value={data.actualDepartureTime || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureTime", e.target.value)} data-testid={`input-departure-time-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                        <Label htmlFor={`actualDepartureTime-${sid}`} className={L}>Horário (ida){R('actualDepartureTime')}</Label>
+                                        <Input id={`actualDepartureTime-${sid}`} type="time" value={data.actualDepartureTime || ""} onChange={(e) => handleTicketDataChange(sid, "actualDepartureTime", e.target.value)} data-testid={`input-departure-time-${sid}`} className={E('actualDepartureTime')} disabled={dis} />
+                                        {M('actualDepartureTime')}
                                       </div>
-                                      <div title="Horário de chegada do voo de ida — usado no cálculo automático de alimentação">
-                                        <Label htmlFor={`actualArrivalTime-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Chegada (ida)</Label>
-                                        <Input id={`actualArrivalTime-${selectedInclusion.id}`} type="time" value={data.actualArrivalTime || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualArrivalTime", e.target.value)} data-testid={`input-arrival-time-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                      <div className="md:col-span-2">
+                                        <Label htmlFor={`actualArrivalTime-${sid}`} className={`${L} flex items-center`}>Chegada (ida){R('actualArrivalTime')}{arrivalHint()}</Label>
+                                        <Input id={`actualArrivalTime-${sid}`} type="time" value={data.actualArrivalTime || ""} onChange={(e) => handleTicketDataChange(sid, "actualArrivalTime", e.target.value)} data-testid={`input-arrival-time-${sid}`} className={`md:max-w-[50%]${E('actualArrivalTime')}`} disabled={dis} />
+                                        {M('actualArrivalTime')}
+                                        <p className="text-[10px] text-slate-400 mt-1 leading-snug">Define alimentação e mobilidade no Planejado.</p>
                                       </div>
                                     </div>
                                   </div>
 
                                   {/* VOLTA */}
-                                  {!data.isOneWay ? (
+                                  {!mOneWay ? (
                                     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
                                       <div className="text-[11px] font-black uppercase tracking-[0.12em] flex items-center gap-1.5" style={{ color: '#B45309' }}>
-                                        {data.transportType === "rodoviario" ? '🚌' : '🛬'} VOLTA
+                                        {isRodo ? '🚌' : '🛬'} VOLTA
                                       </div>
                                       <div>
-                                        <Label htmlFor={`returnCityOrigin-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block flex items-center gap-1.5">
-                                          Cidade Origem *
+                                        <Label htmlFor={`returnCityOrigin-${sid}`} className={`${L} flex items-center gap-1.5`}>
+                                          Cidade Origem{R('returnCityOrigin')}
                                           <span className="text-[10px] font-medium bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full normal-case">Local do evento</span>
                                         </Label>
-                                        <Input id={`returnCityOrigin-${selectedInclusion.id}`} placeholder="Ex: Rio de Janeiro" value={data.returnCityOrigin || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnCityOrigin", e.target.value)} data-testid={`input-return-city-origin-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                        <Input id={`returnCityOrigin-${sid}`} placeholder="Ex: Rio de Janeiro" value={data.returnCityOrigin || ""} onChange={(e) => handleTicketDataChange(sid, "returnCityOrigin", e.target.value)} data-testid={`input-return-city-origin-${sid}`} disabled={dis} />
                                       </div>
                                       <div>
-                                        <Label htmlFor={`returnCityDestination-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Cidade Destino *</Label>
-                                        <Input id={`returnCityDestination-${selectedInclusion.id}`} placeholder="Ex: São Paulo" value={data.returnCityDestination || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnCityDestination", e.target.value)} data-testid={`input-return-city-destination-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                        <Label htmlFor={`returnCityDestination-${sid}`} className={L}>Cidade Destino{R('returnCityDestination')}</Label>
+                                        <Input id={`returnCityDestination-${sid}`} placeholder="Ex: São Paulo" value={data.returnCityDestination || ""} onChange={(e) => handleTicketDataChange(sid, "returnCityDestination", e.target.value)} data-testid={`input-return-city-destination-${sid}`} disabled={dis} />
                                       </div>
                                       <div>
-                                        <Label htmlFor={`returnOriginAirport-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">
-                                          {data.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"} *
+                                        <Label htmlFor={`returnOriginAirport-${sid}`} className={L}>
+                                          {isRodo ? "Rodoviária Origem" : "Aeroporto Origem"}{R('returnOriginAirport')}
                                         </Label>
-                                        <Input id={`returnOriginAirport-${selectedInclusion.id}`} placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: SDU, GIG, GRU"} value={data.returnOriginAirport || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnOriginAirport", e.target.value)} data-testid={`input-return-origin-airport-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                        <Input id={`returnOriginAirport-${sid}`} placeholder={isRodo ? "Ex: Terminal Rodoviário" : "Ex: SDU, GIG, GRU"} value={data.returnOriginAirport || ""} onChange={(e) => handleTicketDataChange(sid, "returnOriginAirport", e.target.value)} data-testid={`input-return-origin-airport-${sid}`} disabled={dis} />
                                       </div>
                                       <div>
-                                        <Label htmlFor={`returnDestinationAirport-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">
-                                          {data.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"} *
+                                        <Label htmlFor={`returnDestinationAirport-${sid}`} className={L}>
+                                          {isRodo ? "Rodoviária Destino" : "Aeroporto Destino"}{R('returnDestinationAirport')}
                                         </Label>
-                                        <Input id={`returnDestinationAirport-${selectedInclusion.id}`} placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: GRU, CGH, BSB"} value={data.returnDestinationAirport || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnDestinationAirport", e.target.value)} data-testid={`input-return-destination-airport-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                        <Input id={`returnDestinationAirport-${sid}`} placeholder={isRodo ? "Ex: Terminal Rodoviário" : "Ex: GRU, CGH, BSB"} value={data.returnDestinationAirport || ""} onChange={(e) => handleTicketDataChange(sid, "returnDestinationAirport", e.target.value)} data-testid={`input-return-destination-airport-${sid}`} disabled={dis} />
                                       </div>
-                                      <div className="grid grid-cols-2 gap-2">
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                         <div>
-                                          <Label htmlFor={`actualReturnDate-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Data *</Label>
-                                          <Input id={`actualReturnDate-${selectedInclusion.id}`} type="date" value={data.actualReturnDate || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnDate", e.target.value)} data-testid={`input-return-date-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                          <Label htmlFor={`actualReturnDate-${sid}`} className={L}>Data (volta){R('actualReturnDate')}</Label>
+                                          <Input id={`actualReturnDate-${sid}`} type="date" value={data.actualReturnDate || ""} onChange={(e) => handleTicketDataChange(sid, "actualReturnDate", e.target.value)} data-testid={`input-return-date-${sid}`} className={E('actualReturnDate')} disabled={dis} />
+                                          {M('actualReturnDate')}
                                         </div>
                                         <div>
-                                          <Label htmlFor={`actualReturnTime-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Horário *</Label>
-                                          <Input id={`actualReturnTime-${selectedInclusion.id}`} type="time" value={data.actualReturnTime || ""} onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnTime", e.target.value)} data-testid={`input-return-time-${selectedInclusion.id}`} disabled={roMode || !canEditTicket} />
+                                          <Label htmlFor={`actualReturnTime-${sid}`} className={L}>Horário (volta){R('actualReturnTime')}</Label>
+                                          <Input id={`actualReturnTime-${sid}`} type="time" value={data.actualReturnTime || ""} onChange={(e) => handleTicketDataChange(sid, "actualReturnTime", e.target.value)} data-testid={`input-return-time-${sid}`} className={E('actualReturnTime')} disabled={dis} />
+                                          {M('actualReturnTime')}
                                         </div>
                                       </div>
                                     </div>
@@ -2889,7 +2910,7 @@ export default function Tickets() {
                                     <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-4 flex items-center justify-center">
                                       <div className="text-center">
                                         <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400 mb-1">
-                                          {data.transportType === "rodoviario" ? '🚌' : '🛬'} VOLTA
+                                          {isRodo ? '🚌' : '🛬'} VOLTA
                                         </div>
                                         <div className="text-xs text-slate-300">Apenas ida selecionada</div>
                                       </div>
@@ -2898,6 +2919,8 @@ export default function Tickets() {
                                 </div>
                               </>
                             )}
+                              </>);
+                            })()}
 
                             {/* Datas Sugeridas — visíveis durante o preenchimento */}
                             {(() => {
@@ -2967,7 +2990,7 @@ export default function Tickets() {
 
                       {/* ══ ABA: COMPLEMENTOS ══ */}
                       <TabsContent value="complementos" className="m-0 p-6">
-                        <div className="grid grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
                           {/* Coluna Esquerda: Comentários */}
                           <div className="space-y-4">
@@ -3093,41 +3116,40 @@ export default function Tickets() {
                       <>
                         <Button
                           variant="outline"
-                          onClick={() => { setShowModal(false); setEditingTicketId(null); }}
+                          onClick={requestCloseModal}
                           className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl px-5 py-2 text-sm font-medium"
                         >
                           Fechar
                         </Button>
-                        {!roMode && canEditTicket && selectedInclusion?.status !== 'hospedagem' && ticket && (
+                        {!roMode && canEditTicket && ticket && (
                           <Button
                             variant="outline"
                             onClick={() => {
-                              setTicketData(prev => ({
-                                ...prev,
-                                [selectedInclusion.id]: {
-                                  transportType: ticket.transportType || "aereo",
-                                  isOneWay: isOneWayTicket(ticket),
-                                  value: ((ticket.value || 0) / 100).toString(),
-                                  purchaseDate: ticket.purchaseDate || "",
-                                  departureAirport: ticket.departureAirport || "",
-                                  destinationAirport: ticket.destinationAirport || "",
-                                  departureCityOrigin: ticket.departureCityOrigin || "",
-                                  departureCityDestination: ticket.departureCityDestination || "",
-                                  returnCityOrigin: ticket.returnCityOrigin || "",
-                                  returnCityDestination: ticket.returnCityDestination || "",
-                                  returnOriginAirport: ticket.returnOriginAirport || "",
-                                  returnDestinationAirport: ticket.returnDestinationAirport || "",
-                                  purchaseOrderNumber: ticket.purchaseOrderNumber || "",
-                                  actualDepartureDate: ticket.actualDepartureDate || "",
-                                  actualReturnDate: ticket.actualReturnDate || "",
-                                  actualDepartureTime: ticket.actualDepartureTime || "",
-                                  actualArrivalTime: ticket.actualArrivalTime || "",
-                                  actualReturnTime: ticket.actualReturnTime || "",
-                                  cardLastFourDigits: ticket.cardLastFourDigits || "",
-                                  ticketObservations: ticket.ticketObservations || "",
-                                  attachmentIds: ticket.attachmentIds || []
-                                }
-                              }));
+                              const prefill = {
+                                transportType: ticket.transportType || "aereo",
+                                isOneWay: isOneWayTicket(ticket),
+                                value: ((ticket.value || 0) / 100).toString(),
+                                purchaseDate: ticket.purchaseDate || "",
+                                departureAirport: ticket.departureAirport || "",
+                                destinationAirport: ticket.destinationAirport || "",
+                                departureCityOrigin: ticket.departureCityOrigin || "",
+                                departureCityDestination: ticket.departureCityDestination || "",
+                                returnCityOrigin: ticket.returnCityOrigin || "",
+                                returnCityDestination: ticket.returnCityDestination || "",
+                                returnOriginAirport: ticket.returnOriginAirport || "",
+                                returnDestinationAirport: ticket.returnDestinationAirport || "",
+                                purchaseOrderNumber: ticket.purchaseOrderNumber || "",
+                                actualDepartureDate: ticket.actualDepartureDate || "",
+                                actualReturnDate: ticket.actualReturnDate || "",
+                                actualDepartureTime: ticket.actualDepartureTime || "",
+                                actualArrivalTime: ticket.actualArrivalTime || "",
+                                actualReturnTime: ticket.actualReturnTime || "",
+                                cardLastFourDigits: ticket.cardLastFourDigits || "",
+                                ticketObservations: ticket.ticketObservations || "",
+                                attachmentIds: ticket.attachmentIds || []
+                              };
+                              setTicketData(prev => ({ ...prev, [selectedInclusion.id]: prefill }));
+                              setEditSnapshot(JSON.stringify(prefill));
                               setEditingTicketId(selectedInclusion.id);
                               setModalActiveTab('dados');
                             }}
@@ -3139,226 +3161,59 @@ export default function Tickets() {
                         )}
                       </>
                     ) : (
-                      /* Form mode footer */
+                      /* Form mode footer — sem "Salvar rascunho": ou registra
+                         completo, ou descarta. */
                       <>
                         <Button
                           variant="ghost"
-                          onClick={() => { setShowModal(false); setEditingTicketId(null); }}
+                          onClick={requestCloseModal}
                           className="text-slate-500 hover:text-slate-700 rounded-xl px-5 py-2 text-sm font-medium"
                         >
                           Cancelar
                         </Button>
-                        {!roMode && canEditTicket && selectedInclusion?.status !== 'hospedagem' && (
-                          <>
-                            {/* Salvar rascunho */}
+                        {/* status 'hospedagem' também pode registrar — a tabela já
+                            oferece o botão; o status resultante segue a regra
+                            (hospedagem_passagem_comprada quando aplicável). */}
+                        {!roMode && canEditTicket && (
                             <Button
-                              variant="outline"
-                              onClick={async () => {
+                              onClick={() => {
                                 if (createTicketMutation.isPending || updateTicketMutation.isPending) return;
-                                let saved = false;
-                                try {
-                                  if (editingTicketId || getTicket(selectedInclusion.id)) {
-                                    const ticketToUpdate = getTicket(selectedInclusion.id);
-                                    if (ticketToUpdate) {
-                                      await updateTicketMutation.mutateAsync({
-                                        id: ticketToUpdate.id,
-                                        data: {
-                                          transportType: data.transportType || ticketToUpdate.transportType || "aereo",
-                                          value: toCents(data.value) ?? ticketToUpdate.value,
-                                          purchaseDate: data.purchaseDate || ticketToUpdate.purchaseDate,
-                                          actualDepartureDate: data.actualDepartureDate || ticketToUpdate.actualDepartureDate,
-                                          actualDepartureTime: data.actualDepartureTime || ticketToUpdate.actualDepartureTime,
-                                          actualArrivalTime: data.actualArrivalTime || ticketToUpdate.actualArrivalTime,
-                                          actualReturnDate: data.isOneWay ? null : data.actualReturnDate || ticketToUpdate.actualReturnDate,
-                                          actualReturnTime: data.isOneWay ? null : data.actualReturnTime || ticketToUpdate.actualReturnTime,
-                                          departureCityOrigin: data.departureCityOrigin || ticketToUpdate.departureCityOrigin,
-                                          departureCityDestination: data.departureCityDestination || ticketToUpdate.departureCityDestination,
-                                          returnCityOrigin: data.isOneWay ? null : data.returnCityOrigin || ticketToUpdate.returnCityOrigin,
-                                          returnCityDestination: data.isOneWay ? null : data.returnCityDestination || ticketToUpdate.returnCityDestination,
-                                          departureAirport: data.departureAirport || ticketToUpdate.departureAirport,
-                                          destinationAirport: data.destinationAirport || ticketToUpdate.destinationAirport,
-                                          returnOriginAirport: data.isOneWay ? null : data.returnOriginAirport || ticketToUpdate.returnOriginAirport,
-                                          returnDestinationAirport: data.isOneWay ? null : data.returnDestinationAirport || ticketToUpdate.returnDestinationAirport,
-                                          purchaseOrderNumber: data.purchaseOrderNumber || ticketToUpdate.purchaseOrderNumber,
-                                          cardLastFourDigits: data.cardLastFourDigits || ticketToUpdate.cardLastFourDigits,
-                                          ticketObservations: data.ticketObservations || ticketToUpdate.ticketObservations,
-                                          attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : ticketToUpdate.attachmentIds
-                                        }
+                                const inc = selectedInclusion;
+                                const isEditing = !!editingTicketId;
+                                validateTicketForm(
+                                  inc.id,
+                                  data,
+                                  { scheduleStartDate: inc.scheduleStartDate, scheduleEndDate: inc.scheduleEndDate },
+                                  async () => {
+                                    try {
+                                      // Idempotente: cria ou, se já existir, atualiza — e aplica o status.
+                                      const mode = await upsertTicketForInclusion(inc, data);
+                                      setSuccessInfo({
+                                        message: (isEditing || mode === 'updated') ? "Passagem atualizada com sucesso!" : "Passagem registrada com sucesso!",
+                                        inclusionNumber: inc.inclusionNumber ?? null,
+                                        eventName: getEventName(inc.eventId),
+                                        collaboratorName: inc.collaboratorId ? getCollaboratorName(inc.collaboratorId) : "—",
+                                        functionName: inc.functionId ? getFunctionName(inc.functionId) : "—",
                                       });
-                                      saved = true;
+                                      setEditSnapshot(null);
+                                      setShowModal(false);
+                                      setShowSuccessModal(true);
+                                    } catch (error) {
+                                      // Erro já exibido pelo toast da mutation
                                     }
-                                  } else if (data.value || data.departureAirport || data.destinationAirport || data.purchaseOrderNumber) {
-                                    await createTicketMutation.mutateAsync({
-                                      teamInclusionId: selectedInclusion.id,
-                                      transportType: data.transportType || "aereo",
-                                      value: toCents(data.value) ?? 0,
-                                      purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
-                                      actualDepartureDate: data.actualDepartureDate || null,
-                                      actualDepartureTime: data.actualDepartureTime || null,
-                                      actualArrivalTime: data.actualArrivalTime || null,
-                                      actualReturnDate: data.isOneWay ? null : data.actualReturnDate || null,
-                                      actualReturnTime: data.isOneWay ? null : data.actualReturnTime || null,
-                                      departureCityOrigin: data.departureCityOrigin || null,
-                                      departureCityDestination: data.departureCityDestination || null,
-                                      returnCityOrigin: data.isOneWay ? null : data.returnCityOrigin || null,
-                                      returnCityDestination: data.isOneWay ? null : data.returnCityDestination || null,
-                                      departureAirport: data.departureAirport || "",
-                                      destinationAirport: data.destinationAirport || "",
-                                      returnOriginAirport: data.isOneWay ? null : data.returnOriginAirport || null,
-                                      returnDestinationAirport: data.isOneWay ? null : data.returnDestinationAirport || null,
-                                      purchaseOrderNumber: data.purchaseOrderNumber || "",
-                                      fileUrl: data.fileUrl || null,
-                                      attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null,
-                                      cardLastFourDigits: data.cardLastFourDigits || null,
-                                      ticketObservations: data.ticketObservations || null
-                                    });
-                                    saved = true;
-                                  }
-                                  // Antes o toast dizia "salvo" mesmo quando nenhum
-                                  // dos ramos rodava (formulário ainda vazio) e o
-                                  // modal fechava sem ter gravado nada.
-                                  if (!saved) {
-                                    toast({
-                                      title: "Nada a salvar",
-                                      description: "Preencha ao menos a LOC, um aeroporto/rodoviária ou o valor antes de salvar.",
-                                      variant: "destructive",
-                                    });
-                                    return;
-                                  }
-                                  toast({ title: "Sucesso", description: "Dados salvos com sucesso" });
-                                  setShowModal(false);
-                                  setEditingTicketId(null);
-                                } catch (error: any) {
-                                  toast({ title: "Erro", description: error?.body?.message || "Erro ao salvar dados", variant: "destructive" });
-                                }
-                              }}
-                              disabled={createTicketMutation.isPending || updateTicketMutation.isPending}
-                              className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl px-5 py-2 text-sm font-medium"
-                            >
-                              {(createTicketMutation.isPending || updateTicketMutation.isPending) ? "Salvando..." : "Salvar"}
-                            </Button>
-
-                            {/* Registrar/Atualizar Passagem */}
-                            <Button
-                              onClick={async () => {
-                                const isVanModal = data.transportType === 'van';
-                                const isRodoModal = data.transportType === 'rodoviario';
-                                let baseFields: string[];
-                                if (isVanModal) {
-                                  baseFields = ['purchaseOrderNumber'];
-                                } else if (isRodoModal) {
-                                  baseFields = ['departureAirport', 'actualDepartureDate', 'actualDepartureTime'];
-                                } else {
-                                  baseFields = ['value', 'departureAirport', 'destinationAirport', 'purchaseOrderNumber', 'actualDepartureDate', 'actualDepartureTime'];
-                                }
-                                const requiredFieldsModal = (!isVanModal && !data.isOneWay)
-                                  ? [...baseFields, 'actualReturnDate', 'actualReturnTime']
-                                  : baseFields;
-                                const missingModalFields = requiredFieldsModal.filter(field => !data[field as keyof typeof data] || data[field as keyof typeof data] === '');
-                                if (missingModalFields.length > 0) {
-                                  toast({
-                                    title: "Erro",
-                                    description: isVanModal
-                                      ? "Preencha o campo Nome da Empresa"
-                                      : isRodoModal
-                                      ? "Preencha os campos obrigatórios: Rodoviária Origem (ida), datas e horários"
-                                      : "Preencha todos os campos obrigatórios (Aeroporto Ida/Volta, valor, LOC, datas e horários)",
-                                    variant: "destructive",
-                                  });
-                                  return;
-                                }
-                                try {
-                                  if (editingTicketId) {
-                                    const ticketEx = getTicket(selectedInclusion.id);
-                                    if (ticketEx) {
-                                      await updateTicketMutation.mutateAsync({
-                                        id: ticketEx.id,
-                                        data: {
-                                          transportType: data.transportType || "aereo",
-                                          value: isVanModal ? null : toCents(data.value),
-                                          purchaseDate: data.purchaseDate || undefined,
-                                          actualDepartureDate: isVanModal ? null : data.actualDepartureDate,
-                                          actualDepartureTime: isVanModal ? null : data.actualDepartureTime,
-                                          actualArrivalTime: isVanModal ? null : (data.actualArrivalTime || null),
-                                          actualReturnDate: isVanModal ? null : (data.isOneWay ? null : data.actualReturnDate),
-                                          actualReturnTime: isVanModal ? null : (data.isOneWay ? null : data.actualReturnTime),
-                                          departureCityOrigin: isVanModal ? null : (data.departureCityOrigin || null),
-                                          departureCityDestination: isVanModal ? null : (data.departureCityDestination || null),
-                                          returnCityOrigin: isVanModal ? null : (data.isOneWay ? null : data.returnCityOrigin || null),
-                                          returnCityDestination: isVanModal ? null : (data.isOneWay ? null : data.returnCityDestination || null),
-                                          departureAirport: isVanModal ? null : data.departureAirport,
-                                          destinationAirport: isVanModal ? null : data.destinationAirport,
-                                          // Os aeroportos/rodoviárias da VOLTA existem no formulário e no
-                                          // banco, mas não eram enviados: o que o usuário digitava sumia.
-                                          returnOriginAirport: isVanModal ? null : (data.isOneWay ? null : data.returnOriginAirport || null),
-                                          returnDestinationAirport: isVanModal ? null : (data.isOneWay ? null : data.returnDestinationAirport || null),
-                                          purchaseOrderNumber: data.purchaseOrderNumber,
-                                          cardLastFourDigits: isVanModal ? null : (data.cardLastFourDigits || null),
-                                          ticketObservations: data.ticketObservations || null,
-                                          attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null
-                                        }
-                                      });
-                                    }
-                                  } else {
-                                    await createTicketMutation.mutateAsync({
-                                      teamInclusionId: selectedInclusion.id,
-                                      transportType: data.transportType || "aereo",
-                                      value: isVanModal ? null : toCents(data.value),
-                                      purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
-                                      actualDepartureDate: isVanModal ? null : data.actualDepartureDate,
-                                      actualDepartureTime: isVanModal ? null : data.actualDepartureTime,
-                                      actualArrivalTime: isVanModal ? null : (data.actualArrivalTime || null),
-                                      actualReturnDate: isVanModal ? null : (data.isOneWay ? null : data.actualReturnDate),
-                                      actualReturnTime: isVanModal ? null : (data.isOneWay ? null : data.actualReturnTime),
-                                      departureCityOrigin: isVanModal ? null : (data.departureCityOrigin || null),
-                                      departureCityDestination: isVanModal ? null : (data.departureCityDestination || null),
-                                      returnCityOrigin: isVanModal ? null : (data.isOneWay ? null : data.returnCityOrigin || null),
-                                      returnCityDestination: isVanModal ? null : (data.isOneWay ? null : data.returnCityDestination || null),
-                                      departureAirport: isVanModal ? null : data.departureAirport,
-                                      destinationAirport: isVanModal ? null : data.destinationAirport,
-                                      returnOriginAirport: isVanModal ? null : (data.isOneWay ? null : data.returnOriginAirport || null),
-                                      returnDestinationAirport: isVanModal ? null : (data.isOneWay ? null : data.returnDestinationAirport || null),
-                                      purchaseOrderNumber: data.purchaseOrderNumber,
-                                      fileUrl: data.fileUrl || null,
-                                      attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null,
-                                      cardLastFourDigits: isVanModal ? null : (data.cardLastFourDigits || null),
-                                      ticketObservations: data.ticketObservations || null
-                                    });
-                                    const needsAccommodation = selectedInclusion.needsAccommodation;
-                                    const accommodation = accommodationByInclusion.get(selectedInclusion.id);
-                                    const accommodationPurchased = accommodation && accommodation.hotelName;
-                                    let newStatus = "passagem_comprada";
-                                    let newPhase = "passagem";
-                                    if (needsAccommodation && accommodationPurchased) {
-                                      newStatus = "hospedagem_passagem_comprada";
-                                      newPhase = "hospedagem";
-                                    }
-                                    await updateTeamInclusionMutation.mutateAsync({ id: selectedInclusion.id, data: { status: newStatus, phase: newPhase } });
-                                  }
-                                  const inc = selectedInclusion;
-                                  setSuccessInfo({
-                                    message: editingTicketId ? "Passagem atualizada com sucesso!" : "Passagem registrada com sucesso!",
-                                    inclusionNumber: inc?.inclusionNumber ?? null,
-                                    eventName: events?.find(e => e.id === inc?.eventId)?.name ?? "—",
-                                    collaboratorName: inc?.collaboratorId ? getCollaboratorName(inc.collaboratorId) : "—",
-                                    functionName: inc?.functionId ? getFunctionName(inc.functionId) : "—",
-                                  });
-                                  setShowModal(false);
-                                  setShowSuccessModal(true);
-                                } catch (error) {
-                                  // Error is already handled by the mutation
-                                }
+                                  },
+                                );
                               }}
                               disabled={createTicketMutation.isPending || updateTicketMutation.isPending}
                               style={{ background: '#2563EB' }}
                               className="text-white rounded-xl px-5 py-2 text-sm font-bold hover:opacity-90 flex items-center gap-2"
+                              data-testid={`button-register-ticket-${selectedInclusion.id}`}
                             >
                               {(createTicketMutation.isPending || updateTicketMutation.isPending)
                                 ? (editingTicketId ? "Atualizando..." : "Registrando...")
                                 : <><CheckCircle className="w-4 h-4" /> {editingTicketId ? "Atualizar Passagem" : "Registrar Passagem"}</>
                               }
                             </Button>
-                          </>
                         )}
                       </>
                     )}
@@ -3368,18 +3223,22 @@ export default function Tickets() {
             })()}
           </DialogContent>
         </Dialog>
-        {/* Modal de sucesso — fora do Dialog para não desmontar quando Dialog fecha */}
-        {showSuccessModal && createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{background:'rgba(0,0,0,0.45)'}}>
-            <div className="bg-white rounded-2xl shadow-2xl flex flex-col items-center px-8 py-7 w-full mx-4" style={{boxShadow:'0 8px 40px rgba(0,0,0,0.18)', maxWidth: 440}}>
+
+        {/* Modal de sucesso — Dialog do shadcn (fora do Dialog principal para
+            não desmontar quando ele fecha) */}
+        <Dialog open={showSuccessModal} onOpenChange={(open) => { if (!open) closeSuccessModal(); }}>
+          <DialogContent className="max-w-[440px] gap-0 p-0 overflow-hidden" data-testid="dialog-ticket-success">
+            <div className="flex flex-col items-center px-8 py-7">
               <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{background:'#DCFCE7'}}>
-                <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
+                <svg width="32" height="32" viewBox="0 0 36 36" fill="none" aria-hidden="true">
                   <circle cx="18" cy="18" r="18" fill="#16A34A" fillOpacity="0.12"/>
                   <path d="M10 18.5L15.5 24L26 13" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>
-              <h3 className="text-lg font-bold text-slate-800 mb-1">Sucesso</h3>
-              <p className="text-sm text-slate-500 text-center mb-3">{successInfo?.message}</p>
+              <DialogHeader className="items-center space-y-1 mb-3">
+                <DialogTitle className="text-lg font-bold text-slate-800">Sucesso</DialogTitle>
+                <DialogDescription className="text-sm text-slate-500 text-center">{successInfo?.message}</DialogDescription>
+              </DialogHeader>
               {successInfo?.inclusionNumber != null && (
                 <span className="mb-4 px-3 py-0.5 rounded-full text-sm font-bold" style={{background:'#EEF2FF', color:'#4F46E5'}}>#{successInfo.inclusionNumber}</span>
               )}
@@ -3398,28 +3257,157 @@ export default function Tickets() {
                   <span className="text-slate-700 font-semibold text-right">{successInfo?.functionName}</span>
                 </div>
               </div>
-              <button
-                onClick={() => {
-                  setShowSuccessModal(false);
-                  setSuccessInfo(null);
-                  setEditingTicketId(null);
-                  if (selectedInclusion) {
-                    setTicketData(prev => {
-                      const newData = { ...prev };
-                      delete newData[selectedInclusion.id];
-                      return newData;
-                    });
-                  }
-                }}
-                className="w-full py-2.5 rounded-xl font-semibold text-white text-sm transition-all"
+              <Button
+                onClick={closeSuccessModal}
+                className="w-full py-2.5 rounded-xl font-semibold text-white text-sm"
                 style={{background:'#2563EB'}}
               >
                 OK
-              </button>
+              </Button>
             </div>
-          </div>,
-          document.body
-        )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Descartar alterações? — ao fechar o modal com dados não salvos */}
+        <AlertDialog open={showDiscardConfirm} onOpenChange={(open) => { if (!open) setShowDiscardConfirm(false); }}>
+          <AlertDialogContent className="max-w-[420px]">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Descartar alterações?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Há dados preenchidos que ainda não foram registrados. Ao fechar, eles serão perdidos.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+              <AlertDialogAction onClick={closeModalDiscarding} className="bg-red-600 hover:bg-red-700 text-white">
+                Descartar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Avisos cronológicos (não bloqueantes) — "continuar mesmo assim" */}
+        <AlertDialog open={!!pendingWarnings} onOpenChange={(open) => { if (!open) setPendingWarnings(null); }}>
+          <AlertDialogContent className="max-w-[480px] border-amber-200">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-amber-800">
+                <AlertCircle className="w-5 h-5 text-amber-500" />
+                Confira as datas antes de continuar
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2">
+                  <ul className="list-disc pl-5 space-y-1 text-[13px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    {pendingWarnings?.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                  </ul>
+                  <p className="text-[12px] text-slate-500">
+                    Esses avisos não impedem o registro, mas os horários alimentam alimentação e mobilidade no Planejado. Confirme se está correto.
+                  </p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Voltar e corrigir</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => { const fn = pendingWarnings?.onConfirm; setPendingWarnings(null); fn?.(); }}
+                className="bg-amber-500 hover:bg-amber-600 text-white"
+              >
+                Continuar mesmo assim
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Confirmação do lote — prévia do que será aplicado a N passageiros */}
+        <AlertDialog open={showBatchConfirm} onOpenChange={(open) => { if (!open) setShowBatchConfirm(false); }}>
+          <AlertDialogContent className="max-w-[560px]">
+            {(() => {
+              const q = ticketData["quick"] || {};
+              const type = q.transportType || 'aereo';
+              const isVan = type === 'van';
+              const isRodo = type === 'rodoviario';
+              const typeLabel = isVan ? 'Van' : isRodo ? 'Rodoviário' : 'Aéreo';
+              const n = effectiveSelectedTickets.length;
+              const rows: Array<[string, string]> = [
+                ['Tipo', typeLabel],
+                [isVan ? 'Empresa' : isRodo ? 'Bilhete' : 'LOC', q.purchaseOrderNumber || '—'],
+              ];
+              if (!isVan) {
+                rows.push(['Ida', `${q.actualDepartureDate ? formatDate(q.actualDepartureDate) : '—'} · ${q.actualDepartureTime || '—'} → chegada ${q.actualArrivalTime || '—'}`]);
+                rows.push(['Trecho ida', `${q.departureAirport || '—'} → ${q.destinationAirport || '—'}`]);
+                if (q.isOneWay) {
+                  rows.push(['Volta', 'Apenas ida']);
+                } else {
+                  rows.push(['Volta', `${q.actualReturnDate ? formatDate(q.actualReturnDate) : '—'} · ${q.actualReturnTime || '—'}`]);
+                  rows.push(['Trecho volta', `${q.returnOriginAirport || '—'} → ${q.returnDestinationAirport || '—'}`]);
+                }
+                if (q.value) rows.push(['Valor', q.value]);
+              }
+              const names = effectiveSelectedTickets
+                .map(id => filteredTicketInclusions.find(inc => inc.id === id))
+                .filter(Boolean)
+                .map(inc => `#${inc!.inclusionNumber ?? '?'} ${toTitleCase(getCollaboratorName(inc!.collaboratorId || undefined))}`);
+              return (
+                <>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Aplicar a {n} passageiro{n !== 1 ? 's' : ''}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Os mesmos dados abaixo serão registrados em todas as passagens selecionadas. Confira antes de confirmar.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <div className="space-y-3">
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1.5 text-[12px]">
+                      {rows.map(([k, v]) => (
+                        <div key={k} className="flex items-start gap-3">
+                          <span className="w-24 shrink-0 text-slate-400 font-medium">{k}</span>
+                          <span className="font-semibold text-slate-700 break-words">{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="max-h-32 overflow-y-auto border border-slate-200 rounded-xl p-3 text-[12px] text-slate-600 space-y-0.5">
+                      {names.map((nm, i) => <div key={i}>{nm}</div>)}
+                    </div>
+                  </div>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Voltar</AlertDialogCancel>
+                    <AlertDialogAction onClick={runBatchApply} className="bg-[#0033CC] hover:bg-[#002299] text-white">
+                      Confirmar e aplicar
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </>
+              );
+            })()}
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Resumo pós-execução do lote */}
+        <Dialog open={!!batchResult} onOpenChange={(open) => { if (!open) setBatchResult(null); }}>
+          <DialogContent className="max-w-[520px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {batchResult && batchResult.failures.length === 0
+                  ? <><CheckCircle className="w-5 h-5 text-green-600" /> Lote concluído</>
+                  : <><AlertCircle className="w-5 h-5 text-amber-500" /> Lote concluído com falhas</>}
+              </DialogTitle>
+              <DialogDescription>
+                {batchResult && (
+                  <>
+                    {batchResult.created} passagem{batchResult.created !== 1 ? 'ns' : ''} criada{batchResult.created !== 1 ? 's' : ''}
+                    {batchResult.updated > 0 && <>, {batchResult.updated} atualizada{batchResult.updated !== 1 ? 's' : ''} (já existiam)</>}
+                    {batchResult.failures.length > 0 && <>, {batchResult.failures.length} falha{batchResult.failures.length !== 1 ? 's' : ''}</>}.
+                  </>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            {batchResult && batchResult.failures.length > 0 && (
+              <ul className="max-h-48 overflow-y-auto bg-red-50 border border-red-200 rounded-xl p-3 text-[12px] text-red-700 space-y-1 list-disc pl-7">
+                {batchResult.failures.map((f, i) => <li key={i}>{f}</li>)}
+              </ul>
+            )}
+            <div className="flex justify-end">
+              <Button onClick={() => setBatchResult(null)} style={{ background: '#2563EB' }} className="text-white rounded-xl px-5">OK</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Modal de Comentários */}
         <CommentsModal

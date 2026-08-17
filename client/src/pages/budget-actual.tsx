@@ -133,7 +133,7 @@ export default function BudgetActualPage() {
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const { user } = useAuth();
-  const { isCollapsed, isCompact, isFocusMode } = useSidebar();
+  const { sidebarWidth } = useSidebar();
   const qc = useQueryClient();
 
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
@@ -1470,7 +1470,7 @@ export default function BudgetActualPage() {
       )}
 
       {selectedEventId && filteredItems.length > 0 && (
-        <div className={`fixed bottom-0 right-0 z-40 px-6 py-3 bg-white/95 backdrop-blur-md border-t border-slate-200 transition-all duration-300 ${(isCollapsed || isFocusMode) ? 'left-0' : isCompact ? 'left-14' : 'left-[260px]'}`} style={{boxShadow:'0 -4px 20px #6d28d910'}}>
+        <div className="fixed bottom-0 right-0 z-40 px-6 py-3 bg-white/95 backdrop-blur-md border-t border-slate-200 transition-all duration-300" style={{left: sidebarWidth, boxShadow:'0 -4px 20px #6d28d910'}}>
           <div className="max-w-5xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div>

@@ -257,7 +257,7 @@ export default function BudgetComparisonPage() {
   } | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
-  const { isCollapsed, isCompact, isFocusMode } = useSidebar();
+  const { sidebarWidth } = useSidebar();
   const qc = useQueryClient();
 
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
@@ -1582,7 +1582,7 @@ export default function BudgetComparisonPage() {
 
       {/* ── Fixed RH Decision footer — apenas RH/admin decide ── */}
       {isRhOrAdmin && comparison && comparisonData.length > 0 && sortedData.some(r => (r.actual.rhStatus || 'pendente') === 'pendente') && (
-        <div className={`fixed bottom-0 right-0 z-40 px-6 pb-4 pt-3 bg-white/95 backdrop-blur-sm border-t border-slate-200 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.08)] transition-all duration-300 left-0 ${(isCollapsed || isFocusMode) ? '' : isCompact ? 'md:left-14' : 'md:left-[260px]'}`}>
+        <div className="fixed bottom-0 right-0 z-40 px-6 pb-4 pt-3 bg-white/95 backdrop-blur-sm border-t border-slate-200 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.08)] transition-all duration-300" style={{ left: sidebarWidth }}>
           <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-4">
             <div>
               <h3 className="text-sm font-black text-slate-800">Decisão do RH</h3>

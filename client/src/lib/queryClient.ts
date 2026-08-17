@@ -13,7 +13,7 @@ function tratarSessaoExpirada(url: string) {
   const path = window.location.pathname;
   if (path.startsWith("/auth") || path.startsWith("/reset-password")) return;
   redirecionandoParaLogin = true;
-  window.location.href = "/auth?sessao=expirada";
+  window.location.href = `/auth?sessao=expirada&returnTo=${encodeURIComponent(path + window.location.search)}`;
 }
 
 async function throwIfResNotOk(res: Response) {

@@ -17,7 +17,6 @@ import {
   insertFinancialSchema,
   insertCommentSchema,
   insertUserSchema,
-  publicUserRegistrationSchema,
   insertFunctionValuesSchema,
   insertBudgetPlannedSchema,
   insertBudgetActualSchema,
@@ -665,48 +664,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // User registration route
-  app.post("/api/auth/register", async (req, res) => {
-    try {
-      const userData = publicUserRegistrationSchema.parse(req.body);
-      
-      // Check if email already exists
-      const existingByEmail = await storage.getUserByEmail(userData.email);
-      if (existingByEmail) {
-        return res.status(400).json({ message: "E-mail já cadastrado" });
-      }
+  // POST /api/auth/register (cadastro público) foi REMOVIDO em 17/08/2026:
+  // usuários são criados apenas por admin/RH/Compras via POST /api/users
+  // (login é pelo Portal Norte/Microsoft). Uma rota sem autenticação criava
+  // contas "pending" à vontade — superfície de abuso sem uso legítimo.
 
-      // Hash password
-      const saltRounds = 10;
-      const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
-      
-      // Public registration should require admin approval
-      const userWithHashedPassword = {
-        ...userData,
-        password: hashedPassword,
-        status: "pending", // Public registration requires admin approval
-      };
-      
-      const user = await storage.createUser(userWithHashedPassword);
-      
-      // Log user registration
-      await createAuditLog(
-        'create',
-        'user',
-        user.id,
-        user,
-        undefined,
-        'Sistema', // Public registration is system-initiated
-        undefined,
-        req
-      );
-      
-      res.json({ user: { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined } });
-    } catch (error) {
-      res.status(400).json({ message: "Erro ao criar usuário" });
-    }
-  });
-  
   // Forgot password route
   app.post("/api/auth/forgot-password", async (req, res) => {
     try {
@@ -917,9 +879,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Sensitive fields: only managers can change role/status
       const sensitiveFields = ['role', 'status'];
       const hasSensitiveChanges = sensitiveFields.some(field => updateData[field] !== undefined);
-      
+
       if (hasSensitiveChanges && !canManageUsers) {
         return res.status(403).json({ message: "Sem permissão para alterar role ou status. Apenas administradores podem modificar esses campos." });
+      }
+
+      // Perfil (role) e área só podem ser alterados por administrador. Antes um
+      // RH/Compras enviava role/area e o servidor descartava em silêncio (o
+      // usuário achava que tinha salvo). Agora responde 403 com mensagem clara.
+      if (!isAdmin && (updateData.role !== undefined || updateData.area !== undefined)) {
+        return res.status(403).json({ message: "Só administradores alteram perfil e área do usuário." });
       }
       
       // Handle password change separately with proper validation
@@ -1692,9 +1661,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             city: collaboratorData.city || 'Não informado',
             area: collaboratorData.area || 'Geral',
             status: autoApprove ? "aprovado" : "pendente", // Auto-aprovar apenas para function_area
+            // approvedAt é timestamp no schema: ISO string era recusada pelo zod
+            // e toda linha da Área de Função falhava com "Expected date".
             ...(autoApprove ? {
               approvedBy: bulkCreatorId,
-              approvedAt: new Date().toISOString()
+              approvedAt: new Date()
             } : {})
           });
 
@@ -1739,22 +1710,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/collaborators/:id", async (req, res) => {
     // Cadastro de colaborador: mesmos papéis que podem criar (inclui a Área de
     // Função, que mantém o próprio time). Antes qualquer requisição editava.
-    if (!await requireRoles(req, res, [...CADASTRO_ROLES, 'function_area'])) return;
+    const editor = await requireRoles(req, res, [...CADASTRO_ROLES, 'function_area']);
+    if (!editor) return;
     try {
       const { id } = req.params;
-      const collaboratorData = insertCollaboratorSchema.partial().parse(req.body);
+      // approvedBy/approvedAt são preenchidos pela sessão (abaixo), nunca pelo
+      // corpo — o client mandava ISO string e o schema (timestamp) recusava com 400.
+      const { approvedBy: _ab, approvedAt: _aa, ...body } = req.body ?? {};
+      const collaboratorData: any = insertCollaboratorSchema.partial().parse(body);
       // Campos de inativação só podem ser alterados pelas rotas dedicadas
       // (/inactivate e /reactivate), que aplicam a checagem de permissão e o
       // motivo obrigatório. Removemos aqui para evitar burlar essas regras.
-      delete (collaboratorData as any).active;
-      delete (collaboratorData as any).inactiveReason;
-      delete (collaboratorData as any).inactivatedAt;
+      delete collaboratorData.active;
+      delete collaboratorData.inactiveReason;
+      delete collaboratorData.inactivatedAt;
       // Proveniência é definida apenas na criação — não pode ser reescrita aqui
-      delete (collaboratorData as any).createdBy;
-      delete (collaboratorData as any).createdByName;
+      delete collaboratorData.createdBy;
+      delete collaboratorData.createdByName;
+      // Aprovação/rejeição: quem decidiu e quando vêm da sessão
+      if (collaboratorData.status === 'aprovado' || collaboratorData.status === 'rejeitado') {
+        collaboratorData.approvedBy = editor.id;
+        collaboratorData.approvedAt = new Date();
+      }
       const collaborator = await storage.updateCollaborator(id, collaboratorData);
       res.json(collaborator);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos: " + error.issues.map(i => `${i.path.join('.')} (${i.message})`).join('; ') });
+      }
       res.status(400).json({ message: "Erro ao atualizar colaborador" });
     }
   });
@@ -2358,7 +2341,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Não logar o corpo: passagens contêm dados pessoais do passageiro
       const ticketData = insertTicketSchema.parse(req.body);
-      console.log("✅ Dados validados:", JSON.stringify(ticketData, null, 2));
       const ticket = await storage.createTicket(ticketData);
       const actorId = req.session?.userId;
       const actor = actorId ? await storage.getUser(actorId) : null;
@@ -2375,12 +2357,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
     try {
       const { id } = req.params;
-      const updates = { 
-        ...req.body, 
+      // Allowlist via schema: só colunas conhecidas de tickets entram. A passagem
+      // nunca troca de inclusão pelo corpo (teamInclusionId) e o ator vem da
+      // sessão (updatedBy) — antes o body inteiro ia direto para o UPDATE.
+      const parsed = insertTicketSchema.partial().safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Dados inválidos", error: parsed.error.message });
+      }
+      const { teamInclusionId: _ignoredInclusion, updatedBy: _ignoredActor, ...allowed } = parsed.data;
+      const updates = {
+        ...allowed,
         updatedAt: new Date(),
-        updatedBy: req.session?.userId ?? null // ator vem da sessão, não do corpo
+        updatedBy: req.session?.userId ?? null,
       };
       const prev = await storage.getTicket(id);
+      if (!prev) return res.status(404).json({ message: "Passagem não encontrada" });
       const ticket = await storage.updateTicket(id, updates);
       const actorId = req.session?.userId;
       const actor = actorId ? await storage.getUser(actorId) : null;

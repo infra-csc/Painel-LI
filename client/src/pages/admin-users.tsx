@@ -20,6 +20,8 @@ import UserEditModal from "@/components/modals/user-edit-modal";
 import ResetPasswordModal from "@/components/modals/reset-password-modal";
 import ConfirmModal, { type ConfirmVariant } from "@/components/common/confirm-modal";
 import type { User } from "@shared/schema";
+import { normalizeRole } from "@shared/roles";
+import { hasPermission } from "@/lib/role-utils";
 
 // ─── Avatar helpers ─────────────────────────────────────────────────────────
 const AVATAR_COLORS = [
@@ -53,7 +55,7 @@ const ROLE_CFG: Record<string, { label: string; cls: string }> = {
 };
 
 function RoleBadge({ role }: { role: string }) {
-  const cfg = ROLE_CFG[role] ?? { label: role, cls: "bg-slate-50 text-slate-600 ring-1 ring-slate-200" };
+  const cfg = ROLE_CFG[normalizeRole(role) ?? role] ?? ROLE_CFG[role] ?? { label: role, cls: "bg-slate-50 text-slate-600 ring-1 ring-slate-200" };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${cfg.cls}`}>
       {cfg.label}
@@ -108,11 +110,14 @@ export default function AdminUsers() {
   const { user, isLoading: authLoading } = useAuth();
   const [, setLocation] = useLocation();
 
-  const isAdmin = user?.role === "admin" || user?.role === "administrador" || user?.role === "administrator";
-  const isRh    = user?.role === "financial";
-  const isPurchasing = user?.role === "purchasing";
-  const isProduction = user?.role === "production";
-  const hasAccess = !!user && (isAdmin || isRh || isPurchasing || isProduction);
+  // normalizeRole aceita os aliases legados do banco ("administrador", "compras"...)
+  const isAdmin = normalizeRole(user?.role) === "admin";
+  // GET /api/users: admin, financial, purchasing, production
+  const hasAccess = hasPermission(user, "canAccessAdminUsers");
+  // POST /api/users: admin, financial, purchasing (produção não cria)
+  const canCreate = hasPermission(user, "canCreateUsers");
+  // toggle-active / reset-password: admin, purchasing, production (RH não)
+  const canManageAccounts = hasPermission(user, "canManageUserAccounts");
 
   // Mensagem de erro padronizada: erro de rede/sessão nunca pode virar "lista vazia".
   const errorText = (e: any, fallback: string) => {
@@ -199,21 +204,26 @@ export default function AdminUsers() {
     });
   };
 
+  // Um único critério por status, usado nos cards E no filtro — antes o card
+  // "Aprovados" contava só ativos mas o filtro mostrava também os desativados.
+  const isPendingUser  = (u: User) => u.status === "pending";
+  const isApprovedUser = (u: User) => u.status === "approved" && u.isActive !== false;
+  const isInactiveUser = (u: User) => u.status === "rejected" || u.isActive === false;
+
   // Counts (unfiltered)
   const totalCount    = users.length;
-  const pendingCount  = users.filter(u => u.status === "pending").length;
-  const approvedCount = users.filter(u => u.status === "approved" && u.isActive !== false).length;
-  const inactiveCount = users.filter(u => u.status === "rejected" || u.isActive === false).length;
+  const pendingCount  = users.filter(isPendingUser).length;
+  const approvedCount = users.filter(isApprovedUser).length;
+  const inactiveCount = users.filter(isInactiveUser).length;
 
   const filtered = useMemo(() => {
     return users
       .filter(u => {
-        if (statusFilter === "inactive") {
-          if (!(u.status === "rejected" || u.isActive === false)) return false;
-        } else if (statusFilter !== "all" && u.status !== statusFilter) {
-          return false;
-        }
-        if (roleFilter !== "all" && u.role !== roleFilter) return false;
+        if (statusFilter === "pending"  && !isPendingUser(u))  return false;
+        if (statusFilter === "approved" && !isApprovedUser(u)) return false;
+        if (statusFilter === "inactive" && !isInactiveUser(u)) return false;
+        // Filtro de perfil compara o papel normalizado (aliases legados no banco)
+        if (roleFilter !== "all" && normalizeRole(u.role) !== roleFilter) return false;
         if (searchQuery) {
           const q = searchQuery.toLowerCase();
           return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
@@ -306,12 +316,14 @@ export default function AdminUsers() {
             <h1 className="text-base font-bold text-slate-800">Gerenciamento de Usuários</h1>
             <p className="text-xs text-slate-400 mt-0.5">Aprove, edite e gerencie contas de acesso ao sistema</p>
           </div>
-          <button
-            onClick={() => setLocation("/user-registration")}
-            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm shadow-blue-200 hover:shadow-md hover:shadow-blue-200 transition-all"
-          >
-            <UserPlus className="w-3.5 h-3.5" /> Novo Usuário
-          </button>
+          {canCreate && (
+            <button
+              onClick={() => setLocation("/user-registration")}
+              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm shadow-blue-200 hover:shadow-md hover:shadow-blue-200 transition-all"
+            >
+              <UserPlus className="w-3.5 h-3.5" /> Novo Usuário
+            </button>
+          )}
         </div>
 
         {/* ── Metric cards ── */}
@@ -341,13 +353,13 @@ export default function AdminUsers() {
             )}
           </div>
 
-          {/* Role filter */}
+          {/* Perfil filter */}
           <Select value={roleFilter} onValueChange={setRole}>
-            <SelectTrigger className="h-9 w-[175px] text-xs border-gray-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20">
-              <SelectValue placeholder="Todas as funções" />
+            <SelectTrigger aria-label="Filtrar por perfil" className="h-9 w-[175px] text-xs border-gray-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20">
+              <SelectValue placeholder="Todos os perfis" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas as funções</SelectItem>
+              <SelectItem value="all">Todos os perfis</SelectItem>
               <SelectItem value="admin">Administrador</SelectItem>
               <SelectItem value="production">Logística Interna</SelectItem>
               <SelectItem value="function_area">Área de Função</SelectItem>
@@ -375,7 +387,7 @@ export default function AdminUsers() {
                 <tr className="bg-slate-50/80 border-b border-gray-100">
                   <th className="text-left px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Usuário</th>
                   <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">E-mail</th>
-                  <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Função</th>
+                  <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Perfil</th>
                   <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Status</th>
                   <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Cadastro</th>
                   <th className="text-right px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Ações</th>
@@ -432,7 +444,7 @@ export default function AdminUsers() {
                           </span>
                         </td>
 
-                        {/* Função */}
+                        {/* Perfil */}
                         <td className="px-4 py-4">
                           <RoleBadge role={u.role} />
                         </td>
@@ -516,8 +528,9 @@ export default function AdminUsers() {
                               </Tooltip>
                             )}
 
-                            {/* Approved: reset password + toggle active */}
-                            {u.status === "approved" && (
+                            {/* Approved: reset password + toggle active — só para quem o
+                                servidor aceita (admin, compras, produção; RH não) */}
+                            {u.status === "approved" && canManageAccounts && (
                               <>
                                 <Tooltip>
                                   <TooltipTrigger asChild>

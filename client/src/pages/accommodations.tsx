@@ -1,8 +1,7 @@
 import { useState, useMemo } from "react";
-import { createPortal } from "react-dom";
 import { fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Hotel, Save, Eye, ChevronDown, ChevronRight, MessageCircle, FileText, History, AlertCircle, CheckCheck, XCircle, ArrowLeftRight, ArrowRight } from "lucide-react";
+import { Hotel, Save, Eye, ChevronDown, ChevronRight, ChevronUp, MessageCircle, FileText, History, AlertCircle, CheckCheck, XCircle, ArrowLeftRight, ArrowRight, Lock } from "lucide-react";
 import AttachmentUpload from "@/components/ui/attachment-upload";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
@@ -15,30 +14,58 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { canEdit } from "@/lib/interactions";
 import { canView, canEdit as canEditScreen } from "@/lib/permissions";
+import { hasRoleIn } from "@shared/roles";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import type { TeamInclusion, Event, Function, Collaborator, Accommodation, Comment, TeamInclusionLog, SwapRequest } from "@shared/schema";
+
+// Status de inclusão em que a hospedagem já foi registrada — a partir daí só
+// Compras/admin alteram (decisão do usuário; espelha isReadOnly em lib/interactions).
+const POST_PURCHASE_STATUSES = ['hospedagem_comprada', 'hospedagem_passagem_comprada'];
+
+// Colunas ordenáveis além das do SortableHeader compartilhado.
+type AccSortField = SortField | 'hotelName';
+type AccSortConfig = { field: AccSortField; direction: 'asc' | 'desc' };
+
+// "YYYY-MM-DD" a partir de string de data (ISO completo ou só data).
+const toDateInput = (v: string | null | undefined): string => (v ? String(v).slice(0, 10) : '');
+
+// Check-out ≥ check-in. Datas "YYYY-MM-DD" e horas "HH:mm" comparam como texto.
+// Sem alguma das datas, não há o que validar (retorna true).
+function isCheckOutAfterCheckIn(d: { checkInDate?: string; checkInTime?: string; checkOutDate?: string; checkOutTime?: string }): boolean {
+  const ci = (d.checkInDate || '').slice(0, 10), co = (d.checkOutDate || '').slice(0, 10);
+  if (!ci || !co) return true;
+  if (co !== ci) return co > ci;
+  const ti = d.checkInTime || '', to = d.checkOutTime || '';
+  if (!ti || !to) return true;
+  return to >= ti;
+}
 
 export default function Accommodations() {
   const { user } = useAuth();
   const [showOnlyPendingSwaps, setShowOnlyPendingSwaps] = useState(false);
   const [filters, setFilters] = useState({
     eventId: "all",
-    functionId: [] as string[], 
+    functionId: [] as string[],
     collaboratorId: "all",
     searchId: "",
     accommodationStatus: "all", // all, pending, processed
     inclusionStatus: "active", // all, active (excludes cancelado)
   });
-  
-  const [sortConfig, setSortConfig] = useState<SortConfig | null>({ field: 'id', direction: 'desc' });
+
+  const [sortConfig, setSortConfig] = useState<AccSortConfig | null>({ field: 'id', direction: 'desc' });
   const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successInfo, setSuccessInfo] = useState<{message:string;inclusionNumber:number|null;eventName:string;collaboratorName:string;functionName:string}|null>(null);
+  const [showBatchConfirm, setShowBatchConfirm] = useState(false);
+  const [batchApplying, setBatchApplying] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     basic: false,
     dates: true,
@@ -57,7 +84,7 @@ export default function Accommodations() {
   const queryClient = useQueryClient();
 
   // Handle column sorting
-  const handleSort = (field: SortField) => {
+  const handleSort = (field: AccSortField) => {
     setSortConfig(current => {
       if (current?.field === field) {
         return current.direction === 'asc' 
@@ -154,7 +181,8 @@ export default function Accommodations() {
     return map;
   }, [allSwapRequests]);
 
-  const isPurchasingRole = user?.role && ['admin', 'administrator', 'administrador', 'purchasing'].includes(user.role);
+  // Admin ou Compras — aceita aliases legados ("administrador", "compras"...)
+  const isPurchasingRole = hasRoleIn(user?.role, ['admin', 'purchasing']);
 
   const { data: teamInclusions, isLoading: isLoadingInclusions, error: inclusionsError } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions"],
@@ -193,35 +221,58 @@ export default function Accommodations() {
     },
   });
 
-  // Função para visualizar detalhes da hospedagem
+  // Abre o modal com um rascunho NOVO a partir do registro (ou do período da
+  // inclusão, quando ainda não há hospedagem). Rascunho anterior é descartado —
+  // fechar sem salvar não deixa resíduo.
   const handleViewAccommodationDetails = (inclusion: TeamInclusion) => {
     if (inclusion.status === 'cancelado') return;
     const acc = accommodationMap.get(inclusion.id);
-    if (acc) {
-      setAccommodationData(prev => ({
-        ...prev,
-        [inclusion.id]: {
-          hotelName: acc.hotelName || '',
-          hotelLocation: acc.hotelLocation || '',
-          reservationNumber: acc.reservationNumber || '',
-          accommodationObservations: acc.accommodationObservations || '',
-          attachmentIds: acc.attachmentIds || [],
-          ...prev[inclusion.id],
-        }
-      }));
-    }
+    setAccommodationData(prev => ({
+      ...prev,
+      [inclusion.id]: {
+        hotelName: acc?.hotelName || '',
+        hotelLocation: acc?.hotelLocation || '',
+        reservationNumber: acc?.reservationNumber || '',
+        accommodationObservations: acc?.accommodationObservations || '',
+        attachmentIds: acc?.attachmentIds || [],
+        checkInDate: toDateInput(acc?.checkInDate) || toDateInput(inclusion.scheduleStartDate),
+        checkInTime: acc?.checkInTime || '',
+        checkOutDate: toDateInput(acc?.checkOutDate) || toDateInput(inclusion.scheduleEndDate),
+        checkOutTime: acc?.checkOutTime || '',
+      }
+    }));
     setSelectedInclusion(inclusion);
     setShowModal(true);
     setModalActiveTab('resumo');
     setShowAllLogs(false);
   };
 
+  // Fechar sem salvar descarta o rascunho da inclusão aberta.
+  const closeModal = () => {
+    setShowModal(false);
+    const id = selectedInclusion?.id;
+    if (id) {
+      setAccommodationData(prev => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  };
+
   // Componente do Modal de Hospedagem — design com abas
   const AccommodationModal = () => {
     const accommodation = selectedInclusion ? accommodationMap.get(selectedInclusion.id) : null;
-    const isPostPurchase = ['hospedagem_comprada', 'hospedagem_passagem_comprada'].includes(selectedInclusion?.status || '');
-    const canEditRecord = selectedInclusion && user && canEdit(user) && selectedInclusion.status !== 'cancelado' && !isPostPurchase;
+    const isPostPurchase = POST_PURCHASE_STATUSES.includes(selectedInclusion?.status || '');
+    // Antes de registrar: quem tem permissão de edição da tela. Depois de
+    // registrada: SÓ Compras e admin (decisão do usuário) — os demais só leem.
+    const canEditRecord = !!selectedInclusion && !!user
+      && canEditScreen(user, "accommodations")
+      && selectedInclusion.status !== 'cancelado'
+      && (!isPostPurchase || isPurchasingRole);
     const roMode = !canEditRecord;
+    const lockedForRole = isPostPurchase && !isPurchasingRole && selectedInclusion?.status !== 'cancelado';
 
     if (!selectedInclusion) return null;
 
@@ -242,6 +293,16 @@ export default function Accommodations() {
         toast({ title: "Campos obrigatórios", description: "Nome do hotel e localização são obrigatórios", variant: "destructive" });
         return;
       }
+      if (!data.checkInDate || !data.checkOutDate) {
+        toast({ title: "Campos obrigatórios", description: "Informe as datas de check-in e check-out.", variant: "destructive" });
+        setModalActiveTab('dados');
+        return;
+      }
+      if (!isCheckOutAfterCheckIn(data)) {
+        toast({ title: "Datas inválidas", description: "O check-out deve ser igual ou posterior ao check-in.", variant: "destructive" });
+        setModalActiveTab('dados');
+        return;
+      }
       try {
         const payload = {
           teamInclusionId: selectedInclusion.id,
@@ -250,6 +311,10 @@ export default function Accommodations() {
           reservationNumber: data.reservationNumber || null,
           accommodationObservations: data.accommodationObservations || null,
           attachmentIds: data.attachmentIds || [],
+          checkInDate: data.checkInDate || null,
+          checkInTime: data.checkInTime || null,
+          checkOutDate: data.checkOutDate || null,
+          checkOutTime: data.checkOutTime || null,
           updatedBy: user?.id,
         };
         const msg = accommodation ? "Hospedagem atualizada com sucesso!" : "Hospedagem registrada com sucesso!";
@@ -265,7 +330,7 @@ export default function Accommodations() {
           collaboratorName: collaborator ? (fixEncoding(collaborator.fullName) || "—") : "—",
           functionName: func?.name ?? "—",
         });
-        setShowModal(false);
+        closeModal();
         setShowSuccessModal(true);
       } catch (error) {
         // O toast destrutivo já vem do onError da mutação; aqui só evitamos que
@@ -324,7 +389,7 @@ export default function Accommodations() {
 
             {/* ══ ABA: RESUMO ══ */}
             <TabsContent value="resumo" className="m-0 p-6">
-              <div className="grid grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
                 {/* Col 1: Evento + Função */}
                 <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4 space-y-3">
@@ -541,6 +606,18 @@ export default function Accommodations() {
                             <div className="text-[13px] font-bold text-slate-700 font-mono">{accommodation.reservationNumber}</div>
                           </div>
                         )}
+                        {(accommodation.checkInDate || accommodation.checkOutDate) && (
+                          <div className="grid grid-cols-2 gap-3 pt-1">
+                            <div>
+                              <div className={lbl}>Check-in</div>
+                              <div className={val}>{accommodation.checkInDate ? formatDate(accommodation.checkInDate) : '—'}{accommodation.checkInTime ? ` · ${accommodation.checkInTime}` : ''}</div>
+                            </div>
+                            <div>
+                              <div className={lbl}>Check-out</div>
+                              <div className={val}>{accommodation.checkOutDate ? formatDate(accommodation.checkOutDate) : '—'}{accommodation.checkOutTime ? ` · ${accommodation.checkOutTime}` : ''}</div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -551,16 +628,22 @@ export default function Accommodations() {
             {/* ══ ABA: DADOS DA HOSPEDAGEM ══ */}
             <TabsContent value="dados" className="m-0 p-6">
               <div className="space-y-4">
-                {isPostPurchase && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
-                    <span className="text-amber-700 font-semibold text-[13px]">⚠ Hospedagem confirmada — campos em modo somente leitura</span>
+                {lockedForRole && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 flex items-center gap-2" data-testid="notice-locked-for-role">
+                    <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span className="text-amber-700 font-semibold text-[13px]">Hospedagem registrada — somente Compras altera hospedagem registrada.</span>
+                  </div>
+                )}
+                {isPostPurchase && isPurchasingRole && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5">
+                    <span className="text-blue-700 font-semibold text-[13px]">Hospedagem registrada — alterações ficam no histórico da inclusão.</span>
                   </div>
                 )}
 
                 {/* Dados do Hotel */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-4">
                   <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 mb-3">Dados do Hotel</div>
-                  <div className="grid grid-cols-2 gap-4 mb-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
                     <div>
                       <Label htmlFor={`hotelName-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Nome do Hotel *</Label>
                       <Input
@@ -597,6 +680,76 @@ export default function Accommodations() {
                   </div>
                 </div>
 
+                {/* Check-in / Check-out */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">Check-in / Check-out</div>
+                    <span className="text-[11px] text-slate-400">Pré-preenchido com o período de trabalho</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="rounded-xl border border-green-100 bg-green-50/40 p-3">
+                      <div className="text-[10px] font-bold text-green-700 uppercase tracking-[0.06em] mb-2">↓ Check-in *</div>
+                      <div className="grid grid-cols-[1fr_110px] gap-2">
+                        <div>
+                          <Label htmlFor={`checkInDate-${selectedInclusion.id}`} className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1 block">Data</Label>
+                          <Input
+                            id={`checkInDate-${selectedInclusion.id}`}
+                            type="date"
+                            value={data.checkInDate || ""}
+                            onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "checkInDate", e.target.value)}
+                            data-testid="input-checkin-date"
+                            disabled={roMode}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor={`checkInTime-${selectedInclusion.id}`} className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1 block">Hora</Label>
+                          <Input
+                            id={`checkInTime-${selectedInclusion.id}`}
+                            type="time"
+                            value={data.checkInTime || ""}
+                            onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "checkInTime", e.target.value)}
+                            data-testid="input-checkin-time"
+                            disabled={roMode}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-3">
+                      <div className="text-[10px] font-bold text-amber-700 uppercase tracking-[0.06em] mb-2">↑ Check-out *</div>
+                      <div className="grid grid-cols-[1fr_110px] gap-2">
+                        <div>
+                          <Label htmlFor={`checkOutDate-${selectedInclusion.id}`} className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1 block">Data</Label>
+                          <Input
+                            id={`checkOutDate-${selectedInclusion.id}`}
+                            type="date"
+                            min={data.checkInDate || undefined}
+                            value={data.checkOutDate || ""}
+                            onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "checkOutDate", e.target.value)}
+                            data-testid="input-checkout-date"
+                            disabled={roMode}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor={`checkOutTime-${selectedInclusion.id}`} className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1 block">Hora</Label>
+                          <Input
+                            id={`checkOutTime-${selectedInclusion.id}`}
+                            type="time"
+                            value={data.checkOutTime || ""}
+                            onChange={(e) => handleAccommodationDataChange(selectedInclusion.id, "checkOutTime", e.target.value)}
+                            data-testid="input-checkout-time"
+                            disabled={roMode}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {!isCheckOutAfterCheckIn(data) && (
+                    <p className="mt-2 text-[12px] text-red-600 flex items-center gap-1.5" role="alert">
+                      <AlertCircle className="w-3.5 h-3.5" /> O check-out deve ser igual ou posterior ao check-in.
+                    </p>
+                  )}
+                </div>
+
                 {/* Observações */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-4">
                   <Label htmlFor={`accommodationObservations-${selectedInclusion.id}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Observações</Label>
@@ -630,7 +783,7 @@ export default function Accommodations() {
 
             {/* ══ ABA: COMPLEMENTOS ══ */}
             <TabsContent value="complementos" className="m-0 p-6">
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
                 {/* Comentários */}
                 <div className="space-y-4">
@@ -745,9 +898,14 @@ export default function Accommodations() {
 
         {/* ─── FOOTER ─── */}
         <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0 bg-white">
+          {lockedForRole && (
+            <span className="mr-auto inline-flex items-center gap-1.5 text-[12px] text-slate-500">
+              <Lock className="w-3.5 h-3.5" /> Somente Compras altera hospedagem registrada
+            </span>
+          )}
           <Button
             variant="outline"
-            onClick={() => setShowModal(false)}
+            onClick={closeModal}
             className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl px-5 py-2 text-sm font-medium"
           >
             Fechar
@@ -765,7 +923,7 @@ export default function Accommodations() {
               ) : (
                 <Hotel className="w-4 h-4" />
               )}
-              {accommodation ? "Atualizar Hospedagem" : "🏨 Confirmar Hospedagem"}
+              {accommodation ? "Atualizar Hospedagem" : "Registrar Hospedagem"}
             </Button>
           )}
         </div>
@@ -783,27 +941,39 @@ export default function Accommodations() {
     return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
   };
 
-  // Aplicar dados do registro rápido às hospedagens selecionadas
-  const handleApplyToSelected = async () => {
-    const quickData = accommodationData["quick"];
-    // Guarda contra duplo clique: sem o isPending o mesmo lote podia ser
-    // disparado duas vezes e criar hospedagens repetidas.
-    if (!quickData || effectiveSelectedForBatch.length === 0 || createAccommodationMutation.isPending) return;
+  // Validação do lote (mesma régua do modal). Devolve a mensagem de erro ou null.
+  const batchValidationError = (): string | null => {
+    const q = accommodationData["quick"];
+    if (!q?.hotelName || !q?.hotelLocation) return "Preencha os campos obrigatórios: Nome do Hotel e Localização";
+    if (!isCheckOutAfterCheckIn(q)) return "O check-out deve ser igual ou posterior ao check-in.";
+    return null;
+  };
 
-    if (!quickData.hotelName || !quickData.hotelLocation) {
-      toast({
-        title: "Erro",
-        description: "Preencha os campos obrigatórios: Nome do Hotel e Localização",
-        variant: "destructive",
-      });
+  // Passo 1 do lote: abre a confirmação ("Aplicar a N hospedagens?").
+  const handleApplyToSelected = () => {
+    if (effectiveSelectedForBatch.length === 0 || batchApplying) return;
+    const err = batchValidationError();
+    if (err) {
+      toast({ title: "Erro", description: err, variant: "destructive" });
       return;
     }
+    setShowBatchConfirm(true);
+  };
+
+  // Passo 2 do lote: registra uma a uma e invalida as queries UMA vez ao final —
+  // antes cada item invalidava /accommodations e /team-inclusions, e a tabela
+  // refazia N buscas durante o processamento.
+  const runBatch = async () => {
+    const quickData = accommodationData["quick"];
+    if (!quickData || batchApplying) return;
+    setShowBatchConfirm(false);
+    setBatchApplying(true);
+
+    let successCount = 0;
+    const errors: string[] = [];
+    const processedIds: string[] = [];
 
     try {
-      let successCount = 0;
-      const errors: string[] = [];
-      const processedIds: string[] = [];
-
       for (const inclusionId of effectiveSelectedForBatch) {
         const inclusion = filteredData.find(inc => inc.id === inclusionId);
         if (!inclusion) continue;
@@ -814,11 +984,16 @@ export default function Accommodations() {
         }
 
         try {
-          await createAccommodationMutation.mutateAsync({
+          await registerAccommodation({
             teamInclusionId: inclusion.id,
             hotelName: quickData.hotelName,
             hotelLocation: quickData.hotelLocation,
             accommodationObservations: quickData.accommodationObservations || null,
+            // Datas do lote quando informadas; senão o período de trabalho de cada inclusão.
+            checkInDate: quickData.checkInDate || toDateInput(inclusion.scheduleStartDate) || null,
+            checkInTime: quickData.checkInTime || null,
+            checkOutDate: quickData.checkOutDate || toDateInput(inclusion.scheduleEndDate) || null,
+            checkOutTime: quickData.checkOutTime || null,
             updatedBy: user?.id,
           });
           successCount++;
@@ -854,6 +1029,11 @@ export default function Accommodations() {
         description: "Erro inesperado ao processar hospedagens em lote",
         variant: "destructive",
       });
+    } finally {
+      setBatchApplying(false);
+      // Invalidação única ao fim do lote (mesmo com falhas parciais).
+      queryClient.invalidateQueries({ queryKey: ["/api/accommodations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     }
   };
 
@@ -1079,47 +1259,52 @@ export default function Accommodations() {
     selectableInclusionIds.size > 0 &&
     Array.from(selectableInclusionIds).every(id => selectedInclusionsForBatch.includes(id));
 
+  // Registro de UMA hospedagem: cria o registro e avança o status da inclusão.
+  // Compartilhado pelo modal (via mutation) e pelo lote (chamada direta, para
+  // invalidar as queries uma única vez ao final).
+  const registerAccommodation = async (accommodationData: any) => {
+    // 1. Criar accommodation
+    const accommodation = await apiRequest("POST", "/api/accommodations", accommodationData);
+
+    // 2. Atualizar status do teamInclusion - hospedagem agora é independente de passagem
+    const inclusion = teamInclusions?.find(inc => inc.id === accommodationData.teamInclusionId);
+    const needsTicket = inclusion?.needsTicket;
+    const ticket = tickets?.find(t => t.teamInclusionId === accommodationData.teamInclusionId);
+    const ticketPurchased = ticket && (ticket.purchaseDate || ticket.actualDepartureDate);
+
+    let newStatus = "hospedagem_comprada";
+    let newPhase = "hospedagem";
+
+    // Se precisa de passagem E passagem já foi comprada, marcar como ambos comprados
+    if (needsTicket && ticketPurchased) {
+      newStatus = "hospedagem_passagem_comprada";
+      newPhase = "hospedagem";
+    }
+    // Senão, apenas marcar hospedagem como comprada (independente se precisa ou não de passagem)
+
+    try {
+      await apiRequest("PATCH", `/api/team-inclusions/${accommodationData.teamInclusionId}`, {
+        status: newStatus,
+        phase: newPhase,
+        updatedBy: user?.id
+      });
+    } catch (err: any) {
+      // A hospedagem JÁ foi criada aqui: o toast genérico "Erro ao registrar
+      // hospedagem" fazia o usuário tentar de novo e duplicar o registro.
+      err.body = {
+        message: err?.body?.message
+          ? `Hospedagem registrada, mas o status da inclusão não foi atualizado: ${err.body.message}`
+          : "Hospedagem registrada, mas não foi possível atualizar o status da inclusão.",
+      };
+      throw err;
+    }
+
+    return accommodation;
+  };
+
   // Mutations
   const createAccommodationMutation = useMutation({
-    mutationFn: async (accommodationData: any) => {
-      // 1. Criar accommodation
-      const accommodation = await apiRequest("POST", "/api/accommodations", accommodationData);
-      
-      // 2. Atualizar status do teamInclusion - hospedagem agora é independente de passagem
-      const inclusion = teamInclusions?.find(inc => inc.id === accommodationData.teamInclusionId);
-      const needsTicket = inclusion?.needsTicket;
-      const ticket = tickets?.find(t => t.teamInclusionId === accommodationData.teamInclusionId);
-      const ticketPurchased = ticket && (ticket.purchaseDate || ticket.actualDepartureDate);
-      
-      let newStatus = "hospedagem_comprada";
-      let newPhase = "hospedagem";
-      
-      // Se precisa de passagem E passagem já foi comprada, marcar como ambos comprados
-      if (needsTicket && ticketPurchased) {
-        newStatus = "hospedagem_passagem_comprada";
-        newPhase = "hospedagem";
-      }
-      // Senão, apenas marcar hospedagem como comprada (independente se precisa ou não de passagem)
-      
-      try {
-        await apiRequest("PATCH", `/api/team-inclusions/${accommodationData.teamInclusionId}`, {
-          status: newStatus,
-          phase: newPhase,
-          updatedBy: user?.id
-        });
-      } catch (err: any) {
-        // A hospedagem JÁ foi criada aqui: o toast genérico "Erro ao registrar
-        // hospedagem" fazia o usuário tentar de novo e duplicar o registro.
-        err.body = {
-          message: err?.body?.message
-            ? `Hospedagem registrada, mas o status da inclusão não foi atualizado: ${err.body.message}`
-            : "Hospedagem registrada, mas não foi possível atualizar o status da inclusão.",
-        };
-        throw err;
-      }
-
-      return accommodation;
-    },
+    mutationFn: registerAccommodation,
     // onSettled: mesmo quando o PATCH de status falha a hospedagem já existe no
     // servidor, então a tela precisa recarregar de qualquer forma.
     onSettled: () => {
@@ -1203,6 +1388,19 @@ export default function Accommodations() {
 
   const canEditField = canEditScreen(user, "accommodations");
 
+  // O SortableHeader compartilhado só conhece SortField; 'hotelName' é local.
+  const sharedSortConfig: SortConfig | null =
+    sortConfig && sortConfig.field !== 'hotelName' ? { field: sortConfig.field, direction: sortConfig.direction } : null;
+
+  const hasActiveFilters =
+    filters.eventId !== "all" || filters.functionId.length > 0 || filters.collaboratorId !== "all" ||
+    filters.searchId.trim() !== "" || filters.accommodationStatus !== "all" || filters.inclusionStatus !== "active" ||
+    showOnlyPendingSwaps;
+  const clearFilters = () => {
+    setFilters({ eventId: "all", functionId: [], collaboratorId: "all", searchId: "", accommodationStatus: "all", inclusionStatus: "active" });
+    setShowOnlyPendingSwaps(false);
+  };
+
   const totalCount = filteredData.length;
   const purchasedCount = filteredData.filter(inc => accommodationMap.get(inc.id)).length;
   // Inclusão cancelada não é "pendente" — contá-la inflava a fila de trabalho
@@ -1223,16 +1421,16 @@ export default function Accommodations() {
           <Hotel className="w-5 h-5 text-white" />
         </div>
         <div>
-          <h1 className="text-[18px] font-bold tracking-tight text-slate-900">Compra de Hospedagem</h1>
-          <p className="text-xs text-slate-400">Gerencie as reservas de hospedagem para os colaboradores escalados.</p>
+          <h1 className="text-[18px] font-bold tracking-tight text-slate-900">Hospedagens</h1>
+          <p className="text-xs text-slate-400">Registre e acompanhe as hospedagens dos colaboradores escalados.</p>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: "Total", value: totalCount,    stripe: "bg-slate-700",   iconBg: "bg-slate-100",  iconTx: "text-slate-600",  valTx: "#374151",  icon: "hotel" },
-          { label: "Compradas",  value: purchasedCount, stripe: "bg-emerald-500", iconBg: "bg-emerald-50", iconTx: "text-emerald-600", valTx: "#059669", icon: "check_circle" },
+          { label: "Registradas",  value: purchasedCount, stripe: "bg-emerald-500", iconBg: "bg-emerald-50", iconTx: "text-emerald-600", valTx: "#059669", icon: "check_circle" },
           { label: "Pendentes",  value: pendingCount,   stripe: "bg-amber-400",   iconBg: "bg-amber-50",   iconTx: "text-amber-500",  valTx: "#D97706",  icon: "pending" },
         ].map(card => (
           <div key={card.label} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -1338,7 +1536,7 @@ export default function Accommodations() {
                   <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Dados do Hotel</h4>
                 </div>
                 <div className="p-4 bg-white space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label htmlFor="quick-hotel-name" className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Nome do Hotel *</Label>
                       <Input
@@ -1362,6 +1560,41 @@ export default function Accommodations() {
                       />
                     </div>
                   </div>
+                  {/* Check-in/out do lote — opcionais: em branco, cada inclusão usa seu período de trabalho */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Check-in <span className="text-slate-300 normal-case">(opcional — padrão: início da escala)</span></Label>
+                      <div className="grid grid-cols-[1fr_110px] gap-2">
+                        <Input id="quick-checkin-date" type="date" aria-label="Data de check-in do lote"
+                          value={accommodationData["quick"]?.checkInDate || ""}
+                          onChange={(e) => handleAccommodationDataChange("quick", "checkInDate", e.target.value)}
+                          className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm" data-testid="input-quick-checkin-date" />
+                        <Input id="quick-checkin-time" type="time" aria-label="Hora de check-in do lote"
+                          value={accommodationData["quick"]?.checkInTime || ""}
+                          onChange={(e) => handleAccommodationDataChange("quick", "checkInTime", e.target.value)}
+                          className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm" data-testid="input-quick-checkin-time" />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Check-out <span className="text-slate-300 normal-case">(opcional — padrão: término da escala)</span></Label>
+                      <div className="grid grid-cols-[1fr_110px] gap-2">
+                        <Input id="quick-checkout-date" type="date" aria-label="Data de check-out do lote"
+                          min={accommodationData["quick"]?.checkInDate || undefined}
+                          value={accommodationData["quick"]?.checkOutDate || ""}
+                          onChange={(e) => handleAccommodationDataChange("quick", "checkOutDate", e.target.value)}
+                          className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm" data-testid="input-quick-checkout-date" />
+                        <Input id="quick-checkout-time" type="time" aria-label="Hora de check-out do lote"
+                          value={accommodationData["quick"]?.checkOutTime || ""}
+                          onChange={(e) => handleAccommodationDataChange("quick", "checkOutTime", e.target.value)}
+                          className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm" data-testid="input-quick-checkout-time" />
+                      </div>
+                    </div>
+                  </div>
+                  {accommodationData["quick"] && !isCheckOutAfterCheckIn(accommodationData["quick"]) && (
+                    <p className="text-[12px] text-red-600 flex items-center gap-1.5" role="alert">
+                      <AlertCircle className="w-3.5 h-3.5" /> O check-out deve ser igual ou posterior ao check-in.
+                    </p>
+                  )}
                   <div className="space-y-1.5">
                     <Label htmlFor="quick-accommodation-observations" className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Observações <span className="text-slate-300 normal-case">(opcional)</span></Label>
                     <Textarea
@@ -1479,7 +1712,7 @@ export default function Accommodations() {
                 </Button>
                 <Button
                   onClick={handleApplyToSelected}
-                  disabled={effectiveSelectedForBatch.length === 0 || createAccommodationMutation.isPending}
+                  disabled={effectiveSelectedForBatch.length === 0 || batchApplying}
                   data-testid="button-apply-to-selected"
                   className="h-[38px] px-6 font-bold rounded-xl flex items-center gap-2 transition-all"
                   style={{
@@ -1490,7 +1723,7 @@ export default function Accommodations() {
                   }}
                 >
                   <Save className="w-4 h-4" />
-                  {createAccommodationMutation.isPending ? "Aplicando..." : `Aplicar a ${effectiveSelectedForBatch.length} Hospedagens`}
+                  {batchApplying ? "Aplicando..." : `Aplicar a ${effectiveSelectedForBatch.length} ${effectiveSelectedForBatch.length === 1 ? 'Hospedagem' : 'Hospedagens'}`}
                 </Button>
               </div>
             )}
@@ -1557,7 +1790,7 @@ export default function Accommodations() {
           >
             <option value="all">Todos os status</option>
             <option value="pending">Pendentes</option>
-            <option value="processed">Compradas</option>
+            <option value="processed">Registradas</option>
           </select>
 
           {/* Status Inclusão */}
@@ -1579,7 +1812,7 @@ export default function Accommodations() {
             {filteredData.length} registro{filteredData.length !== 1 ? 's' : ''}
           </span>
           <button
-            onClick={() => setFilters({ eventId: "all", functionId: [], collaboratorId: "all", searchId: "", accommodationStatus: "all", inclusionStatus: "active" })}
+            onClick={clearFilters}
             className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-slate-500 border border-gray-200 hover:border-red-200 hover:text-red-500 hover:bg-red-50 rounded-lg bg-white transition-colors"
             data-testid="button-clear-filters"
           >
@@ -1604,12 +1837,24 @@ export default function Accommodations() {
                     />
                   </th>
                 )}
-                <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort} className="!px-3 !py-3">ID</SortableHeader>
-                <th style={{padding:'12px 16px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase'}}>Evento</th>
-                <th style={{padding:'12px 16px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase'}}>Colaborador / Função</th>
+                <SortableHeader field="id" sortConfig={sharedSortConfig} onSort={handleSort} className="!px-3 !py-3">ID</SortableHeader>
+                <SortableHeader field="event" sortConfig={sharedSortConfig} onSort={handleSort} className="!px-4 !py-3 !tracking-[0.12em]">Evento</SortableHeader>
+                <SortableHeader field="collaborator" sortConfig={sharedSortConfig} onSort={handleSort} className="!px-4 !py-3 !tracking-[0.12em]">Colaborador / Função</SortableHeader>
                 <th style={{padding:'12px 12px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase',width:110}}>Check-in</th>
                 <th style={{padding:'12px 12px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase',width:110}}>Check-out</th>
-                <th style={{padding:'12px 14px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase',width:180}}>Hotel</th>
+                {/* Hotel: ordenável, mas 'hotelName' não existe no SortField compartilhado — th local com o mesmo visual */}
+                <th
+                  style={{padding:'12px 14px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase',width:180,cursor:'pointer'}}
+                  className="hover:bg-slate-100 transition-colors"
+                  onClick={() => handleSort('hotelName')}
+                  aria-sort={sortConfig?.field === 'hotelName' ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  data-testid="header-hotelName"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Hotel</span>
+                    {sortConfig?.field === 'hotelName' && (sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
+                  </div>
+                </th>
                 <th style={{padding:'12px 16px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase'}}>Status</th>
                 <th style={{padding:'12px 8px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase',textAlign:'center',width:72}}>Ações</th>
               </tr>
@@ -1738,7 +1983,7 @@ export default function Accommodations() {
                         ) : hasAccommodation ? (
                           <span style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 10px',borderRadius:6,background:'#DCFCE7',color:'#15803D',fontSize:10,fontWeight:700,letterSpacing:'0.06em'}}>
                             <span style={{width:6,height:6,borderRadius:'50%',background:'#22C55E',flexShrink:0}} />
-                            Comprada
+                            Registrada
                           </span>
                         ) : (
                           <span style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 10px',borderRadius:6,background:'#FEF9C3',color:'#B45309',fontSize:10,fontWeight:700,letterSpacing:'0.06em'}}>
@@ -1784,8 +2029,24 @@ export default function Accommodations() {
             </table>
 
             {filteredData.length === 0 && (
-              <div style={{textAlign:'center',padding:'48px 0',color:'#94A3B8',fontSize:14}} data-testid="no-accommodations">
-                Nenhuma inclusão com hospedagem encontrada.
+              <div className="flex flex-col items-center gap-2 text-center" style={{padding:'48px 0',color:'#94A3B8',fontSize:14}} data-testid="no-accommodations">
+                <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center">
+                  <Hotel className="w-6 h-6 text-slate-400" />
+                </div>
+                {hasActiveFilters ? (
+                  <>
+                    <p className="font-semibold text-slate-600">Nenhuma hospedagem corresponde aos filtros</p>
+                    <p className="text-xs text-slate-400">Ajuste ou limpe os filtros para ver as demais inclusões.</p>
+                    <Button variant="outline" size="sm" className="mt-1 rounded-lg" onClick={clearFilters} data-testid="button-clear-filters-empty">
+                      Limpar filtros
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-semibold text-slate-600">Nenhuma inclusão com hospedagem</p>
+                    <p className="text-xs text-slate-400">Inclusões que precisam de hospedagem aparecerão aqui assim que forem escaladas.</p>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -1796,16 +2057,39 @@ export default function Accommodations() {
             </p>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
               <span style={{fontSize:11,color:'#94A3B8',fontWeight:600}}>
-                {purchasedCount} compradas · {pendingCount} pendentes
+                {purchasedCount} registradas · {pendingCount} pendentes
               </span>
             </div>
           </div>
         </div>
 
       {/* Modal de Hospedagem */}
-      <Dialog open={showModal} onOpenChange={setShowModal} modal={!showSuccessModal}>
+      <Dialog open={showModal} onOpenChange={(open) => { if (!open) closeModal(); else setShowModal(true); }} modal={!showSuccessModal}>
         {AccommodationModal()}
       </Dialog>
+
+      {/* Confirmação do lote */}
+      <AlertDialog open={showBatchConfirm} onOpenChange={setShowBatchConfirm}>
+        <AlertDialogContent className="max-w-[420px]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Aplicar a {effectiveSelectedForBatch.length} {effectiveSelectedForBatch.length === 1 ? 'hospedagem' : 'hospedagens'}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Os dados de <span className="font-semibold text-slate-700">{accommodationData["quick"]?.hotelName}</span>
+              {accommodationData["quick"]?.hotelLocation ? <> ({accommodationData["quick"].hotelLocation})</> : null} serão registrados
+              nas inclusões selecionadas e o status de cada uma avança para "hospedagem registrada".
+              {!accommodationData["quick"]?.checkInDate || !accommodationData["quick"]?.checkOutDate
+                ? " As datas de check-in/out não informadas usam o período de trabalho de cada inclusão."
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={runBatch} data-testid="button-confirm-batch" style={{ background: '#0033CC' }}>
+              Aplicar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Modal confirmação — Aprovar troca */}
       {swapConfirmAction === 'approve' && pendingSwap && (
@@ -1872,23 +2156,22 @@ export default function Accommodations() {
         </Dialog>
       )}
 
-      {/* Modal de sucesso — portal no body para escapar do transform do Dialog */}
-      {showSuccessModal && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{background:'rgba(0,0,0,0.45)'}}>
-          <div className="bg-white rounded-2xl shadow-2xl flex flex-col items-center px-8 py-7 w-full mx-4" style={{boxShadow:'0 8px 40px rgba(0,0,0,0.18)', maxWidth: 440}}>
-            <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{background:'#DCFCE7'}}>
-              <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
-                <circle cx="18" cy="18" r="18" fill="#16A34A" fillOpacity="0.12"/>
-                <path d="M10 18.5L15.5 24L26 13" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+      {/* Modal de sucesso — AlertDialog (shadcn) no lugar do portal manual */}
+      <AlertDialog open={showSuccessModal} onOpenChange={(open) => { if (!open) { setShowSuccessModal(false); setSuccessInfo(null); } }}>
+        <AlertDialogContent className="max-w-[440px]" data-testid="dialog-accommodation-success">
+          <AlertDialogHeader className="items-center text-center">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center mb-1" style={{background:'#DCFCE7'}}>
+              <CheckCheck className="w-7 h-7 text-green-600" />
             </div>
-            <h3 className="text-lg font-bold text-slate-800 mb-1">Sucesso</h3>
-            <p className="text-sm text-slate-500 text-center mb-3">{successInfo?.message}</p>
+            <AlertDialogTitle className="text-lg font-bold text-slate-800">Sucesso</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-slate-500 text-center">{successInfo?.message}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex flex-col items-center">
             {successInfo?.inclusionNumber != null && (
               <span className="mb-4 px-3 py-0.5 rounded-full text-sm font-bold" style={{background:'#EEF2FF', color:'#4F46E5'}}>#{successInfo.inclusionNumber}</span>
             )}
             <div className="w-full border-t border-slate-100 mb-4"/>
-            <div className="w-full space-y-2 mb-5">
+            <div className="w-full space-y-2">
               <div className="flex items-start justify-between gap-4 text-sm">
                 <span className="text-slate-400 font-medium shrink-0">Evento</span>
                 <span className="text-slate-700 font-semibold text-right">{successInfo?.eventName}</span>
@@ -1902,17 +2185,14 @@ export default function Accommodations() {
                 <span className="text-slate-700 font-semibold text-right">{successInfo?.functionName}</span>
               </div>
             </div>
-            <button
-              onClick={() => { setShowSuccessModal(false); setSuccessInfo(null); }}
-              className="w-full py-2.5 rounded-xl font-semibold text-white text-sm"
-              style={{background:'#2563EB'}}
-            >
-              OK
-            </button>
           </div>
-        </div>,
-        document.body
-      )}
+          <AlertDialogFooter>
+            <AlertDialogAction className="w-full rounded-xl" style={{background:'#2563EB'}} data-testid="button-success-ok">
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Modal de Comentários */}
       {showCommentsModal && selectedInclusion && (

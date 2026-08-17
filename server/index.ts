@@ -115,7 +115,7 @@ const passwordResetLimiter = rateLimit({
 });
 
 app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/register', authLimiter);
+// /api/auth/register foi removido em 17/08/2026 (registro público desativado).
 app.use('/api/auth/forgot-password', passwordResetLimiter);
 app.use('/api/auth/reset-password', passwordResetLimiter);
 

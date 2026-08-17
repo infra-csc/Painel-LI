@@ -3,6 +3,12 @@ import { Button } from "@/components/ui/button";
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
+  /**
+   * `page`: ocupa a tela inteira (limite externo, rotas públicas).
+   * `content`: cabe na área de conteúdo do MainLayout (limite interno, keyed
+   *  por rota em App.tsx — a sidebar continua visível e navegável).
+   */
+  variant?: "page" | "content";
 }
 
 interface ErrorBoundaryState {
@@ -62,12 +68,21 @@ export class ErrorBoundary extends React.Component<
 
   render() {
     if (this.state.hasError) {
+      const isContent = this.props.variant === "content";
       return (
-        <div className="min-h-screen w-full flex flex-col items-center justify-center gap-4 bg-background text-foreground px-4 text-center">
+        <div
+          role="alert"
+          className={
+            isContent
+              ? "min-h-[50vh] w-full flex flex-col items-center justify-center gap-4 rounded-lg border border-border bg-card text-foreground px-4 py-10 text-center"
+              : "min-h-dvh w-full flex flex-col items-center justify-center gap-4 bg-background text-foreground px-4 text-center"
+          }
+        >
           <h1 className="text-2xl font-semibold">Algo deu errado</h1>
           <p className="text-sm text-muted-foreground max-w-sm">
             Não foi possível carregar esta página. Isso pode acontecer após uma
-            atualização do sistema. Tente recarregar.
+            atualização do sistema. Tente recarregar
+            {isContent ? " ou abra outra página pelo menu" : ""}.
           </p>
           <Button onClick={this.handleReload}>Recarregar</Button>
         </div>

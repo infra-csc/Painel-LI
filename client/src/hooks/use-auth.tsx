@@ -4,19 +4,10 @@ import type { User } from "@shared/schema";
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (userData: RegisterData) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   setUser: (user: User | null) => void;
   isLoading: boolean;
   isAuthenticated: boolean;
-}
-
-interface RegisterData {
-  email: string;
-  password: string;
-  name: string;
-  role: string;
-  area?: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -95,20 +86,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (userData: RegisterData): Promise<{ success: boolean; message?: string }> => {
-    try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(userData),
-      });
-      if (res.ok) return { success: true };
-      const error = await res.json();
-      return { success: false, message: error.message || "Erro ao criar conta" };
-    } catch {
-      return { success: false, message: "Erro interno do servidor" };
-    }
-  };
+  // O registro público (/api/auth/register) foi removido em 17/08/2026: contas
+  // são criadas pelo RH/Compras/admin em "Cadastro de Usuários" ou via SSO.
 
   const logout = () => {
     const portalReturn = localStorage.getItem("portal-return-url");
@@ -129,7 +108,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider value={{
       user,
       login,
-      register,
       logout,
       setUser,
       isLoading,

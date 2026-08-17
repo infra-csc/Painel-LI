@@ -11,9 +11,11 @@ import { Form, FormControl, FormField, FormItem, FormMessage } from "@/component
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { User } from "@shared/schema";
+import { normalizeRole } from "@shared/roles";
+import { hasPermission } from "@/lib/role-utils";
 import {
   X, Check, User as UserIcon, Mail, MapPin,
-  ShieldCheck, Layers, Briefcase, ShoppingCart, BarChart2
+  ShieldCheck, Layers, Briefcase, ShoppingCart, BarChart2, Lock
 } from "lucide-react";
 
 // ─── Avatar helpers ─────────────────────────────────────────────────────────
@@ -67,14 +69,18 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user: currentUser } = useAuth();
-  const isCurrentAdmin = currentUser?.role === "admin";
+  const isCurrentAdmin = normalizeRole(currentUser?.role) === "admin";
+  // PATCH /api/users/:id só grava role/area quando quem edita é admin
+  // (allowedFieldsForAdmin). Para os demais os campos ficam travados e não
+  // são enviados — antes o servidor descartava em silêncio.
+  const canChangeRole = hasPermission(currentUser, "canChangeUserRole");
 
   const form = useForm<UserEditFormData>({
     resolver: zodResolver(userEditSchema),
     defaultValues: {
       name:  user?.name  || "",
       email: user?.email || "",
-      role:  (user?.role as UserEditFormData["role"]) || "production",
+      role:  (normalizeRole(user?.role) as UserEditFormData["role"]) || "production",
       area:  user?.area  || "",
     },
   });
@@ -84,22 +90,30 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
       form.reset({
         name:  user.name,
         email: user.email,
-        role:  user.role as any,
+        role:  (normalizeRole(user.role) ?? "production") as UserEditFormData["role"],
         area:  user.area || "",
       });
     }
   }, [user, form]);
 
   const updateUserMutation = useMutation({
-    mutationFn: async (data: UserEditFormData) =>
-      (await apiRequest("PATCH", `/api/users/${user?.id}`, data)).json(),
+    mutationFn: async (data: UserEditFormData) => {
+      const payload: Partial<UserEditFormData> = canChangeRole
+        ? data
+        : { name: data.name, email: data.email };
+      return (await apiRequest("PATCH", `/api/users/${user?.id}`, payload)).json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       toast({ title: "Sucesso", description: "Dados do usuário atualizados com sucesso" });
       onClose();
     },
-    onError: (error: any) => {
-      toast({ title: "Erro", description: error.message || "Erro ao atualizar usuário", variant: "destructive" });
+    onError: (err: any) => {
+      // err.message vem como "403: {...json...}" — o texto legível está em err.body.message.
+      const description =
+        err?.status === 401 ? "Sua sessão expirou. Entre novamente para continuar." :
+        err?.body?.message || "Erro ao atualizar usuário";
+      toast({ title: "Erro", description, variant: "destructive" });
     },
   });
 
@@ -211,19 +225,28 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                 )}
               />
 
-              {/* Função */}
+              {!canChangeRole && (
+                <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
+                  <Lock className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    Só administradores alteram perfil e área. Você pode editar nome e e-mail.
+                  </p>
+                </div>
+              )}
+
+              {/* Perfil */}
               <FormField
                 control={form.control}
                 name="role"
                 render={({ field }) => (
                   <FormItem>
                     <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1.5">
-                      Função <span className="text-red-400">*</span>
+                      Perfil <span className="text-red-400">*</span>
                     </label>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={!canChangeRole}>
                       <FormControl>
-                        <SelectTrigger className={`${BASE_INPUT} px-3`} data-testid="select-edit-role">
-                          <SelectValue placeholder="Selecione a função" />
+                        <SelectTrigger className={`${BASE_INPUT} px-3 disabled:opacity-60 disabled:cursor-not-allowed`} data-testid="select-edit-role" aria-disabled={!canChangeRole}>
+                          <SelectValue placeholder="Selecione o perfil" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent className="rounded-xl">
@@ -261,8 +284,9 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <Input
                           placeholder="Ex: Cenografia, Palco Principal..."
-                          className={`${BASE_INPUT} pl-10`}
+                          className={`${BASE_INPUT} pl-10 disabled:opacity-60 disabled:cursor-not-allowed`}
                           data-testid="input-edit-area"
+                          disabled={!canChangeRole}
                           {...field}
                         />
                       </div>

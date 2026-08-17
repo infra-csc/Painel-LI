@@ -329,6 +329,12 @@ const FIELD_MAP: Record<string, FieldTarget> = {
   "accommodation.lateCheckout": { table: "accommodations", col: "lateCheckout", type: "bool" },
   "accommodation.totalCents": { table: "accommodations", col: "totalCents", type: "int" },
   "accommodation.hotelName": { table: "accommodations", col: "hotelName", type: "text" },
+  "accommodation.reservationNumber": { table: "accommodations", col: "reservationNumber", type: "text" },
+  // Check-in/out reais da hospedagem — a sugestão de quarto usa acc.checkInDate/checkOutDate
+  "accommodation.checkInDate": { table: "accommodations", col: "checkInDate", type: "date" },
+  "accommodation.checkInTime": { table: "accommodations", col: "checkInTime", type: "text" },
+  "accommodation.checkOutDate": { table: "accommodations", col: "checkOutDate", type: "date" },
+  "accommodation.checkOutTime": { table: "accommodations", col: "checkOutTime", type: "text" },
   "accommodation.paymentCompany": { table: "accommodations", col: "paymentCompany", type: "text" },
   "accommodation.hotelOc": { table: "accommodations", col: "hotelOc", type: "text" },
   "accommodation.checkIn4": { table: "accommodations", col: "checkIn4", type: "text" },
@@ -369,6 +375,11 @@ export async function patchOperationalMirrorCell(eventId: string, rowId: string,
   if (!inclusion || inclusion.eventId !== eventId) throw new Error("Inclusão não encontrada para o evento");
 
   const value = coerce(rawValue, target.type);
+
+  // Tipo de quarto é um enum na UI (Select); rejeitar valores fora dele.
+  if (field === "accommodation.roomType" && value !== null && !["single", "double", "triple"].includes(value)) {
+    throw new Error("Tipo de quarto inválido: use single, double ou triple");
+  }
 
   if (target.table === "team_inclusions") {
     await db.update(teamInclusions).set({ [target.col]: value, updatedAt: new Date() } as any).where(eq(teamInclusions.id, rowId));
