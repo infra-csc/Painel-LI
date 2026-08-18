@@ -18,7 +18,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetNote } from "@shared/schema";
 import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents, mobilidadeSemVooCents, isTransporteTerrestre, ATENDIMENTO_TIPOS, type AtendimentoTipo } from "@shared/atendimento";
 import { calcDeflatedDailies, deflationFactorsFromSettings, freelaDailyCents, casaDailyCents, diasComDiaria as calcDiasComDiaria, regraDiariaPorTipo, isPercursoFunction, percurseiroDiariaCents, diasPercurseiro, PERCURSEIRO_TIPOS, type DeflationSegment, type RegraDiaria, type PercurseiroTipo, type PercurseiroDiaria } from "@shared/calculation-rules";
-import { calcAlimentacao, isCenotecnicaFunction, refeicaoCents, refeicaoCentsDia } from "@shared/alimentacao";
+import { calcAlimentacao, refeicaoCents, refeicaoCentsDia, refeicaoPerfil } from "@shared/alimentacao";
 import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
@@ -1318,13 +1318,15 @@ export default function BudgetPlannedPage() {
       // ── Alimentação por refeição, dirigida pelos horários da passagem ──────
       // Quem NÃO voa (17/08): jornada externa → almoço + jantar todos os dias
       // (calcAlimentacao trata voa=false como dia cheio, sem "estimado").
-      const ceno = isCenotecnicaFunction(getFunctionName(inclusion.functionId));
-      const { almocoCents, jantarCents } = refeicaoCents(ceno, ss);
+      // Perfil de refeição (18/08): Key Account / Gerente = "gestao" (44/44),
+      // cenotécnica = "ceno" (35/35), demais (inclui Executivo de Contas) = 40/40.
+      const perfil = refeicaoPerfil(getFunctionName(inclusion.functionId), (inclusion as any).atendimentoTipo);
+      const { almocoCents, jantarCents } = refeicaoCents(perfil, ss);
       // Regra 17/08: colaborador `casa` (CLT) em dia ÚTIL tem almoço reduzido
-      // (default R$ 8,00 — só a diferença do VR); jantar e fins de semana
+      // (default R$ 5,00 — só a diferença do VR); jantar e fins de semana
       // inalterados. Valor por dia vem de shared/alimentacao (refeicaoCentsDia).
-      const refUtil = refeicaoCentsDia(ceno, ss, { tipoColaborador: collab?.type, isWeekend: false });
-      const refFds = refeicaoCentsDia(ceno, ss, { tipoColaborador: collab?.type, isWeekend: true });
+      const refUtil = refeicaoCentsDia(perfil, ss, { tipoColaborador: collab?.type, isWeekend: false });
+      const refFds = refeicaoCentsDia(perfil, ss, { tipoColaborador: collab?.type, isWeekend: true });
       // Percurso: alimentação no pacote → sem dias
       const alim = calcAlimentacao({
         workDays: isPercurso ? [] : diasPeriodo, voa,

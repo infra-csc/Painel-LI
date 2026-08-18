@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcAlimentacao, isCenotecnicaFunction, refeicaoCents, refeicaoCentsDia } from "./alimentacao";
+import { calcAlimentacao, isCenotecnicaFunction, refeicaoCents, refeicaoCentsDia, refeicaoPerfil } from "./alimentacao";
 
 const base = { almocoCents: 4000, jantarCents: 4000 };
 const dias3 = ["2026-08-28", "2026-08-29", "2026-08-30"];
@@ -126,6 +126,73 @@ describe("valores por refeição (Valores Padrão)", () => {
     expect(isCenotecnicaFunction("Sup Ceno")).toBe(false);
     expect(isCenotecnicaFunction("Supervisor de Cenotecnica")).toBe(false);
     expect(isCenotecnicaFunction("atendimento")).toBe(false);
+  });
+});
+
+describe("refeicaoPerfil — Key Account / Gerente x Executivo de Contas x cenotécnica (regra 18/08)", () => {
+  it("por nome da função: Key Account e Gerente → gestao; Executivo de Contas → demais", () => {
+    expect(refeicaoPerfil("Key Account")).toBe("gestao");
+    expect(refeicaoPerfil("KEY ACCOUNT")).toBe("gestao");
+    expect(refeicaoPerfil("KeyAccount")).toBe("gestao");
+    expect(refeicaoPerfil("Key")).toBe("gestao");
+    expect(refeicaoPerfil("Gerente de Contas")).toBe("gestao");
+    expect(refeicaoPerfil("Gerente")).toBe("gestao");
+    expect(refeicaoPerfil("Executivo de Contas")).toBe("demais");
+    expect(refeicaoPerfil("Executivo Vendas O2 Prime")).toBe("demais");
+    expect(refeicaoPerfil("atendimento")).toBe("demais");
+    expect(refeicaoPerfil("Produção")).toBe("demais");
+    // "hockey" não é "key" (\bkey\b)
+    expect(refeicaoPerfil("Hockey")).toBe("demais");
+    expect(refeicaoPerfil(null)).toBe("demais");
+    expect(refeicaoPerfil(undefined)).toBe("demais");
+  });
+  it("por atendimentoTipo da escalação: key_account → gestao; executivo_contas → demais", () => {
+    expect(refeicaoPerfil("Atendimento", "key_account")).toBe("gestao");
+    expect(refeicaoPerfil("Atendimento", "executivo_contas")).toBe("demais");
+    expect(refeicaoPerfil("Atendimento", null)).toBe("demais");
+    // key_account vence mesmo com nome neutro
+    expect(refeicaoPerfil(null, "key_account")).toBe("gestao");
+  });
+  it("cenotécnica → ceno (Sup Ceno é produtor → demais)", () => {
+    expect(refeicaoPerfil("Cenotécnica")).toBe("ceno");
+    expect(refeicaoPerfil("cenotecnica", null)).toBe("ceno");
+    expect(refeicaoPerfil("Sup Ceno")).toBe("demais");
+  });
+});
+
+describe("refeicaoCents — perfil gestao (Key Account / Gerente = R$ 44 / R$ 44)", () => {
+  it("default 44/44; strings de perfil equivalem ao boolean legado", () => {
+    expect(refeicaoCents("gestao", {})).toEqual({ almocoCents: 4400, jantarCents: 4400 });
+    expect(refeicaoCents("gestao", null)).toEqual({ almocoCents: 4400, jantarCents: 4400 });
+    expect(refeicaoCents("demais", {})).toEqual(refeicaoCents(false, {}));
+    expect(refeicaoCents("ceno", {})).toEqual(refeicaoCents(true, {}));
+  });
+  it("Executivo de Contas paga como demais (R$ 40 / R$ 40)", () => {
+    expect(refeicaoCents(refeicaoPerfil("Executivo de Contas", "executivo_contas"), {}))
+      .toEqual({ almocoCents: 4000, jantarCents: 4000 });
+  });
+  it("chaves alimentacao_almoco_gestao / alimentacao_jantar_gestao vencem o default", () => {
+    expect(refeicaoCents("gestao", { alimentacao_almoco_gestao: 4600, alimentacao_jantar_gestao: "4800" }))
+      .toEqual({ almocoCents: 4600, jantarCents: 4800 });
+    // não vaza para os outros perfis
+    expect(refeicaoCents("demais", { alimentacao_almoco_gestao: 4600 })).toEqual({ almocoCents: 4000, jantarCents: 4000 });
+  });
+});
+
+describe("refeicaoCentsDia — perfil gestao", () => {
+  it("casa em dia útil: almoço R$ 5,00 (mesma chave de demais), jantar R$ 44,00", () => {
+    expect(refeicaoCentsDia("gestao", {}, { tipoColaborador: "casa", isWeekend: false }))
+      .toEqual({ almocoCents: 500, jantarCents: 4400 });
+  });
+  it("casa em fim de semana e freela: 44 / 44", () => {
+    expect(refeicaoCentsDia("gestao", {}, { tipoColaborador: "casa", isWeekend: true }))
+      .toEqual({ almocoCents: 4400, jantarCents: 4400 });
+    expect(refeicaoCentsDia("gestao", {}, { tipoColaborador: "freela", isWeekend: false }))
+      .toEqual({ almocoCents: 4400, jantarCents: 4400 });
+  });
+  it("chaves dos Valores Padrão vencem o default (casa útil usa alimentacao_almoco_casa_util)", () => {
+    expect(refeicaoCentsDia("gestao", { alimentacao_almoco_casa_util: "700", alimentacao_jantar_gestao: 5000 }, { tipoColaborador: "casa", isWeekend: false }))
+      .toEqual({ almocoCents: 700, jantarCents: 5000 });
   });
 });
 

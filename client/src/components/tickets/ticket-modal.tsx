@@ -23,7 +23,7 @@ import {
   type TicketFormValues,
   type PlannedImpactContext,
 } from "@/lib/ticket-form";
-import { isCenotecnicaFunction, refeicaoCents } from "@shared/alimentacao";
+import { refeicaoCents, refeicaoPerfil } from "@shared/alimentacao";
 import type { TeamInclusion, Ticket, User, Comment, TeamInclusionLog } from "@shared/schema";
 import TicketFormFields, { fieldTestIdSlug } from "./ticket-form-fields";
 import TicketSummaryTab from "./ticket-summary-tab";
@@ -115,8 +115,9 @@ export default function TicketModal({
   // régua do Planejado) e valores de refeição da função (cenotécnica ou não).
   const impactCtx = useMemo<PlannedImpactContext | undefined>(() => {
     if (!inclusion) return undefined;
-    const ceno = isCenotecnicaFunction(data.getFunctionName(inclusion.functionId));
-    const { almocoCents, jantarCents } = refeicaoCents(ceno, data.systemSettings);
+    // Perfil (18/08): Key Account / Gerente = 44/44; cenotécnica 35/35; demais 40/40
+    const perfil = refeicaoPerfil(data.getFunctionName(inclusion.functionId), inclusion.atendimentoTipo);
+    const { almocoCents, jantarCents } = refeicaoCents(perfil, data.systemSettings);
     return { workDays: periodDays(inclusion.scheduleStartDate, inclusion.scheduleEndDate), almocoCents, jantarCents };
   }, [inclusion, data.systemSettings, data.functionById]);
 

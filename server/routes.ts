@@ -4216,6 +4216,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         alimentacao_jantar: 4000,
         alimentacao_almoco_ceno: 3500,
         alimentacao_jantar_ceno: 3500,
+        // Key Account / Gerente (regra 18/08) — Executivo de Contas fica em "demais"
+        alimentacao_almoco_gestao: 4400,
+        alimentacao_jantar_gestao: 4400,
         // Almoço do colaborador de casa (CLT) em dia útil — só a diferença do VR
         alimentacao_almoco_casa_util: 500,
         alimentacao_almoco_casa_util_ceno: 300,
@@ -4267,8 +4270,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "atendimento_key_account", "atendimento_executivo_contas",
         // Fatores de deflação (percentuais inteiros)
         "deflacao_fator_ate_4", "deflacao_fator_5_8", "deflacao_fator_9_mais",
-        // Refeições flat (alimentação por voo — Demais e Cenotécnica)
+        // Refeições flat (alimentação por voo — Demais, Cenotécnica e Key Account / Gerente)
         "alimentacao_almoco", "alimentacao_jantar", "alimentacao_almoco_ceno", "alimentacao_jantar_ceno",
+        "alimentacao_almoco_gestao", "alimentacao_jantar_gestao",
         // Almoço de casa (CLT) em dia útil (demais / cenotécnica)
         "alimentacao_almoco_casa_util", "alimentacao_almoco_casa_util_ceno",
         // Percurseiro (motoqueiro) — pacote fechado por diária

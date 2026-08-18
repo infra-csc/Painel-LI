@@ -73,6 +73,8 @@ export default function CalculationRulesPage() {
         refeicao: f.refeicao,
         demaisCents: effectiveCents(settings, isAlmoco ? "alimentacao_almoco" : "alimentacao_jantar", f.demaisCents),
         cenotecnicaCents: effectiveCents(settings, isAlmoco ? "alimentacao_almoco_ceno" : "alimentacao_jantar_ceno", f.cenotecnicaCents),
+        // Key Account / Gerente (regra 18/08): R$ 44 por refeição por padrão
+        gestaoCents: effectiveCents(settings, isAlmoco ? "alimentacao_almoco_gestao" : "alimentacao_jantar_gestao", 4400),
       };
     };
     return {
@@ -289,7 +291,7 @@ function MobilityCard() {
 
 type TabRatesProps = { rates: { funcao: string; cents: number }[]; factors: DeflationFactors };
 
-type FoodRow = { refeicao: string; demaisCents: number; cenotecnicaCents: number };
+type FoodRow = { refeicao: string; demaisCents: number; cenotecnicaCents: number; gestaoCents: number };
 type CasaFood = { jornadaExterna: FoodRow[]; emViagem: FoodRow[] };
 
 function CasaTab({ rates, food, factors }: TabRatesProps & { food: CasaFood }) {
@@ -310,15 +312,15 @@ function CasaTab({ rates, food, factors }: TabRatesProps & { food: CasaFood }) {
         <div className="space-y-4">
           <Card title="Alimentação" icon={UtensilsCrossed} accent="text-emerald-600">
             <RateTable
-              headers={["Em jornada externa", "Demais", "Cenotécnica"]}
-              rows={food.jornadaExterna.map(f => [f.refeicao, fmt(f.demaisCents), fmt(f.cenotecnicaCents)])}
+              headers={["Em jornada externa", "Demais", "Cenotécnica", "Key Account / Gerente"]}
+              rows={food.jornadaExterna.map(f => [f.refeicao, fmt(f.demaisCents), fmt(f.cenotecnicaCents), fmt(f.gestaoCents)])}
             />
             <RateTable
-              headers={["Em viagem", "Demais", "Cenotécnica"]}
-              rows={food.emViagem.map(f => [f.refeicao, fmt(f.demaisCents), fmt(f.cenotecnicaCents)])}
+              headers={["Em viagem", "Demais", "Cenotécnica", "Key Account / Gerente"]}
+              rows={food.emViagem.map(f => [f.refeicao, fmt(f.demaisCents), fmt(f.cenotecnicaCents), fmt(f.gestaoCents)])}
             />
             <p className="text-[11px] text-slate-400 px-4 py-3 border-t border-gray-50">
-              Valor vigente (editável no Valores Padrão).
+              Valor vigente (editável no Valores Padrão). Executivo de Contas = Demais (R$ 40); Key Account e Gerente = R$ 44 por refeição.
             </p>
           </Card>
           <MobilityCard />

@@ -270,10 +270,11 @@ export default function Tickets() {
   const toggleAllTickets = () => setSelectedTickets(allSelectableSelected ? [] : Array.from(selectableInclusionIds));
 
   const filteredEvent = filters.eventId !== "all" ? eventById.get(filters.eventId) : undefined;
-  // Impacto do lote: sem período individual, usa as datas do evento filtrado (se houver) e valores padrão de refeição.
+  // Impacto do lote: sem período individual, usa as datas do evento filtrado (se houver) e valores padrão de refeição
+  // do perfil "demais" (o lote mistura funções; o valor exato por pessoa aparece no modal individual).
   const batchImpactCtx = useMemo<PlannedImpactContext>(() => ({
     workDays: filteredEvent ? periodDays(filteredEvent.startDate, filteredEvent.endDate) : null,
-    ...refeicaoCents(false, data.systemSettings),
+    ...refeicaoCents("demais", data.systemSettings),
   }), [filteredEvent, data.systemSettings]);
 
   const handleApplyToSelected = () => {

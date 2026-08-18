@@ -94,6 +94,8 @@ const formSchema = z.object({
   alimentacao_almoco_casa_util: moneyField(),
   alimentacao_almoco_casa_util_ceno: moneyField(),
   alimentacao_jantar_ceno: moneyField(),
+  alimentacao_almoco_gestao: moneyField(),
+  alimentacao_jantar_gestao: moneyField(),
   // Percurseiro (motoqueiro): pacote fechado por diária, Tipo 1 × Tipo 2
   percurseiro_t1_motoqueiro: moneyField(),
   percurseiro_t2_motoqueiro: moneyField(),
@@ -175,6 +177,8 @@ const FIELD_LABELS: Record<string, string> = {
   percurseiro_t1_nf: "Percurseiro — NF Tipo 1",
   percurseiro_t2_nf: "Percurseiro — NF Tipo 2",
   alimentacao_jantar_ceno: "Alimentação por Refeição — Jantar (Cenotécnica)",
+  alimentacao_almoco_gestao: "Alimentação por Refeição — Almoço (Key Account / Gerente)",
+  alimentacao_jantar_gestao: "Alimentação por Refeição — Jantar (Key Account / Gerente)",
 };
 
 // Histórico gravado APENAS no localStorage deste navegador — em ambiente
@@ -560,6 +564,8 @@ export default function SystemSettingsPage() {
       percurseiro_t1_nf: "172.76",
       percurseiro_t2_nf: "194.67",
       alimentacao_jantar_ceno: "35.00",
+      alimentacao_almoco_gestao: "44.00",
+      alimentacao_jantar_gestao: "44.00",
     },
   });
 
@@ -611,6 +617,8 @@ export default function SystemSettingsPage() {
         percurseiro_t1_nf: centavosToReais(s.percurseiro_t1_nf ?? 17276),
         percurseiro_t2_nf: centavosToReais(s.percurseiro_t2_nf ?? 19467),
         alimentacao_jantar_ceno: centavosToReais(s.alimentacao_jantar_ceno ?? 3500),
+        alimentacao_almoco_gestao: centavosToReais(s.alimentacao_almoco_gestao ?? 4400),
+        alimentacao_jantar_gestao: centavosToReais(s.alimentacao_jantar_gestao ?? 4400),
       });
     }
   }, [settings]);
@@ -977,11 +985,13 @@ export default function SystemSettingsPage() {
                   <MoneyField control={form.control} name="alimentacao_jantar" label="Jantar — Demais" labelClass="text-emerald-700" />
                   <MoneyField control={form.control} name="alimentacao_almoco_ceno" label="Almoço — Cenotécnica" labelClass="text-emerald-700" />
                   <MoneyField control={form.control} name="alimentacao_jantar_ceno" label="Jantar — Cenotécnica" labelClass="text-emerald-700" />
+                  <MoneyField control={form.control} name="alimentacao_almoco_gestao" label="Almoço — Key Account / Gerente" labelClass="text-emerald-700" />
+                  <MoneyField control={form.control} name="alimentacao_jantar_gestao" label="Jantar — Key Account / Gerente" labelClass="text-emerald-700" />
                   <MoneyField control={form.control} name="alimentacao_almoco_casa_util" label="Almoço — Casa (CLT) em dia útil" labelClass="text-emerald-700" />
                   <MoneyField control={form.control} name="alimentacao_almoco_casa_util_ceno" label="Almoço — Cenotécnica de casa em dia útil" labelClass="text-emerald-700" />
                 </div>
                 <p className="mb-0 mt-3 text-[11px] text-gray-400">
-                  Valores por refeição usados no cálculo automático de alimentação (regra por horário de voo). Colaborador de casa (CLT) em dia útil recebe só a diferença do almoço (o vale-refeição cobre o resto); jantar e fins de semana usam os valores cheios — para cenotécnica de casa o jantar útil e os fins de semana usam os valores de Cenotécnica. Os campos antigos de alimentação útil/fds continuam valendo apenas para overrides manuais.
+                  Valores por refeição usados no cálculo automático de alimentação (regra por horário de voo). Key Account e Gerente usam os valores de "Key Account / Gerente"; Executivo de Contas usa "Demais". Colaborador de casa (CLT) em dia útil recebe só a diferença do almoço (o vale-refeição cobre o resto); jantar e fins de semana usam os valores cheios — para cenotécnica de casa o jantar útil e os fins de semana usam os valores de Cenotécnica. Os campos antigos de alimentação útil/fds continuam valendo apenas para overrides manuais.
                 </p>
               </div>
             </div>

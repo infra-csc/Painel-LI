@@ -17,7 +17,8 @@
  *   Sem passagem/horário ainda: assume dia cheio e marca `estimado` — o modal
  *   exibe o aviso; não subpaga enquanto a compra não acontece.
  * - Valores por refeição editáveis no Valores Padrão (Demais 40/40,
- *   Cenotécnica 35/35 por padrão).
+ *   Cenotécnica 35/35, Key Account / Gerente 44/44 por padrão — regra 18/08:
+ *   "Executivo 40,00, Key/Gerente 44,00"; Executivo de Contas = Demais).
  *
  * Funções puras — sem I/O, testáveis.
  */
@@ -146,9 +147,48 @@ export function isCenotecnicaFunction(functionName: string | null | undefined): 
   return n.includes("cenotecnica") || n.includes("cenotécnica") || n.includes("ceno");
 }
 
-/** Valores de refeição (centavos) a partir do Valores Padrão. */
+/**
+ * Perfil de refeição (regra 18/08):
+ * - "gestao": Key Account e Gerente (R$ 44 almoço / R$ 44 jantar por padrão)
+ * - "ceno":   cenotécnica (R$ 35 / R$ 35)
+ * - "demais": todo o resto, INCLUSIVE Executivo de Contas (R$ 40 / R$ 40)
+ */
+export type RefeicaoPerfil = "demais" | "ceno" | "gestao";
+
+const GESTAO_NAME_RE = /\bkey\b|key ?account|gerente/i;
+
+/**
+ * Decide o perfil de refeição a partir do nome da função e (quando é função de
+ * atendimento) do `atendimentoTipo` escolhido na escalação.
+ * - atendimentoTipo === "key_account" → "gestao"
+ * - nome contém "key", "key account" ou "gerente" (e não "executivo") → "gestao"
+ * - função de cenotécnica → "ceno"
+ * - senão → "demais" (Executivo de Contas cai aqui)
+ */
+export function refeicaoPerfil(
+  functionName: string | null | undefined,
+  atendimentoTipo?: string | null,
+): RefeicaoPerfil {
+  if (atendimentoTipo === "key_account") return "gestao";
+  const name = functionName ?? "";
+  if (GESTAO_NAME_RE.test(name) && !/executivo/i.test(name)) return "gestao";
+  if (isCenotecnicaFunction(functionName)) return "ceno";
+  return "demais";
+}
+
+/** Normaliza o 1º argumento legado (boolean = cenotécnica?) para o perfil. */
+function toPerfil(p: boolean | RefeicaoPerfil): RefeicaoPerfil {
+  if (typeof p === "boolean") return p ? "ceno" : "demais";
+  return p;
+}
+
+/**
+ * Valores de refeição (centavos) a partir do Valores Padrão.
+ * O 1º argumento aceita o perfil ("demais" | "ceno" | "gestao") ou, por
+ * compatibilidade, o boolean antigo `cenotecnica` (true → ceno, false → demais).
+ */
 export function refeicaoCents(
-  cenotecnica: boolean,
+  perfil: boolean | RefeicaoPerfil,
   settings?: Record<string, number | string | undefined> | null,
 ): { almocoCents: number; jantarCents: number } {
   const read = (key: string, def: number): number => {
@@ -156,9 +196,14 @@ export function refeicaoCents(
     const n = typeof raw === "string" ? parseInt(raw, 10) : raw;
     return (typeof n === "number" && Number.isFinite(n) && n > 0) ? n : def;
   };
-  return cenotecnica
-    ? { almocoCents: read("alimentacao_almoco_ceno", 3500), jantarCents: read("alimentacao_jantar_ceno", 3500) }
-    : { almocoCents: read("alimentacao_almoco", 4000), jantarCents: read("alimentacao_jantar", 4000) };
+  switch (toPerfil(perfil)) {
+    case "ceno":
+      return { almocoCents: read("alimentacao_almoco_ceno", 3500), jantarCents: read("alimentacao_jantar_ceno", 3500) };
+    case "gestao":
+      return { almocoCents: read("alimentacao_almoco_gestao", 4400), jantarCents: read("alimentacao_jantar_gestao", 4400) };
+    default:
+      return { almocoCents: read("alimentacao_almoco", 4000), jantarCents: read("alimentacao_jantar", 4000) };
+  }
 }
 
 /** Chave (Valores Padrão) do almoço em dia útil para colaborador `casa` (CLT). */
@@ -177,13 +222,18 @@ export const ALIMENTACAO_ALMOCO_CASA_UTIL_CENO_DEFAULT_CENTS = 300;
  *   (default R$ 3,00). Jantar inalterado (40 / 35 ceno).
  * - `casa` em fim de semana, `local`, freela e cenotécnica: iguais a
  *   `refeicaoCents` (a regra do voo continua decidindo QUAIS refeições existem).
+ * - perfil "gestao" (Key Account / Gerente, 18/08): casa em dia útil usa o
+ *   MESMO almoço reduzido de "demais" (R$ 5,00); o jantar é o de gestão (R$ 44).
+ * O 1º argumento aceita o perfil ou o boolean legado `cenotecnica`.
  */
 export function refeicaoCentsDia(
-  cenotecnica: boolean,
+  perfil: boolean | RefeicaoPerfil,
   settings: Record<string, number | string | undefined> | null | undefined,
   ctx: { tipoColaborador?: string | null; isWeekend: boolean },
 ): { almocoCents: number; jantarCents: number } {
-  const base = refeicaoCents(cenotecnica, settings);
+  const p = toPerfil(perfil);
+  const cenotecnica = p === "ceno";
+  const base = refeicaoCents(p, settings);
   if (ctx.tipoColaborador === "casa" && !ctx.isWeekend) {
     const key = cenotecnica ? ALIMENTACAO_ALMOCO_CASA_UTIL_CENO_KEY : ALIMENTACAO_ALMOCO_CASA_UTIL_KEY;
     const def = cenotecnica ? ALIMENTACAO_ALMOCO_CASA_UTIL_CENO_DEFAULT_CENTS : ALIMENTACAO_ALMOCO_CASA_UTIL_DEFAULT_CENTS;
