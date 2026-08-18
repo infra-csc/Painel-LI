@@ -4,7 +4,7 @@ import {
   detectPasteFormat, emptyGridRow, expandPeriodForDates, findLogisticaHeader, functionNameKey, mergePastedRows,
   MAX_GRID_DAYS, MAX_READ_DAYS, parseLongDateBr, parsePastedRows, parsePtBrTime, parseSheetDate, parseShortDate,
   parseTimeHHMM, parseTransportMode, pasteConflicts, periodBounds, periodProblem, reframeRows, resolveHeaderDate,
-  validateGridRow, normalizeStr,
+  summarizePaste, validateGridRow, normalizeStr,
 } from "./scaling-grid-utils";
 
 const DATES = ["2026-09-10", "2026-09-11", "2026-09-12"];
@@ -644,5 +644,50 @@ describe("expandPeriodForDates (ampliar a grade para cobrir os dias da planilha)
     const r = expandPeriodForDates({ start: "2026-09-10", end: "2026-09-13" }, ["2027-09-10"], semLimite);
     expect(r.changed).toBe(false);
     expect(r.ignored).toEqual(["2027-09-10"]);
+  });
+});
+
+describe("summarizePaste (resumo ao vivo do diálogo de colagem)", () => {
+  const FUNCS = [{ id: "f1", name: "Kit" }, { id: "f2", name: "Produção" }];
+
+  it("conta linhas lidas, funções reconhecidas e dias distintos com quantidade", () => {
+    const text = [
+      ["Kit", "Aéreo", "09/09", "10:00", "Aéreo", "13/09", "18:00", "sim", "sim", "obs", "1", "0", "2"].join("\t"),
+      ["Produção", "", "", "", "", "", "", "não", "não", "", "0", "3", "0"].join("\t"),
+    ].join("\n");
+    const s = summarizePaste(parsePastedRows(text, FUNCS, DATES, "2026"));
+    expect(s.format).toBe("grade");
+    expect(s.hadHeader).toBe(false);
+    expect(s.lines).toBe(2);
+    expect(s.recognized).toBe(2);
+    expect(s.unknownNames).toEqual([]);
+    expect(s.mappedDays).toBe(3); // 10 e 12 do Kit + 11 da Produção
+    expect(s.rowsWithoutQty).toBe(0);
+    expect(s.outsideDays).toBe(0);
+    expect(s.problem).toBeUndefined();
+  });
+
+  it("separa nomes fora do catálogo e linhas reconhecidas sem nenhuma quantidade", () => {
+    const text = [
+      ["Kit", "", "", "", "", "", "", "não", "não", "", "0", "0", "0"].join("\t"),
+      ["Fantasma", "", "", "", "", "", "", "não", "não", "", "1", "0", "0"].join("\t"),
+    ].join("\n");
+    const s = summarizePaste(parsePastedRows(text, FUNCS, DATES, "2026"));
+    expect(s.lines).toBe(2);
+    expect(s.recognized).toBe(1);
+    expect(s.unknownNames).toEqual(["Fantasma"]);
+    expect(s.rowsWithoutQty).toBe(1);
+    expect(s.mappedDays).toBe(0);
+  });
+
+  it("repassa o problema estrutural e os dias fora do período da grade", () => {
+    const s = summarizePaste({
+      rows: [], skippedNames: [], unknownNames: [], datesOutsideGrid: ["2026-09-20", "2026-09-21"],
+      format: "logistica", hadHeader: false, problem: "cabecalho-nao-encontrado",
+    });
+    expect(s.lines).toBe(0);
+    expect(s.recognized).toBe(0);
+    expect(s.outsideDays).toBe(2);
+    expect(s.problem).toBe("cabecalho-nao-encontrado");
   });
 });

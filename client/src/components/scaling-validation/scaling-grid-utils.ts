@@ -814,6 +814,50 @@ export function parsePastedRows(
   return { rows, skippedNames, unknownNames: dedupe(skippedNames), datesOutsideGrid: [], format, hadHeader: headerSkipped };
 }
 
+/** Resumo legível de uma colagem — o que o diálogo mostra ao vivo antes de aplicar. */
+export interface PasteSummary {
+  format: PasteFormat;
+  hadHeader: boolean;
+  /** Linhas de dados consideradas na leitura (reconhecidas + não reconhecidas). */
+  lines: number;
+  /** Linhas cuja função foi encontrada no catálogo (é o que seria aplicado). */
+  recognized: number;
+  /** Nomes que o catálogo não reconheceu, sem repetição. */
+  unknownNames: string[];
+  /** Dias distintos da grade que vieram com quantidade > 0. */
+  mappedDays: number;
+  /** Dias com quantidade que caem fora do período da grade (só no formato da logística). */
+  outsideDays: number;
+  /** Linhas reconhecidas que não trouxeram nenhuma quantidade. */
+  rowsWithoutQty: number;
+  /** Repassa o problema estrutural da leitura (ex.: cabeçalho da logística ausente). */
+  problem?: PasteResult["problem"];
+}
+
+/** Conta o que a leitura produziu, sem tocar na grade (função pura, usada no preview do diálogo). */
+export function summarizePaste(res: PasteResult): PasteSummary {
+  const days = new Set<string>();
+  let rowsWithoutQty = 0;
+  for (const row of res.rows) {
+    let hasQty = false;
+    for (const [date, qty] of Object.entries(row.quantities)) {
+      if (qty > 0) { days.add(date); hasQty = true; }
+    }
+    if (!hasQty) rowsWithoutQty += 1;
+  }
+  return {
+    format: res.format,
+    hadHeader: res.hadHeader,
+    lines: res.rows.length + res.skippedNames.length,
+    recognized: res.rows.length,
+    unknownNames: res.unknownNames,
+    mappedDays: days.size,
+    outsideDays: res.datesOutsideGrid.length,
+    rowsWithoutQty,
+    problem: res.problem,
+  };
+}
+
 /** Funções da colagem que já existem na grade (para pedir confirmação antes de substituir). */
 export function pasteConflicts(existing: SuggestionGridRow[], pasted: SuggestionGridRow[]): string[] {
   const present = new Map(existing.map((r) => [r.functionId, r.functionName]));

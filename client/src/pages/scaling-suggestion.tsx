@@ -34,7 +34,8 @@ import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module
 import {
   buildDateList, countOutsidePeriod, decomposeGridRows, detectPasteFormat, emptyGridRow, expandPeriodForDates,
   functionNameKey, mergePastedRows, parsePastedRows, pasteConflicts, periodBounds, periodProblem, PERIOD_MARGIN_DAYS,
-  PERIOD_PROBLEM_MESSAGES, PASTE_FORMAT_LABELS, reframeRows, sortFunctionsByOrder, summarizeGrid, validateGridRow,
+  PERIOD_PROBLEM_MESSAGES, PASTE_FORMAT_LABELS, reframeRows, sortFunctionsByOrder, summarizeGrid, summarizePaste,
+  validateGridRow,
   type PasteFormat, type PeriodExpansion, type RowValidation, type SuggestionGridRow,
 } from "@/components/scaling-validation/scaling-grid-utils";
 import { SUGGESTIONS_QUERY_KEY, type ApiError } from "@/components/scaling-validation/types";
@@ -60,6 +61,9 @@ const SKIP_FUNCTION = "__descartar__";
 const SECTION_TITLE = "text-[11px] font-bold uppercase tracking-wide text-slate-500";
 const HINT = "text-xs text-slate-500";
 const EMPTY_PERIOD: Period = { start: "", end: "" };
+/** Espera antes de reanalisar a colagem (o resumo ao vivo não roda a cada tecla). */
+const PASTE_PREVIEW_DEBOUNCE_MS = 200;
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 function writeDraft(key: string, payload: Omit<DraftPayload, "timestamp">, hasContent: boolean) {
   try {
@@ -86,7 +90,11 @@ export default function ScalingSuggestionPage() {
   const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(() => new Set());
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState("");
+  /** Cópia atrasada de `pasteText`: é o que alimenta o resumo ao vivo. */
+  const [pasteTextDebounced, setPasteTextDebounced] = useState("");
   const [pasteFormat, setPasteFormat] = useState<"auto" | PasteFormat>("auto");
+  /** "Formatos aceitos" (com o Select de formato) — fechado por padrão. */
+  const [showPasteHelp, setShowPasteHelp] = useState(false);
   const [pendingPaste, setPendingPaste] = useState<PendingPaste | null>(null);
   const [pendingPasteDates, setPendingPasteDates] = useState<PendingPasteDates | null>(null);
   // Nomes da planilha que o catálogo não reconhece + a função escolhida à mão para cada um.
@@ -265,7 +273,42 @@ export default function ScalingSuggestionPage() {
   };
 
   // ── Colagem ──
-  const detectedPaste = useMemo(() => (pasteText.trim() ? detectPasteFormat(pasteText) : null), [pasteText]);
+  // Debounce leve: só reanalisa a colagem quando o usuário para de digitar/colar.
+  useEffect(() => {
+    const t = setTimeout(() => setPasteTextDebounced(pasteText), PASTE_PREVIEW_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [pasteText]);
+  const pasteYear = useMemo(
+    () => (applied.start || selectedEvent?.startDate || String(new Date().getFullYear())).slice(0, 4),
+    [applied.start, selectedEvent],
+  );
+  const detectedPaste = useMemo(
+    () => (pasteTextDebounced.trim() ? detectPasteFormat(pasteTextDebounced, { dayCount: dates.length }) : null),
+    [pasteTextDebounced, dates.length],
+  );
+  /** Resultado da leitura, ao vivo, só para exibição — nada é aplicado na grade aqui. */
+  const pastePreview = useMemo(() => {
+    if (!showPaste || !pasteTextDebounced.trim()) return null;
+    const res = parsePastedRows(
+      pasteTextDebounced, functions ?? [], dates, pasteYear,
+      pasteFormat === "auto" ? undefined : pasteFormat, { nameMap: pasteNameMap },
+    );
+    return summarizePaste(res);
+  }, [showPaste, pasteTextDebounced, functions, dates, pasteYear, pasteFormat, pasteNameMap]);
+  /** Enquanto o debounce não alcança o texto, o resumo mostra "analisando". */
+  const pasteAnalyzing = !!pasteText.trim() && pasteText !== pasteTextDebounced;
+  /** Nomes a mapear: o que o resumo ao vivo achou (com o que `runPaste` apontou como reserva). */
+  const unknownToMap = pastePreview ? pastePreview.unknownNames : unknownNames;
+  const pasteApplyCount = pastePreview?.recognized ?? 0;
+  /** Avisos do resumo: não impedem aplicar, mas o usuário precisa vê-los antes. */
+  const pasteWarnings = useMemo(() => {
+    if (!pastePreview) return [];
+    const w: string[] = [];
+    if (pastePreview.unknownNames.length > 0) w.push(plural(pastePreview.unknownNames.length, "nome não reconhecido", "nomes não reconhecidos"));
+    if (pastePreview.outsideDays > 0) w.push(plural(pastePreview.outsideDays, "dia fora do período", "dias fora do período"));
+    if (pastePreview.rowsWithoutQty > 0) w.push(plural(pastePreview.rowsWithoutQty, "linha sem quantidade", "linhas sem quantidade"));
+    return w;
+  }, [pastePreview]);
   // O mapeamento manual de nomes é por usuário (o catálogo é o mesmo em todos os eventos).
   const nameMapKey = `scaling-suggestion-fnmap:${user?.id ?? "anon"}`;
   const readStoredNameMap = useCallback((): Record<string, string> => {
@@ -285,12 +328,13 @@ export default function ScalingSuggestionPage() {
   const openPaste = () => {
     setPasteNameMap(readStoredNameMap()); // reaproveita o que o usuário já mapeou antes
     setUnknownNames([]);
+    setPasteText(""); setPasteTextDebounced(""); setShowPasteHelp(false);
     askedMappingRef.current = false;
     setShowPaste(true);
   };
   const closePaste = () => {
-    setShowPaste(false); setPasteText(""); setPasteFormat("auto");
-    setUnknownNames([]); setPendingPasteDates(null);
+    setShowPaste(false); setPasteText(""); setPasteTextDebounced(""); setPasteFormat("auto");
+    setUnknownNames([]); setPendingPasteDates(null); setShowPasteHelp(false);
     askedMappingRef.current = false;
   };
   const commitPaste = (pasted: SuggestionGridRow[], skippedNames: string[], replaced: number) => {
@@ -310,8 +354,7 @@ export default function ScalingSuggestionPage() {
    * que fazer com os dias fora do período, (3) confirmar a substituição de funções.
    */
   const runPaste = (targetDates: string[], nameMap: Record<string, string>, allowOutside: boolean) => {
-    const year = (applied.start || selectedEvent?.startDate || String(new Date().getFullYear())).slice(0, 4);
-    const res = parsePastedRows(pasteText, functions ?? [], targetDates, year, pasteFormat === "auto" ? undefined : pasteFormat, { nameMap });
+    const res = parsePastedRows(pasteText, functions ?? [], targetDates, pasteYear, pasteFormat === "auto" ? undefined : pasteFormat, { nameMap });
     if (res.problem === "cabecalho-nao-encontrado") {
       toast({
         title: "Cabeçalho não encontrado",
@@ -807,90 +850,172 @@ export default function ScalingSuggestionPage() {
 
       {/* Colar da planilha */}
       <Dialog open={showPaste} onOpenChange={(o) => { if (!o) closePaste(); }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)_auto]">
+          <DialogHeader className="px-4 sm:px-5 pt-5 pb-3 pr-12">
             <DialogTitle>Colar da planilha</DialogTitle>
-            <DialogDescription>
-              Copie as linhas da planilha (colunas separadas por TAB) e cole abaixo. Três formatos são aceitos, inclusive a planilha da logística.
-              Funções já na grade são substituídas pelas coladas (sem duplicar).
-            </DialogDescription>
+            <DialogDescription>Copie as linhas no Excel e cole aqui — o formato é reconhecido sozinho.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 text-xs">
-            <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 space-y-1">
-              <p className="font-semibold text-slate-700">Planilha da logística</p>
-              <p className="font-mono text-slate-600 whitespace-nowrap overflow-x-auto">(vazio) | ida | chegada (até…) | retorno | horario do retorno (a partir) | (vazio) | 08/set | 09/set | … | obs</p>
-              <p className="font-mono text-slate-500 whitespace-nowrap overflow-x-auto">ex.: produção → quarta-feira, 9 de setembro de 2026 → 23h → domingo, 13 de setembro de 2026 → 20h+ → … → 1 → 1</p>
-              <p className="text-slate-500">
-                As colunas são lidas pelo <strong>cabeçalho</strong> (colunas vazias no meio não atrapalham) e as quantidades pela <strong>data</strong> de cada coluna de dia.
-                A coluna "chegada (até…)" vira o horário de <strong>desembarque da ida</strong> e "horario do retorno (a partir)" o de <strong>embarque da volta</strong> —
-                em "14-18h" e "20h+" vale a primeira hora. Quem tem data de ida ou de volta já vem com <strong>passagem</strong> marcada (as linhas "local" não);
-                hotel e os modais de ida/volta ficam em branco para você preencher na grade.
-              </p>
-            </div>
-            <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 space-y-1 overflow-x-auto">
-              <p className="font-semibold text-slate-700">Formato do briefing</p>
-              <p className="font-mono text-slate-600 whitespace-nowrap">Função | Modal ida | Data ida | Hora desembarque | Modal volta | Data volta | Hora embarque | Hotel | {dates.slice(0, 3).map((d) => formatDayMonthBr(d)).join(" | ")}{dates.length > 3 ? " | …" : ""}</p>
-              <p className="font-mono text-slate-500 whitespace-nowrap">ex.: Kit → Aéreo → 09/09 → 10:00 → Aéreo → 13/09 → 18:00 → sim → 1 → 1 → 2</p>
-            </div>
-            <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 space-y-1 overflow-x-auto">
-              <p className="font-semibold text-slate-700">Formato completo</p>
-              <p className="font-mono text-slate-600 whitespace-nowrap">Função | Modal ida | Data ida | Hora desembarque | Modal volta | Data volta | Hora embarque | Hotel | Passagem | Observação | {dates.slice(0, 3).map((d) => formatDayMonthBr(d)).join(" | ")}{dates.length > 3 ? " | …" : ""}</p>
-              <p className="font-mono text-slate-500 whitespace-nowrap">ex.: Kit → Aéreo → 09/09 → 10:00 → Aéreo → 13/09 → 18:00 → sim → sim → obs → 1 → 1 → 2</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Label htmlFor="sug-paste-format" className={cn(HINT, "font-medium")}>Formato</Label>
-            <Select value={pasteFormat} onValueChange={(v) => setPasteFormat(v as "auto" | PasteFormat)}>
-              <SelectTrigger id="sug-paste-format" className="h-8 w-[320px] max-w-full text-xs rounded-lg"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">Detectar automaticamente</SelectItem>
-                <SelectItem value="logistica">{PASTE_FORMAT_LABELS.logistica}</SelectItem>
-                <SelectItem value="briefing">{PASTE_FORMAT_LABELS.briefing}</SelectItem>
-                <SelectItem value="grade">{PASTE_FORMAT_LABELS.grade}</SelectItem>
-              </SelectContent>
-            </Select>
-            {pasteFormat === "auto" && detectedPaste && (
-              <span className={HINT}>Detectado: {PASTE_FORMAT_LABELS[detectedPaste.format]}{detectedPaste.hadHeader ? " (com cabeçalho)" : ""}.</span>
-            )}
-          </div>
-          <Label htmlFor="sug-paste" className="sr-only">Conteúdo colado</Label>
-          {/* Mudou o conteúdo colado → os nomes não reconhecidos são perguntados de novo. */}
-          <Textarea id="sug-paste" value={pasteText} onChange={(e) => { setPasteText(e.target.value); askedMappingRef.current = false; }} rows={10} placeholder={"Kit\tAéreo\t09/09\t10:00\tAéreo\t13/09\t18:00\tsim\t1\t1\t2"} className="font-mono text-xs rounded-lg" />
 
-          {/* Nomes que o catálogo não reconheceu: o usuário aponta a função certa antes de aplicar */}
-          {unknownNames.length > 0 && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
-              <div>
-                <p className="text-xs font-semibold text-amber-900">
-                  {unknownNames.length} {unknownNames.length === 1 ? "nome não reconhecido" : "nomes não reconhecidos"} — indique a função correspondente
-                </p>
-                <p className="text-[11px] text-amber-800 mt-0.5">
-                  O que ficar como "descartar" não entra na grade. As escolhas ficam salvas neste navegador e são reaproveitadas nas próximas colagens.
-                </p>
+          {/* Corpo rolável: campo primeiro, resumo depois, ajuda no fim (recolhida). */}
+          <div className="overflow-y-auto px-4 sm:px-5 pb-4 space-y-3">
+            <Label htmlFor="sug-paste" className="sr-only">Conteúdo colado</Label>
+            {/* Mudou o conteúdo colado → os nomes não reconhecidos são perguntados de novo. */}
+            <Textarea
+              id="sug-paste" autoFocus value={pasteText} rows={9} placeholder="Cole aqui (Ctrl+V)"
+              onChange={(e) => { setPasteText(e.target.value); askedMappingRef.current = false; }}
+              className="font-mono text-xs rounded-lg min-h-[180px] placeholder:font-sans placeholder:text-sm placeholder:text-slate-400"
+            />
+
+            {/* Resumo ao vivo da leitura (nada é aplicado até clicar em "Aplicar"). */}
+            {pasteText.trim() !== "" && (
+              <div
+                role="status" aria-live="polite"
+                className={cn(
+                  "rounded-lg border px-3 py-2 text-xs",
+                  pasteAnalyzing || !pastePreview ? "border-slate-200 bg-slate-50 text-slate-600"
+                    : pastePreview.recognized > 0 ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                      : "border-amber-300 bg-amber-50 text-amber-900",
+                )}
+              >
+                {pasteAnalyzing || !pastePreview ? (
+                  <span>Analisando o que você colou…</span>
+                ) : pastePreview.recognized > 0 ? (
+                  <>
+                    <p className="flex items-start gap-1.5 font-semibold">
+                      <CheckCircle2 className="w-3.5 h-3.5 mt-px shrink-0 text-emerald-600" aria-hidden="true" />
+                      <span>{PASTE_FORMAT_LABELS[pastePreview.format]}{pastePreview.hadHeader ? " · cabeçalho ignorado" : ""}</span>
+                    </p>
+                    <p className="mt-1 tabular-nums">
+                      {plural(pastePreview.lines, "linha lida", "linhas lidas")} · {plural(pastePreview.recognized, "função reconhecida", "funções reconhecidas")} · {plural(pastePreview.mappedDays, "dia mapeado", "dias mapeados")}
+                    </p>
+                    {pasteWarnings.length > 0 && (
+                      <p className="mt-1 flex items-start gap-1.5 text-amber-800">
+                        <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0 text-amber-600" aria-hidden="true" />
+                        <span>{pasteWarnings.join(" · ")}</span>
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="flex items-start gap-1.5 font-semibold">
+                      <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0 text-amber-600" aria-hidden="true" />
+                      <span>
+                        {pastePreview.problem === "cabecalho-nao-encontrado"
+                          ? "Não consegui identificar o cabeçalho — escolha o formato abaixo."
+                          : "Nenhuma linha reconhecida."}
+                      </span>
+                    </p>
+                    <p className="mt-1">
+                      {pastePreview.problem === "cabecalho-nao-encontrado"
+                        ? "No formato da logística é preciso colar também a linha de cabeçalho (ida, chegada, retorno e as colunas de dia)."
+                        : pastePreview.unknownNames.length > 0
+                          ? "Nenhum dos nomes está no catálogo — aponte a função de cada um abaixo."
+                          : "Confira se as colunas vieram separadas por TAB (copie direto do Excel)."}
+                    </p>
+                  </>
+                )}
+                {!pasteAnalyzing && pastePreview && (
+                  <button
+                    type="button" onClick={() => setShowPasteHelp(true)}
+                    className="mt-1.5 underline underline-offset-2 hover:opacity-80 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
+                  >
+                    {pasteFormat === "auto"
+                      ? "Não reconheceu? Escolher o formato"
+                      : `Formato definido à mão: ${PASTE_FORMAT_LABELS[pasteFormat]} — trocar`}
+                  </button>
+                )}
               </div>
-              <ul className="space-y-1.5 max-h-44 overflow-y-auto">
-                {unknownNames.map((name) => {
-                  const key = functionNameKey(name);
-                  return (
-                    <li key={key} className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs text-slate-700 truncate max-w-[180px]" title={name}>{name}</span>
-                      <span aria-hidden="true" className="text-amber-700 text-xs">→</span>
-                      <Select value={pasteNameMap[key] ?? SKIP_FUNCTION} onValueChange={(v) => mapUnknownName(name, v)}>
-                        <SelectTrigger aria-label={`Função para ${name}`} className="h-8 w-[260px] max-w-full text-xs rounded-lg bg-white"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={SKIP_FUNCTION}>Descartar esta linha</SelectItem>
-                          {sortedFunctions.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-          <DialogFooter>
+            )}
+
+            {/* Nomes que o catálogo não reconheceu: o usuário aponta a função certa antes de aplicar */}
+            {unknownToMap.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
+                <div>
+                  <p className="text-xs font-semibold text-amber-900">
+                    {plural(unknownToMap.length, "nome não reconhecido", "nomes não reconhecidos")}
+                  </p>
+                  <p className="text-[11px] text-amber-800 mt-0.5">Escolha a função equivalente ou descarte a linha. As escolhas ficam salvas neste navegador.</p>
+                </div>
+                <ul className="space-y-1.5 max-h-44 overflow-y-auto">
+                  {unknownToMap.map((name) => {
+                    const key = functionNameKey(name);
+                    return (
+                      <li key={key} className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-xs text-slate-700 truncate max-w-[180px]" title={name}>{name}</span>
+                        <span aria-hidden="true" className="text-amber-700 text-xs">→</span>
+                        <Select value={pasteNameMap[key] ?? SKIP_FUNCTION} onValueChange={(v) => mapUnknownName(name, v)}>
+                          <SelectTrigger aria-label={`Função para ${name}`} className="h-8 w-[260px] max-w-full text-xs rounded-lg bg-white"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={SKIP_FUNCTION}>Descartar esta linha</SelectItem>
+                            {sortedFunctions.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+
+            {/* Ajuda: formatos aceitos + escolha manual do formato (fechado por padrão) */}
+            <details
+              open={showPasteHelp}
+              onToggle={(e) => setShowPasteHelp((e.currentTarget as HTMLDetailsElement).open)}
+              className="rounded-lg border border-slate-200 bg-slate-50/70"
+            >
+              <summary className="cursor-pointer select-none rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 marker:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+                Formatos aceitos
+              </summary>
+              <div className="border-t border-slate-200 px-3 py-2.5 space-y-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Label htmlFor="sug-paste-format" className={cn(HINT, "font-medium")}>Formato</Label>
+                  <Select value={pasteFormat} onValueChange={(v) => setPasteFormat(v as "auto" | PasteFormat)}>
+                    <SelectTrigger id="sug-paste-format" className="h-8 w-[320px] max-w-full text-xs rounded-lg bg-white"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">Detectar automaticamente</SelectItem>
+                      <SelectItem value="logistica">{PASTE_FORMAT_LABELS.logistica}</SelectItem>
+                      <SelectItem value="briefing">{PASTE_FORMAT_LABELS.briefing}</SelectItem>
+                      <SelectItem value="grade">{PASTE_FORMAT_LABELS.grade}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {pasteFormat === "auto" && detectedPaste && (
+                    <span className={HINT}>Detectado: {PASTE_FORMAT_LABELS[detectedPaste.format]}{detectedPaste.hadHeader ? " (com cabeçalho)" : ""}.</span>
+                  )}
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-2 space-y-1">
+                    <p className="font-semibold text-slate-700">Planilha da logística</p>
+                    <p className="font-mono text-slate-600 whitespace-nowrap overflow-x-auto">(vazio) | ida | chegada (até…) | retorno | horario do retorno (a partir) | (vazio) | 08/set | 09/set | … | obs</p>
+                    <p className="font-mono text-slate-500 whitespace-nowrap overflow-x-auto">ex.: produção → quarta-feira, 9 de setembro de 2026 → 23h → domingo, 13 de setembro de 2026 → 20h+ → … → 1 → 1</p>
+                    <p className="text-slate-500">
+                      As colunas são lidas pelo <strong>cabeçalho</strong> (colunas vazias no meio não atrapalham) e as quantidades pela <strong>data</strong> de cada coluna de dia.
+                      A coluna "chegada (até…)" vira o horário de <strong>desembarque da ida</strong> e "horario do retorno (a partir)" o de <strong>embarque da volta</strong> —
+                      em "14-18h" e "20h+" vale a primeira hora. Quem tem data de ida ou de volta já vem com <strong>passagem</strong> marcada (as linhas "local" não);
+                      hotel e os modais de ida/volta ficam em branco para você preencher na grade.
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-2 space-y-1 overflow-x-auto">
+                    <p className="font-semibold text-slate-700">Formato do briefing</p>
+                    <p className="font-mono text-slate-600 whitespace-nowrap">Função | Modal ida | Data ida | Hora desembarque | Modal volta | Data volta | Hora embarque | Hotel | {dates.slice(0, 3).map((d) => formatDayMonthBr(d)).join(" | ")}{dates.length > 3 ? " | …" : ""}</p>
+                    <p className="font-mono text-slate-500 whitespace-nowrap">ex.: Kit → Aéreo → 09/09 → 10:00 → Aéreo → 13/09 → 18:00 → sim → 1 → 1 → 2</p>
+                  </div>
+                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-2 space-y-1 overflow-x-auto">
+                    <p className="font-semibold text-slate-700">Formato completo</p>
+                    <p className="font-mono text-slate-600 whitespace-nowrap">Função | Modal ida | Data ida | Hora desembarque | Modal volta | Data volta | Hora embarque | Hotel | Passagem | Observação | {dates.slice(0, 3).map((d) => formatDayMonthBr(d)).join(" | ")}{dates.length > 3 ? " | …" : ""}</p>
+                    <p className="font-mono text-slate-500 whitespace-nowrap">ex.: Kit → Aéreo → 09/09 → 10:00 → Aéreo → 13/09 → 18:00 → sim → sim → obs → 1 → 1 → 2</p>
+                  </div>
+                  <p className={HINT}>Colunas separadas por TAB. Funções já na grade são substituídas pelas coladas (sem duplicar).</p>
+                </div>
+              </div>
+            </details>
+          </div>
+
+          <DialogFooter className="px-4 sm:px-5 py-3 border-t border-slate-200 bg-slate-50/60 gap-2">
             <Button type="button" variant="outline" className="rounded-lg" onClick={closePaste}>Cancelar</Button>
-            <Button type="button" onClick={applyPaste} className="rounded-lg bg-primary hover:bg-primary-hover">Aplicar na grade</Button>
+            <Button type="button" onClick={applyPaste} disabled={pasteApplyCount === 0} className="rounded-lg bg-primary hover:bg-primary-hover">
+              {pasteApplyCount > 0 ? `Aplicar ${plural(pasteApplyCount, "linha", "linhas")}` : "Aplicar na grade"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
