@@ -702,90 +702,77 @@ export default function BudgetPlannedPage() {
     return p.get("event") || "";
   });
   const [editingBudget, setEditingBudget] = useState<BudgetEdit | null>(null);
-  const [editingBudgetInfo, setEditingBudgetInfo] = useState<{ name: string; functionName: string; type: string; weekdays: number; weekends: number; diasComDiaria: number; regraDiaria: RegraDiaria; period: string; vooChegadaIda?: string | null; vooPartidaVolta?: string | null; fonteVoo?: "passagem" | "sugerido" | "nenhum"; alimEstimada?: boolean; voa?: boolean; isAtend?: boolean; atendimentoTipo?: AtendimentoTipo | null; isPercurso?: boolean; percurseiroTipo?: PercurseiroTipo | null; percurseiro?: PercurseiroDiaria | null; inclusionId?: string } | null>(null);
+  const [editingBudgetInfo, setEditingBudgetInfo] = useState<{ name: string; functionName: string; type: string; weekdays: number; weekends: number; diasComDiaria: number; regraDiaria: RegraDiaria; period: string; vooChegadaIda?: string | null; vooPartidaVolta?: string | null; fonteVoo?: "passagem" | "sugerido" | "nenhum"; alimEstimada?: boolean; voa?: boolean; isAtend?: boolean; atendimentoTipo?: AtendimentoTipo | null; savedAtendimentoTipo?: AtendimentoTipo | null; isPercurso?: boolean; percurseiroTipo?: PercurseiroTipo | null; savedPercurseiroTipo?: PercurseiroTipo | null; percurseiro?: PercurseiroDiaria | null; inclusionId?: string } | null>(null);
   const [editingBudgetPlannedId, setEditingBudgetPlannedId] = useState<string | null>(null);
+  // Tipo escolhido no modal e AINDA NÃO persistido na escalação (null = igual
+  // ao gravado). Persistido no Salvar, descartado no Cancelar — comportamento
+  // normal de formulário, sem PATCH imediato ao clicar.
+  const [pendingAtendimentoTipo, setPendingAtendimentoTipo] = useState<AtendimentoTipo | null>(null);
+  const [pendingPercurseiroTipo, setPendingPercurseiroTipo] = useState<PercurseiroTipo | null>(null);
+  const [savingTipo, setSavingTipo] = useState(false);
+
+  // Aplica a nova diária no modal (sem tocar em originalModalValues/Total: a
+  // troca de tipo é uma mudança REAL, aparece no "▲ vs original"). Preserva a
+  // edição manual da diária em curso: só sobrescreve se o valor atual ainda
+  // era o padrão anterior. Retorna se a edição manual foi mantida.
+  const applyTipoDiariaNoModal = (novoValor: number | null | undefined): boolean => {
+    if (novoValor == null) return false;
+    const prevDefault = defaultBudgetValues?.valorDiaria;
+    const manualPreserved = !!editingBudget && prevDefault !== undefined && editingBudget.valorDiaria !== prevDefault;
+    if (!manualPreserved) {
+      setEditingBudget(prev => prev ? { ...prev, valorDiaria: novoValor, valorDiariaUtil: novoValor, valorDiariaFds: novoValor } : prev);
+      setModalBufs(p => { const n = { ...p }; delete n.vdia; return n; });
+    }
+    // O "padrão" do modal acompanha a nova tarifa — assim salvar sem outras
+    // edições não cria override desnecessário.
+    setDefaultBudgetValues(prev => prev ? { ...prev, valorDiaria: novoValor, valorDiariaUtil: novoValor, valorDiariaFds: novoValor } : prev);
+    return manualPreserved;
+  };
+
   // Percurso (motoqueiro): Tipo 1 / Tipo 2 definido aqui pelo RH quando a
-  // escalação veio sem tipo (rota dedicada espelha a de atendimento).
-  const setPercurseiroTipoMutation = useMutation({
-    mutationFn: async ({ inclusionId, tipo }: { inclusionId: string; tipo: PercurseiroTipo }) => {
-      const r = await apiRequest("PATCH", `/api/team-inclusions/${inclusionId}/percurseiro-tipo`, { percurseiroTipo: tipo });
-      return r.json();
-    },
-    onSuccess: (_updated, { tipo }) => {
-      qc.invalidateQueries({ queryKey: ["/api/team-inclusions", selectedEventId] });
-      qc.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-      const pacote = percurseiroDiariaCents(tipo, systemSettings as any);
-      setEditingBudgetInfo(prev => prev ? { ...prev, percurseiroTipo: tipo, percurseiro: pacote } : prev);
-      const novoValor = pacote?.total;
-      if (novoValor != null) {
-        const prevDefault = defaultBudgetValues?.valorDiaria;
-        const manualPreserved = !!editingBudget && prevDefault !== undefined && editingBudget.valorDiaria !== prevDefault;
-        if (!manualPreserved) {
-          setEditingBudget(prev => prev ? { ...prev, valorDiaria: novoValor, valorDiariaUtil: novoValor, valorDiariaFds: novoValor } : prev);
-          setModalBufs(p => { const n = { ...p }; delete n.vdia; return n; });
-        }
-        if (originalModalValues) {
-          const dias = editingBudgetInfo?.diasComDiaria ?? 0;
-          const origVal = originalModalValues.valorDiaria;
-          // Percurso: pacote fechado, sem deflação (dias × valor)
-          setOriginalModalTotal(t => t - origVal * dias + novoValor * dias);
-          setOriginalModalValues({ ...originalModalValues, valorDiaria: novoValor, valorDiariaUtil: novoValor, valorDiariaFds: novoValor });
-        }
-        setDefaultBudgetValues(prev => prev ? { ...prev, valorDiaria: novoValor, valorDiariaUtil: novoValor, valorDiariaFds: novoValor } : prev);
-        toast({ title: "Tipo do percurseiro atualizado", description: manualPreserved ? "Sua edição manual da diária foi mantida." : "Diária recalculada com o pacote do tipo escolhido." });
-      }
-    },
-    onError: (e: any) => toast({ title: "Não foi possível definir o tipo", description: e?.message, variant: "destructive" }),
-  });
+  // escalação veio sem tipo. Só estado local; persiste no Salvar.
+  const chooseLocalPercurseiroTipo = (tipo: PercurseiroTipo) => {
+    if (!editingBudgetInfo) return;
+    const pacote = percurseiroDiariaCents(tipo, systemSettings as any);
+    setPendingPercurseiroTipo(tipo === (editingBudgetInfo.savedPercurseiroTipo ?? null) ? null : tipo);
+    setEditingBudgetInfo(prev => prev ? { ...prev, percurseiroTipo: tipo, percurseiro: pacote } : prev);
+    applyTipoDiariaNoModal(pacote?.total);
+  };
 
   // Muitas escalações de atendimento viraram Planejado ANTES do flag existir
   // (backfill marcou todas como Executivo de Contas). O RH corrige por aqui,
-  // sem voltar à escalação — a rota dedicada aceita o papel financeiro.
-  const setAtendimentoTipoMutation = useMutation({
-    mutationFn: async ({ inclusionId, tipo }: { inclusionId: string; tipo: AtendimentoTipo }) => {
-      const r = await apiRequest("PATCH", `/api/team-inclusions/${inclusionId}/atendimento-tipo`, { atendimentoTipo: tipo });
-      return r.json();
-    },
-    onSuccess: (_updated, { tipo }) => {
+  // sem voltar à escalação. Só estado local; persiste no Salvar.
+  const chooseLocalAtendimentoTipo = (tipo: AtendimentoTipo) => {
+    if (!editingBudgetInfo) return;
+    setPendingAtendimentoTipo(tipo === (editingBudgetInfo.savedAtendimentoTipo ?? null) ? null : tipo);
+    setEditingBudgetInfo(prev => prev ? { ...prev, atendimentoTipo: tipo } : prev);
+    applyTipoDiariaNoModal(atendimentoDailyCents(tipo, systemSettings as any));
+  };
+
+  // Persistência dos tipos NA ESCALAÇÃO (rotas dedicadas aceitam o papel
+  // financeiro). Chamado pelo Salvar do modal, antes de gravar o orçamento.
+  const persistPendingTipos = async (inclusionId: string): Promise<boolean> => {
+    if (pendingAtendimentoTipo == null && pendingPercurseiroTipo == null) return true;
+    setSavingTipo(true);
+    try {
+      if (pendingAtendimentoTipo != null) {
+        await apiRequest("PATCH", `/api/team-inclusions/${inclusionId}/atendimento-tipo`, { atendimentoTipo: pendingAtendimentoTipo });
+      }
+      if (pendingPercurseiroTipo != null) {
+        await apiRequest("PATCH", `/api/team-inclusions/${inclusionId}/percurseiro-tipo`, { percurseiroTipo: pendingPercurseiroTipo });
+      }
       qc.invalidateQueries({ queryKey: ["/api/team-inclusions", selectedEventId] });
       qc.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-      // Reflete no modal aberto: tipo novo e, sem edição manual em curso, a diária nova
-      setEditingBudgetInfo(prev => prev ? { ...prev, atendimentoTipo: tipo } : prev);
-      const novoValor = atendimentoDailyCents(tipo, systemSettings as any);
-      let manualPreserved = false;
-      if (novoValor != null) {
-        // Se o usuário editou a diária no modal e ainda não salvou, preserva a
-        // edição: só sobrescreve se o valor atual era o padrão anterior.
-        const prevDefault = defaultBudgetValues?.valorDiaria;
-        manualPreserved = !!editingBudget && prevDefault !== undefined && editingBudget.valorDiaria !== prevDefault;
-        if (!manualPreserved) {
-          setEditingBudget(prev => prev ? { ...prev, valorDiaria: novoValor, valorDiariaUtil: novoValor, valorDiariaFds: novoValor } : prev);
-          setModalBufs(p => { const n = { ...p }; delete n.vdia; return n; });
-        }
-        // A troca de tipo já está PERSISTIDA no servidor: a nova tarifa vira a
-        // linha de base do modal — sem acusar "▲ vs original" por mudança já gravada.
-        if (originalModalValues) {
-          const dias = editingBudgetInfo?.diasComDiaria ?? ((editingBudgetInfo?.weekdays ?? 0) + (editingBudgetInfo?.weekends ?? 0));
-          const factors = deflationFactorsFromSettings(systemSettings as Record<string, number> | undefined);
-          const origVal = originalModalValues.valorDiaria;
-          setOriginalModalTotal(t => t
-            - calcDeflatedDailies(origVal, dias, factors).totalCents
-            + calcDeflatedDailies(novoValor, dias, factors).totalCents);
-          setOriginalModalValues({ ...originalModalValues, valorDiaria: novoValor, valorDiariaUtil: novoValor, valorDiariaFds: novoValor });
-        }
-        // O "padrão" do modal acompanha a nova tarifa — assim salvar sem outras
-        // edições não cria override desnecessário.
-        setDefaultBudgetValues(prev => prev ? { ...prev, valorDiaria: novoValor, valorDiariaUtil: novoValor, valorDiariaFds: novoValor } : prev);
-      }
-      toast({
-        title: "Tipo de atendimento atualizado",
-        description: manualPreserved
-          ? "Tarifa atualizada — a sua edição manual da diária foi preservada."
-          : "A diária foi recalculada para a tarifa escolhida.",
-      });
-    },
-    onError: (e: any) => toast({ title: "Erro ao definir o tipo", description: e?.body?.message || "Tente novamente.", variant: "destructive" }),
-  });
+      setPendingAtendimentoTipo(null);
+      setPendingPercurseiroTipo(null);
+      return true;
+    } catch (e: any) {
+      toast({ title: "Não foi possível salvar o tipo na escalação", description: e?.body?.message || e?.message || "Tente novamente.", variant: "destructive" });
+      return false;
+    } finally {
+      setSavingTipo(false);
+    }
+  };
   const [budgetOverrides, setBudgetOverrides] = useState<Record<string, BudgetOverride>>(() => readDraft(selectedEventId));
   // Aviso discreto de que um rascunho salvo foi restaurado no load
   const [draftRestored, setDraftRestored] = useState<boolean>(() => Object.keys(readDraft(selectedEventId)).length > 0);
@@ -1577,11 +1564,15 @@ export default function BudgetPlannedPage() {
       voa: !!budget.inclusion.needsTicket,
       isAtend: isAtendimentoFunction(getFunctionName(budget.inclusion.functionId)),
       atendimentoTipo: ((budget.inclusion as any).atendimentoTipo ?? null) as AtendimentoTipo | null,
+      savedAtendimentoTipo: ((budget.inclusion as any).atendimentoTipo ?? null) as AtendimentoTipo | null,
       isPercurso: budget.isPercurso,
       percurseiroTipo: budget.percurseiroTipo,
+      savedPercurseiroTipo: budget.percurseiroTipo,
       percurseiro: budget.percurseiro,
       inclusionId: budget.inclusion.id,
     });
+    setPendingAtendimentoTipo(null);
+    setPendingPercurseiroTipo(null);
 
     // "Restaurar padrão" re-deriva do MOTOR ATUAL (atendimento/freela/casa +
     // deflação + voo), não do legado fv/dailyValue.
@@ -1633,12 +1624,18 @@ export default function BudgetPlannedPage() {
     setModalBufs({});
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editingBudget || !originalModalValues || !defaultBudgetValues) return;
     const id = editingBudget.inclusionId;
     const cur = editingBudget;
     const orig = originalModalValues;
     const sys = defaultBudgetValues;
+    // 1) Tipo (atendimento/percurseiro) escolhido no modal → grava na ESCALAÇÃO
+    //    antes do orçamento; erro aborta o salvar (modal fica aberto).
+    const hadPendingTipo = pendingAtendimentoTipo != null || pendingPercurseiroTipo != null;
+    const tipoOk = await persistPendingTipos(id);
+    if (!tipoOk) return;
+    // 2) Orçamento (override esparso local)
     setBudgetOverrides(prev => {
       const existing = prev[id];
       // Override ESPARSO: persiste SOMENTE o que o usuário alterou em relação
@@ -1679,7 +1676,12 @@ export default function BudgetPlannedPage() {
     setDraftRestored(false);
     setEditingBudget(null);
     setEditingBudgetPlannedId(null);
-    toast({ title: "Valores ajustados", description: "As alterações serão aplicadas no envio para o Realizado." });
+    toast({
+      title: "Valores ajustados",
+      description: hadPendingTipo
+        ? "Tipo gravado na escalação. As alterações serão aplicadas no envio para o Realizado."
+        : "As alterações serão aplicadas no envio para o Realizado.",
+    });
   };
 
   const savePlannedAndSendToActual = async (budget: typeof calculatedBudgets[0], obsLabel: string) => {
@@ -3420,7 +3422,7 @@ export default function BudgetPlannedPage() {
         )}
 
       {/* Modal de Edição */}
-      <Dialog open={!!editingBudget} onOpenChange={() => { setEditingBudget(null); setEditingBudgetInfo(null); setEditingBudgetPlannedId(null); setModalViewMode(false); setModalBufs({}); }}>
+      <Dialog open={!!editingBudget} onOpenChange={() => { setEditingBudget(null); setEditingBudgetInfo(null); setEditingBudgetPlannedId(null); setModalViewMode(false); setModalBufs({}); setPendingAtendimentoTipo(null); setPendingPercurseiroTipo(null); }}>
         <DialogContent className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-2xl overflow-hidden border-0 shadow-2xl" style={{display:'flex', flexDirection:'column', maxHeight:'90vh'}}>
           <DialogHeader className="sr-only">
             <DialogTitle>Editar Orçamento Planejado</DialogTitle>
@@ -3446,8 +3448,11 @@ export default function BudgetPlannedPage() {
             const totalAlimentacao = effectiveAlmocoSemana + effectiveJantarSemana + effectiveAlmocoFds + effectiveJantarFds;
             const diff = modalTotal - originalModalTotal;
             // Campo a campo: edições que se compensam no total também contam
-            const hasChanges = !!originalModalValues && (Object.keys(editingBudget) as (keyof BudgetEdit)[])
-              .some(k => editingBudget[k] !== originalModalValues![k]);
+            // Tipo (atendimento/percurseiro) escolhido e ainda não gravado também
+            // é mudança: acende o Salvar mesmo com a diária mantida manualmente.
+            const hasPendingTipo = pendingAtendimentoTipo != null || pendingPercurseiroTipo != null;
+            const hasChanges = hasPendingTipo || (!!originalModalValues && (Object.keys(editingBudget) as (keyof BudgetEdit)[])
+              .some(k => editingBudget[k] !== originalModalValues![k]));
             // Difere do MOTOR ATUAL (override herdado ou edição da sessão) → habilita "Restaurar padrão"
             const differsFromDefault = !!defaultBudgetValues && (Object.keys(editingBudget) as (keyof BudgetEdit)[])
               .some(k => k !== 'inclusionId' && editingBudget[k] !== defaultBudgetValues![k]);
@@ -3566,11 +3571,10 @@ export default function BudgetPlannedPage() {
                             <button
                               key={op.value}
                               type="button"
-                              disabled={setAtendimentoTipoMutation.isPending}
+                              disabled={savingTipo || modalViewMode}
+                              aria-pressed={ativo}
                               onClick={() => {
-                                if (!ativo && editingBudgetInfo.inclusionId) {
-                                  setAtendimentoTipoMutation.mutate({ inclusionId: editingBudgetInfo.inclusionId, tipo: op.value });
-                                }
+                                if (!ativo && editingBudgetInfo.inclusionId) chooseLocalAtendimentoTipo(op.value);
                               }}
                               className={`px-2.5 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
                                 ativo ? 'bg-primary text-white' : 'bg-white text-slate-600 hover:bg-blue-50'
@@ -3583,6 +3587,9 @@ export default function BudgetPlannedPage() {
                       </div>
                       {!editingBudgetInfo.atendimentoTipo && (
                         <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold">definir o tipo</span>
+                      )}
+                      {pendingAtendimentoTipo != null && (
+                        <span className="text-[10px] text-slate-500" title="O tipo é gravado na escalação ao Salvar">grava na escalação ao salvar</span>
                       )}
                     </div>
                   )}
@@ -3599,12 +3606,10 @@ export default function BudgetPlannedPage() {
                             <button
                               key={op.value}
                               type="button"
-                              disabled={setPercurseiroTipoMutation.isPending || modalViewMode}
+                              disabled={savingTipo || modalViewMode}
                               aria-pressed={ativo}
                               onClick={() => {
-                                if (!ativo && editingBudgetInfo.inclusionId) {
-                                  setPercurseiroTipoMutation.mutate({ inclusionId: editingBudgetInfo.inclusionId, tipo: op.value });
-                                }
+                                if (!ativo && editingBudgetInfo.inclusionId) chooseLocalPercurseiroTipo(op.value);
                               }}
                               className={`px-2.5 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
                                 ativo ? 'bg-primary text-white' : 'bg-white text-slate-600 hover:bg-blue-50'
@@ -3617,6 +3622,9 @@ export default function BudgetPlannedPage() {
                       </div>
                       {!editingBudgetInfo.percurseiroTipo && (
                         <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold" title="Tipo 1 usado provisoriamente até a definição">definir o tipo (Tipo 1 provisório)</span>
+                      )}
+                      {pendingPercurseiroTipo != null && (
+                        <span className="text-[10px] text-slate-500" title="O tipo é gravado na escalação ao Salvar">grava na escalação ao salvar</span>
                       )}
                       {editingBudgetInfo.percurseiro && (
                         <span className="w-full text-[10px] text-slate-500 tabular-nums">
@@ -3968,18 +3976,19 @@ export default function BudgetPlannedPage() {
                     <Button
                       variant="ghost"
                       className="h-9 px-4 text-slate-500 hover:text-slate-700 rounded-lg text-sm"
-                      onClick={() => { setEditingBudget(null); setEditingBudgetInfo(null); }}
+                      disabled={savingTipo}
+                      onClick={() => { setEditingBudget(null); setEditingBudgetInfo(null); setPendingAtendimentoTipo(null); setPendingPercurseiroTipo(null); }}
                     >
                       Cancelar
                     </Button>
                     {!modalViewMode && (
                       <Button
-                        onClick={saveEdit}
-                        disabled={!hasChanges}
+                        onClick={() => { void saveEdit(); }}
+                        disabled={!hasChanges || savingTipo}
                         className={`h-9 px-5 text-white font-semibold rounded-lg gap-2 text-sm ${hasChanges ? 'bg-primary hover:bg-primary-hover shadow-md' : ''}`}
                       >
                         <CheckCheck className="w-4 h-4" />
-                        {hasChanges && diff !== 0 ? `Salvar (${diff > 0 ? '+' : ''}${formatCurrency(diff)})` : 'Salvar'}
+                        {savingTipo ? 'Salvando…' : hasChanges && diff !== 0 ? `Salvar (${diff > 0 ? '+' : ''}${formatCurrency(diff)})` : 'Salvar'}
                       </Button>
                     )}
                   </div>
