@@ -1,9 +1,8 @@
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { SUGESTAO_STATUS } from "@shared/scaling-validation-rules";
-import { buildDateList, formatDateHeader } from "./scaling-grid-utils";
-import { workDaysOf } from "./suggestions-list";
-import type { SuggestionRow } from "./types";
+import { buildReadDateList, formatDateHeader } from "./scaling-grid-utils";
+import { workDaysOf, type SuggestionRow } from "./types";
 
 interface ScheduleBoardProps {
   rows: SuggestionRow[];
@@ -29,7 +28,7 @@ interface BoardLine {
  * Vagas negadas não entram na soma.
  */
 export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: ScheduleBoardProps) {
-  const { dates, lines, totals } = useMemo(() => {
+  const { dates, lines, totals, totalDays, truncated } = useMemo(() => {
     const active = rows.filter((r) => r.status !== SUGESTAO_STATUS.NEGADA);
     let min = rangeStart ?? "";
     let max = rangeEnd ?? "";
@@ -39,7 +38,8 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
       if (!min || days[0] < min) min = days[0];
       if (!max || days[days.length - 1] > max) max = days[days.length - 1];
     }
-    const dates = min && max ? buildDateList(min, max) : [];
+    // Leitura: período longo demais TRUNCA (com aviso) em vez de sumir com as colunas.
+    const { dates, totalDays, truncated } = min && max ? buildReadDateList(min, max) : { dates: [] as string[], totalDays: 0, truncated: false };
     const byFn = new Map<string, BoardLine>();
     for (const r of active) {
       let line = byFn.get(r.functionId);
@@ -57,17 +57,22 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
     const lines = Array.from(byFn.values()).sort((a, b) => a.functionName.localeCompare(b.functionName, "pt-BR", { sensitivity: "base" }));
     const totals: Record<string, number> = {};
     for (const d of dates) totals[d] = lines.reduce((acc, l) => acc + (l.perDay[d] || 0), 0);
-    return { dates, lines, totals };
+    return { dates, lines, totals, totalDays, truncated };
   }, [rows, functionNameById, rangeStart, rangeEnd]);
 
   if (lines.length === 0) {
     return <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-400" role="status">Nenhuma vaga com dias de trabalho para montar o quadro.</p>;
   }
 
-  const TH = "px-2 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold whitespace-nowrap";
+  const TH = "px-2 py-2 text-center border-r border-slate-100 text-xs uppercase tracking-widest text-slate-500 font-semibold whitespace-nowrap";
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+      {truncated && (
+        <p role="status" className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Período muito longo para exibir o quadro — {totalDays} dias. Mostrando os {dates.length} primeiros (a partir de {formatDateHeader(dates[0]).date}); os demais dias ficaram de fora das colunas.
+        </p>
+      )}
       <div className="overflow-x-auto max-h-[600px]">
         <table className="w-full min-w-[640px] text-sm">
           <caption className="sr-only">Quadro de vagas por função e dia (todas as áreas)</caption>
@@ -79,7 +84,7 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
               {dates.map((d) => {
                 const { date, dayName, isWeekend } = formatDateHeader(d);
                 return (
-                  <th key={d} className={cn(TH, "w-14", isWeekend ? "bg-orange-50/60 text-orange-400" : "bg-blue-50/50")}>
+                  <th key={d} className={cn(TH, "w-14", isWeekend ? "bg-orange-50 text-orange-700" : "bg-blue-50/50")}>
                     <div className="leading-none font-bold">{date}</div>
                     <div className="text-[10px] mt-0.5 opacity-70 normal-case tracking-normal">{dayName}</div>
                   </th>
@@ -90,10 +95,10 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
           </thead>
           <tbody>
             {lines.map((line, i) => (
-              <tr key={line.functionId} className={cn("border-b border-slate-100", i % 2 === 1 ? "bg-slate-50/40" : "bg-white", !line.editable && "text-slate-400")}>
-                <td className={cn("px-3 py-1.5 font-semibold sticky left-0 z-10 border-r border-slate-200 w-[200px] min-w-[200px]", i % 2 === 1 ? "bg-slate-50" : "bg-white", line.editable ? "text-slate-800" : "text-slate-400")}>
+              <tr key={line.functionId} className={cn("border-b border-slate-100", i % 2 === 1 ? "bg-slate-50/40" : "bg-white", !line.editable && "text-slate-600")}>
+                <td className={cn("px-3 py-1.5 font-semibold sticky left-0 z-10 border-r border-slate-200 w-[200px] min-w-[200px]", i % 2 === 1 ? "bg-slate-50" : "bg-white", line.editable ? "text-slate-800" : "text-slate-600")}>
                   <span className="block truncate" title={line.functionName}>{line.functionName}</span>
-                  {!line.editable && <span className="block text-[10px] font-normal">somente leitura</span>}
+                  {!line.editable && <span className="block text-[10px] font-normal text-slate-500">somente leitura</span>}
                 </td>
                 <td className="px-2 py-1.5 text-xs border-r border-slate-100">{line.area || "—"}</td>
                 <td className="px-2 py-1.5 text-center text-xs font-semibold tabular-nums border-r border-slate-100">{line.vagas}</td>
@@ -103,7 +108,7 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
                   return (
                     <td key={d} className={cn("px-1 py-1.5 text-center border-r border-slate-100", isWeekend && "bg-orange-50/30")}>
                       {n > 0 ? (
-                        <span className={cn("inline-flex items-center justify-center h-7 w-10 rounded-lg text-xs font-semibold tabular-nums", line.editable ? "bg-brand-soft text-primary" : "bg-slate-100 text-slate-500")}>{n}</span>
+                        <span className={cn("inline-flex items-center justify-center h-7 w-10 rounded-lg text-xs font-semibold tabular-nums", line.editable ? "bg-brand-soft text-primary" : "bg-slate-100 text-slate-600")}>{n}</span>
                       ) : (
                         <span className="text-slate-200">–</span>
                       )}

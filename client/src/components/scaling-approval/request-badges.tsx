@@ -1,10 +1,19 @@
-import { Clock } from "lucide-react";
+import { Clock, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateBr, formatDayMonthBr } from "@/lib/dates";
 import {
   CHANGE_REQUEST_TYPE_LABELS, CHANGE_REQUEST_STATUS_LABELS, TRANSPORT_MODE_LABELS,
+  DANGER_DAYS, STALLED_DAYS, pendingSeverity,
   type ChangeRequestType, type ChangeRequestStatus, type ProposedField, type TransportMode,
 } from "@shared/scaling-validation-rules";
+
+/** "dd/mm/aaaa hh:mm" (pt-BR) — único ponto de formatação de data+hora do módulo. */
+export function formatDateTimeBr(v: string | Date | null | undefined): string {
+  if (!v) return "—";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "—";
+  return `${formatDateBr(d)} ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+}
 
 // ── Tipo do pedido ───────────────────────────────────────────────────────────
 
@@ -49,20 +58,31 @@ export function ageLabel(days: number): string {
   return `há ${days} ${days === 1 ? "dia" : "dias"}`;
 }
 
-/** Idade do pedido: neutro < 3 dias, âmbar ≥ 3, vermelho ≥ 7. */
+/** Idade do pedido: neutro < STALLED_DAYS, âmbar ≥ STALLED_DAYS, vermelho ≥ DANGER_DAYS. */
 export function RequestAgeBadge({ days, className }: { days: number; className?: string }) {
-  const danger = days >= 7;
-  const warn = days >= 3;
+  const sev = pendingSeverity(days);
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap",
-        danger ? "bg-red-50 text-red-700 border-red-200" : warn ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-slate-50 text-slate-500 border-slate-200",
+        sev === "danger" ? "bg-red-50 text-red-700 border-red-200" : sev === "warn" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-slate-50 text-slate-500 border-slate-200",
         className,
       )}
-      title={danger ? "Aguardando decisão há 7 dias ou mais" : warn ? "Aguardando decisão há 3 dias ou mais" : undefined}
+      title={sev === "danger" ? `Aguardando decisão há ${DANGER_DAYS} dias ou mais` : sev === "warn" ? `Aguardando decisão há ${STALLED_DAYS} dias ou mais` : undefined}
     >
       <Clock className="w-3 h-3" aria-hidden="true" /> {ageLabel(days)}
+    </span>
+  );
+}
+
+/** "Você decide" — o usuário logado é aprovador da função deste pedido (ou admin). */
+export function CanDecideBadge({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn("inline-flex items-center gap-1 rounded-full border border-primary/30 bg-brand-soft/60 px-2 py-0.5 text-[11px] font-semibold text-primary whitespace-nowrap", className)}
+      title="Você é aprovador desta função: a decisão é sua."
+    >
+      <UserCheck className="w-3 h-3" aria-hidden="true" /> Você decide
     </span>
   );
 }

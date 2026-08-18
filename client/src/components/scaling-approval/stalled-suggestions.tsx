@@ -10,15 +10,16 @@ import {
 import { EmptyState } from "@/components/common/empty-state";
 import { cn, formatDiarias } from "@/lib/utils";
 import { PendingDaysBadge, periodLabel, workDaysOf } from "@/components/scaling-validation/suggestions-list";
-import type { SuggestionRow } from "@/components/scaling-validation/types";
+import { STALLED_DAYS } from "@shared/scaling-validation-rules";
+import type { StalledRow as SuggestionRow } from "./types";
 
 interface StalledSuggestionsProps {
   rows: SuggestionRow[];
   functionNameById: Map<string, string>;
   /**
-   * Se o usuário pode decidir ESTA vaga (admin ou aprovador da função da linha).
-   * O servidor confere a mesma regra (403 fora disso) — aqui só evitamos mostrar
-   * botões que vão falhar.
+   * Se o usuário pode decidir ESTA vaga — vem do servidor (`canDecide` por linha
+   * no GET de sugestões). O servidor confere a mesma regra (403 fora disso) — aqui
+   * só evitamos mostrar botões que vão falhar.
    */
   canActOn: (row: SuggestionRow) => boolean;
   /** Nome(s) do(s) aprovador(es) da função da linha, para explicar quem decide. */
@@ -27,11 +28,11 @@ interface StalledSuggestionsProps {
   onDecide: (row: SuggestionRow, kind: "approve" | "reject", comment?: string) => void;
 }
 
-const TH = "px-3 py-2 text-left text-[11px] uppercase tracking-widest text-slate-400 font-semibold whitespace-nowrap";
+const TH = "px-3 py-2 text-left text-xs uppercase tracking-wider text-slate-500 font-semibold whitespace-nowrap";
 
 /**
  * "Vagas paradas": sugestões que a área nunca validou (sugestao_pendente, sem
- * pedido) há ≥ 3 dias. O aprovador pode aprovar direto ou reprovar (bypass).
+ * pedido) há ≥ STALLED_DAYS dias. O aprovador pode aprovar direto ou reprovar (bypass).
  */
 export function StalledSuggestions({ rows, functionNameById, canActOn, approverNamesFor, busy, onDecide }: StalledSuggestionsProps) {
   const [confirm, setConfirm] = useState<{ row: SuggestionRow; kind: "approve" | "reject" } | null>(null);
@@ -45,7 +46,7 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
   };
 
   if (rows.length === 0) {
-    return <EmptyState icon={CheckCircle2} title="Nenhuma vaga parada" description="Todas as vagas pendentes deste evento têm menos de 3 dias ou já estão com pedido aberto." />;
+    return <EmptyState icon={CheckCircle2} title="Nenhuma vaga parada" description={`Todas as vagas pendentes deste evento têm menos de ${STALLED_DAYS} dias ou já estão com pedido aberto.`} />;
   }
 
   return (
@@ -53,7 +54,7 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
       <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
-            <caption className="sr-only">Vagas sem validação da área há 3 dias ou mais</caption>
+            <caption className="sr-only">Vagas sem validação da área há {STALLED_DAYS} dias ou mais</caption>
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className={TH}>ID</th>

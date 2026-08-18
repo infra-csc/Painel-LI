@@ -66,19 +66,111 @@ export function sortFunctionsByOrder<T extends { name: string }>(functions: T[])
   });
 }
 
-/** Lista "YYYY-MM-DD" entre início e fim (inclusive), em horário local (sem UTC). */
-export function buildDateList(startDate: string, endDate: string): string[] {
-  if (!startDate || !endDate || startDate > endDate) return [];
+/** Teto de dias da GRADE de sugestão — acima disso a lista de datas vem vazia (grade inutilizável). */
+export const MAX_GRID_DAYS = 90;
+/**
+ * Teto de dias para LEITURA (quadro da Escala e CSV do Histórico). Aqui NÃO vale
+ * o "tudo ou nada" da grade: um evento longo continua visível, a lista só é
+ * truncada e a tela avisa quantos dias ficaram de fora.
+ */
+export const MAX_READ_DAYS = 370;
+/** Folga permitida para a grade antes/depois do período do evento (min/max dos inputs). */
+export const PERIOD_MARGIN_DAYS = 7;
+
+const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MS_PER_DAY = 86_400_000;
+
+const ymdToDate = (ymd: string): Date => {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d);
+};
+
+/** Nº de dias entre as duas datas (inclusive); 0 se o período for inválido. Arredonda p/ absorver horário de verão. */
+export function countDaysInclusive(startDate: string, endDate: string): number {
+  if (!YMD_RE.test(startDate) || !YMD_RE.test(endDate) || startDate > endDate) return 0;
+  return Math.round((ymdToDate(endDate).getTime() - ymdToDate(startDate).getTime()) / MS_PER_DAY) + 1;
+}
+
+/**
+ * Lista "YYYY-MM-DD" entre início e fim (inclusive), em horário local (sem UTC).
+ *
+ * Semântica "tudo ou nada": acima de `maxDays` devolve [] — é a proteção original
+ * da grade de sugestão, onde uma grade gigante seria inutilizável. Para telas de
+ * LEITURA use `buildReadDateList`, que trunca e informa o que ficou de fora.
+ */
+export function buildDateList(startDate: string, endDate: string, options?: { maxDays?: number }): string[] {
+  const maxDays = options?.maxDays ?? MAX_GRID_DAYS;
+  const total = countDaysInclusive(startDate, endDate);
+  if (total === 0 || total > maxDays) return [];
   const list: string[] = [];
-  const [sy, sm, sd] = startDate.split("-").map(Number);
-  const [ey, em, ed] = endDate.split("-").map(Number);
-  const cur = new Date(sy, sm - 1, sd);
-  const end = new Date(ey, em - 1, ed);
-  while (cur <= end) {
+  const cur = ymdToDate(startDate);
+  for (let i = 0; i < total; i++) {
     list.push(toYmdLocal(cur));
     cur.setDate(cur.getDate() + 1);
   }
   return list;
+}
+
+export interface ReadDateList {
+  /** Datas efetivamente listadas (no máximo `maxDays`). */
+  dates: string[];
+  /** Total de dias do período pedido — inclusive quando passa do teto. */
+  totalDays: number;
+  /** true quando o período não coube e a lista foi cortada. */
+  truncated: boolean;
+}
+
+/**
+ * Variante de LEITURA (quadro/CSV): nunca "some" com as colunas de dia — trunca
+ * no teto e devolve `truncated`/`totalDays` para a tela avisar o usuário.
+ * Passe `Infinity` para não truncar.
+ */
+export function buildReadDateList(startDate: string, endDate: string, maxDays: number = MAX_READ_DAYS): ReadDateList {
+  const totalDays = countDaysInclusive(startDate, endDate);
+  if (totalDays === 0) return { dates: [], totalDays: 0, truncated: false };
+  const take = Math.max(1, Math.min(totalDays, maxDays));
+  return {
+    dates: buildDateList(startDate, addDaysYmd(startDate, take - 1), { maxDays: take }),
+    totalDays,
+    truncated: totalDays > take,
+  };
+}
+
+export type PeriodProblem = "incompleto" | "invertido" | "longo";
+
+/** Por que o período não serve para a grade (null = ok). Não altera a grade — quem chama decide. */
+export function periodProblem(startDate: string, endDate: string): PeriodProblem | null {
+  if (!YMD_RE.test(startDate) || !YMD_RE.test(endDate)) return "incompleto";
+  if (endDate < startDate) return "invertido";
+  if (buildDateList(startDate, endDate).length === 0) return "longo";
+  return null;
+}
+
+export const PERIOD_PROBLEM_MESSAGES: Record<PeriodProblem, string> = {
+  incompleto: "Informe as duas datas do período (a grade continua com o período anterior).",
+  invertido: "O fim da grade não pode ser antes do início.",
+  longo: `A grade aceita no máximo ${MAX_GRID_DAYS} dias.`,
+};
+
+/** Limites sugeridos para os inputs de período: evento ± folga. */
+export function periodBounds(eventStart: string, eventEnd: string): { min: string; max: string } {
+  return {
+    min: YMD_RE.test(eventStart) ? addDaysYmd(eventStart, -PERIOD_MARGIN_DAYS) : "",
+    max: YMD_RE.test(eventEnd) ? addDaysYmd(eventEnd, PERIOD_MARGIN_DAYS) : "",
+  };
+}
+
+/** Quantidades que ficariam FORA de um novo período (para pedir confirmação antes de descartar). */
+export function countOutsidePeriod(rows: SuggestionGridRow[], newDates: string[]): { pessoasDia: number; dias: number } {
+  const keep = new Set(newDates);
+  const dias = new Set<string>();
+  let pessoasDia = 0;
+  for (const row of rows) {
+    for (const [d, q] of Object.entries(row.quantities)) {
+      if (q > 0 && !keep.has(d)) { pessoasDia += q; dias.add(d); }
+    }
+  }
+  return { pessoasDia, dias: dias.size };
 }
 
 export function toYmdLocal(d: Date): string {
@@ -97,15 +189,22 @@ export function addDaysYmd(ymd: string, days: number): string {
 }
 
 const DAY_NAMES = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-export function formatDateHeader(ymd: string): { date: string; dayName: string; isWeekend: boolean } {
+export interface DateHeader { date: string; dayName: string; isWeekend: boolean }
+const headerCache = new Map<string, DateHeader>();
+/** Cabeçalho "dd/mm + dia da semana" — memoizado por data (é puro e chamado por célula). */
+export function formatDateHeader(ymd: string): DateHeader {
+  const cached = headerCache.get(ymd);
+  if (cached) return cached;
   const [y, m, d] = ymd.split("-").map(Number);
   const dt = new Date(y, m - 1, d);
   const dow = dt.getDay();
-  return {
+  const h: DateHeader = {
     date: `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}`,
     dayName: DAY_NAMES[dow],
     isWeekend: dow === 0 || dow === 6,
   };
+  headerCache.set(ymd, h);
+  return h;
 }
 
 export function emptyGridRow(functionId: string, functionName: string, dates: string[], rowId?: string): SuggestionGridRow {
@@ -239,30 +338,114 @@ export function parseTransportMode(raw: string): TransportMode | "" {
 const YES = new Set(["sim", "s", "1", "x", "true", "y", "yes"]);
 export const parseYesNo = (raw: string) => YES.has(normalizeStr(raw));
 
+/**
+ * Formatos aceitos na colagem (colunas separadas por TAB):
+ * - "grade"    : Função | Modal ida | Data ida | Hora desembarque | Modal volta | Data volta |
+ *                Hora embarque | Hotel | Passagem | Observação | qtd dia 1 | qtd dia 2 | …
+ * - "briefing" : Função | Modal ida | Data ida | Hora desembarque | Modal volta | Data volta |
+ *                Hora embarque | Hotel | qtd dia 1 | qtd dia 2 | …   (sem Passagem/Observação)
+ * As quantidades seguem a ordem das colunas de dia da grade.
+ */
+export type PasteFormat = "grade" | "briefing";
+export const PASTE_FORMAT_LABELS: Record<PasteFormat, string> = { grade: "Formato completo (com Passagem e Observação)", briefing: "Formato do briefing (Hotel e depois as quantidades)" };
+const QTY_COL_START: Record<PasteFormat, number> = { grade: 10, briefing: 8 };
+
 export interface PasteResult {
   rows: SuggestionGridRow[];
   skippedNames: string[];
+  /** Formato efetivamente usado (detectado ou forçado). */
+  format: PasteFormat;
+  /** true quando a primeira linha era cabeçalho e foi ignorada. */
+  hadHeader: boolean;
 }
 
+const splitCols = (line: string) => line.split("\t").map((c) => c.trim());
+
 /**
- * Colagem de planilha (colunas separadas por TAB):
- * Função | Modal ida | Data ida | Hora desembarque | Modal volta | Data volta |
- * Hora embarque | Hotel | Passagem | Observação | qtd dia 1 | qtd dia 2 | …
- * (as quantidades seguem a ordem das colunas de dia da grade)
+ * Cabeçalho = 1ª coluna "Função" em qualquer grafia: com/sem acento, caixa livre,
+ * singular ou plural e com sufixos ("Funções", "Função/Área", "Função - Área",
+ * "FUNCAO "). O `(?![a-z0-9])` evita confundir com um NOME de função que por
+ * acaso comece com "funcao". Reconhecer o cabeçalho importa duas vezes: ele é
+ * pulado na leitura E não pode entrar como linha de dados na detecção de formato.
  */
+const HEADER_FUNCTION_RE = /^func(ao|oes)(?![a-z0-9])/;
+const isHeaderLine = (cols: string[]) => HEADER_FUNCTION_RE.test(normalizeStr(cols[0] ?? ""));
+const isQtyToken = (s: string) => /^\d+$/.test(s);
+/** Tokens que podem ser sim/não. "0" e "1" estão aqui de propósito: são ambíguos (quantidade ou sim/não). */
+const YESNO_TOKENS = new Set(["", "sim", "s", "nao", "n", "x", "true", "false", "y", "yes", "no", "0", "1"]);
+
+/**
+ * Detecta o formato da colagem, nesta ordem:
+ *
+ * 1. Cabeçalho reconhecido → decide pelas colunas "Passagem"/"Observação".
+ * 2. Texto livre na 10ª coluna, ou sim/não por extenso na 9ª → formato da grade.
+ * 3. POSIÇÃO das colunas (só quando o nº de dias da grade é conhecido): vence o
+ *    formato cujo total de colunas depois do bloco fixo bate EXATAMENTE com o nº
+ *    de dias — briefing = 8 colunas fixas, grade = 10. É o que desempata a grade
+ *    de 1 dia, em que a quantidade "0"/"1" é indistinguível de um sim/não.
+ * 4. Quantidade inequívoca (número ≥ 2 na 9ª coluna, ou número na 10ª) → briefing.
+ * 5. Linhas curtas: se nenhuma linha alcança a 11ª coluna e da 9ª em diante só há
+ *    números, ler como "grade" não produziria quantidade nenhuma → briefing.
+ * 6. Nada disso → grade (formato completo, o padrão da tela).
+ */
+export function detectPasteFormat(text: string, options?: { dayCount?: number }): { format: PasteFormat; hadHeader: boolean } {
+  const lines = text.trim().split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length === 0) return { format: "grade", hadHeader: false };
+  const first = splitCols(lines[0]);
+  if (isHeaderLine(first)) {
+    const norm = first.map(normalizeStr);
+    const hasGradeCols = norm.some((c) => c.startsWith("passagem") || c.startsWith("observ"));
+    return { format: hasGradeCols ? "grade" : "briefing", hadHeader: true };
+  }
+
+  let maxCols = 0;
+  let sawQty = false; // número que não pode ser sim/não
+  let tailAllNumeric = true; // da 9ª coluna em diante só há números (ou vazios)
+  for (const line of lines) {
+    const cols = splitCols(line);
+    maxCols = Math.max(maxCols, cols.length);
+    const c8 = cols[8] ?? "", c9 = cols[9] ?? "";
+    // (2) Observação com texto livre ou Passagem com sim/não explícito → formato da grade.
+    if ((c9 && !isQtyToken(c9)) || (c8 && !isQtyToken(c8) && YESNO_TOKENS.has(normalizeStr(c8)))) return { format: "grade", hadHeader: false };
+    if ((c8 && !YESNO_TOKENS.has(normalizeStr(c8)) && isQtyToken(c8)) || (c9 && isQtyToken(c9))) sawQty = true;
+    for (let j = QTY_COL_START.briefing; j < cols.length; j++) if (cols[j] && !isQtyToken(cols[j])) tailAllNumeric = false;
+  }
+
+  // (3) Desempate por posição — só quando um formato encaixa e o outro não.
+  const dayCount = options?.dayCount ?? 0;
+  if (dayCount > 0) {
+    const briefingFits = maxCols - QTY_COL_START.briefing === dayCount;
+    const gradeFits = maxCols - QTY_COL_START.grade === dayCount;
+    if (briefingFits && !gradeFits && tailAllNumeric) return { format: "briefing", hadHeader: false };
+    if (gradeFits && !briefingFits) return { format: "grade", hadHeader: false };
+  }
+
+  if (sawQty) return { format: "briefing", hadHeader: false }; // (4)
+  // (5) No formato da grade não sobraria NENHUMA coluna de dia.
+  if (tailAllNumeric && maxCols > QTY_COL_START.briefing && maxCols <= QTY_COL_START.grade) return { format: "briefing", hadHeader: false };
+  return { format: "grade", hadHeader: false }; // (6)
+}
+
 export function parsePastedRows(
   text: string,
   functions: { id: string; name: string }[],
   dates: string[],
   defaultYear: string,
+  forcedFormat?: PasteFormat,
 ): PasteResult {
   const rows: SuggestionGridRow[] = [];
   const skippedNames: string[] = [];
+  // O nº de dias da grade é o melhor desempate quando "0"/"1" pode ser quantidade ou sim/não.
+  const detected = detectPasteFormat(text, { dayCount: dates.length });
+  const format = forcedFormat ?? detected.format;
+  const qtyStart = QTY_COL_START[format];
   const lines = text.trim().split(/\r?\n/);
   const byName = new Map(functions.map((f) => [normalizeStr(f.name), f]));
+  let headerSkipped = false;
   lines.forEach((line, i) => {
     if (!line.trim()) return;
-    const cols = line.split("\t").map((c) => c.trim());
+    const cols = splitCols(line);
+    if (!headerSkipped && rows.length === 0 && skippedNames.length === 0 && isHeaderLine(cols)) { headerSkipped = true; return; }
     const name = cols[0];
     if (!name) return;
     const func = byName.get(normalizeStr(name));
@@ -275,26 +458,71 @@ export function parsePastedRows(
     row.flightReturnDate = parseShortDate(cols[5] ?? "", defaultYear);
     row.flightReturnSuggestedTime = parseTimeHHMM(cols[6] ?? "");
     row.needsAccommodation = parseYesNo(cols[7] ?? "");
-    row.needsTicket = parseYesNo(cols[8] ?? "");
-    row.observations = cols[9] ?? "";
-    for (let j = 10; j < cols.length && j - 10 < dates.length; j++) {
+    if (format === "grade") {
+      row.needsTicket = parseYesNo(cols[8] ?? "");
+      row.observations = cols[9] ?? "";
+    }
+    for (let j = qtyStart; j < cols.length && j - qtyStart < dates.length; j++) {
       const n = parseInt(cols[j] || "0", 10);
-      row.quantities[dates[j - 10]] = Number.isNaN(n) ? 0 : Math.max(0, Math.min(QTY_MAX, n));
+      row.quantities[dates[j - qtyStart]] = Number.isNaN(n) ? 0 : Math.max(0, Math.min(QTY_MAX, n));
     }
     rows.push(row);
   });
-  return { rows, skippedNames };
+  return { rows, skippedNames, format, hadHeader: headerSkipped };
 }
 
-/** Problemas que impedem o envio (por linha). */
-export function validateGridRow(row: SuggestionGridRow): string[] {
-  const issues: string[] = [];
+/** Funções da colagem que já existem na grade (para pedir confirmação antes de substituir). */
+export function pasteConflicts(existing: SuggestionGridRow[], pasted: SuggestionGridRow[]): string[] {
+  const present = new Map(existing.map((r) => [r.functionId, r.functionName]));
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const p of pasted) {
+    if (present.has(p.functionId) && !seen.has(p.functionId)) { seen.add(p.functionId); names.push(present.get(p.functionId)!); }
+  }
+  return names;
+}
+
+/**
+ * Aplica a colagem SEM duplicar: linhas já na grade com a mesma função são
+ * substituídas (na posição da primeira ocorrência); funções novas entram ao final.
+ */
+export function mergePastedRows(existing: SuggestionGridRow[], pasted: SuggestionGridRow[]): SuggestionGridRow[] {
+  const byFunction = new Map<string, SuggestionGridRow[]>();
+  for (const p of pasted) {
+    const list = byFunction.get(p.functionId) ?? [];
+    list.push(p);
+    byFunction.set(p.functionId, list);
+  }
+  const out: SuggestionGridRow[] = [];
+  const placed = new Set<string>();
+  for (const row of existing) {
+    const repl = byFunction.get(row.functionId);
+    if (!repl) { out.push(row); continue; }
+    if (!placed.has(row.functionId)) { placed.add(row.functionId); out.push(...repl); }
+  }
+  byFunction.forEach((list, fid) => { if (!placed.has(fid)) out.push(...list); });
+  return out;
+}
+
+export interface RowValidation {
+  /** Impedem o envio. */
+  errors: string[];
+  /** Só avisam (envio permitido). */
+  warnings: string[];
+}
+const NO_ISSUES: RowValidation = { errors: [], warnings: [] };
+
+/** Problemas por linha: erros bloqueiam o envio, avisos não. Linha sem quantidade é ignorada. */
+export function validateGridRow(row: SuggestionGridRow): RowValidation {
   const hasQty = Object.values(row.quantities).some((q) => q > 0);
-  if (!hasQty) return issues; // linha vazia é ignorada no envio
+  if (!hasQty) return NO_ISSUES; // linha vazia é ignorada no envio
+  const errors: string[] = [];
+  const warnings: string[] = [];
   const hhmm = /^\d{2}:\d{2}$/;
-  if (row.flightArrivalSuggestedTime && !hhmm.test(row.flightArrivalSuggestedTime)) issues.push("horário de desembarque inválido (HH:MM)");
-  if (row.flightReturnSuggestedTime && !hhmm.test(row.flightReturnSuggestedTime)) issues.push("horário de embarque inválido (HH:MM)");
-  if (row.flightDepartureDate && row.flightReturnDate && row.flightReturnDate < row.flightDepartureDate) issues.push("data de volta anterior à data de ida");
-  if (row.needsTicket && (!row.flightDepartureDate || !row.flightReturnDate)) issues.push("passagem marcada sem data de ida/volta");
-  return issues;
+  if (row.flightArrivalSuggestedTime && !hhmm.test(row.flightArrivalSuggestedTime)) errors.push("horário de desembarque inválido (HH:MM)");
+  if (row.flightReturnSuggestedTime && !hhmm.test(row.flightReturnSuggestedTime)) errors.push("horário de embarque inválido (HH:MM)");
+  if (row.flightDepartureDate && row.flightReturnDate && row.flightReturnDate < row.flightDepartureDate) errors.push("data de volta anterior à data de ida");
+  if (row.needsTicket && (!row.flightDepartureDate || !row.flightReturnDate)) warnings.push("passagem marcada sem data de ida/volta");
+  if (errors.length === 0 && warnings.length === 0) return NO_ISSUES;
+  return { errors, warnings };
 }

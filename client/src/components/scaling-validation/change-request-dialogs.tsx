@@ -16,18 +16,18 @@ import {
 } from "@shared/scaling-validation-rules";
 import { TravelFields, EMPTY_TRAVEL, travelFromInclusion, validateTravel, type TravelDraft } from "./travel-fields";
 import { WorkDaysPicker } from "./work-days-picker";
-import { CHANGE_REQUESTS_QUERY_KEY, SUGGESTIONS_QUERY_KEY, type ApiError, type SuggestionRow } from "./types";
+import { CHANGE_REQUEST_TYPE_LABELS, type LastDecisionInfo } from "@shared/scaling-validation-rules";
+import { formatDateBr } from "@/lib/dates";
+import { describeLastDecision, invalidateScalingQueries, workDaysOf, ymd, type ApiError, type SuggestionRow } from "./types";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-const ymd = (v: string | Date | null | undefined) => {
-  if (!v) return "";
-  if (v instanceof Date) return Number.isNaN(v.getTime()) ? "" : v.toISOString().slice(0, 10);
-  return String(v).slice(0, 10);
-};
 const orNull = <T,>(v: T | ""): T | null => (v === "" ? null : v);
 
-function useCreateChangeRequest(onDone: () => void) {
+/** Callback disparado após o pedido ser aceito pelo servidor (id da vaga; null em inclusão). */
+export type OnRequestSent = (inclusionId: string | null) => void;
+
+function useCreateChangeRequest(onDone: () => void, onSent?: OnRequestSent) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   return useMutation({
@@ -47,12 +47,11 @@ function useCreateChangeRequest(onDone: () => void) {
       return res.json();
     },
     onSuccess: (_data, vars) => {
-      queryClient.invalidateQueries({ queryKey: [SUGGESTIONS_QUERY_KEY] });
-      queryClient.invalidateQueries({ queryKey: [`${SUGGESTIONS_QUERY_KEY}/event-view`] });
-      queryClient.invalidateQueries({ queryKey: [CHANGE_REQUESTS_QUERY_KEY] });
+      invalidateScalingQueries(queryClient);
       const label = vars.requestType === "ajuste" ? "Pedido de ajuste enviado" : vars.requestType === "exclusao" ? "Pedido de exclusão enviado" : "Pedido de inclusão enviado";
       toast({ title: label, description: "O aprovador da função vai analisar o pedido." });
       onDone();
+      onSent?.(vars.teamInclusionId ?? null);
     },
     onError: (err: ApiError) => {
       toast({ title: "Não foi possível enviar o pedido", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" });
@@ -69,6 +68,21 @@ function fmtValue(field: ProposedField, v: unknown): string {
   return String(v);
 }
 
+/** Comentário do aprovador na última decisão — em destaque no topo do diálogo (a vaga voltou por isso). */
+export function ApproverCommentBanner({ info }: { info: LastDecisionInfo | null | undefined }) {
+  const d = describeLastDecision(info);
+  if (!info || !d) return null;
+  const when = info.at ? formatDateBr(info.at) : "";
+  const typeLabel = CHANGE_REQUEST_TYPE_LABELS[info.requestType] ?? info.requestType;
+  return (
+    <div role="note" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 space-y-1">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-amber-800">{d.title} · pedido de {typeLabel.toLowerCase()}</p>
+      <p className="text-sm text-slate-800 whitespace-pre-wrap">{info.comment?.trim() ? info.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}</p>
+      <p className="text-[11px] text-slate-600">{info.byName ?? "Aprovador"}{when ? ` · ${when}` : ""}</p>
+    </div>
+  );
+}
+
 // ── Pedido de AJUSTE ─────────────────────────────────────────────────────────
 
 interface AdjustRequestDialogProps {
@@ -77,9 +91,10 @@ interface AdjustRequestDialogProps {
   inclusion: SuggestionRow | null;
   event?: Event;
   functionName?: string;
+  onSent?: OnRequestSent;
 }
 
-export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, functionName }: AdjustRequestDialogProps) {
+export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, functionName, onSent }: AdjustRequestDialogProps) {
   const [workDays, setWorkDays] = useState<string[]>([]);
   const [dailyRates, setDailyRates] = useState<string>("");
   const [dailyRatesTouched, setDailyRatesTouched] = useState(false);
@@ -99,7 +114,7 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
     const inc = inclusionRef.current;
     if (!inc || loadedIdRef.current === inc.id) return;
     loadedIdRef.current = inc.id;
-    const days = (inc.workDays ?? []).map((d) => ymd(d as unknown as string)).filter(Boolean).sort();
+    const days = workDaysOf(inc);
     setWorkDays(days);
     setDailyRates(String(inc.dailyRates ?? ""));
     // Se a vaga já veio com diárias ≠ nº de dias, o valor foi definido à mão: não sobrescrever.
@@ -116,7 +131,7 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
     if (!dailyRatesTouched && days.length > 0) setDailyRates(String(days.length));
   };
 
-  const mutation = useCreateChangeRequest(() => onOpenChange(false));
+  const mutation = useCreateChangeRequest(() => onOpenChange(false), onSent);
 
   // proposedChanges completo a partir do rascunho; o diff decide o que vai.
   const full: ProposedChanges = useMemo(() => ({
@@ -172,6 +187,7 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
         </DialogHeader>
 
         <div className="space-y-5">
+          <ApproverCommentBanner info={inclusion?.lastDecision} />
           <div className="space-y-2">
             <Label className="text-xs text-slate-600">Dias de trabalho <span className="text-red-400">*</span></Label>
             <WorkDaysPicker rangeStart={event?.startDate ?? ""} rangeEnd={event?.endDate ?? ""} value={workDays} onChange={handleWorkDaysChange} disabled={mutation.isPending} />
@@ -181,7 +197,7 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
               <Label htmlFor="adj-daily" className="text-xs text-slate-600">Diárias</Label>
               <Input id="adj-daily" type="number" min={0} step={1} value={dailyRates} disabled={mutation.isPending}
                 onChange={(e) => { setDailyRatesTouched(true); setDailyRates(e.target.value); }} className="h-9 rounded-lg" />
-              <p className="text-[11px] text-slate-400">Padrão: {formatDiarias(workDays.length)} (1 por dia).</p>
+              <p className="text-[11px] text-slate-500">Padrão: {formatDiarias(workDays.length)} (1 por dia).</p>
             </div>
             <div className="space-y-1">
               <Label htmlFor="adj-obs" className="text-xs text-slate-600">Observações da vaga</Label>
@@ -233,13 +249,14 @@ interface DeleteRequestDialogProps {
   onOpenChange: (open: boolean) => void;
   inclusion: SuggestionRow | null;
   functionName?: string;
+  onSent?: OnRequestSent;
 }
 
-export function DeleteRequestDialog({ open, onOpenChange, inclusion, functionName }: DeleteRequestDialogProps) {
+export function DeleteRequestDialog({ open, onOpenChange, inclusion, functionName, onSent }: DeleteRequestDialogProps) {
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   useEffect(() => { if (open) { setReason(""); setError(null); } }, [open]);
-  const mutation = useCreateChangeRequest(() => onOpenChange(false));
+  const mutation = useCreateChangeRequest(() => onOpenChange(false), onSent);
 
   const submit = () => {
     if (!inclusion) return;
@@ -262,9 +279,10 @@ export function DeleteRequestDialog({ open, onOpenChange, inclusion, functionNam
         <DialogHeader>
           <DialogTitle>Pedir exclusão da vaga #{inclusion?.inclusionNumber}</DialogTitle>
           <DialogDescription>
-            {functionName ?? "Função"} — a vaga fica “com pedido de ajuste” até o aprovador decidir. Se aprovado, ela sai da escala e fica registrada como negada.
+            {functionName ?? "Função"} — a vaga fica aguardando o aprovador. Se ele aprovar a exclusão, ela sai da escala e fica registrada como negada; se negar, volta para você validar.
           </DialogDescription>
         </DialogHeader>
+        <ApproverCommentBanner info={inclusion?.lastDecision} />
         <div className="space-y-1">
           <Label htmlFor="del-reason" className="text-xs text-slate-600">Motivo <span className="text-red-400">*</span></Label>
           <Textarea id="del-reason" rows={3} maxLength={1000} value={reason} disabled={mutation.isPending} required aria-required="true"
@@ -290,12 +308,15 @@ interface IncludeRequestDialogProps {
   event?: Event;
   /** Funções que o usuário pode pedir (já filtradas: gerenciadas, ou todas se admin). */
   functions: FunctionType[];
+  onSent?: OnRequestSent;
 }
 
-export function IncludeRequestDialog({ open, onOpenChange, event, functions }: IncludeRequestDialogProps) {
+export function IncludeRequestDialog({ open, onOpenChange, event, functions, onSent }: IncludeRequestDialogProps) {
   const [functionId, setFunctionId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [workDays, setWorkDays] = useState<string[]>([]);
+  const [dailyRates, setDailyRates] = useState("");
+  const [dailyRatesTouched, setDailyRatesTouched] = useState(false);
   const [travel, setTravel] = useState<TravelDraft>(EMPTY_TRAVEL);
   const [observations, setObservations] = useState("");
   const [reason, setReason] = useState("");
@@ -310,13 +331,21 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions }: I
     setFunctionId(fns.length === 1 ? fns[0].id : "");
     setQuantity("1");
     setWorkDays([]);
+    setDailyRates("");
+    setDailyRatesTouched(false);
     setTravel(EMPTY_TRAVEL);
     setObservations("");
     setReason("");
     setError(null);
   }, [open]);
 
-  const mutation = useCreateChangeRequest(() => onOpenChange(false));
+  // Diárias acompanham os dias (1 por dia) até o usuário editar o campo à mão — igual ao Ajuste.
+  const handleWorkDaysChange = (days: string[]) => {
+    setWorkDays(days);
+    if (!dailyRatesTouched) setDailyRates(days.length ? String(days.length) : "");
+  };
+
+  const mutation = useCreateChangeRequest(() => onOpenChange(false), onSent);
   const sorted = useMemo(() => [...functions].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })), [functions]);
   const selectedFunction = sorted.find((f) => f.id === functionId);
 
@@ -326,6 +355,8 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions }: I
     const q = Number(quantity);
     if (!Number.isInteger(q) || q < 1) { setError("Quantidade deve ser um inteiro ≥ 1."); return; }
     if (workDays.length === 0) { setError("Informe ao menos um dia de trabalho."); return; }
+    const dr = dailyRates.trim() === "" ? workDays.length : Number(dailyRates);
+    if (!Number.isInteger(dr) || dr < 0) { setError("Diárias devem ser um número inteiro (0 ou mais)."); return; }
     const travelErr = validateTravel(travel);
     if (travelErr.length) { setError(travelErr[0]); return; }
     if (!reason.trim()) { setError("Informe o motivo do pedido."); return; }
@@ -334,7 +365,7 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions }: I
       v: 1,
       quantity: q,
       workDays,
-      dailyRates: workDays.length,
+      dailyRates: dr,
       needsTicket: travel.needsTicket,
       needsAccommodation: travel.needsAccommodation,
       ...(travel.transportModeIda ? { transportModeIda: travel.transportModeIda } : {}),
@@ -386,16 +417,22 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions }: I
 
           <div className="space-y-2">
             <Label className="text-xs text-slate-600">Dias de trabalho <span className="text-red-400">*</span></Label>
-            <WorkDaysPicker rangeStart={event?.startDate ?? ""} rangeEnd={event?.endDate ?? ""} value={workDays} onChange={setWorkDays} disabled={mutation.isPending} />
-            {workDays.length > 0 && <p className="text-[11px] text-slate-400">{formatDiarias(workDays.length)} por pessoa.</p>}
+            <WorkDaysPicker rangeStart={event?.startDate ?? ""} rangeEnd={event?.endDate ?? ""} value={workDays} onChange={handleWorkDaysChange} disabled={mutation.isPending} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
+            <div className="space-y-1">
+              <Label htmlFor="inc-daily" className="text-xs text-slate-600">Diárias (por pessoa)</Label>
+              <Input id="inc-daily" type="number" min={0} step={1} value={dailyRates} disabled={mutation.isPending} placeholder={String(workDays.length)}
+                onChange={(e) => { setDailyRatesTouched(true); setDailyRates(e.target.value); }} className="h-9 rounded-lg" />
+              <p className="text-[11px] text-slate-500">Padrão: {formatDiarias(workDays.length)} (1 por dia).</p>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="inc-obs" className="text-xs text-slate-600">Observações da vaga</Label>
+              <Textarea id="inc-obs" rows={2} maxLength={500} value={observations} disabled={mutation.isPending} onChange={(e) => setObservations(e.target.value)} className="rounded-lg text-sm" />
+            </div>
           </div>
 
           <TravelFields idPrefix="inc" value={travel} disabled={mutation.isPending} onChange={(p) => setTravel((t) => ({ ...t, ...p }))} />
-
-          <div className="space-y-1">
-            <Label htmlFor="inc-obs" className="text-xs text-slate-600">Observações da vaga</Label>
-            <Textarea id="inc-obs" rows={2} maxLength={500} value={observations} disabled={mutation.isPending} onChange={(e) => setObservations(e.target.value)} className="rounded-lg text-sm" />
-          </div>
           <div className="space-y-1">
             <Label htmlFor="inc-reason" className="text-xs text-slate-600">Motivo do pedido <span className="text-red-400">*</span></Label>
             <Textarea id="inc-reason" rows={3} maxLength={1000} value={reason} disabled={mutation.isPending} required aria-required="true"

@@ -41,9 +41,20 @@ export interface RolePermissions {
   canChangeUserRole: boolean;    // espelha PATCH /api/users/:id — role/area só admin (allowedFieldsForAdmin)
   canAccessCalendar: boolean;
   canAccessBaggage: boolean;     // controle de bagagem — admin e compras
-  canAccessScalingSuggestion: boolean; // espelha POST /api/scaling-suggestions/bulk (admin, production)
-  canAccessScalingValidation: boolean; // GET /api/scaling-suggestions — qualquer usuário logado; edição decidida por canEdit do servidor
-  canAccessScalingApproval: boolean;   // GET /api/scaling-change-requests — admin/production/purchasing veem tudo; demais só se aprovador de alguma função (servidor devolve 403); decisão por canDecide do servidor
+  // ── Módulo Validação de Escala (matriz do briefing §7) ──────────────────
+  // Tela                 | admin | production | purchasing | financial | function_area
+  // Sugestão de Escala   | edit  | edit       | view       | view      | none
+  // Validação de Escala  | edit  | view       | view       | view      | edit (só das funções em que é validador — canEdit do servidor)
+  // Aprovação de Escala  | edit  | edit       | edit       | view      | view (só os pedidos das funções em que é aprovador — filtro do servidor)
+  // Histórico da Escala  | view  | view       | view       | view      | view
+  // "Access" = entra na tela (menu + rota); "Edit" = pode gravar. A decisão
+  // final de cada linha/pedido continua sendo do servidor (canEdit/canDecide).
+  canAccessScalingSuggestion: boolean; // entra na Sugestão (view) — admin, production, purchasing, financial
+  canEditScalingSuggestion: boolean;   // espelha POST /api/scaling-suggestions/bulk (admin, production)
+  canAccessScalingValidation: boolean; // GET /api/scaling-suggestions — todos os perfis logados
+  canEditScalingValidation: boolean;   // espelha POST /api/scaling-suggestions/validate — admin e function_area (validador da função; canEdit do servidor)
+  canAccessScalingApproval: boolean;   // GET /api/scaling-change-requests — admin/production/purchasing/financial por papel + function_area (o servidor filtra às funções em que é aprovador, ou responde 403)
+  canEditScalingApproval: boolean;     // espelha a decisão de pedidos — admin, production, purchasing (canDecide do servidor por pedido é a trava final)
   canAccessScalingEventView: boolean;  // GET /api/scaling-suggestions/event-view — qualquer usuário logado (somente leitura)
 }
 
@@ -77,8 +88,11 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessCalendar: true,
         canAccessBaggage: true,
         canAccessScalingSuggestion: true,
+        canEditScalingSuggestion: true,
         canAccessScalingValidation: true,
+        canEditScalingValidation: true,
         canAccessScalingApproval: true,
+        canEditScalingApproval: true,
         canAccessScalingEventView: true,
       };
 
@@ -109,8 +123,11 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessCalendar: true,
         canAccessBaggage: false,
         canAccessScalingSuggestion: true,
+        canEditScalingSuggestion: true,
         canAccessScalingValidation: true,
+        canEditScalingValidation: false,
         canAccessScalingApproval: true,
+        canEditScalingApproval: true,
         canAccessScalingEventView: true,
       };
 
@@ -141,8 +158,14 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessCalendar: true,
         canAccessBaggage: false,
         canAccessScalingSuggestion: false,
+        canEditScalingSuggestion: false,
         canAccessScalingValidation: true,
+        canEditScalingValidation: true,   // valida só as funções em que é validador (canEdit do servidor)
+        // Entra na Aprovação porque o servidor tem o fallback do APROVADOR: quem é
+        // 'aprovador' de alguma função vê (e decide) os pedidos dela. Quem não for
+        // aprovador de nada leva 403 e a tela mostra o estado neutro.
         canAccessScalingApproval: true,
+        canEditScalingApproval: false,    // §7: não é papel de decisão — quem libera é o canDecide do servidor
         canAccessScalingEventView: true,
       };
 
@@ -172,9 +195,12 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: true,
-        canAccessScalingSuggestion: false,
+        canAccessScalingSuggestion: true,   // view (a tela do outro agente adotará canEditScalingSuggestion)
+        canEditScalingSuggestion: false,
         canAccessScalingValidation: true,
+        canEditScalingValidation: false,
         canAccessScalingApproval: true,
+        canEditScalingApproval: true,
         canAccessScalingEventView: true,
       };
 
@@ -204,9 +230,12 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: false,
-        canAccessScalingSuggestion: false,
+        canAccessScalingSuggestion: true,   // view (a tela do outro agente adotará canEditScalingSuggestion)
+        canEditScalingSuggestion: false,
         canAccessScalingValidation: true,
-        canAccessScalingApproval: true,
+        canEditScalingValidation: false,
+        canAccessScalingApproval: true,     // view — o GET aceita financial; canDecide vem sempre false do servidor
+        canEditScalingApproval: false,
         canAccessScalingEventView: true,
       };
 
@@ -237,8 +266,11 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessCalendar: false,
         canAccessBaggage: false,
         canAccessScalingSuggestion: false,
+        canEditScalingSuggestion: false,
         canAccessScalingValidation: false,
+        canEditScalingValidation: false,
         canAccessScalingApproval: false,
+        canEditScalingApproval: false,
         canAccessScalingEventView: false,
       };
   }

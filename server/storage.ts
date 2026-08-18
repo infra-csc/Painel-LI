@@ -54,6 +54,12 @@ export type FunctionWithManagers = Function & { managers: FunctionManagerSummary
  */
 export type TeamInclusionPhaseFilter = "sugestao" | "all" | undefined;
 
+/** Filtros extras de getTeamInclusions (aplicados NO BANCO, não em JS). */
+export interface TeamInclusionListOptions {
+  /** Só vagas deste evento. */
+  eventId?: string;
+}
+
 /** Phase das vagas ainda em validação pela área (espelha SUGESTAO_PHASE do shared). */
 const SUGESTAO_PHASE_VALUE = "sugestao";
 
@@ -151,8 +157,10 @@ export interface IStorage {
    * Lista escalações. Por padrão exclui deletadas E sugestões (phase 'sugestao');
    * passe phase 'sugestao' para só sugestões ou 'all' para tudo.
    */
-  getTeamInclusions(includeDeleted?: boolean, phase?: TeamInclusionPhaseFilter): Promise<TeamInclusion[]>;
+  getTeamInclusions(includeDeleted?: boolean, phase?: TeamInclusionPhaseFilter, opts?: TeamInclusionListOptions): Promise<TeamInclusion[]>;
   getTeamInclusion(id: string): Promise<TeamInclusion | undefined>;
+  /** Vagas por id (inclui deletadas e qualquer phase) — para juntar pedidos às vagas sem carregar a tabela toda. */
+  getTeamInclusionsByIds(ids: string[]): Promise<TeamInclusion[]>;
   createTeamInclusion(inclusion: InsertTeamInclusion): Promise<TeamInclusion>;
   createTeamInclusionsBatch(rows: InsertTeamInclusion[]): Promise<TeamInclusion[]>;
   updateTeamInclusion(id: string, inclusion: Partial<InsertTeamInclusion>): Promise<TeamInclusion>;
@@ -257,6 +265,21 @@ export interface IStorage {
    * do evento, tudo numa única transação.
    */
   createScalingSuggestionsBatch(rows: InsertTeamInclusion[], eventUpdate?: { eventId: string; observations: string | null }): Promise<TeamInclusion[]>;
+  /**
+   * Validação em lote (área valida N vagas): UM update com `inArray` + logs numa
+   * única transação. Só atualiza vagas ainda em `expected` (phase/status) e não
+   * deletadas; devolve as linhas efetivamente atualizadas — quem não voltou
+   * mudou de estado no meio (o chamador marca como "skipped").
+   */
+  validateScalingSuggestionsBatch(
+    ids: string[],
+    patch: Partial<InsertTeamInclusion>,
+    expected: { phase: string; status: string },
+    logFor: (updated: TeamInclusion) => InsertTeamInclusionLog,
+  ): Promise<TeamInclusion[]>;
+  /** Funções/eventos por id (Map por id no chamador) — evita carregar o catálogo inteiro. */
+  getFunctionsByIds(ids: string[]): Promise<Function[]>;
+  getEventsByIds(ids: string[]): Promise<Event[]>;
   getScalingChangeRequests(filters?: { status?: string; eventId?: string; functionIds?: string[] }): Promise<ScalingChangeRequest[]>;
   getScalingChangeRequest(id: string): Promise<ScalingChangeRequest | undefined>;
   getScalingChangeRequestsByInclusion(teamInclusionId: string): Promise<ScalingChangeRequest[]>;
@@ -581,7 +604,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Team Inclusions
-  async getTeamInclusions(includeDeleted: boolean = false, phase: TeamInclusionPhaseFilter = undefined): Promise<TeamInclusion[]> {
+  async getTeamInclusions(
+    includeDeleted: boolean = false,
+    phase: TeamInclusionPhaseFilter = undefined,
+    opts: TeamInclusionListOptions = {},
+  ): Promise<TeamInclusion[]> {
     const query = db
       .select({
         id: teamInclusions.id,
@@ -643,6 +670,7 @@ export class DatabaseStorage implements IStorage {
     if (!includeDeleted) conditions.push(isNull(teamInclusions.deletedAt));
     if (phase === "sugestao") conditions.push(eq(teamInclusions.phase, SUGESTAO_PHASE_VALUE));
     else if (phase !== "all") conditions.push(ne(teamInclusions.phase, SUGESTAO_PHASE_VALUE));
+    if (opts.eventId) conditions.push(eq(teamInclusions.eventId, opts.eventId));
 
     if (conditions.length === 0) return await query;
     return await query.where(and(...conditions));
@@ -651,6 +679,12 @@ export class DatabaseStorage implements IStorage {
   async getTeamInclusion(id: string): Promise<TeamInclusion | undefined> {
     const [inclusion] = await db.select().from(teamInclusions).where(eq(teamInclusions.id, id));
     return inclusion;
+  }
+
+  async getTeamInclusionsByIds(ids: string[]): Promise<TeamInclusion[]> {
+    const unique = Array.from(new Set(ids.filter(Boolean)));
+    if (unique.length === 0) return [];
+    return await db.select().from(teamInclusions).where(inArray(teamInclusions.id, unique));
   }
 
   async createTeamInclusion(inclusionData: InsertTeamInclusion): Promise<TeamInclusion> {
@@ -1383,6 +1417,45 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
+  async validateScalingSuggestionsBatch(
+    ids: string[],
+    patch: Partial<InsertTeamInclusion>,
+    expected: { phase: string; status: string },
+    logFor: (updated: TeamInclusion) => InsertTeamInclusionLog,
+  ): Promise<TeamInclusion[]> {
+    const unique = Array.from(new Set(ids.filter(Boolean)));
+    if (unique.length === 0) return [];
+    return await db.transaction(async (tx) => {
+      // Um único UPDATE guardado pelo estado esperado: vaga que mudou de estado
+      // entre a leitura e a gravação simplesmente não volta no RETURNING.
+      const updated = await tx.update(teamInclusions)
+        .set(patch)
+        .where(and(
+          inArray(teamInclusions.id, unique),
+          isNull(teamInclusions.deletedAt),
+          eq(teamInclusions.phase, expected.phase),
+          eq(teamInclusions.status, expected.status),
+        ))
+        .returning();
+      if (updated.length > 0) {
+        await tx.insert(teamInclusionLogs).values(updated.map((row) => logFor(row)));
+      }
+      return updated;
+    });
+  }
+
+  async getFunctionsByIds(ids: string[]): Promise<Function[]> {
+    const unique = Array.from(new Set(ids.filter(Boolean)));
+    if (unique.length === 0) return [];
+    return await db.select().from(functions).where(inArray(functions.id, unique));
+  }
+
+  async getEventsByIds(ids: string[]): Promise<Event[]> {
+    const unique = Array.from(new Set(ids.filter(Boolean)));
+    if (unique.length === 0) return [];
+    return await db.select().from(events).where(inArray(events.id, unique));
+  }
+
   async getScalingChangeRequests(filters?: { status?: string; eventId?: string; functionIds?: string[] }): Promise<ScalingChangeRequest[]> {
     const conditions = [];
     if (filters?.status && filters.status !== "all") conditions.push(eq(scalingChangeRequests.status, filters.status));
@@ -1447,6 +1520,13 @@ export class DatabaseStorage implements IStorage {
   // aplica mudanças na(s) vaga(s) e/ou cria vagas novas E marca o pedido como
   // decidido. Um retry não duplica vagas nem deixa o pedido preso em 'pendente'.
   // Se houver inserts, resolvedInclusionId do pedido = id da primeira vaga criada.
+  // ATENÇÃO: resolvedInclusionId é UMA coluna e um pedido de inclusão com
+  // quantity > 1 cria N vagas — as vagas 2..N NÃO ficam apontadas aqui. Quem as
+  // reconecta ao pedido (para exibir "Vaga criada pelo aprovador — validar" e o
+  // comentário dele) é `matchesCreatedFromRequest` em server/scaling-validation.ts,
+  // que casa evento + função + suggestionSentAt == reviewedAt. Por isso o
+  // chamador DEVE usar o MESMO objeto Date em requestUpdates.reviewedAt e no
+  // suggestionSentAt das linhas inseridas.
   async resolveScalingChangeRequest(
     requestId: string,
     requestUpdates: Partial<InsertScalingChangeRequestRow>,

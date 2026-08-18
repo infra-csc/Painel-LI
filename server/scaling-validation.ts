@@ -45,6 +45,9 @@ import {
   type ProposedChanges,
   type ProposedField,
   type SuggestionAction,
+  type ChangeRequestType,
+  type ChangeRequestStatus,
+  type LastDecisionInfo,
 } from "@shared/scaling-validation-rules";
 import { normalizeRole, type CanonicalRole } from "@shared/roles";
 
@@ -121,10 +124,26 @@ async function getActor(req: Request, res: Response): Promise<User | null> {
 }
 
 const isAdmin = (u: User) => normalizeRole(u.role) === "admin";
+
+/**
+ * Papéis que VEEM a fila inteira de pedidos (matriz §7 do briefing).
+ * `financial` entra aqui como LEITURA — ele acompanha os pedidos mas nunca
+ * decide (ver `isViewOnlyRequests`). Quem não está nesta lista ainda pode ver a
+ * fila FILTRADA às funções em que é `aprovador` (fallback do aprovador, abaixo);
+ * o 403 sobra só para quem não é nem papel autorizado nem aprovador.
+ */
 const canViewRequestsByRole = (u: User) => {
   const r = normalizeRole(u.role);
-  return r === "admin" || r === "purchasing" || r === "production";
+  return r === "admin" || r === "purchasing" || r === "production" || r === "financial";
 };
+
+/**
+ * Papel que SÓ acompanha (matriz §7: financial = view na Aprovação de Escala).
+ * Para ele `canDecide` é sempre false nos payloads — a UI nunca oferece um botão
+ * de decisão. As rotas de decisão continuam exigindo ser `aprovador` da função
+ * (ou admin), então isto só ESCONDE uma ação, nunca concede uma.
+ */
+const isViewOnlyRequests = (u: User) => normalizeRole(u.role) === "financial";
 
 async function roleFor(functionId: string, userId: string): Promise<FunctionManagerRole | null> {
   return storage.getUserFunctionRole(functionId, userId);
@@ -151,6 +170,121 @@ async function addRequestNote(requestId: string, actor: User, content: string) {
 }
 
 function stateLabel(i: { phase: string; status: string }) { return `${i.phase}/${i.status}`; }
+
+// ── Erros: 400 só para zod/regra de negócio; 409 para pedido já decidido; o
+// resto é 500 (erro inesperado — não vaza a mensagem interna).
+/** Erro de REGRA (transição inválida, proposedChanges inválido…) → 400. */
+class RuleViolation extends Error {
+  constructor(message: string) { super(message); this.name = "RuleViolation"; }
+}
+/** Executa uma regra pura do shared: qualquer Error vira RuleViolation (400). */
+function rule<T>(fn: () => T): T {
+  try { return fn(); }
+  catch (e) { throw new RuleViolation(e instanceof Error ? e.message : String(e)); }
+}
+const ALREADY_DECIDED = "Este pedido já foi decidido";
+
+function sendError(res: Response, error: unknown, logPrefix: string, fallback: string) {
+  if (error instanceof RuleViolation || error instanceof z.ZodError) {
+    const message = error instanceof z.ZodError
+      ? (error.issues[0]?.message ?? "Dados inválidos")
+      : error.message;
+    return res.status(400).json({ message });
+  }
+  if (error instanceof Error && error.message === ALREADY_DECIDED) {
+    return res.status(409).json({ message: error.message });
+  }
+  console.error(`[Validação de Escala] ${logPrefix}:`, error);
+  return res.status(500).json({ message: fallback });
+}
+
+const toIso = (d: Date | string | null | undefined): string | null => {
+  if (!d) return null;
+  const date = d instanceof Date ? d : new Date(d);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+};
+const toMs = (d: Date | string | null | undefined): number => {
+  if (!d) return 0;
+  const t = (d instanceof Date ? d : new Date(d)).getTime();
+  return Number.isNaN(t) ? 0 : t;
+};
+
+/** O mínimo que `matchesCreatedFromRequest` precisa saber da vaga. */
+export interface InclusionIdentity {
+  id: string;
+  eventId: string;
+  functionId: string;
+  suggestionSentAt: Date | string | null;
+}
+
+/**
+ * A vaga NASCEU deste pedido de inclusão devolvido para a área?
+ *
+ * `scaling_change_requests.resolvedInclusionId` é UMA coluna, mas um pedido de
+ * inclusão com `quantity > 1` cria N vagas — o storage só consegue apontar para
+ * a PRIMEIRA. Sem esta regra, as vagas 2..N chegavam à área sem o aviso "Vaga
+ * criada pelo aprovador — validar" e sem o comentário dele.
+ *
+ * Casamento sem coluna nova / sem migração: as N linhas são criadas com o MESMO
+ * objeto Date usado no `reviewedAt` do pedido (reviewHandler cria `now` uma vez
+ * e passa para `buildInclusionRowsFromRequest`, que grava `suggestionSentAt =
+ * now`). Logo, para uma vaga nascida do pedido vale, ao milissegundo:
+ * `suggestionSentAt === reviewedAt`, no mesmo evento e na mesma função. Só se
+ * aplica a pedidos de INCLUSÃO resolvidos como 'reenviado_validacao' — os
+ * únicos que criam vagas em sugestao_pendente.
+ */
+export function matchesCreatedFromRequest(
+  inclusion: InclusionIdentity,
+  request: Pick<
+    ScalingChangeRequest,
+    "resolvedInclusionId" | "requestType" | "status" | "eventId" | "functionId" | "reviewedAt"
+  >,
+): boolean {
+  // Vínculo explícito (1ª vaga do lote, ou pedido de inclusão aprovado direto).
+  if (request.resolvedInclusionId && request.resolvedInclusionId === inclusion.id) return true;
+  if (request.requestType !== "inclusao") return false;
+  if (request.status !== CHANGE_REQUEST_STATUS.REENVIADO_VALIDACAO) return false;
+  if (request.eventId !== inclusion.eventId) return false;
+  if (request.functionId !== inclusion.functionId) return false;
+  const sentMs = toMs(inclusion.suggestionSentAt);
+  return sentMs !== 0 && sentMs === toMs(request.reviewedAt);
+}
+
+/**
+ * Última decisão que EXPLICA o estado atual da vaga: o pedido resolvido mais
+ * recente (por reviewedAt) da vaga — via teamInclusionId ou, quando a vaga
+ * nasceu de um pedido de inclusão devolvido, via `matchesCreatedFromRequest`
+ * (cobre TODAS as N vagas do lote, não só a primeira) — desde que (a) não
+ * exista pedido pendente mais novo e (b) a decisão seja igual ou posterior ao
+ * suggestionSentAt atual (reenvio reseta esse carimbo).
+ */
+function pickLastDecision(
+  inclusion: InclusionIdentity,
+  requests: ScalingChangeRequest[],
+): LastDecisionInfo | null {
+  let best: ScalingChangeRequest | null = null;
+  let newestPendingMs = 0;
+  for (const r of requests) {
+    if (r.teamInclusionId !== inclusion.id && !matchesCreatedFromRequest(inclusion, r)) continue;
+    if (r.status === CHANGE_REQUEST_STATUS.PENDENTE) {
+      newestPendingMs = Math.max(newestPendingMs, toMs(r.createdAt));
+      continue;
+    }
+    if (!best || toMs(r.reviewedAt ?? r.updatedAt) > toMs(best.reviewedAt ?? best.updatedAt)) best = r;
+  }
+  if (!best) return null;
+  const decidedMs = toMs(best.reviewedAt ?? best.updatedAt);
+  if (newestPendingMs && newestPendingMs > decidedMs) return null;
+  if (decidedMs < toMs(inclusion.suggestionSentAt)) return null;
+  return {
+    requestId: best.id,
+    requestType: best.requestType as ChangeRequestType,
+    status: best.status as ChangeRequestStatus,
+    comment: best.reviewComment ?? null,
+    byName: best.reviewedByName ?? null,
+    at: toIso(best.reviewedAt ?? best.updatedAt),
+  };
+}
 
 // ── Schemas dos bodies ───────────────────────────────────────────────────────
 const suggestionRowSchema = z.object({
@@ -277,14 +411,18 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       }
       res.status(201).json({ created: created.length, items: created });
     } catch (error) {
-      console.error("[Validação de Escala] erro ao enviar sugestões:", error);
-      res.status(400).json({ message: "Erro ao enviar escala sugerida", error: error instanceof Error ? error.message : String(error) });
+      sendError(res, error, "erro ao enviar sugestões", "Erro ao enviar escala sugerida");
     }
   });
 
   // GET /api/scaling-suggestions?eventId= — sugestões ativas do evento (todas
-  // as áreas) + canEdit (responsável da função, qualquer papel, ou admin) e
-  // daysPending. Qualquer usuário logado pode ver.
+  // as áreas). Qualquer usuário logado pode ver. Cada linha traz:
+  //  - canEdit: admin ou VALIDADOR da função (pode validar / pedir ajuste);
+  //  - canDecide: admin ou APROVADOR da função (bypass / "vagas paradas");
+  //  - daysPending: dias desde suggestionSentAt (reinicia a cada reenvio);
+  //  - pendingRequest: pedido pendente da vaga (ou null);
+  //  - lastDecision: última decisão do aprovador que explica o estado atual
+  //    (vaga devolvida/negada) — LastDecisionInfo | null.
   app.get("/api/scaling-suggestions", async (req, res) => {
     const actor = await getActor(req, res);
     if (!actor) return;
@@ -292,34 +430,41 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       const eventId = String(req.query.eventId ?? "");
       if (!eventId) return res.status(400).json({ message: "eventId é obrigatório" });
 
-      const [rows, validatorIds, requests] = await Promise.all([
-        storage.getTeamInclusions(false, "sugestao"),
-        storage.getUserManagedFunctionIds(actor.id, "validador"),
-        storage.getScalingChangeRequests({ eventId, status: CHANGE_REQUEST_STATUS.PENDENTE }),
-      ]);
       const admin = isAdmin(actor);
+      const viewOnly = isViewOnlyRequests(actor);
+      const [rows, validatorIds, approverIds, requests] = await Promise.all([
+        storage.getTeamInclusions(false, "sugestao", { eventId }),
+        storage.getUserManagedFunctionIds(actor.id, "validador"),
+        admin || viewOnly ? Promise.resolve([] as string[]) : storage.getUserManagedFunctionIds(actor.id, "aprovador"),
+        // Todos os pedidos do evento (pendentes E resolvidos): os pendentes viram
+        // `pendingRequest`, os resolvidos alimentam `lastDecision`.
+        storage.getScalingChangeRequests({ eventId }),
+      ]);
       const validates = new Set(validatorIds);
+      const approves = new Set(approverIds);
       const pendingByInclusion = new Map<string, ScalingChangeRequest>();
-      for (const r of requests) if (r.teamInclusionId) pendingByInclusion.set(r.teamInclusionId, r);
+      for (const r of requests) {
+        if (r.status === CHANGE_REQUEST_STATUS.PENDENTE && r.teamInclusionId) pendingByInclusion.set(r.teamInclusionId, r);
+      }
 
       const now = new Date();
       // Lista ATIVA: vagas negadas (reprovar_bypass / exclusão aprovada) ficam
       // só no histórico (event-view) — aqui não têm ação possível.
       const result = rows
-        .filter((i) => i.eventId === eventId && i.status !== SUGESTAO_STATUS.NEGADA)
+        .filter((i) => i.status !== SUGESTAO_STATUS.NEGADA)
         .map((i) => ({
           ...i,
-          // canEdit = quem pode validar/pedir ajuste: admin ou VALIDADOR da função
-          // (aprovador via lista veria o botão e levaria 403).
           canEdit: admin || validates.has(i.functionId),
+          // `viewOnly` (financial) nunca decide — nem o bypass das "vagas paradas".
+          canDecide: !viewOnly && (admin || approves.has(i.functionId)),
           daysPending: daysPending(i.suggestionSentAt, now),
           pendingRequest: pendingByInclusion.get(i.id) ?? null,
+          lastDecision: pickLastDecision(i, requests),
         }));
       res.set("Cache-Control", "no-store");
       res.json(result);
     } catch (error) {
-      console.error("[Validação de Escala] erro ao listar sugestões:", error);
-      res.status(500).json({ message: "Erro ao buscar escala sugerida" });
+      sendError(res, error, "erro ao listar sugestões", "Erro ao buscar escala sugerida");
     }
   });
 
@@ -334,33 +479,67 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       const admin = isAdmin(actor);
       const ok: string[] = [];
       const skipped: { id: string; reason: string }[] = [];
-      const roleCache = new Map<string, FunctionManagerRole | null>();
       const now = new Date();
 
-      for (const id of parsed.data.inclusionIds) {
-        const inclusion = await storage.getTeamInclusion(id);
+      // 1) Leitura em lote + checagens (permissão / estado) — nada gravado ainda.
+      const ids = Array.from(new Set(parsed.data.inclusionIds));
+      const byId = new Map((await storage.getTeamInclusionsByIds(ids)).map((i) => [i.id, i]));
+      const roleCache = new Map<string, FunctionManagerRole | null>();
+      const candidates: TeamInclusion[] = [];
+      for (const id of ids) {
+        const inclusion = byId.get(id);
         if (!inclusion || inclusion.deletedAt) { skipped.push({ id, reason: "Vaga não encontrada" }); continue; }
         if (!isSuggestionInclusion(inclusion)) { skipped.push({ id, reason: "Vaga não está em validação" }); continue; }
         if (!roleCache.has(inclusion.functionId)) roleCache.set(inclusion.functionId, await roleFor(inclusion.functionId, actor.id));
         if (!canValidateInclusion(roleCache.get(inclusion.functionId), admin)) {
           skipped.push({ id, reason: "Sem permissão para validar esta função" }); continue;
         }
-        let next;
-        try { next = nextSuggestionState(inclusion, "validar"); }
+        try { nextSuggestionState(inclusion, "validar"); }
         catch (e) { skipped.push({ id, reason: e instanceof Error ? e.message : String(e) }); continue; }
+        candidates.push(inclusion);
+      }
 
-        const updated = await storage.updateTeamInclusion(id, {
-          phase: next.phase, status: next.status,
-          validatedAt: now, validatedBy: actor.id, updatedBy: actor.id,
-        });
-        await inclusionLog(id, "suggestion_validated", "Vaga validada pela área — virou Inclusão (aguardando escalação)", stateLabel(inclusion), stateLabel(updated), actor);
-        await createAuditLog("suggestion_validated", "team_inclusion", id, updated, actor.id, actor.name, inclusion, req);
-        ok.push(id);
+      // 2) Gravação: UM update (inArray) + logs numa única transação. "validar"
+      // só é válido a partir de sugestao_pendente e leva sempre a
+      // inclusao/planejado — o patch é o mesmo para todas as vagas.
+      let updated: TeamInclusion[] = [];
+      if (candidates.length > 0) {
+        const next = toInclusaoState();
+        updated = await storage.validateScalingSuggestionsBatch(
+          candidates.map((c) => c.id),
+          { phase: next.phase, status: next.status, validatedAt: now, validatedBy: actor.id, updatedBy: actor.id },
+          { phase: SUGESTAO_PHASE, status: SUGESTAO_STATUS.PENDENTE },
+          (row) => ({
+            teamInclusionId: row.id,
+            action: "suggestion_validated",
+            details: "Vaga validada pela área — virou Inclusão (aguardando escalação)",
+            previousValue: `${SUGESTAO_PHASE}/${SUGESTAO_STATUS.PENDENTE}`,
+            newValue: stateLabel(row),
+            userId: actor.id,
+            userName: actor.name ?? "Usuário",
+          }),
+        );
+      }
+      const updatedIds = new Set(updated.map((u) => u.id));
+      for (const c of candidates) {
+        if (!updatedIds.has(c.id)) skipped.push({ id: c.id, reason: "A vaga mudou de estado antes de ser validada" });
+      }
+
+      // 3) Auditoria (fora da transação — não bloqueia a validação). As vagas JÁ
+      // estão validadas e commitadas: uma falha aqui NUNCA pode virar 500 com
+      // `ok` vazio (o usuário reenviaria e veria tudo como "já mudou de estado").
+      // Loga e segue.
+      for (const row of updated) {
+        ok.push(row.id);
+        try {
+          await createAuditLog("suggestion_validated", "team_inclusion", row.id, row, actor.id, actor.name, byId.get(row.id), req);
+        } catch (auditError) {
+          console.error(`[Validação de Escala] falha ao auditar validação da vaga ${row.id}:`, auditError);
+        }
       }
       res.json({ ok, skipped });
     } catch (error) {
-      console.error("[Validação de Escala] erro ao validar:", error);
-      res.status(500).json({ message: "Erro ao validar vagas" });
+      sendError(res, error, "erro ao validar", "Erro ao validar vagas");
     }
   });
 
@@ -404,7 +583,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
 
       // Transição da vaga ANTES de gravar o pedido: se for inválida, nada é gravado.
       let next: { phase: string; status: string } | null = null;
-      if (inclusion) next = nextSuggestionState(inclusion, "pedir_ajuste");
+      if (inclusion) next = rule(() => nextSuggestionState(inclusion!, "pedir_ajuste"));
 
       // Pedido + transição da vaga na MESMA transação (storage).
       const { request: created, inclusion: updated } = await storage.createScalingChangeRequestWithTransition(
@@ -431,13 +610,13 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       await createAuditLog("create", "scaling_change_request", created.id, created, actor.id, actor.name, undefined, req);
       res.status(201).json(created);
     } catch (error) {
-      console.error("[Validação de Escala] erro ao criar pedido:", error);
-      res.status(400).json({ message: error instanceof Error ? error.message : "Erro ao criar pedido" });
+      sendError(res, error, "erro ao criar pedido", "Erro ao criar pedido");
     }
   });
 
-  // GET /api/scaling-change-requests?status=&eventId= — admin/compras/produção
-  // veem tudo; aprovador vê os pedidos das funções em que é aprovador.
+  // GET /api/scaling-change-requests?status=&eventId= — admin/compras/produção/RH
+  // veem tudo (RH só acompanha: canDecide sempre false); qualquer outro papel vê
+  // os pedidos das funções em que é aprovador. Sem nenhuma das duas coisas → 403.
   app.get("/api/scaling-change-requests", async (req, res) => {
     const actor = await getActor(req, res);
     if (!actor) return;
@@ -447,17 +626,24 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
 
       let functionIds: string[] | undefined;
       const admin = isAdmin(actor);
+      const viewOnly = isViewOnlyRequests(actor);
+      // Papel autorizado vê a fila inteira; quem não é papel autorizado ainda vê
+      // a fila FILTRADA às funções em que é aprovador; o resto leva 403.
       if (!canViewRequestsByRole(actor)) {
         functionIds = await storage.getUserManagedFunctionIds(actor.id, "aprovador");
         if (functionIds.length === 0) return res.status(403).json({ message: "Sem permissão para ver pedidos de ajuste" });
       }
-      const approverIds = new Set(admin ? [] : await storage.getUserManagedFunctionIds(actor.id, "aprovador"));
+      const approverIds = new Set(
+        admin || viewOnly ? [] : (functionIds ?? await storage.getUserManagedFunctionIds(actor.id, "aprovador")),
+      );
 
-      const [requests, functions, events, inclusions] = await Promise.all([
-        storage.getScalingChangeRequests({ status, eventId, functionIds }),
-        storage.getFunctions(),
-        storage.getEvents(),
-        storage.getTeamInclusions(true, "all"),
+      // Só o que os pedidos listados precisam: vagas (inArray de
+      // teamInclusionIds), funções e eventos referenciados — nunca a tabela toda.
+      const requests = await storage.getScalingChangeRequests({ status, eventId, functionIds });
+      const [functions, events, inclusions] = await Promise.all([
+        storage.getFunctionsByIds(requests.map((r) => r.functionId)),
+        storage.getEventsByIds(requests.map((r) => r.eventId)),
+        storage.getTeamInclusionsByIds(requests.map((r) => r.teamInclusionId).filter((id): id is string => Boolean(id))),
       ]);
       const funcName = new Map(functions.map((f) => [f.id, f.name]));
       const eventName = new Map(events.map((e) => [e.id, e.name]));
@@ -478,14 +664,13 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           inclusionState: inc ? { phase: inc.phase, status: inc.status } : null,
           proposed,
           diff,
-          canDecide: admin || approverIds.has(r.functionId),
+          canDecide: !viewOnly && (admin || approverIds.has(r.functionId)),
         };
       });
       res.set("Cache-Control", "no-store");
       res.json(result);
     } catch (error) {
-      console.error("[Validação de Escala] erro ao listar pedidos:", error);
-      res.status(500).json({ message: "Erro ao buscar pedidos de ajuste" });
+      sendError(res, error, "erro ao listar pedidos", "Erro ao buscar pedidos de ajuste");
     }
   });
 
@@ -494,7 +679,10 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     const request = await storage.getScalingChangeRequest(req.params.id);
     if (!request) { res.status(404).json({ message: "Pedido não encontrado" }); return null; }
     if (request.status !== CHANGE_REQUEST_STATUS.PENDENTE) {
-      res.status(400).json({ message: "Este pedido já foi decidido" }); return null;
+      // 409 (conflito de estado), igual ao que o storage devolve quando perde a
+      // corrida da trava em resolveScalingChangeRequest — o cliente trata os dois
+      // do mesmo jeito ("recarregue a lista").
+      res.status(409).json({ message: ALREADY_DECIDED }); return null;
     }
     const role = await roleFor(request.functionId, actor.id);
     if (!canApproveRequest(role, isAdmin(actor))) {
@@ -515,12 +703,14 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
   async function buildInclusionRowsFromRequest(
     request: ScalingChangeRequest, proposed: ProposedChanges, actor: User,
     target: "inclusao" | "sugestao" = "inclusao",
+    // Mesmo instante do reviewedAt do pedido: suggestionSentAt == reviewedAt
+    // permite ao GET casar a decisão com a vaga (lastDecision).
+    now: Date = new Date(),
   ): Promise<InsertTeamInclusion[]> {
     const func = await storage.getFunction(request.functionId);
     const quantity = proposed.quantity ?? 1;
     const patch = proposedToPatch(proposed);
     const days = sortedYmd(patch.workDays ?? []);
-    const now = new Date();
     const state = target === "inclusao"
       ? toInclusaoState()
       : { phase: SUGESTAO_PHASE, status: SUGESTAO_STATUS.PENDENTE };
@@ -569,7 +759,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       const request = await loadPendingRequestForApprover(req, res, actor);
       if (!request) return;
       const comment = optionalCommentSchema.safeParse(req.body ?? {}).data?.comment ?? null;
-      const proposed = parseProposedChanges(request.proposedChanges, request.requestType as any);
+      const proposed = rule(() => parseProposedChanges(request.proposedChanges, request.requestType as any));
       const now = new Date();
       let inclusionResult: TeamInclusion | TeamInclusion[] | null = null;
       const requestUpdates = {
@@ -580,7 +770,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
 
       if (request.requestType === "inclusao") {
         // Cria as N vagas + decide o pedido numa única transação (storage).
-        const rows = await buildInclusionRowsFromRequest(request, proposed, actor, "inclusao");
+        const rows = await buildInclusionRowsFromRequest(request, proposed, actor, "inclusao", now);
         const result = await storage.resolveScalingChangeRequest(request.id, requestUpdates, { inclusionInserts: rows });
         updatedRequest = result.request;
         inclusionResult = result.createdInclusions;
@@ -588,7 +778,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       } else {
         const inclusion = await storage.getTeamInclusion(request.teamInclusionId!);
         if (!inclusion) return res.status(404).json({ message: "Vaga do pedido não encontrada" });
-        const next = nextSuggestionState(inclusion, "aprovar_pedido", { requestType: request.requestType as any });
+        const next = rule(() => nextSuggestionState(inclusion, "aprovar_pedido", { requestType: request.requestType as any }));
         const isAjuste = request.requestType === "ajuste";
         const patch: Partial<InsertTeamInclusion> = isAjuste
           ? {
@@ -619,8 +809,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       await createAuditLog("approve", "scaling_change_request", request.id, updatedRequest, actor.id, actor.name, request, req);
       res.json({ message: "Pedido aprovado", request: updatedRequest, inclusion: inclusionResult });
     } catch (error) {
-      console.error("[Validação de Escala] erro ao aprovar pedido:", error);
-      res.status(400).json({ message: error instanceof Error ? error.message : "Erro ao aprovar pedido" });
+      sendError(res, error, "erro ao aprovar pedido", "Erro ao aprovar pedido");
     }
   });
 
@@ -649,10 +838,10 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       let editedJson: string | null = null;
       if (kind === "reajustar") {
         if (editedChanges !== undefined && editedChanges !== null) {
-          changesToApply = parseProposedChanges(editedChanges, requestType);
+          changesToApply = rule(() => parseProposedChanges(editedChanges, requestType));
           editedJson = JSON.stringify(changesToApply);
         } else {
-          changesToApply = parseProposedChanges(request.proposedChanges, requestType);
+          changesToApply = rule(() => parseProposedChanges(request.proposedChanges, requestType));
         }
       }
 
@@ -679,11 +868,13 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         let target: "inclusao" | "sugestao" | null = null;
         if (then === "aprovar_direto" && kind === "reajustar" && changesToApply) {
           target = "inclusao";
-          rows = await buildInclusionRowsFromRequest({ ...request, proposedChanges: JSON.stringify(changesToApply) }, changesToApply, actor, "inclusao");
+          rows = await buildInclusionRowsFromRequest({ ...request, proposedChanges: JSON.stringify(changesToApply) }, changesToApply, actor, "inclusao", now);
         } else if (then === "reenviar_validacao") {
           target = "sugestao";
-          const proposedForRows = changesToApply ?? parseProposedChanges(request.proposedChanges, requestType);
-          rows = await buildInclusionRowsFromRequest({ ...request, proposedChanges: JSON.stringify(proposedForRows) }, proposedForRows, actor, "sugestao");
+          const proposedForRows = changesToApply ?? rule(() => parseProposedChanges(request.proposedChanges, requestType));
+          // suggestionSentAt = now (mesmo instante do reviewedAt): o contador de
+          // atraso da vaga nova começa na devolução.
+          rows = await buildInclusionRowsFromRequest({ ...request, proposedChanges: JSON.stringify(proposedForRows) }, proposedForRows, actor, "sugestao", now);
         }
         const result = await storage.resolveScalingChangeRequest(
           request.id,
@@ -698,12 +889,17 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       } else {
         const inclusion = await storage.getTeamInclusion(request.teamInclusionId!);
         if (!inclusion) return res.status(404).json({ message: "Vaga do pedido não encontrada" });
-        const next = nextSuggestionState(inclusion, action);
+        const next = rule(() => nextSuggestionState(inclusion, action));
         const patch: Partial<InsertTeamInclusion> = { phase: next.phase, status: next.status, updatedBy: actor.id };
         if (kind === "reajustar" && changesToApply && requestType === "ajuste") Object.assign(patch, proposedToPatch(changesToApply));
         if (next.phase !== SUGESTAO_PHASE) {
           patch.validatedAt = inclusion.validatedAt ?? now;
           patch.validatedBy = inclusion.validatedBy ?? actor.id;
+        } else {
+          // Reenvio para validação: a vaga volta a sugestao_pendente e o
+          // contador de atraso REINICIA (suggestionSentAt = agora, mesmo
+          // instante do reviewedAt — o GET usa isso para casar a decisão).
+          patch.suggestionSentAt = now;
         }
         // Vaga + pedido na MESMA transação.
         const result = await storage.resolveScalingChangeRequest(request.id, requestUpdates, {
@@ -723,8 +919,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       await createAuditLog(kind, "scaling_change_request", request.id, updatedRequest, actor.id, actor.name, request, req);
       res.json({ message: kind === "reajustar" ? "Pedido reajustado" : "Pedido negado", request: updatedRequest, inclusion: inclusionResult });
     } catch (error) {
-      console.error(`[Validação de Escala] erro ao ${kind} pedido:`, error);
-      res.status(400).json({ message: error instanceof Error ? error.message : `Erro ao ${kind} pedido` });
+      sendError(res, error, `erro ao ${kind} pedido`, `Erro ao ${kind} pedido`);
     }
   };
   app.patch("/api/scaling-change-requests/:id/reajustar", reviewHandler("reajustar"));
@@ -745,7 +940,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       }
       const comment = optionalCommentSchema.safeParse(req.body ?? {}).data?.comment ?? null;
       const action: SuggestionAction = kind === "approve" ? "aprovar_direto_bypass" : "reprovar_bypass";
-      const next = nextSuggestionState(inclusion, action);
+      const next = rule(() => nextSuggestionState(inclusion, action));
       const now = new Date();
       const patch: Partial<InsertTeamInclusion> = { phase: next.phase, status: next.status, updatedBy: actor.id };
       if (kind === "approve") { patch.validatedAt = now; patch.validatedBy = actor.id; }
@@ -757,8 +952,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       await createAuditLog(`suggestion_bypass_${kind}`, "team_inclusion", inclusion.id, updated, actor.id, actor.name, inclusion, req);
       res.json({ message: kind === "approve" ? "Vaga aprovada" : "Vaga reprovada", inclusion: updated });
     } catch (error) {
-      console.error(`[Validação de Escala] erro no bypass (${kind}):`, error);
-      res.status(400).json({ message: error instanceof Error ? error.message : "Erro ao decidir vaga" });
+      sendError(res, error, `erro no bypass (${kind})`, "Erro ao decidir vaga");
     }
   };
   app.patch("/api/scaling-suggestions/:id/bypass-approve", bypassHandler("approve"));
@@ -774,13 +968,10 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       const eventId = String(req.query.eventId ?? "");
       if (!eventId) return res.status(400).json({ message: "eventId é obrigatório" });
       const [all, requests] = await Promise.all([
-        storage.getTeamInclusions(true, "all"),
+        storage.getTeamInclusions(true, "all", { eventId }),
         storage.getScalingChangeRequests({ eventId }),
       ]);
-      const rows = all.filter((i) =>
-        i.eventId === eventId &&
-        (isSuggestionInclusion(i) || (i.suggestionSentAt && !i.deletedAt)),
-      );
+      const rows = all.filter((i) => isSuggestionInclusion(i) || (i.suggestionSentAt && !i.deletedAt));
       const requestsByInclusion = new Map<string, ScalingChangeRequest[]>();
       for (const r of requests) {
         if (!r.teamInclusionId) continue;
@@ -795,8 +986,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         requests,
       });
     } catch (error) {
-      console.error("[Validação de Escala] erro na consulta do evento:", error);
-      res.status(500).json({ message: "Erro ao consultar histórico da escala" });
+      sendError(res, error, "erro na consulta do evento", "Erro ao consultar histórico da escala");
     }
   });
 }

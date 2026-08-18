@@ -47,7 +47,7 @@ const allTabs = [
   { id: "scaling-suggestion", path: "/scaling-suggestion", label: "Sugestão de Escala",  icon: "playlist_add", permission: "canAccessScalingSuggestion" as const },
   { id: "scaling-validation", path: "/scaling-validation", label: "Validação de Escala", icon: "fact_check", permission: "canAccessScalingValidation" as const },
   { id: "scaling-approval",  path: "/scaling-approval",  label: "Aprovação de Escala",  icon: "approval", permission: "canAccessScalingApproval" as const },
-  { id: "scaling-event-view", path: "/scaling-event-view", label: "Escala do Evento",   icon: "event_note", permission: "canAccessScalingEventView" as const },
+  { id: "scaling-event-view", path: "/scaling-event-view", label: "Histórico da Escala", icon: "history", permission: "canAccessScalingEventView" as const },
   { id: "team-inclusion",    path: "/team-inclusion",    label: "Inclusão de Equipe",    icon: "group_add", permission: "canAccessScreen1"       as const },
   { id: "scaling",           path: "/scaling",           label: "Escalação",             icon: "assignment_ind", permission: "canAccessScreen2"       as const },
   { id: "tickets",           path: "/tickets",           label: "Passagens",           icon: "confirmation_number", permission: "canAccessScreen3"       as const },
@@ -69,9 +69,16 @@ const allTabs = [
 // Cor por GRUPO (semântica: ajuda a se localizar no menu). O item ativo usa
 // sempre o azul de marca. Antes a cor alternava azul/laranja por linha, sem
 // significado; a versão só-cinza ficou apagada — esta é o meio-termo.
-const menuGroups = [
+// `subgroup`: sub-rótulo discreto + separador fino ao redor de um subconjunto
+// contíguo de itens (ex.: as 4 telas do módulo de Escala dentro do Operacional).
+const menuGroups: { title: string; iconClass: string; ids: string[]; subgroup?: { label: string; ids: string[] } }[] = [
   { title: "Cadastros",   iconClass: "text-primary",     ids: ["user-registration", "events", "calendar", "functions", "collaborators"] },
-  { title: "Operacional", iconClass: "text-orange-500",  ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "scaling-event-view", "team-inclusion", "scaling", "tickets", "accommodations", "operational-mirror", "baggage-control"] },
+  {
+    title: "Operacional", iconClass: "text-orange-500",
+    // Módulo de Escala na ordem do fluxo: Sugestão → Validação → Aprovação → Histórico
+    ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "scaling-event-view", "team-inclusion", "scaling", "tickets", "accommodations", "operational-mirror", "baggage-control"],
+    subgroup: { label: "Escala", ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "scaling-event-view"] },
+  },
   { title: "Financeiro",  iconClass: "text-emerald-600", ids: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "flash-account", "calculation-rules", "system-settings"] },
   { title: "Gestão",      iconClass: "text-violet-600",  ids: ["consultation", "admin-users"] },
 ];
@@ -350,9 +357,14 @@ export default function Sidebar() {
 
                 {/* Items */}
                 <div className={cn("flex flex-col", compact ? "gap-0.5" : "gap-px")}>
-                  {items.map(tab => {
+                  {items.map((tab, ti) => {
                     const isActive = location === tab.path;
                     const count = tabBadgeCount[tab.id] ?? 0;
+                    // Sub-rótulo antes do 1º item do subgrupo e separador fino depois do último.
+                    const sub = group.subgroup;
+                    const inSub = !!sub && sub.ids.includes(tab.id);
+                    const subStart = inSub && !(ti > 0 && sub!.ids.includes(items[ti - 1].id));
+                    const subEnd = inSub && ti < items.length - 1 && !sub!.ids.includes(items[ti + 1].id);
                     const item = (
                       <Link
                         key={tab.id}
@@ -395,14 +407,23 @@ export default function Sidebar() {
                       </Link>
                     );
 
-                    if (!compact) return item;
-                    return (
+                    const node = !compact ? item : (
                       <Tooltip key={tab.id} delayDuration={200}>
                         <TooltipTrigger asChild>{item}</TooltipTrigger>
                         <TooltipContent side="right" sideOffset={8}>
                           {tab.label}{count > 0 ? ` · ${count > 99 ? "99+" : count} pendente(s)` : ""}
                         </TooltipContent>
                       </Tooltip>
+                    );
+                    if (!subStart && !subEnd) return node;
+                    return (
+                      <div key={tab.id} className="contents">
+                        {subStart && (compact
+                          ? <div className="h-px bg-primary/10 mx-2 my-1" aria-hidden="true" />
+                          : <span className="block px-2.5 pt-1 pb-0.5 text-[10px] font-medium text-slate-400 tracking-wide">{sub!.label}</span>)}
+                        {node}
+                        {subEnd && <div className={cn("h-px bg-primary/10 my-1", compact ? "mx-2" : "mx-2.5")} aria-hidden="true" />}
+                      </div>
                     );
                   })}
                 </div>

@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
-  buildDateList, decomposeGridRows, emptyGridRow, parsePastedRows, parseShortDate,
-  parseTimeHHMM, parseTransportMode, reframeRows, validateGridRow, normalizeStr,
+  buildDateList, buildReadDateList, countDaysInclusive, countOutsidePeriod, decomposeGridRows, detectPasteFormat,
+  emptyGridRow, mergePastedRows, MAX_GRID_DAYS, MAX_READ_DAYS, parsePastedRows, parseShortDate, parseTimeHHMM,
+  parseTransportMode, pasteConflicts, periodBounds, periodProblem, reframeRows, validateGridRow, normalizeStr,
 } from "./scaling-grid-utils";
 
 const DATES = ["2026-09-10", "2026-09-11", "2026-09-12"];
@@ -10,9 +11,97 @@ describe("buildDateList", () => {
   it("lista inclusiva em horário local", () => {
     expect(buildDateList("2026-09-10", "2026-09-12")).toEqual(DATES);
   });
-  it("vazia quando o período é inválido", () => {
+  it("vazia quando o período é inválido ou parcial", () => {
     expect(buildDateList("2026-09-12", "2026-09-10")).toEqual([]);
     expect(buildDateList("", "2026-09-10")).toEqual([]);
+    expect(buildDateList("2026-09", "2026-09-10")).toEqual([]);
+  });
+  it("respeita o teto de dias (acima retorna [])", () => {
+    expect(buildDateList("2026-01-01", "2026-03-31")).toHaveLength(MAX_GRID_DAYS); // 90 dias
+    expect(buildDateList("2026-01-01", "2026-04-01")).toEqual([]);
+  });
+  it("o teto é configurável por opção (o default continua sendo o da grade)", () => {
+    expect(buildDateList("2026-01-01", "2026-04-01", { maxDays: 200 })).toHaveLength(91);
+    expect(buildDateList("2026-01-01", "2026-04-01", { maxDays: Infinity })).toHaveLength(91);
+    expect(buildDateList("2026-09-10", "2026-09-12", { maxDays: 2 })).toEqual([]);
+  });
+});
+
+describe("countDaysInclusive", () => {
+  it("conta os dois extremos e devolve 0 em período inválido", () => {
+    expect(countDaysInclusive("2026-09-10", "2026-09-12")).toBe(3);
+    expect(countDaysInclusive("2026-09-10", "2026-09-10")).toBe(1);
+    expect(countDaysInclusive("2026-01-01", "2026-12-31")).toBe(365);
+    expect(countDaysInclusive("2026-09-12", "2026-09-10")).toBe(0);
+    expect(countDaysInclusive("", "2026-09-10")).toBe(0);
+  });
+});
+
+describe("buildReadDateList (leitura: quadro da Escala e CSV)", () => {
+  it("período curto: mesma lista da grade, sem truncar", () => {
+    expect(buildReadDateList("2026-09-10", "2026-09-12")).toEqual({ dates: DATES, totalDays: 3, truncated: false });
+  });
+  it("acima do teto da GRADE a leitura continua mostrando os dias (o quadro não fica sem colunas)", () => {
+    const r = buildReadDateList("2026-01-01", "2026-04-01"); // 91 dias
+    expect(r.dates).toHaveLength(91);
+    expect(r.truncated).toBe(false);
+    expect(buildDateList("2026-01-01", "2026-04-01")).toEqual([]); // a grade de sugestão segue protegida
+  });
+  it("acima do teto de leitura trunca no início do período e avisa", () => {
+    const r = buildReadDateList("2026-01-01", "2026-09-30", 30);
+    expect(r.dates).toHaveLength(30);
+    expect(r.dates[0]).toBe("2026-01-01");
+    expect(r.dates[29]).toBe("2026-01-30");
+    expect(r.totalDays).toBe(countDaysInclusive("2026-01-01", "2026-09-30"));
+    expect(r.truncated).toBe(true);
+  });
+  it("teto padrão de leitura: evento de 2 anos trunca em MAX_READ_DAYS", () => {
+    const r = buildReadDateList("2026-01-01", "2027-12-31");
+    expect(r.dates).toHaveLength(MAX_READ_DAYS);
+    expect(r.totalDays).toBe(730);
+    expect(r.truncated).toBe(true);
+  });
+  it("Infinity não trunca", () => {
+    const r = buildReadDateList("2026-01-01", "2027-12-31", Infinity);
+    expect(r.dates).toHaveLength(730);
+    expect(r.truncated).toBe(false);
+  });
+  it("período inválido continua vazio, sem truncamento", () => {
+    expect(buildReadDateList("2026-09-12", "2026-09-10")).toEqual({ dates: [], totalDays: 0, truncated: false });
+    expect(buildReadDateList("", "2026-09-10")).toEqual({ dates: [], totalDays: 0, truncated: false });
+  });
+});
+
+describe("periodProblem / periodBounds", () => {
+  it("classifica período incompleto, invertido, longo e ok", () => {
+    expect(periodProblem("", "2026-09-10")).toBe("incompleto");
+    expect(periodProblem("2026-09-12", "2026-09-10")).toBe("invertido");
+    expect(periodProblem("2026-01-01", "2026-12-31")).toBe("longo");
+    expect(periodProblem("2026-09-10", "2026-09-12")).toBeNull();
+  });
+  it("limites = evento ± 7 dias", () => {
+    expect(periodBounds("2026-09-10", "2026-09-12")).toEqual({ min: "2026-09-03", max: "2026-09-19" });
+    expect(periodBounds("", "")).toEqual({ min: "", max: "" });
+  });
+});
+
+describe("período inválido não reencaixa (fluxo da página)", () => {
+  it("countOutsidePeriod conta pessoas-dia e dias que sairiam ao encolher", () => {
+    const row = emptyGridRow("f1", "Kit", DATES, "r1");
+    row.quantities = { "2026-09-10": 2, "2026-09-11": 1, "2026-09-12": 3 };
+    expect(countOutsidePeriod([row], ["2026-09-11"])).toEqual({ pessoasDia: 5, dias: 2 });
+    expect(countOutsidePeriod([row], DATES)).toEqual({ pessoasDia: 0, dias: 0 });
+  });
+  it("com período inválido a lista vem vazia e as linhas NÃO devem ser reencaixadas (quantidades preservadas)", () => {
+    const row = emptyGridRow("f1", "Kit", DATES, "r1");
+    row.quantities = { "2026-09-10": 2, "2026-09-11": 1, "2026-09-12": 3 };
+    const dates = buildDateList("2026-09-12", "2026-09-10");
+    expect(dates).toEqual([]);
+    // Regra da página: só reencaixa quando periodProblem() === null.
+    const rows = periodProblem("2026-09-12", "2026-09-10") ? [row] : reframeRows([row], dates);
+    expect(rows[0].quantities).toEqual({ "2026-09-10": 2, "2026-09-11": 1, "2026-09-12": 3 });
+    // (se reencaixasse, zeraria tudo)
+    expect(reframeRows([row], dates)[0].quantities).toEqual({});
   });
 });
 
@@ -112,18 +201,160 @@ describe("parsers de colagem", () => {
     expect(r.needsTicket).toBe(true);
     expect(r.observations).toBe("obs");
     expect(r.quantities).toEqual({ "2026-09-10": 1, "2026-09-11": 1, "2026-09-12": 2 });
+    expect(res.format).toBe("grade");
+    expect(res.hadHeader).toBe(false);
+  });
+
+  describe("dois formatos de colagem", () => {
+    const FUNCS = [{ id: "f1", name: "Kit" }, { id: "f2", name: "Produção" }];
+    it("formato do briefing (sem Passagem/Observação): quantidades a partir da 9ª coluna", () => {
+      const text = ["Kit", "Aéreo", "09/09", "10:00", "Aéreo", "13/09", "18:00", "sim", "1", "1", "2"].join("\t");
+      expect(detectPasteFormat(text)).toEqual({ format: "briefing", hadHeader: false });
+      const res = parsePastedRows(text, FUNCS, DATES, "2026");
+      expect(res.format).toBe("briefing");
+      const r = res.rows[0];
+      expect(r.needsAccommodation).toBe(true);
+      expect(r.needsTicket).toBe(false);
+      expect(r.observations).toBe("");
+      expect(r.quantities).toEqual({ "2026-09-10": 1, "2026-09-11": 1, "2026-09-12": 2 });
+    });
+    it("cabeçalho decide o formato e é ignorado", () => {
+      const briefing = [
+        ["Função", "Modal ida", "Data ida", "Hora desembarque", "Modal volta", "Data volta", "Hora embarque", "Hotel", "10/09", "11/09", "12/09"].join("\t"),
+        ["Kit", "", "", "", "", "", "", "não", "0", "2", "0"].join("\t"),
+      ].join("\n");
+      const r1 = parsePastedRows(briefing, FUNCS, DATES, "2026");
+      expect(r1.hadHeader).toBe(true);
+      expect(r1.format).toBe("briefing");
+      expect(r1.skippedNames).toEqual([]);
+      expect(r1.rows[0].quantities).toEqual({ "2026-09-10": 0, "2026-09-11": 2, "2026-09-12": 0 });
+
+      const grade = [
+        ["funcao", "Modal ida", "Data ida", "Hora desembarque", "Modal volta", "Data volta", "Hora embarque", "Hotel", "Passagem", "Observação", "10/09"].join("\t"),
+        ["Kit", "", "", "", "", "", "", "sim", "sim", "", "3"].join("\t"),
+      ].join("\n");
+      const r2 = parsePastedRows(grade, FUNCS, DATES, "2026");
+      expect(r2.format).toBe("grade");
+      expect(r2.rows[0].needsTicket).toBe(true);
+      expect(r2.rows[0].quantities["2026-09-10"]).toBe(3);
+    });
+    it("heurística sem cabeçalho: sim/não ou texto nas colunas 9-10 → formato completo", () => {
+      const text = ["Kit", "", "", "", "", "", "", "sim", "não", "levar crachá", "2"].join("\t");
+      expect(detectPasteFormat(text).format).toBe("grade");
+      const res = parsePastedRows(text, FUNCS, DATES, "2026");
+      expect(res.rows[0].observations).toBe("levar crachá");
+      expect(res.rows[0].quantities["2026-09-10"]).toBe(2);
+    });
+    it("cabeçalho é reconhecido em variações de grafia (plural, acento, caixa, sufixo de área)", () => {
+      for (const head of ["Função", "Funções", "FUNCAO ", "Função/Área", "Função - Área", "funcoes"]) {
+        const text = [
+          [head, "Modal ida", "Data ida", "Hora desembarque", "Modal volta", "Data volta", "Hora embarque", "Hotel", "10/09", "11/09", "12/09"].join("\t"),
+          ["Kit", "", "", "", "", "", "", "não", "0", "2", "0"].join("\t"),
+        ].join("\n");
+        expect(detectPasteFormat(text), head).toEqual({ format: "briefing", hadHeader: true });
+        const res = parsePastedRows(text, FUNCS, DATES, "2026");
+        expect(res.hadHeader, head).toBe(true);
+        expect(res.skippedNames, head).toEqual([]);
+        expect(res.rows[0].quantities, head).toEqual({ "2026-09-10": 0, "2026-09-11": 2, "2026-09-12": 0 });
+      }
+    });
+    it("nome de função que só COMEÇA com 'func' não é confundido com cabeçalho", () => {
+      const text = ["Funcionário", "", "", "", "", "", "", "sim", "1", "1", "2"].join("\t");
+      expect(detectPasteFormat(text).hadHeader).toBe(false);
+      expect(parsePastedRows(text, FUNCS, DATES, "2026").skippedNames).toEqual(["Funcionário"]);
+    });
+
+    describe("desempate de 1 dia (a quantidade '0'/'1' é igual a um sim/não)", () => {
+      const D1 = ["2026-09-10"];
+      const briefing1d = (qty: string) => ["Kit", "Aéreo", "09/09", "10:00", "Aéreo", "13/09", "18:00", "sim", qty].join("\t");
+      for (const qty of ["0", "1"]) {
+        it(`briefing de 1 dia com quantidade "${qty}" não vira formato completo`, () => {
+          const text = briefing1d(qty);
+          expect(detectPasteFormat(text, { dayCount: 1 })).toEqual({ format: "briefing", hadHeader: false });
+          expect(detectPasteFormat(text).format).toBe("briefing"); // sem dayCount: a linha curta já denuncia
+          const res = parsePastedRows(text, FUNCS, D1, "2026");
+          expect(res.format).toBe("briefing");
+          expect(res.rows[0].needsAccommodation).toBe(true);
+          expect(res.rows[0].needsTicket).toBe(false); // antes o "1" da quantidade ligava a passagem
+          expect(res.rows[0].observations).toBe("");
+          expect(res.rows[0].quantities).toEqual({ "2026-09-10": Number(qty) });
+        });
+      }
+      it("a mesma linha com N dias muda de leitura: o nº de colunas depois do bloco fixo decide", () => {
+        const text = ["Kit", "", "", "", "", "", "", "sim", "1", "0", "1"].join("\t"); // 11 colunas
+        // 3 dias → 8 fixas + 3 = 11 → briefing
+        expect(detectPasteFormat(text, { dayCount: 3 }).format).toBe("briefing");
+        expect(parsePastedRows(text, FUNCS, DATES, "2026").rows[0].quantities).toEqual({ "2026-09-10": 1, "2026-09-11": 0, "2026-09-12": 1 });
+        // 1 dia → 10 fixas + 1 = 11 → grade (Passagem e Observação existem mesmo)
+        expect(detectPasteFormat(text, { dayCount: 1 }).format).toBe("grade");
+        const g = parsePastedRows(text, FUNCS, D1, "2026");
+        expect(g.format).toBe("grade");
+        expect(g.rows[0].needsTicket).toBe(true);
+        expect(g.rows[0].observations).toBe("0");
+        expect(g.rows[0].quantities).toEqual({ "2026-09-10": 1 });
+      });
+      it("quantidade ≥ 2 continua sendo sinal suficiente, com ou sem dayCount", () => {
+        const text = briefing1d("3");
+        expect(detectPasteFormat(text).format).toBe("briefing");
+        expect(detectPasteFormat(text, { dayCount: 1 }).format).toBe("briefing");
+        expect(parsePastedRows(text, FUNCS, D1, "2026").rows[0].quantities).toEqual({ "2026-09-10": 3 });
+      });
+      it("texto na Observação vence o desempate por posição (é formato completo)", () => {
+        const text = ["Kit", "", "", "", "", "", "", "sim", "não", "levar crachá"].join("\t");
+        expect(detectPasteFormat(text, { dayCount: 2 }).format).toBe("grade");
+      });
+    });
+
+    it("formato forçado sobrepõe a detecção", () => {
+      const text = ["Kit", "", "", "", "", "", "", "sim", "1", "1", "2"].join("\t");
+      const res = parsePastedRows(text, FUNCS, DATES, "2026", "grade");
+      expect(res.format).toBe("grade");
+      expect(res.rows[0].needsTicket).toBe(true);
+      expect(res.rows[0].observations).toBe("1");
+      expect(res.rows[0].quantities["2026-09-10"]).toBe(2);
+    });
+  });
+
+  describe("colar não duplica (substituição por função)", () => {
+    it("pasteConflicts lista as funções já na grade; mergePastedRows substitui na posição e anexa as novas", () => {
+      const kitA = emptyGridRow("f1", "Kit", DATES, "kitA");
+      const prod = emptyGridRow("f2", "Produção", DATES, "prod");
+      const kitB = emptyGridRow("f1", "Kit", DATES, "kitB");
+      const existing = [kitA, prod, kitB];
+      const pastedKit = emptyGridRow("f1", "Kit", DATES, "pKit");
+      pastedKit.quantities["2026-09-10"] = 4;
+      const pastedAt = emptyGridRow("f3", "Atendimento", DATES, "pAt");
+      expect(pasteConflicts(existing, [pastedKit, pastedAt])).toEqual(["Kit"]);
+      const merged = mergePastedRows(existing, [pastedKit, pastedAt]);
+      expect(merged.map((r) => r.rowId)).toEqual(["pKit", "prod", "pAt"]);
+      expect(merged[0].quantities["2026-09-10"]).toBe(4);
+    });
+    it("sem conflito só anexa", () => {
+      const prod = emptyGridRow("f2", "Produção", DATES, "prod");
+      const pasted = emptyGridRow("f1", "Kit", DATES, "pKit");
+      expect(pasteConflicts([prod], [pasted])).toEqual([]);
+      expect(mergePastedRows([prod], [pasted]).map((r) => r.rowId)).toEqual(["prod", "pKit"]);
+    });
   });
 });
 
 describe("validateGridRow", () => {
-  it("passagem sem datas e horário inválido são apontados; linha vazia é ignorada", () => {
+  it("horário inválido é erro, passagem sem datas é só aviso; linha vazia é ignorada", () => {
     const row = emptyGridRow("f1", "Kit", DATES, "r1");
-    expect(validateGridRow(row)).toEqual([]);
+    expect(validateGridRow(row)).toEqual({ errors: [], warnings: [] });
     row.quantities["2026-09-10"] = 1;
     row.needsTicket = true;
     row.flightArrivalSuggestedTime = "14h";
-    const issues = validateGridRow(row);
-    expect(issues.some((i) => i.includes("passagem"))).toBe(true);
-    expect(issues.some((i) => i.includes("desembarque"))).toBe(true);
+    const v = validateGridRow(row);
+    expect(v.warnings.some((i) => i.includes("passagem"))).toBe(true);
+    expect(v.errors.some((i) => i.includes("passagem"))).toBe(false);
+    expect(v.errors.some((i) => i.includes("desembarque"))).toBe(true);
+  });
+  it("data de volta antes da ida é erro", () => {
+    const row = emptyGridRow("f1", "Kit", DATES, "r1");
+    row.quantities["2026-09-10"] = 1;
+    row.flightDepartureDate = "2026-09-12";
+    row.flightReturnDate = "2026-09-10";
+    expect(validateGridRow(row).errors).toEqual(["data de volta anterior à data de ida"]);
   });
 });

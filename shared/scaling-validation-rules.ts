@@ -406,7 +406,72 @@ export function canApproveRequest(
   return Boolean(isAdmin) || userRoleForFunction === "aprovador";
 }
 
-/** Dias inteiros desde o envio da sugestão (0 se não enviada ou no mesmo dia). */
+/** Vaga/pedido "parado": a partir de quantos dias sinalizar (âmbar) e escalar (vermelho). */
+export const STALLED_DAYS = 3;
+export const DANGER_DAYS = 7;
+export type PendingSeverity = "ok" | "warn" | "danger";
+export function pendingSeverity(days: number): PendingSeverity {
+  return days >= DANGER_DAYS ? "danger" : days >= STALLED_DAYS ? "warn" : "ok";
+}
+
+/**
+ * Última decisão do aprovador sobre uma vaga (anexada pelo GET de sugestões
+ * quando o pedido mais recente já foi resolvido) — a área precisa ver que a
+ * vaga VOLTOU e por quê.
+ */
+export interface LastDecisionInfo {
+  requestId: string;
+  requestType: ChangeRequestType;
+  status: ChangeRequestStatus;   // aprovado | reajustado | negado | reenviado_validacao
+  comment: string | null;
+  byName: string | null;
+  at: string | null;             // ISO
+}
+
+export type LastDecisionTone = "warn" | "danger" | "ok" | "info";
+
+/**
+ * Texto pt-BR (título + tom) da última decisão do aprovador, para o card/badge
+ * da vaga na lista da área. O comentário do aprovador (quando houver) entra no
+ * final do título, depois de ": ".
+ *
+ *  - reenviado_validacao → "Devolvida pelo aprovador (reajuste)" (warn) — a
+ *    vaga voltou para a área validar com as alterações do aprovador; se o
+ *    pedido era de inclusão, a vaga NASCEU dessa devolução;
+ *  - negado → "Pedido negado, vaga mantida" (danger) — o aprovador recusou o
+ *    pedido de ajuste/exclusão e devolveu a vaga como estava;
+ *  - reajustado / aprovado → decisão final (ok);
+ *  - pendente → em análise (info) — não deveria chegar aqui, mas é seguro.
+ */
+export function describeLastDecision(info: LastDecisionInfo): { title: string; tone: LastDecisionTone } {
+  const comment = info.comment?.trim();
+  const suffix = comment ? `: ${comment}` : "";
+  const typeLabel = CHANGE_REQUEST_TYPE_LABELS[info.requestType] ?? info.requestType;
+  switch (info.status) {
+    case "reenviado_validacao":
+      return {
+        title: info.requestType === "inclusao"
+          ? `Vaga criada pelo aprovador a partir de pedido de inclusão devolvido — validar${suffix}`
+          : `Devolvida pelo aprovador (reajuste)${suffix}`,
+        tone: "warn",
+      };
+    case "negado":
+      return {
+        title: info.requestType === "inclusao"
+          ? `Pedido de inclusão negado${suffix}`
+          : `Pedido negado, vaga mantida${suffix}`,
+        tone: "danger",
+      };
+    case "reajustado":
+      return { title: `Pedido de ${typeLabel.toLowerCase()} reajustado e aprovado pelo aprovador${suffix}`, tone: "ok" };
+    case "aprovado":
+      return { title: `Pedido de ${typeLabel.toLowerCase()} aprovado${suffix}`, tone: "ok" };
+    case "pendente":
+    default:
+      return { title: `Pedido de ${typeLabel.toLowerCase()} em análise pelo aprovador`, tone: "info" };
+  }
+}
+
 export function daysPending(sentAt: Date | string | null | undefined, now: Date = new Date()): number {
   if (!sentAt) return 0;
   const sent = sentAt instanceof Date ? sentAt : new Date(sentAt);

@@ -1,0 +1,34 @@
+import { memo } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { TRANSPORT_MODES, TRANSPORT_MODE_LABELS, type TransportMode } from "@shared/scaling-validation-rules";
+
+const NONE = "__none__";
+
+export interface ModeSelectProps {
+  value: TransportMode | "";
+  onChange: (v: TransportMode | "") => void;
+  /** Rótulo acessível (a coluna já diz "Modal ida"; aqui vai o contexto da linha). */
+  label: string;
+  disabled?: boolean;
+  className?: string;
+}
+
+/** Select compacto de modal de transporte (aéreo/ônibus/van/carro/transfer) com opção "—". */
+export const ModeSelect = memo(function ModeSelect({ value, onChange, label, disabled, className }: ModeSelectProps) {
+  return (
+    <Select value={value || NONE} onValueChange={(v) => onChange(v === NONE ? "" : (v as TransportMode))} disabled={disabled}>
+      <SelectTrigger aria-label={label} className={cn("h-8 w-[104px] text-xs rounded-lg", value ? "bg-brand-soft/60 border-primary/30" : "bg-white border-slate-200", className)}>
+        <SelectValue placeholder="—" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={NONE}>—</SelectItem>
+        {TRANSPORT_MODES.map((m) => (
+          <SelectItem key={m} value={m}>{TRANSPORT_MODE_LABELS[m]}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+});
+
+export default ModeSelect;

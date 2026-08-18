@@ -4,6 +4,7 @@ import {
   nextSuggestionState, toInclusaoState, isSuggestionInclusion, availableSuggestionActions,
   requestStatusForAction, parseProposedChanges, diffInclusion,
   canValidateInclusion, canApproveRequest, daysPending,
+  STALLED_DAYS, DANGER_DAYS, pendingSeverity, describeLastDecision, type LastDecisionInfo,
 } from "./scaling-validation-rules";
 
 const sug = (status: string) => ({ status, phase: SUGESTAO_PHASE });
@@ -189,5 +190,126 @@ describe("daysPending", () => {
     expect(daysPending(null, now)).toBe(0);
     expect(daysPending("nope", now)).toBe(0);
     expect(daysPending(new Date("2026-08-20T00:00:00Z"), now)).toBe(0);
+  });
+});
+
+describe("pendingSeverity", () => {
+  it("2 dias -> ok, 3 -> warn (STALLED_DAYS), 7 -> danger (DANGER_DAYS)", () => {
+    expect(STALLED_DAYS).toBe(3);
+    expect(DANGER_DAYS).toBe(7);
+    expect(pendingSeverity(0)).toBe("ok");
+    expect(pendingSeverity(2)).toBe("ok");
+    expect(pendingSeverity(3)).toBe("warn");
+    expect(pendingSeverity(6)).toBe("warn");
+    expect(pendingSeverity(7)).toBe("danger");
+    expect(pendingSeverity(30)).toBe("danger");
+  });
+});
+
+describe("describeLastDecision", () => {
+  const base: LastDecisionInfo = {
+    requestId: "req-1", requestType: "ajuste", status: "reenviado_validacao",
+    comment: null, byName: "Aprovador", at: "2026-08-18T12:00:00.000Z",
+  };
+  it("reajuste devolvido para a área -> warn, com o comentário no título", () => {
+    expect(describeLastDecision({ ...base, comment: "Ajustei as datas" })).toEqual({
+      title: "Devolvida pelo aprovador (reajuste): Ajustei as datas", tone: "warn",
+    });
+    expect(describeLastDecision(base).title).toBe("Devolvida pelo aprovador (reajuste)");
+  });
+  it("pedido de inclusão devolvido -> vaga criada pelo aprovador (warn)", () => {
+    const r = describeLastDecision({ ...base, requestType: "inclusao", comment: "  " });
+    expect(r.tone).toBe("warn");
+    expect(r.title).toMatch(/pedido de inclusão devolvido/);
+    expect(r.title).not.toMatch(/:\s*$/); // comentário só espaços não entra
+  });
+  it("pedido negado, vaga mantida -> danger", () => {
+    expect(describeLastDecision({ ...base, requestType: "exclusao", status: "negado", comment: "Precisamos da vaga" })).toEqual({
+      title: "Pedido negado, vaga mantida: Precisamos da vaga", tone: "danger",
+    });
+    expect(describeLastDecision({ ...base, requestType: "inclusao", status: "negado" })).toEqual({
+      title: "Pedido de inclusão negado", tone: "danger",
+    });
+  });
+  it("aprovado / reajustado -> ok; pendente -> info", () => {
+    expect(describeLastDecision({ ...base, status: "aprovado" })).toEqual({ title: "Pedido de ajuste aprovado", tone: "ok" });
+    expect(describeLastDecision({ ...base, status: "reajustado" }).tone).toBe("ok");
+    expect(describeLastDecision({ ...base, status: "pendente" }).tone).toBe("info");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// matchesCreatedFromRequest (server/scaling-validation.ts)
+// ---------------------------------------------------------------------------
+// A regra é pura, mas mora no server (junto de pickLastDecision, seu único
+// consumidor). O módulo importa server/db.ts, que exige DATABASE_URL só para
+// construir o Pool — nenhuma conexão é aberta em import. Daí o stub + import
+// dinâmico.
+process.env.DATABASE_URL ||= "postgres://vitest:vitest@localhost:5432/vitest";
+const { matchesCreatedFromRequest } = await import("../server/scaling-validation");
+
+describe("matchesCreatedFromRequest — vagas 2..N de um pedido de inclusão devolvido", () => {
+  const AT = new Date("2026-08-18T12:00:00.000Z");
+  // A vaga nasceu do pedido: o handler usa o MESMO Date em reviewedAt e suggestionSentAt.
+  const vaga = {
+    id: "vaga-2",
+    eventId: "ev-1",
+    functionId: "fn-1",
+    suggestionSentAt: AT,
+  };
+  const pedido = {
+    resolvedInclusionId: "vaga-1", // só a PRIMEIRA vaga do lote fica apontada
+    requestType: "inclusao",
+    status: "reenviado_validacao",
+    eventId: "ev-1",
+    functionId: "fn-1",
+    reviewedAt: AT,
+  };
+
+  it("vínculo explícito: resolvedInclusionId aponta para a vaga", () => {
+    expect(matchesCreatedFromRequest({ ...vaga, id: "vaga-1" }, pedido)).toBe(true);
+    // …e nem precisa das demais pistas
+    expect(matchesCreatedFromRequest(
+      { id: "vaga-1", eventId: "outro", functionId: "outra", suggestionSentAt: null },
+      pedido,
+    )).toBe(true);
+  });
+
+  it("vagas 2..N casam por evento + função + suggestionSentAt == reviewedAt", () => {
+    expect(matchesCreatedFromRequest(vaga, pedido)).toBe(true);
+    expect(matchesCreatedFromRequest({ ...vaga, id: "vaga-7" }, pedido)).toBe(true);
+  });
+
+  it("aceita datas serializadas (ISO) dos dois lados", () => {
+    expect(matchesCreatedFromRequest(
+      { ...vaga, suggestionSentAt: AT.toISOString() },
+      { ...pedido, reviewedAt: AT.toISOString() as any },
+    )).toBe(true);
+  });
+
+  it("não casa vaga de outro evento / outra função", () => {
+    expect(matchesCreatedFromRequest({ ...vaga, eventId: "ev-2" }, pedido)).toBe(false);
+    expect(matchesCreatedFromRequest({ ...vaga, functionId: "fn-2" }, pedido)).toBe(false);
+  });
+
+  it("não casa por 1 milissegundo de diferença", () => {
+    expect(matchesCreatedFromRequest(
+      { ...vaga, suggestionSentAt: new Date(AT.getTime() + 1) },
+      pedido,
+    )).toBe(false);
+  });
+
+  it("só vale para pedido de INCLUSÃO resolvido como reenviado_validacao", () => {
+    expect(matchesCreatedFromRequest(vaga, { ...pedido, requestType: "ajuste" })).toBe(false);
+    expect(matchesCreatedFromRequest(vaga, { ...pedido, requestType: "exclusao" })).toBe(false);
+    expect(matchesCreatedFromRequest(vaga, { ...pedido, status: "negado" })).toBe(false);
+    expect(matchesCreatedFromRequest(vaga, { ...pedido, status: "aprovado" })).toBe(false);
+    expect(matchesCreatedFromRequest(vaga, { ...pedido, status: "pendente" })).toBe(false);
+  });
+
+  it("datas ausentes nunca casam (null == null não é vínculo)", () => {
+    expect(matchesCreatedFromRequest({ ...vaga, suggestionSentAt: null }, { ...pedido, reviewedAt: null })).toBe(false);
+    expect(matchesCreatedFromRequest({ ...vaga, suggestionSentAt: null }, pedido)).toBe(false);
+    expect(matchesCreatedFromRequest(vaga, { ...pedido, reviewedAt: null })).toBe(false);
   });
 });

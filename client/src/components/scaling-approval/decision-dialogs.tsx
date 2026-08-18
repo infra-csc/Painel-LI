@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PencilLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -72,10 +72,12 @@ export function ApproveRequestDialog({ open, onOpenChange, request, pending, onC
 
 // ── Reajustar / Negar (comentário obrigatório + escolha secundária) ──────────
 
+type ReviewKind = "reajustar" | "negar";
+
 interface ReviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  kind: "reajustar" | "negar";
+  kind: ReviewKind;
   request: ChangeRequestItem | null;
   /** Vaga atual (só para AJUSTE) — preenche o formulário editável e calcula o diff. */
   inclusion?: TeamInclusion | null;
@@ -84,79 +86,54 @@ interface ReviewDialogProps {
   onSubmit: (body: ReviewBody) => void;
 }
 
-const THEN_OPTIONS: { value: ReviewBody["then"]; label: string; hint: (kind: "reajustar" | "negar", type: ChangeRequestType) => string }[] = [
-  {
-    value: "reenviar_validacao",
-    label: "Reenviar para validação da área",
-    hint: (kind, type) => type === "inclusao"
-      ? "As vagas nascem como sugestão pendente e a área valida como qualquer outra."
-      : kind === "reajustar" ? "A vaga volta para “aguardando validação” já com as suas alterações." : "A vaga volta para “aguardando validação” como estava, sem o pedido.",
-  },
-  {
-    value: "aprovar_direto",
-    label: "Aprovar direto",
-    hint: (kind, type) => type === "inclusao"
-      ? (kind === "reajustar" ? "As vagas nascem já como Inclusão de Equipe com as suas alterações." : "Nada é criado — só o pedido fica negado.")
-      : kind === "reajustar" ? "A vaga vira Inclusão de Equipe já com as suas alterações, sem nova validação." : "A vaga vira Inclusão de Equipe como estava, sem nova validação.",
-  },
-];
+/**
+ * Rótulo + explicação de cada destino da vaga, dependentes de kind × tipo do
+ * pedido (mesma regra do servidor: reviewHandler em server/scaling-validation.ts).
+ */
+export function thenOption(value: ReviewBody["then"], kind: ReviewKind, type: ChangeRequestType): { label: string; hint: string } {
+  if (value === "reenviar_validacao") {
+    if (kind === "reajustar") {
+      return {
+        label: "Reenviar para validação da área",
+        hint: type === "inclusao"
+          ? "As vagas nascem como sugestão pendente, já com os seus ajustes, e a área valida como qualquer outra."
+          : "A vaga volta para “aguardando validação” já com as suas alterações.",
+      };
+    }
+    return {
+      label: type === "inclusao" ? "Devolver o pedido para a área (reenviar para validação)" : "Devolver a vaga para a área (reenviar para validação)",
+      hint: type === "inclusao"
+        ? "As vagas nascem como sugestão pendente e a área valida como qualquer outra."
+        : "A vaga volta para “aguardando validação” como estava, sem o pedido.",
+    };
+  }
+  // aprovar_direto
+  if (kind === "reajustar") {
+    return {
+      label: "Aprovar direto com os ajustes",
+      hint: type === "inclusao"
+        ? "As vagas nascem já como Inclusão de Equipe com as suas alterações."
+        : "A vaga vira Inclusão de Equipe já com as suas alterações, sem nova validação.",
+    };
+  }
+  if (type === "inclusao") return { label: "Manter negado — nada é criado", hint: "Só o pedido fica negado; nenhuma vaga é criada." };
+  return {
+    label: "Manter a vaga como estava e aprovar",
+    hint: "A vaga vira Inclusão de Equipe como estava (sem o pedido), sem nova validação.",
+  };
+}
+
+const THEN_VALUES: ReviewBody["then"][] = ["reenviar_validacao", "aprovar_direto"];
 
 export function ReviewRequestDialog({ open, onOpenChange, kind, request, inclusion, event, pending, onSubmit }: ReviewDialogProps) {
   const type = (request?.requestType ?? "ajuste") as ChangeRequestType;
   const canEditFields = kind === "reajustar" && type !== "exclusao";
-
-  const [comment, setComment] = useState("");
-  const [then, setThen] = useState<ReviewBody["then"]>("reenviar_validacao");
-  const [editFields, setEditFields] = useState(false);
-  const [draft, setDraft] = useState<ProposedDraft>(() => draftFromProposed(null));
-  const [error, setError] = useState<string | null>(null);
-
-  // (Re)inicia só ao abrir ou trocar de pedido — nunca por refetch em background.
-  const requestRef = useRef(request); requestRef.current = request;
-  const inclusionRef = useRef(inclusion); inclusionRef.current = inclusion;
-  const loadedRef = useRef<string | null>(null);
-  const requestId = request?.id ?? null;
-  useEffect(() => {
-    if (!open) { loadedRef.current = null; return; }
-    if (!requestId || loadedRef.current === requestId) return;
-    loadedRef.current = requestId;
-    setComment(""); setThen("reenviar_validacao"); setEditFields(false); setError(null);
-    setDraft(draftFromProposed(requestRef.current?.proposed ?? null, inclusionRef.current));
-  }, [open, requestId]);
-  // Se a vaga chegou depois de o diálogo abrir (ajuste), recarrega o rascunho ainda intocado.
-  const inclusionId = inclusion?.id ?? null;
-  const editFieldsRef = useRef(editFields); editFieldsRef.current = editFields;
-  useEffect(() => {
-    if (!open || editFieldsRef.current) return;
-    setDraft(draftFromProposed(requestRef.current?.proposed ?? null, inclusionRef.current));
-  }, [open, inclusionId]);
-
-  const preview: ProposedChanges | null = useMemo(
-    () => (canEditFields && editFields && type === "inclusao" ? draftToProposed(draft, type, inclusion) : null),
-    [canEditFields, editFields, draft, type, inclusion],
-  );
-
-  const submit = () => {
-    if (!comment.trim()) { setError("O comentário para a área é obrigatório."); return; }
-    let editedChanges: ProposedChanges | undefined;
-    if (canEditFields && editFields) {
-      const errs = validateDraft(draft, type);
-      if (errs.length) { setError(errs[0]); return; }
-      const p = draftToProposed(draft, type, inclusion);
-      if (!p) { setError("Nada foi alterado em relação à vaga atual. Desmarque “Editar campos” para reajustar sem mudar valores, ou altere algum campo."); return; }
-      editedChanges = p;
-    }
-    setError(null);
-    onSubmit({ comment: comment.trim(), then, ...(editedChanges ? { editedChanges } : {}) });
-  };
-
   const title = kind === "reajustar" ? "Reajustar pedido" : "Negar pedido";
-  const verb = kind === "reajustar" ? "Reajustar" : "Negar";
 
   return (
     <Dialog open={open} onOpenChange={(o) => !pending && onOpenChange(o)}>
-      <DialogContent className={cn("max-h-[92vh] overflow-y-auto", canEditFields ? "max-w-3xl" : "max-w-lg")}>
-        <DialogHeader>
+      <DialogContent className={cn("p-0 gap-0 flex flex-col max-h-[92vh] overflow-hidden", canEditFields ? "max-w-3xl" : "max-w-lg")}>
+        <DialogHeader className="px-6 pt-6 pb-3 border-b border-slate-100 pr-12">
           <DialogTitle className="flex items-center gap-2">
             {title} <RequestTypeBadge type={type} />
           </DialogTitle>
@@ -169,31 +146,88 @@ export function ReviewRequestDialog({ open, onOpenChange, kind, request, inclusi
               : " — o pedido é recusado e você decide o que acontece com a vaga."}
           </DialogDescription>
         </DialogHeader>
+        {/* key: trocar de pedido (ou de tipo de decisão) remonta o formulário — sem refs de reset. */}
+        <ReviewForm
+          key={`${request?.id ?? "none"}:${kind}`}
+          kind={kind}
+          type={type}
+          request={request}
+          inclusion={inclusion}
+          event={event}
+          pending={pending}
+          canEditFields={canEditFields}
+          onCancel={() => onOpenChange(false)}
+          onSubmit={onSubmit}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
 
+interface ReviewFormProps {
+  kind: ReviewKind;
+  type: ChangeRequestType;
+  request: ChangeRequestItem | null;
+  inclusion?: TeamInclusion | null;
+  event?: Event | null;
+  pending: boolean;
+  canEditFields: boolean;
+  onCancel: () => void;
+  onSubmit: (body: ReviewBody) => void;
+}
+
+const COMMENT_REQUIRED = "O comentário para a área é obrigatório.";
+
+function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFields, onCancel, onSubmit }: ReviewFormProps) {
+  const [comment, setComment] = useState("");
+  const [then, setThen] = useState<ReviewBody["then"]>("reenviar_validacao");
+  const [editFields, setEditFields] = useState(false);
+  const [draft, setDraft] = useState<ProposedDraft>(() => draftFromProposed(request?.proposed ?? null, inclusion));
+  const [error, setError] = useState<string | null>(null);
+
+  // Se a vaga chegou depois de o diálogo abrir (ajuste), recarrega o rascunho ainda intocado.
+  const inclusionId = inclusion?.id ?? null;
+  useEffect(() => {
+    if (!editFields) setDraft(draftFromProposed(request?.proposed ?? null, inclusion));
+  }, [inclusionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const preview: ProposedChanges | null = useMemo(
+    () => (canEditFields && editFields && type === "inclusao" ? draftToProposed(draft, type, inclusion) : null),
+    [canEditFields, editFields, draft, type, inclusion],
+  );
+
+  const submit = () => {
+    if (!comment.trim()) { setError(COMMENT_REQUIRED); return; }
+    let editedChanges: ProposedChanges | undefined;
+    if (canEditFields && editFields) {
+      const errs = validateDraft(draft, type);
+      if (errs.length) { setError(errs[0]); return; }
+      const p = draftToProposed(draft, type, inclusion);
+      if (!p) { setError("Nada foi alterado em relação à vaga atual. Desmarque “Editar campos” para reajustar sem mudar valores, ou altere algum campo."); return; }
+      editedChanges = p;
+    }
+    setError(null);
+    onSubmit({ comment: comment.trim(), then, ...(editedChanges ? { editedChanges } : {}) });
+  };
+
+  const verb = kind === "reajustar" ? "Reajustar" : "Negar";
+  const subject = type === "inclusao" ? "o pedido" : "a vaga";
+
+  return (
+    <>
+      <div className="flex-1 overflow-y-auto px-6 py-4">
         <div className="space-y-5">
+          {/* 1) Comentário */}
           <div className="space-y-1">
-            <Label htmlFor="rev-comment" className="text-xs text-slate-600">Comentário para a área <span className="text-red-400">*</span></Label>
+            <Label htmlFor="rev-comment" className="text-xs text-slate-600">Comentário para a área <span className="text-red-500" aria-hidden="true">*</span></Label>
             <Textarea id="rev-comment" rows={3} maxLength={1000} value={comment} disabled={pending} required aria-required="true"
+              aria-invalid={error === COMMENT_REQUIRED || undefined}
               placeholder={kind === "reajustar" ? "Explique o que foi ajustado e por quê." : "Explique por que o pedido foi negado."}
               onChange={(e) => setComment(e.target.value)} className="rounded-lg text-sm" />
-            <p className="text-[11px] text-slate-400">Entra no chat do pedido e no histórico da vaga.</p>
+            <p className="text-[11px] text-slate-400">Entra na conversa do pedido e no histórico da vaga.</p>
           </div>
 
-          <fieldset className="space-y-2">
-            <legend className="text-xs text-slate-600 mb-1">Depois de {verb.toLowerCase()}, o que fazer com a vaga? <span className="text-red-400">*</span></legend>
-            <RadioGroup value={then} onValueChange={(v) => setThen(v as ReviewBody["then"])} disabled={pending} className="gap-2">
-              {THEN_OPTIONS.map((o) => (
-                <label key={o.value} htmlFor={`rev-then-${o.value}`} className={cn("flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors", then === o.value ? "border-primary bg-brand-soft/40" : "border-slate-200 hover:border-slate-300")}>
-                  <RadioGroupItem id={`rev-then-${o.value}`} value={o.value} className="mt-0.5" />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-slate-800">{o.label}</span>
-                    <span className="block text-[11px] text-slate-500">{o.hint(kind, type)}</span>
-                  </span>
-                </label>
-              ))}
-            </RadioGroup>
-          </fieldset>
-
+          {/* 2) Editar campos (só reajuste de ajuste/inclusão) */}
           {canEditFields && (
             <div className="space-y-3">
               <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
@@ -203,7 +237,7 @@ export function ReviewRequestDialog({ open, onOpenChange, kind, request, inclusi
               {editFields && (
                 <div className="rounded-2xl border border-slate-200 p-4 space-y-4">
                   {type === "ajuste" && !inclusion && (
-                    <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                       A vaga atual não foi carregada; o formulário parte só do pedido. Os campos preenchidos serão enviados como estão.
                     </p>
                   )}
@@ -231,16 +265,35 @@ export function ReviewRequestDialog({ open, onOpenChange, kind, request, inclusi
             </div>
           )}
 
-          {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
-        </div>
+          {/* 3) Destino da vaga */}
+          <fieldset className="space-y-2">
+            <legend className="text-xs text-slate-600 mb-1">Depois de {verb.toLowerCase()}, o que fazer com {subject}? <span className="text-red-500" aria-hidden="true">*</span></legend>
+            <RadioGroup value={then} onValueChange={(v) => setThen(v as ReviewBody["then"])} disabled={pending} className="gap-2">
+              {THEN_VALUES.map((value) => {
+                const o = thenOption(value, kind, type);
+                return (
+                  <label key={value} htmlFor={`rev-then-${value}`} className={cn("flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors", then === value ? "border-primary bg-brand-soft/40" : "border-slate-200 hover:border-slate-300")}>
+                    <RadioGroupItem id={`rev-then-${value}`} value={value} className="mt-0.5" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-slate-800">{o.label}</span>
+                      <span className="block text-[11px] text-slate-500">{o.hint}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </RadioGroup>
+          </fieldset>
 
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>Cancelar</Button>
-          <Button type="button" onClick={submit} disabled={pending} className={kind === "negar" ? "bg-red-600 hover:bg-red-700 text-white" : "bg-primary hover:bg-primary-hover"}>
-            {pending ? `${verb.replace(/r$/, "ndo")}…` : verb}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
+        </div>
+      </div>
+
+      <DialogFooter className="border-t border-slate-100 bg-white px-6 py-3 gap-2 sm:gap-0">
+        <Button type="button" variant="outline" onClick={onCancel} disabled={pending}>Cancelar</Button>
+        <Button type="button" onClick={submit} disabled={pending} className={kind === "negar" ? "bg-red-600 hover:bg-red-700 text-white" : "bg-primary hover:bg-primary-hover"}>
+          {pending ? `${verb.replace(/r$/, "ndo")}…` : verb}
+        </Button>
+      </DialogFooter>
+    </>
   );
 }

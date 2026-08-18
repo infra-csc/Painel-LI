@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import type { ToastActionElement } from "@/components/ui/toast";
 import { apiRequest } from "@/lib/queryClient";
 import { apiErrorMessage } from "@/lib/utils";
 import type { ApiError } from "@/components/scaling-validation/types";
@@ -35,10 +36,36 @@ export function reviewOutcomeMessage(kind: "reajustar" | "negar", then: ReviewBo
 }
 
 /**
+ * Respostas que significam "o item já não está mais como você viu": 404 (pedido/vaga
+ * sumiu) e 409 (o servidor devolve "Este pedido já foi decidido" — server/scaling-validation.ts,
+ * `ALREADY_DECIDED`). Só nesses casos vale recarregar e fechar o que estiver aberto.
+ *
+ * 400 NÃO entra aqui: no servidor 400 é erro de validação do corpo ("Dados inválidos",
+ * mensagens do zod, `editedChanges` inconsistente). Fechar o diálogo nesse caso jogava
+ * fora o comentário obrigatório e os campos editados do Reajustar, ainda por cima com
+ * uma mensagem enganosa de "este item mudou".
+ */
+const STALE_STATUSES = new Set([404, 409]);
+
+interface DecisionOptions {
+  /** Chamado após sucesso de aprovar/reajustar/negar (fechar Sheet/diálogos). */
+  onSettledRequest?: () => void;
+  /**
+   * Chamado quando o servidor responde 404/409 em qualquer decisão: o item
+   * mudou por baixo (outro aprovador decidiu, ou a vaga sumiu). A lista já foi
+   * invalidada. Erros de validação (400) e de servidor (5xx) NÃO disparam isto —
+   * o diálogo continua aberto para o usuário corrigir e tentar de novo.
+   */
+  onStale?: () => void;
+  /** Ação opcional do toast de sucesso de aprovar/reajustar/negar (ex.: "Abrir próximo pendente"). */
+  successAction?: () => ToastActionElement | undefined;
+}
+
+/**
  * Mutations das decisões do aprovador. Toda decisão invalida pedidos,
  * sugestões e inclusões (a vaga pode ter virado Inclusão de Equipe).
  */
-export function useDecisionMutations(opts: { onSettledRequest?: () => void } = {}) {
+export function useDecisionMutations(opts: DecisionOptions = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -51,6 +78,29 @@ export function useDecisionMutations(opts: { onSettledRequest?: () => void } = {
   };
 
   const fail = (title: string) => (err: ApiError) => {
+    const status = err?.status;
+
+    if (status !== undefined && STALE_STATUSES.has(status)) {
+      // Item já decidido/alterado por outra pessoa: avisa, recarrega e fecha o que estiver aberto.
+      toast({
+        title,
+        description: `${apiErrorMessage(err, "Este item mudou desde que você o abriu.")} A lista foi atualizada.`,
+        variant: "destructive",
+      });
+      invalidateAll();
+      opts.onStale?.();
+      return;
+    }
+
+    if (status !== undefined && status >= 500) {
+      // Falha do servidor: a mensagem crua não ajuda o usuário. Nada é fechado nem
+      // recarregado — o que ele preencheu continua ali para tentar de novo.
+      toast({ title, description: "Não foi possível concluir. Tente novamente.", variant: "destructive" });
+      return;
+    }
+
+    // 400 (validação), 401/403 e falhas de rede: mostra a mensagem real do servidor
+    // (apiErrorMessage já traduz 401/403) e mantém diálogo/Sheet abertos.
     toast({ title, description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" });
   };
 
@@ -59,7 +109,7 @@ export function useDecisionMutations(opts: { onSettledRequest?: () => void } = {
       (await apiRequest("PATCH", `${APPROVAL_QUERY_KEYS.requests}/${vars.id}/approve`, vars.comment ? { comment: vars.comment } : {})).json(),
     onSuccess: () => {
       invalidateAll();
-      toast({ title: "Pedido aprovado", description: "A decisão foi aplicada na vaga." });
+      toast({ title: "Pedido aprovado", description: "A decisão foi aplicada na vaga.", action: opts.successAction?.() });
       opts.onSettledRequest?.();
     },
     onError: fail("Não foi possível aprovar o pedido"),
@@ -71,7 +121,7 @@ export function useDecisionMutations(opts: { onSettledRequest?: () => void } = {
     onSuccess: (_data, vars) => {
       invalidateAll();
       const what = vars.kind === "reajustar" ? "Pedido reajustado" : "Pedido negado";
-      toast({ title: what, description: reviewOutcomeMessage(vars.kind, vars.body.then, vars.requestType) });
+      toast({ title: what, description: reviewOutcomeMessage(vars.kind, vars.body.then, vars.requestType), action: opts.successAction?.() });
       opts.onSettledRequest?.();
     },
     onError: (err: ApiError, vars) => fail(vars.kind === "reajustar" ? "Não foi possível reajustar o pedido" : "Não foi possível negar o pedido")(err),

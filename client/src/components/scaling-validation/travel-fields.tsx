@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TRANSPORT_MODES, TRANSPORT_MODE_LABELS, type TransportMode } from "@shared/scaling-validation-rules";
 import type { TeamInclusion } from "@shared/schema";
+import { ymd } from "./types";
 
 /** Campos de viagem/logística editáveis nos pedidos (ajuste e inclusão). */
 export interface TravelDraft {
@@ -30,11 +31,6 @@ export const EMPTY_TRAVEL: TravelDraft = {
   needsTicket: false,
 };
 
-const ymd = (v: string | Date | null | undefined) => {
-  if (!v) return "";
-  if (v instanceof Date) return Number.isNaN(v.getTime()) ? "" : v.toISOString().slice(0, 10);
-  return String(v).slice(0, 10);
-};
 const asMode = (v: string | null | undefined): TransportMode | "" =>
   (TRANSPORT_MODES as readonly string[]).includes(v ?? "") ? (v as TransportMode) : "";
 

@@ -1,5 +1,6 @@
 import type { ScalingChangeRequest } from "@shared/schema";
 import type { ChangeRequestType, InclusionDiffEntry, ProposedChanges } from "@shared/scaling-validation-rules";
+import type { SuggestionRow } from "@/components/scaling-validation/types";
 
 /** Item devolvido por GET /api/scaling-change-requests (pedido enriquecido pelo servidor). */
 export type ChangeRequestItem = ScalingChangeRequest & {
@@ -13,6 +14,13 @@ export type ChangeRequestItem = ScalingChangeRequest & {
 };
 
 export type RequestType = ChangeRequestType;
+
+/**
+ * Linha do GET /api/scaling-suggestions vista pela Aprovação: o servidor
+ * anexa `canDecide` (admin ou aprovador da função) por linha — é o que decide
+ * se os botões de bypass aparecem em "Vagas paradas".
+ */
+export type StalledRow = SuggestionRow;
 
 /** Body de PATCH /api/scaling-change-requests/:id/reajustar | /negar */
 export interface ReviewBody {

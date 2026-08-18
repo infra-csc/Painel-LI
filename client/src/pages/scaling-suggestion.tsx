@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ClipboardPaste, ListPlus, Plus, RotateCcw, Send, Save, AlertTriangle, Search } from "lucide-react";
+import { Link } from "wouter";
+import {
+  AlertTriangle, Check, CheckCircle2, ClipboardPaste, ExternalLink, Eye, History, ListPlus, Plus, RotateCcw, Send, Save,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +14,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import EventCombobox from "@/components/ui/event-combobox";
 import { PageContainer } from "@/components/common/page-container";
 import { PageHeader } from "@/components/common/page-header";
@@ -22,12 +26,16 @@ import { hasPermission } from "@/lib/role-utils";
 import { apiRequest } from "@/lib/queryClient";
 import { apiErrorMessage, formatDateRange, formatDiarias, cn } from "@/lib/utils";
 import { formatDayMonthBr } from "@/lib/dates";
+import { scalingHref, useScalingEvent } from "@/lib/use-scaling-event";
 import type { Event, Function as FunctionType } from "@shared/schema";
 import { TRANSPORT_MODE_LABELS } from "@shared/scaling-validation-rules";
-import { SuggestionGrid } from "@/components/scaling-validation/suggestion-grid";
+import { SuggestionGrid, rowDomId } from "@/components/scaling-validation/suggestion-grid";
+import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module-nav";
 import {
-  buildDateList, decomposeGridRows, emptyGridRow, parsePastedRows, reframeRows,
-  sortFunctionsByOrder, summarizeGrid, validateGridRow, type SuggestionGridRow,
+  buildDateList, countOutsidePeriod, decomposeGridRows, detectPasteFormat, emptyGridRow, mergePastedRows,
+  parsePastedRows, pasteConflicts, periodBounds, periodProblem, PERIOD_MARGIN_DAYS, PERIOD_PROBLEM_MESSAGES, PASTE_FORMAT_LABELS,
+  reframeRows, sortFunctionsByOrder, summarizeGrid, validateGridRow,
+  type PasteFormat, type RowValidation, type SuggestionGridRow,
 } from "@/components/scaling-validation/scaling-grid-utils";
 import { SUGGESTIONS_QUERY_KEY, type ApiError } from "@/components/scaling-validation/types";
 
@@ -39,7 +47,22 @@ interface DraftPayload {
   timestamp: number;
 }
 
+interface Period { start: string; end: string }
+interface PendingPeriod extends Period { pessoasDia: number; dias: number }
+interface PendingPaste { rows: SuggestionGridRow[]; skippedNames: string[]; conflicts: string[]; format: PasteFormat }
+interface SentInfo { created: number; eventId: string; eventName: string }
+
 const DRAFT_TTL_MS = 7 * 24 * 3600_000; // rascunho por evento vale 7 dias
+const SECTION_TITLE = "text-[11px] font-bold uppercase tracking-wide text-slate-500";
+const HINT = "text-xs text-slate-500";
+const EMPTY_PERIOD: Period = { start: "", end: "" };
+
+function writeDraft(key: string, payload: Omit<DraftPayload, "timestamp">, hasContent: boolean) {
+  try {
+    if (!hasContent) { localStorage.removeItem(key); return; }
+    localStorage.setItem(key, JSON.stringify({ ...payload, timestamp: Date.now() } satisfies DraftPayload));
+  } catch { /* quota / storage indisponível */ }
+}
 
 export default function ScalingSuggestionPage() {
   usePageTitle("Sugestão de Escala");
@@ -47,19 +70,34 @@ export default function ScalingSuggestionPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [eventId, setEventId] = useState("");
+  const { eventId, setEventId, sanitize } = useScalingEvent("/scaling-suggestion");
+  // Inputs de período (o que o usuário digita) × período APLICADO à grade (sempre válido).
   const [periodStart, setPeriodStart] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
+  const [applied, setApplied] = useState<Period>(EMPTY_PERIOD);
+  const [pendingPeriod, setPendingPeriod] = useState<PendingPeriod | null>(null);
   const [eventObservations, setEventObservations] = useState("");
   const [rows, setRows] = useState<SuggestionGridRow[]>([]);
   const [showAddFunction, setShowAddFunction] = useState(false);
+  const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(() => new Set());
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState("");
+  const [pasteFormat, setPasteFormat] = useState<"auto" | PasteFormat>("auto");
+  const [pendingPaste, setPendingPaste] = useState<PendingPaste | null>(null);
   const [confirmSend, setConfirmSend] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [sent, setSent] = useState<SentInfo | null>(null);
   const draftLoadedFor = useRef<string | null>(null);
+  const loadedObsRef = useRef("");
+  // Espelhos síncronos (callbacks estáveis leem daqui sem depender de `rows`/`applied`).
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  const appliedRef = useRef<Period>(EMPTY_PERIOD);
 
   const canAccess = hasPermission(user, "canAccessScalingSuggestion");
+  // Modo leitura: entra na tela (compras/financeiro), mas só Produção/Admin montam e enviam.
+  const readOnly = !hasPermission(user, "canEditScalingSuggestion");
 
   const { data: events, isLoading: loadingEvents, error: eventsError } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const { data: functions, isLoading: loadingFunctions, error: functionsError, refetch: refetchFunctions } = useQuery<FunctionType[]>({ queryKey: ["/api/functions"] });
@@ -68,29 +106,45 @@ export default function ScalingSuggestionPage() {
     () => (events ?? []).filter((e) => e.status !== "excluido" && e.status !== "excluído"),
     [events],
   );
+  useEffect(() => { if (events) sanitize(activeEvents.map((e) => e.id)); }, [events, activeEvents, sanitize]);
   const selectedEvent = useMemo(() => activeEvents.find((e) => e.id === eventId), [activeEvents, eventId]);
   const sortedFunctions = useMemo(() => sortFunctionsByOrder(functions ?? []), [functions]);
-  const dates = useMemo(() => buildDateList(periodStart, periodEnd), [periodStart, periodEnd]);
+  const dates = useMemo(() => buildDateList(applied.start, applied.end), [applied]);
+  const bounds = useMemo(() => periodBounds(selectedEvent?.startDate ?? "", selectedEvent?.endDate ?? ""), [selectedEvent]);
+  const periodError = useMemo(() => {
+    if (!eventId) return null;
+    const p = periodProblem(periodStart, periodEnd);
+    return p ? PERIOD_PROBLEM_MESSAGES[p] : null;
+  }, [eventId, periodStart, periodEnd]);
 
   const draftKey = eventId ? `scaling-suggestion-draft:${user?.id ?? "anon"}:${eventId}` : null;
+
+  const loadPeriod = useCallback((start: string, end: string) => {
+    appliedRef.current = { start, end };
+    setPeriodStart(start); setPeriodEnd(end); setApplied({ start, end }); setPendingPeriod(null);
+  }, []);
 
   // ── Troca de evento: período do evento, comentários gerais e rascunho ──
   useEffect(() => {
     if (!selectedEvent) return;
     if (draftLoadedFor.current === selectedEvent.id) return;
     draftLoadedFor.current = selectedEvent.id;
+    loadedObsRef.current = selectedEvent.observations ?? "";
+    setSent(null);
 
     let restored = false;
-    if (draftKey) {
+    if (draftKey && !readOnly) {
       try {
         const raw = localStorage.getItem(draftKey);
         if (raw) {
           const d = JSON.parse(raw) as DraftPayload;
           if (d && Array.isArray(d.rows) && Date.now() - (d.timestamp || 0) < DRAFT_TTL_MS) {
-            setPeriodStart(d.periodStart || selectedEvent.startDate);
-            setPeriodEnd(d.periodEnd || selectedEvent.endDate);
-            setEventObservations(d.eventObservations ?? (selectedEvent.observations ?? ""));
-            setRows(d.rows);
+            const validPeriod = !periodProblem(d.periodStart, d.periodEnd);
+            const start = validPeriod ? d.periodStart : selectedEvent.startDate;
+            const end = validPeriod ? d.periodEnd : selectedEvent.endDate;
+            loadPeriod(start, end);
+            setEventObservations(d.eventObservations ?? loadedObsRef.current);
+            setRows(validPeriod ? d.rows : reframeRows(d.rows, buildDateList(start, end)));
             restored = true;
             toast({ title: "Rascunho restaurado", description: `Grade de ${selectedEvent.name} recuperada do rascunho local.` });
           } else {
@@ -102,30 +156,54 @@ export default function ScalingSuggestionPage() {
       }
     }
     if (!restored) {
-      setPeriodStart(selectedEvent.startDate);
-      setPeriodEnd(selectedEvent.endDate);
-      setEventObservations(selectedEvent.observations ?? "");
+      loadPeriod(selectedEvent.startDate, selectedEvent.endDate);
+      setEventObservations(loadedObsRef.current);
       setRows([]);
     }
-  }, [selectedEvent, draftKey, toast]);
-
-  // Reencaixa as quantidades quando o período muda (dias fora saem, novos entram vazios).
-  useEffect(() => {
-    setRows((prev) => (prev.length ? reframeRows(prev, dates) : prev));
-  }, [dates]);
+  }, [selectedEvent, draftKey, toast, loadPeriod, readOnly]);
 
   // Auto-save do rascunho (por usuário + evento), 1,5s após a última alteração.
+  // Só grava o período APLICADO (válido) — período inválido nos inputs nunca zera o rascunho.
+  const hasContent = rows.length > 0 || eventObservations !== loadedObsRef.current;
   useEffect(() => {
-    if (!draftKey || draftLoadedFor.current !== eventId) return;
+    if (!draftKey || readOnly || draftLoadedFor.current !== eventId) return;
     const t = setTimeout(() => {
-      const hasContent = rows.length > 0 || eventObservations !== (selectedEvent?.observations ?? "");
-      // Usuário zerou tudo: o rascunho antigo não pode voltar na próxima visita.
-      if (!hasContent) { try { localStorage.removeItem(draftKey); } catch { /* ignore */ } return; }
-      const payload: DraftPayload = { rows, periodStart, periodEnd, eventObservations, timestamp: Date.now() };
-      try { localStorage.setItem(draftKey, JSON.stringify(payload)); } catch { /* quota */ }
+      writeDraft(draftKey, { rows, periodStart: applied.start, periodEnd: applied.end, eventObservations }, hasContent);
     }, 1500);
     return () => clearTimeout(t);
-  }, [rows, periodStart, periodEnd, eventObservations, draftKey, eventId, selectedEvent]);
+  }, [rows, applied, eventObservations, hasContent, draftKey, eventId, readOnly]);
+
+  // Flush do rascunho ao trocar de evento / sair da tela: a última edição não pode se perder no debounce.
+  const latestDraft = useRef({ rows, applied, eventObservations, hasContent });
+  latestDraft.current = { rows, applied, eventObservations, hasContent };
+  useEffect(() => {
+    const key = draftKey;
+    const forEvent = eventId;
+    return () => {
+      if (!key || readOnly || draftLoadedFor.current !== forEvent) return;
+      const s = latestDraft.current;
+      writeDraft(key, { rows: s.rows, periodStart: s.applied.start, periodEnd: s.applied.end, eventObservations: s.eventObservations }, s.hasContent);
+    };
+  }, [draftKey, eventId, readOnly]);
+
+  // ── Período ──
+  const applyPeriod = useCallback((start: string, end: string) => {
+    appliedRef.current = { start, end };
+    setPeriodStart(start); setPeriodEnd(end); setApplied({ start, end });
+    setRows((prev) => (prev.length ? reframeRows(prev, buildDateList(start, end)) : prev));
+    setPendingPeriod(null);
+  }, []);
+  const requestPeriod = useCallback((start: string, end: string) => {
+    setPeriodStart(start); setPeriodEnd(end);
+    if (periodProblem(start, end)) return; // grade mantém o período anterior; aviso inline explica
+    const outside = countOutsidePeriod(rowsRef.current, buildDateList(start, end));
+    if (outside.pessoasDia > 0) { setPendingPeriod({ start, end, ...outside }); return; }
+    applyPeriod(start, end);
+  }, [applyPeriod]);
+  /** Volta os inputs ao período aplicado (lê do ref: também é chamado ao fechar o diálogo logo após aplicar). */
+  const cancelPendingPeriod = useCallback(() => {
+    setPeriodStart(appliedRef.current.start); setPeriodEnd(appliedRef.current.end); setPendingPeriod(null);
+  }, []);
 
   // ── Edição da grade ──
   const changeRow = useCallback((rowId: string, patch: Partial<SuggestionGridRow>) => {
@@ -143,10 +221,29 @@ export default function ScalingSuggestionPage() {
       return [...prev.slice(0, idx + 1), copy, ...prev.slice(idx + 1)];
     });
   }, []);
-  const removeRow = useCallback((rowId: string) => setRows((prev) => prev.filter((r) => r.rowId !== rowId)), []);
+  const removeRowNow = useCallback((rowId: string) => {
+    setRows((prev) => prev.filter((r) => r.rowId !== rowId));
+    setConfirmRemove(null);
+  }, []);
+  const removeRow = useCallback((rowId: string) => {
+    const row = rowsRef.current.find((r) => r.rowId === rowId);
+    const hasQty = row ? Object.values(row.quantities).some((q) => q > 0) : false;
+    if (hasQty) { setConfirmRemove(rowId); return; } // pede confirmação: há quantidades preenchidas
+    setRows((prev) => prev.filter((r) => r.rowId !== rowId));
+  }, []);
+  const rowToRemove = useMemo(() => rows.find((r) => r.rowId === confirmRemove), [rows, confirmRemove]);
 
-  const addFunction = (f: FunctionType) => {
-    setRows((prev) => [...prev, emptyGridRow(f.id, f.name, dates)]);
+  const presentFunctionIds = useMemo(() => new Set(rows.map((r) => r.functionId)), [rows]);
+  const toggleToAdd = (id: string) => setSelectedToAdd((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const openAddFunction = () => { setSelectedToAdd(new Set()); setShowAddFunction(true); };
+  const addSelectedFunctions = () => {
+    const chosen = sortedFunctions.filter((f) => selectedToAdd.has(f.id));
+    if (chosen.length === 0) return;
+    setRows((prev) => [...prev, ...chosen.map((f) => emptyGridRow(f.id, f.name, dates))]);
     setShowAddFunction(false);
   };
   const addAllFunctions = () => {
@@ -158,41 +255,75 @@ export default function ScalingSuggestionPage() {
     setShowAddFunction(false);
   };
 
+  // ── Colagem ──
+  const detectedPaste = useMemo(() => (pasteText.trim() ? detectPasteFormat(pasteText) : null), [pasteText]);
+  const closePaste = () => { setShowPaste(false); setPasteText(""); setPasteFormat("auto"); };
+  const commitPaste = (pasted: SuggestionGridRow[], skippedNames: string[], replaced: number) => {
+    setRows((prev) => mergePastedRows(prev, pasted));
+    setPendingPaste(null);
+    closePaste();
+    toast({
+      title: "Linhas coladas",
+      description: `${pasted.length} linha(s) aplicada(s)${replaced ? `, ${replaced} função(ões) substituída(s)` : ""}.${skippedNames.length ? ` Não encontradas: ${skippedNames.join(", ")}.` : ""}`,
+      variant: skippedNames.length ? "destructive" : "default",
+    });
+  };
   const applyPaste = () => {
     if (!pasteText.trim()) {
       toast({ title: "Nada para colar", description: "Cole as linhas da planilha primeiro.", variant: "destructive" });
       return;
     }
-    const year = (periodStart || selectedEvent?.startDate || String(new Date().getFullYear())).slice(0, 4);
-    const { rows: pasted, skippedNames } = parsePastedRows(pasteText, functions ?? [], dates, year);
-    if (pasted.length === 0) {
+    const year = (applied.start || selectedEvent?.startDate || String(new Date().getFullYear())).slice(0, 4);
+    const res = parsePastedRows(pasteText, functions ?? [], dates, year, pasteFormat === "auto" ? undefined : pasteFormat);
+    if (res.rows.length === 0) {
       toast({
         title: "Nenhuma linha reconhecida",
-        description: skippedNames.length ? `Funções não encontradas: ${skippedNames.join(", ")}.` : "Verifique o formato (colunas separadas por TAB).",
+        description: res.skippedNames.length ? `Funções não encontradas: ${res.skippedNames.join(", ")}.` : "Verifique o formato (colunas separadas por TAB).",
         variant: "destructive",
       });
       return;
     }
-    setRows((prev) => [...prev, ...pasted]);
-    setShowPaste(false);
-    setPasteText("");
-    toast({
-      title: "Linhas coladas",
-      description: `${pasted.length} linha(s) adicionada(s).${skippedNames.length ? ` Não encontradas: ${skippedNames.join(", ")}.` : ""}`,
-      variant: skippedNames.length ? "destructive" : "default",
-    });
+    const conflicts = pasteConflicts(rows, res.rows);
+    if (conflicts.length > 0) { setPendingPaste({ rows: res.rows, skippedNames: res.skippedNames, conflicts, format: res.format }); return; }
+    commitPaste(res.rows, res.skippedNames, 0);
   };
 
   const clearGrid = () => {
     setRows([]);
+    setEventObservations(loadedObsRef.current);
     if (draftKey) localStorage.removeItem(draftKey);
     setConfirmClear(false);
   };
 
-  // ── Prévia / envio ──
+  // ── Validação / prévia / envio ──
+  const issuesByRow = useMemo(() => {
+    const m = new Map<string, RowValidation>();
+    for (const r of rows) {
+      const v = validateGridRow(r);
+      if (v.errors.length || v.warnings.length) m.set(r.rowId, v);
+    }
+    return m;
+  }, [rows]);
+  const pendencias = useMemo(() => {
+    const errors: { rowId: string; text: string }[] = [];
+    const warnings: { rowId: string; text: string }[] = [];
+    for (const r of rows) {
+      const v = issuesByRow.get(r.rowId);
+      if (!v) continue;
+      for (const e of v.errors) errors.push({ rowId: r.rowId, text: `${r.functionName}: ${e}` });
+      for (const w of v.warnings) warnings.push({ rowId: r.rowId, text: `${r.functionName}: ${w}` });
+    }
+    return { errors, warnings };
+  }, [rows, issuesByRow]);
+  const focusRow = (rowId: string) => {
+    const el = document.getElementById(rowDomId(rowId));
+    const input = el?.querySelector<HTMLInputElement>("input[data-qty-cell]");
+    (input ?? el)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    input?.focus();
+  };
+
   const records = useMemo(() => decomposeGridRows(rows, dates), [rows, dates]);
   const summary = useMemo(() => summarizeGrid(rows, dates), [rows, dates]);
-  const rowIssues = useMemo(() => rows.flatMap((r) => validateGridRow(r).map((i) => `${r.functionName}: ${i}`)), [rows]);
   const previewGroups = useMemo(() => {
     const groups: { key: string; functionName: string; records: typeof records }[] = [];
     const idx = new Map<string, number>();
@@ -208,10 +339,9 @@ export default function ScalingSuggestionPage() {
   const sendMutation = useMutation({
     mutationFn: async () => {
       // Só envia os comentários se mudaram em relação ao evento carregado (undefined = servidor não mexe).
-      const loadedObs = selectedEvent?.observations ?? "";
       const payload = {
         eventId,
-        ...(eventObservations !== loadedObs ? { eventObservations } : {}),
+        ...(eventObservations !== loadedObsRef.current ? { eventObservations } : {}),
         rows: records.map((r) => ({
           functionId: r.functionId,
           workDays: r.workDays,
@@ -235,26 +365,36 @@ export default function ScalingSuggestionPage() {
       queryClient.invalidateQueries({ queryKey: [`${SUGGESTIONS_QUERY_KEY}/event-view`] });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      toast({ title: "Escala enviada para validação", description: `${data.created} vaga(s) criada(s) e enviada(s) às áreas.` });
+      // Comentários já foram gravados no evento: passam a ser a base "carregada".
+      loadedObsRef.current = eventObservations;
       if (draftKey) localStorage.removeItem(draftKey);
       setRows([]);
       setConfirmSend(false);
+      setSent({ created: data.created, eventId, eventName: selectedEvent?.name ?? "" });
+      toast({ title: "Escala enviada para validação", description: `${data.created} vaga(s) criada(s) e enviada(s) às áreas.` });
     },
     onError: (err: ApiError) => {
       setConfirmSend(false);
       toast({ title: "Não foi possível enviar", description: apiErrorMessage(err, "Nenhuma vaga foi criada. Revise a grade e tente novamente."), variant: "destructive" });
     },
   });
+  // "busy" trava a edição: enquanto envia OU em modo leitura.
+  const busy = sendMutation.isPending || readOnly;
 
   const openConfirmSend = () => {
     if (!eventId) { toast({ title: "Selecione o evento", variant: "destructive" }); return; }
     if (records.length === 0) { toast({ title: "Grade vazia", description: "Informe ao menos uma quantidade na grade.", variant: "destructive" }); return; }
-    if (rowIssues.length > 0) {
-      toast({ title: "Revise a grade", description: rowIssues.slice(0, 3).join(" · ") + (rowIssues.length > 3 ? ` (+${rowIssues.length - 3})` : ""), variant: "destructive" });
+    if (pendencias.errors.length > 0) {
+      const texts = pendencias.errors.map((e) => e.text);
+      toast({ title: "Revise a grade", description: texts.slice(0, 3).join(" · ") + (texts.length > 3 ? ` (+${texts.length - 3})` : ""), variant: "destructive" });
+      focusRow(pendencias.errors[0].rowId);
       return;
     }
     setConfirmSend(true);
   };
+
+  const gridReady = !!eventId && dates.length > 0;
+  const vagasLabel = `${records.length} ${records.length === 1 ? "vaga" : "vagas"}`;
 
   // ── Render ──
   if (!canAccess) {
@@ -274,13 +414,21 @@ export default function ScalingSuggestionPage() {
         icon={ListPlus}
         title="Nova sugestão de escala"
         subtitle="Monte a escala sugerida por função e dia e envie para as áreas validarem. Cada pessoa vira 1 vaga com seus dias de trabalho."
+        actions={<ScalingModuleNav current="suggestion" eventId={eventId} />}
       />
+
+      {readOnly && (
+        <div role="note" className="flex items-start gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700">
+          <Eye className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-500" aria-hidden="true" />
+          <span><span className="font-semibold">Modo leitura</span> — só Produção/Admin montam e enviam sugestões. Você pode consultar o evento e seguir para as outras telas do módulo.</span>
+        </div>
+      )}
 
       {eventsError ? (
         <div className="rounded-2xl border border-red-200 bg-white p-6 text-center">
           <p className="text-sm font-semibold text-slate-700">Não foi possível carregar os eventos</p>
-          <p className="text-xs text-slate-400 mt-1">{apiErrorMessage(eventsError, "Verifique sua conexão e tente novamente.")}</p>
-          <Button variant="outline" size="sm" className="mt-3" onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/events"] })}>Tentar novamente</Button>
+          <p className="text-xs text-slate-500 mt-1">{apiErrorMessage(eventsError, "Verifique sua conexão e tente novamente.")}</p>
+          <Button variant="outline" size="sm" className="mt-3 rounded-lg" onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/events"] })}>Tentar novamente</Button>
         </div>
       ) : loadingEvents || loadingFunctions ? (
         <LoadingState count={3} label="Carregando eventos e funções…" />
@@ -298,198 +446,360 @@ export default function ScalingSuggestionPage() {
               <Button type="button" variant="outline" size="sm" className="rounded-lg h-8" onClick={() => refetchFunctions()}>Tentar novamente</Button>
             </div>
           )}
+
           {/* Evento + período + comentários */}
           <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 space-y-4" aria-labelledby="sug-evento">
-            <h2 id="sug-evento" className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Evento</h2>
+            <h2 id="sug-evento" className={SECTION_TITLE}>Evento</h2>
             <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
               <div className="space-y-1.5">
-                <Label htmlFor="sug-event-combobox" className="text-xs text-slate-600">Evento <span className="text-red-400">*</span></Label>
-                <div id="sug-event-combobox">
+                <span id="sug-event-label" className={cn(HINT, "block font-medium leading-none")}>Evento <span className="text-red-500" aria-hidden="true">*</span></span>
+                <div role="group" aria-labelledby="sug-event-label">
                   <EventCombobox events={activeEvents} value={eventId} onValueChange={(v) => setEventId(v === "all" ? "" : v)} placeholder="Selecione um evento" showAllOption={false} testId="scaling-suggestion-event" />
                 </div>
                 {selectedEvent && (
-                  <p className="text-[11px] text-slate-400">
+                  <p className={HINT}>
                     Período do evento: <span className="font-mono">{formatDateRange(selectedEvent.startDate, selectedEvent.endDate, { withYear: true })}</span>
                     {selectedEvent.location ? ` · ${selectedEvent.location}` : ""}
                   </p>
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="sug-period-start" className="text-xs text-slate-600">Início da grade</Label>
-                <Input id="sug-period-start" type="date" value={periodStart} disabled={!eventId} onChange={(e) => setPeriodStart(e.target.value)} className="h-9 rounded-lg" />
+                <Label htmlFor="sug-period-start" className={cn(HINT, "font-medium")}>Início da grade</Label>
+                <Input id="sug-period-start" type="date" value={periodStart} disabled={!eventId || busy}
+                  min={bounds.min || undefined} max={bounds.max || undefined}
+                  aria-invalid={!!periodError} aria-describedby={periodError ? "sug-period-error" : "sug-period-hint"}
+                  onChange={(e) => requestPeriod(e.target.value, periodEnd)} className="h-9 rounded-lg" />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="sug-period-end" className="text-xs text-slate-600">Fim da grade</Label>
-                <Input id="sug-period-end" type="date" value={periodEnd} disabled={!eventId} min={periodStart || undefined} onChange={(e) => setPeriodEnd(e.target.value)} className="h-9 rounded-lg" />
-                {periodStart && periodEnd && periodEnd < periodStart && (
-                  <p className="text-[11px] text-red-500" role="alert">O fim da grade não pode ser antes do início.</p>
-                )}
+                <Label htmlFor="sug-period-end" className={cn(HINT, "font-medium")}>Fim da grade</Label>
+                <Input id="sug-period-end" type="date" value={periodEnd} disabled={!eventId || busy}
+                  min={periodStart || bounds.min || undefined} max={bounds.max || undefined}
+                  aria-invalid={!!periodError} aria-describedby={periodError ? "sug-period-error" : "sug-period-hint"}
+                  onChange={(e) => requestPeriod(periodStart, e.target.value)} className="h-9 rounded-lg" />
               </div>
             </div>
+            {periodError ? (
+              <p id="sug-period-error" role="alert" className="flex items-start gap-1.5 text-xs text-red-700 -mt-2">
+                <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" aria-hidden="true" /> {periodError}
+              </p>
+            ) : (
+              <p id="sug-period-hint" className={cn(HINT, "-mt-2")}>
+                A grade pode começar até {PERIOD_MARGIN_DAYS} dias antes e terminar até {PERIOD_MARGIN_DAYS} dias depois do evento.
+              </p>
+            )}
             <div className="space-y-1.5">
-              <Label htmlFor="sug-event-obs" className="text-xs text-slate-600">Comentários gerais do evento</Label>
-              <Textarea id="sug-event-obs" value={eventObservations} disabled={!eventId} rows={3} maxLength={2000}
+              <Label htmlFor="sug-event-obs" className={cn(HINT, "font-medium")}>Comentários gerais do evento</Label>
+              <Textarea id="sug-event-obs" value={eventObservations} disabled={!eventId || busy} rows={3} maxLength={2000}
                 placeholder="Orientações gerais para as áreas (horários de montagem, ponto de encontro, restrições…)."
                 onChange={(e) => setEventObservations(e.target.value)} className="rounded-lg text-sm" />
-              <p className="text-[11px] text-slate-400">Salvo nas observações do evento junto com o envio da escala.</p>
+              <p className={HINT}>Salvo nas observações do evento junto com o envio da escala.</p>
             </div>
           </section>
+
+          {/* Pós-envio */}
+          {sent && (
+            <section role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:p-5" aria-labelledby="sug-sent">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" aria-hidden="true" />
+                  <div>
+                    <h2 id="sug-sent" className="text-sm font-semibold text-emerald-900">
+                      {sent.created} {sent.created === 1 ? "vaga enviada" : "vagas enviadas"} para {sent.eventName}
+                    </h2>
+                    <p className="text-xs text-emerald-800 mt-0.5">As áreas responsáveis já veem as vagas na Validação de Escala.</p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs font-medium">
+                      <Link href={scalingHref("/scaling-validation", sent.eventId)} className="inline-flex items-center gap-1 text-primary hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+                        <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /> Ver na Validação
+                      </Link>
+                      <Link href={scalingHref("/scaling-event-view", sent.eventId)} className="inline-flex items-center gap-1 text-primary hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+                        <History className="w-3.5 h-3.5" aria-hidden="true" /> Histórico da Escala
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+                <Button type="button" variant="outline" size="sm" className="rounded-lg h-8 bg-white" onClick={() => setSent(null)}>
+                  <Plus className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Nova sugestão
+                </Button>
+              </div>
+            </section>
+          )}
 
           {/* Grade */}
           <section className="space-y-3" aria-labelledby="sug-grade">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-3">
-                <h2 id="sug-grade" className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Grade função × dia</h2>
-                {rows.length > 0 && (
-                  <span className="text-[11px] text-slate-400 tabular-nums" aria-live="polite">
-                    {summary.funcoes} {summary.funcoes === 1 ? "linha" : "linhas"} · {summary.pessoasDia} pessoas-dia · {records.length} {records.length === 1 ? "vaga" : "vagas"}
-                  </span>
-                )}
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 id="sug-grade" className={SECTION_TITLE}>Grade função × dia</h2>
+                {/* Única região aria-live da tela: resume o que muda a cada edição. */}
+                <span className="text-xs text-slate-600 tabular-nums" aria-live="polite" aria-atomic="true">
+                  {rows.length > 0 && (
+                    <>
+                      {summary.funcoes} {summary.funcoes === 1 ? "linha" : "linhas"} · {summary.pessoasDia} pessoas-dia · <span className="font-semibold text-slate-800">{vagasLabel}</span>
+                    </>
+                  )}
+                </span>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" size="sm" className="rounded-lg h-8" disabled={!eventId || dates.length === 0} onClick={() => setShowPaste(true)}>
-                  <ClipboardPaste className="w-3.5 h-3.5 mr-1.5" /> Colar da planilha
+                <Button type="button" variant="outline" size="sm" className="rounded-lg h-8" disabled={!gridReady || busy || !!functionsError} onClick={() => setShowPaste(true)}>
+                  <ClipboardPaste className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Colar da planilha
                 </Button>
-                <Button type="button" variant="outline" size="sm" className="rounded-lg h-8" disabled={!eventId || dates.length === 0} onClick={() => setShowAddFunction(true)}>
-                  <Plus className="w-3.5 h-3.5 mr-1.5" /> Adicionar função
+                <Button type="button" variant="outline" size="sm" className="rounded-lg h-8" disabled={!gridReady || busy || !!functionsError} onClick={openAddFunction}>
+                  <Plus className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Adicionar função
                 </Button>
-                <Button type="button" variant="ghost" size="sm" className="rounded-lg h-8 text-slate-500" disabled={rows.length === 0} onClick={() => setConfirmClear(true)}>
-                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Limpar
+                <Button type="button" variant="ghost" size="sm" className="rounded-lg h-8 text-slate-600" disabled={(!hasContent) || busy} onClick={() => setConfirmClear(true)}>
+                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Limpar
                 </Button>
               </div>
             </div>
 
             {!eventId ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-400" role="status">
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">
                 Selecione um evento para montar a grade.
               </div>
             ) : dates.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-400" role="status">
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">
                 Informe um período válido para a grade.
               </div>
             ) : (
               <>
-                {rowIssues.length > 0 && (
-                  <div role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                    <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />
-                    <span>{rowIssues.length === 1 ? rowIssues[0] : `${rowIssues.length} pendências na grade — passe o mouse na função para ver.`}</span>
+                {(pendencias.errors.length > 0 || pendencias.warnings.length > 0) && (
+                  <div className={cn("rounded-xl border px-3 py-2 text-xs", pendencias.errors.length > 0 ? "border-red-200 bg-red-50 text-red-800" : "border-amber-200 bg-amber-50 text-amber-800")}>
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className={cn("w-3.5 h-3.5 mt-0.5 shrink-0", pendencias.errors.length > 0 ? "text-red-600" : "text-amber-600")} aria-hidden="true" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold">
+                          {pendencias.errors.length > 0
+                            ? `${pendencias.errors.length} ${pendencias.errors.length === 1 ? "pendência impede" : "pendências impedem"} o envio`
+                            : `${pendencias.warnings.length} ${pendencias.warnings.length === 1 ? "aviso" : "avisos"} (não impedem o envio)`}
+                        </p>
+                        <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                          {[...pendencias.errors, ...pendencias.warnings.map((w) => ({ ...w, warn: true }))].map((p, i) => (
+                            <li key={`${p.rowId}-${i}`}>
+                              <button type="button" onClick={() => focusRow(p.rowId)}
+                                className={cn("underline underline-offset-2 rounded hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current", "warn" in p && pendencias.errors.length > 0 && "text-amber-800")}>
+                                {p.text}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
                   </div>
                 )}
                 <SuggestionGrid
-                  rows={rows} dates={dates}
+                  rows={rows} dates={dates} issuesByRow={issuesByRow}
                   onChangeRow={changeRow} onChangeQty={changeQty}
                   onDuplicateRow={duplicateRow} onRemoveRow={removeRow}
-                  disabled={sendMutation.isPending}
+                  disabled={busy}
                 />
-                <button type="button" onClick={() => setShowAddFunction(true)}
-                  className="border-2 border-dashed border-slate-200 text-slate-400 hover:border-primary/40 hover:text-primary hover:bg-brand-soft/60 rounded-2xl w-full py-2.5 text-sm font-medium transition-all flex items-center justify-center gap-2">
-                  <Plus className="w-4 h-4" /> Adicionar função à grade
-                </button>
               </>
             )}
           </section>
 
           {/* Prévia */}
-          {eventId && dates.length > 0 && (
+          {gridReady && !readOnly && (
             <section className="rounded-2xl border border-slate-200 bg-white overflow-hidden" aria-labelledby="sug-previa">
-              <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200">
-                <h2 id="sug-previa" className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Prévia das vagas que serão criadas</h2>
-                <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full", records.length > 0 ? "bg-brand-soft text-primary" : "bg-slate-100 text-slate-400")} aria-live="polite">
-                  {records.length} {records.length === 1 ? "vaga" : "vagas"}
-                </span>
+              <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+                <h2 id="sug-previa" className={SECTION_TITLE}>Prévia das vagas que serão criadas</h2>
               </div>
               {records.length === 0 ? (
-                <p className="text-slate-400 text-sm text-center py-5 italic">Nenhuma vaga configurada ainda — preencha as quantidades por dia.</p>
+                <p className="text-slate-500 text-sm text-center py-5 italic">Nenhuma vaga configurada ainda — preencha as quantidades por dia.</p>
               ) : (
                 <div className="max-h-[360px] overflow-y-auto">
                   {previewGroups.map((group, gi) => (
                     <div key={group.key} className={gi > 0 ? "border-t border-slate-100" : ""}>
                       <div className="flex items-center justify-between px-4 py-1.5 bg-slate-50/70">
-                        <span className="flex items-center gap-2 text-[12px] font-semibold text-slate-700">
+                        <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                           <span className="w-1.5 h-1.5 rounded-full bg-primary/40 shrink-0" aria-hidden="true" />
                           {group.functionName}
                         </span>
-                        <span className="text-[11px] text-slate-400 tabular-nums">{group.records.length} {group.records.length === 1 ? "vaga" : "vagas"}</span>
+                        <span className="text-xs text-slate-500 tabular-nums">{group.records.length} {group.records.length === 1 ? "vaga" : "vagas"}</span>
                       </div>
-                      {group.records.map((rec, i) => (
-                        <div key={`${group.key}-${i}`} className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 pl-8 pr-4 py-1.5 text-xs", i % 2 === 1 ? "bg-slate-50/40" : "bg-white")}>
-                          <span className="text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">{formatDiarias(rec.dailyRates)}</span>
-                          <span className="text-slate-500 font-mono tabular-nums">{rec.workDays.map((d) => formatDayMonthBr(d)).join(", ")}</span>
-                          <span className="text-slate-400">
-                            {rec.transportModeIda ? `Ida ${TRANSPORT_MODE_LABELS[rec.transportModeIda]}${rec.flightDepartureDate ? ` ${formatDayMonthBr(rec.flightDepartureDate)}` : ""}${rec.flightArrivalSuggestedTime ? ` ${rec.flightArrivalSuggestedTime}` : ""}` : ""}
-                            {rec.transportModeVolta ? ` · Volta ${TRANSPORT_MODE_LABELS[rec.transportModeVolta]}${rec.flightReturnDate ? ` ${formatDayMonthBr(rec.flightReturnDate)}` : ""}${rec.flightReturnSuggestedTime ? ` ${rec.flightReturnSuggestedTime}` : ""}` : ""}
-                          </span>
-                          {rec.needsAccommodation && <span className="text-[10px] font-semibold uppercase text-sky-700 bg-sky-50 rounded px-1.5 py-0.5">Hotel</span>}
-                          {rec.needsTicket && <span className="text-[10px] font-semibold uppercase text-violet-700 bg-violet-50 rounded px-1.5 py-0.5">Passagem</span>}
-                        </div>
-                      ))}
+                      {group.records.map((rec, i) => {
+                        const ida = rec.transportModeIda ? `Ida ${TRANSPORT_MODE_LABELS[rec.transportModeIda]}${rec.flightDepartureDate ? ` ${formatDayMonthBr(rec.flightDepartureDate)}` : ""}${rec.flightArrivalSuggestedTime ? ` ${rec.flightArrivalSuggestedTime}` : ""}` : "";
+                        const volta = rec.transportModeVolta ? `Volta ${TRANSPORT_MODE_LABELS[rec.transportModeVolta]}${rec.flightReturnDate ? ` ${formatDayMonthBr(rec.flightReturnDate)}` : ""}${rec.flightReturnSuggestedTime ? ` ${rec.flightReturnSuggestedTime}` : ""}` : "";
+                        const logistica = [ida, volta].filter(Boolean).join(" · ");
+                        return (
+                          <div key={`${group.key}-${i}`} className={cn("grid grid-cols-[auto_minmax(0,1fr)] sm:grid-cols-[auto_auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1 pl-8 pr-4 py-1.5 text-xs", i % 2 === 1 ? "bg-slate-50/40" : "bg-white")}>
+                            <span className="text-slate-700 font-semibold bg-slate-100 rounded-full px-2 py-0.5 whitespace-nowrap">{formatDiarias(rec.dailyRates)}</span>
+                            <span className="text-slate-600 font-mono tabular-nums break-words">{rec.workDays.map((d) => formatDayMonthBr(d)).join(", ")}</span>
+                            <span className="col-span-2 sm:col-span-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-slate-500 min-w-0">
+                              {logistica && <span className="break-words">{logistica}</span>}
+                              {rec.needsAccommodation && <span className="text-xs font-semibold uppercase text-sky-800 bg-sky-50 rounded px-1.5 py-0.5">Hotel</span>}
+                              {rec.needsTicket && <span className="text-xs font-semibold uppercase text-violet-800 bg-violet-50 rounded px-1.5 py-0.5">Passagem</span>}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   ))}
                 </div>
               )}
-              <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-slate-200 bg-white">
-                <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                  <Save className="w-3.5 h-3.5" aria-hidden="true" /> Rascunho salvo automaticamente neste navegador (por evento).
-                </p>
-                <Button type="button" onClick={openConfirmSend} disabled={records.length === 0 || sendMutation.isPending} className="rounded-xl bg-primary hover:bg-primary-hover">
-                  <Send className="w-4 h-4 mr-2" />
-                  {sendMutation.isPending ? "Enviando…" : `Enviar para validação das áreas (${records.length})`}
+            </section>
+          )}
+
+          {/* Barra de ação (sticky) */}
+          {gridReady && !sent && !readOnly && (
+            <div className="sticky bottom-0 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 pb-3 pt-2 bg-gradient-to-t from-background via-background to-transparent">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur px-4 py-3 shadow-lg">
+                <div className="min-w-0">
+                  <p className="text-sm text-slate-700">
+                    <span className="font-semibold text-slate-900 tabular-nums">{vagasLabel}</span>
+                    {records.length > 0 && <span className="text-slate-500"> · {summary.pessoasDia} pessoas-dia em {summary.funcoes} {summary.funcoes === 1 ? "linha" : "linhas"}</span>}
+                    {pendencias.warnings.length > 0 && pendencias.errors.length === 0 && <span className="text-amber-700"> · {pendencias.warnings.length} {pendencias.warnings.length === 1 ? "aviso" : "avisos"}</span>}
+                  </p>
+                  <p className={cn(HINT, "flex items-center gap-1.5 mt-0.5")}>
+                    <Save className="w-3.5 h-3.5" aria-hidden="true" /> Rascunho salvo automaticamente neste navegador (por evento).
+                  </p>
+                </div>
+                <Button type="button" onClick={openConfirmSend} disabled={records.length === 0 || busy || pendencias.errors.length > 0} className="rounded-xl bg-primary hover:bg-primary-hover">
+                  <Send className="w-4 h-4 mr-2" aria-hidden="true" />
+                  {busy ? "Enviando…" : "Enviar para validação"}
                 </Button>
               </div>
-            </section>
+            </div>
           )}
         </>
       )}
 
-      {/* Adicionar função */}
-      <Dialog open={showAddFunction} onOpenChange={setShowAddFunction}>
+      {/* Adicionar função (multi-seleção) */}
+      <Dialog open={showAddFunction} onOpenChange={(o) => { if (!o) setShowAddFunction(false); }}>
         <DialogContent className="max-w-md p-0 overflow-hidden">
           <DialogHeader className="px-5 pt-5 pb-3">
-            <DialogTitle>Adicionar função à grade</DialogTitle>
-            <DialogDescription>A mesma função pode entrar mais de uma vez (ex.: turmas com dias de viagem diferentes).</DialogDescription>
+            <DialogTitle>Adicionar funções à grade</DialogTitle>
+            <DialogDescription>Marque uma ou mais funções. A mesma função pode entrar mais de uma vez (ex.: turmas com dias de viagem diferentes).</DialogDescription>
           </DialogHeader>
           <Command className="border-t border-slate-100">
             <CommandInput placeholder="Buscar função…" />
             <CommandList className="max-h-[300px]">
               <CommandEmpty>Nenhuma função encontrada.</CommandEmpty>
               <CommandGroup>
-                {sortedFunctions.map((f) => (
-                  <CommandItem key={f.id} value={f.name} onSelect={() => addFunction(f)}>
-                    <Search className="w-3.5 h-3.5 mr-2 opacity-40" aria-hidden="true" />
-                    <span className="flex-1">{f.name}</span>
-                    {f.responsibleArea && <span className="text-[11px] text-slate-400">{f.responsibleArea}</span>}
-                  </CommandItem>
-                ))}
+                {sortedFunctions.map((f) => {
+                  const checked = selectedToAdd.has(f.id);
+                  return (
+                    <CommandItem key={f.id} value={f.name} onSelect={() => toggleToAdd(f.id)} data-checked={checked || undefined} className="gap-2">
+                      <span aria-hidden="true" className={cn("flex h-4 w-4 shrink-0 items-center justify-center rounded border", checked ? "bg-primary border-primary text-primary-foreground" : "border-slate-300 bg-white")}>
+                        {checked && <Check className="h-3 w-3" />}
+                      </span>
+                      <span className="flex-1 truncate">{f.name}</span>
+                      {presentFunctionIds.has(f.id) && <span className="text-xs text-slate-500 shrink-0">na grade</span>}
+                      {f.responsibleArea && <span className="text-xs text-slate-500 shrink-0">{f.responsibleArea}</span>}
+                    </CommandItem>
+                  );
+                })}
               </CommandGroup>
             </CommandList>
           </Command>
-          <DialogFooter className="px-5 py-3 border-t border-slate-100 sm:justify-between">
-            <Button type="button" variant="ghost" size="sm" onClick={addAllFunctions}>Adicionar todas as funções</Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => setShowAddFunction(false)}>Fechar</Button>
+          <DialogFooter className="px-5 py-3 border-t border-slate-100 sm:justify-between gap-2">
+            <Button type="button" variant="ghost" size="sm" className="rounded-lg" onClick={addAllFunctions}>Adicionar todas que faltam</Button>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="sm" className="rounded-lg" onClick={() => setShowAddFunction(false)}>Cancelar</Button>
+              <Button type="button" size="sm" className="rounded-lg bg-primary hover:bg-primary-hover" disabled={selectedToAdd.size === 0} onClick={addSelectedFunctions}>
+                Adicionar{selectedToAdd.size > 0 ? ` (${selectedToAdd.size})` : ""}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Colar da planilha */}
-      <Dialog open={showPaste} onOpenChange={(o) => { setShowPaste(o); if (!o) setPasteText(""); }}>
+      <Dialog open={showPaste} onOpenChange={(o) => { if (!o) closePaste(); }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Colar da planilha</DialogTitle>
             <DialogDescription>
-              Copie as linhas da planilha (colunas separadas por TAB) e cole abaixo. Ordem das colunas:
+              Copie as linhas da planilha (colunas separadas por TAB) e cole abaixo. Dois formatos são aceitos; a primeira linha pode ser o cabeçalho ("Função…").
+              Funções já na grade são substituídas pelas coladas (sem duplicar).
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-[11px] font-mono text-slate-600 overflow-x-auto whitespace-nowrap">
-            Função | Modal ida | Data ida | Hora desembarque | Modal volta | Data volta | Hora embarque | Hotel (sim/não) | Passagem (sim/não) | Observação | {dates.slice(0, 3).map((d) => formatDayMonthBr(d)).join(" | ")}{dates.length > 3 ? " | …" : ""}
+          <div className="space-y-2 text-xs">
+            <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 space-y-1 overflow-x-auto">
+              <p className="font-semibold text-slate-700">Formato do briefing</p>
+              <p className="font-mono text-slate-600 whitespace-nowrap">Função | Modal ida | Data ida | Hora desembarque | Modal volta | Data volta | Hora embarque | Hotel | {dates.slice(0, 3).map((d) => formatDayMonthBr(d)).join(" | ")}{dates.length > 3 ? " | …" : ""}</p>
+              <p className="font-mono text-slate-500 whitespace-nowrap">ex.: Kit → Aéreo → 09/09 → 10:00 → Aéreo → 13/09 → 18:00 → sim → 1 → 1 → 2</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 space-y-1 overflow-x-auto">
+              <p className="font-semibold text-slate-700">Formato completo</p>
+              <p className="font-mono text-slate-600 whitespace-nowrap">Função | Modal ida | Data ida | Hora desembarque | Modal volta | Data volta | Hora embarque | Hotel | Passagem | Observação | {dates.slice(0, 3).map((d) => formatDayMonthBr(d)).join(" | ")}{dates.length > 3 ? " | …" : ""}</p>
+              <p className="font-mono text-slate-500 whitespace-nowrap">ex.: Kit → Aéreo → 09/09 → 10:00 → Aéreo → 13/09 → 18:00 → sim → sim → obs → 1 → 1 → 2</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Label htmlFor="sug-paste-format" className={cn(HINT, "font-medium")}>Formato</Label>
+            <Select value={pasteFormat} onValueChange={(v) => setPasteFormat(v as "auto" | PasteFormat)}>
+              <SelectTrigger id="sug-paste-format" className="h-8 w-[320px] max-w-full text-xs rounded-lg"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Detectar automaticamente</SelectItem>
+                <SelectItem value="briefing">{PASTE_FORMAT_LABELS.briefing}</SelectItem>
+                <SelectItem value="grade">{PASTE_FORMAT_LABELS.grade}</SelectItem>
+              </SelectContent>
+            </Select>
+            {pasteFormat === "auto" && detectedPaste && (
+              <span className={HINT}>Detectado: {detectedPaste.format === "briefing" ? "formato do briefing" : "formato completo"}{detectedPaste.hadHeader ? " (com cabeçalho)" : ""}.</span>
+            )}
           </div>
           <Label htmlFor="sug-paste" className="sr-only">Conteúdo colado</Label>
-          <Textarea id="sug-paste" value={pasteText} onChange={(e) => setPasteText(e.target.value)} rows={10} placeholder={"Kit\tAéreo\t09/09\t10:00\tAéreo\t13/09\t18:00\tsim\tsim\t\t1\t1\t2"} className="font-mono text-xs" />
+          <Textarea id="sug-paste" value={pasteText} onChange={(e) => setPasteText(e.target.value)} rows={10} placeholder={"Kit\tAéreo\t09/09\t10:00\tAéreo\t13/09\t18:00\tsim\t1\t1\t2"} className="font-mono text-xs rounded-lg" />
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setShowPaste(false)}>Cancelar</Button>
-            <Button type="button" onClick={applyPaste} className="bg-primary hover:bg-primary-hover">Aplicar na grade</Button>
+            <Button type="button" variant="outline" className="rounded-lg" onClick={closePaste}>Cancelar</Button>
+            <Button type="button" onClick={applyPaste} className="rounded-lg bg-primary hover:bg-primary-hover">Aplicar na grade</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Colagem: substituir funções já na grade */}
+      <AlertDialog open={!!pendingPaste} onOpenChange={(o) => { if (!o) setPendingPaste(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Substituir {pendingPaste?.conflicts.length} {pendingPaste?.conflicts.length === 1 ? "função" : "funções"} já na grade?</AlertDialogTitle>
+            <AlertDialogDescription>
+              As linhas de <strong>{pendingPaste?.conflicts.join(", ")}</strong> serão substituídas pelas coladas (quantidades e dados de viagem). As demais linhas da grade ficam como estão.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => pendingPaste && commitPaste(pendingPaste.rows, pendingPaste.skippedNames, pendingPaste.conflicts.length)} className="bg-primary hover:bg-primary-hover">
+              Substituir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Encolher período com quantidades fora */}
+      <AlertDialog open={!!pendingPeriod} onOpenChange={(o) => { if (!o) cancelPendingPeriod(); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Descartar quantidades fora do novo período?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingPeriod && (
+                <>
+                  <strong>{pendingPeriod.pessoasDia} pessoas-dia</strong> em <strong>{pendingPeriod.dias} {pendingPeriod.dias === 1 ? "dia" : "dias"}</strong> fora do novo período
+                  ({formatDateRange(pendingPeriod.start, pendingPeriod.end)}) serão descartados. As demais quantidades continuam na grade.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelPendingPeriod}>Manter período</AlertDialogCancel>
+            <AlertDialogAction onClick={() => pendingPeriod && applyPeriod(pendingPeriod.start, pendingPeriod.end)} className="bg-destructive hover:bg-destructive/90">
+              Descartar e aplicar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmar remoção de linha com quantidades */}
+      <AlertDialog open={!!confirmRemove} onOpenChange={(o) => { if (!o) setConfirmRemove(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover a linha {rowToRemove?.functionName}?</AlertDialogTitle>
+            <AlertDialogDescription>Ela tem quantidades preenchidas — serão descartadas junto com os dados de viagem da linha.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => confirmRemove && removeRowNow(confirmRemove)} className="bg-destructive hover:bg-destructive/90">Remover</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Confirmar envio */}
       <AlertDialog open={confirmSend} onOpenChange={setConfirmSend}>
@@ -498,12 +808,13 @@ export default function ScalingSuggestionPage() {
             <AlertDialogTitle>Enviar escala para validação?</AlertDialogTitle>
             <AlertDialogDescription>
               Serão criadas <strong>{records.length}</strong> vaga(s) sugerida(s) para <strong>{selectedEvent?.name}</strong> e as áreas responsáveis passam a vê-las na Validação de Escala. A operação é única: ou todas entram, ou nenhuma.
+              {pendencias.warnings.length > 0 && <> Há {pendencias.warnings.length} {pendencias.warnings.length === 1 ? "aviso" : "avisos"} na grade (passagem sem datas) — o envio segue mesmo assim.</>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={sendMutation.isPending}>Voltar</AlertDialogCancel>
-            <AlertDialogAction onClick={(e) => { e.preventDefault(); sendMutation.mutate(); }} disabled={sendMutation.isPending} className="bg-primary hover:bg-primary-hover">
-              {sendMutation.isPending ? "Enviando…" : "Enviar"}
+            <AlertDialogCancel disabled={busy}>Voltar</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); sendMutation.mutate(); }} disabled={busy} className="bg-primary hover:bg-primary-hover">
+              {busy ? "Enviando…" : "Enviar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -514,7 +825,7 @@ export default function ScalingSuggestionPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Limpar a grade?</AlertDialogTitle>
-            <AlertDialogDescription>Todas as linhas e o rascunho local deste evento serão descartados. Nada é apagado no servidor.</AlertDialogDescription>
+            <AlertDialogDescription>Todas as linhas, os comentários gerais editados e o rascunho local deste evento serão descartados. Nada é apagado no servidor.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
