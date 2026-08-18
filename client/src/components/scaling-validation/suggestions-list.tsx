@@ -271,6 +271,7 @@ function LockedHint({ reason }: { reason: string }) {
 // ── Lista ────────────────────────────────────────────────────────────────────
 
 export type SuggestionSortField = "id" | "function" | "period";
+const SortableHeaderSuggestion = SortableHeader<SuggestionSortField>;
 
 export interface SuggestionsListProps {
   rows: SuggestionRow[];
@@ -343,10 +344,10 @@ export function SuggestionsList({
                     />
                   </th>
                 )}
-                <SortableHeader<SuggestionSortField> field="id" sortConfig={sortConfig} onSort={onSort} className={SORT_TH}>ID</SortableHeader>
-                <SortableHeader<SuggestionSortField> field="function" sortConfig={sortConfig} onSort={onSort} className={SORT_TH}>Função</SortableHeader>
+                <SortableHeaderSuggestion field="id" sortConfig={sortConfig} onSort={onSort} className={SORT_TH}>ID</SortableHeaderSuggestion>
+                <SortableHeaderSuggestion field="function" sortConfig={sortConfig} onSort={onSort} className={SORT_TH}>Função</SortableHeaderSuggestion>
                 <th scope="col" className={TH}>Área</th>
-                <SortableHeader<SuggestionSortField> field="period" sortConfig={sortConfig} onSort={onSort} className={SORT_TH}>Período / diárias</SortableHeader>
+                <SortableHeaderSuggestion field="period" sortConfig={sortConfig} onSort={onSort} className={SORT_TH}>Período / diárias</SortableHeaderSuggestion>
                 <th scope="col" className={TH}>Ida</th>
                 <th scope="col" className={TH}>Volta</th>
                 <th scope="col" className={cn(TH, "text-center")}><span className="inline-flex items-center gap-1"><Plane className="w-3.5 h-3.5" aria-hidden="true" /> Passagem</span></th>
