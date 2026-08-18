@@ -98,24 +98,43 @@ const PARTINDO_FIM = 9 * 60 + 30;  // 09:30 (cruza a meia-noite)
 const CHEGANDO_INI = 20 * 60;      // 20:00
 const CHEGANDO_FIM = 5 * 60;       // 05:00 (cruza a meia-noite)
 
-/** Valor (centavos) de UM trecho a partir dos horários de partida/chegada. */
-// Regra 17/08: no trecho de VOLTA, partida a partir das 20h00 também vale R$ 58
-// (o colaborador sai do evento à noite). Na ida a regra continua a das janelas.
-export const VOLTA_NOITE_A_PARTIR = 20 * 60; // 20:00
-
+/**
+ * Valor (centavos) de UM trecho — tabela "Ajuda de custo — mobilidade"
+ * (deslocamento aeroporto por trecho): R$ 58 se o VOO parte entre 23h30 e
+ * 09h30 OU chega entre 20h00 e 05h00; R$ 29 nos demais horários.
+ *
+ * A regra é de VOO. Van / ônibus / carro (transporte terrestre) = R$ 29 fixo por
+ * trecho, qualquer horário — passe `terrestre: true` (ou um texto de horário
+ * que mencione van/ônibus/carro, detectado por `isTransporteTerrestre`).
+ *
+ * Histórico: em 17/08 chegou a existir "volta partindo ≥ 20h = R$ 58"; a tabela
+ * do usuário confirmou que NÃO existe — só as duas janelas acima.
+ */
 export function mobilidadeTrechoCents(
   horaPartida: string | null | undefined,
   horaChegada?: string | null | undefined,
-  opts?: { trecho?: "ida" | "volta" },
+  opts?: { trecho?: "ida" | "volta"; terrestre?: boolean },
 ): number {
+  const terrestre =
+    opts?.terrestre === true || isTransporteTerrestre(horaPartida) || isTransporteTerrestre(horaChegada);
+  if (terrestre) return MOBILIDADE_TRECHO_PADRAO_CENTS;
   const p = parseHoraMin(horaPartida);
   const c = parseHoraMin(horaChegada);
-  const trecho = opts?.trecho ?? "ida";
   const madrugada =
     (p !== null && dentroJanela(p, PARTINDO_INI, PARTINDO_FIM)) ||
-    (c !== null && dentroJanela(c, CHEGANDO_INI, CHEGANDO_FIM)) ||
-    (trecho === "volta" && p !== null && p >= VOLTA_NOITE_A_PARTIR);
+    (c !== null && dentroJanela(c, CHEGANDO_INI, CHEGANDO_FIM));
   return madrugada ? MOBILIDADE_TRECHO_MADRUGADA_CENTS : MOBILIDADE_TRECHO_PADRAO_CENTS;
+}
+
+/**
+ * O texto livre do horário sugerido diz que o transporte é terrestre?
+ * ("van - 10h", "onibus - 22h", "carro", "ônibus"). Terrestre = sem janela de
+ * madrugada (a tabela é "deslocamento AEROPORTO").
+ */
+export function isTransporteTerrestre(texto: string | null | undefined): boolean {
+  if (!texto) return false;
+  const t = texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  return /\b(van|onibus|carro|rodoviari[oa]|transfer|uber)\b/.test(t);
 }
 
 // ── Mobilidade de quem NÃO voa (regra 17/08) ────────────────────────────────

@@ -470,9 +470,11 @@ export function buildPlannedImpact(form: TicketFormValues | undefined, ctx: Plan
   const arrTime = timeOnly(form.actualArrivalTime);
   const retTime = oneWay ? null : timeOnly(form.actualReturnTime);
 
-  // Mesmas funções do Planejado — inclusive a regra da VOLTA (partida ≥ 20h = R$58)
+  // Mesmas funções do Planejado. Rodoviário = terrestre → R$29 fixo por trecho
+  // (a tabela de madrugada é "deslocamento AEROPORTO", só voo).
+  const terrestre = normalizeTransportType(form.transportType) === "rodoviario";
   const trecho = (partida: string | null, chegada: string | null, kind: "ida" | "volta") => {
-    const cents = mobilidadeTrechoCents(partida, chegada, { trecho: kind });
+    const cents = mobilidadeTrechoCents(partida, chegada, { trecho: kind, terrestre });
     return { cents, madrugada: cents === MOBILIDADE_TRECHO_MADRUGADA_CENTS };
   };
   const ida = depTime || arrTime ? trecho(depTime, arrTime, "ida") : null;

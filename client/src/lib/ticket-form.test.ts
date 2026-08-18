@@ -392,23 +392,29 @@ describe("buildPlannedImpact (funções reais de shared/)", () => {
     expect(j.alimentacao.retorno).toEqual({ almoco: true, jantar: false }); // parte ≥13h → almoça, <21h → não janta
   });
 
-  it("chegada 15:00 → só jantar; volta 22:00 → almoço + jantar e madrugada", () => {
+  it("chegada 15:00 → só jantar; volta 22:00 → almoço + jantar; volta partindo 22h NÃO é madrugada", () => {
     const i = buildPlannedImpact({ actualDepartureTime: "12:00", actualArrivalTime: "15:00", actualReturnTime: "22:00" })!;
     expect(i.alimentacao.chegada).toEqual({ almoco: false, jantar: true });
     expect(i.alimentacao.retorno).toEqual({ almoco: true, jantar: true });
     expect(i.mobilidade.ida).toEqual({ cents: 2900, madrugada: false });
-    // Regra 17/08: VOLTA partindo às 20h ou depois = R$58 (mesma função do Planejado)
-    expect(i.mobilidade.volta).toEqual({ cents: 5800, madrugada: true });
-    expect(i.mobilidade.totalCents).toBe(8700);
+    // Tabela: só VOO partindo 23h30–9h30 ou chegando 20h–5h = R$58; partir às 22h = R$29
+    expect(i.mobilidade.volta).toEqual({ cents: 2900, madrugada: false });
+    expect(i.mobilidade.totalCents).toBe(5800);
   });
 
-  it("volta partindo 19:59 continua R$29; ida partindo 20:00 continua R$29", () => {
-    const a = buildPlannedImpact({ actualDepartureTime: "12:00", actualArrivalTime: "15:00", actualReturnTime: "19:59" })!;
-    expect(a.mobilidade.volta).toEqual({ cents: 2900, madrugada: false });
+  it("janelas de voo: volta partindo 23:30 = 58; ida chegando 22:30 = 58; ida partindo 20:00 = 29", () => {
+    const a = buildPlannedImpact({ actualDepartureTime: "12:00", actualArrivalTime: "15:00", actualReturnTime: "23:30" })!;
+    expect(a.mobilidade.volta).toEqual({ cents: 5800, madrugada: true });
     const b = buildPlannedImpact({ actualDepartureTime: "20:00", actualArrivalTime: "22:30", actualReturnTime: "12:00" })!;
     expect(b.mobilidade.ida).toEqual({ cents: 5800, madrugada: true }); // chegada 22:30 está em 20h–5h
     const c = buildPlannedImpact({ actualDepartureTime: "20:00", actualArrivalTime: "19:00", actualReturnTime: "12:00" })!;
-    expect(c.mobilidade.ida).toEqual({ cents: 2900, madrugada: false }); // ida às 20h sem chegada noturna: regra da volta não vaza
+    expect(c.mobilidade.ida).toEqual({ cents: 2900, madrugada: false });
+  });
+
+  it("rodoviário é terrestre: R$29 fixo por trecho mesmo de madrugada", () => {
+    const r = buildPlannedImpact({ transportType: "rodoviario", actualDepartureTime: "00:30", actualArrivalTime: "04:00", actualReturnTime: "23:45" })!;
+    expect(r.mobilidade.ida).toEqual({ cents: 2900, madrugada: false });
+    expect(r.mobilidade.volta).toEqual({ cents: 2900, madrugada: false });
   });
 
   it("com período de trabalho, soma refeições com os valores informados", () => {

@@ -1294,14 +1294,16 @@ export default function BudgetPlannedPage() {
         (ticket?.actualArrivalTime || ticket?.actualReturnTime || ticket?.actualDepartureTime) ? 'passagem'
         : (vooPartidaIda || vooChegadaIda || vooPartidaVolta) ? 'sugerido' : 'nenhum';
 
-      // Mobilidade (slide "Ajuda de custo"): R$58/trecho para voos de madrugada
-      // (parte 23h30–9h30 OU chega 20h–5h), R$29 caso contrário.
-      // Regra 17/08: trecho de VOLTA partindo a partir das 20h também vale R$58.
+      // Mobilidade (tabela "Ajuda de custo — deslocamento aeroporto por trecho"):
+      // R$58 se o VOO parte 23h30–9h30 ou chega 20h–5h; R$29 nos demais.
+      // Van/ônibus/carro (terrestre) = R$29 fixo — a passagem registrada diz o
+      // tipo; sem passagem, o texto sugerido ("van - 10h") também é reconhecido.
       // Quem NÃO voa (17/08): evento fora de SP → R$29 por trecho; em SP → 0.
       // Percurso: mobilidade já está no pacote → 0.
       const semVoo = !voa && !isPercurso ? mobilidadeSemVooCents(selectedEvent?.location) : null;
-      const sysMobIda = isPercurso ? 0 : voa ? mobilidadeTrechoCents(vooPartidaIda, vooChegadaIda, { trecho: 'ida' }) : (semVoo?.ida ?? 0);
-      const sysMobVolta = isPercurso ? 0 : voa ? mobilidadeTrechoCents(vooPartidaVolta, null, { trecho: 'volta' }) : (semVoo?.volta ?? 0);
+      const terrestre = ticket?.transportType === 'rodoviario' || ticket?.transportType === 'van';
+      const sysMobIda = isPercurso ? 0 : voa ? mobilidadeTrechoCents(vooPartidaIda, vooChegadaIda, { trecho: 'ida', terrestre }) : (semVoo?.ida ?? 0);
+      const sysMobVolta = isPercurso ? 0 : voa ? mobilidadeTrechoCents(vooPartidaVolta, null, { trecho: 'volta', terrestre }) : (semVoo?.volta ?? 0);
       const sysMob = sysMobIda + sysMobVolta;
       const mobilidade = override?.mobilidade ?? sysMob;
       const mobilidadeIda = override?.mobilidadeIda ?? sysMobIda;

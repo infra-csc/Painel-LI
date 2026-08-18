@@ -3,7 +3,7 @@ import {
   isAtendimentoFunction, atendimentoDailyCents, ATENDIMENTO_DEFAULTS_CENTS,
   mobilidadeTrechoCents, parseHoraMin,
   MOBILIDADE_TRECHO_PADRAO_CENTS, MOBILIDADE_TRECHO_MADRUGADA_CENTS,
-  isEventoEmSP, mobilidadeSemVooCents,
+  isEventoEmSP, mobilidadeSemVooCents, isTransporteTerrestre,
 } from "./atendimento";
 
 describe("mobilidade de quem NÃO voa (regra 17/08): só fora de SP, R$29/trecho", () => {
@@ -112,20 +112,32 @@ describe("parseHoraMin — formatos reais dos campos de texto livre da escalaç�
   });
 });
 
-describe("mobilidadeTrechoCents — trecho de volta partindo à noite (regra 17/08)", () => {
-  it("volta partindo às 20:00 → R$ 58; 19:59 → R$ 29", () => {
-    expect(mobilidadeTrechoCents("20:00", null, { trecho: "volta" })).toBe(MOBILIDADE_TRECHO_MADRUGADA_CENTS);
-    expect(mobilidadeTrechoCents("19:59", null, { trecho: "volta" })).toBe(MOBILIDADE_TRECHO_PADRAO_CENTS);
+describe("mobilidadeTrechoCents — tabela 'deslocamento aeroporto por trecho' (só as 2 janelas de VOO)", () => {
+  it("VOO partindo 23h30–9h30 = 58; chegando 20h–5h = 58; demais = 29 — em qualquer trecho", () => {
+    expect(mobilidadeTrechoCents("23:30", null, { trecho: "volta" })).toBe(MOBILIDADE_TRECHO_MADRUGADA_CENTS);
+    expect(mobilidadeTrechoCents("09:30", null, { trecho: "volta" })).toBe(MOBILIDADE_TRECHO_MADRUGADA_CENTS);
+    expect(mobilidadeTrechoCents("18:00", "20:00", { trecho: "volta" })).toBe(MOBILIDADE_TRECHO_MADRUGADA_CENTS);
+    expect(mobilidadeTrechoCents("10:00", "12:00", { trecho: "volta" })).toBe(MOBILIDADE_TRECHO_PADRAO_CENTS);
   });
-  it("ida partindo às 20:00 continua R$ 29 (regra atual das janelas)", () => {
+  it("NÃO existe 'volta partindo ≥ 20h = 58' (interpretação errada de 17/08, revogada pela tabela)", () => {
+    expect(mobilidadeTrechoCents("20:00", null, { trecho: "volta" })).toBe(MOBILIDADE_TRECHO_PADRAO_CENTS);
+    expect(mobilidadeTrechoCents("22:00", null, { trecho: "volta" })).toBe(MOBILIDADE_TRECHO_PADRAO_CENTS);
     expect(mobilidadeTrechoCents("20:00", null, { trecho: "ida" })).toBe(MOBILIDADE_TRECHO_PADRAO_CENTS);
-    expect(mobilidadeTrechoCents("20:00")).toBe(MOBILIDADE_TRECHO_PADRAO_CENTS);
   });
-  it("caso do usuário (Jamerson): ida 'van - 10h' = 29, volta 'van - 20h+' = 58 → 87", () => {
+  it("transporte TERRESTRE (van/ônibus/carro) = R$ 29 fixo, qualquer horário", () => {
+    expect(mobilidadeTrechoCents("van - 10h", null)).toBe(2900);
+    expect(mobilidadeTrechoCents("van - 20h+", null, { trecho: "volta" })).toBe(2900);
+    expect(mobilidadeTrechoCents("onibus - 23h30", null)).toBe(2900);       // seria 58 se fosse voo
+    expect(mobilidadeTrechoCents("ônibus - 5h", null)).toBe(2900);
+    expect(mobilidadeTrechoCents("carro", null)).toBe(2900);
+    expect(mobilidadeTrechoCents("00:30", null, { terrestre: true })).toBe(2900); // passagem rodoviária registrada
+    expect(mobilidadeTrechoCents("00:30", null, { terrestre: false })).toBe(5800); // voo
+    expect(isTransporteTerrestre("van - 10h")).toBe(true);
+    expect(isTransporteTerrestre("09:30")).toBe(false);
+  });
+  it("caso do usuário (Ulisses/Willians): saída da van 10h e volta 20h+ → 29 + 29 = 58", () => {
     const ida = mobilidadeTrechoCents("van - 10h", null, { trecho: "ida" });
     const volta = mobilidadeTrechoCents("van - 20h+", null, { trecho: "volta" });
-    expect(ida).toBe(2900);
-    expect(volta).toBe(5800);
-    expect(ida + volta).toBe(8700);
+    expect(ida + volta).toBe(5800);
   });
 });
