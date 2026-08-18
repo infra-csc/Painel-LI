@@ -44,6 +44,10 @@ const allTabs = [
   { id: "calendar",          path: "/calendar",          label: "Calendário",            icon: "calendar_month", permission: "canAccessCalendar"      as const },
   { id: "functions",         path: "/functions",         label: "Funções",               icon: "work", permission: "canAccessCadastros"     as const },
   { id: "collaborators",     path: "/collaborators",     label: "Colaboradores",         icon: "badge", permission: "canAccessCollaborators" as const },
+  { id: "scaling-suggestion", path: "/scaling-suggestion", label: "Sugestão de Escala",  icon: "playlist_add", permission: "canAccessScalingSuggestion" as const },
+  { id: "scaling-validation", path: "/scaling-validation", label: "Validação de Escala", icon: "fact_check", permission: "canAccessScalingValidation" as const },
+  { id: "scaling-approval",  path: "/scaling-approval",  label: "Aprovação de Escala",  icon: "approval", permission: "canAccessScalingApproval" as const },
+  { id: "scaling-event-view", path: "/scaling-event-view", label: "Escala do Evento",   icon: "event_note", permission: "canAccessScalingEventView" as const },
   { id: "team-inclusion",    path: "/team-inclusion",    label: "Inclusão de Equipe",    icon: "group_add", permission: "canAccessScreen1"       as const },
   { id: "scaling",           path: "/scaling",           label: "Escalação",             icon: "assignment_ind", permission: "canAccessScreen2"       as const },
   { id: "tickets",           path: "/tickets",           label: "Passagens",           icon: "confirmation_number", permission: "canAccessScreen3"       as const },
@@ -67,7 +71,7 @@ const allTabs = [
 // significado; a versão só-cinza ficou apagada — esta é o meio-termo.
 const menuGroups = [
   { title: "Cadastros",   iconClass: "text-primary",     ids: ["user-registration", "events", "calendar", "functions", "collaborators"] },
-  { title: "Operacional", iconClass: "text-orange-500",  ids: ["team-inclusion", "scaling", "tickets", "accommodations", "operational-mirror", "baggage-control"] },
+  { title: "Operacional", iconClass: "text-orange-500",  ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "scaling-event-view", "team-inclusion", "scaling", "tickets", "accommodations", "operational-mirror", "baggage-control"] },
   { title: "Financeiro",  iconClass: "text-emerald-600", ids: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "flash-account", "calculation-rules", "system-settings"] },
   { title: "Gestão",      iconClass: "text-violet-600",  ids: ["consultation", "admin-users"] },
 ];

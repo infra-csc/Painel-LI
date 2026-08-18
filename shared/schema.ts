@@ -64,6 +64,9 @@ export const functionManagers = pgTable("function_managers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   functionId: varchar("function_id").notNull().references(() => functions.id, { onDelete: 'cascade' }),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // Papel na Validação de Escala: 'validador' (responsável da área — comportamento
+  // histórico) | 'aprovador' (aprovador central dos pedidos de ajuste/inclusão/exclusão)
+  role: text("role").notNull().default("validador"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   // Evitar duplicatas
@@ -126,6 +129,12 @@ export const teamInclusions = pgTable("team_inclusions", {
   flightReturnSuggestedTime: text("flight_return_suggested_time"), // horário sugerido de volta
   needsTicket: boolean("needs_ticket").default(false),
   needsAccommodation: boolean("needs_accommodation").default(false),
+  // Validação de Escala: modal sugerido pela logística para ida/volta
+  transportModeIda: text("transport_mode_ida"), // 'aereo' | 'onibus' | 'van' | 'carro' | 'transfer' | null
+  transportModeVolta: text("transport_mode_volta"), // 'aereo' | 'onibus' | 'van' | 'carro' | 'transfer' | null
+  suggestionSentAt: timestamp("suggestion_sent_at"), // quando a sugestão foi enviada para validação da área
+  validatedAt: timestamp("validated_at"), // quando a área validou a sugestão
+  validatedBy: varchar("validated_by").references(() => users.id), // quem validou (responsável da função)
   dailyRates: integer("daily_rates").notNull(), // quantidade de diárias planejadas
   workDays: date("work_days").array(), // dias específicos de trabalho (quando não consecutivos)
   dailyValue: integer("daily_value").notNull().default(0), // valor da diária em centavos
@@ -134,9 +143,14 @@ export const teamInclusions = pgTable("team_inclusions", {
   actualObservations: text("actual_observations"), // observações do que realmente aconteceu
   emergencyRecord: boolean("emergency_record").default(false), // registro emergencial
   city: text("city"), // cidade do colaborador no contexto deste evento (pode ser editada antes da confirmação)
-  status: text("status").notNull().default("planejado"), // planejado, confirmado, reaberto, escalacao, passagem, passagem_comprada, hospedagem, hospedagem_comprada, hospedagem_passagem_comprada, aprovado, cancelado
+  // planejado, confirmado, reaberto, escalacao, passagem, passagem_comprada, hospedagem, hospedagem_comprada,
+  // hospedagem_passagem_comprada, aprovado, cancelado
+  // + Validação de Escala (phase 'sugestao'): sugestao_pendente, sugestao_validada, sugestao_ajuste,
+  //   sugestao_aprovada, sugestao_negada  (ver shared/scaling-validation-rules.ts)
+  status: text("status").notNull().default("planejado"),
   previousStatus: text("previous_status"), // armazena o status anterior quando cancelado
-  phase: text("phase").notNull().default("inclusao"), // inclusao, escalacao, passagem, hospedagem, aprovacao
+  // sugestao (Validação de Escala — antes da inclusão), inclusao, escalacao, passagem, hospedagem, aprovacao
+  phase: text("phase").notNull().default("inclusao"),
   userId: varchar("user_id").notNull().references(() => users.id), // usuário responsável pela função
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -713,6 +727,73 @@ export const insertSwapRequestSchema = createInsertSchema(swapRequests).omit({
 
 export type SwapRequest = typeof swapRequests.$inferSelect;
 export type InsertSwapRequest = z.infer<typeof insertSwapRequestSchema>;
+
+// ===== VALIDAÇÃO DE ESCALA =====
+// Pedidos de ajuste / inclusão / exclusão feitos pela área sobre a escala
+// sugerida (team_inclusions com phase 'sugestao'). Modelado sobre swap_requests.
+// Pedido negado FICA registrado (nunca é apagado). proposed_changes é JSON
+// (string) validado por zod versionado — ver proposedChangesSchema em
+// shared/scaling-validation-rules.ts. Chat/comentários usam budget_notes.
+export const scalingChangeRequests = pgTable("scaling_change_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // null quando request_type = 'inclusao' (a vaga ainda não existe)
+  teamInclusionId: varchar("team_inclusion_id").references(() => teamInclusions.id, { onDelete: 'cascade' }),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: 'cascade' }),
+  functionId: varchar("function_id").notNull().references(() => functions.id), // sempre do catálogo
+  area: text("area"),
+  requestType: text("request_type").notNull(), // 'ajuste' | 'inclusao' | 'exclusao'
+  requestedBy: varchar("requested_by").notNull().references(() => users.id),
+  requestedByName: text("requested_by_name").notNull(),
+  proposedChanges: text("proposed_changes"), // JSON string { v: 1, ... } (proposedChangesSchema)
+  reason: text("reason").notNull(),
+  status: text("status").notNull().default("pendente"), // 'pendente' | 'aprovado' | 'reajustado' | 'negado' | 'reenviado_validacao'
+  reviewComment: text("review_comment"),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedByName: text("reviewed_by_name"),
+  reviewedAt: timestamp("reviewed_at"),
+  resolvedInclusionId: varchar("resolved_inclusion_id").references(() => teamInclusions.id), // inclusão criada quando 'inclusao' é aprovada
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertScalingChangeRequestSchema = createInsertSchema(scalingChangeRequests)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+    requestedBy: true,     // identidade vem SEMPRE da sessão
+    requestedByName: true,
+    status: true,
+    reviewComment: true,
+    reviewedBy: true,
+    reviewedByName: true,
+    reviewedAt: true,
+    resolvedInclusionId: true,
+  })
+  .extend({
+    requestType: z.enum(["ajuste", "inclusao", "exclusao"]),
+    reason: z.string().trim().min(1, "Informe o motivo do pedido"),
+    proposedChanges: z.string().nullish(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.requestType === "inclusao" && data.teamInclusionId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["teamInclusionId"],
+        message: "Pedido de inclusão não referencia uma vaga existente",
+      });
+    }
+    if (data.requestType !== "inclusao" && !data.teamInclusionId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["teamInclusionId"],
+        message: "Pedido de ajuste/exclusão precisa referenciar a vaga sugerida",
+      });
+    }
+  });
+
+export type ScalingChangeRequest = typeof scalingChangeRequests.$inferSelect;
+export type InsertScalingChangeRequest = z.infer<typeof insertScalingChangeRequestSchema>;
 
 // ===== CONTROLE DE BAGAGEM =====
 // Solicitações de bagagem por colaborador/evento (porte do app standalone).

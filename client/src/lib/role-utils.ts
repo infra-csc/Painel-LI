@@ -41,6 +41,10 @@ export interface RolePermissions {
   canChangeUserRole: boolean;    // espelha PATCH /api/users/:id — role/area só admin (allowedFieldsForAdmin)
   canAccessCalendar: boolean;
   canAccessBaggage: boolean;     // controle de bagagem — admin e compras
+  canAccessScalingSuggestion: boolean; // espelha POST /api/scaling-suggestions/bulk (admin, production)
+  canAccessScalingValidation: boolean; // GET /api/scaling-suggestions — qualquer usuário logado; edição decidida por canEdit do servidor
+  canAccessScalingApproval: boolean;   // GET /api/scaling-change-requests — admin/production/purchasing veem tudo; demais só se aprovador de alguma função (servidor devolve 403); decisão por canDecide do servidor
+  canAccessScalingEventView: boolean;  // GET /api/scaling-suggestions/event-view — qualquer usuário logado (somente leitura)
 }
 
 export function getRolePermissions(role: UserRole): RolePermissions {
@@ -72,6 +76,10 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: true,
         canAccessCalendar: true,
         canAccessBaggage: true,
+        canAccessScalingSuggestion: true,
+        canAccessScalingValidation: true,
+        canAccessScalingApproval: true,
+        canAccessScalingEventView: true,
       };
 
     case "production":
@@ -100,6 +108,10 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: false,
+        canAccessScalingSuggestion: true,
+        canAccessScalingValidation: true,
+        canAccessScalingApproval: true,
+        canAccessScalingEventView: true,
       };
 
     case "function_area":
@@ -128,6 +140,10 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: false,
+        canAccessScalingSuggestion: false,
+        canAccessScalingValidation: true,
+        canAccessScalingApproval: true,
+        canAccessScalingEventView: true,
       };
 
     case "purchasing":
@@ -156,6 +172,10 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: true,
+        canAccessScalingSuggestion: false,
+        canAccessScalingValidation: true,
+        canAccessScalingApproval: true,
+        canAccessScalingEventView: true,
       };
 
     case "financial":
@@ -184,6 +204,10 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: false,
+        canAccessScalingSuggestion: false,
+        canAccessScalingValidation: true,
+        canAccessScalingApproval: true,
+        canAccessScalingEventView: true,
       };
 
     default:
@@ -212,6 +236,10 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: false,
         canAccessBaggage: false,
+        canAccessScalingSuggestion: false,
+        canAccessScalingValidation: false,
+        canAccessScalingApproval: false,
+        canAccessScalingEventView: false,
       };
   }
 }

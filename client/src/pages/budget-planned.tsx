@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { EventSearchSelect } from "@/components/event-select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetNote } from "@shared/schema";
-import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents, mobilidadeSemVooCents, ATENDIMENTO_TIPOS, type AtendimentoTipo } from "@shared/atendimento";
+import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents, mobilidadeSemVooCents, isTransporteTerrestre, ATENDIMENTO_TIPOS, type AtendimentoTipo } from "@shared/atendimento";
 import { calcDeflatedDailies, deflationFactorsFromSettings, freelaDailyCents, casaDailyCents, diasComDiaria as calcDiasComDiaria, regraDiariaPorTipo, isPercursoFunction, percurseiroDiariaCents, diasPercurseiro, PERCURSEIRO_TIPOS, type DeflationSegment, type RegraDiaria, type PercurseiroTipo, type PercurseiroDiaria } from "@shared/calculation-rules";
 import { calcAlimentacao, isCenotecnicaFunction, refeicaoCents, refeicaoCentsDia } from "@shared/alimentacao";
 import { useAuth } from "@/hooks/use-auth";
@@ -1301,7 +1301,13 @@ export default function BudgetPlannedPage() {
       // Quem NÃO voa (17/08): evento fora de SP → R$29 por trecho; em SP → 0.
       // Percurso: mobilidade já está no pacote → 0.
       const semVoo = !voa && !isPercurso ? mobilidadeSemVooCents(selectedEvent?.location) : null;
-      const terrestre = ticket?.transportType === 'rodoviario' || ticket?.transportType === 'van';
+      // Terrestre se a passagem registrada é rodoviário/van OU se QUALQUER texto
+      // sugerido da escalação (ida/chegada/volta) menciona van/ônibus/carro —
+      // "van - 10h" na ida vale para a viagem toda (a chegada sugerida sem a
+      // palavra "van" caía na janela 20h–5h e dava R$58 indevido).
+      const terrestre =
+        ticket?.transportType === 'rodoviario' || ticket?.transportType === 'van' ||
+        (!ticket && (isTransporteTerrestre(vooPartidaIda) || isTransporteTerrestre(vooChegadaIda) || isTransporteTerrestre(vooPartidaVolta)));
       const sysMobIda = isPercurso ? 0 : voa ? mobilidadeTrechoCents(vooPartidaIda, vooChegadaIda, { trecho: 'ida', terrestre }) : (semVoo?.ida ?? 0);
       const sysMobVolta = isPercurso ? 0 : voa ? mobilidadeTrechoCents(vooPartidaVolta, null, { trecho: 'volta', terrestre }) : (semVoo?.volta ?? 0);
       const sysMob = sysMobIda + sysMobVolta;
@@ -1324,6 +1330,7 @@ export default function BudgetPlannedPage() {
         workDays: isPercurso ? [] : diasPeriodo, voa,
         chegadaIda: vooChegadaIda, partidaVolta: vooPartidaVolta,
         almocoCents, jantarCents,
+        terrestre, // van saindo ≥ 20h no retorno já paga jantar
       });
       // Distribui as refeições calculadas entre útil/fds (persistência usa os
       // 4 campos existentes); o VALOR de cada refeição depende do dia (útil/fds)

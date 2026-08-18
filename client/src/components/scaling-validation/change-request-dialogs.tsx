@@ -1,0 +1,416 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { apiErrorMessage, formatDiarias } from "@/lib/utils";
+import type { Event, Function as FunctionType } from "@shared/schema";
+import {
+  diffInclusion, PROPOSED_FIELD_LABELS, TRANSPORT_MODE_LABELS,
+  type ProposedChanges, type ProposedField, type TransportMode,
+} from "@shared/scaling-validation-rules";
+import { TravelFields, EMPTY_TRAVEL, travelFromInclusion, validateTravel, type TravelDraft } from "./travel-fields";
+import { WorkDaysPicker } from "./work-days-picker";
+import { CHANGE_REQUESTS_QUERY_KEY, SUGGESTIONS_QUERY_KEY, type ApiError, type SuggestionRow } from "./types";
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+const ymd = (v: string | Date | null | undefined) => {
+  if (!v) return "";
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? "" : v.toISOString().slice(0, 10);
+  return String(v).slice(0, 10);
+};
+const orNull = <T,>(v: T | ""): T | null => (v === "" ? null : v);
+
+function useCreateChangeRequest(onDone: () => void) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      teamInclusionId?: string | null;
+      eventId: string;
+      functionId: string;
+      area?: string | null;
+      requestType: "ajuste" | "inclusao" | "exclusao";
+      proposedChanges: ProposedChanges;
+      reason: string;
+    }) => {
+      const res = await apiRequest("POST", "/api/scaling-change-requests", {
+        ...body,
+        proposedChanges: JSON.stringify(body.proposedChanges),
+      });
+      return res.json();
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: [SUGGESTIONS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [`${SUGGESTIONS_QUERY_KEY}/event-view`] });
+      queryClient.invalidateQueries({ queryKey: [CHANGE_REQUESTS_QUERY_KEY] });
+      const label = vars.requestType === "ajuste" ? "Pedido de ajuste enviado" : vars.requestType === "exclusao" ? "Pedido de exclusão enviado" : "Pedido de inclusão enviado";
+      toast({ title: label, description: "O aprovador da função vai analisar o pedido." });
+      onDone();
+    },
+    onError: (err: ApiError) => {
+      toast({ title: "Não foi possível enviar o pedido", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" });
+    },
+  });
+}
+
+function fmtValue(field: ProposedField, v: unknown): string {
+  if (v === null || v === undefined || v === "") return "—";
+  if (field === "workDays" && Array.isArray(v)) return v.map((d) => ymd(d as string).split("-").reverse().slice(0, 2).join("/")).join(", ");
+  if (field === "needsTicket" || field === "needsAccommodation") return v ? "Sim" : "Não";
+  if (field === "transportModeIda" || field === "transportModeVolta") return TRANSPORT_MODE_LABELS[v as TransportMode] ?? String(v);
+  if (field === "flightDepartureDate" || field === "flightReturnDate") return ymd(v as string).split("-").reverse().join("/");
+  return String(v);
+}
+
+// ── Pedido de AJUSTE ─────────────────────────────────────────────────────────
+
+interface AdjustRequestDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  inclusion: SuggestionRow | null;
+  event?: Event;
+  functionName?: string;
+}
+
+export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, functionName }: AdjustRequestDialogProps) {
+  const [workDays, setWorkDays] = useState<string[]>([]);
+  const [dailyRates, setDailyRates] = useState<string>("");
+  const [dailyRatesTouched, setDailyRatesTouched] = useState(false);
+  const [travel, setTravel] = useState<TravelDraft>(EMPTY_TRAVEL);
+  const [observations, setObservations] = useState("");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  // Snapshot da vaga carregada: o formulário só é (re)iniciado ao abrir ou ao trocar de vaga (id),
+  // nunca por refetch em background (o objeto `inclusion` muda de referência a cada refetch).
+  const inclusionRef = useRef(inclusion);
+  inclusionRef.current = inclusion;
+  const loadedIdRef = useRef<string | null>(null);
+  const inclusionId = inclusion?.id ?? null;
+  useEffect(() => {
+    if (!open) { loadedIdRef.current = null; return; }
+    const inc = inclusionRef.current;
+    if (!inc || loadedIdRef.current === inc.id) return;
+    loadedIdRef.current = inc.id;
+    const days = (inc.workDays ?? []).map((d) => ymd(d as unknown as string)).filter(Boolean).sort();
+    setWorkDays(days);
+    setDailyRates(String(inc.dailyRates ?? ""));
+    // Se a vaga já veio com diárias ≠ nº de dias, o valor foi definido à mão: não sobrescrever.
+    setDailyRatesTouched(inc.dailyRates != null && inc.dailyRates !== days.length);
+    setTravel(travelFromInclusion(inc));
+    setObservations(inc.observations ?? "");
+    setReason("");
+    setError(null);
+  }, [open, inclusionId]);
+
+  // Diárias acompanham os dias enquanto o usuário não editar o campo à mão (só ao mudar os dias).
+  const handleWorkDaysChange = (days: string[]) => {
+    setWorkDays(days);
+    if (!dailyRatesTouched && days.length > 0) setDailyRates(String(days.length));
+  };
+
+  const mutation = useCreateChangeRequest(() => onOpenChange(false));
+
+  // proposedChanges completo a partir do rascunho; o diff decide o que vai.
+  const full: ProposedChanges = useMemo(() => ({
+    v: 1,
+    workDays: workDays.length ? workDays : undefined,
+    dailyRates: dailyRates.trim() === "" ? undefined : Number(dailyRates),
+    flightDepartureDate: orNull(travel.flightDepartureDate),
+    flightDepartureSuggestedTime: orNull(travel.flightDepartureSuggestedTime),
+    flightArrivalSuggestedTime: orNull(travel.flightArrivalSuggestedTime),
+    flightReturnDate: orNull(travel.flightReturnDate),
+    flightReturnSuggestedTime: orNull(travel.flightReturnSuggestedTime),
+    transportModeIda: orNull(travel.transportModeIda),
+    transportModeVolta: orNull(travel.transportModeVolta),
+    needsTicket: travel.needsTicket,
+    needsAccommodation: travel.needsAccommodation,
+    observations: observations.trim() === "" ? null : observations.trim(),
+  }), [workDays, dailyRates, travel, observations]);
+
+  const diff = useMemo(() => (inclusion ? diffInclusion(inclusion, full) : []), [inclusion, full]);
+
+  const submit = () => {
+    if (!inclusion) return;
+    if (!reason.trim()) { setError("Informe o motivo do pedido."); return; }
+    if (workDays.length === 0) { setError("Informe ao menos um dia de trabalho."); return; }
+    const n = Number(dailyRates);
+    if (!Number.isInteger(n) || n < 0) { setError("Diárias devem ser um número inteiro (0 ou mais)."); return; }
+    const travelErr = validateTravel(travel);
+    if (travelErr.length) { setError(travelErr[0]); return; }
+    if (diff.length === 0) { setError("Nada foi alterado. Mude ao menos um campo ou use “Validar” se a vaga está correta."); return; }
+    setError(null);
+    // Só os campos que mudaram (v:1 sempre)
+    const proposed: ProposedChanges = { v: 1 };
+    for (const d of diff) (proposed as Record<string, unknown>)[d.field] = full[d.field];
+    mutation.mutate({
+      teamInclusionId: inclusion.id,
+      eventId: inclusion.eventId,
+      functionId: inclusion.functionId,
+      area: inclusion.area ?? null,
+      requestType: "ajuste",
+      proposedChanges: proposed,
+      reason: reason.trim(),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !mutation.isPending && onOpenChange(o)}>
+      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Pedir ajuste da vaga #{inclusion?.inclusionNumber}</DialogTitle>
+          <DialogDescription>
+            {functionName ?? "Função"}{event ? ` · ${event.name}` : ""}. Altere só o que precisa; o aprovador vê o “de/para”.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <Label className="text-xs text-slate-600">Dias de trabalho <span className="text-red-400">*</span></Label>
+            <WorkDaysPicker rangeStart={event?.startDate ?? ""} rangeEnd={event?.endDate ?? ""} value={workDays} onChange={handleWorkDaysChange} disabled={mutation.isPending} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
+            <div className="space-y-1">
+              <Label htmlFor="adj-daily" className="text-xs text-slate-600">Diárias</Label>
+              <Input id="adj-daily" type="number" min={0} step={1} value={dailyRates} disabled={mutation.isPending}
+                onChange={(e) => { setDailyRatesTouched(true); setDailyRates(e.target.value); }} className="h-9 rounded-lg" />
+              <p className="text-[11px] text-slate-400">Padrão: {formatDiarias(workDays.length)} (1 por dia).</p>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="adj-obs" className="text-xs text-slate-600">Observações da vaga</Label>
+              <Textarea id="adj-obs" rows={2} maxLength={500} value={observations} disabled={mutation.isPending} onChange={(e) => setObservations(e.target.value)} className="rounded-lg text-sm" />
+            </div>
+          </div>
+
+          <TravelFields idPrefix="adj" value={travel} disabled={mutation.isPending} onChange={(p) => setTravel((t) => ({ ...t, ...p }))} />
+
+          {diff.length > 0 && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-amber-700 mb-2">O que muda ({diff.length})</p>
+              <ul className="space-y-1 text-xs text-slate-700">
+                {diff.map((d) => (
+                  <li key={d.field} className="flex flex-wrap gap-x-2">
+                    <span className="font-semibold min-w-[150px]">{PROPOSED_FIELD_LABELS[d.field]}</span>
+                    <span className="text-slate-400 line-through">{fmtValue(d.field, d.from)}</span>
+                    <span aria-hidden="true">→</span>
+                    <span className="font-medium">{fmtValue(d.field, d.to)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="space-y-1">
+            <Label htmlFor="adj-reason" className="text-xs text-slate-600">Motivo do pedido <span className="text-red-400">*</span></Label>
+            <Textarea id="adj-reason" rows={3} maxLength={1000} value={reason} disabled={mutation.isPending} required aria-required="true"
+              placeholder="Explique para o aprovador por que a vaga precisa mudar." onChange={(e) => setReason(e.target.value)} className="rounded-lg text-sm" />
+          </div>
+          {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
+          <Button type="button" onClick={submit} disabled={mutation.isPending} className="bg-primary hover:bg-primary-hover">
+            {mutation.isPending ? "Enviando…" : "Enviar pedido de ajuste"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Pedido de EXCLUSÃO ───────────────────────────────────────────────────────
+
+interface DeleteRequestDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  inclusion: SuggestionRow | null;
+  functionName?: string;
+}
+
+export function DeleteRequestDialog({ open, onOpenChange, inclusion, functionName }: DeleteRequestDialogProps) {
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { if (open) { setReason(""); setError(null); } }, [open]);
+  const mutation = useCreateChangeRequest(() => onOpenChange(false));
+
+  const submit = () => {
+    if (!inclusion) return;
+    if (!reason.trim()) { setError("Informe o motivo da exclusão."); return; }
+    setError(null);
+    mutation.mutate({
+      teamInclusionId: inclusion.id,
+      eventId: inclusion.eventId,
+      functionId: inclusion.functionId,
+      area: inclusion.area ?? null,
+      requestType: "exclusao",
+      proposedChanges: { v: 1 },
+      reason: reason.trim(),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !mutation.isPending && onOpenChange(o)}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Pedir exclusão da vaga #{inclusion?.inclusionNumber}</DialogTitle>
+          <DialogDescription>
+            {functionName ?? "Função"} — a vaga fica “com pedido de ajuste” até o aprovador decidir. Se aprovado, ela sai da escala e fica registrada como negada.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1">
+          <Label htmlFor="del-reason" className="text-xs text-slate-600">Motivo <span className="text-red-400">*</span></Label>
+          <Textarea id="del-reason" rows={3} maxLength={1000} value={reason} disabled={mutation.isPending} required aria-required="true"
+            placeholder="Por que esta vaga não deve existir?" onChange={(e) => setReason(e.target.value)} className="rounded-lg text-sm" />
+          {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
+          <Button type="button" variant="destructive" onClick={submit} disabled={mutation.isPending}>
+            {mutation.isPending ? "Enviando…" : "Pedir exclusão"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Pedido de INCLUSÃO (vaga nova) ───────────────────────────────────────────
+
+interface IncludeRequestDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  event?: Event;
+  /** Funções que o usuário pode pedir (já filtradas: gerenciadas, ou todas se admin). */
+  functions: FunctionType[];
+}
+
+export function IncludeRequestDialog({ open, onOpenChange, event, functions }: IncludeRequestDialogProps) {
+  const [functionId, setFunctionId] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  const [workDays, setWorkDays] = useState<string[]>([]);
+  const [travel, setTravel] = useState<TravelDraft>(EMPTY_TRAVEL);
+  const [observations, setObservations] = useState("");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  // Reinicia só ao abrir; `functions` muda de referência a cada refetch e não pode apagar o rascunho.
+  const functionsRef = useRef(functions);
+  functionsRef.current = functions;
+  useEffect(() => {
+    if (!open) return;
+    const fns = functionsRef.current;
+    setFunctionId(fns.length === 1 ? fns[0].id : "");
+    setQuantity("1");
+    setWorkDays([]);
+    setTravel(EMPTY_TRAVEL);
+    setObservations("");
+    setReason("");
+    setError(null);
+  }, [open]);
+
+  const mutation = useCreateChangeRequest(() => onOpenChange(false));
+  const sorted = useMemo(() => [...functions].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })), [functions]);
+  const selectedFunction = sorted.find((f) => f.id === functionId);
+
+  const submit = () => {
+    if (!event) return;
+    if (!functionId) { setError("Escolha a função."); return; }
+    const q = Number(quantity);
+    if (!Number.isInteger(q) || q < 1) { setError("Quantidade deve ser um inteiro ≥ 1."); return; }
+    if (workDays.length === 0) { setError("Informe ao menos um dia de trabalho."); return; }
+    const travelErr = validateTravel(travel);
+    if (travelErr.length) { setError(travelErr[0]); return; }
+    if (!reason.trim()) { setError("Informe o motivo do pedido."); return; }
+    setError(null);
+    const proposed: ProposedChanges = {
+      v: 1,
+      quantity: q,
+      workDays,
+      dailyRates: workDays.length,
+      needsTicket: travel.needsTicket,
+      needsAccommodation: travel.needsAccommodation,
+      ...(travel.transportModeIda ? { transportModeIda: travel.transportModeIda } : {}),
+      ...(travel.transportModeVolta ? { transportModeVolta: travel.transportModeVolta } : {}),
+      ...(travel.flightDepartureDate ? { flightDepartureDate: travel.flightDepartureDate } : {}),
+      ...(travel.flightDepartureSuggestedTime ? { flightDepartureSuggestedTime: travel.flightDepartureSuggestedTime } : {}),
+      ...(travel.flightArrivalSuggestedTime ? { flightArrivalSuggestedTime: travel.flightArrivalSuggestedTime } : {}),
+      ...(travel.flightReturnDate ? { flightReturnDate: travel.flightReturnDate } : {}),
+      ...(travel.flightReturnSuggestedTime ? { flightReturnSuggestedTime: travel.flightReturnSuggestedTime } : {}),
+      ...(observations.trim() ? { observations: observations.trim() } : {}),
+    };
+    mutation.mutate({
+      teamInclusionId: null,
+      eventId: event.id,
+      functionId,
+      area: selectedFunction?.responsibleArea ?? null,
+      requestType: "inclusao",
+      proposedChanges: proposed,
+      reason: reason.trim(),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !mutation.isPending && onOpenChange(o)}>
+      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Incluir escalação{event ? ` — ${event.name}` : ""}</DialogTitle>
+          <DialogDescription>Pedido de vaga nova para o aprovador da função. Se aprovado, as vagas nascem já como Inclusão (aguardando escalação).</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-5">
+          <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
+            <div className="space-y-1">
+              <Label htmlFor="inc-function" className="text-xs text-slate-600">Função <span className="text-red-400">*</span></Label>
+              <Select value={functionId} onValueChange={setFunctionId} disabled={mutation.isPending || sorted.length === 0}>
+                <SelectTrigger id="inc-function" className="h-9 rounded-lg"><SelectValue placeholder={sorted.length === 0 ? "Você não gerencia nenhuma função" : "Selecione a função"} /></SelectTrigger>
+                <SelectContent>
+                  {sorted.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>{f.name}{f.responsibleArea ? ` · ${f.responsibleArea}` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="inc-qty" className="text-xs text-slate-600">Quantidade <span className="text-red-400">*</span></Label>
+              <Input id="inc-qty" type="number" min={1} step={1} value={quantity} disabled={mutation.isPending} onChange={(e) => setQuantity(e.target.value)} className="h-9 rounded-lg" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs text-slate-600">Dias de trabalho <span className="text-red-400">*</span></Label>
+            <WorkDaysPicker rangeStart={event?.startDate ?? ""} rangeEnd={event?.endDate ?? ""} value={workDays} onChange={setWorkDays} disabled={mutation.isPending} />
+            {workDays.length > 0 && <p className="text-[11px] text-slate-400">{formatDiarias(workDays.length)} por pessoa.</p>}
+          </div>
+
+          <TravelFields idPrefix="inc" value={travel} disabled={mutation.isPending} onChange={(p) => setTravel((t) => ({ ...t, ...p }))} />
+
+          <div className="space-y-1">
+            <Label htmlFor="inc-obs" className="text-xs text-slate-600">Observações da vaga</Label>
+            <Textarea id="inc-obs" rows={2} maxLength={500} value={observations} disabled={mutation.isPending} onChange={(e) => setObservations(e.target.value)} className="rounded-lg text-sm" />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="inc-reason" className="text-xs text-slate-600">Motivo do pedido <span className="text-red-400">*</span></Label>
+            <Textarea id="inc-reason" rows={3} maxLength={1000} value={reason} disabled={mutation.isPending} required aria-required="true"
+              placeholder="Por que a escala precisa desta(s) vaga(s) a mais?" onChange={(e) => setReason(e.target.value)} className="rounded-lg text-sm" />
+          </div>
+          {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
+          <Button type="button" onClick={submit} disabled={mutation.isPending || !event} className="bg-primary hover:bg-primary-hover">
+            {mutation.isPending ? "Enviando…" : "Enviar pedido de inclusão"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

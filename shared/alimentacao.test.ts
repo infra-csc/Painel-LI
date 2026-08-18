@@ -58,6 +58,29 @@ describe("dia de retorno (cortes 13h / 21h)", () => {
   });
 });
 
+describe("dia de retorno — transporte terrestre (regra 17/08: van saindo ≥ 20h já janta)", () => {
+  const calc = (partidaVolta: string, terrestre?: boolean) =>
+    calcAlimentacao({ workDays: dias3, voa: true, chegadaIda: "10:00", partidaVolta, terrestre, ...base }).dias[2];
+  it("van saindo 20:00 → almoço e jantar; voo saindo 20:00 → só almoço (corte 21h)", () => {
+    expect(calc("van - 20h+", true)).toMatchObject({ almoco: true, jantar: true });
+    expect(calc("20:00", true)).toMatchObject({ almoco: true, jantar: true });
+    expect(calc("20:00", false)).toMatchObject({ almoco: true, jantar: false });
+    expect(calc("20:00")).toMatchObject({ almoco: true, jantar: false });
+  });
+  it("van saindo 19:59 → sem jantar; voo saindo 21:00 → jantar", () => {
+    expect(calc("19:59", true)).toMatchObject({ jantar: false });
+    expect(calc("21:00", false)).toMatchObject({ jantar: true });
+  });
+  it("caso do usuário (Ulisses/Willians, 18–21/06, van 10h / van 20h+): domingo com jantar", () => {
+    const r = calcAlimentacao({
+      workDays: ["2026-06-18", "2026-06-19", "2026-06-20", "2026-06-21"], voa: true, terrestre: true,
+      chegadaIda: "van - 10h", partidaVolta: "van - 20h+", ...base,
+    });
+    expect(r.dias[3]).toMatchObject({ papel: "retorno", almoco: true, jantar: true });
+    expect(r.jantares).toBe(4);
+  });
+});
+
 describe("viagem de 1 dia (as duas condições no mesmo dia)", () => {
   it("chega 10h e volta 22h → almoço e jantar", () => {
     const r = calcAlimentacao({ workDays: ["2026-08-28"], voa: true, chegadaIda: "10:00", partidaVolta: "22:00", ...base });
@@ -120,6 +143,13 @@ describe("refeicaoCentsDia — almoço de casa (CLT) em dia útil", () => {
       .toEqual({ almocoCents: 4000, jantarCents: 4000 });
     expect(refeicaoCentsDia(false, {}, { tipoColaborador: "local", isWeekend: false }))
       .toEqual({ almocoCents: 4000, jantarCents: 4000 });
+  });
+  it("tabela CASA do usuário (Dir. Prova / Produtor incl. SupCeno / Exec. Vendas O2 Prime): todos R$ 5,00 no almoço útil", () => {
+    for (const fn of ["Dir. Prova", "Produção", "Ativação", "Kit", "Sup Ceno", "Executivo Vendas O2 Prime", "atendimento"]) {
+      const ceno = isCenotecnicaFunction(fn);
+      expect(ceno).toBe(false); // nenhuma dessas é cenotécnica (SupCeno é produtor)
+      expect(refeicaoCentsDia(ceno, {}, { tipoColaborador: "casa", isWeekend: false }).almocoCents).toBe(500);
+    }
   });
   it("chave alimentacao_almoco_casa_util dos Valores Padrão vence o default", () => {
     expect(refeicaoCentsDia(false, { alimentacao_almoco_casa_util: "1000" }, { tipoColaborador: "casa", isWeekend: false }).almocoCents).toBe(1000);

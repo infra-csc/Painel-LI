@@ -52,13 +52,21 @@ export interface AlimentacaoInput {
   /** Valor do almoço/jantar em centavos (já escolhidos p/ Demais ou Cenotécnica) */
   almocoCents: number;
   jantarCents: number;
+  /**
+   * Transporte terrestre (van/ônibus/carro)? Regra 17/08: no dia de RETORNO,
+   * van saindo às 20h ou depois já paga jantar (o deck fala em 21h para VOO —
+   * a diferença é que o terrestre não tem check-in/aeroporto e sai do evento
+   * mais tarde na prática).
+   */
+  terrestre?: boolean;
 }
 
 // Cortes confirmados pelo negócio
 const CHEGADA_ALMOCO_ATE = 11 * 60;      // chega até 11:00 → almoça
 const CHEGADA_JANTAR_ATE = 19 * 60;      // chega até 19:00 → janta
 const RETORNO_ALMOCO_APOS = 13 * 60;     // volta parte ≥ 13:00 → almoça
-const RETORNO_JANTAR_APOS = 21 * 60;     // volta parte ≥ 21:00 → janta
+const RETORNO_JANTAR_APOS = 21 * 60;     // VOO de volta parte ≥ 21:00 → janta
+const RETORNO_JANTAR_APOS_TERRESTRE = 20 * 60; // van/ônibus saindo ≥ 20:00 → janta (regra 17/08)
 
 export function calcAlimentacao(input: AlimentacaoInput): AlimentacaoResult {
   const dias: AlimentacaoDia[] = [];
@@ -107,7 +115,7 @@ export function calcAlimentacao(input: AlimentacaoInput): AlimentacaoResult {
       } else {
         // No dia único, a condição do retorno restringe ainda mais
         const a = partida >= RETORNO_ALMOCO_APOS;
-        const j = partida >= RETORNO_JANTAR_APOS;
+        const j = partida >= (input.terrestre ? RETORNO_JANTAR_APOS_TERRESTRE : RETORNO_JANTAR_APOS);
         almoco = papel === "unico" ? (almoco && a) : a;
         jantar = papel === "unico" ? (jantar && j) : j;
       }

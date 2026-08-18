@@ -40,6 +40,10 @@ const CalculationRulesPage   = lazy(() => import("@/pages/calculation-rules"));
 const SystemSettings         = lazy(() => import("@/pages/system-settings"));
 const CalendarPage           = lazy(() => import("@/pages/calendar"));
 const BaggageControlPage     = lazy(() => import("@/pages/baggage-control"));
+const ScalingSuggestionPage  = lazy(() => import("@/pages/scaling-suggestion"));
+const ScalingValidationPage  = lazy(() => import("@/pages/scaling-validation"));
+const ScalingApprovalPage    = lazy(() => import("@/pages/scaling-approval"));
+const ScalingEventViewPage   = lazy(() => import("@/pages/scaling-event-view"));
 
 import ProtectedRoute from "@/components/layout/protected-route";
 import { useAuth } from "@/hooks/use-auth";
@@ -77,6 +81,10 @@ const ORDERED_ROUTES: { path: string; permission: keyof RolePermissions }[] = [
   { path: "/calendar",          permission: "canAccessCalendar"      },
   { path: "/functions",         permission: "canAccessCadastros"     },
   { path: "/collaborators",     permission: "canAccessCollaborators" },
+  { path: "/scaling-suggestion", permission: "canAccessScalingSuggestion" },
+  { path: "/scaling-validation", permission: "canAccessScalingValidation" },
+  { path: "/scaling-approval",  permission: "canAccessScalingApproval"  },
+  { path: "/scaling-event-view", permission: "canAccessScalingEventView" },
   { path: "/team-inclusion",    permission: "canAccessScreen1"       },
   { path: "/scaling",           permission: "canAccessScreen2"       },
   { path: "/tickets",           permission: "canAccessScreen3"       },
@@ -169,6 +177,26 @@ function Router() {
             <Route path="/functions">
               <ProtectedRoute permission="canAccessCadastros">
                 <Functions />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/scaling-suggestion">
+              <ProtectedRoute permission="canAccessScalingSuggestion">
+                <ScalingSuggestionPage />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/scaling-validation">
+              <ProtectedRoute permission="canAccessScalingValidation">
+                <ScalingValidationPage />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/scaling-approval">
+              <ProtectedRoute permission="canAccessScalingApproval">
+                <ScalingApprovalPage />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/scaling-event-view">
+              <ProtectedRoute permission="canAccessScalingEventView">
+                <ScalingEventViewPage />
               </ProtectedRoute>
             </Route>
             <Route path="/team-inclusion">

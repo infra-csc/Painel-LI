@@ -63,8 +63,10 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
   if (!event) return null;
 
   // team inclusions do evento (não excluídas)
+  // Sugestões de escala (phase 'sugestao') ainda não são vagas oficiais — ficam
+  // fora do Espelho até a Validação de Escala aprová-las (filtro central).
   const inclusions = (await db.select().from(teamInclusions).where(eq(teamInclusions.eventId, eventId)))
-    .filter((ti: any) => !ti.deletedAt);
+    .filter((ti: any) => !ti.deletedAt && ti.phase !== 'sugestao');
 
   const collabRows = await db.select().from(collaborators);
   const collabMap = new Map(collabRows.map((c: any) => [c.id, c]));
@@ -408,8 +410,10 @@ export async function patchOperationalMirrorCell(eventId: string, rowId: string,
 export async function recalculateLogisticsSuggestions(eventId: string) {
   const config = await getLogisticsConfig();
 
+  // Sugestões de escala (phase 'sugestao') ainda não são vagas oficiais — ficam
+  // fora do Espelho até a Validação de Escala aprová-las (filtro central).
   const inclusions = (await db.select().from(teamInclusions).where(eq(teamInclusions.eventId, eventId)))
-    .filter((ti: any) => !ti.deletedAt);
+    .filter((ti: any) => !ti.deletedAt && ti.phase !== 'sugestao');
   const collabRows = await db.select().from(collaborators);
   const collabMap = new Map(collabRows.map((c: any) => [c.id, c]));
   const ticketRows = await db.select().from(tickets);
