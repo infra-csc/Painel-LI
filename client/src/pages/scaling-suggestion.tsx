@@ -32,10 +32,10 @@ import { TRANSPORT_MODE_LABELS } from "@shared/scaling-validation-rules";
 import { SuggestionGrid, rowDomId } from "@/components/scaling-validation/suggestion-grid";
 import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module-nav";
 import {
-  buildDateList, countOutsidePeriod, decomposeGridRows, detectPasteFormat, emptyGridRow, mergePastedRows,
-  parsePastedRows, pasteConflicts, periodBounds, periodProblem, PERIOD_MARGIN_DAYS, PERIOD_PROBLEM_MESSAGES, PASTE_FORMAT_LABELS,
-  reframeRows, sortFunctionsByOrder, summarizeGrid, validateGridRow,
-  type PasteFormat, type RowValidation, type SuggestionGridRow,
+  buildDateList, countOutsidePeriod, decomposeGridRows, detectPasteFormat, emptyGridRow, expandPeriodForDates,
+  functionNameKey, mergePastedRows, parsePastedRows, pasteConflicts, periodBounds, periodProblem, PERIOD_MARGIN_DAYS,
+  PERIOD_PROBLEM_MESSAGES, PASTE_FORMAT_LABELS, reframeRows, sortFunctionsByOrder, summarizeGrid, validateGridRow,
+  type PasteFormat, type PeriodExpansion, type RowValidation, type SuggestionGridRow,
 } from "@/components/scaling-validation/scaling-grid-utils";
 import { SUGGESTIONS_QUERY_KEY, type ApiError } from "@/components/scaling-validation/types";
 
@@ -50,9 +50,13 @@ interface DraftPayload {
 interface Period { start: string; end: string }
 interface PendingPeriod extends Period { pessoasDia: number; dias: number }
 interface PendingPaste { rows: SuggestionGridRow[]; skippedNames: string[]; conflicts: string[]; format: PasteFormat }
+/** Dias que a planilha traz preenchidos mas estão fora do período atual da grade. */
+interface PendingPasteDates { dates: string[]; expansion: PeriodExpansion }
 interface SentInfo { created: number; eventId: string; eventName: string }
 
 const DRAFT_TTL_MS = 7 * 24 * 3600_000; // rascunho por evento vale 7 dias
+/** Valor sentinela do Select de mapeamento (Radix não aceita SelectItem com value ""). */
+const SKIP_FUNCTION = "__descartar__";
 const SECTION_TITLE = "text-[11px] font-bold uppercase tracking-wide text-slate-500";
 const HINT = "text-xs text-slate-500";
 const EMPTY_PERIOD: Period = { start: "", end: "" };
@@ -84,6 +88,11 @@ export default function ScalingSuggestionPage() {
   const [pasteText, setPasteText] = useState("");
   const [pasteFormat, setPasteFormat] = useState<"auto" | PasteFormat>("auto");
   const [pendingPaste, setPendingPaste] = useState<PendingPaste | null>(null);
+  const [pendingPasteDates, setPendingPasteDates] = useState<PendingPasteDates | null>(null);
+  // Nomes da planilha que o catálogo não reconhece + a função escolhida à mão para cada um.
+  const [unknownNames, setUnknownNames] = useState<string[]>([]);
+  const [pasteNameMap, setPasteNameMap] = useState<Record<string, string>>({});
+  const askedMappingRef = useRef(false); // só interrompe uma vez: no 2º clique, o que não foi mapeado é descartado
   const [confirmSend, setConfirmSend] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
@@ -257,7 +266,33 @@ export default function ScalingSuggestionPage() {
 
   // ── Colagem ──
   const detectedPaste = useMemo(() => (pasteText.trim() ? detectPasteFormat(pasteText) : null), [pasteText]);
-  const closePaste = () => { setShowPaste(false); setPasteText(""); setPasteFormat("auto"); };
+  // O mapeamento manual de nomes é por usuário (o catálogo é o mesmo em todos os eventos).
+  const nameMapKey = `scaling-suggestion-fnmap:${user?.id ?? "anon"}`;
+  const readStoredNameMap = useCallback((): Record<string, string> => {
+    try {
+      const raw = localStorage.getItem(nameMapKey);
+      const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+      return parsed && typeof parsed === "object" ? (parsed as Record<string, string>) : {};
+    } catch { return {}; }
+  }, [nameMapKey]);
+  const storeNameMap = useCallback((map: Record<string, string>) => {
+    try {
+      if (Object.keys(map).length === 0) localStorage.removeItem(nameMapKey);
+      else localStorage.setItem(nameMapKey, JSON.stringify(map));
+    } catch { /* quota / storage indisponível */ }
+  }, [nameMapKey]);
+
+  const openPaste = () => {
+    setPasteNameMap(readStoredNameMap()); // reaproveita o que o usuário já mapeou antes
+    setUnknownNames([]);
+    askedMappingRef.current = false;
+    setShowPaste(true);
+  };
+  const closePaste = () => {
+    setShowPaste(false); setPasteText(""); setPasteFormat("auto");
+    setUnknownNames([]); setPendingPasteDates(null);
+    askedMappingRef.current = false;
+  };
   const commitPaste = (pasted: SuggestionGridRow[], skippedNames: string[], replaced: number) => {
     setRows((prev) => mergePastedRows(prev, pasted));
     setPendingPaste(null);
@@ -268,13 +303,37 @@ export default function ScalingSuggestionPage() {
       variant: skippedNames.length ? "destructive" : "default",
     });
   };
-  const applyPaste = () => {
-    if (!pasteText.trim()) {
-      toast({ title: "Nada para colar", description: "Cole as linhas da planilha primeiro.", variant: "destructive" });
+
+  /**
+   * Lê a colagem contra um conjunto de dias e aplica — parando antes quando ainda
+   * falta uma decisão do usuário: (1) mapear nomes não reconhecidos, (2) decidir o
+   * que fazer com os dias fora do período, (3) confirmar a substituição de funções.
+   */
+  const runPaste = (targetDates: string[], nameMap: Record<string, string>, allowOutside: boolean) => {
+    const year = (applied.start || selectedEvent?.startDate || String(new Date().getFullYear())).slice(0, 4);
+    const res = parsePastedRows(pasteText, functions ?? [], targetDates, year, pasteFormat === "auto" ? undefined : pasteFormat, { nameMap });
+    if (res.problem === "cabecalho-nao-encontrado") {
+      toast({
+        title: "Cabeçalho não encontrado",
+        description: "No formato da logística é preciso colar também a linha de cabeçalho (ida, chegada, retorno e as colunas de dia).",
+        variant: "destructive",
+      });
       return;
     }
-    const year = (applied.start || selectedEvent?.startDate || String(new Date().getFullYear())).slice(0, 4);
-    const res = parsePastedRows(pasteText, functions ?? [], dates, year, pasteFormat === "auto" ? undefined : pasteFormat);
+    if (res.unknownNames.length > 0 && !askedMappingRef.current) {
+      askedMappingRef.current = true;
+      setUnknownNames(res.unknownNames);
+      toast({
+        title: `${res.unknownNames.length} função(ões) não reconhecida(s)`,
+        description: "Escolha a função correspondente de cada nome abaixo e aplique de novo. O que ficar sem função é descartado.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!allowOutside && res.datesOutsideGrid.length > 0) {
+      setPendingPasteDates({ dates: res.datesOutsideGrid, expansion: expandPeriodForDates(applied, res.datesOutsideGrid, bounds) });
+      return;
+    }
     if (res.rows.length === 0) {
       toast({
         title: "Nenhuma linha reconhecida",
@@ -283,9 +342,54 @@ export default function ScalingSuggestionPage() {
       });
       return;
     }
-    const conflicts = pasteConflicts(rows, res.rows);
+    storeNameMap(nameMap); // o mapeamento usado com sucesso vale para as próximas colagens
+    const conflicts = pasteConflicts(rowsRef.current, res.rows);
     if (conflicts.length > 0) { setPendingPaste({ rows: res.rows, skippedNames: res.skippedNames, conflicts, format: res.format }); return; }
     commitPaste(res.rows, res.skippedNames, 0);
+  };
+
+  const applyPaste = () => {
+    if (!pasteText.trim()) {
+      toast({ title: "Nada para colar", description: "Cole as linhas da planilha primeiro.", variant: "destructive" });
+      return;
+    }
+    runPaste(dates, pasteNameMap, false);
+  };
+  /** Amplia a grade para cobrir os dias da planilha e relê a colagem já no novo período. */
+  const acceptPasteExpansion = () => {
+    const exp = pendingPasteDates?.expansion;
+    setPendingPasteDates(null);
+    if (!exp || !exp.changed) { runPaste(dates, pasteNameMap, true); return; }
+    applyPeriod(exp.start, exp.end);
+    runPaste(buildDateList(exp.start, exp.end), pasteNameMap, true);
+    if (exp.ignored.length > 0) {
+      toast({
+        title: "Alguns dias ficaram de fora",
+        description: `${exp.ignored.map((d) => formatDayMonthBr(d)).join(", ")} — a grade só pode ir até ${PERIOD_MARGIN_DAYS} dias antes/depois do evento.`,
+        variant: "destructive",
+      });
+    }
+  };
+  /** Mantém o período e cola assim mesmo: as quantidades dos dias de fora são ignoradas. */
+  const rejectPasteExpansion = () => {
+    const ignored = pendingPasteDates?.dates ?? [];
+    setPendingPasteDates(null);
+    runPaste(dates, pasteNameMap, true);
+    if (ignored.length > 0) {
+      toast({
+        title: "Dias ignorados na colagem",
+        description: `${ignored.map((d) => formatDayMonthBr(d)).join(", ")} ${ignored.length === 1 ? "ficou" : "ficaram"} fora do período da grade.`,
+        variant: "destructive",
+      });
+    }
+  };
+  const mapUnknownName = (name: string, value: string) => {
+    const key = functionNameKey(name);
+    setPasteNameMap((prev) => {
+      const next = { ...prev };
+      if (value === SKIP_FUNCTION) delete next[key]; else next[key] = value;
+      return next;
+    });
   };
 
   const clearGrid = () => {
@@ -539,7 +643,7 @@ export default function ScalingSuggestionPage() {
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" size="sm" className="rounded-lg h-8" disabled={!gridReady || busy || !!functionsError} onClick={() => setShowPaste(true)}>
+                <Button type="button" variant="outline" size="sm" className="rounded-lg h-8" disabled={!gridReady || busy || !!functionsError} onClick={openPaste}>
                   <ClipboardPaste className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Colar da planilha
                 </Button>
                 <Button type="button" variant="outline" size="sm" className="rounded-lg h-8" disabled={!gridReady || busy || !!functionsError} onClick={openAddFunction}>
@@ -703,15 +807,26 @@ export default function ScalingSuggestionPage() {
 
       {/* Colar da planilha */}
       <Dialog open={showPaste} onOpenChange={(o) => { if (!o) closePaste(); }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Colar da planilha</DialogTitle>
             <DialogDescription>
-              Copie as linhas da planilha (colunas separadas por TAB) e cole abaixo. Dois formatos são aceitos; a primeira linha pode ser o cabeçalho ("Função…").
+              Copie as linhas da planilha (colunas separadas por TAB) e cole abaixo. Três formatos são aceitos, inclusive a planilha da logística.
               Funções já na grade são substituídas pelas coladas (sem duplicar).
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 text-xs">
+            <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 space-y-1">
+              <p className="font-semibold text-slate-700">Planilha da logística</p>
+              <p className="font-mono text-slate-600 whitespace-nowrap overflow-x-auto">(vazio) | ida | chegada (até…) | retorno | horario do retorno (a partir) | (vazio) | 08/set | 09/set | … | obs</p>
+              <p className="font-mono text-slate-500 whitespace-nowrap overflow-x-auto">ex.: produção → quarta-feira, 9 de setembro de 2026 → 23h → domingo, 13 de setembro de 2026 → 20h+ → … → 1 → 1</p>
+              <p className="text-slate-500">
+                As colunas são lidas pelo <strong>cabeçalho</strong> (colunas vazias no meio não atrapalham) e as quantidades pela <strong>data</strong> de cada coluna de dia.
+                A coluna "chegada (até…)" vira o horário de <strong>desembarque da ida</strong> e "horario do retorno (a partir)" o de <strong>embarque da volta</strong> —
+                em "14-18h" e "20h+" vale a primeira hora. Quem tem data de ida ou de volta já vem com <strong>passagem</strong> marcada (as linhas "local" não);
+                hotel e os modais de ida/volta ficam em branco para você preencher na grade.
+              </p>
+            </div>
             <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 space-y-1 overflow-x-auto">
               <p className="font-semibold text-slate-700">Formato do briefing</p>
               <p className="font-mono text-slate-600 whitespace-nowrap">Função | Modal ida | Data ida | Hora desembarque | Modal volta | Data volta | Hora embarque | Hotel | {dates.slice(0, 3).map((d) => formatDayMonthBr(d)).join(" | ")}{dates.length > 3 ? " | …" : ""}</p>
@@ -729,16 +844,50 @@ export default function ScalingSuggestionPage() {
               <SelectTrigger id="sug-paste-format" className="h-8 w-[320px] max-w-full text-xs rounded-lg"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="auto">Detectar automaticamente</SelectItem>
+                <SelectItem value="logistica">{PASTE_FORMAT_LABELS.logistica}</SelectItem>
                 <SelectItem value="briefing">{PASTE_FORMAT_LABELS.briefing}</SelectItem>
                 <SelectItem value="grade">{PASTE_FORMAT_LABELS.grade}</SelectItem>
               </SelectContent>
             </Select>
             {pasteFormat === "auto" && detectedPaste && (
-              <span className={HINT}>Detectado: {detectedPaste.format === "briefing" ? "formato do briefing" : "formato completo"}{detectedPaste.hadHeader ? " (com cabeçalho)" : ""}.</span>
+              <span className={HINT}>Detectado: {PASTE_FORMAT_LABELS[detectedPaste.format]}{detectedPaste.hadHeader ? " (com cabeçalho)" : ""}.</span>
             )}
           </div>
           <Label htmlFor="sug-paste" className="sr-only">Conteúdo colado</Label>
-          <Textarea id="sug-paste" value={pasteText} onChange={(e) => setPasteText(e.target.value)} rows={10} placeholder={"Kit\tAéreo\t09/09\t10:00\tAéreo\t13/09\t18:00\tsim\t1\t1\t2"} className="font-mono text-xs rounded-lg" />
+          {/* Mudou o conteúdo colado → os nomes não reconhecidos são perguntados de novo. */}
+          <Textarea id="sug-paste" value={pasteText} onChange={(e) => { setPasteText(e.target.value); askedMappingRef.current = false; }} rows={10} placeholder={"Kit\tAéreo\t09/09\t10:00\tAéreo\t13/09\t18:00\tsim\t1\t1\t2"} className="font-mono text-xs rounded-lg" />
+
+          {/* Nomes que o catálogo não reconheceu: o usuário aponta a função certa antes de aplicar */}
+          {unknownNames.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
+              <div>
+                <p className="text-xs font-semibold text-amber-900">
+                  {unknownNames.length} {unknownNames.length === 1 ? "nome não reconhecido" : "nomes não reconhecidos"} — indique a função correspondente
+                </p>
+                <p className="text-[11px] text-amber-800 mt-0.5">
+                  O que ficar como "descartar" não entra na grade. As escolhas ficam salvas neste navegador e são reaproveitadas nas próximas colagens.
+                </p>
+              </div>
+              <ul className="space-y-1.5 max-h-44 overflow-y-auto">
+                {unknownNames.map((name) => {
+                  const key = functionNameKey(name);
+                  return (
+                    <li key={key} className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-xs text-slate-700 truncate max-w-[180px]" title={name}>{name}</span>
+                      <span aria-hidden="true" className="text-amber-700 text-xs">→</span>
+                      <Select value={pasteNameMap[key] ?? SKIP_FUNCTION} onValueChange={(v) => mapUnknownName(name, v)}>
+                        <SelectTrigger aria-label={`Função para ${name}`} className="h-8 w-[260px] max-w-full text-xs rounded-lg bg-white"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={SKIP_FUNCTION}>Descartar esta linha</SelectItem>
+                          {sortedFunctions.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" className="rounded-lg" onClick={closePaste}>Cancelar</Button>
             <Button type="button" onClick={applyPaste} className="rounded-lg bg-primary hover:bg-primary-hover">Aplicar na grade</Button>
@@ -760,6 +909,42 @@ export default function ScalingSuggestionPage() {
             <AlertDialogAction onClick={() => pendingPaste && commitPaste(pendingPaste.rows, pendingPaste.skippedNames, pendingPaste.conflicts.length)} className="bg-primary hover:bg-primary-hover">
               Substituir
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Colagem: a planilha tem dias fora do período da grade */}
+      <AlertDialog open={!!pendingPasteDates} onOpenChange={(o) => { if (!o) setPendingPasteDates(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              A planilha tem {pendingPasteDates?.dates.length} {pendingPasteDates?.dates.length === 1 ? "dia" : "dias"} fora do período da grade
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingPasteDates && (
+                <>
+                  A grade cobre {formatDateRange(applied.start, applied.end)} e a planilha traz quantidades em{" "}
+                  <strong>{pendingPasteDates.dates.map((d) => formatDayMonthBr(d)).join(", ")}</strong>.{" "}
+                  {pendingPasteDates.expansion.changed ? (
+                    <>Posso ajustar o período para {formatDateRange(pendingPasteDates.expansion.start, pendingPasteDates.expansion.end)} e colar tudo.{" "}
+                      {pendingPasteDates.expansion.ignored.length > 0 && (
+                        <>Mesmo assim, {pendingPasteDates.expansion.ignored.map((d) => formatDayMonthBr(d)).join(", ")} continuam de fora
+                          (a grade só vai até {PERIOD_MARGIN_DAYS} dias antes/depois do evento).{" "}</>
+                      )}
+                    </>
+                  ) : (
+                    <>Não dá para ampliar a grade até esses dias (limite de {PERIOD_MARGIN_DAYS} dias antes/depois do evento). Colando assim, eles são ignorados.{" "}</>
+                  )}
+                  Mantendo o período, as quantidades desses dias são descartadas.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={rejectPasteExpansion}>Manter período e ignorar</AlertDialogCancel>
+            {pendingPasteDates?.expansion.changed && (
+              <AlertDialogAction onClick={acceptPasteExpansion} className="bg-primary hover:bg-primary-hover">Ajustar o período</AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

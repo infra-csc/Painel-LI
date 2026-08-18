@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
-  buildDateList, buildReadDateList, countDaysInclusive, countOutsidePeriod, decomposeGridRows, detectPasteFormat,
-  emptyGridRow, mergePastedRows, MAX_GRID_DAYS, MAX_READ_DAYS, parsePastedRows, parseShortDate, parseTimeHHMM,
-  parseTransportMode, pasteConflicts, periodBounds, periodProblem, reframeRows, validateGridRow, normalizeStr,
+  buildDateList, buildFunctionMatcher, buildReadDateList, countDaysInclusive, countOutsidePeriod, decomposeGridRows,
+  detectPasteFormat, emptyGridRow, expandPeriodForDates, findLogisticaHeader, functionNameKey, mergePastedRows,
+  MAX_GRID_DAYS, MAX_READ_DAYS, parseLongDateBr, parsePastedRows, parsePtBrTime, parseSheetDate, parseShortDate,
+  parseTimeHHMM, parseTransportMode, pasteConflicts, periodBounds, periodProblem, reframeRows, resolveHeaderDate,
+  validateGridRow, normalizeStr,
 } from "./scaling-grid-utils";
 
 const DATES = ["2026-09-10", "2026-09-11", "2026-09-12"];
@@ -356,5 +358,291 @@ describe("validateGridRow", () => {
     row.flightDepartureDate = "2026-09-12";
     row.flightReturnDate = "2026-09-10";
     expect(validateGridRow(row).errors).toEqual(["data de volta anterior à data de ida"]);
+  });
+});
+
+// ── Formato "logistica" (planilha real da logística) ─────────────────────────
+
+describe("datas e horários da planilha da logística", () => {
+  it("parseLongDateBr lê data por extenso com e sem dia da semana/acento", () => {
+    expect(parseLongDateBr("quarta-feira, 9 de setembro de 2026", "2026")).toBe("2026-09-09");
+    expect(parseLongDateBr("sábado, 12 de setembro de 2026", "2026")).toBe("2026-09-12");
+    expect(parseLongDateBr("sabado, 12 de setembro de 2026", "2026")).toBe("2026-09-12");
+    expect(parseLongDateBr("13 de setembro de 2026", "2026")).toBe("2026-09-13");
+    expect(parseLongDateBr("1 de março de 2026", "2026")).toBe("2026-03-01");
+    expect(parseLongDateBr("5 de maio de 2026", "2026")).toBe("2026-05-05");
+  });
+  it("parseLongDateBr aceita mês abreviado e usa o ano padrão quando falta", () => {
+    expect(parseLongDateBr("9 de set de 2026", "2026")).toBe("2026-09-09");
+    expect(parseLongDateBr("9 de sete de 2026", "2026")).toBe("2026-09-09");
+    expect(parseLongDateBr("9 de setembro", "2027")).toBe("2027-09-09");
+    expect(parseLongDateBr("9 de setembro de 26", "2026")).toBe("2026-09-09");
+  });
+  it("parseLongDateBr recusa o que não é data por extenso", () => {
+    expect(parseLongDateBr("", "2026")).toBe("");
+    expect(parseLongDateBr("domingo", "2026")).toBe("");
+    expect(parseLongDateBr("40 de setembro de 2026", "2026")).toBe("");
+    expect(parseLongDateBr("9 de xxxxx de 2026", "2026")).toBe("");
+  });
+  it("parseSheetDate cobre ISO, extenso e curta na mesma chamada", () => {
+    expect(parseSheetDate("2026-09-09", "2026")).toBe("2026-09-09");
+    expect(parseSheetDate("quinta-feira, 10 de setembro de 2026", "2026")).toBe("2026-09-10");
+    expect(parseSheetDate("10/set", "2026")).toBe("2026-09-10");
+    expect(parseSheetDate("  ", "2026")).toBe("");
+  });
+  it("parsePtBrTime: '23h', '20h+' e o intervalo '14-18h' viram a hora de INÍCIO", () => {
+    expect(parsePtBrTime("23h")).toBe("23:00");
+    expect(parsePtBrTime("11h")).toBe("11:00");
+    expect(parsePtBrTime("20h+")).toBe("20:00");
+    expect(parsePtBrTime("14-18h")).toBe("14:00");
+    expect(parsePtBrTime("8h às 10h")).toBe("08:00");
+  });
+  it("parsePtBrTime mantém o que parseTimeHHMM já aceitava", () => {
+    expect(parsePtBrTime("14h30")).toBe("14:30");
+    expect(parsePtBrTime("14:30")).toBe("14:30");
+    expect(parsePtBrTime("1430")).toBe("14:30");
+    expect(parsePtBrTime("9")).toBe("09:00");
+    expect(parsePtBrTime("")).toBe("");
+    expect(parsePtBrTime("25h")).toBe("");
+    expect(parsePtBrTime("a combinar")).toBe("");
+  });
+  it("resolveHeaderDate tira o ano da grade; sem grade cai no ano do evento", () => {
+    const grade = ["2026-09-08", "2026-09-09", "2026-09-10"];
+    expect(resolveHeaderDate("08/set", grade, "2025")).toBe("2026-09-08"); // o ano vem da grade
+    expect(resolveHeaderDate("20/set", grade, "2025")).toBe("2025-09-20"); // fora da grade → ano do evento
+    expect(resolveHeaderDate("08/09/2024", grade, "2026")).toBe("2024-09-08"); // ano escrito manda
+    expect(resolveHeaderDate("09/09", grade, "2025")).toBe("2026-09-09");
+    expect(resolveHeaderDate("", grade, "2026")).toBe("");
+    expect(resolveHeaderDate("obs", grade, "2026")).toBe("");
+  });
+});
+
+describe("casamento tolerante de nomes de função", () => {
+  const FUNCS = [{ id: "f1", name: "Cenotécnica" }, { id: "f2", name: "Ativação SP" }, { id: "f3", name: "Clube O2" }];
+  it("functionNameKey normaliza acento, caixa, pontuação, espaços e plural", () => {
+    expect(functionNameKey("Cenotécnica")).toBe(functionNameKey("cenotecnica"));
+    expect(functionNameKey("  Ativação   SP ")).toBe(functionNameKey("ativacao/sp"));
+    expect(functionNameKey("Ativações")).toBe(functionNameKey("Ativação"));
+    expect(functionNameKey("Kits")).toBe(functionNameKey("kit"));
+  });
+  it("o matcher casa variações mas NÃO chuta por semelhança", () => {
+    const match = buildFunctionMatcher(FUNCS);
+    expect(match("cenotecnica")?.id).toBe("f1");
+    expect(match("CENOTÉCNICA")?.id).toBe("f1");
+    expect(match("ativação  sp")?.id).toBe("f2");
+    expect(match("ativações sp")?.id).toBe("f2");
+    expect(match("o2 prime")).toBeUndefined();
+    expect(match("")).toBeUndefined();
+  });
+  it("o mapeamento manual do usuário tem prioridade", () => {
+    const match = buildFunctionMatcher(FUNCS, { [functionNameKey("o2 prime")]: "f3" });
+    expect(match("O2 Prime")?.id).toBe("f3");
+    expect(match("cenotecnica")?.id).toBe("f1"); // o resto continua igual
+  });
+});
+
+describe("colagem no formato da logística", () => {
+  // Conteúdo VERBATIM da planilha que a logística usa (colunas separadas por TAB).
+  // Repare na coluna VAZIA entre "horario do retorno" e o 1º dia: é ela que quebra
+  // qualquer leitura por posição fixa.
+  const PLANILHA = [
+    "Circuito Das Estações - Primavera - Recife - 2026",
+    "\tida\tchegada (até...)\tretorno\thorario do retorno (a partir)\t\t08/set\t09/set\t10/set\t11/set\t12/set\t13/set\t\t\t\tobs",
+    "\t\t\tter\tqua\tqui\tsex\tsab\tdom",
+    "atendimento\tsexta-feira, 11 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t14-18h\t\t\t\t\t\t1\t1",
+    "dir prova\tquinta-feira, 10 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t14-18h\t\t\t\t\t1\t1\t1",
+    "produção\tquarta-feira, 9 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t20h+\t\t\t\t1\t1\t1\t1",
+    "produção local\t\t\t\t\t\t\t\t\t1\t2\t3",
+    "ativação sp\tquinta-feira, 10 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t14-18h\t\t\t\t\t1\t1\t1",
+    "ativação local\t\t\t\t\t\t\t\t\t\t1\t1",
+    "sup ceno\tquarta-feira, 9 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t20h+\t\t\t\t1\t1\t1\t1",
+    "cenotecnica\tquinta-feira, 10 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t20h+\t\t\t\t3\t3\t3\t3",
+    "cenotecnica local\t\t\t\t\t\t\t\t2\t2\t2",
+    "percurso\tsábado, 12 de setembro de 2026\t11h\tdomingo, 13 de setembro de 2026\t14-18h\t\t\t\t\t\t1\t1",
+    "kit\tquinta-feira, 10 de setembro de 2026\t11h\tdomingo, 13 de setembro de 2026\t14-18h\t\t\t\t1\t1\t1\t1",
+    "o2 prime\tquinta-feira, 10 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t14-18h\t\t\t\t\t1\t1\t1",
+    "",
+  ].join("\n");
+
+  const CATALOGO = [
+    { id: "f-atend", name: "Atendimento" },
+    { id: "f-dir", name: "Dir Prova" },
+    { id: "f-prod", name: "Produção" },
+    { id: "f-prod-loc", name: "Produção Local" },
+    { id: "f-ativ-sp", name: "Ativação SP" },
+    { id: "f-ativ-loc", name: "Ativação Local" },
+    { id: "f-sup", name: "Sup Ceno" },
+    { id: "f-ceno", name: "Cenotécnica" },
+    { id: "f-ceno-loc", name: "Cenotécnica Local" },
+    { id: "f-perc", name: "Percurso" },
+    { id: "f-kit", name: "Kit" },
+    { id: "f-o2", name: "Clube O2" },
+  ];
+  const GRADE = buildDateList("2026-09-08", "2026-09-13");
+  const parse = (dates = GRADE, options?: Parameters<typeof parsePastedRows>[5]) =>
+    parsePastedRows(PLANILHA, CATALOGO, dates, "2026", undefined, options);
+  const byName = (res: ReturnType<typeof parse>, name: string) => res.rows.find((r) => r.functionName === name)!;
+
+  it("é detectado automaticamente, sem forçar o formato", () => {
+    expect(detectPasteFormat(PLANILHA)).toEqual({ format: "logistica", hadHeader: true });
+    expect(detectPasteFormat(PLANILHA, { dayCount: GRADE.length })).toEqual({ format: "logistica", hadHeader: true });
+    expect(parse().format).toBe("logistica");
+  });
+
+  it("mapeia as colunas pelo cabeçalho, pulando a coluna separadora vazia", () => {
+    const header = findLogisticaHeader(PLANILHA.split("\n").map((l) => l.split("\t")))!;
+    expect(header.lineIndex).toBe(1); // a 1ª linha é o título livre do evento
+    expect(header.colFunction).toBe(0);
+    expect(header.colDepartureDate).toBe(1);
+    expect(header.colArrivalTime).toBe(2);
+    expect(header.colReturnDate).toBe(3);
+    expect(header.colReturnTime).toBe(4);
+    expect(header.colObs).toBe(15);
+    // A coluna 5 é vazia e NÃO entra; os dias começam na 6.
+    expect(header.dayColumns.map((c) => c.index)).toEqual([6, 7, 8, 9, 10, 11]);
+    expect(header.dayColumns.map((c) => c.raw)).toEqual(["08/set", "09/set", "10/set", "11/set", "12/set", "13/set"]);
+  });
+
+  it("12 linhas de dados → 11 funções reconhecidas + 'o2 prime' não reconhecida", () => {
+    const res = parse();
+    expect(res.rows).toHaveLength(11);
+    expect(res.skippedNames).toEqual(["o2 prime"]);
+    expect(res.unknownNames).toEqual(["o2 prime"]);
+    expect(res.hadHeader).toBe(true);
+    expect(res.problem).toBeUndefined();
+    expect(res.rows.map((r) => r.functionName)).toEqual([
+      "Atendimento", "Dir Prova", "Produção", "Produção Local", "Ativação SP", "Ativação Local",
+      "Sup Ceno", "Cenotécnica", "Cenotécnica Local", "Percurso", "Kit",
+    ]);
+    // A linha das abreviações de dia da semana (ter/qua/qui…) é ignorada.
+    expect(res.skippedNames).not.toContain("ter");
+  });
+
+  it("quantidades vão pela DATA da coluna, não pela ordem das células", () => {
+    const res = parse();
+    const qty = (name: string) => Object.entries(byName(res, name).quantities).filter(([, q]) => q > 0);
+    expect(qty("Atendimento")).toEqual([["2026-09-12", 1], ["2026-09-13", 1]]);
+    expect(qty("Dir Prova")).toEqual([["2026-09-11", 1], ["2026-09-12", 1], ["2026-09-13", 1]]);
+    expect(qty("Produção Local")).toEqual([["2026-09-11", 1], ["2026-09-12", 2], ["2026-09-13", 3]]);
+    expect(qty("Ativação Local")).toEqual([["2026-09-12", 1], ["2026-09-13", 1]]);
+    expect(qty("Cenotécnica")).toEqual([["2026-09-10", 3], ["2026-09-11", 3], ["2026-09-12", 3], ["2026-09-13", 3]]);
+    expect(qty("Cenotécnica Local")).toEqual([["2026-09-10", 2], ["2026-09-11", 2], ["2026-09-12", 2]]);
+    expect(qty("Percurso")).toEqual([["2026-09-12", 1], ["2026-09-13", 1]]);
+    // Ninguém trabalha em 08/set, mas a coluna existe e continua zerada (não desloca nada).
+    expect(res.rows.every((r) => (r.quantities["2026-09-08"] ?? 0) === 0)).toBe(true);
+  });
+
+  it("vagas por linha: atendimento 2 pessoas-dia, cenotécnica 3 vagas de 10 a 13, produção local 3 vagas (a 3ª só no dia 13)", () => {
+    const res = parse();
+    const vagas = (name: string) => decomposeGridRows([byName(res, name)], GRADE);
+    const atendimento = vagas("Atendimento");
+    expect(atendimento).toHaveLength(1);
+    expect(atendimento[0].workDays).toEqual(["2026-09-12", "2026-09-13"]); // 2 pessoas-dia
+    const ceno = vagas("Cenotécnica");
+    expect(ceno).toHaveLength(3);
+    expect(ceno.every((v) => v.workDays.join() === "2026-09-10,2026-09-11,2026-09-12,2026-09-13")).toBe(true);
+    const prodLocal = vagas("Produção Local");
+    expect(prodLocal).toHaveLength(3);
+    expect(prodLocal[0].workDays).toEqual(["2026-09-11", "2026-09-12", "2026-09-13"]);
+    expect(prodLocal[1].workDays).toEqual(["2026-09-12", "2026-09-13"]);
+    expect(prodLocal[2].workDays).toEqual(["2026-09-13"]); // a 3ª pessoa entra só no último dia
+  });
+
+  it("datas e horários convertidos: 'chegada' é desembarque da ida, 'horario do retorno' é embarque da volta", () => {
+    const res = parse();
+    const prod = byName(res, "Produção");
+    expect(prod.flightDepartureDate).toBe("2026-09-09");
+    expect(prod.flightArrivalSuggestedTime).toBe("23:00");
+    expect(prod.flightReturnDate).toBe("2026-09-13");
+    expect(prod.flightReturnSuggestedTime).toBe("20:00"); // "20h+"
+    const atend = byName(res, "Atendimento");
+    expect(atend.flightDepartureDate).toBe("2026-09-11");
+    expect(atend.flightReturnSuggestedTime).toBe("14:00"); // "14-18h" → a partir das 14h
+    const perc = byName(res, "Percurso");
+    expect(perc.flightDepartureDate).toBe("2026-09-12");
+    expect(perc.flightArrivalSuggestedTime).toBe("11:00");
+  });
+
+  it("passagem é inferida pela viagem; hotel e modais ficam em branco", () => {
+    const res = parse();
+    for (const name of ["Produção", "Cenotécnica", "Percurso", "Kit"]) {
+      expect(byName(res, name).needsTicket, name).toBe(true);
+    }
+    for (const name of ["Produção Local", "Ativação Local", "Cenotécnica Local"]) {
+      const r = byName(res, name);
+      expect(r.needsTicket, name).toBe(false);
+      expect(r.flightDepartureDate, name).toBe("");
+      expect(r.flightReturnDate, name).toBe("");
+      expect(r.flightArrivalSuggestedTime, name).toBe("");
+      expect(r.flightReturnSuggestedTime, name).toBe("");
+    }
+    expect(res.rows.every((r) => !r.needsAccommodation)).toBe(true);
+    expect(res.rows.every((r) => r.transportModeIda === "" && r.transportModeVolta === "")).toBe(true);
+    expect(res.rows.every((r) => r.observations === "")).toBe(true);
+  });
+
+  it("linhas coladas passam na validação da grade (nada de horário/data inválidos)", () => {
+    for (const row of parse().rows) expect(validateGridRow(row), row.functionName).toEqual({ errors: [], warnings: [] });
+  });
+
+  it("dias fora do período da grade são devolvidos, não descartados em silêncio", () => {
+    const curta = buildDateList("2026-09-11", "2026-09-13");
+    const res = parse(curta);
+    expect(res.datesOutsideGrid).toEqual(["2026-09-10"]); // 08 e 09 não têm quantidade
+    expect(byName(res, "Cenotécnica").quantities["2026-09-10"]).toBeUndefined();
+    // Com o período completo não sobra nada de fora.
+    expect(parse().datesOutsideGrid).toEqual([]);
+  });
+
+  it("o nome não reconhecido pode ser mapeado à mão e passa a entrar na grade", () => {
+    const res = parse(GRADE, { nameMap: { [functionNameKey("o2 prime")]: "f-o2" } });
+    expect(res.skippedNames).toEqual([]);
+    expect(res.unknownNames).toEqual([]);
+    expect(res.rows).toHaveLength(12);
+    const o2 = byName(res, "Clube O2");
+    expect(o2.needsTicket).toBe(true);
+    expect(o2.flightDepartureDate).toBe("2026-09-10");
+    expect(Object.entries(o2.quantities).filter(([, q]) => q > 0)).toEqual([["2026-09-11", 1], ["2026-09-12", 1], ["2026-09-13", 1]]);
+  });
+
+  it("forçar o formato da logística num texto sem cabeçalho avisa em vez de inventar linhas", () => {
+    const res = parsePastedRows("Kit\t\t\t\t1", CATALOGO, GRADE, "2026", "logistica");
+    expect(res.rows).toEqual([]);
+    expect(res.problem).toBe("cabecalho-nao-encontrado");
+  });
+
+  it("o cabeçalho da logística não é confundido com os formatos antigos (e vice-versa)", () => {
+    const antigo = [
+      ["Função", "Modal ida", "Data ida", "Hora desembarque", "Modal volta", "Data volta", "Hora embarque", "Hotel", "10/09", "11/09", "12/09"].join("\t"),
+      ["Kit", "", "", "", "", "", "", "não", "0", "2", "0"].join("\t"),
+    ].join("\n");
+    expect(detectPasteFormat(antigo).format).toBe("briefing");
+    expect(findLogisticaHeader(antigo.split("\n").map((l) => l.split("\t")))).toBeNull();
+  });
+});
+
+describe("expandPeriodForDates (ampliar a grade para cobrir os dias da planilha)", () => {
+  const bounds = periodBounds("2026-09-10", "2026-09-13"); // 03/09 a 20/09
+  it("amplia até cobrir os dias de fora", () => {
+    const r = expandPeriodForDates({ start: "2026-09-10", end: "2026-09-13" }, ["2026-09-08", "2026-09-14"], bounds);
+    expect(r).toEqual({ start: "2026-09-08", end: "2026-09-14", changed: true, covered: ["2026-09-08", "2026-09-14"], ignored: [] });
+  });
+  it("o que passa do limite evento ± 7 dias fica de fora e é informado", () => {
+    const r = expandPeriodForDates({ start: "2026-09-10", end: "2026-09-13" }, ["2026-09-09", "2026-10-30"], bounds);
+    expect(r.start).toBe("2026-09-09");
+    expect(r.end).toBe("2026-09-13");
+    expect(r.covered).toEqual(["2026-09-09"]);
+    expect(r.ignored).toEqual(["2026-10-30"]);
+  });
+  it("sem dias de fora (ou com período inválido) nada muda", () => {
+    expect(expandPeriodForDates({ start: "2026-09-10", end: "2026-09-13" }, [], bounds).changed).toBe(false);
+    const invalido = expandPeriodForDates({ start: "2026-09-13", end: "2026-09-10" }, ["2026-09-08"], bounds);
+    expect(invalido).toEqual({ start: "2026-09-13", end: "2026-09-10", changed: false, covered: [], ignored: ["2026-09-08"] });
+  });
+  it("se o resultado estourar o teto de dias da grade, nada é ampliado", () => {
+    const semLimite = { min: "", max: "" };
+    const r = expandPeriodForDates({ start: "2026-09-10", end: "2026-09-13" }, ["2027-09-10"], semLimite);
+    expect(r.changed).toBe(false);
+    expect(r.ignored).toEqual(["2027-09-10"]);
   });
 });

@@ -290,6 +290,37 @@ const MONTHS: Record<string, string> = {
   jul: "07", ago: "08", set: "09", out: "10", nov: "11", dez: "12",
 };
 
+/**
+ * Data por extenso em pt-BR → "YYYY-MM-DD".
+ *
+ * Aceita "quarta-feira, 9 de setembro de 2026", "9 de setembro de 2026",
+ * "09 de set de 2026" e "9 de setembro" (ano = `defaultYear`), com ou sem acento,
+ * com ou sem dia da semana na frente. O mês pode vir por nome completo ou
+ * abreviação ("set", "sete", "setembro" → 09).
+ */
+const LONG_DATE_RE = /(\d{1,2})\s+de\s+([a-z]{3,})\.?(?:\s+de\s+(\d{2,4}))?/;
+export function parseLongDateBr(raw: string, defaultYear: string): string {
+  const s = normalizeStr(raw).replace(/\s+/g, " ");
+  const m = LONG_DATE_RE.exec(s);
+  if (!m) return "";
+  const dayNum = Number(m[1]);
+  if (dayNum < 1 || dayNum > 31) return "";
+  const month = MONTHS[m[2].slice(0, 3)];
+  if (!month) return "";
+  let year = m[3] ?? defaultYear;
+  if (year.length === 2) year = `20${year}`;
+  if (!/^\d{4}$/.test(year)) return "";
+  return `${year}-${month}-${String(dayNum).padStart(2, "0")}`;
+}
+
+/** Data de planilha em qualquer das grafias aceitas: ISO, por extenso (pt-BR) ou curta. */
+export function parseSheetDate(raw: string, defaultYear: string): string {
+  const s = raw.trim();
+  if (!s) return "";
+  if (YMD_RE.test(s)) return s;
+  return parseLongDateBr(s, defaultYear) || parseShortDate(s, defaultYear);
+}
+
 /** "15/nov", "15/11", "15-11-2026", "15/11/26", "2026-11-15" → "YYYY-MM-DD" (ano padrão informado). */
 export function parseShortDate(raw: string, defaultYear: string): string {
   const s = raw.trim();
@@ -321,6 +352,29 @@ export function parseTimeHHMM(raw: string): string {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
+/**
+ * Horário como a logística escreve → "HH:MM".
+ *
+ * Além do que `parseTimeHHMM` já entende ("14h30", "14:30", "1430", "9"), aceita
+ * as formas soltas da planilha e sempre fica com a PRIMEIRA hora citada, porque
+ * as duas colunas de horário são limites de início:
+ * - "23h" → 23:00 · "11h" → 11:00
+ * - "20h+" → 20:00 (a partir das 20h)
+ * - "14-18h" → 14:00 (a partir das 14h; o 18h é só o fim da janela)
+ * - "8h às 10h" → 08:00
+ */
+export function parsePtBrTime(raw: string): string {
+  const strict = parseTimeHHMM(raw);
+  if (strict) return strict;
+  const s = normalizeStr(raw).replace(/\s+/g, "");
+  const m = /^(\d{1,2})(?:[h:](\d{2}))?/.exec(s);
+  if (!m) return "";
+  const hh = Number(m[1]);
+  const mm = m[2] ? Number(m[2]) : 0;
+  if (hh > 23 || mm > 59) return "";
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
+
 const MODE_ALIASES: Record<string, TransportMode> = {
   aereo: "aereo", aviao: "aereo", voo: "aereo", "a": "aereo",
   onibus: "onibus", bus: "onibus",
@@ -340,26 +394,116 @@ export const parseYesNo = (raw: string) => YES.has(normalizeStr(raw));
 
 /**
  * Formatos aceitos na colagem (colunas separadas por TAB):
- * - "grade"    : Função | Modal ida | Data ida | Hora desembarque | Modal volta | Data volta |
- *                Hora embarque | Hotel | Passagem | Observação | qtd dia 1 | qtd dia 2 | …
- * - "briefing" : Função | Modal ida | Data ida | Hora desembarque | Modal volta | Data volta |
- *                Hora embarque | Hotel | qtd dia 1 | qtd dia 2 | …   (sem Passagem/Observação)
- * As quantidades seguem a ordem das colunas de dia da grade.
+ * - "grade"     : Função | Modal ida | Data ida | Hora desembarque | Modal volta | Data volta |
+ *                 Hora embarque | Hotel | Passagem | Observação | qtd dia 1 | qtd dia 2 | …
+ * - "briefing"  : Função | Modal ida | Data ida | Hora desembarque | Modal volta | Data volta |
+ *                 Hora embarque | Hotel | qtd dia 1 | qtd dia 2 | …   (sem Passagem/Observação)
+ * - "logistica" : a planilha real da logística — ver `findLogisticaHeader`. Aqui as
+ *                 colunas NÃO têm posição fixa: são lidas pelo CABEÇALHO.
+ *
+ * Nos dois primeiros as quantidades seguem a ORDEM das colunas de dia da grade.
  */
-export type PasteFormat = "grade" | "briefing";
-export const PASTE_FORMAT_LABELS: Record<PasteFormat, string> = { grade: "Formato completo (com Passagem e Observação)", briefing: "Formato do briefing (Hotel e depois as quantidades)" };
-const QTY_COL_START: Record<PasteFormat, number> = { grade: 10, briefing: 8 };
+export type PasteFormat = "grade" | "briefing" | "logistica";
+export const PASTE_FORMAT_LABELS: Record<PasteFormat, string> = {
+  grade: "Formato completo (com Passagem e Observação)",
+  briefing: "Formato do briefing (Hotel e depois as quantidades)",
+  logistica: "Planilha da logística (cabeçalho com ida/retorno e os dias)",
+};
+const QTY_COL_START: Record<"grade" | "briefing", number> = { grade: 10, briefing: 8 };
 
 export interface PasteResult {
   rows: SuggestionGridRow[];
+  /** Nomes de função não encontrados no catálogo, na ordem de leitura (pode repetir). */
   skippedNames: string[];
+  /** Os mesmos nomes, sem repetição — é o que o diálogo oferece para mapear à mão. */
+  unknownNames: string[];
+  /**
+   * Datas de coluna que a planilha traz COM quantidade mas estão fora do período
+   * da grade. Só é preenchido no formato "logistica" (é o único que sabe a data de
+   * cada coluna). Dias vazios fora do período não entram aqui — não há o que perder.
+   */
+  datesOutsideGrid: string[];
   /** Formato efetivamente usado (detectado ou forçado). */
   format: PasteFormat;
-  /** true quando a primeira linha era cabeçalho e foi ignorada. */
+  /** true quando havia cabeçalho e ele foi ignorado. */
   hadHeader: boolean;
+  /** Por que a leitura não produziu nada (quando aplicável). */
+  problem?: "cabecalho-nao-encontrado";
+}
+
+export interface PasteOptions {
+  /**
+   * Mapeamento manual de nomes que o catálogo não reconhece:
+   * { chave de `functionNameKey(nome colado)` → id da função }.
+   */
+  nameMap?: Record<string, string>;
 }
 
 const splitCols = (line: string) => line.split("\t").map((c) => c.trim());
+
+// ── Casamento tolerante de nomes de função ───────────────────────────────────
+
+/** Plural pt-BR → singular, só o suficiente para casar nomes ("ativações" → "ativacao"). */
+function depluralize(word: string): string {
+  if (word.length > 4) {
+    if (word.endsWith("oes") || word.endsWith("aes")) return `${word.slice(0, -3)}ao`;
+    if (word.endsWith("ais")) return `${word.slice(0, -3)}al`;
+    if (word.endsWith("eis")) return `${word.slice(0, -3)}el`;
+  }
+  if (word.length > 3 && word.endsWith("s")) return word.slice(0, -1);
+  return word;
+}
+
+/**
+ * Chave de comparação de nome de função: sem acento, sem caixa, sem pontuação,
+ * espaços repetidos colapsados e cada palavra no singular. É a mesma chave usada
+ * no mapeamento manual guardado em localStorage — por isso é exportada.
+ */
+export function functionNameKey(name: string): string {
+  const base = normalizeStr(name).replace(/[^a-z0-9]+/g, " ").trim();
+  if (!base) return "";
+  return base.split(" ").map(depluralize).join(" ");
+}
+
+/**
+ * Localizador de função por nome colado, em três tentativas: (1) mapeamento manual
+ * do usuário, (2) nome idêntico ignorando acento/caixa, (3) chave tolerante
+ * (pontuação, espaços repetidos, singular/plural). Nunca "chuta" por semelhança —
+ * o que não casar volta como não reconhecido para o usuário mapear.
+ */
+export function buildFunctionMatcher<T extends { id: string; name: string }>(
+  functions: T[],
+  nameMap?: Record<string, string>,
+): (raw: string) => T | undefined {
+  const exact = new Map<string, T>();
+  const loose = new Map<string, T>();
+  const byId = new Map<string, T>();
+  for (const f of functions) {
+    byId.set(f.id, f);
+    const n = normalizeStr(f.name);
+    if (n && !exact.has(n)) exact.set(n, f);
+    const k = functionNameKey(f.name);
+    if (k && !loose.has(k)) loose.set(k, f);
+  }
+  return (raw: string) => {
+    const n = normalizeStr(raw);
+    if (!n) return undefined;
+    const key = functionNameKey(raw);
+    const mappedId = nameMap?.[key] ?? nameMap?.[n];
+    const mapped = mappedId ? byId.get(mappedId) : undefined;
+    return mapped ?? exact.get(n) ?? loose.get(key);
+  };
+}
+
+const dedupe = (names: string[]) => {
+  const seen = new Set<string>();
+  return names.filter((n) => {
+    const k = functionNameKey(n);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+};
 
 /**
  * Cabeçalho = 1ª coluna "Função" em qualquer grafia: com/sem acento, caixa livre,
@@ -374,9 +518,205 @@ const isQtyToken = (s: string) => /^\d+$/.test(s);
 /** Tokens que podem ser sim/não. "0" e "1" estão aqui de propósito: são ambíguos (quantidade ou sim/não). */
 const YESNO_TOKENS = new Set(["", "sim", "s", "nao", "n", "x", "true", "false", "y", "yes", "no", "0", "1"]);
 
+// ── Formato "logistica": a planilha real usada pela logística ────────────────
+
+/**
+ * Mapa das colunas da planilha da logística. Tudo é índice de coluna descoberto
+ * NO CABEÇALHO (-1 = coluna ausente) porque essa planilha tem colunas vazias de
+ * separação entre o bloco de viagem e o bloco de dias — qualquer contagem fixa
+ * de posição erraria. As quantidades também são lidas pela DATA da coluna, não
+ * pela ordem.
+ *
+ * Layout típico (a 1ª linha do arquivo é o título livre do evento e é ignorada):
+ *
+ *   (vazio) | ida | chegada (até...) | retorno | horario do retorno (a partir) |
+ *   (vazio) | 08/set | 09/set | … | (vazias) | obs
+ *
+ * Semântica das duas colunas de horário:
+ * - "chegada (até...)"              → horário de DESEMBARQUE da ida.
+ * - "horario do retorno (a partir)" → horário de EMBARQUE da volta.
+ */
+export interface LogisticaHeader {
+  /** Índice da linha do cabeçalho dentro do texto colado. */
+  lineIndex: number;
+  colFunction: number;
+  colDepartureDate: number;
+  colArrivalTime: number;
+  colReturnDate: number;
+  colReturnTime: number;
+  colObs: number;
+  /** Colunas de dia na ordem da planilha (a data é resolvida depois, com a grade). */
+  dayColumns: { index: number; raw: string }[];
+}
+
+/** Quantas linhas do topo podem conter o cabeçalho (título do evento costuma vir antes). */
+const LOGISTICA_SCAN_LINES = 6;
+
+/** "08/set", "08/09", "08/09/2026" — rótulo de coluna de dia (já normalizado). */
+const DAY_HEADER_RE = /^\d{1,2}\s*[/\-.]\s*([a-z]{3,}\.?|\d{1,2})(\s*[/\-.]\s*\d{2,4})?$/;
+const isDayHeaderCell = (normalized: string) =>
+  DAY_HEADER_RE.test(normalized) && parseShortDate(normalized, "2000") !== "";
+
+/**
+ * Acha e mapeia o cabeçalho da planilha da logística nas primeiras linhas.
+ *
+ * Regras de reconhecimento (todas necessárias para NÃO confundir com os formatos
+ * "grade"/"briefing", cujo cabeçalho começa com "Função"):
+ * - a 1ª coluna é VAZIA (é a coluna dos nomes de função, sem rótulo);
+ * - a linha tem ≥ 3 colunas; e
+ * - traz ≥ 2 colunas com data curta OU ≥ 2 rótulos de viagem conhecidos.
+ */
+export function findLogisticaHeader(grid: string[][]): LogisticaHeader | null {
+  const limit = Math.min(grid.length, LOGISTICA_SCAN_LINES);
+  for (let i = 0; i < limit; i++) {
+    const cols = grid[i];
+    if (cols.length < 3) continue;
+    if ((cols[0] ?? "").trim() !== "") continue; // a coluna da função não tem rótulo
+    const h: LogisticaHeader = {
+      lineIndex: i, colFunction: 0,
+      colDepartureDate: -1, colArrivalTime: -1, colReturnDate: -1, colReturnTime: -1, colObs: -1,
+      dayColumns: [],
+    };
+    let labels = 0;
+    cols.forEach((raw, idx) => {
+      const c = normalizeStr(raw);
+      if (!c) return;
+      if (isDayHeaderCell(c)) { h.dayColumns.push({ index: idx, raw }); return; }
+      if (c.startsWith("obs")) { if (h.colObs < 0) h.colObs = idx; return; }
+      if (c.includes("chegada") || c.includes("desembarque")) {
+        if (h.colArrivalTime < 0) h.colArrivalTime = idx;
+        labels++; return;
+      }
+      if (c.includes("retorno") || c.includes("volta")) {
+        // "horario do retorno (a partir)" é HORA; "retorno" sozinho é DATA.
+        if (c.includes("hora")) { if (h.colReturnTime < 0) h.colReturnTime = idx; }
+        else if (h.colReturnDate < 0) h.colReturnDate = idx;
+        labels++; return;
+      }
+      if (c === "ida" || c.startsWith("ida ") || c.includes("data ida") || c.includes("saida")) {
+        if (h.colDepartureDate < 0) h.colDepartureDate = idx;
+        labels++; return;
+      }
+      if (c.startsWith("hor")) { if (h.colReturnTime < 0) h.colReturnTime = idx; labels++; }
+    });
+    if (h.dayColumns.length >= 2 || labels >= 2) return h;
+  }
+  return null;
+}
+
+/**
+ * Data de uma coluna de dia → ISO. O ano quase nunca está no rótulo ("08/set"),
+ * então ele vem da GRADE: se dia/mês bate com algum dia do período atual, usa
+ * aquele ano; senão cai no ano do evento (`defaultYear`).
+ */
+export function resolveHeaderDate(raw: string, dates: string[], defaultYear: string): string {
+  const s = raw.trim();
+  if (!s) return "";
+  const iso = parseShortDate(s, defaultYear);
+  if (!iso) return "";
+  const parts = s.split(/[/\-.\s]+/).filter(Boolean);
+  if (parts.length >= 3) return iso; // o ano veio escrito no rótulo
+  const mmdd = iso.slice(5);
+  return dates.find((d) => d.slice(5) === mmdd) ?? iso;
+}
+
+function parseLogisticaText(
+  text: string,
+  functions: { id: string; name: string }[],
+  dates: string[],
+  defaultYear: string,
+  options?: PasteOptions,
+): PasteResult {
+  const grid = text.replace(/\r/g, "").split("\n").map(splitCols);
+  const header = findLogisticaHeader(grid);
+  if (!header) {
+    return { rows: [], skippedNames: [], unknownNames: [], datesOutsideGrid: [], format: "logistica", hadHeader: false, problem: "cabecalho-nao-encontrado" };
+  }
+  const dayColumns = header.dayColumns
+    .map((c) => ({ index: c.index, date: resolveHeaderDate(c.raw, dates, defaultYear) }))
+    .filter((c) => c.date);
+  const inGrid = new Set(dates);
+  const match = buildFunctionMatcher(functions, options?.nameMap);
+  const cell = (cols: string[], idx: number) => (idx >= 0 ? (cols[idx] ?? "").trim() : "");
+
+  const rows: SuggestionGridRow[] = [];
+  const skippedNames: string[] = [];
+  const outside = new Set<string>();
+  for (let i = header.lineIndex + 1; i < grid.length; i++) {
+    const cols = grid[i];
+    // Sem nome na 1ª coluna não há linha de dados — é o que descarta a linha das
+    // abreviações de dia da semana (ter/qua/qui…), que ainda pode vir desalinhada.
+    const name = cell(cols, header.colFunction);
+    if (!name) continue;
+    const func = match(name);
+    if (!func) { skippedNames.push(name); continue; }
+
+    const row = emptyGridRow(func.id, func.name, dates, `${func.id}-paste-${Date.now()}-${i}`);
+    row.flightDepartureDate = parseSheetDate(cell(cols, header.colDepartureDate), defaultYear);
+    row.flightArrivalSuggestedTime = parsePtBrTime(cell(cols, header.colArrivalTime));
+    row.flightReturnDate = parseSheetDate(cell(cols, header.colReturnDate), defaultYear);
+    row.flightReturnSuggestedTime = parsePtBrTime(cell(cols, header.colReturnTime));
+    row.observations = cell(cols, header.colObs);
+    // A planilha não tem coluna de passagem nem de hotel: quem viaja (tem data de
+    // ida ou de volta) precisa de passagem; as linhas "local" ficam sem nada.
+    // Hotel e os modais de ida/volta continuam em branco, para preencher na grade.
+    row.needsTicket = !!(row.flightDepartureDate || row.flightReturnDate);
+
+    for (const dc of dayColumns) {
+      const n = parseInt(cell(cols, dc.index) || "0", 10);
+      if (Number.isNaN(n) || n <= 0) continue;
+      if (inGrid.has(dc.date)) row.quantities[dc.date] = Math.min(QTY_MAX, n);
+      else outside.add(dc.date); // fora do período: a tela oferece ampliar a grade
+    }
+    rows.push(row);
+  }
+  return {
+    rows, skippedNames, unknownNames: dedupe(skippedNames),
+    datesOutsideGrid: Array.from(outside).sort(),
+    format: "logistica", hadHeader: true,
+  };
+}
+
+/**
+ * Novo período que cobriria as datas de fora, respeitando os limites da grade
+ * (evento ± `PERIOD_MARGIN_DAYS` e o teto de `MAX_GRID_DAYS` dias).
+ * `ignored` = datas que continuam de fora mesmo assim (a tela avisa quais).
+ */
+export interface PeriodExpansion {
+  start: string;
+  end: string;
+  /** false = não dá para ampliar (nada muda e tudo cai em `ignored`). */
+  changed: boolean;
+  covered: string[];
+  ignored: string[];
+}
+export function expandPeriodForDates(
+  period: { start: string; end: string },
+  extraDates: string[],
+  bounds: { min: string; max: string },
+): PeriodExpansion {
+  const keep = { start: period.start, end: period.end };
+  const valid = Array.from(new Set(extraDates.filter((d) => YMD_RE.test(d)))).sort();
+  const noChange = (ignored: string[]): PeriodExpansion => ({ ...keep, changed: false, covered: [], ignored });
+  if (valid.length === 0 || periodProblem(period.start, period.end)) return noChange(valid);
+
+  const fits = valid.filter((d) => (!bounds.min || d >= bounds.min) && (!bounds.max || d <= bounds.max));
+  const ignored = valid.filter((d) => !fits.includes(d));
+  let start = period.start;
+  let end = period.end;
+  for (const d of fits) {
+    if (d < start) start = d;
+    if (d > end) end = d;
+  }
+  if (periodProblem(start, end)) return noChange(valid); // estourou o teto de dias
+  return { start, end, changed: start !== period.start || end !== period.end, covered: fits, ignored };
+}
+
 /**
  * Detecta o formato da colagem, nesta ordem:
  *
+ * 0. Cabeçalho da planilha da logística (1ª coluna vazia + colunas de dia/rótulos
+ *    de viagem) → "logistica". Vem antes porque esse formato não tem posição fixa.
  * 1. Cabeçalho reconhecido → decide pelas colunas "Passagem"/"Observação".
  * 2. Texto livre na 10ª coluna, ou sim/não por extenso na 9ª → formato da grade.
  * 3. POSIÇÃO das colunas (só quando o nº de dias da grade é conhecido): vence o
@@ -391,6 +731,7 @@ const YESNO_TOKENS = new Set(["", "sim", "s", "nao", "n", "x", "true", "false", 
 export function detectPasteFormat(text: string, options?: { dayCount?: number }): { format: PasteFormat; hadHeader: boolean } {
   const lines = text.trim().split(/\r?\n/).filter((l) => l.trim());
   if (lines.length === 0) return { format: "grade", hadHeader: false };
+  if (findLogisticaHeader(lines.map(splitCols))) return { format: "logistica", hadHeader: true }; // (0)
   const first = splitCols(lines[0]);
   if (isHeaderLine(first)) {
     const norm = first.map(normalizeStr);
@@ -432,15 +773,17 @@ export function parsePastedRows(
   dates: string[],
   defaultYear: string,
   forcedFormat?: PasteFormat,
+  options?: PasteOptions,
 ): PasteResult {
   const rows: SuggestionGridRow[] = [];
   const skippedNames: string[] = [];
   // O nº de dias da grade é o melhor desempate quando "0"/"1" pode ser quantidade ou sim/não.
   const detected = detectPasteFormat(text, { dayCount: dates.length });
   const format = forcedFormat ?? detected.format;
+  if (format === "logistica") return parseLogisticaText(text, functions, dates, defaultYear, options);
   const qtyStart = QTY_COL_START[format];
   const lines = text.trim().split(/\r?\n/);
-  const byName = new Map(functions.map((f) => [normalizeStr(f.name), f]));
+  const match = buildFunctionMatcher(functions, options?.nameMap);
   let headerSkipped = false;
   lines.forEach((line, i) => {
     if (!line.trim()) return;
@@ -448,7 +791,7 @@ export function parsePastedRows(
     if (!headerSkipped && rows.length === 0 && skippedNames.length === 0 && isHeaderLine(cols)) { headerSkipped = true; return; }
     const name = cols[0];
     if (!name) return;
-    const func = byName.get(normalizeStr(name));
+    const func = match(name);
     if (!func) { skippedNames.push(name); return; }
     const row = emptyGridRow(func.id, func.name, dates, `${func.id}-paste-${Date.now()}-${i}`);
     row.transportModeIda = parseTransportMode(cols[1] ?? "");
@@ -468,7 +811,7 @@ export function parsePastedRows(
     }
     rows.push(row);
   });
-  return { rows, skippedNames, format, hadHeader: headerSkipped };
+  return { rows, skippedNames, unknownNames: dedupe(skippedNames), datesOutsideGrid: [], format, hadHeader: headerSkipped };
 }
 
 /** Funções da colagem que já existem na grade (para pedir confirmação antes de substituir). */
