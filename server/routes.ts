@@ -35,6 +35,7 @@ import {
 import { isAtendimentoFunction } from "@shared/atendimento";
 import { isPercursoFunction } from "@shared/calculation-rules";
 import { nextStatusOnConfirm } from "@shared/scaling-rules";
+import { isSuggestionInclusion, SUGESTAO_PHASE } from "@shared/scaling-validation-rules";
 import { safeSyncFlashFromInvoice, safeReverseFlashFromInvoice, type FlashSyncActor } from "./flash-oc";
 import { isAutomaticFlashMovement } from "@shared/flash-rules";
 import bcrypt from "bcryptjs";
@@ -48,6 +49,7 @@ function safeTokenEqual(a: string, b: string): boolean {
   return timingSafeEqual(ab, bb);
 }
 import { getOperationalMirror, recalculateLogisticsSuggestions, exportOperationalMirrorExcel, patchOperationalMirrorCell } from "./operational-mirror";
+import { registerScalingValidationRoutes } from "./scaling-validation";
 import {
   uberGroups as uberGroupsTable,
   hotelRoomGroups as hotelRoomGroupsTable,
@@ -128,6 +130,8 @@ function getEntityName(entityType: string, entityData: any): string {
       return entityData.collaboratorName || `Comparativo #${entityData.id?.slice(0, 8)}` || 'Comparativo';
     case 'system_settings':
       return 'Configurações do Sistema';
+    case 'scaling_change_request':
+      return entityData.requestType ? `Pedido de ${entityData.requestType} #${entityData.id?.slice(0, 8)}` : 'Pedido de ajuste de escala';
     default:
       return entityType;
   }
@@ -1499,11 +1503,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Sem permissão para adicionar responsáveis às funções" });
       }
 
-      const { userId: targetUserId } = req.body;
-      
+      // role opcional: 'validador' (padrão, comportamento histórico) | 'aprovador'
+      const parsedBody = z.object({
+        userId: z.string().min(1, "userId é obrigatório"),
+        role: z.enum(["validador", "aprovador"]).optional().default("validador"),
+      }).safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({ message: "Dados inválidos", errors: parsedBody.error.flatten() });
+      }
+      const { userId: targetUserId, role } = parsedBody.data;
+
       const functionManager = await storage.addManagerToFunction({
         functionId: id,
-        userId: targetUserId
+        userId: targetUserId,
+        role,
       });
       res.json(functionManager);
     } catch (error) {
@@ -1538,6 +1551,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ message: "Erro ao remover responsável da função" });
+    }
+  });
+
+  // Altera o papel (validador ↔ aprovador) de um responsável já vinculado à função
+  app.patch("/api/functions/:functionId/managers/:userId", async (req, res) => {
+    if (!await requireRoles(req, res, CADASTRO_ROLES)) return;
+    try {
+      const { functionId, userId: targetUserId } = req.params;
+      const parsedBody = z.object({ role: z.enum(["validador", "aprovador"]) }).safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({ message: "Papel inválido: use 'validador' ou 'aprovador'" });
+      }
+      const updated = await storage.updateManagerRole(functionId, targetUserId, parsedBody.data.role);
+      if (!updated) return res.status(404).json({ message: "Responsável não encontrado nesta função" });
+      res.json(updated);
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao alterar papel do responsável" });
     }
   });
 
@@ -1797,11 +1827,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
   // Team Inclusions routes
+  //
+  // FILTRO CENTRAL DE PHASE (Validação de Escala): por padrão esta rota EXCLUI
+  // as vagas em phase 'sugestao' — a escala sugerida pela logística que a área
+  // ainda não validou não pode "vazar" para Escalação, Passagens, Hospedagem,
+  // Planejado, Espelho etc. Quem precisa delas pede explicitamente:
+  //   ?phase=sugestao → só sugestões
+  //   ?phase=all      → tudo (histórico)
   app.get("/api/team-inclusions", async (req, res) => {
     try {
-      const { eventId, includeDeleted } = req.query;
-      
-      let inclusions = await storage.getTeamInclusions(includeDeleted === 'true');
+      const { eventId, includeDeleted, phase } = req.query;
+      const phaseFilter = phase === 'sugestao' || phase === 'all' ? phase : undefined;
+
+      let inclusions = await storage.getTeamInclusions(includeDeleted === 'true', phaseFilter);
       
       // Filtrar por eventId se fornecido
       if (eventId && eventId !== 'all') {
@@ -1903,6 +1941,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const currentInclusion = await storage.getTeamInclusion(id);
       if (!currentInclusion) {
         return res.status(404).json({ message: "Inclusão de equipe não encontrada" });
+      }
+      // Vaga em Validação de Escala: só a máquina de estados (scaling-validation.ts) mexe.
+      if (isSuggestionInclusion(currentInclusion)) {
+        return res.status(400).json({ message: "Esta vaga está em Validação de Escala — use a tela de Validação para alterá-la." });
+      }
+      // E ninguém empurra uma inclusão de volta para a fase de sugestão por aqui.
+      if (req.body?.phase === SUGESTAO_PHASE || (typeof req.body?.status === "string" && req.body.status.startsWith("sugestao"))) {
+        return res.status(400).json({ message: "Status/fase de Validação de Escala não podem ser definidos por esta rota." });
       }
 
       // Check if user can manage this function
@@ -2084,6 +2130,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const currentInclusion = await storage.getTeamInclusion(id);
       if (!currentInclusion) return res.status(404).json({ message: "Inclusão de equipe não encontrada" });
+      if (isSuggestionInclusion(currentInclusion)) {
+        return res.status(400).json({ message: "Esta vaga está em Validação de Escala — use a tela de Validação para alterá-la." });
+      }
 
       const func = await storage.getFunction(currentInclusion.functionId);
       if (!func) return res.status(404).json({ message: "Função não encontrada" });
@@ -2234,14 +2283,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(userId);
       if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
 
+      const inclusion = await storage.getTeamInclusion(id);
+      if (!inclusion) return res.status(404).json({ message: "Escalação não encontrada" });
+
+      // Permissão: admin, flag histórica canApproveCenotecnica OU (generalização)
+      // ser 'aprovador' da função na Validação de Escala.
       const isAdmin = normalizeRole(user.role) === 'admin';
-      const hasPermission = isAdmin || user.canApproveCenotecnica === true;
+      const hasPermission = isAdmin
+        || user.canApproveCenotecnica === true
+        || await storage.isUserFunctionApprover(inclusion.functionId, userId);
       if (!hasPermission) {
         return res.status(403).json({ message: "Você não tem permissão para aprovar escalações de cenotécnica" });
       }
 
-      const inclusion = await storage.getTeamInclusion(id);
-      if (!inclusion) return res.status(404).json({ message: "Escalação não encontrada" });
       if (inclusion.status !== 'aguardando_producao') {
         return res.status(400).json({ message: "Escalação não está aguardando aprovação da produção" });
       }
@@ -2294,14 +2348,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(userId);
       if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
 
+      const inclusion = await storage.getTeamInclusion(id);
+      if (!inclusion) return res.status(404).json({ message: "Escalação não encontrada" });
+
+      // Permissão: admin, flag histórica canApproveCenotecnica OU 'aprovador' da função
       const isAdmin = normalizeRole(user.role) === 'admin';
-      const hasPermission = isAdmin || user.canApproveCenotecnica === true;
+      const hasPermission = isAdmin
+        || user.canApproveCenotecnica === true
+        || await storage.isUserFunctionApprover(inclusion.functionId, userId);
       if (!hasPermission) {
         return res.status(403).json({ message: "Você não tem permissão para reprovar escalações de cenotécnica" });
       }
 
-      const inclusion = await storage.getTeamInclusion(id);
-      if (!inclusion) return res.status(404).json({ message: "Escalação não encontrada" });
       if (inclusion.status !== 'aguardando_producao') {
         return res.status(400).json({ message: "Escalação não está aguardando aprovação da produção" });
       }
@@ -2413,6 +2471,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Soft delete - marca como excluído ao invés de deletar permanentemente
       const prevInclusion = await storage.getTeamInclusion(id);
+      if (!prevInclusion) return res.status(404).json({ message: "Inclusão de equipe não encontrada" });
+      if (isSuggestionInclusion(prevInclusion)) {
+        return res.status(400).json({ message: "Esta vaga está em Validação de Escala — use a tela de Validação para alterá-la." });
+      }
       const inclusion = await storage.updateTeamInclusion(id, {
         deletedAt: new Date(),
         deletedBy: userId,
@@ -4155,7 +4217,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         alimentacao_almoco_ceno: 3500,
         alimentacao_jantar_ceno: 3500,
         // Almoço do colaborador de casa (CLT) em dia útil — só a diferença do VR
-        alimentacao_almoco_casa_util: 800,
+        alimentacao_almoco_casa_util: 500,
         alimentacao_almoco_casa_util_ceno: 300,
         // Percurseiro (motoqueiro) — pacote fechado por diária (tabela 17/08)
         percurseiro_t1_motoqueiro: 70000,
@@ -5072,6 +5134,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // trocar, a operação correta é atribuir direto, não abrir uma troca.
     const inclusion = await storage.getTeamInclusion(teamInclusionId);
     if (!inclusion) return res.status(404).json({ message: "Escalação não encontrada" });
+    if (isSuggestionInclusion(inclusion)) {
+      return res.status(400).json({ message: "Esta vaga está em Validação de Escala — use a tela de Validação para alterá-la." });
+    }
     const currentCollaboratorId = inclusion.collaboratorId ?? null;
     if (!currentCollaboratorId) {
       return res.status(400).json({ message: "Esta escalação ainda não tem colaborador — não há troca a fazer." });
@@ -5203,6 +5268,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Erro ao cancelar solicitação" });
     }
   });
+
+  // ── Validação de Escala (sugestões + pedidos de ajuste) ───────────────────
+  // Rotas em server/scaling-validation.ts; recebem os helpers de autorização e
+  // auditoria daqui para não duplicar lógica nem criar import circular.
+  registerScalingValidationRoutes(app, { requireRoles, createAuditLog });
 
   const httpServer = createServer(app);
   return httpServer;

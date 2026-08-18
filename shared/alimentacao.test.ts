@@ -107,9 +107,9 @@ describe("valores por refeição (Valores Padrão)", () => {
 });
 
 describe("refeicaoCentsDia — almoço de casa (CLT) em dia útil", () => {
-  it("casa em dia útil: almoço R$ 8,00 (diferença do VR), jantar R$ 40,00", () => {
+  it("casa em dia útil: almoço R$ 5,00 (diferença do VR), jantar R$ 40,00", () => {
     expect(refeicaoCentsDia(false, {}, { tipoColaborador: "casa", isWeekend: false }))
-      .toEqual({ almocoCents: 800, jantarCents: 4000 });
+      .toEqual({ almocoCents: 500, jantarCents: 4000 });
   });
   it("casa em fim de semana: almoço R$ 40,00 e jantar R$ 40,00", () => {
     expect(refeicaoCentsDia(false, {}, { tipoColaborador: "casa", isWeekend: true }))
@@ -124,10 +124,10 @@ describe("refeicaoCentsDia — almoço de casa (CLT) em dia útil", () => {
   it("chave alimentacao_almoco_casa_util dos Valores Padrão vence o default", () => {
     expect(refeicaoCentsDia(false, { alimentacao_almoco_casa_util: "1000" }, { tipoColaborador: "casa", isWeekend: false }).almocoCents).toBe(1000);
   });
-  it("exemplo do usuário: casa, 2 úteis + 2 fds, almoço+jantar todos os dias → R$ 256,00", () => {
+  it("exemplo do usuário: casa, 2 úteis + 2 fds, almoço+jantar todos os dias → R$ 250,00 (2×(5+40) + 2×(40+40))", () => {
     const util = refeicaoCentsDia(false, {}, { tipoColaborador: "casa", isWeekend: false });
     const fds = refeicaoCentsDia(false, {}, { tipoColaborador: "casa", isWeekend: true });
-    expect(2 * (util.almocoCents + util.jantarCents) + 2 * (fds.almocoCents + fds.jantarCents)).toBe(25600);
+    expect(2 * (util.almocoCents + util.jantarCents) + 2 * (fds.almocoCents + fds.jantarCents)).toBe(25000);
   });
 });
 

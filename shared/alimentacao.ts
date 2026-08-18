@@ -155,8 +155,8 @@ export function refeicaoCents(
 
 /** Chave (Valores Padrão) do almoço em dia útil para colaborador `casa` (CLT). */
 export const ALIMENTACAO_ALMOCO_CASA_UTIL_KEY = "alimentacao_almoco_casa_util";
-/** Default: R$ 8,00 — só a "diferença", o vale-refeição cobre o resto. */
-export const ALIMENTACAO_ALMOCO_CASA_UTIL_DEFAULT_CENTS = 800;
+/** Default: R$ 5,00 — só a "diferença", o vale-refeição cobre o resto. */
+export const ALIMENTACAO_ALMOCO_CASA_UTIL_DEFAULT_CENTS = 500; // R$ 5,00 — corrigido pelo usuário em 17/08 (era 800)
 /** Idem para CENOTÉCNICA de casa (regra 17/08): almoço em dia útil R$ 3,00. */
 export const ALIMENTACAO_ALMOCO_CASA_UTIL_CENO_KEY = "alimentacao_almoco_casa_util_ceno";
 export const ALIMENTACAO_ALMOCO_CASA_UTIL_CENO_DEFAULT_CENTS = 300;
@@ -165,7 +165,7 @@ export const ALIMENTACAO_ALMOCO_CASA_UTIL_CENO_DEFAULT_CENTS = 300;
  * Valores de refeição (centavos) para UM dia específico, considerando o tipo
  * do colaborador (regra de negócio 17/08):
  * - `casa` (CLT) em dia ÚTIL: almoço = `alimentacao_almoco_casa_util`
- *   (default R$ 8,00); cenotécnica de casa: `alimentacao_almoco_casa_util_ceno`
+ *   (default R$ 5,00); cenotécnica de casa: `alimentacao_almoco_casa_util_ceno`
  *   (default R$ 3,00). Jantar inalterado (40 / 35 ceno).
  * - `casa` em fim de semana, `local`, freela e cenotécnica: iguais a
  *   `refeicaoCents` (a regra do voo continua decidindo QUAIS refeições existem).

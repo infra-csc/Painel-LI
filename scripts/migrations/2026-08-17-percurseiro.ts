@@ -37,7 +37,7 @@ const statements: string[] = [
   seed("percurseiro_t1_nf", 17276),
   seed("percurseiro_t2_nf", 19467),
   // Alimentação do colaborador de casa (CLT) em dia útil — só a "diferença"
-  seed("alimentacao_almoco_casa_util", 800),
+  seed("alimentacao_almoco_casa_util", 500),
   seed("alimentacao_almoco_casa_util_ceno", 300),
 ];
 
