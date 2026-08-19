@@ -17,8 +17,9 @@ import { EventSearchSelect } from "@/components/event-select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetNote } from "@shared/schema";
 import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents, mobilidadeSemVooCents, isTransporteTerrestre, ATENDIMENTO_TIPOS, type AtendimentoTipo } from "@shared/atendimento";
-import { calcDeflatedDailies, deflationFactorsFromSettings, freelaDailyCents, casaDailyCents, diasComDiaria as calcDiasComDiaria, regraDiariaPorTipo, isPercursoFunction, percurseiroDiariaCents, diasPercurseiro, PERCURSEIRO_TIPOS, isFuncaoLocal, FUNCAO_LOCAL_RAZAO, type DeflationSegment, type RegraDiaria, type PercurseiroTipo, type PercurseiroDiaria } from "@shared/calculation-rules";
-import { calcAlimentacao, refeicaoCents, refeicaoCentsDia, refeicaoPerfil } from "@shared/alimentacao";
+import { calcDeflatedDailies, deflationFactorsFromSettings, freelaDailyCents, casaDailyCents, diasComDiaria as calcDiasComDiaria, diasEmpreita, regraDiariaPorTipo, isPercursoFunction, percurseiroDiariaCents, diasPercurseiro, PERCURSEIRO_TIPOS, isFuncaoLocal, FUNCAO_LOCAL_RAZAO, type DeflationSegment, type RegraDiaria, type PercurseiroTipo, type PercurseiroDiaria } from "@shared/calculation-rules";
+import { calcAlimentacao, refeicaoCents, refeicaoCentsDia, refeicaoPerfil, isCenotecnicaFunction } from "@shared/alimentacao";
+import { cenoEmpreitaTotalCents, usaEmpreitaCenotecnica, CENO_FREELA_TIPO_LABELS, type CenoFreelaTipo, type CenoEmpreitaValor } from "@shared/cenotecnica-empreita";
 import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
@@ -81,6 +82,12 @@ interface CalculatedBudget {
   isPercurso: boolean;
   percurseiroTipo: PercurseiroTipo | null;   // null = "definir tipo" (Tipo 1 provisório)
   percurseiro: PercurseiroDiaria | null;
+  funcaoLocal: boolean;
+  // Cenotécnica EMPREITA (regra 19/08): valor FECHADO por nº de dias, na
+  // modalidade escolhida NA ESCALAÇÃO (somente leitura aqui).
+  cenoEmpreitaVaga: boolean;               // vaga cenotécnica que NÃO é casa
+  cenoFreelaTipo: CenoFreelaTipo | null;   // null = "definir tipo na Escalação"
+  cenoEmpreita: CenoEmpreitaValor | null;  // null = sem tipo (ou 0 dias) → cálculo normal
   // Horários de voo exibidos no modal (fonte: passagem > sugerido)
   vooPartidaIda: string | null;
   vooChegadaIda: string | null;
@@ -363,6 +370,19 @@ const SheetRow = memo(function SheetRow({
               <span className={`text-[11px] ${isNotAttended ? 'line-through text-slate-400' : 'text-slate-500'}`}>
                 {funcName}
               </span>
+              {budget.cenoEmpreitaVaga && (
+                budget.cenoFreelaTipo ? (
+                  <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 px-1.5 py-px rounded-full shrink-0"
+                    title="Modalidade da empreita cenotécnica — definida na tela de Escalação (somente leitura aqui)">
+                    {CENO_FREELA_TIPO_LABELS[budget.cenoFreelaTipo]}
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-px rounded-full shrink-0"
+                    title="Sem modalidade de empreita: o cálculo segue a diária padrão. A escolha é feita na tela de Escalação (somente leitura aqui)">
+                    definir tipo na Escalação
+                  </span>
+                )
+              )}
               {budget.inclusion.scheduleStartDate && (
                 <span className="text-[11px]" style={{color:'#9CA3AF'}}>
                   · {new Date(budget.inclusion.scheduleStartDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}
@@ -434,6 +454,11 @@ const SheetRow = memo(function SheetRow({
                 {budget.isPercurso && (
                   <span className="text-slate-400 mt-0.5">
                     Percurso: {budget.diasComDiaria} {budget.diasComDiaria === 1 ? 'diária' : 'diárias'} ({budget.inclusion.needsTicket ? 'em viagem — regra fixa de 2 diárias' : 'local (SP/Grande SP) — regra fixa de 1 diária'}), pacote fechado por diária
+                  </span>
+                )}
+                {budget.cenoEmpreita && (
+                  <span className="text-slate-400 mt-0.5">
+                    Empreita {CENO_FREELA_TIPO_LABELS[budget.cenoEmpreita.tipo]}: valor fechado por {budget.cenoEmpreita.dias} {budget.cenoEmpreita.dias === 1 ? 'dia' : 'dias'} (não é diária × dias) — modalidade definida na Escalação
                   </span>
                 )}
               </div>
@@ -619,6 +644,7 @@ const SheetRow = memo(function SheetRow({
                 {budget.regraDiaria === 'fds' && ` · diária em ${budget.diasComDiaria} (só fins de semana — CLT)`}
                 {budget.regraDiaria === 'nenhuma' && ` · sem diária (cenotécnica CLT)`}
                 {budget.isPercurso && ` · ${budget.diasComDiaria} ${budget.diasComDiaria === 1 ? 'diária' : 'diárias'} (percurso ${budget.inclusion.needsTicket ? 'em viagem — regra fixa' : 'local — regra fixa'}, pacote fechado)`}
+                {budget.cenoEmpreita && ` · empreita ${CENO_FREELA_TIPO_LABELS[budget.cenoEmpreita.tipo]} — valor fechado por ${budget.cenoEmpreita.dias} ${budget.cenoEmpreita.dias === 1 ? 'dia' : 'dias'}`}
                 {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && ` · ${new Date(budget.inclusion.scheduleStartDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})} → ${new Date(budget.inclusion.scheduleEndDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}`}
               </div>
               <table style={{width:'100%', borderCollapse:'collapse', fontSize:12}}>
@@ -642,7 +668,14 @@ const SheetRow = memo(function SheetRow({
                   )}
                   <tr>
                     <td style={{paddingBottom:8, color:'#9CA3AF', fontSize:10, paddingLeft:8}}>
-                      {budget.isPercurso ? `Diárias (pacote fechado — ${PERCURSEIRO_TIPOS.find(t => t.value === (budget.percurseiroTipo ?? 'tipo_1'))?.label}${budget.percurseiroTipo ? '' : ' provisório'})` : budget.regraDiaria === 'nenhuma' ? 'Diárias (cenotécnica CLT: sem diária)' : 'Diárias (com deflação por período)'}
+                      {budget.isPercurso
+                        ? `Diárias (pacote fechado — ${PERCURSEIRO_TIPOS.find(t => t.value === (budget.percurseiroTipo ?? 'tipo_1'))?.label}${budget.percurseiroTipo ? '' : ' provisório'})`
+                        : budget.cenoEmpreita
+                        ? `Diárias (empreita — ${CENO_FREELA_TIPO_LABELS[budget.cenoEmpreita.tipo]} · ${budget.cenoEmpreita.dias} ${budget.cenoEmpreita.dias === 1 ? 'dia' : 'dias'} · valor fechado)`
+                        : budget.regraDiaria === 'nenhuma' ? 'Diárias (cenotécnica CLT: sem diária)' : 'Diárias (com deflação por período)'}
+                      {budget.cenoEmpreita?.extrapolado && (
+                        <span style={{color:'#B45309', fontWeight:600}}> · valor extrapolado (tabela cobre 2 a 6 dias)</span>
+                      )}
                     </td>
                     <td style={{paddingBottom:8, textAlign:'right', color:'#64748B', fontFamily:'monospace', fontSize:11}}>{formatCurrency(budget.subtotalDiarias)}</td>
                   </tr>
@@ -702,7 +735,7 @@ export default function BudgetPlannedPage() {
     return p.get("event") || "";
   });
   const [editingBudget, setEditingBudget] = useState<BudgetEdit | null>(null);
-  const [editingBudgetInfo, setEditingBudgetInfo] = useState<{ name: string; functionName: string; type: string; weekdays: number; weekends: number; diasComDiaria: number; regraDiaria: RegraDiaria; period: string; vooChegadaIda?: string | null; vooPartidaVolta?: string | null; fonteVoo?: "passagem" | "sugerido" | "nenhum"; alimEstimada?: boolean; voa?: boolean; isAtend?: boolean; atendimentoTipo?: AtendimentoTipo | null; savedAtendimentoTipo?: AtendimentoTipo | null; isPercurso?: boolean; funcaoLocal?: boolean; percurseiroTipo?: PercurseiroTipo | null; savedPercurseiroTipo?: PercurseiroTipo | null; percurseiro?: PercurseiroDiaria | null; inclusionId?: string } | null>(null);
+  const [editingBudgetInfo, setEditingBudgetInfo] = useState<{ name: string; functionName: string; type: string; weekdays: number; weekends: number; diasComDiaria: number; regraDiaria: RegraDiaria; period: string; vooChegadaIda?: string | null; vooPartidaVolta?: string | null; fonteVoo?: "passagem" | "sugerido" | "nenhum"; alimEstimada?: boolean; voa?: boolean; isAtend?: boolean; atendimentoTipo?: AtendimentoTipo | null; savedAtendimentoTipo?: AtendimentoTipo | null; isPercurso?: boolean; funcaoLocal?: boolean; percurseiroTipo?: PercurseiroTipo | null; savedPercurseiroTipo?: PercurseiroTipo | null; percurseiro?: PercurseiroDiaria | null; cenoEmpreitaVaga?: boolean; cenoFreelaTipo?: CenoFreelaTipo | null; cenoEmpreita?: CenoEmpreitaValor | null; inclusionId?: string } | null>(null);
   const [editingBudgetPlannedId, setEditingBudgetPlannedId] = useState<string | null>(null);
   // Tipo escolhido no modal e AINDA NÃO persistido na escalação (null = igual
   // ao gravado). Persistido no Salvar, descartado no Cancelar — comportamento
@@ -1204,6 +1237,7 @@ export default function BudgetPlannedPage() {
         : (ss?.default_daily_value_weekend_freela ?? ss?.default_daily_value_weekend ?? ss?.default_daily_value ?? 5000);
 
       const inclusionDailyValue = inclusion.dailyValue ?? defaultDailyValueWeekday;
+      const fnName = getFunctionName(inclusion.functionId);
       // Atendimento (Key Account x Executivo de Contas): a diária é plana (mesmo
       // valor útil e fds), definida pelo tipo escolhido na escalação e editável
       // no Valores Padrão. Tem prioridade sobre fv/inclusion/default — inclusive
@@ -1225,6 +1259,43 @@ export default function BudgetPlannedPage() {
       const percurseiroTipoEfetivo: PercurseiroTipo | null = isPercurso ? (percurseiroTipo ?? "tipo_1") : null;
       const percurseiro = isPercurso ? percurseiroDiariaCents(percurseiroTipoEfetivo, ss) : null;
       const percursoVal = percurseiro ? percurseiro.total : null;
+
+      // ── Quantos dias recebem diária ────────────────────────────────────────
+      // Declarado ANTES do valor da diária porque a EMPREITA cenotécnica é um
+      // valor fechado POR Nº DE DIAS (precisa dos dias para achar o valor).
+      // Regra 17/08: `casa` (CLT) só recebe diária nos fins de semana; `local` e
+      // freela: todos os dias. Casa + cenotécnica: "nenhuma". A regra é única em
+      // shared/calculation-rules — aqui só muda QUANTOS dias contam.
+      // Percurso: contagem FIXA (viagem 2 / local 1), independente do período.
+      const regraDiaria: RegraDiaria = isPercurso ? 'todos' : regraDiariaPorTipo(collab?.type, fnName);
+      const diasComDiaria = isPercurso
+        ? diasPercurseiro(inclusion.needsTicket)
+        : calcDiasComDiaria(collab?.type, weekdays, weekends, fnName);
+
+      // CENOTÉCNICA EMPREITA (regra 19/08): valor FECHADO por nº de dias, em 4
+      // modalidades escolhidas NA ESCALAÇÃO (`cenoFreelaTipo` na vaga; aqui é
+      // somente leitura). Sem deflação. Cenotécnico de CASA (CLT) continua sem
+      // diária — `usaEmpreitaCenotecnica` já barra esse caso. Alimentação e
+      // mobilidade NÃO entram no valor fechado: seguem as regras normais.
+      // Sem tipo definido → `cenoEmpreita` é null e o cálculo segue o padrão
+      // (a tela mostra o badge "definir tipo na Escalação").
+      const cenoEmpreitaVaga = usaEmpreitaCenotecnica(isCenotecnicaFunction(fnName), collab?.type);
+      const cenoFreelaTipo = ((inclusion as any).cenoFreelaTipo ?? null) as CenoFreelaTipo | null;
+      // Os dias da EMPREITA vêm de `diasEmpreita` (shared/calculation-rules) —
+      // a MESMA função que a Escalação usa no card "Tipo de freela". Antes esta
+      // tela usava `diasComDiaria` (intervalo completo) e a Escalação usava
+      // `workDays.length`: com dias específicos dentro de uma janela maior, o
+      // botão anunciava o valor de N dias e o Planejado pagava o de M.
+      // `diasComDiaria` continua mandando no RESTO da tela (contagem exibida,
+      // rateio útil/fds, dailyQuantity persistido) — aqui só o valor fechado.
+      const diasEmpreitaVaga = cenoEmpreitaVaga ? diasEmpreita(inclusion) : 0;
+      const cenoEmpreita = cenoEmpreitaVaga ? cenoEmpreitaTotalCents(cenoFreelaTipo, diasEmpreitaVaga, ss) : null;
+      // Diária "equivalente" só para manter os campos existentes coerentes — o
+      // TOTAL é sempre o valor fechado (ver `deflated` abaixo).
+      const cenoEmpreitaDiaria = cenoEmpreita && diasEmpreitaVaga > 0
+        ? Math.round(cenoEmpreita.totalCents / diasEmpreitaVaga)
+        : null;
+
       // Diária FIXA por função — sem distinção útil/fds (decisão de negócio):
       // um único valor aplicado a todos os dias. Prioridade: override manual >
       // atendimento (tipo) > valor da função (útil, senão fds) > inclusão > default.
@@ -1244,7 +1315,7 @@ export default function BudgetPlannedPage() {
         ? casaDailyCents(getFunctionName(inclusion.functionId), ss)
         : null;
       // Valor da REGRA ATUAL (motor), sem override — usado por "Restaurar padrão" e tooltips
-      const sysValorDiaria = percursoVal ?? atendVal
+      const sysValorDiaria = percursoVal ?? cenoEmpreitaDiaria ?? atendVal
         ?? freelaVal ?? casaVal ?? (fvDaily > 0 ? fvDaily : null) ?? inclusionDailyValue ?? defaultDailyValueWeekday;
       const valorDiaria = override?.valorDiaria ?? override?.valorDiariaUtil ?? override?.valorDiariaFds ?? sysValorDiaria;
       const valorDiariaUtil = valorDiaria;
@@ -1252,21 +1323,25 @@ export default function BudgetPlannedPage() {
       
       // Deflação por período (slide): 100% até 4 dias, 90% do 5º ao 8º, 80% do
       // 9º em diante — fatores editáveis no Valores Padrão. Aplicada sobre a
-      // diária plana, por contagem total de dias.
-      // Regra 17/08: colaborador `casa` (CLT) só recebe diária nos fins de
-      // semana (dia útil já é assalariado); `local` e freela: todos os dias.
-      // A REGRA é única em shared/calculation-rules (diasComDiaria) — aqui só
-      // muda QUANTOS dias contam; o valor da diária continua o mesmo.
-      // Casa + CENOTÉCNICA (regra 17/08): diária = 0 sempre ("nenhuma").
-      const fnName = getFunctionName(inclusion.functionId);
-      const regraDiaria: RegraDiaria = isPercurso ? 'todos' : regraDiariaPorTipo(collab?.type, fnName);
-      // Percurso: contagem FIXA (viagem 2 / local 1), independente do período.
-      const diasComDiaria = isPercurso
-        ? diasPercurseiro(inclusion.needsTicket)
-        : calcDiasComDiaria(collab?.type, weekdays, weekends, fnName);
-      // Percurso é pacote fechado: SEM deflação (segmento único a 100%).
+      // diária plana, por contagem total de dias. (`regraDiaria` e
+      // `diasComDiaria` foram declarados lá em cima, antes do valor da diária.)
+      // Percurso é pacote fechado e EMPREITA cenotécnica é valor fechado: ambos
+      // SEM deflação (segmento único a 100%).
+      // Empreita: o total é EXATAMENTE o valor da tabela — não "diária × dias".
+      // Se o usuário editou a diária manualmente, o override vence e o total
+      // volta a ser diária × dias (ainda sem deflação).
+      const empreitaEditada = !!cenoEmpreita &&
+        (override?.valorDiaria ?? override?.valorDiariaUtil ?? override?.valorDiariaFds) !== undefined;
       const deflated = isPercurso
         ? { totalCents: valorDiaria * diasComDiaria, segments: [{ days: diasComDiaria, factor: 1, dailyCents: valorDiaria, totalCents: valorDiaria * diasComDiaria, label: "pacote fechado" }] as DeflationSegment[] }
+        : cenoEmpreita
+        ? (() => {
+            // Dias da empreita (não `diasComDiaria`): o valor fechado e o
+            // fallback "diária × dias" do override têm de falar dos MESMOS dias
+            // que a Escalação mostra — ver `diasEmpreita`.
+            const total = empreitaEditada ? valorDiaria * cenoEmpreita.dias : cenoEmpreita.totalCents;
+            return { totalCents: total, segments: [{ days: cenoEmpreita.dias, factor: 1, dailyCents: valorDiaria, totalCents: total, label: "valor fechado" }] as DeflationSegment[] };
+          })()
         : calcDeflatedDailies(valorDiaria, diasComDiaria, deflationFactorsFromSettings(ss));
       const subtotalDiarias = deflated.totalCents;
       // Distribui o total deflacionado entre útil/fds só para exibição (a diária
@@ -1396,6 +1471,9 @@ export default function BudgetPlannedPage() {
         funcaoLocal,
         percurseiroTipo,
         percurseiro,
+        cenoEmpreitaVaga,
+        cenoFreelaTipo,
+        cenoEmpreita,
         vooPartidaIda,
         vooChegadaIda,
         vooPartidaVolta,
@@ -1581,6 +1659,9 @@ export default function BudgetPlannedPage() {
       percurseiroTipo: budget.percurseiroTipo,
       savedPercurseiroTipo: budget.percurseiroTipo,
       percurseiro: budget.percurseiro,
+      cenoEmpreitaVaga: budget.cenoEmpreitaVaga,
+      cenoFreelaTipo: budget.cenoFreelaTipo,
+      cenoEmpreita: budget.cenoEmpreita,
       inclusionId: budget.inclusion.id,
     });
     setPendingAtendimentoTipo(null);
@@ -2772,6 +2853,17 @@ export default function BudgetPlannedPage() {
                                   </span>
                                 )
                               )}
+                              {budget.cenoEmpreitaVaga && (
+                                budget.cenoFreelaTipo ? (
+                                  <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full shrink-0" title="Modalidade da empreita cenotécnica — definida na tela de Escalação (somente leitura aqui)">
+                                    {CENO_FREELA_TIPO_LABELS[budget.cenoFreelaTipo]}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full shrink-0" title="Sem modalidade de empreita: o cálculo segue a diária padrão. A escolha é feita na tela de Escalação (somente leitura aqui)">
+                                    definir tipo na Escalação
+                                  </span>
+                                )
+                              )}
                               {budget.funcaoLocal && !budget.isPercurso && (
                                 <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full shrink-0" title={FUNCAO_LOCAL_RAZAO}>
                                   só diária
@@ -2890,13 +2982,31 @@ export default function BudgetPlannedPage() {
                                     )}
                                   </>
                                 )}
-                                {!budget.isPercurso && budget.regraDiaria === 'nenhuma' && (budget.weekdays > 0 || budget.weekends > 0) && (
+                                {/* Empreita cenotécnica: valor FECHADO por nº de dias (tipo definido na Escalação) */}
+                                {!budget.isPercurso && budget.cenoEmpreita && (
+                                  <>
+                                    <div className="flex items-center justify-between gap-x-2">
+                                      <span className="text-[11px] leading-tight font-normal flex-1" style={{color:'#94A3B8'}}
+                                        title="Empreita: valor fechado da tabela pelo nº de dias — não é diária × dias, e não sofre deflação por período. A modalidade é definida na tela de Escalação.">
+                                        Empreita — {CENO_FREELA_TIPO_LABELS[budget.cenoEmpreita.tipo]} · {budget.cenoEmpreita.dias} {budget.cenoEmpreita.dias === 1 ? 'dia' : 'dias'} · valor fechado
+                                      </span>
+                                      <span className="font-normal tabular-nums text-[11px] leading-tight shrink-0 tracking-wide text-primary">{formatCurrency(budget.subtotalDiarias)}</span>
+                                    </div>
+                                    {budget.cenoEmpreita.extrapolado && (
+                                      <span className="text-[10px] leading-tight font-semibold text-amber-700"
+                                        title="Fora da faixa da tabela: o valor foi extrapolado pelo incremento constante da modalidade">
+                                        valor extrapolado (tabela cobre 2 a 6 dias)
+                                      </span>
+                                    )}
+                                  </>
+                                )}
+                                {!budget.isPercurso && !budget.cenoEmpreita && budget.regraDiaria === 'nenhuma' && (budget.weekdays > 0 || budget.weekends > 0) && (
                                   <span className="font-normal text-[11px] leading-tight text-slate-400"
                                     title="Cenotécnica da casa (CLT): não recebe diária (nem em fim de semana)">
                                     sem diária (cenotécnica CLT)
                                   </span>
                                 )}
-                                {!budget.isPercurso && budget.regraDiaria !== 'nenhuma' && budget.weekdays > 0 && (
+                                {!budget.isPercurso && !budget.cenoEmpreita && budget.regraDiaria !== 'nenhuma' && budget.weekdays > 0 && (
                                   <div className="flex items-center justify-between gap-x-2">
                                     <span className="text-[11px] leading-tight font-normal flex-1" style={{color:'#94A3B8', minWidth:'fit-content'}}>{formatDiasUteis(budget.weekdays)}</span>
                                     {budget.regraDiaria === 'fds' ? (
@@ -2909,13 +3019,13 @@ export default function BudgetPlannedPage() {
                                     )}
                                   </div>
                                 )}
-                                {!budget.isPercurso && budget.regraDiaria !== 'nenhuma' && budget.weekends > 0 && (
+                                {!budget.isPercurso && !budget.cenoEmpreita && budget.regraDiaria !== 'nenhuma' && budget.weekends > 0 && (
                                   <div className="flex items-center justify-between gap-x-2">
                                     <span className="text-[11px] leading-tight font-normal flex-1" style={{color:'#94A3B8', minWidth:'fit-content'}}>{formatFds(budget.weekends)}</span>
                                     <span className="font-normal tabular-nums text-[11px] leading-tight shrink-0 tracking-wide" style={{color:'#6d28d9'}}>{formatCurrency(budget.valorDiariaFds)}</span>
                                   </div>
                                 )}
-                                {!budget.isPercurso && budget.weekdays === 0 && budget.weekends === 0 && (
+                                {!budget.isPercurso && !budget.cenoEmpreita && budget.weekdays === 0 && budget.weekends === 0 && (
                                   <span className="text-[11px] font-normal" style={{color:'#CBD5E1'}}>—</span>
                                 )}
                                 {/* Memória da deflação por período (>4 dias) */}
@@ -3454,9 +3564,19 @@ export default function BudgetPlannedPage() {
             const noWeekends = editingBudgetInfo.weekends === 0;
             // Dias que recebem diária (casa: só fds) — mesma regra do motor
             const diasDiariaModal = editingBudgetInfo.diasComDiaria;
+            // Empreita cenotécnica: valor FECHADO da tabela, sem deflação. Só
+            // deixa de valer se o usuário editar a diária à mão (override).
+            const empreitaModal = editingBudgetInfo.cenoEmpreita ?? null;
+            const empreitaEditadaModal = !!empreitaModal && !!defaultBudgetValues
+              && editingBudget.valorDiaria !== defaultBudgetValues.valorDiaria;
             // Mesma conta do card: diária plana COM deflação por período
             const deflatedModal = editingBudgetInfo.isPercurso
               ? { totalCents: editingBudget.valorDiaria * diasDiariaModal, segments: [] as DeflationSegment[] } // pacote fechado: sem deflação
+              : empreitaModal
+              // Empreita: os dias são os da EMPREITA (`empreitaModal.dias`,
+              // vindos de `diasEmpreita`) — o card usa os mesmos, senão o modal
+              // mostraria um total e a linha do card outro.
+              ? { totalCents: empreitaEditadaModal ? editingBudget.valorDiaria * empreitaModal.dias : empreitaModal.totalCents, segments: [] as DeflationSegment[] }
               : calcDeflatedDailies(editingBudget.valorDiaria, diasDiariaModal, deflationFactorsFromSettings(systemSettings));
             const totalDiarias = deflatedModal.totalCents;
             const effectiveAlmocoSemana = noWeekdays ? 0 : editingBudget.almocoSemana;
@@ -3716,18 +3836,60 @@ export default function BudgetPlannedPage() {
                       )}
                     </div>
                   )}
+                  {/* Cenotécnica EMPREITA: valor FECHADO por nº de dias.
+                      A modalidade é escolhida na ESCALAÇÃO — aqui é só leitura. */}
+                  {editingBudgetInfo.cenoEmpreitaVaga && (
+                    <div className="flex items-center gap-2 flex-wrap px-3.5 py-2 bg-amber-50/40 border-b border-amber-100">
+                      <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Empreita cenotécnica</span>
+                      {editingBudgetInfo.cenoFreelaTipo ? (
+                        <span
+                          className="px-2 py-0.5 rounded-lg border border-amber-200 bg-white text-[11px] font-semibold text-amber-800 cursor-default"
+                          title="A modalidade da empreita é definida na tela de Escalação — aqui é somente leitura."
+                        >
+                          {CENO_FREELA_TIPO_LABELS[editingBudgetInfo.cenoFreelaTipo]}
+                        </span>
+                      ) : (
+                        <span
+                          className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold"
+                          title="Sem modalidade definida: o cálculo segue a diária padrão. A escolha é feita na tela de Escalação — aqui é somente leitura."
+                        >
+                          definir tipo na Escalação
+                        </span>
+                      )}
+                      {empreitaModal && (
+                        <span className="w-full text-[10px] text-slate-500 tabular-nums">
+                          Valor fechado por {empreitaModal.dias} {empreitaModal.dias === 1 ? 'dia' : 'dias'}: <b>{formatCurrency(empreitaModal.totalCents)}</b> — sem deflação por período. Alimentação e mobilidade seguem as regras normais (não entram no valor fechado).
+                          {empreitaModal.extrapolado && (
+                            <span className="text-amber-700 font-semibold"> · valor extrapolado (tabela cobre 2 a 6 dias)</span>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="divide-y divide-slate-100">
                     {/* Diária PLANA — um único valor para todos os dias */}
                     <div className="flex items-center px-3.5 py-2 gap-3">
                       <div className="flex items-center gap-1.5 flex-1">
                         <Briefcase className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span className="text-[12px] font-medium text-slate-700">Diária</span>
+                        <span className="text-[12px] font-medium text-slate-700">{empreitaModal ? 'Diárias (empreita)' : 'Diária'}</span>
                         <span className="text-[10px] text-slate-400">
-                          × {diasDiariaModal} {diasDiariaModal === 1 ? 'dia' : 'dias'}
+                          {/* Empreita: mostra os dias da EMPREITA (dias efetivamente
+                              trabalhados), que são os multiplicados acima */}
+                          × {empreitaModal ? empreitaModal.dias : diasDiariaModal} {(empreitaModal ? empreitaModal.dias : diasDiariaModal) === 1 ? 'dia' : 'dias'}
                           {editingBudgetInfo.regraDiaria === 'fds' && ' (só fins de semana)'}
                           {editingBudgetInfo.regraDiaria === 'nenhuma' && ' (cenotécnica CLT: sem diária)'}
                           {editingBudgetInfo.isPercurso && (editingBudgetInfo.voa ? ' (percurso em viagem — regra fixa de 2 diárias)' : ' (percurso local — regra fixa de 1 diária)')}
                         </span>
+                        {empreitaModal && (
+                          <span
+                            className="text-[10px] font-semibold text-amber-700"
+                            title="Empreita: o total é o valor fechado da tabela pelo nº de dias — não é diária × dias. Editar a diária aqui substitui o valor fechado."
+                          >
+                            Empreita — {CENO_FREELA_TIPO_LABELS[empreitaModal.tipo]} · valor fechado
+                            {empreitaModal.extrapolado && ' · valor extrapolado (tabela cobre 2 a 6 dias)'}
+                            {empreitaEditadaModal && ' · ajustado manualmente'}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span className="text-[11px] text-slate-400">R$</span>

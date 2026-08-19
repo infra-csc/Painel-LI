@@ -7,6 +7,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { TeamInclusion } from "@shared/schema";
+import { CENO_FREELA_TIPO_LABELS, type CenoFreelaTipo } from "@shared/cenotecnica-empreita";
 
 export type ScalingSaveAction = "save" | "confirm";
 
@@ -138,6 +139,36 @@ export function useScalingMutations(opts: {
     },
   });
 
+  // Modalidade de EMPREITA do cenotécnico (Freela Viagem / SP / Local A / Local B).
+  // Regra do usuário (19/08): o tipo é escolhido NA ESCALAÇÃO, por vaga. Grava
+  // na hora pela rota dedicada (espelho de /percurseiro-tipo) — não espera o
+  // Salvar do modal, para o Planejado já ver o valor fechado.
+  const setCenoFreelaTipo = useMutation({
+    mutationFn: async ({ id, cenoFreelaTipo }: { id: string; cenoFreelaTipo: CenoFreelaTipo }) => {
+      const r = await apiRequest("PATCH", `/api/team-inclusions/${id}/ceno-freela-tipo`, { cenoFreelaTipo });
+      return r.json() as Promise<TeamInclusion>;
+    },
+    onSuccess: (updated: TeamInclusion, vars) => {
+      setSelectedInclusion(prev => (prev && prev.id === updated.id ? updated : prev));
+      invalidateAndRefetchInclusions();
+      toast({
+        title: "Tipo de freela definido",
+        description: `${CENO_FREELA_TIPO_LABELS[vars.cenoFreelaTipo]} — o Planejado passa a usar o valor fechado desta modalidade.`,
+      });
+    },
+    onError: async (err: any) => {
+      toast({
+        title: err?.status === 401 ? "Sessão expirada" : "Erro",
+        description: err?.status === 401
+          ? "Sua sessão expirou. Atualize a página e entre novamente — o tipo não foi salvo."
+          : err?.status === 403
+            ? "Você não tem permissão para definir o tipo de freela desta cenotécnica."
+            : (await readErrorMessage(err)) || "Erro ao definir o tipo de freela",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Reprovação de cenotécnica pela Produção (remove colaborador, volta p/ escalacao)
   const rejectProduction = useMutation({
     mutationFn: async (id: string) => {
@@ -238,7 +269,7 @@ export function useScalingMutations(opts: {
 
   return {
     createSwapRequest, cancelSwap, approveSwap, rejectSwap,
-    toggleEmitsNf, rejectProduction, approveProduction, reactivate,
+    toggleEmitsNf, setCenoFreelaTipo, rejectProduction, approveProduction, reactivate,
     addComment, saveInclusion,
   };
 }

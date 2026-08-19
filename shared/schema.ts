@@ -117,6 +117,11 @@ export const teamInclusions = pgTable("team_inclusions", {
   // Para funções de "percurso" (motoqueiro): pacote fechado Tipo 1 x Tipo 2,
   // definido na escalação ao atribuir o colaborador. null nas demais funções.
   percurseiroTipo: text("percurseiro_tipo"), // 'tipo_1' | 'tipo_2'
+  // Para funções de "cenotécnica" (exceto "sup ceno", que é produtor): modalidade
+  // de EMPREITA (valor fechado por nº de dias — tabela 19/08), definida na
+  // escalação ao atribuir o colaborador. null nas demais funções.
+  // Ver shared/cenotecnica-empreita.ts (CENO_FREELA_TIPOS).
+  cenoFreelaTipo: text("ceno_freela_tipo"), // 'viagem' | 'sp' | 'local_a' | 'local_b'
   rowOrder: integer("row_order"), // posição da linha na planilha para templates
   scheduleStartDate: date("schedule_start_date"),
   scheduleEndDate: date("schedule_end_date"),

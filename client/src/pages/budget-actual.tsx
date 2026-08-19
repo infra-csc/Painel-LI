@@ -11,7 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, ArrowLeft, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info, Eye, Clock, AlertCircle, CheckCheck, UserPlus, GitFork, Plus, Check } from "lucide-react";
+import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, ArrowLeft, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info, Eye, Clock, AlertCircle, CheckCheck, UserPlus, GitFork, Plus, Check, RefreshCw, Plane } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { EventSearchSelect } from "@/components/event-select";
 import { SplitVagaModal } from "@/components/split-vaga-modal";
@@ -23,7 +23,26 @@ import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { useSidebar } from "@/contexts/sidebar-context";
 import { Link, useSearch } from "wouter";
-import { diasComDiaria, regraDiariaPorTipo } from "@shared/calculation-rules";
+import { diasComDiaria, regraDiariaPorTipo, isPercursoFunction, isFuncaoLocal, FUNCAO_LOCAL_RAZAO } from "@shared/calculation-rules";
+import { isTransporteTerrestre } from "@shared/atendimento";
+import { calcAlimentacao, refeicaoCentsDia, refeicaoPerfil, toHoraHHMM } from "@shared/alimentacao";
+
+// ── Viagem no Realizado ──────────────────────────────────────────────────────
+// De onde veio cada horário exibido no bloco "Viagem" do modal.
+type TravelSource = "passagem" | "sugerido" | "manual" | "nenhum";
+
+const TRAVEL_SOURCE_LABEL: Record<TravelSource, string> = {
+  passagem: "pela passagem",
+  sugerido: "sugerido na escalação",
+  manual: "informado aqui",
+  nenhum: "sem horário",
+};
+
+// Assinatura dos dados que dirigem a alimentação (dias ativos + horários).
+// Enquanto ela não muda, a alimentação salva é mantida como está.
+function alimSignature(dates: string[], chegadaIda: string, partidaVolta: string): string {
+  return `${[...dates].sort().join(",")}|${chegadaIda}|${partidaVolta}`;
+}
 
 function CurrencyInput({ value, onChange, className, disabled, style }: {
   value: number;
@@ -124,6 +143,26 @@ export default function BudgetActualPage() {
   type DayEntry = { date: string; valueCents: number; active: boolean; isWeekend: boolean };
   const [editDayEntries, setEditDayEntries] = useState<DayEntry[]>([]);
   const [showAddDay, setShowAddDay] = useState(false);
+  // ── Viagem (só estado do modal) ────────────────────────────────────────────
+  // PERSISTÊNCIA: não existe coluna em `budget_actual` para os horários de
+  // viagem e NÃO criamos uma. Eles são derivados da passagem registrada
+  // (tickets.actualArrivalTime / actualReturnTime) ou, na falta dela, dos
+  // horários sugeridos na escalação (team_inclusions.flight*SuggestedTime), e
+  // podem ser ajustados aqui porque a realidade pode ter mudado. O que se
+  // grava é apenas o RESULTADO do cálculo: os 4 campos de alimentação
+  // (weekdayLunch / weekdayDinner / weekendLunch / weekendDinner) em
+  // `editFormData`, salvos pelo saveEdit como sempre.
+  const [editTravel, setEditTravel] = useState<{ chegadaIda: string; partidaVolta: string }>({ chegadaIda: "", partidaVolta: "" });
+  const [travelSource, setTravelSource] = useState<{ chegada: TravelSource; partida: TravelSource }>({ chegada: "nenhum", partida: "nenhum" });
+  // Alimentação ajustada à mão: nunca é sobrescrita automaticamente
+  const [alimManual, setAlimManual] = useState(false);
+  // Dias/horários mudaram DEPOIS de um ajuste manual — aviso discreto + botão
+  const [alimStale, setAlimStale] = useState(false);
+  // Dia extra virou o primeiro/último da lista: destaca o campo de hora correspondente
+  const [extraDayEdge, setExtraDayEdge] = useState<null | "primeiro" | "ultimo">(null);
+  const alimSigRef = useRef<string>("");
+  const chegadaInputRef = useRef<HTMLInputElement>(null);
+  const partidaInputRef = useRef<HTMLInputElement>(null);
   const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("adjusted");
@@ -143,6 +182,24 @@ export default function BudgetActualPage() {
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
   const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
+
+  // Passagens: fonte dos horários de viagem que dirigem a alimentação (mesma
+  // base do Planejado — a passagem registrada manda sobre o sugerido)
+  const { data: allTickets } = useQuery<any[]>({ queryKey: ["/api/tickets"] });
+  const ticketByInclusion = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const t of allTickets || []) if (t.teamInclusionId) m.set(t.teamInclusionId, t);
+    return m;
+  }, [allTickets]);
+
+  // Valores Padrão: valores de almoço/jantar por perfil usados no recálculo
+  const { data: systemSettings } = useQuery<Record<string, number>>({
+    queryKey: ["/api/system-settings"],
+    queryFn: async () => {
+      const res = await fetch("/api/system-settings", { credentials: "include" });
+      return res.json();
+    },
+  });
 
   // Busca diretamente os eventos que têm planejamento — sem carregar todos os registros
   const { data: eventsWithPlanned } = useQuery<Event[]>({
@@ -390,6 +447,124 @@ export default function BudgetActualPage() {
 
   const isWeekendDate = (d: string) => { const day = new Date(d + 'T12:00:00').getDay(); return day === 0 || day === 6; };
 
+  // Horários de viagem já conhecidos para este item: a PASSAGEM registrada
+  // manda; sem passagem, cai nos horários SUGERIDOS na escalação (texto livre,
+  // normalizado para HH:MM por toHoraHHMM).
+  const deriveTravel = (item: BudgetActual): {
+    chegadaIda: string; partidaVolta: string; chegadaSrc: TravelSource; partidaSrc: TravelSource;
+  } => {
+    const inclusion = getItemInclusion(item);
+    const ticket = inclusion ? ticketByInclusion.get(inclusion.id) : undefined;
+    const chegadaPassagem = toHoraHHMM(ticket?.actualArrivalTime);
+    const partidaPassagem = toHoraHHMM(ticket?.actualReturnTime);
+    const chegadaSugerida = toHoraHHMM(inclusion?.flightArrivalSuggestedTime);
+    const partidaSugerida = toHoraHHMM(inclusion?.flightReturnSuggestedTime);
+    return {
+      chegadaIda: chegadaPassagem || chegadaSugerida || "",
+      partidaVolta: partidaPassagem || partidaSugerida || "",
+      chegadaSrc: chegadaPassagem ? "passagem" : chegadaSugerida ? "sugerido" : "nenhum",
+      partidaSrc: partidaPassagem ? "passagem" : partidaSugerida ? "sugerido" : "nenhum",
+    };
+  };
+
+  /**
+   * Primeiro e último dia da VIAGEM INTEIRA (o "grupo": prestação-pai + filhos
+   * da divisão). A chegada da ida e a partida da volta só acontecem UMA vez por
+   * viagem — são as bordas do grupo, não as bordas de cada pedaço.
+   * Só devolve bordas quando o item PERTENCE a um grupo dividido; fora disso
+   * devolve nulls e o chamador segue tratando o item como a viagem inteira.
+   * Dentro do grupo, a prioridade é: `workedDays` de todo o grupo → `workDays`
+   * da escalação → intervalo scheduleStartDate/scheduleEndDate.
+   */
+  const getGroupDayBounds = (item: BudgetActual): { first: string | null; last: string | null } => {
+    const parentId = item.splitParentId || item.id;
+    const groupItems = budgetActual?.filter(a => a.id === parentId || a.splitParentId === parentId) || [];
+    // SEM divisão o item já É a viagem inteira: nada a restringir (e o usuário
+    // continua podendo desativar o primeiro dia sem perder o horário de chegada).
+    if (groupItems.length <= 1) return { first: null, last: null };
+    const groupDays = Array.from(new Set(groupItems.flatMap(a => a.workedDays || []).map(d => String(d).slice(0, 10)))).sort();
+    if (groupDays.length > 0) return { first: groupDays[0], last: groupDays[groupDays.length - 1] };
+    const inclusion = getItemInclusion(item);
+    const incDays = ((inclusion?.workDays || []) as (string | null)[])
+      .filter((d): d is string => !!d).map(d => String(d).slice(0, 10)).sort();
+    if (incDays.length > 0) return { first: incDays[0], last: incDays[incDays.length - 1] };
+    if (inclusion?.scheduleStartDate && inclusion?.scheduleEndDate) {
+      return { first: String(inclusion.scheduleStartDate).slice(0, 10), last: String(inclusion.scheduleEndDate).slice(0, 10) };
+    }
+    return { first: null, last: null };
+  };
+
+  // Recalcula a alimentação com as MESMAS regras do Planejado
+  // (shared/alimentacao): dias ATIVOS do modal + horário de CHEGADA da ida
+  // (vale no primeiro dia) e de PARTIDA da volta (vale no último dia). Devolve
+  // já distribuído nos 4 campos persistidos (útil/fds × almoço/jantar), com o
+  // valor da refeição dependendo do dia (casa/CLT em dia útil tem almoço
+  // reduzido — refeicaoCentsDia).
+  //
+  // DIVISÃO DE ESCALAÇÃO: os horários são da VIAGEM INTEIRA. `calcAlimentacao`
+  // aplica a chegada no primeiro dia da lista e a partida no último — num FILHO
+  // da divisão esses dias são só o começo/fim do PEDAÇO, e a pessoa já estava no
+  // evento (ou ainda ficaria). Por isso a chegada só vale se o primeiro dia
+  // ativo do item for também o primeiro dia do GRUPO, e a partida só se o
+  // último for o último do grupo; nos demais casos o horário é omitido e o dia
+  // conta CHEIO (almoço + jantar), como um dia de "meio".
+  const calcAlimentacaoRealizado = (
+    item: BudgetActual,
+    activeDates: string[],
+    chegadaIda: string,
+    partidaVolta: string,
+  ): { weekdayLunch: number; weekdayDinner: number; weekendLunch: number; weekendDinner: number } => {
+    const out = { weekdayLunch: 0, weekdayDinner: 0, weekendLunch: 0, weekendDinner: 0 };
+    const fnName = getFunctionName(item.functionId);
+    // Percurso (pacote fechado) e função local não têm alimentação — igual ao Planejado
+    if (isPercursoFunction(fnName) || isFuncaoLocal(fnName)) return out;
+    if (activeDates.length === 0) return out;
+
+    const inclusion = getItemInclusion(item);
+    const ticket = inclusion ? ticketByInclusion.get(inclusion.id) : undefined;
+    const voa = !!inclusion?.needsTicket;
+    // Van/ônibus no retorno já paga jantar a partir das 20h (regra 17/08)
+    const terrestre =
+      ticket?.transportType === 'rodoviario' || ticket?.transportType === 'van' ||
+      (!ticket && (
+        isTransporteTerrestre(inclusion?.flightDepartureSuggestedTime) ||
+        isTransporteTerrestre(inclusion?.flightArrivalSuggestedTime) ||
+        isTransporteTerrestre(inclusion?.flightReturnSuggestedTime)
+      ));
+
+    const perfil = refeicaoPerfil(fnName, (inclusion as any)?.atendimentoTipo);
+    const ss = systemSettings as Record<string, number> | undefined;
+    const refUtil = refeicaoCentsDia(perfil, ss, { tipoColaborador: item.collaboratorType, isWeekend: false });
+    const refFds  = refeicaoCentsDia(perfil, ss, { tipoColaborador: item.collaboratorType, isWeekend: true });
+
+    // Bordas reais da viagem (grupo pai + filhos) — ver comentário do método
+    // (comparação por string funciona: as datas são YYYY-MM-DD. `<=` / `>=` e
+    // não `===` para o caso de o RH ADICIONAR um dia fora do período gravado —
+    // aí esse dia realmente vira a ponta da viagem.)
+    const bounds = getGroupDayBounds(item);
+    const ordenados = [...activeDates].sort();
+    const ehPrimeiroDoGrupo = !bounds.first || ordenados[0] <= bounds.first;
+    const ehUltimoDoGrupo = !bounds.last || ordenados[ordenados.length - 1] >= bounds.last;
+
+    const alim = calcAlimentacao({
+      workDays: activeDates,
+      voa,
+      chegadaIda: ehPrimeiroDoGrupo ? (chegadaIda || null) : null,
+      partidaVolta: ehUltimoDoGrupo ? (partidaVolta || null) : null,
+      // totalCents não é usado aqui — a distribuição por dia usa refUtil/refFds
+      almocoCents: refUtil.almocoCents,
+      jantarCents: refUtil.jantarCents,
+      terrestre,
+    });
+
+    for (const d of alim.dias) {
+      const fds = isWeekendDate(d.date);
+      if (d.almoco) { if (fds) out.weekendLunch  += refFds.almocoCents; else out.weekdayLunch  += refUtil.almocoCents; }
+      if (d.jantar) { if (fds) out.weekendDinner += refFds.jantarCents; else out.weekdayDinner += refUtil.jantarCents; }
+    }
+    return out;
+  };
+
   const getItemDayCounts = (item: BudgetActual): { weekdays: number; weekends: number; startDate: string | null; endDate: string | null } => {
     // When workedDays is set (after a split), derive counts from it for accuracy
     const wd = item.workedDays;
@@ -512,17 +687,22 @@ export default function BudgetActualPage() {
 
     let valorUtil = 0;
     let valorFds = 0;
+    // Subtotal de diárias que o grid de dias TEM de reproduzir centavo a
+    // centavo (ver o ajuste de resto logo abaixo do grid).
+    let subtotalOrigem = 0;
 
     const isUnfilled = totalDays === 0 || storedSubtotalDiarias <= 0;
 
     if (!isUnfilled) {
       // Restore from saved actual values
+      subtotalOrigem = storedSubtotalDiarias;
       ({ valorUtil, valorFds } = reconstructDailyValues(storedSubtotalDiarias, recWeekdays, days.weekends));
     } else {
       // Actual not yet filled — pre-fill DIÁRIAS from planned values so user has a starting point
       const plannedRef = getPlannedRef(item);
       if (plannedRef && plannedRef.dailyValue > 0) {
         const plannedSub = plannedRef.totalValue - plannedRef.weekdayLunch - plannedRef.weekdayDinner - plannedRef.weekendLunch - plannedRef.weekendDinner - plannedRef.mobility - plannedRef.transport;
+        subtotalOrigem = plannedSub;
         ({ valorUtil, valorFds } = reconstructDailyValues(plannedSub, recWeekdays, days.weekends));
       }
     }
@@ -562,8 +742,113 @@ export default function BudgetActualPage() {
         cur.setDate(cur.getDate() + 1);
       }
     }
+
+    // ── Resto de centavos: o grid tem de FECHAR no subtotal de origem ───────
+    // `valorUtil`/`valorFds` são MÉDIAS arredondadas (reconstructDailyValues),
+    // então "dias × diária" nem sempre reproduz o subtotal gravado/planejado —
+    // e o subtotal é o número certo. É o caso da EMPREITA cenotécnica, cujo
+    // valor é FECHADO por tabela e quase nunca é múltiplo exato dos dias
+    // (Freela SP, 5 dias: R$ 1.750,88 ÷ 5 = 350,176 → 350,18 × 5 = 1.750,90,
+    // os "2 centavos fantasmas" que o Comparativo acusava como diferença).
+    // Correção mínima: joga a sobra (ou a falta) no ÚLTIMO dia ativo que já tem
+    // diária — nenhum dia sem diária (casa/CLT em dia útil) ganha valor por isso.
+    const activeWithValue = dayEntries.filter(d => d.active && d.valueCents > 0);
+    if (subtotalOrigem > 0 && activeWithValue.length > 0) {
+      const somaGrid = dayEntries.reduce((s, d) => s + (d.active ? d.valueCents : 0), 0);
+      const resto = subtotalOrigem - somaGrid;
+      if (resto !== 0) {
+        const ultimo = activeWithValue[activeWithValue.length - 1];
+        // Nunca deixa um dia negativo: se a sobra não couber, o grid segue como está
+        if (ultimo.valueCents + resto >= 0) ultimo.valueCents += resto;
+      }
+    }
+
     setEditDayEntries(dayEntries);
+
+    // ── Viagem: pré-preenche com o que já existe (passagem > sugerido) ──────
+    const travel = deriveTravel(item);
+    setEditTravel({ chegadaIda: travel.chegadaIda, partidaVolta: travel.partidaVolta });
+    setTravelSource({ chegada: travel.chegadaSrc, partida: travel.partidaSrc });
+    setAlimManual(false);
+    setAlimStale(false);
+    setExtraDayEdge(null);
+    // Baseline: ao ABRIR, a alimentação gravada é mantida como está (não
+    // sobrescreve o que o RH já ajustou). O recálculo automático só dispara
+    // quando os dias ativos ou os horários mudarem daqui em diante.
+    alimSigRef.current = alimSignature(
+      dayEntries.filter(d => d.active).map(d => d.date),
+      travel.chegadaIda,
+      travel.partidaVolta,
+    );
   };
+
+  // Recalcula a alimentação pelos dias ativos + horários da viagem e reseta o
+  // "ajustado manualmente" (usado pelo botão "Recalcular pela viagem").
+  const recalcAlimentacao = () => {
+    if (!editingItem) return;
+    const activeDates = editDayEntries.filter(d => d.active).map(d => d.date);
+    const next = calcAlimentacaoRealizado(editingItem, activeDates, editTravel.chegadaIda, editTravel.partidaVolta);
+    setEditFormData(prev => prev ? { ...prev, ...next } : prev);
+    setAlimManual(false);
+    setAlimStale(false);
+    alimSigRef.current = alimSignature(activeDates, editTravel.chegadaIda, editTravel.partidaVolta);
+  };
+
+  // Marca a alimentação como ajustada à mão — a partir daqui nada sobrescreve
+  const setAlimField = (key: 'weekdayLunch' | 'weekdayDinner' | 'weekendLunch' | 'weekendDinner', cents: number) => {
+    // Só marca "ajustado manualmente" se o valor REALMENTE mudou — o
+    // CurrencyInput dispara onChange também no blur, sem edição nenhuma.
+    if (!editFormData || editFormData[key] === cents) return;
+    setEditFormData(prev => prev ? { ...prev, [key]: cents } : prev);
+    setAlimManual(true);
+    setAlimStale(false);
+  };
+
+  // Passagem/escalação podem chegar DEPOIS de o modal abrir (queries assíncronas):
+  // ressincroniza os horários que ainda não foram informados à mão. Se nada
+  // mudar, devolve o mesmo objeto e não dispara re-render nem recálculo.
+  useEffect(() => {
+    if (!editingItem) return;
+    const t = deriveTravel(editingItem);
+    setEditTravel(prev => {
+      const chegadaIda   = travelSource.chegada === 'manual' ? prev.chegadaIda   : t.chegadaIda;
+      const partidaVolta = travelSource.partida === 'manual' ? prev.partidaVolta : t.partidaVolta;
+      return (chegadaIda === prev.chegadaIda && partidaVolta === prev.partidaVolta) ? prev : { chegadaIda, partidaVolta };
+    });
+    setTravelSource(prev => {
+      const chegada = prev.chegada === 'manual' ? prev.chegada : t.chegadaSrc;
+      const partida = prev.partida === 'manual' ? prev.partida : t.partidaSrc;
+      return (chegada === prev.chegada && partida === prev.partida) ? prev : { chegada, partida };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingItem, allTickets, teamInclusions]);
+
+  // Recálculo automático da alimentação quando os dias ATIVOS ou os horários da
+  // viagem mudam (adicionar dia extra, desativar/reativar um dia, corrigir a
+  // hora). Se o usuário já ajustou os valores à mão, NÃO sobrescreve — só
+  // sinaliza que ficaram desatualizados.
+  useEffect(() => {
+    if (!editingItem || !editFormData) return;
+    if (editingItem.sentForReview) return; // somente leitura
+    const activeDates = editDayEntries.filter(d => d.active).map(d => d.date);
+    const sig = alimSignature(activeDates, editTravel.chegadaIda, editTravel.partidaVolta);
+    if (sig === alimSigRef.current) return;
+    alimSigRef.current = sig;
+    if (alimManual) { setAlimStale(true); return; }
+    const next = calcAlimentacaoRealizado(editingItem, activeDates, editTravel.chegadaIda, editTravel.partidaVolta);
+    setEditFormData(prev => prev ? { ...prev, ...next } : prev);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editDayEntries, editTravel, alimManual, editingItem, systemSettings, allTickets, teamInclusions]);
+
+  // Dia extra virou o primeiro/último: rola até o campo de hora e foca
+  useEffect(() => {
+    if (!extraDayEdge) return;
+    const el = extraDayEdge === 'primeiro' ? chegadaInputRef.current : partidaInputRef.current;
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = setTimeout(() => el.focus(), 320);
+    return () => clearTimeout(t);
+  }, [extraDayEdge]);
 
   const saveEdit = () => {
     if (!editingItem || !editFormData) return;
@@ -586,6 +871,9 @@ export default function BudgetActualPage() {
         dailyValue,
         // Persiste os dias ativos — sem isso, dias desativados/extras entravam no total mas sumiam ao reabrir
         workedDays: activeDays.map(d => d.date),
+        // Alimentação: só o RESULTADO é persistido. Os horários de chegada/
+        // partida usados no cálculo NÃO têm coluna aqui (e não criamos uma):
+        // ficam como estado do modal, derivados da passagem/escalação.
         weekdayLunch: editFormData.weekdayLunch,
         weekdayDinner: editFormData.weekdayDinner,
         weekendLunch: editFormData.weekendLunch,
@@ -1546,7 +1834,7 @@ export default function BudgetActualPage() {
         </div>
       )}
 
-      <Dialog open={!!editingItem && !!editFormData} onOpenChange={() => { setEditingItem(null); setEditFormData(null); setShowAddDay(false); }}>
+      <Dialog open={!!editingItem && !!editFormData} onOpenChange={() => { setEditingItem(null); setEditFormData(null); setShowAddDay(false); setExtraDayEdge(null); setAlimManual(false); setAlimStale(false); }}>
         <DialogContent className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl" style={{border:'1px solid rgba(0,0,0,0.06)', display:'flex', flexDirection:'column', maxHeight:'90vh'}}>
           <DialogHeader className="sr-only">
             <DialogTitle>Editar Prestação de Contas</DialogTitle>
@@ -1563,6 +1851,34 @@ export default function BudgetActualPage() {
               editFormData.weekendLunch + editFormData.weekendDinner + editingItem.transport;
             const modalTotal = Math.abs(modalTotalRaw - editingItem.totalValue) <= 1 ? editingItem.totalValue : modalTotalRaw;
             const totalAlimentacao = editFormData.weekdayLunch + editFormData.weekdayDinner + editFormData.weekendLunch + editFormData.weekendDinner;
+            // ── Viagem / alimentação ────────────────────────────────────────
+            const modalInclusion = getItemInclusion(editingItem);
+            const modalFunctionName = getFunctionName(editingItem.functionId);
+            const modalVoa = !!modalInclusion?.needsTicket;
+            const modalPercurso = isPercursoFunction(modalFunctionName);
+            const modalFuncaoLocal = isFuncaoLocal(modalFunctionName);
+            const semAlimentacao = modalPercurso || modalFuncaoLocal;
+            const sortedActiveDays = [...activeDayEntries].sort((a, b) => a.date.localeCompare(b.date));
+            const primeiroDiaAtivo = sortedActiveDays[0]?.date ?? null;
+            const ultimoDiaAtivo = sortedActiveDays[sortedActiveDays.length - 1]?.date ?? null;
+            const activeWeekdays = activeDayEntries.filter(d => !d.isWeekend).length;
+            const activeWeekends = activeDayEntries.filter(d =>  d.isWeekend).length;
+            const showAlimUtil = activeWeekdays > 0 || editFormData.weekdayLunch > 0 || editFormData.weekdayDinner > 0;
+            const showAlimFds  = activeWeekends > 0 || editFormData.weekendLunch > 0 || editFormData.weekendDinner > 0;
+            // Sem horário informado, calcAlimentacao assume dia cheio (não subpaga)
+            const alimEstimada = modalVoa && !semAlimentacao && (!editTravel.chegadaIda || !editTravel.partidaVolta);
+            const ddmm = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            const sourcePill = (src: TravelSource) => (
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold whitespace-nowrap ${
+                  src === 'passagem' ? 'bg-emerald-100 text-emerald-700'
+                  : src === 'sugerido' ? 'bg-amber-100 text-amber-700'
+                  : src === 'manual' ? 'bg-violet-100 text-violet-700'
+                  : 'bg-slate-100 text-slate-400'}`}
+              >
+                {TRAVEL_SOURCE_LABEL[src]}
+              </span>
+            );
             const isFromPlanned = !!editingItem.plannedId || editingItem.observations?.includes('Enviado do planejado');
             const rawPlannedModal = (() => {
               const own = getPlannedRef(editingItem);
@@ -1806,6 +2122,12 @@ export default function BudgetActualPage() {
                                   const refVal = isWknd
                                     ? (editDayEntries.find(de => de.isWeekend)?.valueCents ?? editDayEntries[0]?.valueCents ?? 0)
                                     : (editDayEntries.find(de => !de.isWeekend)?.valueCents ?? editDayEntries[0]?.valueCents ?? 0);
+                                  // O dia extra virou o PRIMEIRO ou o ÚLTIMO da lista?
+                                  // Nesse caso a refeição daquele dia depende do horário
+                                  // de chegada (ida) ou de partida (volta) — destaca o campo.
+                                  if (!primeiroDiaAtivo || newDate < primeiroDiaAtivo) setExtraDayEdge('primeiro');
+                                  else if (!ultimoDiaAtivo || newDate > ultimoDiaAtivo) setExtraDayEdge('ultimo');
+                                  else setExtraDayEdge(null);
                                   setEditDayEntries(prev =>
                                     [...prev, { date: newDate, valueCents: refVal, active: true, isWeekend: isWknd }]
                                       .sort((a, b) => a.date.localeCompare(b.date))
@@ -1902,61 +2224,252 @@ export default function BudgetActualPage() {
                     </div>
                   )}
 
-                  {/* ── Alimentação — somente leitura ── */}
-                  <div
-                    className="rounded-xl border border-slate-200 overflow-hidden"
-                    style={{borderLeft:'3px solid #e5e7eb', background:'#F8FAFC'}}
-                    title="Este valor é definido pelo RH e não pode ser alterado nesta etapa"
-                  >
-                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100" style={{background:'#F1F5F9'}}>
-                      <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-md bg-slate-400 flex items-center justify-center">
+                  {/* ── Viagem — horários que dirigem a alimentação ──
+                       Não são gravados no banco (não há coluna): vêm da passagem
+                       registrada ou do horário sugerido na escalação e podem ser
+                       corrigidos aqui porque, no Realizado, a viagem pode ter mudado.
+                       O que se persiste é o RESULTADO (os 4 valores de alimentação). ── */}
+                  {!semAlimentacao && (
+                    <div className="rounded-xl border border-slate-200 overflow-hidden" style={{borderLeft:'3px solid #0ea5e9', background:'#F7FBFF'}}>
+                      <div className="flex items-center justify-between px-4 py-2.5 border-b border-sky-100" style={{background:'rgba(14,165,233,0.06)'}}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-5 h-5 rounded-md bg-sky-500 flex items-center justify-center">
+                            <Plane className="w-3 h-3 text-white" />
+                          </div>
+                          <span className="text-[11px] font-semibold text-sky-700 uppercase tracking-wide">Viagem</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 text-right">Define as refeições do 1º e do último dia</span>
+                      </div>
+
+                      {modalVoa ? (
+                        <div className="divide-y divide-slate-100">
+                          {/* Chegada (ida) — vale no PRIMEIRO dia ativo */}
+                          <div className="px-4 py-2.5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <ArrowRight className="w-3 h-3 text-sky-500 flex-shrink-0" />
+                              <span className="text-[12px] text-slate-600">
+                                Chegada (ida)
+                                {primeiroDiaAtivo && <span className="text-slate-400"> · {ddmm(primeiroDiaAtivo)}</span>}
+                              </span>
+                              <div className="flex-1" />
+                              {sourcePill(travelSource.chegada)}
+                              <input
+                                ref={chegadaInputRef}
+                                type="time"
+                                step={60}
+                                aria-label="Horário de chegada da ida"
+                                disabled={isReadOnly}
+                                value={editTravel.chegadaIda}
+                                onChange={e => {
+                                  const v = e.target.value;
+                                  setEditTravel(prev => ({ ...prev, chegadaIda: v }));
+                                  setTravelSource(prev => ({ ...prev, chegada: 'manual' }));
+                                  setExtraDayEdge(prev => prev === 'primeiro' ? null : prev);
+                                }}
+                                className={`h-8 w-[104px] text-[12px] font-mono tabular-nums rounded-[6px] border px-2 text-slate-700 transition-colors
+                                  focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/15
+                                  ${isReadOnly ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed'
+                                    : extraDayEdge === 'primeiro' ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-300/40'
+                                    : 'bg-white border-slate-200'}`}
+                              />
+                            </div>
+                            {extraDayEdge === 'primeiro' && (
+                              <p className="mt-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
+                                Este passou a ser o primeiro dia — confirme o horário de chegada.
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Partida (volta) — vale no ÚLTIMO dia ativo */}
+                          <div className="px-4 py-2.5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <ArrowLeft className="w-3 h-3 text-sky-500 flex-shrink-0" />
+                              <span className="text-[12px] text-slate-600">
+                                Partida (volta)
+                                {ultimoDiaAtivo && <span className="text-slate-400"> · {ddmm(ultimoDiaAtivo)}</span>}
+                              </span>
+                              <div className="flex-1" />
+                              {sourcePill(travelSource.partida)}
+                              <input
+                                ref={partidaInputRef}
+                                type="time"
+                                step={60}
+                                aria-label="Horário de partida da volta"
+                                disabled={isReadOnly}
+                                value={editTravel.partidaVolta}
+                                onChange={e => {
+                                  const v = e.target.value;
+                                  setEditTravel(prev => ({ ...prev, partidaVolta: v }));
+                                  setTravelSource(prev => ({ ...prev, partida: 'manual' }));
+                                  setExtraDayEdge(prev => prev === 'ultimo' ? null : prev);
+                                }}
+                                className={`h-8 w-[104px] text-[12px] font-mono tabular-nums rounded-[6px] border px-2 text-slate-700 transition-colors
+                                  focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/15
+                                  ${isReadOnly ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed'
+                                    : extraDayEdge === 'ultimo' ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-300/40'
+                                    : 'bg-white border-slate-200'}`}
+                              />
+                            </div>
+                            {extraDayEdge === 'ultimo' && (
+                              <p className="mt-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
+                                Este passou a ser o último dia — confirme o horário de partida.
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="px-4 py-1.5 bg-slate-50/60">
+                            <p className="text-[10px] text-slate-400 leading-snug">
+                              Chegada até 11h paga almoço e até 19h paga jantar no primeiro dia; na volta,
+                              partida a partir das 13h paga almoço e a partir das 21h paga jantar.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="px-4 py-2.5">
+                          <p className="text-[11px] text-slate-500">
+                            Jornada externa (não voa) — almoço e jantar em todos os dias trabalhados,
+                            sem depender de horário de viagem.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── Alimentação — calculada pela viagem, editável ── */}
+                  <div className="rounded-xl border border-slate-200 overflow-hidden" style={{borderLeft:'3px solid #f97316', background:'#FFFCF8'}}>
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-orange-100" style={{background:'rgba(249,115,22,0.06)'}}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-5 h-5 rounded-md bg-orange-500 flex items-center justify-center">
                           <Utensils className="w-3 h-3 text-white" />
                         </div>
-                        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Alimentação</span>
-                        <span className="text-[10px] font-medium text-slate-400 flex items-center gap-0.5">
-                          <Lock className="w-2.5 h-2.5" />
-                          Definido pelo RH
-                        </span>
+                        <span className="text-[11px] font-semibold text-orange-700 uppercase tracking-wide">Alimentação</span>
+                        {alimManual && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 whitespace-nowrap">
+                            ajustado manualmente
+                          </span>
+                        )}
                       </div>
-                      <span className="text-[13px] font-bold text-slate-500 tabular-nums font-mono">{formatCurrency(totalAlimentacao)}</span>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {!isReadOnly && !semAlimentacao && (
+                          <button
+                            type="button"
+                            onClick={recalcAlimentacao}
+                            className="flex items-center gap-1 text-[10px] font-semibold text-orange-700 hover:text-orange-800 bg-white border border-orange-200 rounded-lg px-2 py-1 transition-colors hover:bg-orange-50"
+                            title="Recalcula almoço e jantar pelos dias ativos e pelos horários de chegada/partida"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            Recalcular pela viagem
+                          </button>
+                        )}
+                        <span className="text-[13px] font-bold text-orange-600 tabular-nums font-mono">{formatCurrency(totalAlimentacao)}</span>
+                      </div>
                     </div>
+
+                    {/* Avisos */}
+                    {alimStale && !isReadOnly && (
+                      <div className="px-4 py-2 bg-amber-50 border-b border-amber-100 flex items-center gap-2 flex-wrap">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                        <span className="text-[11px] text-amber-700 flex-1 min-w-0">
+                          Os dias ou horários mudaram depois do seu ajuste — os valores não foram recalculados.
+                        </span>
+                        <button
+                          type="button"
+                          onClick={recalcAlimentacao}
+                          className="text-[10px] font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-900"
+                        >
+                          Recalcular pela viagem
+                        </button>
+                      </div>
+                    )}
+                    {semAlimentacao && (
+                      <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
+                        <p className="text-[11px] text-slate-500">
+                          {modalFuncaoLocal ? FUNCAO_LOCAL_RAZAO : 'Percurso — alimentação já incluída no pacote fechado.'}
+                        </p>
+                      </div>
+                    )}
+                    {!semAlimentacao && alimEstimada && !alimManual && (
+                      <div className="px-4 py-2 bg-amber-50/60 border-b border-amber-100">
+                        <p className="text-[11px] text-amber-700">
+                          Sem horário de {!editTravel.chegadaIda && !editTravel.partidaVolta ? 'chegada e partida' : !editTravel.chegadaIda ? 'chegada' : 'partida'} —
+                          o dia foi assumido cheio. Informe o horário acima para o cálculo exato.
+                        </p>
+                      </div>
+                    )}
+
                     <div className="divide-y divide-slate-100">
-                      {editFormData.weekdayLunch > 0 && (
-                        <div className="flex items-center justify-between px-4 py-2">
-                          <div className="flex items-center gap-1.5">
-                            <Sun className="w-3 h-3 text-amber-400 flex-shrink-0" />
-                            <span className="text-[12px] text-slate-500">Almoço <span className="text-slate-400">(dias úteis)</span></span>
-                          </div>
-                          <span className="text-[13px] font-mono tabular-nums cursor-not-allowed" style={{color:'#666'}}>{formatCurrency(editFormData.weekdayLunch)}</span>
+                      {!showAlimUtil && !showAlimFds && (
+                        <div className="px-4 py-4 text-center text-[11px] text-slate-400">
+                          Nenhuma refeição prevista para os dias ativos.
                         </div>
                       )}
-                      {editFormData.weekdayDinner > 0 && (
-                        <div className="flex items-center justify-between px-4 py-2">
-                          <div className="flex items-center gap-1.5">
-                            <Moon className="w-3 h-3 text-indigo-400 flex-shrink-0" />
-                            <span className="text-[12px] text-slate-500">Jantar <span className="text-slate-400">(dias úteis)</span></span>
+                      {showAlimUtil && (
+                        <>
+                          <div className="flex items-center justify-between gap-2 px-4 py-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <Sun className="w-3 h-3 text-amber-400 flex-shrink-0" />
+                              <span className="text-[12px] text-slate-600">Almoço <span className="text-slate-400">(dias úteis · {activeWeekdays})</span></span>
+                            </div>
+                            <CurrencyInput
+                              value={editFormData.weekdayLunch}
+                              onChange={v => setAlimField('weekdayLunch', v)}
+                              disabled={isReadOnly}
+                              className={`text-right w-28 font-mono tabular-nums border rounded-[6px] font-semibold
+                                focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:bg-white
+                                ${isReadOnly ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed' : 'bg-white border-[#e5e7eb] cursor-text'}`}
+                              style={{height:34, fontSize:13}}
+                            />
                           </div>
-                          <span className="text-[13px] font-mono tabular-nums cursor-not-allowed" style={{color:'#666'}}>{formatCurrency(editFormData.weekdayDinner)}</span>
-                        </div>
+                          <div className="flex items-center justify-between gap-2 px-4 py-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <Moon className="w-3 h-3 text-indigo-400 flex-shrink-0" />
+                              <span className="text-[12px] text-slate-600">Jantar <span className="text-slate-400">(dias úteis · {activeWeekdays})</span></span>
+                            </div>
+                            <CurrencyInput
+                              value={editFormData.weekdayDinner}
+                              onChange={v => setAlimField('weekdayDinner', v)}
+                              disabled={isReadOnly}
+                              className={`text-right w-28 font-mono tabular-nums border rounded-[6px] font-semibold
+                                focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:bg-white
+                                ${isReadOnly ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed' : 'bg-white border-[#e5e7eb] cursor-text'}`}
+                              style={{height:34, fontSize:13}}
+                            />
+                          </div>
+                        </>
                       )}
-                      {editFormData.weekendLunch > 0 && (
-                        <div className="flex items-center justify-between px-4 py-2">
-                          <div className="flex items-center gap-1.5">
-                            <Sun className="w-3 h-3 text-amber-300 flex-shrink-0" />
-                            <span className="text-[12px] text-slate-500">Almoço <span className="text-slate-400">(fins de semana)</span></span>
+                      {showAlimFds && (
+                        <>
+                          <div className="flex items-center justify-between gap-2 px-4 py-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <Sun className="w-3 h-3 text-amber-300 flex-shrink-0" />
+                              <span className="text-[12px] text-slate-600">Almoço <span className="text-slate-400">(fins de semana · {activeWeekends})</span></span>
+                            </div>
+                            <CurrencyInput
+                              value={editFormData.weekendLunch}
+                              onChange={v => setAlimField('weekendLunch', v)}
+                              disabled={isReadOnly}
+                              className={`text-right w-28 font-mono tabular-nums border rounded-[6px] font-semibold
+                                focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:bg-white
+                                ${isReadOnly ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed' : 'bg-white border-[#e5e7eb] cursor-text'}`}
+                              style={{height:34, fontSize:13}}
+                            />
                           </div>
-                          <span className="text-[13px] font-mono tabular-nums cursor-not-allowed" style={{color:'#666'}}>{formatCurrency(editFormData.weekendLunch)}</span>
-                        </div>
-                      )}
-                      {editFormData.weekendDinner > 0 && (
-                        <div className="flex items-center justify-between px-4 py-2">
-                          <div className="flex items-center gap-1.5">
-                            <Moon className="w-3 h-3 text-indigo-300 flex-shrink-0" />
-                            <span className="text-[12px] text-slate-500">Jantar <span className="text-slate-400">(fins de semana)</span></span>
+                          <div className="flex items-center justify-between gap-2 px-4 py-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <Moon className="w-3 h-3 text-indigo-300 flex-shrink-0" />
+                              <span className="text-[12px] text-slate-600">Jantar <span className="text-slate-400">(fins de semana · {activeWeekends})</span></span>
+                            </div>
+                            <CurrencyInput
+                              value={editFormData.weekendDinner}
+                              onChange={v => setAlimField('weekendDinner', v)}
+                              disabled={isReadOnly}
+                              className={`text-right w-28 font-mono tabular-nums border rounded-[6px] font-semibold
+                                focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:bg-white
+                                ${isReadOnly ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed' : 'bg-white border-[#e5e7eb] cursor-text'}`}
+                              style={{height:34, fontSize:13}}
+                            />
                           </div>
-                          <span className="text-[13px] font-mono tabular-nums cursor-not-allowed" style={{color:'#666'}}>{formatCurrency(editFormData.weekendDinner)}</span>
-                        </div>
+                        </>
                       )}
                     </div>
                   </div>

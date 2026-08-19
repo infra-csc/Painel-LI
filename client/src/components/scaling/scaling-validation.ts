@@ -5,6 +5,9 @@
  * checagem como trava de segurança (toast fica para erro de servidor).
  */
 import type { TeamInclusion } from "@shared/schema";
+// `isCenotecnicaFunction` (alimentacao) exclui "sup ceno", que é produtor — não
+// confundir com o homônimo de use-scaling-data, que inclui (aprovação da Produção).
+import { isCenotecnicaFunction as isCenoEmpreitaFunction } from "@shared/alimentacao";
 import { isEscalated } from "./scaling-utils";
 import type { ScalingData } from "./use-scaling-data";
 
@@ -18,7 +21,7 @@ export interface ValidationValues {
 type Rules = Pick<
   ScalingData,
   "isAtendimentoInclusion" | "isPercursoInclusion" | "getCollaboratorConflicts" | "getCollaboratorName" | "getEventName" |
-  "canEditCollaborator" | "canConfirmEscalation"
+  "getFunctionName" | "canEditCollaborator" | "canConfirmEscalation"
 >;
 
 export const ATENDIMENTO_MISSING_MSG = "Selecione o tipo de atendimento (Key Account ou Executivo de Contas).";
@@ -33,6 +36,25 @@ export const isAtendimentoMissing = (inclusion: TeamInclusion, values: Validatio
  * religar facilmente se a regra mudar; hoje sempre false.
  */
 export const isPercurseiroMissing = (_inclusion: TeamInclusion, _values: ValidationValues, _rules: Rules): boolean => false;
+
+export const CENO_FREELA_MISSING_MSG = "Cenotécnica sem tipo de freela — defina Freela Viagem, SP, Local (A) ou Local (B) para o Planejado usar o valor fechado.";
+
+/**
+ * AVISO (não bloqueia): vaga de cenotécnica sem a modalidade de empreita.
+ * Regra do usuário (19/08) — o tipo é escolhido na Escalação, mas ele NÃO pediu
+ * obrigatoriedade: escalar e confirmar continuam liberados. Lê direto da
+ * escalação (e não de ValidationValues) porque o tipo grava na hora, por rota
+ * dedicada, e nunca fica pendente no formulário do modal.
+ */
+export const isCenoFreelaTipoMissing = (inclusion: TeamInclusion, rules: Rules): boolean =>
+  isCenoEmpreitaFunction(rules.getFunctionName(inclusion.functionId)) && !(inclusion as any).cenoFreelaTipo;
+
+/** Aviso não bloqueante da escalação (null = nada a avisar). */
+export const getScalingWarning = (inclusion: TeamInclusion | null, rules: Rules): string | null => {
+  if (!inclusion || inclusion.status === "cancelado") return null;
+  if (isCenoFreelaTipoMissing(inclusion, rules)) return CENO_FREELA_MISSING_MSG;
+  return null;
+};
 
 /** Valores gravados na escalação (sem edição) no formato da validação. */
 export const valuesFromInclusion = (inclusion: TeamInclusion): ValidationValues => ({

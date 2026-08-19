@@ -14,7 +14,7 @@ import { Link } from "wouter";
 import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
 import {
-  Calculator, Save, DollarSign, Car, Utensils, ShieldAlert, Bike,
+  Calculator, Save, DollarSign, Car, Utensils, ShieldAlert, Bike, Hammer,
   Lock, ChevronDown, ChevronUp, Clock, BadgeCheck, ExternalLink,
   Search, Building2, Users, Plus, Trash2, Pencil, X, RefreshCw
 } from "lucide-react";
@@ -29,6 +29,11 @@ import { useAuth } from "@/hooks/use-auth";
 import { isAdmin, isRhOrAdmin } from "@/lib/permissions";
 import type { Function as FunctionType, FunctionValue, PaymentCompany } from "@shared/schema";
 import { CnpjInput, validateCnpj } from "@/components/ui/cnpj-input";
+import {
+  CENO_FREELA_TIPOS, CENO_FREELA_TIPO_LABELS, CENO_EMPREITA_TABLE_DAYS,
+  CENO_EMPREITA_DEFAULTS, CENO_EMPREITA_SETTING_KEYS, cenoEmpreitaSettingKey,
+  type CenoFreelaTipo, type CenoEmpreitaTableDay,
+} from "@shared/cenotecnica-empreita";
 
 // Validação numérica no client, entendendo o formato pt-BR completo (vírgula
 // decimal E ponto de milhar): "1.500,00" e "1.500" valem 1500 — a conversão
@@ -52,6 +57,45 @@ const percentField = () =>
       const n = parseBrNumber(v);
       return n >= 0 && n <= 100;
     }, "O percentual deve estar entre 0 e 100");
+
+/* ── Cenotécnicos Empreita: valor FECHADO por nº de dias ────────────────────
+   A grade tem 4 modalidades × 5 colunas de dias (2 a 6) = 20 campos monetários.
+   As chaves NUNCA são escritas à mão aqui: vêm de cenoEmpreitaSettingKey /
+   CENO_EMPREITA_SETTING_KEYS (@shared/cenotecnica-empreita), a mesma fonte que
+   o motor de cálculo usa — assim schema, defaults, labels e inputs não podem
+   divergir da regra. */
+type CenoEmpreitaKey = `ceno_empreita_${CenoFreelaTipo}_${CenoEmpreitaTableDay}d`;
+
+const cenoEmpreitaKey = (tipo: CenoFreelaTipo, dias: CenoEmpreitaTableDay): CenoEmpreitaKey =>
+  cenoEmpreitaSettingKey(tipo, dias) as CenoEmpreitaKey;
+
+/** Percorre a grade na ordem de exibição (modalidade × dias). */
+function cenoEmpreitaCells<T>(fn: (tipo: CenoFreelaTipo, dias: CenoEmpreitaTableDay) => T): T[] {
+  return CENO_FREELA_TIPOS.flatMap(t => CENO_EMPREITA_TABLE_DAYS.map(d => fn(t, d)));
+}
+
+/** As 20 chaves como campos monetários do formulário. */
+const cenoEmpreitaSchemaShape = Object.fromEntries(
+  CENO_EMPREITA_SETTING_KEYS.map(k => [k, moneyField()]),
+) as Record<CenoEmpreitaKey, ReturnType<typeof moneyField>>;
+
+/** Grade em reais: valor salvo nos settings, com fallback na tabela do slide. */
+function cenoEmpreitaReais(s?: Record<string, number>): Record<CenoEmpreitaKey, string> {
+  return Object.fromEntries(
+    cenoEmpreitaCells((t, d) => [
+      cenoEmpreitaKey(t, d),
+      centavosToReais(s?.[cenoEmpreitaKey(t, d)] ?? CENO_EMPREITA_DEFAULTS[t][d]),
+    ]),
+  ) as Record<CenoEmpreitaKey, string>;
+}
+
+/** Rótulos das 20 chaves para o histórico de alterações. */
+const cenoEmpreitaFieldLabels: Record<string, string> = Object.fromEntries(
+  cenoEmpreitaCells((t, d) => [
+    cenoEmpreitaKey(t, d),
+    `Cenotécnicos Empreita — ${CENO_FREELA_TIPO_LABELS[t]} (${d} dias)`,
+  ]),
+);
 
 const formSchema = z.object({
   // Casa
@@ -105,6 +149,8 @@ const formSchema = z.object({
   percurseiro_nf_pct: percentField(),
   percurseiro_t1_nf: moneyField(),
   percurseiro_t2_nf: moneyField(),
+  // Cenotécnicos Empreita — valor fechado por nº de dias (4 modalidades × 2..6 dias)
+  ...cenoEmpreitaSchemaShape,
 });
 
 // Chaves percentuais inteiras (0..100). NÃO passam por conversão reais<->centavos.
@@ -136,6 +182,7 @@ const LEGACY_ZONE_FIELDS = new Set<string>([
 type FormValues = z.infer<typeof formSchema>;
 
 const FIELD_LABELS: Record<string, string> = {
+  ...cenoEmpreitaFieldLabels,
   default_daily_value_weekday: "Diária Casa — Dia Útil",
   default_daily_value_weekend: "Diária Casa — Fim de Semana",
   default_mobility_ida: "Mobilidade Casa — Ida",
@@ -566,6 +613,8 @@ export default function SystemSettingsPage() {
       alimentacao_jantar_ceno: "35.00",
       alimentacao_almoco_gestao: "44.00",
       alimentacao_jantar_gestao: "44.00",
+      // Cenotécnicos Empreita — tabela do slide (valores em reais)
+      ...cenoEmpreitaReais(),
     },
   });
 
@@ -619,6 +668,8 @@ export default function SystemSettingsPage() {
         alimentacao_jantar_ceno: centavosToReais(s.alimentacao_jantar_ceno ?? 3500),
         alimentacao_almoco_gestao: centavosToReais(s.alimentacao_almoco_gestao ?? 4400),
         alimentacao_jantar_gestao: centavosToReais(s.alimentacao_jantar_gestao ?? 4400),
+        // Cenotécnicos Empreita — 20 células, cada uma com fallback na tabela do slide
+        ...cenoEmpreitaReais(s),
       });
     }
   }, [settings]);
@@ -1046,6 +1097,55 @@ export default function SystemSettingsPage() {
                     <span className="text-sm font-bold text-orange-500">{`R$ ${mobilityTotalFreela.toFixed(2).replace('.', ',')}`}</span>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Cenotécnicos Empreita — valor fechado por nº de dias */}
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm xl:col-span-2">
+              <SectionHeader
+                icon={Hammer}
+                iconBg="bg-amber-600"
+                title="Cenotécnicos Empreita — valor fechado por dias"
+                subtitle="Quatro modalidades × 2 a 6 dias · valor fechado, sem deflação"
+              />
+              <div className="space-y-5 p-4">
+                {CENO_FREELA_TIPOS.map(tipo => {
+                  // Incremento usado quando os dias caem fora de 2–6: (6 dias − 2 dias) / 4,
+                  // calculado ao vivo com o que está digitado na linha.
+                  const v2 = parseBrNumber(form.watch(cenoEmpreitaKey(tipo, 2)) || "0");
+                  const v6 = parseBrNumber(form.watch(cenoEmpreitaKey(tipo, 6)) || "0");
+                  const incremento = (v6 - v2) / 4;
+                  return (
+                    <div key={tipo}>
+                      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                        <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-700">
+                          <Hammer className="h-3 w-3" /> {CENO_FREELA_TIPO_LABELS[tipo]}
+                        </p>
+                        <span className="text-[11px] text-gray-400">
+                          Incremento{' '}
+                          <span className="font-semibold text-gray-500">
+                            {Number.isFinite(incremento) ? `R$ ${incremento.toFixed(2).replace('.', ',')}` : '—'}
+                          </span>
+                          {' '}por dia fora de 2–6
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                        {CENO_EMPREITA_TABLE_DAYS.map(dias => (
+                          <MoneyField
+                            key={dias}
+                            control={form.control}
+                            name={cenoEmpreitaKey(tipo, dias)}
+                            label={`${dias} dias`}
+                            labelClass="text-amber-700"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="mb-0 text-[11px] text-gray-400">
+                  Cada valor é <span className="font-semibold text-gray-500">fechado</span> para o total de dias trabalhados — não é diária × dias e <span className="font-semibold text-gray-500">não sofre deflação</span> por período. A modalidade é escolhida na Escalação, por vaga. Fora da faixa de 2 a 6 dias o sistema extrapola pelo incremento da própria linha (mostrado acima de cada modalidade). Cenotécnico de casa (CLT) continua sem diária; alimentação e mobilidade seguem as regras normais e ficam fora do valor fechado.
+                </p>
               </div>
             </div>
           </div>

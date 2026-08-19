@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { PageHeader } from "@/components/common/page-header";
@@ -10,9 +10,13 @@ import {
   calcDeflatedDailies, deflationFactorsFromSettings, type DeflationFactors,
   CASA_DAILY_RATES, CASA_FOOD_2026, MOBILITY_2026,
   FREELA_DAILY_RATES, FREELA_EXTRA_DAY_ALLOWANCE,
-  EMPREITA_CLOSED_VALUES, PERCURSEIRO_TIPOS, percurseiroDiariaCents, type PercurseiroDiaria,
+  PERCURSEIRO_TIPOS, percurseiroDiariaCents, type PercurseiroDiaria,
   CASA_SETTING_KEYS, FREELA_SETTING_KEYS,
 } from "@shared/calculation-rules";
+import {
+  CENO_FREELA_TIPOS, CENO_FREELA_TIPO_LABELS, CENO_EMPREITA_TABLE_DAYS,
+  CENO_EMPREITA_DEFAULTS, cenoEmpreitaRow,
+} from "@shared/cenotecnica-empreita";
 
 type SystemSettings = Record<string, number>;
 
@@ -137,7 +141,7 @@ export default function CalculationRulesPage() {
         <div role="tabpanel" id={`tabpanel-${tab}`} aria-labelledby={`tab-${tab}`}>
           {tab === "casa" && <CasaTab rates={casaRates} food={casaFood} factors={factors} />}
           {tab === "freela" && <FreelaTab rates={freelaRates} factors={factors} />}
-          {tab === "empreita" && <EmpreitaTab />}
+          {tab === "empreita" && <EmpreitaTab settings={settings} />}
           {tab === "percurseiro" && <PercurseiroTab settings={settings} />}
         </div>
       </div>
@@ -159,7 +163,7 @@ function Card({ title, icon: Icon, children, accent = "text-slate-500" }: any) {
   );
 }
 
-function RateTable({ rows, headers }: { rows: (string | number)[][]; headers: string[] }) {
+function RateTable({ rows, headers }: { rows: ReactNode[][]; headers: string[] }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[560px] text-xs">
@@ -359,25 +363,79 @@ function FreelaTab({ rates, factors }: TabRatesProps) {
   );
 }
 
-function EmpreitaTab() {
-  const DIAS = [2, 3, 4, 5, 6] as const;
+/** Célula da tabela de empreita: valor vigente, com o valor do slide riscado quando editado. */
+function EmpreitaCell({ cents, padraoCents }: { cents: number; padraoCents: number }) {
+  if (cents === padraoCents) return <>{fmt(cents)}</>;
+  return (
+    <span className="inline-flex flex-col items-end leading-tight" title={`Padrão do slide: ${fmt(padraoCents)}`}>
+      <span className="text-amber-700">{fmt(cents)}</span>
+      <span className="text-[10px] font-normal text-slate-400 line-through">{fmt(padraoCents)}</span>
+    </span>
+  );
+}
+
+function EmpreitaTab({ settings }: { settings?: SystemSettings }) {
+  // Valores VIGENTES (Valores Padrão), com fallback na tabela do slide 19/08
+  const linhas = CENO_FREELA_TIPOS.map(tipo => {
+    const row = cenoEmpreitaRow(tipo, settings);
+    return {
+      tipo,
+      label: CENO_FREELA_TIPO_LABELS[tipo],
+      row,
+      incremento: Math.round((row[6] - row[2]) / 4),
+      editada: CENO_EMPREITA_TABLE_DAYS.some(d => row[d] !== CENO_EMPREITA_DEFAULTS[tipo][d]),
+    };
+  });
+  const algumaEditada = linhas.some(l => l.editada);
+
   return (
     <div className="space-y-4">
       <div className="bg-blue-50 border border-blue-200 rounded-2xl px-5 py-3.5 flex items-start gap-3">
         <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
         <p className="text-xs text-blue-800">
           Cenotécnicos em regime de <span className="font-bold">empreita</span> recebem <span className="font-bold">valor fechado</span> conforme
-          a modalidade e o número de dias — a deflação já está embutida na proposta, não se aplica novamente.
+          a modalidade e o número de dias — não é diária × dias, e a deflação por período <span className="font-bold">não se aplica</span> (já está embutida na proposta).
         </p>
       </div>
-      <Card title="Proposta de valor fechado por modalidade" icon={Hammer} accent="text-cyan-600">
+      <Card title="Valor fechado por modalidade e nº de dias" icon={Hammer} accent="text-cyan-600">
         <RateTable
-          headers={["Modalidade", ...DIAS.map(d => `${d} dias`)]}
-          rows={EMPREITA_CLOSED_VALUES.map(m => [
-            m.modalidade,
-            ...DIAS.map(d => fmt((m.porDias as Record<number, number>)[d])),
+          headers={["Modalidade", ...CENO_EMPREITA_TABLE_DAYS.map(d => `${d} dias`), "Incremento/dia"]}
+          rows={linhas.map(l => [
+            l.label,
+            ...CENO_EMPREITA_TABLE_DAYS.map(d => (
+              <EmpreitaCell key={d} cents={l.row[d]} padraoCents={CENO_EMPREITA_DEFAULTS[l.tipo][d]} />
+            )),
+            <span className="text-slate-500">{fmt(l.incremento)}</span>,
           ])}
         />
+        <p className="text-[11px] text-slate-400 px-4 py-3 border-t border-gray-50">
+          Valores vigentes (editáveis no{" "}
+          <Link href="/system-settings" className="font-semibold underline underline-offset-2 hover:text-slate-600">
+            Valores Padrão
+          </Link>
+          ).{algumaEditada && (
+            <span className="text-amber-700"> Em âmbar, o valor aplicado hoje; riscado, o valor original do slide.</span>
+          )}
+        </p>
+      </Card>
+      <Card title="Como a regra é aplicada" icon={Info} accent="text-slate-500">
+        <ul className="px-5 py-4 space-y-2 text-xs text-slate-600 list-disc list-inside marker:text-slate-300">
+          <li>
+            A <span className="font-semibold">modalidade</span> (Viagem, SP, Local A ou Local B) é escolhida na{" "}
+            <span className="font-semibold">Escalação</span>, vaga por vaga — não vem da função nem do evento.
+          </li>
+          <li>
+            Fora da faixa de 2 a 6 dias (1 dia, ou 7 e mais) o valor é <span className="font-semibold">extrapolado</span> pelo
+            incremento da própria modalidade — a coluna "Incremento/dia" acima.
+          </li>
+          <li>
+            Cenotécnico <span className="font-semibold">de casa (CLT)</span> continua sem diária: a tabela vale só para quem não é casa.
+          </li>
+          <li>
+            <span className="font-semibold">Alimentação e mobilidade</span> seguem as regras normais e{" "}
+            <span className="font-semibold">não estão dentro</span> do valor fechado — que cobre apenas a mão de obra.
+          </li>
+        </ul>
       </Card>
     </div>
   );

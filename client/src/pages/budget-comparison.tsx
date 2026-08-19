@@ -5,6 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -16,7 +20,7 @@ import {
   Calendar, MessageSquare, Info,
   ChevronDown, ChevronUp, AlertTriangle, Search, CheckSquare, Square,
   Send, Clock, ListChecks, Briefcase, Utensils, Car, Users,
-  AlertCircle, Check, Minus, GitFork, ClipboardList, X, UserX, Pencil
+  AlertCircle, Check, Minus, GitFork, ClipboardList, X, UserX, Pencil, Wallet, RefreshCw
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -250,6 +254,10 @@ export default function BudgetComparisonPage() {
   // e o RH acabava aprovando itens errados
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [confirmAdjustOpen, setConfirmAdjustOpen] = useState(false);
+  // Reabertura do comparativo aprovado (devolve o comparativo e ESTORNA o Flash)
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [reopenReason, setReopenReason] = useState("");
+  const [reopenReasonError, setReopenReasonError] = useState(false);
   const [editingActual, setEditingActual] = useState<BudgetActual | null>(null);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
   const [splitDetail, setSplitDetail] = useState<{
@@ -381,6 +389,133 @@ export default function BudgetComparisonPage() {
   });
 
   const isRhOrAdmin = user?.role === 'admin' || user?.role === 'financial';
+
+  // Aprovação do COMPARATIVO (fechamento do evento). Decisão 19/08: é aqui que
+  // alimentação e mobilidade de todas as prestações entram na Conta Corrente
+  // Flash — a NF/OC depois só documenta. O servidor devolve o resumo em
+  // `flashCredit`; se o crédito falhar, a aprovação continua valendo e o toast
+  // avisa (política flashSync.ok=false herdada da regra anterior).
+  const approveComparisonMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("POST", `/api/budget-comparison/${id}/approve`, {});
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
+      qc.invalidateQueries({ queryKey: ["/api/flash-movements"] });
+      const fc = data?.flashCredit;
+      if (fc && fc.ok === false) {
+        toast({
+          title: "Comparativo aprovado — Flash NÃO creditado",
+          description: "A aprovação foi salva, mas os créditos de alimentação e mobilidade não entraram na Conta Corrente Flash. Avise o RH e aprove novamente para refazer o crédito.",
+          className: "bg-amber-50 border-amber-200 text-amber-800",
+        });
+        return;
+      }
+      const n = fc?.movements || 0;
+      const pessoas = fc?.collaborators || 0;
+      toast({
+        title: "Comparativo aprovado",
+        description: n > 0
+          ? `${n} lançamento${n !== 1 ? 's' : ''} no Flash para ${pessoas} colaborador${pessoas !== 1 ? 'es' : ''} — alimentação ${fmt(fc.alimentacaoCents || 0)} · mobilidade ${fmt(fc.mobilidadeCents || 0)}.`
+          : "Nenhum valor de alimentação ou mobilidade a creditar no Flash neste evento.",
+        className: "bg-emerald-50 border-emerald-200 text-emerald-800",
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Erro ao aprovar o comparativo",
+        description: err?.body?.message || "Não foi possível aprovar o comparativo. Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // RESSINCRONIZAR o Flash de um comparativo JÁ APROVADO. O Realizado pode
+  // mudar depois da aprovação (o RH edita valores aqui mesmo, e o PATCH de
+  // /api/budget-actual não trava item aprovado) — sem isto o saldo do Flash
+  // ficava defasado sem caminho de correção. A rota /approve é IDEMPOTENTE:
+  // reconcilia por (comparativo, prestação, categoria), criando, atualizando e
+  // removendo o que mudou; não duplica lançamento nem muda o status.
+  const resyncFlashMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("POST", `/api/budget-comparison/${id}/approve`, {});
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
+      qc.invalidateQueries({ queryKey: ["/api/flash-movements"] });
+      const fc = data?.flashCredit;
+      if (fc && fc.ok === false) {
+        toast({
+          title: "Flash NÃO ressincronizado",
+          description: "A Conta Corrente Flash continua com os valores antigos. Tente de novo em instantes.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const mudou = (fc?.created || 0) + (fc?.updated || 0) + (fc?.removed || 0);
+      toast({
+        title: mudou > 0 ? "Flash ressincronizado" : "Flash já estava em dia",
+        description: mudou > 0
+          ? `${fc?.created || 0} criado(s) · ${fc?.updated || 0} atualizado(s) · ${fc?.removed || 0} removido(s) — alimentação ${fmt(fc?.alimentacaoCents || 0)} · mobilidade ${fmt(fc?.mobilidadeCents || 0)}.`
+          : "Nenhum lançamento precisou mudar: a Conta Corrente Flash já reflete o Realizado atual.",
+        className: "bg-emerald-50 border-emerald-200 text-emerald-800",
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Erro ao ressincronizar o Flash",
+        description: err?.body?.message || "Não foi possível ressincronizar. Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // REABRIR o comparativo aprovado. Usa /return ("devolvido") e não /reject:
+  // reabrir é devolver o evento para ajuste, não recusar o trabalho — o RH
+  // corrige o Realizado e aprova de novo. O servidor estorna (APAGA) os
+  // lançamentos automáticos do Flash daquele evento no mesmo passo.
+  // Até 19/08 este era o único caminho de estorno documentado nas mensagens do
+  // servidor, mas NENHUM botão o chamava: os do rodapé decidem POR PRESTAÇÃO
+  // (/api/budget-actual/rh-action). Este é o botão que faltava.
+  const reopenComparisonMutation = useMutation({
+    mutationFn: async ({ id, returnReason }: { id: string; returnReason: string }) => {
+      const res = await apiRequest("POST", `/api/budget-comparison/${id}/return`, { returnReason });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
+      qc.invalidateQueries({ queryKey: ["/api/flash-movements"] });
+      setReopenOpen(false);
+      setReopenReason("");
+      setReopenReasonError(false);
+      const fr = data?.flashReverse;
+      if (fr && fr.ok === false) {
+        toast({
+          title: "Comparativo reaberto — Flash NÃO estornado",
+          description: "O comparativo voltou para ajuste, mas os lançamentos automáticos continuam na Conta Corrente Flash. Reabra de novo para tentar o estorno.",
+          className: "bg-amber-50 border-amber-200 text-amber-800",
+        });
+        return;
+      }
+      const n = fr?.removed || 0;
+      toast({
+        title: "Comparativo reaberto para ajuste",
+        description: n > 0
+          ? `${n} lançamento${n !== 1 ? 's' : ''} automático${n !== 1 ? 's' : ''} removido${n !== 1 ? 's' : ''} da Conta Corrente Flash. Ao aprovar de novo, o crédito é recriado.`
+          : "Não havia lançamento automático no Flash para estornar neste evento.",
+        className: "bg-amber-50 border-amber-200 text-amber-800",
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Erro ao reabrir o comparativo",
+        description: err?.body?.message || "Não foi possível reabrir o comparativo. Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const patchActualMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Record<string, number> }) => {
@@ -713,6 +848,30 @@ export default function BudgetComparisonPage() {
 
   const rhComment = comparison?.approvalObservation || comparison?.rejectionReason || comparison?.returnReason;
 
+  // Fechamento do comparativo: só faz sentido quando todas as prestações do
+  // evento já foram aprovadas item a item (mesmo critério do passo 4 do stepper).
+  const allItemsApproved = useMemo(() => {
+    const items = budgetActual || [];
+    return items.length > 0 && items.every(i => i.rhStatus === 'aprovado');
+  }, [budgetActual]);
+
+  // O Realizado mudou DEPOIS da aprovação? O crédito do Flash é uma fotografia
+  // do Realizado no momento em que o comparativo foi aprovado; como o RH pode
+  // editar valores depois (aqui mesmo, no lápis do card), a foto envelhece.
+  // Comparamos `budget_actual.updatedAt` com `comparison.approvedAt` —
+  // 1s de tolerância porque a aprovação e a última gravação podem cair no mesmo
+  // segundo sem que nada tenha mudado de fato.
+  const realizadoChangedAfterApproval = useMemo(() => {
+    if (!comparison || comparison.status !== 'aprovado' || !comparison.approvedAt) return false;
+    const approvedMs = new Date(comparison.approvedAt as unknown as string).getTime();
+    if (!Number.isFinite(approvedMs)) return false;
+    return (budgetActual || []).some(i => {
+      if (!i.updatedAt) return false;
+      const ms = new Date(i.updatedAt as unknown as string).getTime();
+      return Number.isFinite(ms) && ms > approvedMs + 1000;
+    });
+  }, [comparison, budgetActual]);
+
   return (
     <div className="space-y-5 max-w-5xl mx-auto pb-32">
       {/* ── Page header ── */}
@@ -945,6 +1104,83 @@ export default function BudgetComparisonPage() {
                 <p className="text-sm text-slate-700 mt-0.5">{rhComment}</p>
               </div>
             </div>
+          )}
+
+          {/* ── Fechamento do comparativo (crédito no Flash — regra 19/08) ── */}
+          {/* Comparativo APROVADO: o card aparece sempre (mesmo que alguma
+              prestação tenha mudado de status depois), senão os botões de
+              ressincronizar/estornar sumiriam justamente quando são precisos.
+              `allItemsApproved` continua governando só a APROVAÇÃO inicial. */}
+          {isRhOrAdmin && comparison && (comparison.status === 'aprovado' || allItemsApproved) && (
+            comparison.status === 'aprovado' ? (
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3.5 space-y-3">
+                <div className="flex items-start gap-2.5">
+                  <Wallet className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="text-[10px] uppercase text-emerald-700 font-bold tracking-wider">Comparativo aprovado</span>
+                    <p className="text-[13px] text-emerald-800 mt-0.5">
+                      Alimentação e mobilidade das prestações já foram creditadas na Conta Corrente Flash dos colaboradores. A nota fiscal apenas documenta o pagamento — não altera o saldo.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Realizado editado depois da aprovação → o Flash ficou defasado */}
+                {realizadoChangedAfterApproval && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 flex items-start gap-2" data-testid="alert-flash-defasado">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-[12px] text-amber-800">
+                      <strong>O Realizado mudou depois da aprovação</strong> — os créditos no Flash ainda são os do momento em que o comparativo foi aprovado. Use <strong>Ressincronizar Flash</strong> para alinhar os lançamentos ao Realizado atual.
+                    </p>
+                  </div>
+                )}
+
+                {/* Correção e estorno: os dois caminhos que faltavam depois do aprovado */}
+                <div className="flex flex-wrap items-center gap-2 pl-6">
+                  <Button
+                    variant="outline"
+                    className={`h-8 text-xs px-3 rounded-lg font-semibold border-emerald-200 text-emerald-700 hover:bg-emerald-100 ${realizadoChangedAfterApproval ? 'bg-white ring-2 ring-amber-300' : 'bg-white'}`}
+                    onClick={() => resyncFlashMutation.mutate(comparison.id)}
+                    disabled={resyncFlashMutation.isPending || reopenComparisonMutation.isPending}
+                    data-testid="button-ressincronizar-flash"
+                    title="Reaplica a regra do crédito sobre o Realizado ATUAL. É idempotente: não duplica lançamento nem muda o status do comparativo."
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${resyncFlashMutation.isPending ? 'animate-spin' : ''}`} />
+                    {resyncFlashMutation.isPending ? 'Ressincronizando…' : 'Ressincronizar Flash'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-8 text-xs px-3 rounded-lg font-semibold bg-white border-amber-200 text-amber-700 hover:bg-amber-50"
+                    onClick={() => { setReopenReason(""); setReopenReasonError(false); setReopenOpen(true); }}
+                    disabled={reopenComparisonMutation.isPending || resyncFlashMutation.isPending}
+                    data-testid="button-reabrir-comparativo"
+                    title="Devolve o comparativo para ajuste e ESTORNA os lançamentos automáticos do Flash deste evento."
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                    Reabrir comparativo (estorna o Flash)
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-violet-200 bg-white p-3.5 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <Wallet className="w-4 h-4 text-violet-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Fechamento do comparativo</span>
+                    <p className="text-[13px] text-slate-700 mt-0.5">
+                      Todas as prestações estão aprovadas. Ao aprovar o comparativo, <strong>alimentação e mobilidade</strong> de cada colaborador entram na Conta Corrente Flash (a diária não).
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  className="h-9 text-sm px-4 rounded-xl font-bold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-40"
+                  onClick={() => approveComparisonMutation.mutate(comparison.id)}
+                  disabled={approveComparisonMutation.isPending}
+                >
+                  <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
+                  {approveComparisonMutation.isPending ? 'Aprovando…' : 'Aprovar comparativo e creditar o Flash'}
+                </Button>
+              </div>
+            )
           )}
 
           {/* ── Detalhamento section ── */}
@@ -2178,6 +2414,79 @@ export default function BudgetComparisonPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Reabrir o comparativo aprovado (estorno do Flash) ── */}
+      <AlertDialog open={reopenOpen} onOpenChange={(o) => { setReopenOpen(o); if (!o) { setReopenReason(""); setReopenReasonError(false); } }}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2.5 text-base">
+              <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                <RotateCcw className="w-4 h-4 text-amber-600" />
+              </div>
+              <span className="text-amber-700">Reabrir o comparativo?</span>
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2.5 text-[13px] text-slate-600">
+                <p>
+                  O comparativo volta para <strong>devolvido</strong> (em ajuste) e{' '}
+                  <strong>todos os lançamentos automáticos do Flash deste evento são REMOVIDOS</strong> —
+                  alimentação e mobilidade saem do saldo dos colaboradores.
+                </p>
+                <p>
+                  Os lançamentos são apagados, não debitados: o extrato não fica com um par crédito/débito.
+                  Ao aprovar o comparativo de novo, o crédito é recriado com os valores do Realizado daquele momento.
+                </p>
+                <p className="text-slate-500">
+                  Lançamentos <strong>manuais</strong> do Flash não são tocados. As prestações continuam com o
+                  status individual que já tinham.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div>
+            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Motivo da reabertura <span className="text-red-500">*</span>
+            </label>
+            <Textarea
+              value={reopenReason}
+              onChange={e => { setReopenReason(e.target.value); if (e.target.value.trim()) setReopenReasonError(false); }}
+              rows={3}
+              className={`mt-1.5 rounded-xl text-sm resize-none ${reopenReasonError ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
+              placeholder="Ex.: valor de mobilidade do João estava errado — corrigir e aprovar de novo"
+              data-testid="input-motivo-reabertura"
+            />
+            {reopenReasonError && (
+              <p className="text-[11px] text-red-600 font-medium mt-1.5">
+                Descreva o motivo — ele fica registrado no comparativo como motivo da devolução.
+              </p>
+            )}
+          </div>
+
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+              disabled={reopenComparisonMutation.isPending}
+              onClick={(e) => {
+                // O motivo é obrigatório (mesma regra da devolução por prestação):
+                // sem ele, o AlertDialog não pode fechar sozinho.
+                if (!reopenReason.trim()) {
+                  e.preventDefault();
+                  setReopenReasonError(true);
+                  return;
+                }
+                if (!comparison) { e.preventDefault(); return; }
+                e.preventDefault();
+                reopenComparisonMutation.mutate({ id: comparison.id, returnReason: reopenReason.trim() });
+              }}
+              data-testid="button-confirmar-reabertura"
+            >
+              {reopenComparisonMutation.isPending ? 'Reabrindo…' : 'Reabrir e estornar o Flash'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

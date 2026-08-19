@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcAlimentacao, isCenotecnicaFunction, refeicaoCents, refeicaoCentsDia, refeicaoPerfil } from "./alimentacao";
+import { calcAlimentacao, isCenotecnicaFunction, refeicaoCents, refeicaoCentsDia, refeicaoPerfil, toHoraHHMM } from "./alimentacao";
 
 const base = { almocoCents: 4000, jantarCents: 4000 };
 const dias3 = ["2026-08-28", "2026-08-29", "2026-08-30"];
@@ -245,5 +245,22 @@ describe("refeicaoCentsDia — cenotécnica de casa (regra 17/08)", () => {
     const u = refeicaoCentsDia(true, {}, { tipoColaborador: "casa", isWeekend: false });
     const f = refeicaoCentsDia(true, {}, { tipoColaborador: "casa", isWeekend: true });
     expect(2 * (u.almocoCents + u.jantarCents) + 2 * (f.almocoCents + f.jantarCents)).toBe(21600);
+  });
+});
+
+describe("toHoraHHMM — pré-preenchimento dos campos de hora do Realizado", () => {
+  it("normaliza HH:MM, '10h', '9h30' e militar para HH:MM", () => {
+    expect(toHoraHHMM("09:30")).toBe("09:30");
+    expect(toHoraHHMM("chega 09:30")).toBe("09:30");
+    expect(toHoraHHMM("van - 10h")).toBe("10:00");
+    expect(toHoraHHMM("9h30")).toBe("09:30");
+    expect(toHoraHHMM("1430")).toBe("14:30");
+  });
+
+  it("devolve null quando não há horário reconhecível", () => {
+    expect(toHoraHHMM(null)).toBeNull();
+    expect(toHoraHHMM(undefined)).toBeNull();
+    expect(toHoraHHMM("")).toBeNull();
+    expect(toHoraHHMM("a definir")).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { MessageSquare, CalendarDays, MapPin, Plane, Bus, ArrowLeftRight, BedDouble, Receipt, Headset, Bike } from "lucide-react";
+import { MessageSquare, CalendarDays, MapPin, Plane, Bus, ArrowLeftRight, BedDouble, Receipt, Headset, Bike, Hammer } from "lucide-react";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -10,7 +10,10 @@ import { isPercursoFunction, diasPercurseiro } from "@shared/calculation-rules";
 // Decisão do usuário (17/08): a Escalação não mostra alertas de regra do
 // percurseiro (tipo/diárias) — isso é assunto do Planejado. Religar aqui se mudar.
 const SHOW_PERCURSO_DIARIAS_ALERT = false;
-import { ATENDIMENTO_SHORT, PERCURSEIRO_SHORT, type NormalizedSwap } from "./scaling-utils";
+// Cenotécnica: o tipo de freela (empreita) É cobrado na Escalação — decisão do
+// usuário em 19/08. `isCenotecnicaFunction` (alimentacao) exclui "sup ceno".
+import { isCenotecnicaFunction as isCenoEmpreitaFunction } from "@shared/alimentacao";
+import { ATENDIMENTO_SHORT, PERCURSEIRO_SHORT, CENO_FREELA_SHORT, type NormalizedSwap } from "./scaling-utils";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Vocabulário ÚNICO de status da tela de Escalação.
@@ -283,6 +286,10 @@ export default function ScalingTable({
               const atendimento = ATENDIMENTO_SHORT[(inclusion as any).atendimentoTipo ?? ""];
               const isPercurso = isPercursoFunction(getFunctionName(inclusion.functionId));
               const percurseiro = isPercurso ? PERCURSEIRO_SHORT[(inclusion as any).percurseiroTipo ?? ""] : undefined;
+              // Cenotécnica: modalidade de empreita (valor fechado por dias) —
+              // definida no modal desta tela; sem ela, cobra com badge âmbar.
+              const isCenoEmpreita = isCenoEmpreitaFunction(getFunctionName(inclusion.functionId));
+              const cenoFreela = isCenoEmpreita ? CENO_FREELA_SHORT[(inclusion as any).cenoFreelaTipo ?? ""] : undefined;
               // Percurso: regra fixa de diárias (2 em viagem / 1 local) vive no
               // Planejado, que ignora o número da escala. Por decisão do usuário
               // (17/08) a Escalação NÃO mostra aviso de divergência.
@@ -404,6 +411,23 @@ export default function ScalingTable({
                           <span className="inline-flex items-center gap-0.5"><Bike className="w-2.5 h-2.5" />{percurseiro.short}</span>
                         </NeedIcon>
                       )}
+                      {/* Cenotécnica: tipo de freela (empreita). Âmbar enquanto
+                          não definido — sinaliza, não bloqueia a confirmação. */}
+                      {isCenoEmpreita && (cenoFreela ? (
+                        <NeedIcon label={`Tipo de freela: ${cenoFreela.label}`} active>
+                          <span className="inline-flex items-center gap-0.5"><Hammer className="w-2.5 h-2.5" />{cenoFreela.short}</span>
+                        </NeedIcon>
+                      ) : (
+                        <span
+                          role="img"
+                          aria-label="Tipo de freela da cenotécnica não definido — abra os detalhes para definir"
+                          title="Cenotécnica sem tipo de freela: abra os detalhes e escolha Freela Viagem, SP, Local (A) ou Local (B). O Planejado precisa do tipo para o valor fechado."
+                          data-testid={`badge-ceno-freela-definir-${inclusion.id}`}
+                          className="inline-flex items-center justify-center gap-0.5 h-6 px-1.5 rounded-md border text-[10px] font-bold bg-amber-50 border-amber-200 text-amber-700 whitespace-nowrap"
+                        >
+                          <Hammer className="w-2.5 h-2.5" />definir tipo
+                        </span>
+                      ))}
                       {percursoDiariasDivergem && (
                         <span
                           role="img"

@@ -244,3 +244,21 @@ export function refeicaoCentsDia(
   }
   return base;
 }
+
+/**
+ * Normaliza um horário escrito de forma livre ("van - 10h", "chega 09:30",
+ * "1430") para o formato "HH:MM" que o `<input type="time">` aceita.
+ * Retorna `null` quando não há horário reconhecível no texto.
+ *
+ * Aditivo (18/08): o Realizado precisa PRÉ-PREENCHER os campos de hora do
+ * bloco "Viagem" com o que já existe — a passagem registrada (HH:MM limpo) ou
+ * o horário sugerido na escalação (texto livre). Nenhuma assinatura existente
+ * foi alterada.
+ */
+export function toHoraHHMM(texto: string | null | undefined): string | null {
+  const min = parseHoraMin(texto);
+  if (min === null) return null;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}

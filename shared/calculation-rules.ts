@@ -285,6 +285,67 @@ export function diasComDiaria(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// EMPREITA CENOTÉCNICA — quantos dias a tabela de valor fechado deve usar.
+//
+// A tabela do slide (shared/cenotecnica-empreita) cobra por Nº DE DIAS. Havia
+// DUAS contagens divergentes para a MESMA vaga:
+//   • Escalação (card "Tipo de freela") → `workDays.length || dailyRates`
+//   • Planejado                          → `diasComDiaria` (derivado do
+//     intervalo COMPLETO scheduleStart→scheduleEnd)
+// Quando os `workDays` são um subconjunto não contíguo do intervalo (ex.: 3 dias
+// marcados dentro de uma janela de 5), a Escalação anunciava o valor de 3 dias e
+// o Planejado pagava o de 5.
+//
+// REGRA ÚNICA (19/08): valem os DIAS EFETIVAMENTE TRABALHADOS —
+//   1. `workDays` marcados (dias específicos), quando houver;
+//   2. senão, o intervalo completo scheduleStartDate→scheduleEndDate (inclusive);
+//   3. senão, `dailyRates` (grades antigas sem datas).
+// É a leitura mais fiel ao negócio: a empreita remunera o dia trabalhado, e
+// `workDays` é justamente a marcação de quais dias a pessoa trabalha.
+//
+// Função PURA e estrutural (não importa o schema) para valer no client e no
+// server sem acoplar a tabela de escalação.
+export interface DiasEmpreitaInput {
+  workDays?: (string | null | undefined)[] | null;
+  scheduleStartDate?: string | null;
+  scheduleEndDate?: string | null;
+  dailyRates?: number | null;
+}
+
+/** Data ISO (YYYY-MM-DD) → epoch UTC do dia, ou null se inválida. */
+function isoDayUTC(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!m) return null;
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  return Date.UTC(y, mo - 1, d);
+}
+
+const DIA_MS = 86_400_000;
+
+/** Dias trabalhados da vaga para a tabela de EMPREITA cenotécnica. */
+export function diasEmpreita(inclusion: DiasEmpreitaInput | null | undefined): number {
+  if (!inclusion) return 0;
+  // 1) dias específicos marcados (deduplicados — a coluna é um array livre)
+  const marcados = new Set(
+    (inclusion.workDays || [])
+      .map(d => (typeof d === "string" ? d.slice(0, 10) : null))
+      .filter((d): d is string => !!d && isoDayUTC(d) !== null),
+  );
+  if (marcados.size > 0) return marcados.size;
+  // 2) intervalo completo do período de trabalho
+  const ini = isoDayUTC(inclusion.scheduleStartDate);
+  const fim = isoDayUTC(inclusion.scheduleEndDate);
+  if (ini !== null && fim !== null && fim >= ini) {
+    return Math.round((fim - ini) / DIA_MS) + 1;
+  }
+  // 3) legado sem datas
+  const dr = inclusion.dailyRates;
+  return typeof dr === "number" && Number.isFinite(dr) && dr > 0 ? Math.floor(dr) : 0;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // FUNÇÃO LOCAL (regra 19/08): "só diária".
 //
 // Quando o NOME DA FUNÇÃO traz a palavra isolada "local" (ex.: "produção local",

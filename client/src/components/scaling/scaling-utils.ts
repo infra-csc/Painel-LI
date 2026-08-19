@@ -4,6 +4,7 @@
  */
 import { parseISO } from "date-fns";
 import type { TeamInclusion, SwapRequest } from "@shared/schema";
+import { CENO_FREELA_TIPO_LABELS } from "@shared/cenotecnica-empreita";
 
 // Trocas já resolvidas por outra aba (Passagem/Hospedagem) não entram no atalho
 // de "trocas pendentes".
@@ -258,4 +259,16 @@ export const ATENDIMENTO_SHORT: Record<string, { short: string; label: string }>
 export const PERCURSEIRO_SHORT: Record<string, { short: string; label: string }> = {
   tipo_1: { short: "Tipo 1", label: "Percurseiro Tipo 1" },
   tipo_2: { short: "Tipo 2", label: "Percurseiro Tipo 2" },
+};
+
+/**
+ * Modalidade de EMPREITA do cenotécnico em rótulo curto (coluna Necessidades).
+ * Regra do usuário (19/08): o tipo de freela é escolhido NA ESCALAÇÃO, por vaga,
+ * e o Planejado usa o valor FECHADO da modalidade (shared/cenotecnica-empreita).
+ */
+export const CENO_FREELA_SHORT: Record<string, { short: string; label: string }> = {
+  viagem:  { short: "Viagem",  label: CENO_FREELA_TIPO_LABELS.viagem },
+  sp:      { short: "SP",      label: CENO_FREELA_TIPO_LABELS.sp },
+  local_a: { short: "Local A", label: CENO_FREELA_TIPO_LABELS.local_a },
+  local_b: { short: "Local B", label: CENO_FREELA_TIPO_LABELS.local_b },
 };

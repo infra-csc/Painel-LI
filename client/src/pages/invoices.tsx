@@ -775,23 +775,13 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
         oc, attachmentUrl, attachmentName, paymentText, status: "enviada",
       }).then(r => r.json());
     },
-    onSuccess: (data: any) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
-      qc.invalidateQueries({ queryKey: ["/api/flash-movements"] });
       setFile(null);
-      // Regra 17/08: ao lançar a OC, alimentação e mobilidade do Realizado
-      // entram automaticamente na Conta Corrente Flash (diária não). O
-      // servidor devolve o resultado em flashSync — o toast informa.
-      const fs = data?.flashSync;
-      let flashMsg = "";
-      if (fs && fs.ok === false) {
-        flashMsg = " Não foi possível creditar o Flash automaticamente — avise o RH.";
-      } else if (fs && (fs.alimentacaoCents > 0 || fs.mobilidadeCents > 0)) {
-        flashMsg = ` Flash creditado: alimentação ${formatCurrency(fs.alimentacaoCents || 0)} · mobilidade ${formatCurrency(fs.mobilidadeCents || 0)}.`;
-      } else if (fs) {
-        flashMsg = " Sem valores de Flash nesta prestação.";
-      }
-      toast({ title: "Nota enviada!", description: `Aguardando análise do RH.${flashMsg}` });
+      // Decisão 19/08 (substitui a regra de 17/08): a NF não credita mais o
+      // Flash — alimentação e mobilidade entram na aprovação do comparativo.
+      // A nota só documenta o pagamento, então nada de aviso de Flash aqui.
+      toast({ title: "Nota enviada!", description: "Aguardando análise do RH." });
     },
     onError: (e: any) => {
       setUploading(false);
@@ -1258,10 +1248,10 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
       qc.invalidateQueries({ queryKey: ["/api/invoices"] });
-      // Recusa estorna o crédito automático do Flash (lançamentos 'oc' apagados)
-      qc.invalidateQueries({ queryKey: ["/api/flash-movements"] });
       closeAction();
-      toast({ title: "Nota recusada.", description: "A recusa é definitiva — esta nota não poderá ser reenviada. O crédito automático no Flash (se houve) foi estornado." });
+      // A recusa não mexe no Flash (decisão 19/08): o crédito é do comparativo
+      // aprovado; para estornar, rejeite/devolva o comparativo do evento.
+      toast({ title: "Nota recusada.", description: "A recusa é definitiva — esta nota não poderá ser reenviada." });
     },
     onError: (e: any) => toast({ title: "Erro", description: e?.body?.message || "Erro ao recusar nota", variant: "destructive" }),
   });

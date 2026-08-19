@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { calcDeflatedDailies, DEFLATION_TIERS, PERCURSEIRO_TYPES, diasComDiaria, regraDiariaPorTipo, percurseiroDiariaCents, diasPercurseiro, isPercursoFunction, isFuncaoLocal } from "./calculation-rules";
+import { calcDeflatedDailies, DEFLATION_TIERS, PERCURSEIRO_TYPES, diasComDiaria, diasEmpreita, regraDiariaPorTipo, percurseiroDiariaCents, diasPercurseiro, isPercursoFunction, isFuncaoLocal } from "./calculation-rules";
+import { cenoEmpreitaTotalCents } from "./cenotecnica-empreita";
 
 describe("calcDeflatedDailies (deflação por dia trabalhado)", () => {
   const DIARIA = 46500; // R$ 465,00 — produtor freela local
@@ -261,5 +262,59 @@ describe("isFuncaoLocal (função local = só diária)", () => {
     // A contagem fixa do percurseiro (local = 1 diária) não muda
     expect(diasPercurseiro(false)).toBe(1);
     expect(diasPercurseiro(true)).toBe(2);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe("diasEmpreita (contagem ÚNICA da empreita cenotécnica)", () => {
+  it("dias específicos marcados mandam, mesmo não contíguos dentro do período", () => {
+    // O bug: a Escalação contava 3 (workDays) e o Planejado 5 (intervalo).
+    const incl = {
+      workDays: ["2026-08-10", "2026-08-12", "2026-08-14"],
+      scheduleStartDate: "2026-08-10",
+      scheduleEndDate: "2026-08-14",
+      dailyRates: 5,
+    };
+    expect(diasEmpreita(incl)).toBe(3);
+  });
+
+  it("sem workDays cai no intervalo completo (inclusive nas duas pontas)", () => {
+    expect(diasEmpreita({ workDays: [], scheduleStartDate: "2026-08-10", scheduleEndDate: "2026-08-14" })).toBe(5);
+    expect(diasEmpreita({ scheduleStartDate: "2026-08-10", scheduleEndDate: "2026-08-10" })).toBe(1);
+  });
+
+  it("intervalo que cruza mês/ano continua contando por dia de calendário", () => {
+    expect(diasEmpreita({ scheduleStartDate: "2026-01-30", scheduleEndDate: "2026-02-02" })).toBe(4);
+    expect(diasEmpreita({ scheduleStartDate: "2026-12-30", scheduleEndDate: "2027-01-02" })).toBe(4);
+  });
+
+  it("sem datas usa dailyRates; sem nada, zero", () => {
+    expect(diasEmpreita({ dailyRates: 4 })).toBe(4);
+    expect(diasEmpreita({})).toBe(0);
+    expect(diasEmpreita(null)).toBe(0);
+    expect(diasEmpreita({ workDays: [null, undefined], dailyRates: 0 })).toBe(0);
+  });
+
+  it("ignora entradas inválidas e datas repetidas em workDays", () => {
+    expect(diasEmpreita({ workDays: ["2026-08-10", "2026-08-10", null, "", "xx"], dailyRates: 9 })).toBe(1);
+    // Timestamp completo (o driver pode devolver ISO com hora) conta como o dia
+    expect(diasEmpreita({ workDays: ["2026-08-10T00:00:00.000Z", "2026-08-11T00:00:00.000Z"] })).toBe(2);
+  });
+
+  it("fim antes do início não vira contagem negativa — cai em dailyRates", () => {
+    expect(diasEmpreita({ scheduleStartDate: "2026-08-14", scheduleEndDate: "2026-08-10", dailyRates: 2 })).toBe(2);
+  });
+
+  it("Escalação e Planejado passam a fechar no MESMO valor de tabela", () => {
+    const incl = {
+      workDays: ["2026-08-10", "2026-08-12", "2026-08-14"],
+      scheduleStartDate: "2026-08-10",
+      scheduleEndDate: "2026-08-14",
+      dailyRates: 5,
+    };
+    // Antes: a Escalação anunciava 3 dias (R$ 1.050,53) e o Planejado pagava
+    // 5 dias (R$ 1.750,88) para a MESMA vaga de Freela SP.
+    expect(cenoEmpreitaTotalCents("sp", diasEmpreita(incl))?.totalCents).toBe(105053);
+    expect(cenoEmpreitaTotalCents("sp", diasComDiaria("freela", 3, 2))?.totalCents).toBe(175088);
   });
 });

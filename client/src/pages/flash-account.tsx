@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { isRhOrAdmin } from "@/lib/permissions";
 import { parseBrNumber } from "@/lib/utils";
+import { isAutomaticFlashMovement, flashSourceLabel } from "@shared/flash-rules";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -64,18 +65,31 @@ interface FlashMovement {
   movementDate: string;
   description?: string | null;
   createdAt?: string | null;
-  /** 'manual' (tela) ou 'oc' (crédito automático gerado pela OC da NF — somente leitura) */
+  /**
+   * 'manual' (tela), 'comparativo' (crédito automático da aprovação do
+   * comparativo — regra 19/08, somente leitura) ou 'oc' (legado da regra de
+   * 17/08, quando o crédito vinha da OC da NF — congelado, somente leitura).
+   */
   sourceType?: string | null;
   sourceRef?: string | null;
 }
 
 /** Filtro do extrato por origem do lançamento */
-type SourceFilter = "todos" | "manual" | "oc";
+type SourceFilter = "todos" | "manual" | "automatico";
 
-/** Extrai o nº da OC da descrição padrão "Automático — OC nº X · Evento" (fallback: vazio) */
+/** Extrai o nº da OC da descrição legada "Automático — OC nº X · Evento" */
 function ocFromDescription(desc?: string | null): string {
   const m = /OC nº\s*([^·]+)/.exec(desc || "");
   return m ? m[1].trim() : "";
+}
+
+/** Etiqueta do lançamento automático no extrato, por origem. */
+function automaticBadgeLabel(m: FlashMovement): string {
+  if (m.sourceType === "oc") {
+    const oc = ocFromDescription(m.description);
+    return `Automático · OC nº ${oc || "—"}`;
+  }
+  return "Automático · Comparativo";
 }
 
 export default function FlashAccountPage() {
@@ -164,9 +178,9 @@ export default function FlashAccountPage() {
   // calculado sobre TODOS os lançamentos (senão o "Saldo" da linha mentiria).
   const extratoVisible = useMemo(() => {
     if (sourceFilter === "todos") return extrato;
-    return extrato.filter(m => (m.sourceType === "oc") === (sourceFilter === "oc"));
+    return extrato.filter(m => isAutomaticFlashMovement(m) === (sourceFilter === "automatico"));
   }, [extrato, sourceFilter]);
-  const hasAutomatic = useMemo(() => extrato.some(m => m.sourceType === "oc"), [extrato]);
+  const hasAutomatic = useMemo(() => extrato.some(m => isAutomaticFlashMovement(m)), [extrato]);
 
   // Critério único de "tem conta": QUALQUER movimento registrado (mesmo o que o
   // servidor usa para rejeitar o crédito inicial). `balances` não serve — ele
@@ -204,7 +218,7 @@ export default function FlashAccountPage() {
       fmtDate(m.movementDate),
       m.category === "alimentacao" ? "Alimentação" : "Mobilidade",
       m.type === "credito" ? "Crédito" : "Débito",
-      m.sourceType === "oc" ? "Automático (OC)" : "Manual",
+      isAutomaticFlashMovement(m) ? `Automático (${flashSourceLabel(m.sourceType)})` : "Manual",
       csvField(getEventName(m.eventId)),
       csvField(m.description || ""),
       (m.signed / 100).toFixed(2).replace(".", ","),
@@ -369,11 +383,12 @@ export default function FlashAccountPage() {
                     </button>
                   </div>
                 </div>
-                {/* Legenda/filtro discreto por origem: manual × automático (OC da NF) */}
+                {/* Legenda/filtro discreto por origem: manual × automático
+                    (crédito da aprovação do comparativo) */}
                 {extrato.length > 0 && (
                   <div className="flex items-center gap-2 px-5 py-2 border-b border-gray-50 text-[10px]">
                     <span className="text-slate-400 font-bold uppercase tracking-wider">Origem</span>
-                    {(["todos", "manual", "oc"] as SourceFilter[]).map(f => (
+                    {(["todos", "manual", "automatico"] as SourceFilter[]).map(f => (
                       <button
                         key={f}
                         onClick={() => setSourceFilter(f)}
@@ -388,8 +403,8 @@ export default function FlashAccountPage() {
                       </button>
                     ))}
                     {hasAutomatic && (
-                      <span className="ml-auto text-slate-400 flex items-center gap-1" title="Gerado pela OC da nota fiscal — acompanha o Realizado; estorno pela recusa da NF">
-                        <Sparkles className="w-3 h-3 text-violet-400" /> Automático = crédito da OC (somente leitura)
+                      <span className="ml-auto text-slate-400 flex items-center gap-1" title="Gerado na aprovação do comparativo do evento — acompanha o Realizado; estorno em Comparativo → Fechamento do comparativo → Reabrir comparativo">
+                        <Sparkles className="w-3 h-3 text-violet-400" /> Automático = crédito do comparativo (somente leitura)
                       </span>
                     )}
                   </div>
@@ -398,7 +413,7 @@ export default function FlashAccountPage() {
                   {extrato.length === 0 ? (
                     <p className="text-xs text-slate-400 text-center py-10">Nenhum lançamento para este colaborador.</p>
                   ) : extratoVisible.length === 0 ? (
-                    <p className="text-xs text-slate-400 text-center py-10">Nenhum lançamento {sourceFilter === "oc" ? "automático" : "manual"} para este colaborador.</p>
+                    <p className="text-xs text-slate-400 text-center py-10">Nenhum lançamento {sourceFilter === "automatico" ? "automático" : "manual"} para este colaborador.</p>
                   ) : (
                     <table className="w-full min-w-[560px] text-xs">
                       <thead className="sticky top-0 bg-slate-50 text-[10px] uppercase tracking-wider text-slate-400">
@@ -422,13 +437,15 @@ export default function FlashAccountPage() {
                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${m.category === "alimentacao" ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600"}`}>
                                   {m.category === "alimentacao" ? "Alimentação" : "Mobilidade"}
                                 </span>
-                                {m.sourceType === "oc" && (
+                                {isAutomaticFlashMovement(m) && (
                                   <span
                                     className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-600 inline-flex items-center gap-1"
-                                    title="Crédito automático gerado pelo lançamento da OC na nota fiscal — somente leitura"
+                                    title={m.sourceType === "oc"
+                                      ? "Crédito automático legado, gerado pela OC da nota fiscal (regra até 18/08) — somente leitura"
+                                      : "Crédito automático gerado na aprovação do comparativo do evento — somente leitura"}
                                   >
                                     <Sparkles className="w-2.5 h-2.5" aria-hidden="true" />
-                                    Automático{ocFromDescription(m.description) ? ` · OC nº ${ocFromDescription(m.description)}` : ""}
+                                    {automaticBadgeLabel(m)}
                                   </span>
                                 )}
                               </div>
@@ -444,14 +461,14 @@ export default function FlashAccountPage() {
                             <td className="px-4 py-2.5 text-right font-mono text-slate-500 whitespace-nowrap">
                               {formatCurrency(m.category === "alimentacao" ? m.runningFood : m.runningMobility)}
                             </td>
-                            {canManage && m.sourceType === "oc" && (
+                            {canManage && isAutomaticFlashMovement(m) && (
                               <td className="px-2 py-2.5 text-right whitespace-nowrap">
-                                <span className="text-[10px] text-slate-300" title="Lançamento automático: acompanha o Realizado da NF; estorno pela recusa da nota">
+                                <span className="text-[10px] text-slate-300" title="Lançamento automático: acompanha o Realizado; estorno em Comparativo → Fechamento do comparativo → Reabrir comparativo">
                                   somente leitura
                                 </span>
                               </td>
                             )}
-                            {canManage && m.sourceType !== "oc" && (
+                            {canManage && !isAutomaticFlashMovement(m) && (
                               <td className="px-2 py-2.5 text-right whitespace-nowrap">
                                 <button
                                   title="Editar lançamento"

@@ -34,9 +34,15 @@ import {
 } from "@shared/prestacao-rules";
 import { isAtendimentoFunction } from "@shared/atendimento";
 import { isPercursoFunction } from "@shared/calculation-rules";
+import { isCenotecnicaFunction } from "@shared/alimentacao";
+import {
+  isCenoFreelaTipo,
+  CENO_EMPREITA_SETTING_KEYS,
+  cenoEmpreitaDefaultsMap,
+} from "@shared/cenotecnica-empreita";
 import { nextStatusOnConfirm } from "@shared/scaling-rules";
 import { isSuggestionInclusion, SUGESTAO_PHASE } from "@shared/scaling-validation-rules";
-import { safeSyncFlashFromInvoice, safeReverseFlashFromInvoice, type FlashSyncActor } from "./flash-oc";
+import { safeSyncFlashFromComparison, safeReverseFlashFromComparison, type FlashSyncActor } from "./flash-credit";
 import { isAutomaticFlashMovement } from "@shared/flash-rules";
 import bcrypt from "bcryptjs";
 import { randomBytes, timingSafeEqual } from "crypto";
@@ -2074,6 +2080,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'needsTicket', 'needsAccommodation', 'dailyRates', 'workDays', 'dailyValue',
         'actualDailyRates', 'observations', 'actualObservations', 'emergencyRecord',
         'city', 'status', 'previousStatus', 'phase', 'atendimentoTipo', 'percurseiroTipo',
+        'cenoFreelaTipo',
       ]);
       const updates: Record<string, any> = { updatedBy: userId };
       for (const [k, v] of Object.entries(bodyData)) {
@@ -2103,6 +2110,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else if (updates.percurseiroTipo !== undefined) {
         updates.percurseiroTipo = null;
+      }
+
+      // Cenotécnica (empreita): a modalidade (Freela Viagem / SP / Local A / B)
+      // define o valor FECHADO por nº de dias (regra 19/08). Não é obrigatória
+      // ao escalar — só valida o valor quando vier; fora de cenotécnica, limpa.
+      if (isCenotecnicaFunction(func.name)) {
+        const effTipo = updates.cenoFreelaTipo !== undefined ? updates.cenoFreelaTipo : (currentInclusion as any).cenoFreelaTipo;
+        if (effTipo != null && !isCenoFreelaTipo(effTipo)) {
+          return res.status(400).json({ message: "Tipo de freela cenotécnica inválido — use Freela Viagem, Freela SP, Freela Local (A) ou Freela Local (B)." });
+        }
+      } else if (updates.cenoFreelaTipo !== undefined) {
+        updates.cenoFreelaTipo = null;
       }
 
       const inclusion = await storage.updateTeamInclusion(id, updates);
@@ -2165,7 +2184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Só os campos que o Confirmar da tela envia
-      const CONFIRM_FIELDS = new Set(['observations', 'city', 'atendimentoTipo', 'percurseiroTipo', 'dailyValue', 'emitsNf', 'needsTicket', 'needsAccommodation']);
+      const CONFIRM_FIELDS = new Set(['observations', 'city', 'atendimentoTipo', 'percurseiroTipo', 'cenoFreelaTipo', 'dailyValue', 'emitsNf', 'needsTicket', 'needsAccommodation']);
       const updates: Record<string, any> = { updatedBy: userId, collaboratorId };
       for (const [k, v] of Object.entries(body)) {
         if (CONFIRM_FIELDS.has(k) && v !== undefined) updates[k] = v;
@@ -2190,6 +2209,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else if (updates.percurseiroTipo !== undefined) {
         updates.percurseiroTipo = null;
+      }
+
+      // Cenotécnica (empreita): modalidade opcional na confirmação — o valor
+      // fechado por dias só entra no Planejado quando ela estiver definida.
+      if (isCenotecnicaFunction(func.name)) {
+        const effTipo = updates.cenoFreelaTipo !== undefined ? updates.cenoFreelaTipo : (currentInclusion as any).cenoFreelaTipo;
+        if (effTipo != null && !isCenoFreelaTipo(effTipo)) {
+          return res.status(400).json({ message: "Tipo de freela cenotécnica inválido — use Freela Viagem, Freela SP, Freela Local (A) ou Freela Local (B)." });
+        }
+      } else if (updates.cenoFreelaTipo !== undefined) {
+        updates.cenoFreelaTipo = null;
       }
 
       const next = nextStatusOnConfirm({
@@ -2262,6 +2292,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const inclusion = await storage.updateTeamInclusion(req.params.id, {
         percurseiroTipo,
+        updatedBy: actor.id,
+      } as any);
+      await createAuditLog('update', 'team_inclusion', req.params.id, inclusion, actor.id, actor.name, current, req);
+      res.json(inclusion);
+    } catch (error) {
+      console.error("❌ Error updating team inclusion:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      res.status(400).json({ message: "Erro ao atualizar inclusão", details: errorMessage });
+    }
+  });
+
+  // Define a modalidade de EMPREITA do cenotécnico (Freela Viagem / SP /
+  // Local A / Local B) de uma escalação de cenotécnica — espelho da rota de
+  // percurseiro-tipo (RH classifica no Planejado). Regra do usuário, 19/08:
+  // o valor é FECHADO por nº de dias (ver shared/cenotecnica-empreita.ts).
+  app.patch("/api/team-inclusions/:id/ceno-freela-tipo", async (req, res) => {
+    // Quem escala define a modalidade: os mesmos papéis do /confirm — inclusive
+    // o RESPONSÁVEL da função (gestor), que é quem usa a tela de Escalação.
+    const actor = await requireRoles(req, res, ['admin', 'financial', 'production', 'purchasing', 'function_area']);
+    if (!actor) return;
+    try {
+      const { cenoFreelaTipo } = req.body as { cenoFreelaTipo?: string };
+      if (!isCenoFreelaTipo(cenoFreelaTipo)) {
+        return res.status(400).json({ message: "Tipo inválido — use Freela Viagem, Freela SP, Freela Local (A) ou Freela Local (B)." });
+      }
+      const current = await storage.getTeamInclusion(req.params.id);
+      if (!current) return res.status(404).json({ message: "Escalação não encontrada" });
+      const func = await storage.getFunction(current.functionId);
+      if (!isCenotecnicaFunction(func?.name)) {
+        return res.status(400).json({ message: "Esta escalação não é de cenotécnica." });
+      }
+      const actorRole = normalizeRole(actor.role);
+      if (actorRole !== "admin" && actorRole !== "production" && actorRole !== "purchasing" && actorRole !== "financial") {
+        const isManager = await storage.isUserFunctionManager(current.functionId, actor.id);
+        if (!isManager && func?.userId !== actor.id) {
+          return res.status(403).json({ message: "Sem permissão para definir o tipo de freela desta cenotécnica." });
+        }
+      }
+      const inclusion = await storage.updateTeamInclusion(req.params.id, {
+        cenoFreelaTipo,
         updatedBy: actor.id,
       } as any);
       await createAuditLog('update', 'team_inclusion', req.params.id, inclusion, actor.id, actor.name, current, req);
@@ -3939,6 +4009,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Ator + trilha de auditoria para o crédito automático no Flash
+  // (server/flash-credit.ts). O audit log usa entityType 'financial' — mesmo
+  // bucket dos lançamentos manuais da Conta Corrente Flash.
+  const flashActorFor = async (req: any): Promise<FlashSyncActor> => {
+    const u = req.session?.userId ? await storage.getUser(req.session.userId) : undefined;
+    return {
+      userId: u?.id ?? null,
+      userName: u?.name ?? "Sistema",
+      audit: (action, entityId, data, oldData) =>
+        createAuditLog(action, 'financial', entityId, data, u?.id, u?.name || 'Sistema', oldData, req),
+    };
+  };
+
   // Budget Comparison (Comparativo)
   app.get("/api/budget-comparison", async (req, res) => {
     if (!requireFinSession(req, res)) return;
@@ -4090,8 +4173,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         approvalObservation,
         approvedAt: new Date(),
       });
+      if (!comparison) return res.status(404).json({ message: "Comparativo não encontrado" });
       await createAuditLog('approve', 'budget_comparison', req.params.id, comparison, finUser.id, finUser.name, undefined, req);
-      res.json(comparison);
+      // Regra 19/08 (substitui a de 17/08, que creditava no lançamento da OC):
+      // aprovar o comparativo credita alimentação + mobilidade de TODAS as
+      // prestações do evento na Conta Corrente Flash. Idempotente — reaprovar
+      // reconcilia os mesmos lançamentos; é exatamente isso que o botão
+      // "Ressincronizar Flash" (tela Comparativo, comparativo já aprovado) faz
+      // quando o Realizado muda depois da aprovação. Falha aqui NÃO derruba a aprovação:
+      // vira flashCredit.ok=false e o client avisa (ver server/flash-credit.ts).
+      const flashCredit = await safeSyncFlashFromComparison(comparison, await flashActorFor(req));
+      res.json({ ...comparison, flashCredit });
     } catch (error) {
       console.error("Error approving budget comparison:", error);
       res.status(400).json({ message: "Erro ao aprovar comparativo" });
@@ -4109,8 +4201,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         rejectionReason,
         approvedAt: new Date(),
       });
+      if (!comparison) return res.status(404).json({ message: "Comparativo não encontrado" });
       await createAuditLog('reject', 'budget_comparison', req.params.id, comparison, finUser.id, finUser.name, undefined, req);
-      res.json(comparison);
+      // Rejeitar estorna o crédito do Flash: os automáticos do comparativo são
+      // APAGADOS (não debitados) — ver server/flash-credit.ts. Reaprovar recria.
+      const flashReverse = await safeReverseFlashFromComparison(comparison, await flashActorFor(req));
+      res.json({ ...comparison, flashReverse });
     } catch (error) {
       console.error("Error rejecting budget comparison:", error);
       res.status(400).json({ message: "Erro ao rejeitar comparativo" });
@@ -4127,8 +4223,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         approvedBy: finUser.id,
         returnReason,
       });
+      if (!comparison) return res.status(404).json({ message: "Comparativo não encontrado" });
       await createAuditLog('update', 'budget_comparison', req.params.id, comparison, finUser.id, finUser.name, undefined, req);
-      res.json(comparison);
+      // Devolver para ajuste também estorna: o evento volta a ser editado e o
+      // crédito só vale para um comparativo aprovado (regra 19/08). É a rota do
+      // botão "Reabrir comparativo (estorna o Flash)" — o ÚNICO caminho de
+      // estorno na tela (os botões "Recusar"/"Devolver" do rodapé decidem por
+      // PRESTAÇÃO, em /api/budget-actual/rh-action, e não mexem no Flash).
+      const flashReverse = await safeReverseFlashFromComparison(comparison, await flashActorFor(req));
+      res.json({ ...comparison, flashReverse });
     } catch (error) {
       console.error("Error returning budget comparison:", error);
       res.status(400).json({ message: "Erro ao devolver comparativo" });
@@ -4239,6 +4342,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         casa_diaria_dir_prova: 75000,
         casa_diaria_produtor: 46500,
         casa_diaria_exec_vendas: 26000,
+        // Cenotécnicos EMPREITA — valor fechado por nº de dias (tabela 19/08),
+        // 4 modalidades × 2..6 dias (ver shared/cenotecnica-empreita.ts)
+        ...cenoEmpreitaDefaultsMap(),
       };
       const result: Record<string, number> = { ...defaults };
       for (const s of settings) {
@@ -4283,6 +4389,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "freela_diaria_local", "freela_diaria_viagem", "freela_diaria_dir_prova",
         // Tarifas casa (regra do slide: dir prova / produtor / exec vendas O2)
         "casa_diaria_dir_prova", "casa_diaria_produtor", "casa_diaria_exec_vendas",
+        // Cenotécnicos EMPREITA — 20 células da tabela (4 modalidades × 2..6 dias)
+        ...CENO_EMPREITA_SETTING_KEYS,
       ];
       // Fatores de deflação são PERCENTUAIS inteiros (0..100), não valores
       // monetários — gravados sem o ×100 dos demais.
@@ -4363,18 +4471,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `Confira o número da OC ou anexe o mesmo arquivo.`;
   };
 
-  // Ator + trilha de auditoria para o crédito automático no Flash (server/flash-oc.ts).
-  // O audit log usa entityType 'financial' — mesmo bucket dos lançamentos manuais.
-  const flashActorFor = async (req: any): Promise<FlashSyncActor> => {
-    const u = req.session?.userId ? await storage.getUser(req.session.userId) : undefined;
-    return {
-      userId: u?.id ?? null,
-      userName: u?.name ?? "Sistema",
-      audit: (action, entityId, data, oldData) =>
-        createAuditLog(action, 'financial', entityId, data, u?.id, u?.name || 'Sistema', oldData, req),
-    };
-  };
-
   app.post("/api/invoices", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
     try {
@@ -4408,12 +4504,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (ocError) return res.status(400).json({ message: ocError });
       const firstEvent = { type: "enviado", oc: data.oc || null, attachmentName: data.attachmentName || null, at: new Date().toISOString() };
       const invoice = await storage.createInvoice({ ...data, history: JSON.stringify([firstEvent]) });
-      // Regra 17/08: lançou a OC → alimentação e mobilidade do Realizado entram
-      // no Flash (diária não). Falha no sync não derruba a NF — vira flashSync.ok=false.
-      const flashSync = (invoice.oc || "").trim()
-        ? await safeSyncFlashFromInvoice(invoice.id, await flashActorFor(req))
-        : { ok: true, alimentacaoCents: 0, mobilidadeCents: 0, movementIds: [] };
-      res.json({ ...invoice, flashSync });
+      // A NF não mexe mais no saldo do Flash — só documenta (decisão 19/08,
+      // substitui a regra de 17/08 que creditava aqui pelo número da OC). O
+      // crédito acontece na aprovação do comparativo (server/flash-credit.ts).
+      res.json(invoice);
     } catch (error: any) {
       if (error?.name === 'ZodError') {
         return res.status(400).json({ message: "Dados da nota inválidos. Verifique OC e anexo." });
@@ -4435,8 +4529,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existing.status === "aprovada") {
         return res.status(400).json({ message: "Nota fiscal aprovada não pode ser alterada." });
       }
-      // NF recusada é terminal: reenviar por aqui recriaria os créditos do
-      // Flash que a recusa acabou de estornar (o client já não oferece).
+      // NF recusada é terminal: a recusa encerra a nota e o client já não
+      // oferece reenvio (o Flash não é mais afetado por NF — decisão 19/08).
       if (existing.status === "recusada") {
         return res.status(400).json({ message: "Nota fiscal recusada é definitiva e não pode ser reenviada." });
       }
@@ -4475,21 +4569,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...body,
         ...(historyStr !== undefined ? { history: historyStr } : {}),
       });
-      // Reenvio ou troca da OC → ressincroniza o crédito automático do Flash
-      // (idempotente: atualiza os mesmos lançamentos, não duplica). OC vazia
-      // → remove os automáticos. Falha no sync não derruba a NF.
-      let flashSync: any = undefined;
-      const touchesOc = body.status === "enviada" || "oc" in body;
-      if (touchesOc && invoice.status !== "recusada") {
-        const actor = await flashActorFor(req);
-        if ((invoice.oc || "").trim()) {
-          flashSync = await safeSyncFlashFromInvoice(invoice.id, actor);
-        } else {
-          const r = await safeReverseFlashFromInvoice(invoice.id, actor);
-          flashSync = { ok: r.ok, alimentacaoCents: 0, mobilidadeCents: 0, movementIds: [] };
-        }
-      }
-      res.json(flashSync ? { ...invoice, flashSync } : invoice);
+      // Reenvio/troca da OC não toca no Flash (decisão 19/08): o saldo vem da
+      // aprovação do comparativo, e a nota apenas documenta o pagamento.
+      res.json(invoice);
     } catch (error) {
       console.error("Error updating invoice:", error);
       res.status(500).json({ message: "Erro ao atualizar nota fiscal" });
@@ -4557,15 +4639,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         returnComment: comment ?? null,
         history: historyStr,
       });
-      // Recusa é definitiva → estorna o crédito automático do Flash (apaga os
-      // lançamentos 'oc' desta NF; ver server/flash-oc.ts para o porquê de
-      // apagar em vez de debitar). Aprovar/devolver/check-in não mexem no Flash.
-      const flashReverse = await safeReverseFlashFromInvoice(invoice.id, {
-        userId: user.id, userName: user.name,
-        audit: (action, entityId, data, oldData) =>
-          createAuditLog(action, 'financial', entityId, data, user.id, user.name, oldData, req),
-      });
-      res.json({ ...invoice, flashReverse });
+      // Recusar a NF não estorna nada no Flash (decisão 19/08): o crédito é do
+      // comparativo aprovado, não da nota. O estorno tem UM caminho na tela:
+      // Comparativo → "Reabrir comparativo (estorna o Flash)" (chama
+      // /api/budget-comparison/:id/return — ver server/flash-credit.ts).
+      res.json(invoice);
     } catch (error) {
       console.error("Error rejecting invoice:", error);
       res.status(500).json({ message: "Erro ao recusar nota fiscal" });
@@ -4676,9 +4754,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "collaboratorId e movementDate são obrigatórios" });
       }
       // Só lançamentos MANUAIS contam como "conta já aberta" — um crédito
-      // automático de OC (NF do primeiro evento) não pode impedir o crédito
-      // inicial da admissão.
-      const existing = (await storage.getFlashMovements(collaboratorId)).filter((m: any) => m.sourceType !== "oc");
+      // automático (comparativo aprovado do primeiro evento, ou 'oc' legado)
+      // não pode impedir o crédito inicial da admissão.
+      const existing = (await storage.getFlashMovements(collaboratorId)).filter((m: any) => !isAutomaticFlashMovement(m));
       if (existing.length > 0) {
         return res.status(409).json({ message: "Este colaborador já tem lançamentos — o crédito inicial só vale para conta nova." });
       }
@@ -4704,7 +4782,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const prev = await storage.getFlashMovement(req.params.id);
       if (!prev) return res.status(404).json({ message: "Lançamento não encontrado" });
       if (isAutomaticFlashMovement(prev)) {
-        return res.status(409).json({ message: "Este lançamento é automático (gerado pela OC da nota fiscal) e não pode ser editado. Ele acompanha o Realizado; para estornar, recuse a nota." });
+        // Cita o botão que EXISTE na tela (Comparativo → card "Fechamento do
+        // comparativo"): a mensagem antiga mandava "rejeitar/devolver o
+        // comparativo", ação que nenhum botão do client executava.
+        return res.status(409).json({ message: "Este lançamento é automático (gerado pela aprovação do comparativo) e não pode ser editado. Ele acompanha o Realizado: para atualizá-lo, use \"Ressincronizar Flash\" na tela Comparativo; para estorná-lo, use \"Reabrir comparativo (estorna o Flash)\"." });
       }
       const data = insertFlashMovementSchema
         .omit({ createdBy: true, createdByName: true })
@@ -4727,7 +4808,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const prev = await storage.getFlashMovement(req.params.id);
       if (!prev) return res.status(404).json({ message: "Lançamento não encontrado" });
       if (isAutomaticFlashMovement(prev)) {
-        return res.status(409).json({ message: "Este lançamento é automático (gerado pela OC da nota fiscal) e não pode ser excluído. O estorno acontece ao recusar a nota." });
+        return res.status(409).json({ message: "Este lançamento é automático (gerado pela aprovação do comparativo) e não pode ser excluído. O estorno acontece no botão \"Reabrir comparativo (estorna o Flash)\", na tela Comparativo." });
       }
       await storage.deleteFlashMovement(req.params.id);
       // Trilha: exclusão de lançamento financeiro fica no audit log com o registro apagado

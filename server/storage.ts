@@ -71,10 +71,11 @@ export function excludeSuggestions<T extends { phase: string | null }>(rows: T[]
 /**
  * Lançamento Flash com origem explícita. O schema público (insertFlashMovementSchema)
  * omite sourceType/sourceRef para o body da API nunca criar um "automático";
- * só o servidor (server/flash-oc.ts) grava sourceType 'oc'.
+ * só o servidor (server/flash-credit.ts) grava sourceType automático ("comparativo";
+ * "oc" é legado congelado da regra antiga).
  */
 export type InsertFlashMovementWithSource = InsertFlashMovement & {
-  sourceType?: "manual" | "oc";
+  sourceType?: "manual" | "comparativo" | "oc";
   sourceRef?: string | null;
 };
 
@@ -655,6 +656,7 @@ export class DatabaseStorage implements IStorage {
         emitsNf: teamInclusions.emitsNf,
         atendimentoTipo: teamInclusions.atendimentoTipo,
         percurseiroTipo: teamInclusions.percurseiroTipo,
+        cenoFreelaTipo: teamInclusions.cenoFreelaTipo,
         functionName: functions.name,
         eventName: events.name,
         rowOrder: teamInclusions.rowOrder,
