@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcDeflatedDailies, DEFLATION_TIERS, PERCURSEIRO_TYPES, diasComDiaria, regraDiariaPorTipo, percurseiroDiariaCents, diasPercurseiro, isPercursoFunction } from "./calculation-rules";
+import { calcDeflatedDailies, DEFLATION_TIERS, PERCURSEIRO_TYPES, diasComDiaria, regraDiariaPorTipo, percurseiroDiariaCents, diasPercurseiro, isPercursoFunction, isFuncaoLocal } from "./calculation-rules";
 
 describe("calcDeflatedDailies (deflação por dia trabalhado)", () => {
   const DIARIA = 46500; // R$ 465,00 — produtor freela local
@@ -196,5 +196,70 @@ describe("diasComDiaria (dias com direito a diária por tipo de colaborador)", (
     expect(diasComDiaria("freela", 3, 1)).toBe(4);
     expect(diasComDiaria(undefined, 3, 1)).toBe(4);
     expect(regraDiariaPorTipo("freela")).toBe("todos");
+  });
+});
+
+describe("isFuncaoLocal (função local = só diária)", () => {
+  it("reconhece a palavra isolada 'local' no nome da função", () => {
+    for (const f of [
+      "produção local",
+      "producao local",
+      "Produção Local",
+      "ativação local",
+      "cenotecnica local",
+      "Cenotécnica Local",
+      "kit local",
+      "sup ceno local",
+      "percurso local",
+      "local",
+      "LOCAL",
+      "produção - local",
+      "produção (local)",
+      "local produção",
+    ]) {
+      expect(isFuncaoLocal(f)).toBe(true);
+    }
+  });
+
+  it("não confunde com palavras que apenas contêm 'local'", () => {
+    for (const f of [
+      "localidade",
+      "localização",
+      "vocal",
+      "produção localizada",
+      "produção",
+      "cenotecnica",
+      "percurso",
+      "atendimento",
+      "dir prova",
+    ]) {
+      expect(isFuncaoLocal(f)).toBe(false);
+    }
+  });
+
+  it("nome vazio/ausente não é função local", () => {
+    expect(isFuncaoLocal(null)).toBe(false);
+    expect(isFuncaoLocal(undefined)).toBe(false);
+    expect(isFuncaoLocal("")).toBe(false);
+    expect(isFuncaoLocal("   ")).toBe(false);
+  });
+
+  it("a regra NÃO mexe na diária — só em alimentação e mobilidade", () => {
+    // Caso do screenshot: OLGA, "produção local", casa, 16/08–16/08 (1 dia útil).
+    // A diária continua pela regra existente; alimentação/mobilidade é que zeram.
+    expect(isFuncaoLocal("produção local")).toBe(true);
+    expect(diasComDiaria("local", 1, 0, "produção local")).toBe(1);
+    expect(calcDeflatedDailies(46500, diasComDiaria("local", 1, 0, "produção local")).totalCents).toBe(46500);
+    // Cenotécnica de casa continua sem diária mesmo sendo "local"
+    expect(regraDiariaPorTipo("casa", "cenotecnica local")).toBe("nenhuma");
+    expect(diasComDiaria("casa", 2, 2, "cenotecnica local")).toBe(0);
+  });
+
+  it("'percurso local' continua sendo percurso (pacote fechado)", () => {
+    expect(isPercursoFunction("percurso local")).toBe(true);
+    expect(isFuncaoLocal("percurso local")).toBe(true);
+    // A contagem fixa do percurseiro (local = 1 diária) não muda
+    expect(diasPercurseiro(false)).toBe(1);
+    expect(diasPercurseiro(true)).toBe(2);
   });
 });

@@ -285,6 +285,54 @@ export function diasComDiaria(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// FUNÇÃO LOCAL (regra 19/08): "só diária".
+//
+// Quando o NOME DA FUNÇÃO traz a palavra isolada "local" (ex.: "produção local",
+// "ativação local", "cenotécnica local", "kit local", "sup ceno local",
+// "percurso local"), a vaga é de um freela CONTRATADO NA CIDADE DO EVENTO: ele
+// não viaja (dorme em casa, vai por conta própria) e não recebe refeição — o
+// cachê da diária já cobre alimentação e deslocamento. Logo, no Planejado:
+//   • alimentação = 0
+//   • mobilidade (ida e volta) = 0
+//   • a DIÁRIA continua normal (contagem e valor pelas regras já existentes)
+// O override manual continua valendo: se o usuário digitar um valor, ele manda.
+//
+// Casos que NÃO mudam:
+//   • "percurso local" já era pacote fechado (isPercursoFunction) — a regra do
+//     percurseiro zera alimentação/mobilidade antes e continua mandando na
+//     contagem de diárias; aqui o resultado é o mesmo.
+//   • "cenotécnica de casa" (sem diária) segue como está: esta regra só mexe em
+//     alimentação e mobilidade, nunca na diária.
+//
+// A palavra tem de estar ISOLADA: "localidade", "localização" ou "vocal" não
+// contam. Comparação sem acentos e sem caixa.
+// ─────────────────────────────────────────────────────────────────────────────
+const LOCAL_WORD_RE = /(^|[^a-z0-9])local([^a-z0-9]|$)/;
+
+/** Marcas de acento da forma NFD (U+0300–U+036F). */
+const DIACRITICS_RE = new RegExp("[\\u0300-\\u036f]", "g");
+
+/** Remove acentos e caixa — para casar o nome da função de forma tolerante. */
+function normalizeFunctionName(functionName: string | null | undefined): string {
+  return (functionName ?? "")
+    .normalize("NFD")
+    .replace(DIACRITICS_RE, "")
+    .toLowerCase();
+}
+
+/**
+ * A função é de contratação LOCAL (freela da cidade do evento)?
+ * Nesse caso a vaga recebe SOMENTE diária: sem alimentação e sem mobilidade.
+ */
+export function isFuncaoLocal(functionName: string | null | undefined): boolean {
+  if (!functionName) return false;
+  return LOCAL_WORD_RE.test(normalizeFunctionName(functionName));
+}
+
+/** Texto curto exibido no card/modal quando a regra de função local se aplica. */
+export const FUNCAO_LOCAL_RAZAO = "Função local — sem alimentação e sem mobilidade (só diária)";
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PERCURSEIRO (função "percurso" — motoqueiro): pacote FECHADO por diária,
 // Tipo 1 x Tipo 2 (regra do usuário 17/08). Alimentação e mobilidade do
 // Planejado ficam em 0 (já estão dentro do pacote). Sem deflação.

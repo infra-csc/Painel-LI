@@ -17,7 +17,7 @@ import { EventSearchSelect } from "@/components/event-select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetNote } from "@shared/schema";
 import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents, mobilidadeSemVooCents, isTransporteTerrestre, ATENDIMENTO_TIPOS, type AtendimentoTipo } from "@shared/atendimento";
-import { calcDeflatedDailies, deflationFactorsFromSettings, freelaDailyCents, casaDailyCents, diasComDiaria as calcDiasComDiaria, regraDiariaPorTipo, isPercursoFunction, percurseiroDiariaCents, diasPercurseiro, PERCURSEIRO_TIPOS, type DeflationSegment, type RegraDiaria, type PercurseiroTipo, type PercurseiroDiaria } from "@shared/calculation-rules";
+import { calcDeflatedDailies, deflationFactorsFromSettings, freelaDailyCents, casaDailyCents, diasComDiaria as calcDiasComDiaria, regraDiariaPorTipo, isPercursoFunction, percurseiroDiariaCents, diasPercurseiro, PERCURSEIRO_TIPOS, isFuncaoLocal, FUNCAO_LOCAL_RAZAO, type DeflationSegment, type RegraDiaria, type PercurseiroTipo, type PercurseiroDiaria } from "@shared/calculation-rules";
 import { calcAlimentacao, refeicaoCents, refeicaoCentsDia, refeicaoPerfil } from "@shared/alimentacao";
 import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/common/page-header";
@@ -702,7 +702,7 @@ export default function BudgetPlannedPage() {
     return p.get("event") || "";
   });
   const [editingBudget, setEditingBudget] = useState<BudgetEdit | null>(null);
-  const [editingBudgetInfo, setEditingBudgetInfo] = useState<{ name: string; functionName: string; type: string; weekdays: number; weekends: number; diasComDiaria: number; regraDiaria: RegraDiaria; period: string; vooChegadaIda?: string | null; vooPartidaVolta?: string | null; fonteVoo?: "passagem" | "sugerido" | "nenhum"; alimEstimada?: boolean; voa?: boolean; isAtend?: boolean; atendimentoTipo?: AtendimentoTipo | null; savedAtendimentoTipo?: AtendimentoTipo | null; isPercurso?: boolean; percurseiroTipo?: PercurseiroTipo | null; savedPercurseiroTipo?: PercurseiroTipo | null; percurseiro?: PercurseiroDiaria | null; inclusionId?: string } | null>(null);
+  const [editingBudgetInfo, setEditingBudgetInfo] = useState<{ name: string; functionName: string; type: string; weekdays: number; weekends: number; diasComDiaria: number; regraDiaria: RegraDiaria; period: string; vooChegadaIda?: string | null; vooPartidaVolta?: string | null; fonteVoo?: "passagem" | "sugerido" | "nenhum"; alimEstimada?: boolean; voa?: boolean; isAtend?: boolean; atendimentoTipo?: AtendimentoTipo | null; savedAtendimentoTipo?: AtendimentoTipo | null; isPercurso?: boolean; funcaoLocal?: boolean; percurseiroTipo?: PercurseiroTipo | null; savedPercurseiroTipo?: PercurseiroTipo | null; percurseiro?: PercurseiroDiaria | null; inclusionId?: string } | null>(null);
   const [editingBudgetPlannedId, setEditingBudgetPlannedId] = useState<string | null>(null);
   // Tipo escolhido no modal e AINDA NÃO persistido na escalação (null = igual
   // ao gravado). Persistido no Salvar, descartado no Cancelar — comportamento
@@ -1215,6 +1215,12 @@ export default function BudgetPlannedPage() {
       // Em viagem SEMPRE 2 diárias, local 1; alimentação e mobilidade = 0 (já
       // estão no pacote); sem deflação. Regra em shared/calculation-rules.
       const isPercurso = isPercursoFunction(getFunctionName(inclusion.functionId));
+      // FUNÇÃO LOCAL (regra 19/08): freela contratado na cidade do evento —
+      // não viaja e não recebe refeição (o cachê da diária já cobre). Só diária:
+      // alimentação = 0 e mobilidade (ida e volta) = 0. Regra em
+      // shared/calculation-rules (isFuncaoLocal). O override manual continua
+      // valendo — a regra só define o VALOR DE SISTEMA.
+      const funcaoLocal = isFuncaoLocal(getFunctionName(inclusion.functionId));
       const percurseiroTipo = ((inclusion as any).percurseiroTipo ?? null) as PercurseiroTipo | null;
       const percurseiroTipoEfetivo: PercurseiroTipo | null = isPercurso ? (percurseiroTipo ?? "tipo_1") : null;
       const percurseiro = isPercurso ? percurseiroDiariaCents(percurseiroTipoEfetivo, ss) : null;
@@ -1287,7 +1293,8 @@ export default function BudgetPlannedPage() {
       // tipo; sem passagem, o texto sugerido ("van - 10h") também é reconhecido.
       // Quem NÃO voa (17/08): evento fora de SP → R$29 por trecho; em SP → 0.
       // Percurso: mobilidade já está no pacote → 0.
-      const semVoo = !voa && !isPercurso ? mobilidadeSemVooCents(selectedEvent?.location) : null;
+      // Função LOCAL: contratado na cidade do evento → sem mobilidade (0).
+      const semVoo = !voa && !isPercurso && !funcaoLocal ? mobilidadeSemVooCents(selectedEvent?.location) : null;
       // Terrestre se a passagem registrada é rodoviário/van OU se QUALQUER texto
       // sugerido da escalação (ida/chegada/volta) menciona van/ônibus/carro —
       // "van - 10h" na ida vale para a viagem toda (a chegada sugerida sem a
@@ -1295,8 +1302,8 @@ export default function BudgetPlannedPage() {
       const terrestre =
         ticket?.transportType === 'rodoviario' || ticket?.transportType === 'van' ||
         (!ticket && (isTransporteTerrestre(vooPartidaIda) || isTransporteTerrestre(vooChegadaIda) || isTransporteTerrestre(vooPartidaVolta)));
-      const sysMobIda = isPercurso ? 0 : voa ? mobilidadeTrechoCents(vooPartidaIda, vooChegadaIda, { trecho: 'ida', terrestre }) : (semVoo?.ida ?? 0);
-      const sysMobVolta = isPercurso ? 0 : voa ? mobilidadeTrechoCents(vooPartidaVolta, null, { trecho: 'volta', terrestre }) : (semVoo?.volta ?? 0);
+      const sysMobIda = (isPercurso || funcaoLocal) ? 0 : voa ? mobilidadeTrechoCents(vooPartidaIda, vooChegadaIda, { trecho: 'ida', terrestre }) : (semVoo?.ida ?? 0);
+      const sysMobVolta = (isPercurso || funcaoLocal) ? 0 : voa ? mobilidadeTrechoCents(vooPartidaVolta, null, { trecho: 'volta', terrestre }) : (semVoo?.volta ?? 0);
       const sysMob = sysMobIda + sysMobVolta;
       const mobilidade = override?.mobilidade ?? sysMob;
       const mobilidadeIda = override?.mobilidadeIda ?? sysMobIda;
@@ -1316,7 +1323,7 @@ export default function BudgetPlannedPage() {
       const refFds = refeicaoCentsDia(perfil, ss, { tipoColaborador: collab?.type, isWeekend: true });
       // Percurso: alimentação no pacote → sem dias
       const alim = calcAlimentacao({
-        workDays: isPercurso ? [] : diasPeriodo, voa,
+        workDays: (isPercurso || funcaoLocal) ? [] : diasPeriodo, voa,
         chegadaIda: vooChegadaIda, partidaVolta: vooPartidaVolta,
         almocoCents, jantarCents,
         terrestre, // van saindo ≥ 20h no retorno já paga jantar
@@ -1332,12 +1339,15 @@ export default function BudgetPlannedPage() {
       }
       // Sem intervalo completo de datas (diasPeriodo vazio) mas com dias
       // contados: assume dia cheio na proporção útil/fds já conhecida
-      if (!isPercurso && diasPeriodo.length === 0 && (weekdays + weekends) > 0) {
+      if (!isPercurso && !funcaoLocal && diasPeriodo.length === 0 && (weekdays + weekends) > 0) {
         calcAlmSem = weekdays * refUtil.almocoCents; calcJanSem = weekdays * refUtil.jantarCents;
         calcAlmFds = weekends * refFds.almocoCents; calcJanFds = weekends * refFds.jantarCents;
       }
-      // Percurso: alimentação já está no pacote — nada a "estimar"
-      const alimEstimada = voa && !isPercurso && (fonteVoo !== 'passagem' || alim.estimado);
+      // Função LOCAL: sem refeição — o cachê da diária já cobre. Zera o valor de
+      // SISTEMA (o override manual, aplicado logo abaixo, continua mandando).
+      if (funcaoLocal) { calcAlmSem = 0; calcJanSem = 0; calcAlmFds = 0; calcJanFds = 0; }
+      // Percurso / função local: alimentação não é calculada — nada a "estimar"
+      const alimEstimada = voa && !isPercurso && !funcaoLocal && (fonteVoo !== 'passagem' || alim.estimado);
       // Mesmo zeroing EFETIVO do modal: bucket com 0 dias conta 0 — mesmo que
       // um override (ex.: rascunho ou lote antigo) tenha valor gravado nele.
       const almocoSemana = weekdays === 0 ? 0 : (override?.almocoSemana ?? calcAlmSem);
@@ -1383,6 +1393,7 @@ export default function BudgetPlannedPage() {
         diasComDiaria,
         regraDiaria,
         isPercurso,
+        funcaoLocal,
         percurseiroTipo,
         percurseiro,
         vooPartidaIda,
@@ -1566,6 +1577,7 @@ export default function BudgetPlannedPage() {
       atendimentoTipo: ((budget.inclusion as any).atendimentoTipo ?? null) as AtendimentoTipo | null,
       savedAtendimentoTipo: ((budget.inclusion as any).atendimentoTipo ?? null) as AtendimentoTipo | null,
       isPercurso: budget.isPercurso,
+      funcaoLocal: budget.funcaoLocal,
       percurseiroTipo: budget.percurseiroTipo,
       savedPercurseiroTipo: budget.percurseiroTipo,
       percurseiro: budget.percurseiro,
@@ -2760,6 +2772,11 @@ export default function BudgetPlannedPage() {
                                   </span>
                                 )
                               )}
+                              {budget.funcaoLocal && !budget.isPercurso && (
+                                <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full shrink-0" title={FUNCAO_LOCAL_RAZAO}>
+                                  só diária
+                                </span>
+                              )}
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${isCasa ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
                               {isSent && (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap"
@@ -2946,7 +2963,9 @@ export default function BudgetPlannedPage() {
                                 {budget.almocoSemana === 0 && budget.jantarSemana === 0 && budget.almocoFds === 0 && budget.jantarFds === 0 && (
                                   budget.isPercurso
                                     ? <span className="text-[11px] font-normal text-slate-400" title="Alimentação (3 refeições) já está dentro do pacote do percurseiro">incluída no pacote</span>
-                                    : <span className="text-[11px] font-normal" style={{color:'#CBD5E1'}}>—</span>
+                                    : budget.funcaoLocal
+                                      ? <span className="text-[11px] font-normal text-slate-400" title={FUNCAO_LOCAL_RAZAO}>sem alimentação (função local)</span>
+                                      : <span className="text-[11px] font-normal" style={{color:'#CBD5E1'}}>—</span>
                                 )}
                               </div>
                             </div>
@@ -2979,7 +2998,9 @@ export default function BudgetPlannedPage() {
                                 {budget.mobilidadeIda === 0 && budget.mobilidadeVolta === 0 && (
                                   budget.isPercurso
                                     ? <span className="text-[11px] font-normal text-slate-400" title="Ajuda de custo transporte já está dentro do pacote do percurseiro">incluída no pacote</span>
-                                    : <span className="text-[11px] font-normal" style={{color:'#CBD5E1'}}>—</span>
+                                    : budget.funcaoLocal
+                                      ? <span className="text-[11px] font-normal text-slate-400" title={FUNCAO_LOCAL_RAZAO}>sem mobilidade (função local)</span>
+                                      : <span className="text-[11px] font-normal" style={{color:'#CBD5E1'}}>—</span>
                                 )}
                               </div>
                             </div>
@@ -3473,6 +3494,68 @@ export default function BudgetPlannedPage() {
             const mClear = (key: string) => () => setModalBufs(p => { const n = { ...p }; delete n[key]; return n; });
             const toCents = (raw: string) => Math.round(parseBrNumber(raw) * 100) || 0;
 
+            // ── Alimentação em R$/DIA (útil e fim de semana) ──────────────────
+            // Mesma semântica dos inputs da planilha (`alimentacaoUtil` /
+            // `alimentacaoFds`): o usuário digita o valor POR DIA e ele é
+            // rateado entre almoço e jantar do bucket — proporcional ao que já
+            // existe, ou meio a meio quando o bucket está zerado. Os 4 campos
+            // por refeição continuam disponíveis em "Detalhar por refeição".
+            const alimUtilDiaCents = editingBudgetInfo.weekdays > 0
+              ? Math.round((editingBudget.almocoSemana + editingBudget.jantarSemana) / editingBudgetInfo.weekdays)
+              : 0;
+            const alimFdsDiaCents = editingBudgetInfo.weekends > 0
+              ? Math.round((editingBudget.almocoFds + editingBudget.jantarFds) / editingBudgetInfo.weekends)
+              : 0;
+            const rateiaPorDia = (valCents: number, dias: number, almocoAtual: number, jantarAtual: number) => {
+              const total = valCents * Math.max(1, dias);
+              const existente = almocoAtual + jantarAtual;
+              const almoco = existente === 0
+                ? Math.round(total / 2)
+                : Math.round(almocoAtual * total / existente);
+              return { almoco, jantar: total - almoco };
+            };
+            const setAlimUtilDia = (raw: string) => {
+              const { almoco, jantar } = rateiaPorDia(toCents(raw), editingBudgetInfo.weekdays, editingBudget.almocoSemana, editingBudget.jantarSemana);
+              setEditingBudget({ ...editingBudget, almocoSemana: almoco, jantarSemana: jantar });
+            };
+            const setAlimFdsDia = (raw: string) => {
+              const { almoco, jantar } = rateiaPorDia(toCents(raw), editingBudgetInfo.weekends, editingBudget.almocoFds, editingBudget.jantarFds);
+              setEditingBudget({ ...editingBudget, almocoFds: almoco, jantarFds: jantar });
+            };
+            // "Editado" = difere do MOTOR (mesma marca ✱ da planilha)
+            const alimUtilEditado = !!defaultBudgetValues && !noWeekdays && (
+              editingBudget.almocoSemana !== defaultBudgetValues.almocoSemana ||
+              editingBudget.jantarSemana !== defaultBudgetValues.jantarSemana);
+            const alimFdsEditado = !!defaultBudgetValues && !noWeekends && (
+              editingBudget.almocoFds !== defaultBudgetValues.almocoFds ||
+              editingBudget.jantarFds !== defaultBudgetValues.jantarFds);
+            const clearBufs = (...keys: string[]) => setModalBufs(p => {
+              const n = { ...p }; keys.forEach(k => delete n[k]); return n;
+            });
+            const restoreAlimUtil = () => {
+              if (!defaultBudgetValues) return;
+              setEditingBudget({ ...editingBudget, almocoSemana: defaultBudgetValues.almocoSemana, jantarSemana: defaultBudgetValues.jantarSemana });
+              clearBufs('alimUtilDia', 'almSem', 'janSem');
+            };
+            const restoreAlimFds = () => {
+              if (!defaultBudgetValues) return;
+              setEditingBudget({ ...editingBudget, almocoFds: defaultBudgetValues.almocoFds, jantarFds: defaultBudgetValues.jantarFds });
+              clearBufs('alimFdsDia', 'almFds', 'janFds');
+            };
+            const modalRestoreBtn = (onClick: () => void, label: string) => (
+              <button
+                type="button"
+                aria-label={label}
+                title="Restaurar padrão (regra atual)"
+                onClick={onClick}
+                className="text-[11px] leading-none px-1.5 py-1 -my-1 rounded text-slate-400 hover:text-primary hover:bg-slate-100 transition-colors shrink-0"
+              >↩</button>
+            );
+            const modalEditedMark = (
+              <span aria-label="Valor editado manualmente" title="Valor editado manualmente"
+                className="text-[10px] font-bold text-slate-500 shrink-0 select-none">✱</span>
+            );
+
             return (
             <>
               {/* ── Header ── */}
@@ -3686,6 +3769,11 @@ export default function BudgetPlannedPage() {
                     </div>
                     <span className="text-[13px] font-bold text-violet-600">{formatCurrency(editingBudget.mobilidadeIda + editingBudget.mobilidadeVolta)}</span>
                   </div>
+                  {editingBudgetInfo.funcaoLocal && (
+                    <div className="px-3.5 py-1.5 bg-slate-50 border-b border-slate-100 text-[10px] text-slate-500">
+                      {FUNCAO_LOCAL_RAZAO}
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-3 px-3.5 py-2.5">
                     <div>
                       <div className="text-[10px] text-slate-400 font-medium mb-1">Ida (R$)</div>
@@ -3738,8 +3826,9 @@ export default function BudgetPlannedPage() {
                     <span className="text-[13px] font-bold text-orange-600">{formatCurrency(totalAlimentacao)}</span>
                   </div>
 
-                  {/* Horários de voo que dirigem o cálculo (passagem manda) */}
-                  {editingBudgetInfo.voa ? (
+                  {/* Horários de voo que dirigem o cálculo (passagem manda).
+                      Função local não tem refeição calculada — a razão aparece no resumo. */}
+                  {editingBudgetInfo.funcaoLocal ? null : editingBudgetInfo.voa ? (
                     <div className="flex items-center gap-2 flex-wrap px-3.5 py-1.5 bg-orange-50/50 border-b border-orange-100 text-[10px] text-slate-500">
                       <span>✈ Chegada (ida): <b className="text-slate-700">{editingBudgetInfo.vooChegadaIda || "—"}</b></span>
                       <span>· Partida (volta): <b className="text-slate-700">{editingBudgetInfo.vooPartidaVolta || "—"}</b></span>
@@ -3755,41 +3844,62 @@ export default function BudgetPlannedPage() {
                     </div>
                   )}
 
-                  {/* Resumo compacto: os 4 campos legados só aparecem no ajuste manual */}
-                  {!alimExpanded && (
-                    <div className="px-3.5 py-2.5">
-                      {totalAlimentacao === 0 ? (
-                        <p className="text-[11px] text-slate-400">
-                          {editingBudgetInfo.voa
-                            ? 'Nenhuma refeição prevista pelos horários de voo.'
-                            : 'Nenhuma refeição prevista para esta escalação.'}
-                        </p>
-                      ) : (
-                        <div className="space-y-1 text-[11px] text-slate-600">
-                          {(editingBudget.almocoSemana > 0 || editingBudget.jantarSemana > 0) && !noWeekdays && (
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-slate-500">Dias úteis ({editingBudgetInfo.weekdays})</span>
-                              <span className="tabular-nums">
-                                {editingBudget.almocoSemana > 0 && <>Almoço <b>{formatCurrency(editingBudget.almocoSemana)}</b></>}
-                                {editingBudget.almocoSemana > 0 && editingBudget.jantarSemana > 0 && ' · '}
-                                {editingBudget.jantarSemana > 0 && <>Jantar <b>{formatCurrency(editingBudget.jantarSemana)}</b></>}
-                              </span>
-                            </div>
-                          )}
-                          {(editingBudget.almocoFds > 0 || editingBudget.jantarFds > 0) && !noWeekends && (
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-slate-500">Fim de semana ({editingBudgetInfo.weekends})</span>
-                              <span className="tabular-nums">
-                                {editingBudget.almocoFds > 0 && <>Almoço <b>{formatCurrency(editingBudget.almocoFds)}</b></>}
-                                {editingBudget.almocoFds > 0 && editingBudget.jantarFds > 0 && ' · '}
-                                {editingBudget.jantarFds > 0 && <>Jantar <b>{formatCurrency(editingBudget.jantarFds)}</b></>}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                  {/* Resumo SEMPRE À VISTA e editável em R$/dia (útil e fds).
+                      Os 4 campos por refeição continuam no "Detalhar por refeição". */}
+                  <div className="px-3.5 py-2.5 space-y-1.5">
+                    {editingBudgetInfo.funcaoLocal && (
+                      <p className="text-[11px] text-slate-500">{FUNCAO_LOCAL_RAZAO}</p>
+                    )}
+                    {totalAlimentacao === 0 && !editingBudgetInfo.funcaoLocal && (
+                      <p className="text-[11px] text-slate-400">
+                        {editingBudgetInfo.voa
+                          ? 'Nenhuma refeição prevista pelos horários de voo.'
+                          : 'Nenhuma refeição prevista para esta escalação.'}
+                      </p>
+                    )}
+                    {/* Dias úteis — R$/dia */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-slate-500 flex-1 min-w-0">Dias úteis ({editingBudgetInfo.weekdays})</span>
+                      {alimUtilEditado && modalEditedMark}
+                      <span className="text-[10px] text-slate-400">R$</span>
+                      <Input
+                        type="text" inputMode="decimal" className={inputCls}
+                        aria-label="Alimentação por dia útil (R$)"
+                        value={noWeekdays ? '—' : mBuf('alimUtilDia', alimUtilDiaCents)}
+                        disabled={noWeekdays || modalViewMode}
+                        onChange={e => { mSet('alimUtilDia', e.target.value); setAlimUtilDia(e.target.value); }}
+                        onBlur={mClear('alimUtilDia')}
+                      />
+                      <span className="text-[10px] text-slate-400 shrink-0">/dia</span>
+                      {alimUtilEditado && !modalViewMode
+                        ? modalRestoreBtn(restoreAlimUtil, 'Restaurar alimentação padrão dos dias úteis')
+                        : <span className="w-[22px] shrink-0" aria-hidden="true" />}
+                      <span className="text-[13px] font-bold text-slate-700 w-20 text-right shrink-0 tabular-nums">
+                        {formatCurrency(effectiveAlmocoSemana + effectiveJantarSemana)}
+                      </span>
                     </div>
-                  )}
+                    {/* Fim de semana — R$/dia */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-slate-500 flex-1 min-w-0">Fim de semana ({editingBudgetInfo.weekends})</span>
+                      {alimFdsEditado && modalEditedMark}
+                      <span className="text-[10px] text-slate-400">R$</span>
+                      <Input
+                        type="text" inputMode="decimal" className={inputCls}
+                        aria-label="Alimentação por dia de fim de semana (R$)"
+                        value={noWeekends ? '—' : mBuf('alimFdsDia', alimFdsDiaCents)}
+                        disabled={noWeekends || modalViewMode}
+                        onChange={e => { mSet('alimFdsDia', e.target.value); setAlimFdsDia(e.target.value); }}
+                        onBlur={mClear('alimFdsDia')}
+                      />
+                      <span className="text-[10px] text-slate-400 shrink-0">/dia</span>
+                      {alimFdsEditado && !modalViewMode
+                        ? modalRestoreBtn(restoreAlimFds, 'Restaurar alimentação padrão dos fins de semana')
+                        : <span className="w-[22px] shrink-0" aria-hidden="true" />}
+                      <span className="text-[13px] font-bold text-slate-700 w-20 text-right shrink-0 tabular-nums">
+                        {formatCurrency(effectiveAlmocoFds + effectiveJantarFds)}
+                      </span>
+                    </div>
+                  </div>
 
                   {!modalViewMode && (
                     <button
@@ -3798,7 +3908,7 @@ export default function BudgetPlannedPage() {
                       aria-expanded={alimExpanded}
                       className="w-full flex items-center justify-center gap-1 px-3.5 py-1.5 text-[10px] font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 border-t border-slate-100 transition-colors"
                     >
-                      {alimExpanded ? 'Ocultar ajuste manual' : (editingBudgetInfo.voa ? 'Ajustar manualmente' : 'Ajustar manualmente (exceções)')}
+                      {alimExpanded ? 'Ocultar detalhe por refeição' : 'Detalhar por refeição (almoço e jantar)'}
                       <ChevronDown className={`w-3 h-3 transition-transform ${alimExpanded ? 'rotate-180' : ''}`} />
                     </button>
                   )}
