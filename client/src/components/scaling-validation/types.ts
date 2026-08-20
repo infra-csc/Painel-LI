@@ -1,8 +1,10 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { TeamInclusion, ScalingChangeRequest, Function as FunctionType, TeamInclusionLog } from "@shared/schema";
 import {
-  SUGESTAO_STATUS, availableSuggestionActions, describeLastDecision as describeLastDecisionShared,
-  type LastDecisionInfo, type LastDecisionTone,
+  SUGESTAO_STATUS, availableSuggestionActions,
+  describeLastDecision as describeLastDecisionShared,
+  describeVagaDecision as describeVagaDecisionShared,
+  type LastDecisionInfo, type LastDecisionTone, type LastVagaDecisionInfo,
 } from "@shared/scaling-validation-rules";
 import { toIsoDate } from "@/lib/dates";
 
@@ -17,6 +19,11 @@ export type SuggestionRow = Omit<TeamInclusion, "workDays"> & {
   pendingRequest: ScalingChangeRequest | null;
   /** Última decisão do aprovador (pedido mais recente já resolvido) — a vaga "voltou". */
   lastDecision: LastDecisionInfo | null;
+  /**
+   * Última decisão do aprovador sobre a VAGA em si — aprovar/reprovar/devolver
+   * a vaga validada não cria pedido; o servidor lê de `team_inclusion_logs`.
+   */
+  lastVagaDecision: LastVagaDecisionInfo | null;
 };
 
 /** GET /api/functions devolve cada função com os responsáveis embutidos. */
@@ -67,17 +74,39 @@ export function workDaysOf(row: Pick<SuggestionRow, "workDays">): string[] {
 
 // ── Regras de seleção (puras) ────────────────────────────────────────────────
 
-/** A vaga aceita ação do usuário nesta tela (validar / pedir ajuste / pedir exclusão)? */
-export function canActOn(r: Pick<SuggestionRow, "canEdit" | "pendingRequest" | "status" | "phase">): boolean {
-  return r.canEdit && !r.pendingRequest && availableSuggestionActions({ status: r.status, phase: r.phase }).includes("validar");
+/** Estado da vaga no formato que a máquina do shared entende. */
+type ActionableRow = Pick<SuggestionRow, "canEdit" | "pendingRequest" | "status" | "phase">;
+const actionsOf = (r: ActionableRow) => availableSuggestionActions({ status: r.status, phase: r.phase });
+
+/** A vaga aceita a ação `validar` do usuário (só vaga ainda pendente)? */
+export function canValidate(r: ActionableRow): boolean {
+  return r.canEdit && !r.pendingRequest && actionsOf(r).includes("validar");
+}
+
+/**
+ * A vaga aceita pedido de ajuste/exclusão? A máquina permite `pedir_ajuste`
+ * também em `sugestao_validada` — enquanto o aprovador não decidiu, a área
+ * ainda consegue corrigir o que validou.
+ */
+export function canRequestChange(r: ActionableRow): boolean {
+  return r.canEdit && !r.pendingRequest && actionsOf(r).includes("pedir_ajuste");
+}
+
+/**
+ * A vaga aceita ALGUMA ação do usuário nesta tela (validar / pedir ajuste /
+ * pedir exclusão)? É o que torna a linha selecionável — quais botões ficam
+ * ativos depende de `canValidate` / `canRequestChange`.
+ */
+export function canActOn(r: ActionableRow): boolean {
+  return canValidate(r) || canRequestChange(r);
 }
 
 /** Motivo (pt-BR) de a linha não ser selecionável; null quando é. */
-export function lockReason(r: Pick<SuggestionRow, "canEdit" | "pendingRequest" | "status" | "phase">): string | null {
+export function lockReason(r: ActionableRow): string | null {
   if (canActOn(r)) return null;
   if (!r.canEdit) return "Você não valida esta função";
   if (r.pendingRequest) return "Há um pedido pendente para esta vaga";
-  if (r.status === SUGESTAO_STATUS.VALIDADA) return "Já validada";
+  if (r.status === SUGESTAO_STATUS.VALIDADA) return "Validada — aguardando o aprovador";
   return "Sem ações disponíveis nesta etapa";
 }
 
@@ -92,14 +121,31 @@ export interface DecisionDescription {
   tone: DecisionTone;
 }
 
+/** Separa o título curto do comentário que o shared anexa depois de ": ". */
+function splitDecision(
+  fullTitle: string, tone: DecisionTone, comment: string | null,
+): DecisionDescription {
+  const trimmed = comment?.trim();
+  const suffix = trimmed ? `: ${trimmed}` : "";
+  const short = suffix && fullTitle.endsWith(suffix) ? fullTitle.slice(0, -suffix.length) : fullTitle;
+  return { title: short, fullTitle, tone };
+}
+
 /** Envelope do `describeLastDecision` do shared: rótulo curto para badge + texto completo para tooltip/drawer. */
 export function describeLastDecision(info: LastDecisionInfo | null | undefined): DecisionDescription | null {
   if (!info) return null;
-  const { title: fullTitle, tone } = describeLastDecisionShared(info);
-  const comment = info.comment?.trim();
-  const suffix = comment ? `: ${comment}` : "";
-  const short = suffix && fullTitle.endsWith(suffix) ? fullTitle.slice(0, -suffix.length) : fullTitle;
-  return { title: short, fullTitle, tone };
+  const { title, tone } = describeLastDecisionShared(info);
+  return splitDecision(title, tone, info.comment);
+}
+
+/**
+ * Idem para a decisão sobre a VAGA (aprovar/reprovar/devolver), que não passa
+ * por `scaling_change_requests` — vem do `lastVagaDecision` do GET.
+ */
+export function describeVagaDecision(info: LastVagaDecisionInfo | null | undefined): DecisionDescription | null {
+  if (!info) return null;
+  const { title, tone } = describeVagaDecisionShared(info);
+  return splitDecision(title, tone, info.comment);
 }
 
 export const DECISION_TONE_CLASS: Record<DecisionTone, string> = {

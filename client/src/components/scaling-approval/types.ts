@@ -22,6 +22,13 @@ export type RequestType = ChangeRequestType;
  */
 export type StalledRow = SuggestionRow;
 
+/**
+ * Decisões do aprovador sobre a VAGA já validada pela área que exigem
+ * comentário (PATCH /api/scaling-suggestions/:id/reprovar | /devolver). A
+ * aprovação vai pelo lote (POST /aprovar-lote).
+ */
+export type VagaDecisionKind = "reprovar" | "devolver";
+
 /** Body de PATCH /api/scaling-change-requests/:id/reajustar | /negar */
 export interface ReviewBody {
   comment: string;

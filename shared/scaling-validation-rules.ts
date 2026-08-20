@@ -2,12 +2,19 @@
  * Regras puras da Validação de Escala (sem I/O), compartilhadas entre client e
  * servidor.
  *
- * Fluxo: a escala nasce como SUGESTÃO da logística (team_inclusions com
- * phase 'sugestao'), cada área valida a parte dela e um aprovador central
- * (function_managers.role = 'aprovador') decide os pedidos de ajuste /
- * inclusão / exclusão (scaling_change_requests). Quando a vaga é aprovada ela
- * vira uma Inclusão comum: { phase: 'inclusao', status: 'planejado' } — a
- * MESMA linha de team_inclusions, nunca uma tabela paralela.
+ * Fluxo (regra do usuário, 19/08 — a validação da área NÃO aprova sozinha):
+ *
+ *   sugestão da logística → validação da ÁREA → aprovação do APROVADOR → Inclusão de Equipe
+ *
+ * A escala nasce como SUGESTÃO da logística (team_inclusions com phase
+ * 'sugestao'). Cada área valida a parte dela — e a vaga fica em
+ * 'sugestao_validada', AGUARDANDO O APROVADOR; a área também pode abrir
+ * pedidos de ajuste / inclusão / exclusão (scaling_change_requests). Um
+ * aprovador central (function_managers.role = 'aprovador') decide: aprova a
+ * vaga validada, reprova ou devolve para a área revisar — e decide também os
+ * pedidos. Só a decisão do aprovador transforma a vaga numa Inclusão comum:
+ * { phase: 'inclusao', status: 'planejado' } — a MESMA linha de
+ * team_inclusions, nunca uma tabela paralela.
  */
 import { z } from "zod";
 
@@ -30,7 +37,7 @@ export const SUGESTAO_STATUS_VALUES = Object.values(SUGESTAO_STATUS) as Sugestao
 
 export const SUGESTAO_STATUS_LABELS: Record<SugestaoStatus, string> = {
   sugestao_pendente: "Aguardando validação da área",
-  sugestao_validada: "Validada pela área",
+  sugestao_validada: "Validada pela área — aguardando aprovação",
   sugestao_ajuste: "Com pedido de ajuste",
   sugestao_aprovada: "Aprovada",
   sugestao_negada: "Negada",
@@ -95,8 +102,11 @@ export function isSuggestionInclusion(inclusion: { phase?: string | null } | nul
 }
 
 export const SUGGESTION_ACTIONS = [
-  "validar",                  // área valida a vaga sem pedido
+  "validar",                  // área valida a vaga sem pedido -> aguarda o aprovador
   "pedir_ajuste",             // área abre pedido (ajuste/exclusão) sobre a vaga
+  "aprovar_vaga",             // aprovador aprova a vaga JÁ VALIDADA pela área -> Inclusão
+  "reprovar_vaga",            // aprovador reprova a vaga já validada (fica registrada)
+  "devolver_validacao",       // aprovador devolve a vaga já validada para a área revisar
   "aprovar_pedido",           // aprovador aceita o pedido como veio
   "reajustar_reenviar",       // aprovador altera o pedido e devolve para a área validar
   "reajustar_aprovar_direto", // aprovador altera o pedido e aprova sem nova validação
@@ -110,6 +120,9 @@ export type SuggestionAction = (typeof SUGGESTION_ACTIONS)[number];
 export const SUGGESTION_ACTION_LABELS: Record<SuggestionAction, string> = {
   validar: "Validar",
   pedir_ajuste: "Pedir ajuste",
+  aprovar_vaga: "Aprovar vaga validada",
+  reprovar_vaga: "Reprovar vaga validada",
+  devolver_validacao: "Devolver para validação da área",
   aprovar_pedido: "Aprovar pedido",
   reajustar_reenviar: "Reajustar e reenviar para validação",
   reajustar_aprovar_direto: "Reajustar e aprovar direto",
@@ -131,19 +144,36 @@ export interface NextSuggestionStateOptions {
 /**
  * Máquina de transição da vaga na Validação de Escala.
  *
- *   sugestao_pendente --validar--> sugestao_validada --(sem pedido)--> sugestao_aprovada
- *                                                    ==> {phase:'inclusao', status:'planejado'}
+ * DUAS ETAPAS (regra do usuário, 19/08): validar NÃO aprova. A validação da
+ * área é o PRIMEIRO passo; a vaga fica parada em `sugestao_validada` até o
+ * aprovador decidir. Só as ações do APROVADOR levam a inclusao/planejado.
+ *
+ *   ÁREA
+ *   sugestao_pendente --validar--> sugestao_validada            (aguarda o aprovador)
  *   sugestao_pendente --pedir_ajuste--> sugestao_ajuste
+ *   sugestao_validada --pedir_ajuste--> sugestao_ajuste         (enquanto não foi aprovada)
+ *
+ *   APROVADOR (vaga já validada pela área)
+ *   sugestao_validada --aprovar_vaga--> inclusao/planejado
+ *   sugestao_validada --reprovar_vaga--> sugestao_negada        (fica registrada, não some)
+ *   sugestao_validada --devolver_validacao--> sugestao_pendente (a área revisa de novo)
+ *
+ *   APROVADOR (decidindo um pedido)
  *   sugestao_ajuste   --aprovar_pedido--> (aplica) --> inclusao/planejado
  *                                          (requestType 'exclusao' -> sugestao_negada)
  *   sugestao_ajuste   --reajustar_reenviar | negar_reenviar--> sugestao_pendente
  *   sugestao_ajuste   --reajustar_aprovar_direto | negar_aprovar_direto--> inclusao/planejado
- *   sugestao_pendente --aprovar_direto_bypass--> inclusao/planejado
- *   sugestao_pendente --reprovar_bypass--> sugestao_negada (fica registrada, não some)
  *
- * Retorna o estado FINAL já convertido (a passagem por sugestao_validada /
- * sugestao_aprovada é imediata e não persiste). Transição inválida lança Error
- * com mensagem em pt-BR.
+ *   APROVADOR (bypass — SÓ para vaga que a área NUNCA validou)
+ *   sugestao_pendente --aprovar_direto_bypass--> inclusao/planejado
+ *   sugestao_pendente --reprovar_bypass--> sugestao_negada
+ *
+ * O bypass NÃO vale em `sugestao_validada`: ali o caminho normal do aprovador
+ * são `aprovar_vaga` / `reprovar_vaga` / `devolver_validacao`.
+ *
+ * `sugestao_aprovada` continua no enum por compatibilidade de dados antigos,
+ * mas não é mais estado de passagem: a aprovação vai direto para inclusão.
+ * Transição inválida lança Error com mensagem em pt-BR.
  */
 export function nextSuggestionState(
   current: SuggestionState,
@@ -166,12 +196,29 @@ export function nextSuggestionState(
 
   switch (action) {
     case "validar":
-      // pendente -> validada -> (sem pedido) aprovada -> inclusão, tudo imediato
-      if (current.status === S.PENDENTE) return toInclusaoState();
+      // pendente -> validada: a vaga PARA aqui, aguardando o aprovador
+      if (current.status === S.PENDENTE) return sug(S.VALIDADA);
       throw invalid();
 
     case "pedir_ajuste":
-      if (current.status === S.PENDENTE) return sug(S.AJUSTE);
+      // a área pode pedir ajuste/exclusão antes de validar E depois de validar,
+      // enquanto o aprovador ainda não decidiu — é o comportamento útil (a área
+      // percebe o erro depois de ter validado e ainda consegue corrigir).
+      if (current.status === S.PENDENTE || current.status === S.VALIDADA) return sug(S.AJUSTE);
+      throw invalid();
+
+    case "aprovar_vaga":
+      // caminho normal do aprovador: vaga validada pela área -> Inclusão
+      if (current.status === S.VALIDADA) return toInclusaoState();
+      throw invalid();
+
+    case "reprovar_vaga":
+      if (current.status === S.VALIDADA) return sug(S.NEGADA);
+      throw invalid();
+
+    case "devolver_validacao":
+      // aprovador quer que a área revise: volta para o começo da fila
+      if (current.status === S.VALIDADA) return sug(S.PENDENTE);
       throw invalid();
 
     case "aprovar_pedido":
@@ -192,11 +239,13 @@ export function nextSuggestionState(
       throw invalid();
 
     case "aprovar_direto_bypass":
-      // só faz sentido para vaga que a área nunca validou
+      // só faz sentido para vaga que a área NUNCA validou; em sugestao_validada
+      // o caminho é `aprovar_vaga`
       if (current.status === S.PENDENTE) return toInclusaoState();
       throw invalid();
 
     case "reprovar_bypass":
+      // idem: em sugestao_validada o caminho é `reprovar_vaga`
       if (current.status === S.PENDENTE) return sug(S.NEGADA);
       throw invalid();
 
@@ -207,7 +256,18 @@ export function nextSuggestionState(
   }
 }
 
-/** Ações possíveis a partir do estado atual (para montar botões/menus). */
+/**
+ * Ações possíveis a partir do estado atual (para montar botões/menus), na ordem
+ * de `SUGGESTION_ACTIONS`. Deriva da própria máquina — nunca duplique a regra.
+ *
+ *  - sugestao_pendente → validar, pedir_ajuste, aprovar_direto_bypass, reprovar_bypass
+ *  - sugestao_validada → pedir_ajuste, aprovar_vaga, reprovar_vaga, devolver_validacao
+ *  - sugestao_ajuste   → decisões do aprovador sobre o pedido
+ *  - sugestao_negada / fora da fase 'sugestao' → nenhuma
+ *
+ * Quem pode DE FATO executar cada uma ainda depende de `canValidateInclusion`
+ * (área) / `canApproveRequest` (aprovador).
+ */
 export function availableSuggestionActions(current: SuggestionState): SuggestionAction[] {
   return SUGGESTION_ACTIONS.filter((a) => {
     try { nextSuggestionState(current, a); return true; } catch { return false; }
@@ -472,10 +532,75 @@ export function describeLastDecision(info: LastDecisionInfo): { title: string; t
   }
 }
 
+/**
+ * Última decisão do aprovador sobre a VAGA (não sobre um pedido), anexada pelo
+ * GET de sugestões a partir de `team_inclusion_logs`.
+ *
+ * O `aprovar/reprovar/devolver` da vaga validada NÃO cria
+ * `scaling_change_requests` — o autor, o comentário e o instante ficam só no
+ * log da inclusão. Sem isto a área via a vaga voltar para "pendente" sem saber
+ * quem devolveu nem por quê.
+ */
+export const VAGA_DECISION_RESULTS = ["aprovada", "reprovada", "devolvida"] as const;
+export type VagaDecisionResult = (typeof VAGA_DECISION_RESULTS)[number];
+
+export interface LastVagaDecisionInfo {
+  action: VagaDecisionResult;
+  comment: string | null;
+  byName: string | null;
+  at: string | null;             // ISO
+}
+
+/**
+ * Texto pt-BR (título + tom) da última decisão do aprovador sobre a VAGA, no
+ * mesmo formato de `describeLastDecision` (o comentário obrigatório entra no
+ * fim do título, depois de ": ").
+ *
+ *  - devolvida → "Devolvida pelo aprovador para nova validação" (warn) — a vaga
+ *    voltou para a área revisar e validar de novo;
+ *  - reprovada → "Vaga reprovada pelo aprovador" (danger) — a vaga fica
+ *    registrada como negada, não vira Inclusão;
+ *  - aprovada  → "Vaga aprovada pelo aprovador" (ok) — virou Inclusão.
+ */
+export function describeVagaDecision(info: LastVagaDecisionInfo): { title: string; tone: LastDecisionTone } {
+  const comment = info.comment?.trim();
+  const suffix = comment ? `: ${comment}` : "";
+  switch (info.action) {
+    case "devolvida":
+      return { title: `Devolvida pelo aprovador para nova validação${suffix}`, tone: "warn" };
+    case "reprovada":
+      return { title: `Vaga reprovada pelo aprovador${suffix}`, tone: "danger" };
+    case "aprovada":
+    default:
+      return { title: `Vaga aprovada pelo aprovador${suffix}`, tone: "ok" };
+  }
+}
+
 export function daysPending(sentAt: Date | string | null | undefined, now: Date = new Date()): number {
   if (!sentAt) return 0;
   const sent = sentAt instanceof Date ? sentAt : new Date(sentAt);
   if (Number.isNaN(sent.getTime())) return 0;
   const diff = Math.floor((now.getTime() - sent.getTime()) / 86_400_000);
   return diff > 0 ? diff : 0;
+}
+
+/**
+ * Dias que a vaga JÁ VALIDADA espera a decisão do aprovador.
+ *
+ * `daysPending` da linha conta desde o envio da logística e inclui o tempo que a
+ * ÁREA levou para validar — dizer "pendente há 6 dias" numa vaga validada joga
+ * na área um atraso que é do aprovador. Aqui o relógio recomeça em
+ * `validatedAt`. Sem carimbo (linha antiga), cai no `daysPending` que veio do
+ * servidor.
+ *
+ * Helper ÚNICO das duas telas: "Aguardando" da Aprovação
+ * (components/scaling-approval/awaiting-approval.tsx) e o badge da Validação
+ * (components/scaling-validation/suggestions-list.tsx).
+ */
+export function daysAwaitingApproval(
+  row: { validatedAt?: Date | string | null; daysPending?: number | null },
+  now: Date = new Date(),
+): number {
+  if (row.validatedAt) return daysPending(row.validatedAt, now);
+  return Math.max(0, row.daysPending ?? 0);
 }

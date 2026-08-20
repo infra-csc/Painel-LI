@@ -1,12 +1,23 @@
 /**
  * Validação de Escala — rotas da API.
  *
- * Fluxo: a logística envia a escala SUGERIDA de um evento (team_inclusions com
- * phase 'sugestao'); cada área valida a parte dela (validador da função) ou abre
- * pedidos de ajuste/inclusão/exclusão (scaling_change_requests); um aprovador
- * central (function_managers.role = 'aprovador') decide os pedidos. Quando a
- * vaga é aprovada ela vira uma Inclusão comum ({ phase: 'inclusao', status:
- * 'planejado' }) — a MESMA linha de team_inclusions.
+ * FLUXO (regra do usuário, 19/08 — validar não aprova):
+ *
+ *   sugestão da logística → validação da ÁREA → aprovação do APROVADOR → Inclusão de Equipe
+ *
+ * 1. A logística envia a escala SUGERIDA de um evento (POST /bulk):
+ *    team_inclusions em phase 'sugestao' / status 'sugestao_pendente'.
+ * 2. A ÁREA (validador da função) valida a parte dela (POST /validate) — a vaga
+ *    vai para 'sugestao_validada' e PARA, aguardando o aprovador — ou abre
+ *    pedidos de ajuste/inclusão/exclusão (scaling_change_requests).
+ * 3. O APROVADOR (function_managers.role = 'aprovador', ou admin) decide:
+ *    - a vaga validada: PATCH /:id/aprovar | /:id/reprovar | /:id/devolver
+ *      (e POST /aprovar-lote para o lote);
+ *    - os pedidos: PATCH /api/scaling-change-requests/:id/approve|reajustar|negar;
+ *    - vaga que a área NUNCA validou: /:id/bypass-approve | /:id/bypass-reject.
+ * 4. Só a decisão do aprovador transforma a vaga numa Inclusão comum
+ *    ({ phase: 'inclusao', status: 'planejado' }) — a MESMA linha de
+ *    team_inclusions.
  *
  * Toda transição de estado da vaga passa por `nextSuggestionState` (shared) —
  * nunca setamos status/phase "na mão". A identidade do ator vem sempre da
@@ -24,6 +35,7 @@ import {
   insertScalingChangeRequestSchema,
   type InsertTeamInclusion,
   type TeamInclusion,
+  type TeamInclusionLog,
   type ScalingChangeRequest,
   type User,
 } from "@shared/schema";
@@ -48,6 +60,8 @@ import {
   type ChangeRequestType,
   type ChangeRequestStatus,
   type LastDecisionInfo,
+  type LastVagaDecisionInfo,
+  type VagaDecisionResult,
 } from "@shared/scaling-validation-rules";
 import { normalizeRole, type CanonicalRole } from "@shared/roles";
 
@@ -251,15 +265,39 @@ export function matchesCreatedFromRequest(
 }
 
 /**
+ * Instante a partir do qual uma decisão do aprovador ainda EXPLICA o estado
+ * atual da vaga (usado por `pickLastDecision` e `pickLastVagaDecision`).
+ *
+ * Vaga pendente: `suggestionSentAt` — devolver a vaga e reenviar um pedido
+ * resetam esse carimbo, então decisão anterior a ele já foi superada.
+ * Vaga em `sugestao_validada`: `validatedAt` — o `/validate` NÃO reseta
+ * `suggestionSentAt`, e sem este piso a devolução que a ÁREA já resolveu
+ * revalidando continuaria aparecendo para sempre ao lado de "Validada pela
+ * área — aguardando aprovação". Sem `validatedAt` (linha antiga), cai no
+ * `suggestionSentAt`.
+ */
+function decisionFloorMs(inclusion: {
+  suggestionSentAt: Date | string | null;
+  status?: string | null;
+  validatedAt?: Date | string | null;
+}): number {
+  const sentMs = toMs(inclusion.suggestionSentAt);
+  return inclusion.status === SUGESTAO_STATUS.VALIDADA
+    ? Math.max(sentMs, toMs(inclusion.validatedAt))
+    : sentMs;
+}
+
+/**
  * Última decisão que EXPLICA o estado atual da vaga: o pedido resolvido mais
  * recente (por reviewedAt) da vaga — via teamInclusionId ou, quando a vaga
  * nasceu de um pedido de inclusão devolvido, via `matchesCreatedFromRequest`
  * (cobre TODAS as N vagas do lote, não só a primeira) — desde que (a) não
  * exista pedido pendente mais novo e (b) a decisão seja igual ou posterior ao
- * suggestionSentAt atual (reenvio reseta esse carimbo).
+ * piso de `decisionFloorMs` (reenvio reseta o carimbo; revalidar a vaga sobe o
+ * piso para o `validatedAt`).
  */
-function pickLastDecision(
-  inclusion: InclusionIdentity,
+export function pickLastDecision(
+  inclusion: InclusionIdentity & { status?: string | null; validatedAt?: Date | string | null },
   requests: ScalingChangeRequest[],
 ): LastDecisionInfo | null {
   let best: ScalingChangeRequest | null = null;
@@ -275,7 +313,7 @@ function pickLastDecision(
   if (!best) return null;
   const decidedMs = toMs(best.reviewedAt ?? best.updatedAt);
   if (newestPendingMs && newestPendingMs > decidedMs) return null;
-  if (decidedMs < toMs(inclusion.suggestionSentAt)) return null;
+  if (decidedMs < decisionFloorMs(inclusion)) return null;
   return {
     requestId: best.id,
     requestType: best.requestType as ChangeRequestType,
@@ -284,6 +322,92 @@ function pickLastDecision(
     byName: best.reviewedByName ?? null,
     at: toIso(best.reviewedAt ?? best.updatedAt),
   };
+}
+
+// ── Decisão do aprovador sobre a VAGA (team_inclusion_logs) ──────────────────
+// Aprovar/reprovar/devolver a vaga validada NÃO cria um `scaling_change_request`
+// — o autor, o comentário e o instante ficam só no log da inclusão. Estas duas
+// funções (escrita e leitura) são o par que mantém o comentário recuperável.
+
+/** Marca que separa o texto fixo do log do comentário do aprovador. */
+const LOG_COMMENT_MARK = ". Comentário: ";
+
+/** `details` do log: texto fixo + comentário do aprovador (quando houver). */
+function detailsWithComment(detail: string, comment: string | null): string {
+  return comment ? `${detail}${LOG_COMMENT_MARK}${comment}` : detail;
+}
+
+/** Volta do `details` só o comentário do aprovador (null quando não há). */
+export function commentFromLogDetails(details: string | null | undefined): string | null {
+  if (!details) return null;
+  const at = details.indexOf(LOG_COMMENT_MARK);
+  if (at < 0) return null;
+  // O próprio comentário pode conter a marca: fica tudo depois da PRIMEIRA.
+  return details.slice(at + LOG_COMMENT_MARK.length).trim() || null;
+}
+
+/** Ação do log → decisão da vaga exposta pela API. */
+const VAGA_DECISION_BY_LOG_ACTION = {
+  suggestion_approved: "aprovada",
+  suggestion_rejected: "reprovada",
+  suggestion_returned: "devolvida",
+} as const satisfies Record<string, VagaDecisionResult>;
+type VagaDecisionLogAction = keyof typeof VAGA_DECISION_BY_LOG_ACTION;
+export const VAGA_DECISION_LOG_ACTIONS = Object.keys(VAGA_DECISION_BY_LOG_ACTION) as VagaDecisionLogAction[];
+
+/**
+ * Folga entre o relógio da aplicação (`suggestionSentAt`, um `new Date()` do
+ * Node) e o do banco (`team_inclusion_logs.createdAt`, `defaultNow()`).
+ *
+ * A DEVOLUÇÃO grava as duas coisas no mesmo instante lógico — o handler reseta
+ * `suggestionSentAt = now` e logo em seguida insere o log. Comparar ">= sem
+ * folga" é o que `pickLastDecision` faz (lá os dois carimbos saem do MESMO
+ * objeto Date, então milissegundos iguais bastam); aqui os carimbos vêm de
+ * relógios diferentes e um log alguns milissegundos "anterior" ao reset
+ * esconderia justamente o aviso da devolução.
+ */
+export const VAGA_DECISION_SKEW_MS = 2_000;
+
+/** O mínimo que `pickLastVagaDecision` precisa saber do log. */
+export type VagaDecisionLog = Pick<TeamInclusionLog, "teamInclusionId" | "action" | "details" | "userName" | "createdAt">;
+
+/**
+ * Última decisão do aprovador sobre a VAGA que ainda EXPLICA o estado atual:
+ * o log `suggestion_approved` / `suggestion_rejected` / `suggestion_returned`
+ * mais recente da inclusão, desde que igual ou posterior ao piso de
+ * `decisionFloorMs` (o mesmo de `pickLastDecision`), com a folga de relógio de
+ * `VAGA_DECISION_SKEW_MS`.
+ *
+ * O piso é o que faz a devolução SUMIR quando a área revalida: sem ele, a linha
+ * mostrava ao mesmo tempo "Validada pela área — aguardando aprovação" e
+ * "Devolvida pelo aprovador", porque `/validate` não reseta `suggestionSentAt`.
+ */
+export function pickLastVagaDecision(
+  inclusion: Pick<InclusionIdentity, "id" | "suggestionSentAt"> & {
+    status?: string | null;
+    validatedAt?: Date | string | null;
+  },
+  logs: VagaDecisionLog[],
+): LastVagaDecisionInfo | null {
+  const floorMs = decisionFloorMs(inclusion);
+  let best: LastVagaDecisionInfo | null = null;
+  let bestMs = -1;
+  for (const log of logs) {
+    if (log.teamInclusionId !== inclusion.id) continue;
+    const action = VAGA_DECISION_BY_LOG_ACTION[log.action as VagaDecisionLogAction];
+    if (!action) continue;
+    const ms = toMs(log.createdAt);
+    if (ms + VAGA_DECISION_SKEW_MS < floorMs) continue;
+    if (ms <= bestMs) continue;
+    bestMs = ms;
+    best = {
+      action,
+      comment: commentFromLogDetails(log.details),
+      byName: log.userName ?? null,
+      at: toIso(log.createdAt),
+    };
+  }
+  return best;
 }
 
 // ── Schemas dos bodies ───────────────────────────────────────────────────────
@@ -329,6 +453,16 @@ const reviewSchema = z.object({
 });
 
 const optionalCommentSchema = z.object({ comment: z.string().trim().optional() });
+/** Decisões que devolvem/reprovam a vaga precisam explicar o porquê para a área. */
+const requiredCommentSchema = z.object({ comment: z.string().trim().min(1, "Informe um comentário para a área") });
+/** Lote de aprovação do aprovador. Aceita `ids` (contrato) ou `inclusionIds` (mesmo shape do /validate). */
+const approveBatchSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, "Informe ao menos uma vaga").optional(),
+  inclusionIds: z.array(z.string().min(1)).min(1, "Informe ao menos uma vaga").optional(),
+}).refine((b) => (b.ids ?? b.inclusionIds ?? []).length > 0, { message: "Informe ao menos uma vaga" });
+
+/** Vaga já validada pela área mudou de estado entre a leitura e a decisão → 409. */
+const VAGA_STATE_CHANGED = "A vaga não está mais aguardando aprovação — recarregue a lista";
 
 // ── Registro das rotas ───────────────────────────────────────────────────────
 export function registerScalingValidationRoutes(app: Express, deps: ScalingValidationDeps) {
@@ -418,11 +552,16 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
   // GET /api/scaling-suggestions?eventId= — sugestões ativas do evento (todas
   // as áreas). Qualquer usuário logado pode ver. Cada linha traz:
   //  - canEdit: admin ou VALIDADOR da função (pode validar / pedir ajuste);
-  //  - canDecide: admin ou APROVADOR da função (bypass / "vagas paradas");
+  //  - canDecide: admin ou APROVADOR da função — aprovar/reprovar/devolver a
+  //    vaga já validada (sugestao_validada) e o bypass das "vagas paradas"
+  //    (sugestao_pendente). A lista inclui as VALIDADAS: só as NEGADAS saem.
   //  - daysPending: dias desde suggestionSentAt (reinicia a cada reenvio);
   //  - pendingRequest: pedido pendente da vaga (ou null);
-  //  - lastDecision: última decisão do aprovador que explica o estado atual
-  //    (vaga devolvida/negada) — LastDecisionInfo | null.
+  //  - lastDecision: última decisão do aprovador sobre um PEDIDO que explica o
+  //    estado atual (vaga devolvida/negada) — LastDecisionInfo | null;
+  //  - lastVagaDecision: última decisão do aprovador sobre a VAGA em si
+  //    (aprovar/reprovar/devolver, que não criam pedido), lida de
+  //    team_inclusion_logs — LastVagaDecisionInfo | null.
   app.get("/api/scaling-suggestions", async (req, res) => {
     const actor = await getActor(req, res);
     if (!actor) return;
@@ -450,8 +589,21 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       const now = new Date();
       // Lista ATIVA: vagas negadas (reprovar_bypass / exclusão aprovada) ficam
       // só no histórico (event-view) — aqui não têm ação possível.
-      const result = rows
-        .filter((i) => i.status !== SUGESTAO_STATUS.NEGADA)
+      const active = rows.filter((i) => i.status !== SUGESTAO_STATUS.NEGADA);
+
+      // Decisão do aprovador sobre a VAGA (devolver/reprovar/aprovar não criam
+      // pedido): UMA leitura dos logs de todas as vagas da lista, agrupada em
+      // memória — nunca um SELECT por linha.
+      const vagaLogs = await storage.getTeamInclusionLogsByInclusionIds(
+        active.map((i) => i.id), VAGA_DECISION_LOG_ACTIONS,
+      );
+      const logsByInclusion = new Map<string, VagaDecisionLog[]>();
+      for (const log of vagaLogs) {
+        const list = logsByInclusion.get(log.teamInclusionId);
+        if (list) list.push(log); else logsByInclusion.set(log.teamInclusionId, [log]);
+      }
+
+      const result = active
         .map((i) => ({
           ...i,
           canEdit: admin || validates.has(i.functionId),
@@ -460,6 +612,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           daysPending: daysPending(i.suggestionSentAt, now),
           pendingRequest: pendingByInclusion.get(i.id) ?? null,
           lastDecision: pickLastDecision(i, requests),
+          lastVagaDecision: pickLastVagaDecision(i, logsByInclusion.get(i.id) ?? []),
         }));
       res.set("Cache-Control", "no-store");
       res.json(result);
@@ -469,7 +622,8 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
   });
 
   // POST /api/scaling-suggestions/validate — validador da função (ou admin)
-  // valida vagas em lote. Sem pedido → vira Inclusão (inclusao/planejado).
+  // valida vagas em lote. A validação é o PRIMEIRO passo: a vaga vai para
+  // 'sugestao_validada' e fica AGUARDANDO O APROVADOR (PATCH /:id/aprovar).
   app.post("/api/scaling-suggestions/validate", async (req, res) => {
     const actor = await getActor(req, res);
     if (!actor) return;
@@ -501,10 +655,10 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
 
       // 2) Gravação: UM update (inArray) + logs numa única transação. "validar"
       // só é válido a partir de sugestao_pendente e leva sempre a
-      // inclusao/planejado — o patch é o mesmo para todas as vagas.
+      // sugestao/sugestao_validada — o patch é o mesmo para todas as vagas.
       let updated: TeamInclusion[] = [];
       if (candidates.length > 0) {
-        const next = toInclusaoState();
+        const next = rule(() => nextSuggestionState({ phase: SUGESTAO_PHASE, status: SUGESTAO_STATUS.PENDENTE }, "validar"));
         updated = await storage.validateScalingSuggestionsBatch(
           candidates.map((c) => c.id),
           { phase: next.phase, status: next.status, validatedAt: now, validatedBy: actor.id, updatedBy: actor.id },
@@ -512,7 +666,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           (row) => ({
             teamInclusionId: row.id,
             action: "suggestion_validated",
-            details: "Vaga validada pela área — virou Inclusão (aguardando escalação)",
+            details: "Vaga validada pela área — segue para aprovação do aprovador",
             previousValue: `${SUGESTAO_PHASE}/${SUGESTAO_STATUS.PENDENTE}`,
             newValue: stateLabel(row),
             userId: actor.id,
@@ -540,6 +694,195 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       res.json({ ok, skipped });
     } catch (error) {
       sendError(res, error, "erro ao validar", "Erro ao validar vagas");
+    }
+  });
+
+  // ── Decisão do APROVADOR sobre a vaga JÁ VALIDADA pela área ────────────────
+  // Segundo (e último) passo do fluxo: sugestão → validação da área → APROVAÇÃO
+  // → Inclusão de Equipe. Mesma autorização do bypass: admin ou `aprovador` da
+  // função. O bypass continua existindo, mas SÓ para vaga que a área nunca
+  // validou (sugestao_pendente) — aqui o caminho é aprovar/reprovar/devolver.
+  type VagaDecision = "aprovar" | "reprovar" | "devolver";
+  const VAGA_DECISION_ACTION: Record<VagaDecision, SuggestionAction> = {
+    aprovar: "aprovar_vaga",
+    reprovar: "reprovar_vaga",
+    devolver: "devolver_validacao",
+  };
+  // `action` é a chave lida de volta por `pickLastVagaDecision` (o tipo amarra
+  // as duas pontas: mudar aqui sem mudar lá não compila).
+  const VAGA_DECISION_LOG: Record<VagaDecision, { action: VagaDecisionLogAction; detail: string; message: string }> = {
+    aprovar: {
+      action: "suggestion_approved",
+      detail: "Vaga aprovada pelo aprovador após validação da área — virou Inclusão",
+      message: "Vaga aprovada",
+    },
+    reprovar: {
+      action: "suggestion_rejected",
+      detail: "Vaga reprovada pelo aprovador após validação da área — fica registrada como negada",
+      message: "Vaga reprovada",
+    },
+    devolver: {
+      action: "suggestion_returned",
+      detail: "Vaga devolvida pelo aprovador para nova validação da área",
+      message: "Vaga devolvida para validação da área",
+    },
+  };
+
+  /**
+   * Carrega a vaga em `sugestao_validada` e checa que o ator é aprovador da
+   * função (ou admin). 404 vaga inexistente/excluída; 409 quando ela não está
+   * mais aguardando aprovação (já virou Inclusão, foi devolvida, ganhou pedido
+   * pendente…); 403 sem permissão.
+   */
+  async function loadValidatedForApprover(res: Response, actor: User, id: string): Promise<TeamInclusion | null> {
+    const inclusion = await storage.getTeamInclusion(id);
+    if (!inclusion || inclusion.deletedAt) { res.status(404).json({ message: "Vaga não encontrada" }); return null; }
+    if (!isSuggestionInclusion(inclusion) || inclusion.status !== SUGESTAO_STATUS.VALIDADA) {
+      res.status(409).json({ message: VAGA_STATE_CHANGED }); return null;
+    }
+    const role = await roleFor(inclusion.functionId, actor.id);
+    if (!canApproveRequest(role, isAdmin(actor))) {
+      res.status(403).json({ message: "Apenas o aprovador da função (ou admin) pode decidir a vaga validada" });
+      return null;
+    }
+    return inclusion;
+  }
+
+  /**
+   * Patch da decisão. `aprovar` carimba validatedAt/By quando ausentes (mesmo
+   * que a aprovação de pedido/bypass já fazia); `devolver` RESETA
+   * suggestionSentAt para agora — o contador de atraso da área recomeça na
+   * devolução, igual ao reenvio de pedido.
+   */
+  function vagaDecisionPatch(
+    kind: VagaDecision, inclusion: TeamInclusion, next: { phase: string; status: string }, actor: User, now: Date,
+  ): Partial<InsertTeamInclusion> {
+    const patch: Partial<InsertTeamInclusion> = { phase: next.phase, status: next.status, updatedBy: actor.id };
+    if (kind === "aprovar") {
+      patch.validatedAt = inclusion.validatedAt ?? now;
+      patch.validatedBy = inclusion.validatedBy ?? actor.id;
+    }
+    if (kind === "devolver") patch.suggestionSentAt = now;
+    return patch;
+  }
+
+  // PATCH /api/scaling-suggestions/:id/aprovar   body { comment? }
+  // PATCH /api/scaling-suggestions/:id/reprovar  body { comment }  (obrigatório)
+  // PATCH /api/scaling-suggestions/:id/devolver  body { comment }  (obrigatório)
+  const vagaDecisionHandler = (kind: VagaDecision) => async (req: Request, res: Response) => {
+    const actor = await getActor(req, res);
+    if (!actor) return;
+    try {
+      const parsedBody = (kind === "aprovar" ? optionalCommentSchema : requiredCommentSchema).safeParse(req.body ?? {});
+      if (!parsedBody.success) {
+        return res.status(400).json({ message: parsedBody.error.issues[0]?.message ?? "Dados inválidos" });
+      }
+      const comment = parsedBody.data.comment?.trim() || null;
+
+      const inclusion = await loadValidatedForApprover(res, actor, req.params.id);
+      if (!inclusion) return;
+
+      const next = rule(() => nextSuggestionState(inclusion, VAGA_DECISION_ACTION[kind]));
+      const now = new Date();
+      const updated = await storage.updateTeamInclusion(
+        inclusion.id, vagaDecisionPatch(kind, inclusion, next, actor, now),
+      );
+      const { action, detail, message } = VAGA_DECISION_LOG[kind];
+      await inclusionLog(
+        inclusion.id, action, detailsWithComment(detail, comment),
+        stateLabel(inclusion), stateLabel(updated), actor,
+      );
+      await createAuditLog(action, "team_inclusion", inclusion.id, { ...updated, reviewComment: comment }, actor.id, actor.name, inclusion, req);
+      res.json({ message, inclusion: updated });
+    } catch (error) {
+      sendError(res, error, `erro ao ${kind} vaga validada`, `Erro ao ${kind} a vaga`);
+    }
+  };
+  app.patch("/api/scaling-suggestions/:id/aprovar", vagaDecisionHandler("aprovar"));
+  app.patch("/api/scaling-suggestions/:id/reprovar", vagaDecisionHandler("reprovar"));
+  app.patch("/api/scaling-suggestions/:id/devolver", vagaDecisionHandler("devolver"));
+
+  // POST /api/scaling-suggestions/aprovar-lote — body { ids: string[] }
+  // Aprovação EM LOTE das vagas validadas, reaproveitando a mesma transação
+  // guardada do /validate (UPDATE único por inArray + logs). Vaga que mudou de
+  // estado entre a leitura e a gravação não volta no RETURNING e entra em
+  // `skipped` — nunca vira erro do lote inteiro.
+  app.post("/api/scaling-suggestions/aprovar-lote", async (req, res) => {
+    const actor = await getActor(req, res);
+    if (!actor) return;
+    const parsed = approveBatchSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json({ message: "Dados inválidos", errors: parsed.error.flatten() });
+    try {
+      const admin = isAdmin(actor);
+      const ok: string[] = [];
+      const skipped: { id: string; reason: string }[] = [];
+      const now = new Date();
+
+      // 1) Leitura em lote + checagens (permissão / estado) — nada gravado ainda.
+      const ids = Array.from(new Set(parsed.data.ids ?? parsed.data.inclusionIds ?? []));
+      const byId = new Map((await storage.getTeamInclusionsByIds(ids)).map((i) => [i.id, i]));
+      const roleCache = new Map<string, FunctionManagerRole | null>();
+      const candidates: TeamInclusion[] = [];
+      for (const id of ids) {
+        const inclusion = byId.get(id);
+        if (!inclusion || inclusion.deletedAt) { skipped.push({ id, reason: "Vaga não encontrada" }); continue; }
+        if (!isSuggestionInclusion(inclusion)) { skipped.push({ id, reason: "Vaga não está em validação" }); continue; }
+        if (!roleCache.has(inclusion.functionId)) roleCache.set(inclusion.functionId, await roleFor(inclusion.functionId, actor.id));
+        if (!canApproveRequest(roleCache.get(inclusion.functionId), admin)) {
+          skipped.push({ id, reason: "Sem permissão para aprovar esta função" }); continue;
+        }
+        try { nextSuggestionState(inclusion, "aprovar_vaga"); }
+        catch (e) { skipped.push({ id, reason: e instanceof Error ? e.message : String(e) }); continue; }
+        candidates.push(inclusion);
+      }
+
+      // 2) Gravação. `aprovar_vaga` só é válido a partir de sugestao_validada e
+      // leva sempre a inclusao/planejado, então o patch é o mesmo — exceto pelo
+      // carimbo validatedAt/By, que só entra nas vagas que ainda não o têm
+      // (um patch por grupo; no máximo duas transações).
+      const next = rule(() => nextSuggestionState(
+        { phase: SUGESTAO_PHASE, status: SUGESTAO_STATUS.VALIDADA }, "aprovar_vaga",
+      ));
+      const base = { phase: next.phase, status: next.status, updatedBy: actor.id };
+      const updated: TeamInclusion[] = [];
+      for (const stampValidated of [false, true]) {
+        const rows = candidates.filter((c) => Boolean(c.validatedAt) === !stampValidated);
+        if (rows.length === 0) continue;
+        const batch = await storage.validateScalingSuggestionsBatch(
+          rows.map((r) => r.id),
+          stampValidated ? { ...base, validatedAt: now, validatedBy: actor.id } : base,
+          { phase: SUGESTAO_PHASE, status: SUGESTAO_STATUS.VALIDADA },
+          (row) => ({
+            teamInclusionId: row.id,
+            action: VAGA_DECISION_LOG.aprovar.action,
+            details: VAGA_DECISION_LOG.aprovar.detail,
+            previousValue: `${SUGESTAO_PHASE}/${SUGESTAO_STATUS.VALIDADA}`,
+            newValue: stateLabel(row),
+            userId: actor.id,
+            userName: actor.name ?? "Usuário",
+          }),
+        );
+        updated.push(...batch);
+      }
+      const updatedIds = new Set(updated.map((u) => u.id));
+      for (const c of candidates) {
+        if (!updatedIds.has(c.id)) skipped.push({ id: c.id, reason: VAGA_STATE_CHANGED });
+      }
+
+      // 3) Auditoria fora da transação: as vagas JÁ estão aprovadas e commitadas,
+      // uma falha aqui não pode virar 500 com `ok` vazio (o usuário reenviaria e
+      // veria tudo como "mudou de estado"). Loga e segue.
+      for (const row of updated) {
+        ok.push(row.id);
+        try {
+          await createAuditLog(VAGA_DECISION_LOG.aprovar.action, "team_inclusion", row.id, row, actor.id, actor.name, byId.get(row.id), req);
+        } catch (auditError) {
+          console.error(`[Validação de Escala] falha ao auditar aprovação da vaga ${row.id}:`, auditError);
+        }
+      }
+      res.json({ ok, skipped });
+    } catch (error) {
+      sendError(res, error, "erro ao aprovar em lote", "Erro ao aprovar vagas");
     }
   });
 
@@ -910,7 +1253,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         const detail = kind === "reajustar"
           ? (then === "reenviar_validacao" ? "Pedido reajustado pelo aprovador — vaga devolvida para validação da área" : "Pedido reajustado e aprovado direto pelo aprovador — vaga virou Inclusão")
           : (then === "reenviar_validacao" ? "Pedido negado pelo aprovador — vaga devolvida para validação da área" : "Pedido negado e vaga aprovada direto como estava — virou Inclusão");
-        await inclusionLog(inclusion.id, `change_request_${kind}`, `${detail}. Comentário: ${comment}`, stateLabel(inclusion), stateLabel(updated), actor);
+        await inclusionLog(inclusion.id, `change_request_${kind}`, detailsWithComment(detail, comment), stateLabel(inclusion), stateLabel(updated), actor);
         await createAuditLog(`change_request_${kind}`, "team_inclusion", inclusion.id, updated, actor.id, actor.name, inclusion, req);
         inclusionResult = updated;
       }
@@ -948,7 +1291,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       const detail = kind === "approve"
         ? "Vaga aprovada direto pelo aprovador (sem validação da área) — virou Inclusão"
         : "Vaga reprovada pelo aprovador (sem validação da área) — fica registrada como negada";
-      await inclusionLog(inclusion.id, `suggestion_bypass_${kind}`, comment ? `${detail}. Comentário: ${comment}` : detail, stateLabel(inclusion), stateLabel(updated), actor);
+      await inclusionLog(inclusion.id, `suggestion_bypass_${kind}`, detailsWithComment(detail, comment), stateLabel(inclusion), stateLabel(updated), actor);
       await createAuditLog(`suggestion_bypass_${kind}`, "team_inclusion", inclusion.id, updated, actor.id, actor.name, inclusion, req);
       res.json({ message: kind === "approve" ? "Vaga aprovada" : "Vaga reprovada", inclusion: updated });
     } catch (error) {

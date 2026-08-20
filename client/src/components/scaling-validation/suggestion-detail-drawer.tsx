@@ -8,7 +8,7 @@ import { cn, formatDiarias } from "@/lib/utils";
 import type { Event } from "@shared/schema";
 import { CHANGE_REQUEST_TYPE_LABELS, type ChangeRequestType } from "@shared/scaling-validation-rules";
 import { StatusCell, legLabel, periodLabel } from "./suggestions-list";
-import { DECISION_TONE_CLASS, TEAM_INCLUSIONS_QUERY_KEY, describeLastDecision, workDaysOf, type InclusionLog, type SuggestionRow } from "./types";
+import { DECISION_TONE_CLASS, TEAM_INCLUSIONS_QUERY_KEY, describeLastDecision, describeVagaDecision, workDaysOf, type InclusionLog, type SuggestionRow } from "./types";
 
 interface SuggestionDetailDrawerProps {
   open: boolean;
@@ -16,6 +16,8 @@ interface SuggestionDetailDrawerProps {
   row: SuggestionRow | null;
   functionName?: string;
   event?: Event;
+  /** Aprovador(es) da função — mesmo contrato do StatusCell (undefined = a tela não sabe). */
+  approverNames?: string[];
 }
 
 const SECTION = "text-[11px] font-bold uppercase tracking-wide text-slate-500";
@@ -37,7 +39,7 @@ function Field({ label, children, className }: { label: string; children: React.
 }
 
 /** Drawer lateral com o detalhe completo de uma vaga sugerida (leitura). */
-export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, event }: SuggestionDetailDrawerProps) {
+export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, event, approverNames }: SuggestionDetailDrawerProps) {
   const logsQuery = useQuery<InclusionLog[]>({
     queryKey: [TEAM_INCLUSIONS_QUERY_KEY, row?.id, "logs"],
     queryFn: async () => (await apiRequest("GET", `${TEAM_INCLUSIONS_QUERY_KEY}/${row!.id}/logs`)).json(),
@@ -47,6 +49,7 @@ export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, 
 
   const days = row ? workDaysOf(row) : [];
   const decision = row ? describeLastDecision(row.lastDecision) : null;
+  const vagaDecision = row ? describeVagaDecision(row.lastVagaDecision) : null;
   const pending = row?.pendingRequest ?? null;
 
   return (
@@ -63,7 +66,7 @@ export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, 
                 {event?.name ?? "Evento"}{row.area ? ` · ${row.area}` : ""}
                 {row.canEdit ? " · você valida esta função" : " · somente leitura"}
               </SheetDescription>
-              <StatusCell row={row} />
+              <StatusCell row={row} approverNames={approverNames} />
             </SheetHeader>
 
             <div className="flex-1 overflow-y-auto">
@@ -76,6 +79,17 @@ export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, 
                     </p>
                     <p className="text-sm text-slate-800 whitespace-pre-wrap">{row.lastDecision.comment?.trim() ? row.lastDecision.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}</p>
                     <p className="text-[11px] text-slate-600">{row.lastDecision.byName ?? "Aprovador"} · {fmtDateTime(row.lastDecision.at)}</p>
+                  </section>
+                )}
+
+                {/* Decisão do aprovador sobre a VAGA (devolvida/reprovada/aprovada) */}
+                {row.lastVagaDecision && vagaDecision && (
+                  <section aria-labelledby="det-decisao-vaga" className={cn("rounded-xl border px-3 py-2.5 space-y-1", DECISION_TONE_CLASS[vagaDecision.tone])}>
+                    <p id="det-decisao-vaga" className="text-[11px] font-bold uppercase tracking-wide inline-flex items-center gap-1">
+                      <Undo2 className="w-3.5 h-3.5" aria-hidden="true" /> {vagaDecision.title}
+                    </p>
+                    <p className="text-sm text-slate-800 whitespace-pre-wrap">{row.lastVagaDecision.comment?.trim() ? row.lastVagaDecision.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}</p>
+                    <p className="text-[11px] text-slate-600">{row.lastVagaDecision.byName ?? "Aprovador"} · {fmtDateTime(row.lastVagaDecision.at)}</p>
                   </section>
                 )}
 

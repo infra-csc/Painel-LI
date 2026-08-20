@@ -82,7 +82,7 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                       <span className="font-mono tabular-nums text-slate-700">{periodLabel(row)}</span>
                       <span className="ml-1.5 text-slate-400">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
                     </td>
-                    <td className="px-3 py-2"><PendingDaysBadge days={row.daysPending} status={row.status} /></td>
+                    <td className="px-3 py-2"><PendingDaysBadge row={row} /></td>
                     <td className="px-3 py-2">
                       {canAct ? (
                         <div className="flex items-center justify-end gap-1.5">

@@ -110,7 +110,7 @@ function fmtDateTime(v: string | Date | null | undefined): string {
  * então todas as linhas ficam na cor normal.
  */
 function toViewRow(row: ApiViewRow): EventViewRow {
-  return { ...row, canEdit: true, canDecide: false, daysPending: 0, pendingRequest: null, lastDecision: null };
+  return { ...row, canEdit: true, canDecide: false, daysPending: 0, pendingRequest: null, lastDecision: null, lastVagaDecision: null };
 }
 
 /** Slug ASCII p/ nome de arquivo. */
@@ -215,10 +215,18 @@ export default function ScalingEventViewPage() {
       emInclusao: by(IN_INCLUSION),
     };
   }, [liveRows]);
-  const KPIS: { key: string; label: string; n: number; cls: string }[] = [
+  const KPIS: { key: string; label: string; n: number; cls: string; hint?: string }[] = [
     { key: ALL, label: "Vagas", n: counts.total, cls: "text-slate-800" },
     { key: SUGESTAO_STATUS.PENDENTE, label: "Pendentes", n: counts.pendentes, cls: "text-amber-700" },
-    { key: SUGESTAO_STATUS.VALIDADA, label: "Validadas pela área", n: counts.validadas, cls: "text-sky-700" },
+    // Validar não aprova (regra de 19/08): a vaga validada pela área fica parada
+    // aguardando o aprovador — o rótulo mostra o que está travando, não o que já passou.
+    {
+      key: SUGESTAO_STATUS.VALIDADA,
+      label: "Aguardando aprovação",
+      n: counts.validadas,
+      cls: "text-sky-700",
+      hint: "Validadas pela área e aguardando a decisão do aprovador — clique para filtrar a Lista",
+    },
     { key: SUGESTAO_STATUS.AJUSTE, label: "Com pedido", n: counts.comPedido, cls: "text-violet-700" },
     { key: SUGESTAO_STATUS.APROVADA, label: "Aprovadas", n: counts.aprovadas, cls: "text-emerald-700" },
     { key: SUGESTAO_STATUS.NEGADA, label: "Negadas", n: counts.negadas, cls: "text-slate-500" },
@@ -358,7 +366,7 @@ export default function ScalingEventViewPage() {
                       type="button"
                       onClick={() => onKpiClick(k.key)}
                       aria-pressed={k.key === ALL ? undefined : active}
-                      title={k.key === ALL ? "Limpar filtro de origem/status" : active ? "Clique para limpar o filtro" : `Filtrar a Lista por "${k.label}"`}
+                      title={k.key === ALL ? "Limpar filtro de origem/status" : active ? "Clique para limpar o filtro" : k.hint ?? `Filtrar a Lista por "${k.label}"`}
                       className={cn(
                         "rounded-xl border px-2 py-2 text-left sm:text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
                         active && k.key !== ALL ? "border-primary/40 bg-brand-soft" : "border-slate-100 bg-slate-50/60 hover:border-slate-300 hover:bg-white",

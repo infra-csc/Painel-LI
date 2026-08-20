@@ -3,8 +3,11 @@ import { useToast } from "@/hooks/use-toast";
 import type { ToastActionElement } from "@/components/ui/toast";
 import { apiRequest } from "@/lib/queryClient";
 import { apiErrorMessage } from "@/lib/utils";
-import type { ApiError } from "@/components/scaling-validation/types";
-import { APPROVAL_QUERY_KEYS, type RequestType, type ReviewBody } from "./types";
+import type { ApiError, ValidateResult } from "@/components/scaling-validation/types";
+import { APPROVAL_QUERY_KEYS, type RequestType, type ReviewBody, type VagaDecisionKind } from "./types";
+
+/** { ok, skipped } — mesmo formato do /validate e do /aprovar-lote. */
+type BatchResult = ValidateResult;
 
 type ReviewRequestType = RequestType | string;
 
@@ -47,6 +50,17 @@ export function reviewOutcomeMessage(kind: "reajustar" | "negar", then: ReviewBo
  */
 const STALE_STATUSES = new Set([404, 409]);
 
+/**
+ * O erro é do tipo "o item mudou por baixo" (404/409)? Quem chama `mutateAsync`
+ * e mantém um diálogo aberto no erro precisa da MESMA regra: só nesses casos o
+ * diálogo deve fechar (a vaga/pedido não existe mais como você viu); em 400/5xx
+ * ele fica aberto com o que o usuário digitou.
+ */
+export function isStaleDecisionError(err: unknown): boolean {
+  const status = (err as ApiError | null)?.status;
+  return status !== undefined && STALE_STATUSES.has(status);
+}
+
 interface DecisionOptions {
   /** Chamado após sucesso de aprovar/reajustar/negar (fechar Sheet/diálogos). */
   onSettledRequest?: () => void;
@@ -80,7 +94,7 @@ export function useDecisionMutations(opts: DecisionOptions = {}) {
   const fail = (title: string) => (err: ApiError) => {
     const status = err?.status;
 
-    if (status !== undefined && STALE_STATUSES.has(status)) {
+    if (isStaleDecisionError(err)) {
       // Item já decidido/alterado por outra pessoa: avisa, recarrega e fecha o que estiver aberto.
       toast({
         title,
@@ -127,6 +141,50 @@ export function useDecisionMutations(opts: DecisionOptions = {}) {
     onError: (err: ApiError, vars) => fail(vars.kind === "reajustar" ? "Não foi possível reajustar o pedido" : "Não foi possível negar o pedido")(err),
   });
 
+  /**
+   * Aprovação EM LOTE das vagas já validadas pela área
+   * (POST /api/scaling-suggestions/aprovar-lote). O servidor nunca falha o lote
+   * inteiro: o que não deu certo volta em `skipped` — dois toasts, como no
+   * "validar em massa" da Validação de Escala.
+   */
+  const approveVagas = useMutation({
+    mutationFn: async (vars: { ids: string[] }) =>
+      (await apiRequest("POST", `${APPROVAL_QUERY_KEYS.suggestions}/aprovar-lote`, { ids: vars.ids })).json() as Promise<BatchResult>,
+    onSuccess: (res) => {
+      invalidateAll();
+      const okN = res.ok?.length ?? 0;
+      const skipped = res.skipped ?? [];
+      if (okN > 0) {
+        toast({ title: `${okN} vaga(s) aprovada(s)`, description: "Viraram Inclusão de Equipe e seguem para a escalação." });
+      }
+      if (skipped.length > 0) {
+        const reasons = Array.from(new Set(skipped.map((s) => s.reason))).slice(0, 3).join(" · ");
+        toast({ title: `${skipped.length} vaga(s) não aprovada(s)`, description: reasons, variant: "destructive" });
+      }
+    },
+    onError: fail("Não foi possível aprovar as vagas"),
+  });
+
+  /**
+   * Reprovar / devolver a vaga validada — uma por vez, comentário obrigatório
+   * (PATCH /api/scaling-suggestions/:id/reprovar | /devolver).
+   */
+  const decideVaga = useMutation({
+    mutationFn: async (vars: { inclusionId: string; kind: VagaDecisionKind; comment: string }) =>
+      (await apiRequest("PATCH", `${APPROVAL_QUERY_KEYS.suggestions}/${vars.inclusionId}/${vars.kind}`, { comment: vars.comment })).json(),
+    onSuccess: (_data, vars) => {
+      invalidateAll();
+      toast({
+        title: vars.kind === "reprovar" ? "Vaga reprovada" : "Vaga devolvida para a área",
+        description: vars.kind === "reprovar"
+          ? "A vaga sai da escala e fica registrada como negada."
+          : "A vaga voltou para a validação da área com o seu comentário.",
+      });
+    },
+    onError: (err: ApiError, vars) =>
+      fail(vars.kind === "reprovar" ? "Não foi possível reprovar a vaga" : "Não foi possível devolver a vaga")(err),
+  });
+
   const bypass = useMutation({
     mutationFn: async (vars: { inclusionId: string; kind: "approve" | "reject"; comment?: string }) =>
       (await apiRequest("PATCH", `${APPROVAL_QUERY_KEYS.suggestions}/${vars.inclusionId}/bypass-${vars.kind}`, vars.comment ? { comment: vars.comment } : {})).json(),
@@ -140,5 +198,5 @@ export function useDecisionMutations(opts: DecisionOptions = {}) {
     onError: (err: ApiError, vars) => fail(vars.kind === "approve" ? "Não foi possível aprovar a vaga" : "Não foi possível reprovar a vaga")(err),
   });
 
-  return { approve, review, bypass, invalidateAll };
+  return { approve, review, approveVagas, decideVaga, bypass, invalidateAll };
 }

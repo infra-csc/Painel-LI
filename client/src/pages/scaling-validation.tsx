@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { CheckCheck, ClipboardCheck, Eye, EyeOff, History, Info, PencilLine, Plus, Search, Trash2, X } from "lucide-react";
+import { CheckCheck, ClipboardCheck, Eye, EyeOff, History, Info, PencilLine, Plus, Search, Trash2, UserX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -35,7 +35,7 @@ import { AdjustRequestDialog, DeleteRequestDialog, IncludeRequestDialog } from "
 import { SuggestionDetailDrawer } from "@/components/scaling-validation/suggestion-detail-drawer";
 import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module-nav";
 import {
-  SUGGESTIONS_QUERY_KEY, canActOn, invalidateScalingQueries, workDaysOf,
+  SUGGESTIONS_QUERY_KEY, canActOn, canValidate, invalidateScalingQueries, workDaysOf,
   type ApiError, type FunctionWithManagers, type SuggestionRow, type ValidateResult,
 } from "@/components/scaling-validation/types";
 
@@ -120,6 +120,25 @@ export default function ScalingValidationPage() {
     return (functions ?? []).filter((f) => ids.has(f.id)).sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
   }, [rows, functions]);
 
+  /**
+   * Aprovador(es) cadastrados por função (/api/functions já traz `managers`).
+   * A área precisa disto por DOIS motivos: dizer no tooltip da vaga validada
+   * quem tem de decidir e — o caso grave — avisar quando NÃO EXISTE aprovador:
+   * a vaga validada some numa fila silenciosa, sem ninguém do outro lado.
+   */
+  const approverNamesByFunctionId = useMemo(
+    () => new Map((functions ?? []).map((f) => [
+      f.id,
+      (f.managers ?? []).filter((m) => m.role === "aprovador").map((m) => m.userName).filter(Boolean),
+    ])),
+    [functions],
+  );
+  /** Funções COM vaga neste evento e SEM nenhum aprovador cadastrado. */
+  const functionsWithoutApprover = useMemo(
+    () => functionsInEvent.filter((f) => (approverNamesByFunctionId.get(f.id) ?? []).length === 0),
+    [functionsInEvent, approverNamesByFunctionId],
+  );
+
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const nameOf = (r: SuggestionRow) => functionNameById.get(r.functionId) ?? "";
@@ -151,14 +170,27 @@ export default function ScalingValidationPage() {
 
   // ── Seleção ──
   // Selecionáveis no evento inteiro (a seleção sobrevive ao filtro) e só as visíveis (para o "selecionar todas").
+  // Inclui as VALIDADAS: elas não podem ser validadas de novo, mas ainda aceitam
+  // pedido de ajuste/exclusão enquanto o aprovador não decidiu (availableSuggestionActions).
   const selectableAll = useMemo(
     () => new Set<string>(readOnlyMode ? [] : rows.filter(canActOn).map((r) => r.id)),
+    [rows, readOnlyMode],
+  );
+  /** Subconjunto que aceita "Validar" agora (vaga ainda pendente) — o resto só aceita pedido. */
+  const validatableAll = useMemo(
+    () => new Set<string>(readOnlyMode ? [] : rows.filter(canValidate).map((r) => r.id)),
     [rows, readOnlyMode],
   );
   const visibleIds = useMemo(() => new Set(filteredRows.map((r) => r.id)), [filteredRows]);
   const selectableVisible = useMemo(() => new Set(filteredRows.filter((r) => selectableAll.has(r.id)).map((r) => r.id)), [filteredRows, selectableAll]);
   const effectiveSelected = useMemo(() => Array.from(selected).filter((id) => selectableAll.has(id)), [selected, selectableAll]);
   const selectedRows = useMemo(() => effectiveSelected.map((id) => rowById.get(id)).filter((r): r is SuggestionRow => !!r), [effectiveSelected, rowById]);
+  /** Selecionadas que ainda dá para validar (as já validadas ficam de fora do lote). */
+  const validatableSelected = useMemo(() => effectiveSelected.filter((id) => validatableAll.has(id)), [effectiveSelected, validatableAll]);
+  const validatableSelectedRows = useMemo(
+    () => validatableSelected.map((id) => rowById.get(id)).filter((r): r is SuggestionRow => !!r),
+    [validatableSelected, rowById],
+  );
   const hiddenSelectedCount = useMemo(() => effectiveSelected.filter((id) => !visibleIds.has(id)).length, [effectiveSelected, visibleIds]);
   const singleSelected = selectedRows.length === 1 ? selectedRows[0] : null;
   // Em modo leitura não há seleção nem barra de ações — nem para o eventual
@@ -191,10 +223,12 @@ export default function ScalingValidationPage() {
   const counts = useMemo(() => ({
     total: rows.length,
     pendentes: rows.filter((r) => r.status === SUGESTAO_STATUS.PENDENTE).length,
+    aguardandoAprovacao: rows.filter((r) => r.status === SUGESTAO_STATUS.VALIDADA).length,
     comPedido: rows.filter((r) => r.status === SUGESTAO_STATUS.AJUSTE).length,
-    minhas: selectableAll.size,
+    // "Minhas pendentes" = o que dá para VALIDAR agora (validadas não entram).
+    minhas: validatableAll.size,
     atrasadas: rows.filter((r) => r.status === SUGESTAO_STATUS.PENDENTE && pendingSeverity(r.daysPending) !== "ok").length,
-  }), [rows, selectableAll]);
+  }), [rows, validatableAll]);
 
   // ── Validar em massa ──
   const validateMutation = useMutation({
@@ -203,13 +237,17 @@ export default function ScalingValidationPage() {
       invalidateScalingQueries(queryClient);
       setSelected(new Set());
       setConfirmValidate(false);
-      // Volta ao topo mantendo filtros (a lista encolhe; o usuário vê o resumo atualizado).
+      // Volta ao topo mantendo filtros: as vagas continuam na lista (agora
+      // "aguardando aprovação") e o resumo do topo é o que muda.
       if (topRef.current) topRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
       else window.scrollTo({ top: 0, behavior: "smooth" });
       const okN = res.ok?.length ?? 0;
       const skipped = res.skipped ?? [];
       if (okN > 0) {
-        toast({ title: `${okN} vaga(s) validada(s)`, description: "Elas viraram Inclusão e seguem para a escalação." });
+        toast({
+          title: `${okN} vaga(s) validada(s)`,
+          description: "Elas seguem para a aprovação e ficam como “Validada pela área — aguardando aprovação”. Enquanto o aprovador não decide, ainda dá para pedir ajuste ou exclusão.",
+        });
       }
       if (skipped.length > 0) {
         const reasons = Array.from(new Set(skipped.map((s) => s.reason))).slice(0, 3).join(" · ");
@@ -241,11 +279,46 @@ export default function ScalingValidationPage() {
       : requestableFunctions.length === 0 ? (isAdmin ? "Nenhuma função cadastrada" : "Você não é validador de nenhuma função")
         : null;
   const nSel = effectiveSelected.length;
+  /** Quantas das selecionadas ainda dá para validar — o botão "Validar" age só sobre estas. */
+  const nVal = validatableSelected.length;
+
+  /**
+   * "Incluir escalação" — a área pode pedir vaga nova a QUALQUER momento, mesmo
+   * com a lista vazia (evento sem sugestões, ou tudo já aprovado). Só depende de
+   * ser validador de alguma função e de ter um evento escolhido; por isso o botão
+   * aparece no cabeçalho E no estado vazio.
+   */
+  const includeButton = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {/* span: botão desabilitado não dispara eventos de hover */}
+        <span tabIndex={includeDisabledReason ? 0 : -1} className="inline-flex">
+          <Button type="button" size="sm" className="rounded-lg bg-primary hover:bg-primary-hover" disabled={!!includeDisabledReason} onClick={() => setIncludeOpen(true)}>
+            <Plus className="w-4 h-4 mr-1.5" /> Incluir escalação
+          </Button>
+        </span>
+      </TooltipTrigger>
+      {includeDisabledReason && <TooltipContent side="bottom" className="text-xs">{includeDisabledReason}</TooltipContent>}
+    </Tooltip>
+  );
+
+  /** Vaga já aprovada saiu da sugestão: quem ajusta é a Escalação (tela 2). */
+  const approvedGoesToScaling = (
+    <p className="text-center text-xs text-slate-500">
+      Vagas já aprovadas saem desta tela e são ajustadas na{" "}
+      {hasPermission(user, "canAccessScreen2")
+        ? <Link href="/scaling" className="text-primary underline-offset-2 hover:underline">Escalação</Link>
+        : <span className="font-semibold">Escalação</span>}.
+    </p>
+  );
 
   const KPI_TOOLTIPS: Record<string, string> = {
-    Atrasadas: `Vagas aguardando há ${STALLED_DAYS} dias ou mais.`,
+    // Só as que dependem da ÁREA: o atraso das validadas é do aprovador e
+    // aparece no badge "aguardando aprovação há N dias" de cada linha.
+    Atrasadas: `Vagas que a área ainda não validou há ${STALLED_DAYS} dias ou mais.`,
     "Minhas pendentes": "Vagas que você pode validar agora (sem pedido pendente).",
     "Com pedido": "Vagas com pedido de ajuste/exclusão aguardando o aprovador.",
+    "Aguardando aprovação": "Vagas que a área já validou e agora aguardam a decisão do aprovador. Enquanto ele não decide, você ainda pode pedir ajuste ou exclusão.",
   };
 
   return (
@@ -259,19 +332,7 @@ export default function ScalingValidationPage() {
           <div className="flex flex-wrap items-center gap-2">
             <ScalingModuleNav current="validation" eventId={eventId} />
             {/* Em modo leitura o botão nem aparece — o banner já explica o porquê. */}
-            {!readOnlyMode && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  {/* span: botão desabilitado não dispara eventos de hover */}
-                  <span tabIndex={includeDisabledReason ? 0 : -1} className="inline-flex">
-                    <Button type="button" size="sm" className="rounded-lg bg-primary hover:bg-primary-hover" disabled={!!includeDisabledReason} onClick={() => setIncludeOpen(true)}>
-                      <Plus className="w-4 h-4 mr-1.5" /> Incluir escalação
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                {includeDisabledReason && <TooltipContent side="bottom" className="text-xs">{includeDisabledReason}</TooltipContent>}
-              </Tooltip>
-            )}
+            {!readOnlyMode && includeButton}
           </div>
         }
       />
@@ -310,10 +371,11 @@ export default function ScalingValidationPage() {
 
       {/* KPIs */}
       {eventId && rows.length > 0 && (
-        <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-center" aria-label="Resumo do evento">
+        <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-center" aria-label="Resumo do evento">
           {[
             ["Vagas", counts.total, ""],
-            ["Aguardando", counts.pendentes, "text-amber-700"],
+            ["Aguardando validação", counts.pendentes, "text-amber-700"],
+            ["Aguardando aprovação", counts.aguardandoAprovacao, "text-sky-700"],
             ["Com pedido", counts.comPedido, "text-violet-700"],
             ["Atrasadas", counts.atrasadas, counts.atrasadas ? "text-red-600" : ""],
             ["Minhas pendentes", counts.minhas, "text-primary"],
@@ -341,6 +403,21 @@ export default function ScalingValidationPage() {
         </dl>
       )}
 
+      {/* Fila silenciosa: validar não adianta se a função não tem aprovador. */}
+      {eventId && rows.length > 0 && functionsWithoutApprover.length > 0 && (
+        <p role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <UserX className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+          <span>
+            <span className="font-semibold">
+              {functionsWithoutApprover.length} {functionsWithoutApprover.length === 1 ? "função sem aprovador cadastrado" : "funções sem aprovador cadastrado"}
+            </span>{" "}
+            ({functionsWithoutApprover.slice(0, 3).map((f) => f.name).join(", ")}
+            {functionsWithoutApprover.length > 3 ? ` e mais ${functionsWithoutApprover.length - 3}` : ""}) — vaga validada nessas funções fica parada, sem ninguém para aprovar.
+            Peça ao administrador para cadastrar um aprovador em <span className="font-semibold">Funções</span>.
+          </span>
+        </p>
+      )}
+
       {!eventId ? (
         <EmptyState title="Selecione um evento" description="A escala sugerida é por evento. Escolha um acima para ver as vagas." />
       ) : suggestionsQuery.isLoading || (loadingFunctions && !functions) ? (
@@ -353,7 +430,12 @@ export default function ScalingValidationPage() {
         </div>
       ) : rows.length === 0 ? (
         <div className="space-y-2">
-          <EmptyState title="Nenhuma vaga sugerida neste evento" description="A logística ainda não enviou a escala sugerida deste evento, ou todas as vagas já foram aprovadas e seguiram para a Inclusão de Equipe." />
+          <EmptyState
+            title="Nenhuma vaga sugerida neste evento"
+            description="A logística ainda não enviou a escala sugerida deste evento, ou todas as vagas já foram aprovadas e seguiram para a Inclusão de Equipe. Você pode pedir a inclusão de uma vaga nova a qualquer momento."
+            action={!readOnlyMode ? includeButton : undefined}
+          />
+          {approvedGoesToScaling}
           {hasPermission(user, "canAccessScalingEventView") && (
             <p className="text-center">
               <Link href={scalingHref("/scaling-event-view", eventId)} className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-primary underline-offset-2 hover:underline">
@@ -410,7 +492,7 @@ export default function ScalingValidationPage() {
                     <Checkbox checked={onlyMine} onCheckedChange={(c) => setOnlyMine(c === true)} /> Só as que posso editar
                   </label>
                 )}
-                {/* Aprovadas viram Inclusão e negadas saem desta lista: o histórico completo fica na tela "Histórico" (barra do módulo, no topo). */}
+                {/* Validadas CONTINUAM na lista (aguardando aprovação); só as aprovadas (viram Inclusão) e as negadas saem — o histórico completo fica na tela "Histórico" (barra do módulo, no topo). */}
               </div>
             </div>
 
@@ -437,8 +519,12 @@ export default function ScalingValidationPage() {
                 onSort={onSort}
                 onOpenDetail={(r) => setDetailId(r.id)}
                 highlightId={pulseId}
+                // Só depois que /api/functions responde: enquanto carrega, a
+                // tela não sabe quem aprova e não pode acusar "sem aprovador".
+                approverNamesFor={functions ? (r) => approverNamesByFunctionId.get(r.functionId) ?? [] : undefined}
               />
             )}
+            {approvedGoesToScaling}
           </TabsContent>
 
           <TabsContent value="escala" className="mt-0">
@@ -478,9 +564,16 @@ export default function ScalingValidationPage() {
             </TooltipTrigger>
             {!singleSelected && <TooltipContent side="top" className="text-xs">Selecione apenas uma vaga para pedir exclusão</TooltipContent>}
           </Tooltip>
-          <Button type="button" size="sm" className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setConfirmValidate(true)} disabled={validateMutation.isPending}>
-            <CheckCheck className="w-4 h-4 mr-1.5" /> Validar ({nSel})
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span tabIndex={nVal > 0 ? -1 : 0} className="inline-flex">
+                <Button type="button" size="sm" className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setConfirmValidate(true)} disabled={nVal === 0 || validateMutation.isPending}>
+                  <CheckCheck className="w-4 h-4 mr-1.5" /> Validar ({nVal})
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {nVal === 0 && <TooltipContent side="top" className="text-xs">{nSel === 1 ? "Esta vaga já foi validada — aguarda o aprovador." : "As vagas selecionadas já foram validadas — aguardam o aprovador."}</TooltipContent>}
+          </Tooltip>
         </div>
       )}
 
@@ -488,26 +581,34 @@ export default function ScalingValidationPage() {
       <AlertDialog open={confirmValidate} onOpenChange={setConfirmValidate}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Validar {nSel} {nSel === 1 ? "vaga" : "vagas"}?</AlertDialogTitle>
+            <AlertDialogTitle>Validar {nVal} {nVal === 1 ? "vaga" : "vagas"}?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
-                <p>Você confirma que a escala sugerida está correta para {nSel === 1 ? "esta vaga" : "estas vagas"}. Elas viram Inclusão (aguardando escalação) imediatamente e saem desta tela. Para mudar algo, use “Pedir ajuste”.</p>
+                <p>
+                  Você confirma que a escala sugerida está correta para {nVal === 1 ? "esta vaga" : "estas vagas"}. As vagas seguem para aprovação e ficam na lista como
+                  “Validada pela área — aguardando aprovação”. Enquanto o aprovador não decide, você ainda pode usar “Pedir ajuste” ou “Pedir exclusão”.
+                </p>
+                {nSel > nVal && (
+                  <p className="text-xs">
+                    {nSel - nVal} das selecionadas {nSel - nVal === 1 ? "já foi validada e não entra" : "já foram validadas e não entram"} neste lote.
+                  </p>
+                )}
                 <ul className="rounded-lg border border-slate-200 bg-slate-50 divide-y divide-slate-100 text-xs text-slate-700">
-                  {selectedRows.slice(0, 5).map((r) => (
+                  {validatableSelectedRows.slice(0, 5).map((r) => (
                     <li key={r.id} className="flex items-center gap-2 px-3 py-1.5">
                       <span className="rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800">#{r.inclusionNumber}</span>
                       <span className="truncate font-semibold">{functionNameById.get(r.functionId) ?? "—"}</span>
                       <span className="ml-auto font-mono text-slate-500 whitespace-nowrap">{periodLabel(r)}</span>
                     </li>
                   ))}
-                  {selectedRows.length > 5 && <li className="px-3 py-1.5 text-slate-500">… e mais {selectedRows.length - 5} {selectedRows.length - 5 === 1 ? "vaga" : "vagas"}</li>}
+                  {validatableSelectedRows.length > 5 && <li className="px-3 py-1.5 text-slate-500">… e mais {validatableSelectedRows.length - 5} {validatableSelectedRows.length - 5 === 1 ? "vaga" : "vagas"}</li>}
                 </ul>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={validateMutation.isPending}>Voltar</AlertDialogCancel>
-            <AlertDialogAction onClick={(e) => { e.preventDefault(); validateMutation.mutate(effectiveSelected); }} disabled={validateMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700">
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); validateMutation.mutate(validatableSelected); }} disabled={nVal === 0 || validateMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700">
               {validateMutation.isPending ? "Validando…" : "Validar"}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -517,7 +618,12 @@ export default function ScalingValidationPage() {
       <AdjustRequestDialog open={adjustOpen} onOpenChange={setAdjustOpen} inclusion={singleSelected} event={selectedEvent} functionName={singleSelected ? functionNameById.get(singleSelected.functionId) : undefined} onSent={onRequestSent} />
       <DeleteRequestDialog open={deleteOpen} onOpenChange={setDeleteOpen} inclusion={singleSelected} functionName={singleSelected ? functionNameById.get(singleSelected.functionId) : undefined} onSent={onRequestSent} />
       <IncludeRequestDialog open={includeOpen} onOpenChange={setIncludeOpen} event={selectedEvent} functions={requestableFunctions} onSent={onRequestSent} />
-      <SuggestionDetailDrawer open={!!detailRow} onOpenChange={(o) => { if (!o) setDetailId(null); }} row={detailRow} event={selectedEvent} functionName={detailRow ? functionNameById.get(detailRow.functionId) : undefined} />
+      <SuggestionDetailDrawer
+        open={!!detailRow} onOpenChange={(o) => { if (!o) setDetailId(null); }}
+        row={detailRow} event={selectedEvent}
+        functionName={detailRow ? functionNameById.get(detailRow.functionId) : undefined}
+        approverNames={functions && detailRow ? approverNamesByFunctionId.get(detailRow.functionId) ?? [] : undefined}
+      />
     </PageContainer>
   );
 }

@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
-  SUGESTAO_PHASE, SUGESTAO_STATUS, SUGGESTION_ACTIONS,
+  SUGESTAO_PHASE, SUGESTAO_STATUS, SUGGESTION_ACTIONS, SUGGESTION_ACTION_LABELS,
   nextSuggestionState, toInclusaoState, isSuggestionInclusion, availableSuggestionActions,
   requestStatusForAction, parseProposedChanges, diffInclusion,
   canValidateInclusion, canApproveRequest, daysPending,
   STALLED_DAYS, DANGER_DAYS, pendingSeverity, describeLastDecision, type LastDecisionInfo,
+  describeVagaDecision, type LastVagaDecisionInfo, daysAwaitingApproval,
 } from "./scaling-validation-rules";
 
 const sug = (status: string) => ({ status, phase: SUGESTAO_PHASE });
@@ -22,11 +23,36 @@ describe("isSuggestionInclusion / toInclusaoState", () => {
 });
 
 describe("nextSuggestionState — transições válidas", () => {
-  it("validar sem pedido vira IMEDIATAMENTE inclusao/planejado", () => {
-    expect(nextSuggestionState(sug(SUGESTAO_STATUS.PENDENTE), "validar")).toEqual(INCLUSAO);
+  it("validar NÃO aprova: para em sugestao_validada aguardando o aprovador", () => {
+    expect(nextSuggestionState(sug(SUGESTAO_STATUS.PENDENTE), "validar")).toEqual(sug(SUGESTAO_STATUS.VALIDADA));
   });
-  it("pedir_ajuste -> sugestao_ajuste", () => {
+  it("aprovar_vaga (aprovador) leva a vaga validada para inclusao/planejado", () => {
+    expect(nextSuggestionState(sug(SUGESTAO_STATUS.VALIDADA), "aprovar_vaga")).toEqual(INCLUSAO);
+  });
+  it("reprovar_vaga -> sugestao_negada (fica registrada)", () => {
+    const r = nextSuggestionState(sug(SUGESTAO_STATUS.VALIDADA), "reprovar_vaga");
+    expect(r).toEqual(sug(SUGESTAO_STATUS.NEGADA));
+    expect(r.phase).toBe("sugestao");
+  });
+  it("devolver_validacao -> volta para sugestao_pendente", () => {
+    expect(nextSuggestionState(sug(SUGESTAO_STATUS.VALIDADA), "devolver_validacao")).toEqual(sug(SUGESTAO_STATUS.PENDENTE));
+  });
+  it("caminho completo: pendente -> validada -> aprovada -> Inclusão", () => {
+    const validada = nextSuggestionState(sug(SUGESTAO_STATUS.PENDENTE), "validar");
+    expect(validada).toEqual(sug(SUGESTAO_STATUS.VALIDADA));
+    expect(nextSuggestionState(validada, "aprovar_vaga")).toEqual(INCLUSAO);
+  });
+  it("devolvida pelo aprovador, a área valida de novo e aí sim vira Inclusão", () => {
+    const validada = nextSuggestionState(sug(SUGESTAO_STATUS.PENDENTE), "validar");
+    const devolvida = nextSuggestionState(validada, "devolver_validacao");
+    expect(devolvida).toEqual(sug(SUGESTAO_STATUS.PENDENTE));
+    const revalidada = nextSuggestionState(devolvida, "validar");
+    expect(revalidada).toEqual(sug(SUGESTAO_STATUS.VALIDADA));
+    expect(nextSuggestionState(revalidada, "aprovar_vaga")).toEqual(INCLUSAO);
+  });
+  it("pedir_ajuste -> sugestao_ajuste, antes E depois de validar", () => {
     expect(nextSuggestionState(sug(SUGESTAO_STATUS.PENDENTE), "pedir_ajuste")).toEqual(sug(SUGESTAO_STATUS.AJUSTE));
+    expect(nextSuggestionState(sug(SUGESTAO_STATUS.VALIDADA), "pedir_ajuste")).toEqual(sug(SUGESTAO_STATUS.AJUSTE));
   });
   it("aprovar_pedido (ajuste/inclusão) aplica e vai para inclusão", () => {
     expect(nextSuggestionState(sug(SUGESTAO_STATUS.AJUSTE), "aprovar_pedido")).toEqual(INCLUSAO);
@@ -52,17 +78,34 @@ describe("nextSuggestionState — transições válidas", () => {
     expect(r).toEqual(sug(SUGESTAO_STATUS.NEGADA));
     expect(r.phase).toBe("sugestao"); // continua na tabela, mesma fase
   });
-  it("ciclo completo: pedir ajuste -> reenviar -> validar", () => {
+  it("ciclo completo: pedir ajuste -> reenviar -> validar -> aprovar", () => {
     const s1 = nextSuggestionState(sug(SUGESTAO_STATUS.PENDENTE), "pedir_ajuste");
     const s2 = nextSuggestionState(s1, "negar_reenviar");
     expect(s2).toEqual(sug(SUGESTAO_STATUS.PENDENTE));
-    expect(nextSuggestionState(s2, "validar")).toEqual(INCLUSAO);
+    const s3 = nextSuggestionState(s2, "validar");
+    expect(s3).toEqual(sug(SUGESTAO_STATUS.VALIDADA));
+    expect(nextSuggestionState(s3, "aprovar_vaga")).toEqual(INCLUSAO);
   });
 });
 
 describe("nextSuggestionState — transições inválidas (erro pt-BR)", () => {
   it("validar quando já está com pedido de ajuste", () => {
     expect(() => nextSuggestionState(sug(SUGESTAO_STATUS.AJUSTE), "validar")).toThrow(/Transição inválida/);
+  });
+  it("a área não valida duas vezes: validar em sugestao_validada é inválido", () => {
+    expect(() => nextSuggestionState(sug(SUGESTAO_STATUS.VALIDADA), "validar")).toThrow(/Transição inválida/);
+  });
+  it("bypass NÃO vale em sugestao_validada (lá o caminho é aprovar_vaga/reprovar_vaga)", () => {
+    expect(() => nextSuggestionState(sug(SUGESTAO_STATUS.VALIDADA), "aprovar_direto_bypass")).toThrow(/Transição inválida/);
+    expect(() => nextSuggestionState(sug(SUGESTAO_STATUS.VALIDADA), "reprovar_bypass")).toThrow(/Transição inválida/);
+  });
+  it("ações do aprovador sobre vaga NÃO validada são inválidas", () => {
+    for (const a of ["aprovar_vaga", "reprovar_vaga", "devolver_validacao"] as const) {
+      expect(() => nextSuggestionState(sug(SUGESTAO_STATUS.PENDENTE), a)).toThrow(/Transição inválida/);
+      expect(() => nextSuggestionState(sug(SUGESTAO_STATUS.AJUSTE), a)).toThrow(/Transição inválida/);
+      expect(() => nextSuggestionState(sug(SUGESTAO_STATUS.NEGADA), a)).toThrow(/Transição inválida/);
+      expect(() => nextSuggestionState(INCLUSAO, a)).toThrow(/não está na etapa de Validação de Escala/);
+    }
   });
   it("aprovar_pedido sem pedido (pendente)", () => {
     expect(() => nextSuggestionState(sug(SUGESTAO_STATUS.PENDENTE), "aprovar_pedido")).toThrow(/Transição inválida/);
@@ -79,7 +122,16 @@ describe("nextSuggestionState — transições inválidas (erro pt-BR)", () => {
     expect(availableSuggestionActions(INCLUSAO)).toEqual([]);
     expect(availableSuggestionActions(sug(SUGESTAO_STATUS.PENDENTE)))
       .toEqual(["validar", "pedir_ajuste", "aprovar_direto_bypass", "reprovar_bypass"]);
-    expect(SUGGESTION_ACTIONS).toHaveLength(9);
+    expect(SUGGESTION_ACTIONS).toHaveLength(12);
+  });
+  it("em sugestao_validada: só as ações do aprovador + pedir ajuste da área", () => {
+    expect(availableSuggestionActions(sug(SUGESTAO_STATUS.VALIDADA)))
+      .toEqual(["pedir_ajuste", "aprovar_vaga", "reprovar_vaga", "devolver_validacao"]);
+  });
+  it("todas as ações têm rótulo pt-BR", () => {
+    for (const a of SUGGESTION_ACTIONS) {
+      expect(SUGGESTION_ACTION_LABELS[a]).toBeTruthy();
+    }
   });
 });
 
@@ -91,6 +143,11 @@ describe("requestStatusForAction", () => {
     expect(requestStatusForAction("negar_reenviar")).toBe("negado");
     expect(requestStatusForAction("negar_aprovar_direto")).toBe("negado");
     expect(requestStatusForAction("validar")).toBeNull();
+  });
+  it("decisões sobre a VAGA (não sobre um pedido) não mexem em pedido nenhum", () => {
+    expect(requestStatusForAction("aprovar_vaga")).toBeNull();
+    expect(requestStatusForAction("reprovar_vaga")).toBeNull();
+    expect(requestStatusForAction("devolver_validacao")).toBeNull();
   });
 });
 
@@ -238,6 +295,31 @@ describe("describeLastDecision", () => {
   });
 });
 
+describe("describeVagaDecision", () => {
+  const base: LastVagaDecisionInfo = {
+    action: "devolvida", comment: null, byName: "Aprovador", at: "2026-08-19T12:00:00.000Z",
+  };
+  it("devolvida -> warn, com o comentário do aprovador no título", () => {
+    expect(describeVagaDecision({ ...base, comment: "Revise as datas" })).toEqual({
+      title: "Devolvida pelo aprovador para nova validação: Revise as datas", tone: "warn",
+    });
+    expect(describeVagaDecision(base).title).toBe("Devolvida pelo aprovador para nova validação");
+  });
+  it("comentário só com espaços não entra no título", () => {
+    const r = describeVagaDecision({ ...base, comment: "   " });
+    expect(r.title).toBe("Devolvida pelo aprovador para nova validação");
+    expect(r.title).not.toMatch(/:\s*$/);
+  });
+  it("reprovada -> danger; aprovada -> ok", () => {
+    expect(describeVagaDecision({ ...base, action: "reprovada", comment: "Vaga duplicada" })).toEqual({
+      title: "Vaga reprovada pelo aprovador: Vaga duplicada", tone: "danger",
+    });
+    expect(describeVagaDecision({ ...base, action: "aprovada" })).toEqual({
+      title: "Vaga aprovada pelo aprovador", tone: "ok",
+    });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // matchesCreatedFromRequest (server/scaling-validation.ts)
 // ---------------------------------------------------------------------------
@@ -246,7 +328,10 @@ describe("describeLastDecision", () => {
 // construir o Pool — nenhuma conexão é aberta em import. Daí o stub + import
 // dinâmico.
 process.env.DATABASE_URL ||= "postgres://vitest:vitest@localhost:5432/vitest";
-const { matchesCreatedFromRequest } = await import("../server/scaling-validation");
+const {
+  matchesCreatedFromRequest, pickLastVagaDecision, pickLastDecision, commentFromLogDetails,
+  VAGA_DECISION_LOG_ACTIONS, VAGA_DECISION_SKEW_MS,
+} = await import("../server/scaling-validation");
 
 describe("matchesCreatedFromRequest — vagas 2..N de um pedido de inclusão devolvido", () => {
   const AT = new Date("2026-08-18T12:00:00.000Z");
@@ -311,5 +396,211 @@ describe("matchesCreatedFromRequest — vagas 2..N de um pedido de inclusão dev
     expect(matchesCreatedFromRequest({ ...vaga, suggestionSentAt: null }, { ...pedido, reviewedAt: null })).toBe(false);
     expect(matchesCreatedFromRequest({ ...vaga, suggestionSentAt: null }, pedido)).toBe(false);
     expect(matchesCreatedFromRequest(vaga, { ...pedido, reviewedAt: null })).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// pickLastVagaDecision (server/scaling-validation.ts)
+// ---------------------------------------------------------------------------
+// A decisão do aprovador sobre a VAGA (aprovar/reprovar/devolver) não cria
+// pedido: autor, comentário e instante ficam em team_inclusion_logs.
+
+describe("commentFromLogDetails", () => {
+  it("volta null quando o log não tem comentário", () => {
+    expect(commentFromLogDetails("Vaga devolvida pelo aprovador para nova validação da área")).toBeNull();
+    expect(commentFromLogDetails(null)).toBeNull();
+    expect(commentFromLogDetails("")).toBeNull();
+  });
+  it("recorta o comentário depois da marca", () => {
+    expect(commentFromLogDetails("Vaga devolvida. Comentário: Revise as datas")).toBe("Revise as datas");
+  });
+  it("comentário que contém a própria marca fica inteiro", () => {
+    expect(commentFromLogDetails("Vaga devolvida. Comentário: veja o que ele disse. Comentário: errado"))
+      .toBe("veja o que ele disse. Comentário: errado");
+  });
+  it("comentário vazio/só espaços vira null", () => {
+    expect(commentFromLogDetails("Vaga devolvida. Comentário:    ")).toBeNull();
+  });
+});
+
+describe("pickLastVagaDecision — decisão da vaga vinda dos logs", () => {
+  const SENT = new Date("2026-08-19T12:00:00.000Z");
+  const vaga = { id: "vaga-1", suggestionSentAt: SENT };
+  const log = (over: Partial<any> = {}) => ({
+    teamInclusionId: "vaga-1",
+    action: "suggestion_returned",
+    details: "Vaga devolvida pelo aprovador para nova validação da área. Comentário: Revise as datas",
+    userName: "Ana Aprovadora",
+    createdAt: SENT,
+    ...over,
+  });
+
+  it("as ações lidas são exatamente as três decisões de vaga", () => {
+    expect([...VAGA_DECISION_LOG_ACTIONS].sort())
+      .toEqual(["suggestion_approved", "suggestion_rejected", "suggestion_returned"]);
+  });
+
+  it("devolução: mesmo instante do reset de suggestionSentAt ainda conta", () => {
+    expect(pickLastVagaDecision(vaga, [log()])).toEqual({
+      action: "devolvida",
+      comment: "Revise as datas",
+      byName: "Ana Aprovadora",
+      at: SENT.toISOString(),
+    });
+  });
+
+  it("aceita a folga de relógio entre o app (suggestionSentAt) e o banco (createdAt)", () => {
+    const antes = new Date(SENT.getTime() - VAGA_DECISION_SKEW_MS + 1);
+    expect(pickLastVagaDecision(vaga, [log({ createdAt: antes })])?.action).toBe("devolvida");
+  });
+
+  it("decisão anterior ao suggestionSentAt atual já foi superada", () => {
+    const velho = new Date(SENT.getTime() - VAGA_DECISION_SKEW_MS - 1);
+    expect(pickLastVagaDecision(vaga, [log({ createdAt: velho })])).toBeNull();
+  });
+
+  it("fica com a decisão mais recente", () => {
+    const nova = new Date(SENT.getTime() + 60_000);
+    const found = pickLastVagaDecision(vaga, [
+      log(),
+      log({ action: "suggestion_rejected", details: "Vaga reprovada. Comentário: Duplicada", createdAt: nova }),
+    ]);
+    expect(found).toEqual({
+      action: "reprovada", comment: "Duplicada", byName: "Ana Aprovadora", at: nova.toISOString(),
+    });
+  });
+
+  it("ignora log de outra vaga e ação que não é decisão de vaga", () => {
+    expect(pickLastVagaDecision(vaga, [log({ teamInclusionId: "vaga-2" })])).toBeNull();
+    expect(pickLastVagaDecision(vaga, [log({ action: "suggestion_validated" })])).toBeNull();
+    expect(pickLastVagaDecision(vaga, [])).toBeNull();
+  });
+
+  it("aprovação em lote (log sem comentário) devolve comment null", () => {
+    const found = pickLastVagaDecision(vaga, [log({
+      action: "suggestion_approved",
+      details: "Vaga aprovada pelo aprovador após validação da área — virou Inclusão",
+    })]);
+    expect(found).toMatchObject({ action: "aprovada", comment: null });
+  });
+
+  it("aceita datas serializadas (ISO) dos dois lados", () => {
+    const found = pickLastVagaDecision(
+      { id: "vaga-1", suggestionSentAt: SENT.toISOString() },
+      [log({ createdAt: SENT.toISOString() })],
+    );
+    expect(found?.at).toBe(SENT.toISOString());
+  });
+
+  it("vaga sem suggestionSentAt aceita qualquer decisão registrada", () => {
+    const found = pickLastVagaDecision({ id: "vaga-1", suggestionSentAt: null }, [log()]);
+    expect(found?.action).toBe("devolvida");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Piso do estado atual: revalidar apaga a decisão que a área JÁ RESOLVEU
+// ---------------------------------------------------------------------------
+// `/validate` não reseta `suggestionSentAt` (só a devolução reseta) — sem o
+// piso em `validatedAt` a linha mostrava "Validada pela área — aguardando
+// aprovação" E "Devolvida pelo aprovador" ao mesmo tempo, para sempre.
+
+describe("pickLastVagaDecision — devolução some quando a área revalida", () => {
+  const DEVOLVIDA_EM = new Date("2026-08-19T12:00:00.000Z");
+  const REVALIDADA_EM = new Date("2026-08-19T18:00:00.000Z");
+  // A devolução resetou suggestionSentAt para o próprio instante da devolução.
+  const base = { id: "vaga-1", suggestionSentAt: DEVOLVIDA_EM };
+  const devolucao = {
+    teamInclusionId: "vaga-1",
+    action: "suggestion_returned",
+    details: "Vaga devolvida pelo aprovador para nova validação da área. Comentário: Revise as datas",
+    userName: "Ana Aprovadora",
+    createdAt: DEVOLVIDA_EM,
+  };
+
+  it("devolvida e AINDA pendente: a área precisa ver a devolução", () => {
+    const found = pickLastVagaDecision(
+      { ...base, status: SUGESTAO_STATUS.PENDENTE, validatedAt: null },
+      [devolucao],
+    );
+    expect(found?.action).toBe("devolvida");
+    expect(found?.comment).toBe("Revise as datas");
+  });
+
+  it("devolvida e REVALIDADA: nenhuma decisão aparece", () => {
+    expect(pickLastVagaDecision(
+      { ...base, status: SUGESTAO_STATUS.VALIDADA, validatedAt: REVALIDADA_EM },
+      [devolucao],
+    )).toBeNull();
+  });
+
+  it("validação ANTERIOR à devolução não esconde nada (o piso pega o mais recente)", () => {
+    const validadaAntes = new Date(DEVOLVIDA_EM.getTime() - 3_600_000);
+    expect(pickLastVagaDecision(
+      { ...base, status: SUGESTAO_STATUS.PENDENTE, validatedAt: validadaAntes },
+      [devolucao],
+    )?.action).toBe("devolvida");
+  });
+
+  it("validada sem carimbo validatedAt (linha antiga) cai no suggestionSentAt", () => {
+    expect(pickLastVagaDecision(
+      { ...base, status: SUGESTAO_STATUS.VALIDADA, validatedAt: null },
+      [devolucao],
+    )?.action).toBe("devolvida");
+  });
+
+  it("aceita datas serializadas (ISO) no validatedAt", () => {
+    expect(pickLastVagaDecision(
+      { ...base, status: SUGESTAO_STATUS.VALIDADA, validatedAt: REVALIDADA_EM.toISOString() },
+      [devolucao],
+    )).toBeNull();
+  });
+});
+
+describe("pickLastDecision — pedido reenviado some quando a área revalida", () => {
+  const DEVOLVIDO_EM = new Date("2026-08-19T12:00:00.000Z");
+  const REVALIDADA_EM = new Date("2026-08-19T18:00:00.000Z");
+  const vaga = { id: "vaga-1", eventId: "ev-1", functionId: "fn-1", suggestionSentAt: DEVOLVIDO_EM };
+  const pedido = {
+    id: "req-1",
+    teamInclusionId: "vaga-1",
+    requestType: "ajuste",
+    status: "reajustado",
+    reviewComment: "Confira as diárias",
+    reviewedByName: "Ana Aprovadora",
+    reviewedAt: DEVOLVIDO_EM,
+    updatedAt: DEVOLVIDO_EM,
+    createdAt: DEVOLVIDO_EM,
+    resolvedInclusionId: null,
+    eventId: "ev-1",
+    functionId: "fn-1",
+  } as any;
+
+  it("vaga ainda pendente: a decisão do pedido explica o estado", () => {
+    const found = pickLastDecision({ ...vaga, status: SUGESTAO_STATUS.PENDENTE, validatedAt: null }, [pedido]);
+    expect(found).toMatchObject({ requestId: "req-1", status: "reajustado", comment: "Confira as diárias" });
+  });
+
+  it("área revalidou: a decisão do pedido não aparece mais", () => {
+    expect(pickLastDecision(
+      { ...vaga, status: SUGESTAO_STATUS.VALIDADA, validatedAt: REVALIDADA_EM },
+      [pedido],
+    )).toBeNull();
+  });
+});
+
+describe("daysAwaitingApproval — o relógio da vaga validada é o validatedAt", () => {
+  const NOW = new Date("2026-08-20T12:00:00.000Z");
+  it("conta desde a validação da área, não desde o envio da logística", () => {
+    const validatedAt = new Date("2026-08-18T12:00:00.000Z");
+    expect(daysAwaitingApproval({ validatedAt, daysPending: 6 }, NOW)).toBe(2);
+  });
+  it("sem validatedAt cai no daysPending que veio do servidor", () => {
+    expect(daysAwaitingApproval({ validatedAt: null, daysPending: 6 }, NOW)).toBe(6);
+    expect(daysAwaitingApproval({}, NOW)).toBe(0);
+  });
+  it("aceita ISO e nunca devolve negativo", () => {
+    expect(daysAwaitingApproval({ validatedAt: "2026-08-20T06:00:00.000Z" }, NOW)).toBe(0);
+    expect(daysAwaitingApproval({ validatedAt: "2026-08-25T06:00:00.000Z" }, NOW)).toBe(0);
   });
 });

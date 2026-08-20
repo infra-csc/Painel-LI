@@ -37,6 +37,21 @@ const LOG_ACTION_LABELS: Record<string, string> = {
   delete: "🗑️ Excluído",
   deleted: "🗑️ Excluído",
   reactivate: "🔓 Reativado",
+  // ── Validação / Aprovação de Escala (server/scaling-validation.ts) ──
+  // Sem estes rótulos o histórico da Escalação mostrava a chave crua
+  // ("suggestion_approved") para todo mundo.
+  suggestion_sent: "📤 Escala Sugerida Enviada",
+  suggestion_validated: "☑️ Validada pela Área",
+  suggestion_approved: "✅ Aprovada pelo Aprovador",
+  suggestion_rejected: "❌ Reprovada pelo Aprovador",
+  suggestion_returned: "↩️ Devolvida para a Área",
+  suggestion_change_requested: "📝 Pedido Aberto pela Área",
+  created_from_change_request: "✨ Criada por Pedido de Inclusão",
+  change_request_approved: "✅ Pedido Aprovado",
+  change_request_reajustar: "🛠️ Pedido Reajustado",
+  change_request_negar: "🚫 Pedido Negado",
+  suggestion_bypass_approve: "⚡ Aprovada sem Validação da Área",
+  suggestion_bypass_reject: "⛔ Reprovada sem Validação da Área",
 };
 
 type RenderAttachments = (ids: string[] | null | undefined, label: string) => ReactNode;

@@ -196,6 +196,7 @@ export interface IStorage {
   
   // Team Inclusion Logs
   getTeamInclusionLogs(teamInclusionId: string): Promise<TeamInclusionLog[]>;
+  getTeamInclusionLogsByInclusionIds(ids: string[], actions?: string[]): Promise<TeamInclusionLog[]>;
   createTeamInclusionLog(log: InsertTeamInclusionLog): Promise<TeamInclusionLog>;
   
   // Function Values (valores automáticos por função)
@@ -1122,6 +1123,28 @@ export class DatabaseStorage implements IStorage {
       if (!a.createdAt || !b.createdAt) return 0;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
+  }
+
+  /**
+   * Logs de VÁRIAS vagas numa leitura só (evita N+1 quando a lista de sugestões
+   * precisa da última decisão do aprovador de cada linha). `actions` filtra no
+   * banco; array vazio (de ids ou de actions) devolve [] sem consultar — um
+   * `inArray` com lista vazia gera SQL inválido no drizzle.
+   * Ordenado do mais novo para o mais antigo, como `getTeamInclusionLogs`.
+   */
+  async getTeamInclusionLogsByInclusionIds(ids: string[], actions?: string[]): Promise<TeamInclusionLog[]> {
+    const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+    if (uniqueIds.length === 0) return [];
+    const uniqueActions = actions ? Array.from(new Set(actions.filter(Boolean))) : undefined;
+    if (uniqueActions && uniqueActions.length === 0) return [];
+    const where = uniqueActions
+      ? and(inArray(teamInclusionLogs.teamInclusionId, uniqueIds), inArray(teamInclusionLogs.action, uniqueActions))
+      : inArray(teamInclusionLogs.teamInclusionId, uniqueIds);
+    return await db
+      .select()
+      .from(teamInclusionLogs)
+      .where(where)
+      .orderBy(desc(teamInclusionLogs.createdAt));
   }
 
   async createTeamInclusionLog(logData: InsertTeamInclusionLog): Promise<TeamInclusionLog> {
