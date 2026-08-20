@@ -1107,7 +1107,7 @@ export default function TeamInclusionTable() {
                     >
                       <option value="incluido">Incluído</option>
                       <option value="reaberto">Reaberto</option>
-                      <option value="aguardando_producao">Aguardando Produção</option>
+                      <option value="aguardando_producao">Aguardando Gestor</option>
                       <option value="escalado">Escalado</option>
                       <option value="aguardando_passagem">Aguardando Passagem</option>
                       <option value="aguardando_hospedagem">Aguardando Hospedagem</option>

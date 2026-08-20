@@ -2367,7 +2367,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (inclusion.status !== 'aguardando_producao') {
-        return res.status(400).json({ message: "Escalação não está aguardando aprovação da produção" });
+        return res.status(400).json({ message: "Escalação não está aguardando aprovação do gestor" });
       }
 
       // Verificar se é cenotécnica
@@ -2375,7 +2375,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const funcName = (func?.name || '').toLowerCase();
       const isCenotecnica = funcName.includes('cenotecnica') || funcName.includes('cenotécnica') || funcName.includes('sup ceno');
       if (!isCenotecnica) {
-        return res.status(400).json({ message: "Apenas funções cenotécnicas precisam de aprovação da produção" });
+        return res.status(400).json({ message: "Apenas funções cenotécnicas precisam de aprovação do gestor" });
       }
 
       // Após aprovação da produção, vai direto para aprovado se sem logística
@@ -2395,13 +2395,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.createTeamInclusionLog({
         teamInclusionId: id,
         action: 'approve_production',
-        details: `Escalação aprovada pela produção → status: ${nextStatus === 'aprovado' ? 'Aprovado' : 'Escalado'}`,
+        details: `Escalação aprovada pelo gestor → status: ${nextStatus === 'aprovado' ? 'Aprovado' : 'Escalado'}`,
         previousValue: 'aguardando_producao',
         newValue: nextStatus,
         userId,
         userName: user.name ?? 'Produção',
       });
-      res.json({ message: "Escalação aprovada pela produção", inclusion: updated });
+      res.json({ message: "Escalação aprovada pelo gestor", inclusion: updated });
     } catch (error) {
       console.error("Error approving production:", error);
       res.status(500).json({ message: "Erro ao aprovar escalação" });
@@ -2431,7 +2431,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (inclusion.status !== 'aguardando_producao') {
-        return res.status(400).json({ message: "Escalação não está aguardando aprovação da produção" });
+        return res.status(400).json({ message: "Escalação não está aguardando aprovação do gestor" });
       }
 
       // Reprovar: remove colaborador e volta para fase de escalação
@@ -2445,13 +2445,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.createTeamInclusionLog({
         teamInclusionId: id,
         action: 'reject_production',
-        details: `Escalação reprovada pela produção — colaborador removido, voltou para escalação`,
+        details: `Escalação reprovada pelo gestor — colaborador removido, voltou para escalação`,
         previousValue: 'aguardando_producao',
         newValue: 'escalacao',
         userId,
         userName: user.name ?? 'Produção',
       });
-      res.json({ message: "Escalação reprovada pela produção — colaborador removido", inclusion: updated });
+      res.json({ message: "Escalação reprovada pelo gestor — colaborador removido", inclusion: updated });
     } catch (error) {
       console.error("Error rejecting production:", error);
       res.status(500).json({ message: "Erro ao reprovar escalação" });

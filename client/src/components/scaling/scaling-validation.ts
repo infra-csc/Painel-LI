@@ -6,7 +6,7 @@
  */
 import type { TeamInclusion } from "@shared/schema";
 // `isCenotecnicaFunction` (alimentacao) exclui "sup ceno", que é produtor — não
-// confundir com o homônimo de use-scaling-data, que inclui (aprovação da Produção).
+// confundir com o homônimo de use-scaling-data, que inclui (aprovação do gestor).
 import { isCenotecnicaFunction as isCenoEmpreitaFunction } from "@shared/alimentacao";
 import { isEscalated } from "./scaling-utils";
 import type { ScalingData } from "./use-scaling-data";

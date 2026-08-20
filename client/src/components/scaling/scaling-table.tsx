@@ -19,8 +19,9 @@ import { ATENDIMENTO_SHORT, PERCURSEIRO_SHORT, CENO_FREELA_SHORT, type Normalize
 // Vocabulário ÚNICO de status da tela de Escalação.
 // Usado na tabela, no header do modal e no Resumo — antes cada lugar tinha a
 // sua própria cadeia de ifs ("Escalado" × "Aprovado" para o mesmo registro,
-// "Aguard. Gestor" × "Aguardando Gestor" × "Aprovado pela Produção").
-// Produção = quem aprova cenotécnica (mesmo rótulo de status-badge.tsx).
+// "Aguard. Gestor" × "Aguardando Gestor" × "Aprovado pelo gestor").
+// Gestor = quem aprova cenotécnica (mesmo rótulo de status-badge.tsx);
+// o status técnico gravado no banco continua sendo `aguardando_producao`.
 // ─────────────────────────────────────────────────────────────────────────────
 export type ScalingStatusKey =
   | "pendente"
@@ -64,7 +65,7 @@ const STATUS_META: Record<
     pulse: true,
   },
   aguardando_producao: {
-    label: "Aguardando Produção",
+    label: "Aguardando Gestor",
     wrap: "bg-red-50 text-red-700 border-red-200",
     dot: "bg-red-500",
     pulse: true,

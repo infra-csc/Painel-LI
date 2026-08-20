@@ -1,7 +1,7 @@
 /**
- * Aprovação da Produção (cenotécnica) no modal de detalhes: card com Aprovar /
+ * Aprovação do gestor (cenotécnica) no modal de detalhes: card com Aprovar /
  * Reprovar (quem tem canApproveCenotecnica ou admin) + confirms, e o modal
- * informativo "enviada para aprovação da Produção" mostrado após o Confirmar.
+ * informativo "enviada para aprovação do gestor" mostrado após o Confirmar.
  */
 import { useState } from "react";
 import { AlertCircle, Check, Clock, XCircle } from "lucide-react";
@@ -30,7 +30,7 @@ export function ProductionApprovalCard({ inclusion, canApprove, mutations }: Pro
       <div className="border border-red-200 rounded-2xl overflow-hidden">
         <div className="bg-red-50 border-b border-red-100 px-4 py-2.5 flex items-center gap-2">
           <AlertCircle className="w-4 h-4 text-red-600" />
-          <span className="text-[11px] font-black text-red-700 uppercase tracking-[0.12em]">Aprovação da Produção</span>
+          <span className="text-[11px] font-black text-red-700 uppercase tracking-[0.12em]">Aprovação do gestor</span>
         </div>
         <div className="p-4">
           {canApprove ? (
@@ -64,8 +64,8 @@ export function ProductionApprovalCard({ inclusion, canApprove, mutations }: Pro
                 <Clock className="w-4 h-4 text-red-500" />
               </div>
               <div>
-                <p className="text-[12px] font-semibold text-slate-700">Aguardando aprovação da Produção</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">A Produção precisa aprovar esta escalação de cenotécnica.</p>
+                <p className="text-[12px] font-semibold text-slate-700">Aguardando aprovação do gestor</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">O gestor da função precisa aprovar esta escalação.</p>
               </div>
             </div>
           )}
@@ -78,7 +78,7 @@ export function ProductionApprovalCard({ inclusion, canApprove, mutations }: Pro
         icon={Check}
         tone="rose"
         title="Aprovar escalação de cenotécnica?"
-        description="A escalação será aprovada pela Produção e seguirá para o fluxo normal (passagem, hospedagem ou compras)."
+        description="A escalação será aprovada pelo gestor e seguirá para o fluxo normal (passagem, hospedagem ou compras)."
         confirmLabel="Sim, aprovar"
         pendingLabel="Aprovando..."
         isPending={approveProduction.isPending}
@@ -100,7 +100,7 @@ export function ProductionApprovalCard({ inclusion, canApprove, mutations }: Pro
   );
 }
 
-// ── Info: escalação de cenotécnica enviada para aprovação da Produção ───────
+// ── Info: escalação de cenotécnica enviada para aprovação do gestor ─────────
 
 export interface SentToProductionInfo { collaboratorName: string; functionName: string; inclusionNumber: number | null }
 
@@ -114,7 +114,7 @@ export function SentToProductionDialog({ info, onClose }: { info: SentToProducti
               <AlertCircle className="w-7 h-7 text-amber-500" />
             </div>
             <div>
-              <DialogTitle className="text-[17px] font-bold text-slate-900 leading-tight">Aguardando aprovação da Produção</DialogTitle>
+              <DialogTitle className="text-[17px] font-bold text-slate-900 leading-tight">Aguardando aprovação do gestor</DialogTitle>
               <p className="text-[13px] text-slate-500 mt-1">A escalação foi registrada e está em análise.</p>
             </div>
           </div>
@@ -139,7 +139,7 @@ export function SentToProductionDialog({ info, onClose }: { info: SentToProducti
             )}
           </div>
           <p className="text-[12px] text-slate-500 leading-relaxed text-center">
-            Por ser uma função de <span className="font-semibold text-slate-700">cenotécnica</span>, esta escalação precisa ser aprovada pela Produção antes de seguir para as próximas etapas.
+            Por ser uma função de <span className="font-semibold text-slate-700">cenotécnica</span>, esta escalação precisa ser aprovada pelo gestor antes de seguir para as próximas etapas.
           </p>
           <Button className="w-full rounded-xl h-10 text-[13px] font-semibold bg-amber-500 hover:bg-amber-600 text-white" onClick={onClose}>
             Entendido

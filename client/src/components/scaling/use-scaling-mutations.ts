@@ -169,7 +169,7 @@ export function useScalingMutations(opts: {
     },
   });
 
-  // Reprovação de cenotécnica pela Produção (remove colaborador, volta p/ escalacao)
+  // Reprovação de cenotécnica pelo gestor (remove colaborador, volta p/ escalacao)
   const rejectProduction = useMutation({
     mutationFn: async (id: string) => {
       const r = await apiRequest("PATCH", `/api/team-inclusions/${id}/reject-production`, {});
@@ -185,7 +185,7 @@ export function useScalingMutations(opts: {
     },
   });
 
-  // Aprovação de cenotécnica pela Produção
+  // Aprovação de cenotécnica pelo gestor
   const approveProduction = useMutation({
     mutationFn: async (id: string) => {
       const r = await apiRequest("PATCH", `/api/team-inclusions/${id}/approve-production`, {});
@@ -193,7 +193,7 @@ export function useScalingMutations(opts: {
     },
     onSuccess: () => {
       closeModal();
-      toast({ title: "Aprovado pela Produção", description: "Escalação de cenotécnica aprovada e enviada ao fluxo normal." });
+      toast({ title: "Aprovado pelo gestor", description: "Escalação de cenotécnica aprovada e enviada ao fluxo normal." });
       invalidateAndRefetchInclusions();
     },
     onError: async (err: any) => {

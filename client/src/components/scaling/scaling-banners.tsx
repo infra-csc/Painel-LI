@@ -1,5 +1,5 @@
 /**
- * Banners do topo da Escalação: aprovações de cenotécnica pendentes (Produção)
+ * Banners do topo da Escalação: aprovações de cenotécnica pendentes (gestor)
  * e trocas de colaborador aguardando análise (com atalho de filtro).
  */
 import { AlertCircle, ArrowLeftRight } from "lucide-react";

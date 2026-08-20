@@ -122,7 +122,7 @@ export default function BulkConfirmBar({ selected, onClear, getEventName, getFun
               <AlertDialogDescription className="text-[12px] text-slate-500">
                 {results
                   ? `${okCount} confirmada${okCount !== 1 ? "s" : ""} com sucesso${failCount > 0 ? ` · ${failCount} com falha` : ""}.`
-                  : "O status de cada escalação será decidido pelo servidor (cenotécnica vai para aprovação da Produção; sem logística vai direto para Aprovado). A execução é sequencial."}
+                  : "O status de cada escalação será decidido pelo servidor (cenotécnica vai para aprovação do gestor; sem logística vai direto para Aprovado). A execução é sequencial."}
               </AlertDialogDescription>
             </AlertDialogHeader>
           </div>

@@ -12,7 +12,7 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
       case "escalado":
         return "status-escalado"; // Laranja - escalação confirmada
       case "aguardando_producao":
-        return "status-aguardando_producao"; // Vermelho escuro - aguardando aprovação produção
+        return "status-aguardando_producao"; // Vermelho escuro - aguardando aprovação do gestor
       case "escalacao":
         return "status-escalacao"; // Amarelo - em andamento
       case "aguardando_passagem":
@@ -49,7 +49,7 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
       case "escalado":
         return "Escalado";
       case "aguardando_producao":
-        return "Aguardando Produção";
+        return "Aguardando Gestor";
       case "escalacao":
         return "Em Escalação";
       case "aguardando_passagem":
