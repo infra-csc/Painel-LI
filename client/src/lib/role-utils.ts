@@ -41,6 +41,10 @@ export interface RolePermissions {
   canChangeUserRole: boolean;    // espelha PATCH /api/users/:id — role/area só admin (allowedFieldsForAdmin)
   canAccessCalendar: boolean;
   canAccessBaggage: boolean;     // controle de bagagem — admin e compras
+  // LIBERAÇÃO ATUAL (decisão do usuário, 19/08): o módulo inteiro aparece
+  // SÓ PARA ADMIN enquanto o fluxo é testado — nenhum outro papel vê as 4 telas
+  // no menu nem entra pela rota. A matriz do briefing (abaixo) fica registrada
+  // para quando a liberação for ampliada: basta devolver os `true` por papel.
   // ── Módulo Validação de Escala (matriz do briefing §7) ──────────────────
   // Tela                 | admin | production | purchasing | financial | function_area
   // Sugestão de Escala   | edit  | edit       | view       | view      | none
@@ -122,13 +126,13 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: false,
-        canAccessScalingSuggestion: true,
-        canEditScalingSuggestion: true,
-        canAccessScalingValidation: true,
+        canAccessScalingSuggestion: false,
+        canEditScalingSuggestion: false,
+        canAccessScalingValidation: false,
         canEditScalingValidation: false,
-        canAccessScalingApproval: true,
-        canEditScalingApproval: true,
-        canAccessScalingEventView: true,
+        canAccessScalingApproval: false,
+        canEditScalingApproval: false,
+        canAccessScalingEventView: false,
       };
 
     case "function_area":
@@ -159,14 +163,14 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessBaggage: false,
         canAccessScalingSuggestion: false,
         canEditScalingSuggestion: false,
-        canAccessScalingValidation: true,
-        canEditScalingValidation: true,   // valida só as funções em que é validador (canEdit do servidor)
+        canAccessScalingValidation: false,
+        canEditScalingValidation: false,   // valida só as funções em que é validador (canEdit do servidor)
         // Entra na Aprovação porque o servidor tem o fallback do APROVADOR: quem é
         // 'aprovador' de alguma função vê (e decide) os pedidos dela. Quem não for
         // aprovador de nada leva 403 e a tela mostra o estado neutro.
-        canAccessScalingApproval: true,
+        canAccessScalingApproval: false,
         canEditScalingApproval: false,    // §7: não é papel de decisão — quem libera é o canDecide do servidor
-        canAccessScalingEventView: true,
+        canAccessScalingEventView: false,
       };
 
     case "purchasing":
@@ -195,13 +199,13 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: true,
-        canAccessScalingSuggestion: true,   // view (a tela do outro agente adotará canEditScalingSuggestion)
+        canAccessScalingSuggestion: false,   // view (a tela do outro agente adotará canEditScalingSuggestion)
         canEditScalingSuggestion: false,
-        canAccessScalingValidation: true,
+        canAccessScalingValidation: false,
         canEditScalingValidation: false,
-        canAccessScalingApproval: true,
-        canEditScalingApproval: true,
-        canAccessScalingEventView: true,
+        canAccessScalingApproval: false,
+        canEditScalingApproval: false,
+        canAccessScalingEventView: false,
       };
 
     case "financial":
@@ -230,13 +234,13 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: false,
-        canAccessScalingSuggestion: true,   // view (a tela do outro agente adotará canEditScalingSuggestion)
+        canAccessScalingSuggestion: false,   // view (a tela do outro agente adotará canEditScalingSuggestion)
         canEditScalingSuggestion: false,
-        canAccessScalingValidation: true,
+        canAccessScalingValidation: false,
         canEditScalingValidation: false,
-        canAccessScalingApproval: true,     // view — o GET aceita financial; canDecide vem sempre false do servidor
+        canAccessScalingApproval: false,     // view — o GET aceita financial; canDecide vem sempre false do servidor
         canEditScalingApproval: false,
-        canAccessScalingEventView: true,
+        canAccessScalingEventView: false,
       };
 
     default:

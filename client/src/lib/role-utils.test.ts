@@ -1,51 +1,44 @@
 import { describe, it, expect } from "vitest";
 import { getRolePermissions, type UserRole } from "./role-utils";
 
-/** Matriz do módulo Validação de Escala (briefing §7). */
+/**
+ * Módulo Validação de Escala.
+ *
+ * LIBERAÇÃO ATUAL (decisão do usuário, 19/08): as 4 telas aparecem SÓ PARA
+ * ADMIN enquanto o fluxo é testado. A matriz do briefing §7 (produção edita a
+ * Sugestão, área valida as funções dela, etc.) continua documentada em
+ * role-utils.ts para quando a liberação for ampliada — quando isso acontecer,
+ * estes testes voltam a distinguir papel a papel.
+ */
 describe("getRolePermissions — módulo Validação de Escala", () => {
   const roles: UserRole[] = ["admin", "production", "function_area", "purchasing", "financial"];
+  const outrosPapeis = roles.filter((r) => r !== "admin");
 
-  it("Sugestão: admin/production editam; purchasing/financial só veem; function_area não entra", () => {
-    const m = Object.fromEntries(roles.map((r) => [r, getRolePermissions(r)]));
-    expect(m.admin.canAccessScalingSuggestion && m.admin.canEditScalingSuggestion).toBe(true);
-    expect(m.production.canAccessScalingSuggestion && m.production.canEditScalingSuggestion).toBe(true);
-    expect(m.purchasing.canAccessScalingSuggestion).toBe(true);
-    expect(m.purchasing.canEditScalingSuggestion).toBe(false);
-    expect(m.financial.canAccessScalingSuggestion).toBe(true);
-    expect(m.financial.canEditScalingSuggestion).toBe(false);
-    expect(m.function_area.canAccessScalingSuggestion).toBe(false);
-    expect(m.function_area.canEditScalingSuggestion).toBe(false);
+  it("admin entra e edita as 4 telas", () => {
+    const p = getRolePermissions("admin");
+    expect(p.canAccessScalingSuggestion && p.canEditScalingSuggestion).toBe(true);
+    expect(p.canAccessScalingValidation && p.canEditScalingValidation).toBe(true);
+    expect(p.canAccessScalingApproval && p.canEditScalingApproval).toBe(true);
+    expect(p.canAccessScalingEventView).toBe(true);
   });
 
-  it("Validação: todos entram; admin e function_area editam", () => {
-    for (const r of roles) expect(getRolePermissions(r).canAccessScalingValidation).toBe(true);
-    expect(getRolePermissions("admin").canEditScalingValidation).toBe(true);
-    expect(getRolePermissions("function_area").canEditScalingValidation).toBe(true);
-    for (const r of ["production", "purchasing", "financial"] as UserRole[]) {
-      expect(getRolePermissions(r).canEditScalingValidation).toBe(false);
+  it("nenhum outro papel vê o módulo (menu nem rota)", () => {
+    for (const r of outrosPapeis) {
+      const p = getRolePermissions(r);
+      expect(p.canAccessScalingSuggestion).toBe(false);
+      expect(p.canAccessScalingValidation).toBe(false);
+      expect(p.canAccessScalingApproval).toBe(false);
+      expect(p.canAccessScalingEventView).toBe(false);
     }
   });
 
-  it("Aprovação: admin/production/purchasing editam; financial e function_area só acompanham", () => {
-    for (const r of ["admin", "production", "purchasing"] as UserRole[]) {
-      expect(getRolePermissions(r).canAccessScalingApproval).toBe(true);
-      expect(getRolePermissions(r).canEditScalingApproval).toBe(true);
+  it("sem acesso não há edição", () => {
+    for (const r of outrosPapeis) {
+      const p = getRolePermissions(r);
+      expect(p.canEditScalingSuggestion).toBe(false);
+      expect(p.canEditScalingValidation).toBe(false);
+      expect(p.canEditScalingApproval).toBe(false);
     }
-    // financial: o GET do servidor aceita o papel (leitura da fila inteira).
-    expect(getRolePermissions("financial").canAccessScalingApproval).toBe(true);
-    expect(getRolePermissions("financial").canEditScalingApproval).toBe(false);
-    // function_area: entra pelo fallback do APROVADOR do servidor (fila filtrada
-    // às funções em que é aprovador); sem ser aprovador de nada, leva 403.
-    expect(getRolePermissions("function_area").canAccessScalingApproval).toBe(true);
-    expect(getRolePermissions("function_area").canEditScalingApproval).toBe(false);
-  });
-
-  it("Aprovação: todo papel do módulo entra na tela (o servidor filtra ou nega)", () => {
-    for (const r of roles) expect(getRolePermissions(r).canAccessScalingApproval).toBe(true);
-  });
-
-  it("Histórico da Escala: todos os perfis veem", () => {
-    for (const r of roles) expect(getRolePermissions(r).canAccessScalingEventView).toBe(true);
   });
 
   it("edit implica access em todas as telas do módulo", () => {
