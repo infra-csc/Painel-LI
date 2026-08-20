@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { formatDiarias, fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Edit, MessageCircle, Check, X, Trash2, Copy, Ban, LayoutGrid, Save, ArrowLeftRight, AlertCircle } from "lucide-react";
+import { Edit, MessageCircle, Check, X, Trash2, Copy, Ban, LayoutGrid, Save, ArrowLeftRight, AlertCircle, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
@@ -15,12 +15,15 @@ import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import type { TeamInclusion, Event, Function, Collaborator, SwapRequest } from "@shared/schema";
 import { isReadOnly } from "@/lib/interactions";
+import { useEventLock, PastEventBanner, PAST_EVENT_BLOCK_MSG } from "@/lib/event-lock";
 
 // Mensagem amigável de falha de carregamento/gravação. Distingue sessão expirada
 // de "não há dados" — falha de rede não pode virar estado vazio nem toast genérico.
 const describeError = (err: any, fallback: string): string => {
   if (err?.status === 401) return "Sua sessão expirou. Atualize a página e entre novamente.";
-  if (err?.status === 403) return "Você não tem permissão para esta ação.";
+  // O 403 traz o motivo real (falta de papel OU evento encerrado) — mostrar a
+  // mensagem do servidor em vez do texto genérico.
+  if (err?.status === 403) return err?.body?.message || "Você não tem permissão para esta ação.";
   return err?.body?.message || fallback;
 };
 
@@ -244,6 +247,14 @@ export default function TeamInclusionTable() {
     return inclusion.status !== 'cancelado';
   };
 
+  // Evento encerrado (regra do usuário, 19/08): a partir do dia seguinte ao
+  // término, só o administrador mexe. Espelha o 403 do servidor —
+  // editar/excluir/cancelar somem e a linha não entra nas ações em lote.
+  const eventLock = useEventLock();
+  const isEventLocked = (inclusion: TeamInclusion) => eventLock.isLockedInclusion(inclusion);
+  // Motivo exato do bloqueio (encerrado x evento fora da lista) para tooltips.
+  const eventLockReason = (inclusion: TeamInclusion) => eventLock.lockReason(inclusion.eventId);
+
   // ── Grade de diárias em lote ────────────────────────────────────────────────
   const [showBatchDiarias, setShowBatchDiarias] = useState(false);
   // inclusionId → array de dias selecionados (YYYY-MM-DD)
@@ -252,9 +263,11 @@ export default function TeamInclusionTable() {
 
   const openBatchDiarias = () => {
     // Usa as linhas selecionadas com checkbox; se nenhuma, usa todas as filtradas
+    // Evento encerrado fica de fora: o PATCH das diárias tomaria 403
+    const editaveis = filteredAndSortedInclusions.filter(inc => !isEventLocked(inc));
     const targets = selectedRows.size > 0
-      ? filteredAndSortedInclusions.filter(inc => selectedRows.has(inc.id))
-      : filteredAndSortedInclusions;
+      ? editaveis.filter(inc => selectedRows.has(inc.id))
+      : editaveis;
 
     const initial: Record<string, string[]> = {};
     targets.forEach(inc => {
@@ -414,7 +427,8 @@ export default function TeamInclusionTable() {
     // Opera SOMENTE sobre as linhas visíveis: comparar/limpar a seleção inteira
     // descartava silenciosamente itens marcados sob outro filtro — justamente os
     // que a barra anuncia como "fora dos filtros atuais".
-    const visibleIds = filteredAndSortedInclusions.map(i => i.id);
+    // Linhas de evento encerrado nunca entram na seleção (o servidor recusaria)
+    const visibleIds = filteredAndSortedInclusions.filter(i => !isEventLocked(i)).map(i => i.id);
     const todosVisiveisMarcados = visibleIds.length > 0 && visibleIds.every(id => selectedRows.has(id));
     setSelectedRows(prev => {
       const next = new Set(prev);
@@ -432,7 +446,7 @@ export default function TeamInclusionTable() {
 
     const deletableIds = Array.from(selectedRows).filter(id => {
       const inclusion = inclusionById.get(id);
-      return !!inclusion && canDeleteInclusion(inclusion);
+      return !!inclusion && canDeleteInclusion(inclusion) && !isEventLocked(inclusion);
     });
 
     if (deletableIds.length === 0) {
@@ -477,16 +491,26 @@ export default function TeamInclusionTable() {
       return;
     }
 
+    // Evento encerrado: o servidor recusaria com 403 — não tenta
+    const cancelableIds = Array.from(selectedRows).filter(id => {
+      const inclusion = inclusionById.get(id);
+      return !!inclusion && !isEventLocked(inclusion);
+    });
+    if (cancelableIds.length === 0) {
+      toast({ title: "Evento encerrado", description: PAST_EVENT_BLOCK_MSG, variant: "destructive" });
+      return;
+    }
+
     openConfirm({
       variant: 'cancel',
       title: 'Cancelar escalações?',
-      message: `${selectedRows.size} escalação(ões) selecionada(s) serão canceladas. Esta ação não pode ser desfeita.`,
+      message: `${cancelableIds.length} escalação(ões) selecionada(s) serão canceladas. Esta ação não pode ser desfeita.`,
       confirmLabel: 'Cancelar escalações',
       onConfirm: async () => {
         closeConfirm();
         let successCount = 0;
         let errorCount = 0;
-        for (const id of Array.from(selectedRows)) {
+        for (const id of cancelableIds) {
           try {
             await apiRequest("PATCH", `/api/team-inclusions/${id}`, { status: "cancelado", phase: "cancelado" });
             successCount++;
@@ -614,8 +638,11 @@ export default function TeamInclusionTable() {
     (acc, i) => acc + (selectedRows.has(i.id) ? 1 : 0),
     0,
   );
+  // Linhas de evento encerrado não são selecionáveis — não podem impedir que o
+  // "selecionar tudo" apareça marcado.
+  const selectableVisibleCount = filteredAndSortedInclusions.filter(i => !isEventLocked(i)).length;
   const allVisibleSelected =
-    filteredAndSortedInclusions.length > 0 && selectedVisibleCount === filteredAndSortedInclusions.length;
+    selectableVisibleCount > 0 && selectedVisibleCount === selectableVisibleCount;
 
   if (isLoading) {
     return (
@@ -648,6 +675,13 @@ export default function TeamInclusionTable() {
   return (
     <>
       <UniversalFilters filters={filters} onFiltersChange={setFilters} />
+
+      {/* Evento encerrado: banner discreto quando o filtro aponta para um evento
+          já terminado e o usuário não é o administrador. */}
+      <PastEventBanner
+        show={filters.eventId !== "all" && eventLock.isReadOnlyPastEvent(filters.eventId)}
+        className="mb-4"
+      />
 
       {/* Totals Summary */}
       <div className="mb-6">
@@ -825,6 +859,8 @@ export default function TeamInclusionTable() {
                       <Checkbox
                         checked={selectedRows.has(inclusion.id)}
                         onCheckedChange={() => toggleRowSelection(inclusion.id)}
+                        disabled={isEventLocked(inclusion)}
+                        title={eventLockReason(inclusion) ?? undefined}
                         aria-label={`Selecionar inclusão #${inclusion.inclusionNumber ?? ''}`}
                         data-testid={`checkbox-row-${inclusion.id}`}
                       />
@@ -943,7 +979,17 @@ export default function TeamInclusionTable() {
                         >
                           <MessageCircle className="w-4 h-4" />
                         </Button>
-                        {hasPermission(user, 'canEditScreen1') && (
+                        {hasPermission(user, 'canEditScreen1') && isEventLocked(inclusion) && (
+                          <span
+                            className="inline-flex items-center justify-center h-8 w-8 text-amber-500 shrink-0"
+                            title={eventLockReason(inclusion) ?? PAST_EVENT_BLOCK_MSG}
+                            aria-label={eventLockReason(inclusion) ?? PAST_EVENT_BLOCK_MSG}
+                            data-testid={`lock-past-event-${inclusion.id}`}
+                          >
+                            <Lock className="w-4 h-4" />
+                          </span>
+                        )}
+                        {hasPermission(user, 'canEditScreen1') && !isEventLocked(inclusion) && (
                           <>
                             {isReadOnly(inclusion) ? (
                               // Para cancelados ou comprados, só mostrar botão de excluir se permitido

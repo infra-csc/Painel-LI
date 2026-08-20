@@ -15,9 +15,11 @@ export interface ProductionApprovalCardProps {
   inclusion: TeamInclusion;
   canApprove: boolean;
   mutations: Pick<ScalingMutations, "approveProduction" | "rejectProduction">;
+  /** Evento encerrado: motivo do bloqueio (esconde Aprovar/Reprovar). */
+  blockReason?: string | null;
 }
 
-export function ProductionApprovalCard({ inclusion, canApprove, mutations }: ProductionApprovalCardProps) {
+export function ProductionApprovalCard({ inclusion, canApprove, mutations, blockReason }: ProductionApprovalCardProps) {
   const [showApprove, setShowApprove] = useState(false);
   const [showReject, setShowReject] = useState(false);
   const { approveProduction, rejectProduction } = mutations;
@@ -33,7 +35,12 @@ export function ProductionApprovalCard({ inclusion, canApprove, mutations }: Pro
           <span className="text-[11px] font-black text-red-700 uppercase tracking-[0.12em]">Aprovação do gestor</span>
         </div>
         <div className="p-4">
-          {canApprove ? (
+          {blockReason ? (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5" role="status" data-testid="text-production-block-reason">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-[12px] text-amber-800 leading-snug">{blockReason}</p>
+            </div>
+          ) : canApprove ? (
             <div className="space-y-3">
               <p className="text-[12px] text-slate-600 leading-relaxed">
                 Esta escalação de cenotécnica aguarda sua aprovação antes de seguir para as próximas etapas. Ao reprovar, o colaborador é removido e a vaga volta para escalação.

@@ -14,6 +14,7 @@ import CommentsModal from "@/components/modals/comments-modal";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isReadOnly } from "@/lib/interactions";
+import { useEventLock, PastEventBanner, PAST_EVENT_BLOCK_MSG } from "@/lib/event-lock";
 import { canEdit as canEditScreen } from "@/lib/permissions";
 import {
   extractTravelSuggestion,
@@ -63,6 +64,9 @@ export default function TicketModal({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const inclusionId = inclusion?.id;
+  // Evento encerrado (regra 19/08): passagem depende da escalação — depois do
+  // término só o administrador mexe (o servidor devolve 403).
+  const eventLock = useEventLock();
 
   const { data: comments, isLoading: commentsLoading } = useQuery<Comment[]>({
     queryKey: ["/api/comments", inclusionId],
@@ -133,7 +137,8 @@ export default function TicketModal({
   const ticket = data.getTicket(sid);
   const collaborator = data.getCollaborator(inclusion.collaboratorId);
   const collaboratorName = data.getCollaboratorName(inclusion.collaboratorId);
-  const roMode = isReadOnly(inclusion, user);
+  const eventLocked = eventLock.isLockedInclusion(inclusion);
+  const roMode = isReadOnly(inclusion, user) || eventLocked;
   const canEditTicket = canEditScreen(user, "tickets");
   const isEditing = editingTicketId === sid;
   const isFormMode = !ticket || isEditing;
@@ -185,7 +190,10 @@ export default function TicketModal({
               </div>
             </div>
             {roMode ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 text-[11px] font-bold rounded-full shrink-0 border border-amber-200">Somente Leitura</span>
+              <span
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 text-[11px] font-bold rounded-full shrink-0 border border-amber-200"
+                title={eventLocked ? PAST_EVENT_BLOCK_MSG : undefined}
+              >Somente Leitura</span>
             ) : ticket && !isEditing ? (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 text-[11px] font-bold rounded-full shrink-0 border border-green-200">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Comprada
@@ -196,6 +204,8 @@ export default function TicketModal({
               </span>
             )}
           </div>
+
+          <PastEventBanner show={eventLocked} message={eventLock.bannerMessage(inclusion.eventId)} className="mx-6 mt-3" />
 
           {/* ABAS */}
           <Tabs value={activeTab} onValueChange={onTabChange} className="flex-1 flex flex-col overflow-hidden min-h-0">
@@ -224,7 +234,7 @@ export default function TicketModal({
                   getCollaboratorName={data.getCollaboratorName}
                   pendingSwap={pendingSwap}
                   latestSwap={latestSwap}
-                  isPurchasingRole={data.isPurchasingRole}
+                  isPurchasingRole={data.isPurchasingRole && !eventLocked}
                   swapPending={approveSwapMutation.isPending || rejectSwapMutation.isPending}
                   onApproveSwap={(id) => approveSwapMutation.mutate(id)}
                   onRejectSwap={(id, comment) => rejectSwapMutation.mutate({ id, comment })}

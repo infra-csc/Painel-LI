@@ -8,6 +8,7 @@ import type { SortConfig } from "@/components/common/sortable-header";
 import { apiRequest } from "@/lib/queryClient";
 import { fixEncoding } from "@/lib/utils";
 import { hasRoleIn } from "@shared/roles";
+import { isEventPast, canActOnPastEvent } from "@shared/event-window";
 import { isAtendimentoFunction } from "@shared/atendimento";
 import { isPercursoFunction } from "@shared/calculation-rules";
 import { isCenotecnicaFunctionName } from "@shared/scaling-rules";
@@ -181,6 +182,15 @@ export function useScalingData(opts: {
   };
 
   const canConfirmEscalation = (inclusion: TeamInclusion): boolean => canManageFunction(inclusion.functionId);
+
+  // Evento encerrado (regra do usuário, 20/08): a partir do dia seguinte ao
+  // término, só o administrador age. Espelha a trava do servidor
+  // (403 PAST_EVENT_BLOCK_MSG) — nenhum estado novo, só endDate + papel.
+  const podeAgirEmEventoPassado = canActOnPastEvent(user?.role);
+  const isPastEvent = (eventId: string | null | undefined): boolean =>
+    !!eventId && isEventPast(eventById.get(eventId)?.endDate);
+  const isEventLocked = (inclusion: TeamInclusion): boolean =>
+    !podeAgirEmEventoPassado && isPastEvent(inclusion.eventId);
 
   // Alterar colaborador: admin/function_area/purchasing ou responsável, e só até
   // haver passagem comprada (se needsTicket) ou hospedagem reservada (se needsAccommodation)
@@ -376,6 +386,7 @@ export function useScalingData(opts: {
     // permissões
     isAdminRole, isAdminOrPurchasing, canApproveProduction, canExport, userFunctionIds,
     canManageFunction, canConfirmEscalation, canEditCollaborator,
+    podeAgirEmEventoPassado, isPastEvent, isEventLocked,
     // helpers
     getEventName, getFunctionName, getCollaboratorName, getCollaboratorCity,
     getTicket, getPurchasedTicket, getAccommodation, isCenotecnicaFunction, isAtendimentoInclusion, isPercursoInclusion,

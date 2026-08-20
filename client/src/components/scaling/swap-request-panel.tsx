@@ -52,9 +52,11 @@ export interface SwapStatusCardProps {
   isAdminOrPurchasing: boolean;
   getCollaboratorName: (id?: string | null) => string;
   mutations: Pick<ScalingMutations, "approveSwap" | "rejectSwap" | "cancelSwap">;
+  /** Evento encerrado: motivo do bloqueio (esconde aprovar/recusar/cancelar). */
+  blockReason?: string | null;
 }
 
-export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdminOrPurchasing, getCollaboratorName, mutations }: SwapStatusCardProps) {
+export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdminOrPurchasing, getCollaboratorName, mutations, blockReason }: SwapStatusCardProps) {
   const [confirmAction, setConfirmAction] = useState<"approve" | "reject" | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -63,7 +65,8 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
   if (!swap) return null;
 
   const { approveSwap, rejectSwap, cancelSwap } = mutations;
-  const canCancel = swap.status === "pendente" && !!currentUserId && swap.requestedBy === currentUserId;
+  const blocked = !!blockReason;
+  const canCancel = swap.status === "pendente" && !blocked && !!currentUserId && swap.requestedBy === currentUserId;
   const v = VARIANTS[swap.status] || VARIANTS.pendente;
   const currentCollabName = getCollaboratorName(swap.currentCollaboratorId);
   const newCollabName = getCollaboratorName(swap.newCollaboratorId);
@@ -128,7 +131,12 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
               <span className="text-slate-400 shrink-0">Motivo:</span>
               <span className="text-slate-600 leading-snug">{swap.reason}</span>
             </div>
-            {isAdminOrPurchasing && (
+            {isAdminOrPurchasing && blocked && (
+              <p className="pt-1.5 text-[10.5px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 leading-snug" role="status" data-testid="text-swap-block-reason">
+                {blockReason}
+              </p>
+            )}
+            {isAdminOrPurchasing && !blocked && (
               <div className="flex gap-2 pt-1.5">
                 <button
                   type="button"
@@ -246,19 +254,25 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
 
 // ── Botão "Solicitar troca" ─────────────────────────────────────────────────
 
-export function RequestSwapButton({ onClick }: { onClick: () => void }) {
+export function RequestSwapButton({ onClick, blockReason }: { onClick: () => void; blockReason?: string | null }) {
+  const blocked = !!blockReason;
   return (
     <div className="space-y-1">
       <button
         type="button"
-        title="Após aprovado pelo time de Compras, a alteração do colaborador será liberada."
-        onClick={onClick}
-        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-blue-200 bg-blue-50/60 text-blue-700 text-[12px] font-medium transition-all hover:bg-blue-100 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-1 active:bg-blue-100"
+        // Com evento encerrado o servidor devolve 403: o botão não pode prometer a troca
+        title={blockReason || "Após aprovado pelo time de Compras, a alteração do colaborador será liberada."}
+        onClick={blocked ? undefined : onClick}
+        disabled={blocked}
+        data-testid="button-request-swap"
+        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-blue-200 bg-blue-50/60 text-blue-700 text-[12px] font-medium transition-all hover:bg-blue-100 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-1 active:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-50/60"
       >
         <ArrowLeftRight className="w-3.5 h-3.5 shrink-0" />
         Solicitar troca
       </button>
-      <p className="text-center text-[10px] text-slate-400 leading-tight">Requer aprovação de Compras</p>
+      <p className="text-center text-[10px] text-slate-400 leading-tight">
+        {blocked ? blockReason : "Requer aprovação de Compras"}
+      </p>
     </div>
   );
 }

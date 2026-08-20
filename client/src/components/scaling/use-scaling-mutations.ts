@@ -157,13 +157,15 @@ export function useScalingMutations(opts: {
       });
     },
     onError: async (err: any) => {
+      // O 403 pode ser falta de permissão OU evento encerrado — a mensagem do
+      // servidor diz qual; só caímos no texto genérico se ela faltar.
+      const serverMsg = await readErrorMessage(err);
       toast({
         title: err?.status === 401 ? "Sessão expirada" : "Erro",
         description: err?.status === 401
           ? "Sua sessão expirou. Atualize a página e entre novamente — o tipo não foi salvo."
-          : err?.status === 403
-            ? "Você não tem permissão para definir o tipo de freela desta cenotécnica."
-            : (await readErrorMessage(err)) || "Erro ao definir o tipo de freela",
+          : serverMsg
+            || (err?.status === 403 ? "Você não tem permissão para definir o tipo de freela desta cenotécnica." : "Erro ao definir o tipo de freela"),
         variant: "destructive",
       });
     },

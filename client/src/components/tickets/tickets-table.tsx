@@ -112,6 +112,7 @@ export default function TicketsTable({
               hasApprovedSwap={data.approvedSwapInclusionIds.has(inclusion.id)}
               selected={selectedTickets.includes(inclusion.id)}
               canEdit={canEdit}
+              locked={data.isEventLocked(inclusion)}
               onToggleSelect={onToggleSelect}
               onOpen={onOpen}
             />

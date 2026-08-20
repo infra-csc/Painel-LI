@@ -28,6 +28,7 @@ import {
   insertBaggageRequestSchema
 } from "@shared/schema";
 import { isFinanceRole, normalizeRole, ROLE_GROUPS, type CanonicalRole } from "@shared/roles";
+import { assertEventEditable, assertInclusionEventEditable } from "./event-guard";
 import {
   isNfEligible, podeDecidirPrestacao, podeEnviarParaRevisao,
   prestacaoEstaTravada, podeAprovarNota, podeDevolverNota, podeFazerCheckin,
@@ -200,6 +201,13 @@ const upload = multer({
     cb(new Error(`Tipo de arquivo não permitido: ${file.mimetype}`));
   }
 });
+
+// ── Evento encerrado: quem ainda pode mexer ───────────────────────────────
+// Regra do usuário (20/08): a partir do dia seguinte ao término do evento, só
+// o ADMINISTRADOR age sobre ESCALAÇÃO e o que depende dela (passagem,
+// hospedagem, troca de colaborador). A trava mora em server/event-guard.ts —
+// server/scaling-validation.ts usa as MESMAS funções, e importá-las de cá
+// fecharia um ciclo (é routes.ts que registra as rotas de escala).
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
@@ -1875,7 +1883,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/team-inclusions", async (req, res) => {
-    if (!await requireRoles(req, res, CADASTRO_ROLES)) return;
+    const creatorActor = await requireRoles(req, res, CADASTRO_ROLES);
+    if (!creatorActor) return;
     try {
       // Clean empty date strings before validation
       const cleanedData = { ...req.body };
@@ -1890,6 +1899,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       
       const inclusionData = insertTeamInclusionSchema.parse(cleanedData);
+      if (!await assertEventEditable(inclusionData.eventId, creatorActor, res)) return;
       const inclusion = await storage.createTeamInclusion(inclusionData);
       const actorId = req.session?.userId;
       const actor = actorId ? await storage.getUser(actorId) : null;
@@ -1919,6 +1929,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         return insertTeamInclusionSchema.parse(cleaned);
       });
+      // Um lote pode misturar eventos — basta um encerrado para recusar tudo
+      for (const eventId of Array.from(new Set(rows.map(r => r.eventId).filter(Boolean)))) {
+        if (!await assertEventEditable(eventId, actor, res)) return;
+      }
       const created = await storage.createTeamInclusionsBatch(rows);
       await createAuditLog('create', 'team_inclusion', created[0]?.id ?? 'bulk', { count: created.length }, actor.id, actor.name, undefined, req);
       res.status(201).json({ created: created.length, items: created });
@@ -1972,6 +1986,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!isAdmin && !isProductionOrPurchasing && !isFunctionManager && !isLegacyResponsible) {
         return res.status(403).json({ message: "Sem permissão para modificar esta escalação." });
       }
+
+      // Evento encerrado: só o administrador
+      if (!await assertEventEditable(currentInclusion.eventId, user, res)) return;
 
       // Transição de status/fase da escalação — uma linha por mudança
       if (req.body.status || req.body.phase) {
@@ -2165,6 +2182,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Sem permissão para confirmar esta escalação." });
       }
 
+      // Evento encerrado: só o administrador
+      if (!await assertEventEditable(currentInclusion.eventId, user, res)) return;
+
       if (currentInclusion.status === 'cancelado') {
         return res.status(400).json({ message: "Escalação cancelada — reative para confirmar." });
       }
@@ -2261,6 +2281,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!isAtendimentoFunction(func?.name)) {
         return res.status(400).json({ message: "Esta escalação não é de atendimento." });
       }
+      if (!await assertEventEditable(current.eventId, actor, res)) return;
       const inclusion = await storage.updateTeamInclusion(req.params.id, {
         atendimentoTipo,
         updatedBy: actor.id,
@@ -2290,6 +2311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!isPercursoFunction(func?.name)) {
         return res.status(400).json({ message: "Esta escalação não é de percurso." });
       }
+      if (!await assertEventEditable(current.eventId, actor, res)) return;
       const inclusion = await storage.updateTeamInclusion(req.params.id, {
         percurseiroTipo,
         updatedBy: actor.id,
@@ -2323,6 +2345,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!isCenotecnicaFunction(func?.name)) {
         return res.status(400).json({ message: "Esta escalação não é de cenotécnica." });
       }
+      if (!await assertEventEditable(current.eventId, actor, res)) return;
       const actorRole = normalizeRole(actor.role);
       if (actorRole !== "admin" && actorRole !== "production" && actorRole !== "purchasing" && actorRole !== "financial") {
         const isManager = await storage.isUserFunctionManager(current.functionId, actor.id);
@@ -2365,6 +2388,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!hasPermission) {
         return res.status(403).json({ message: "Você não tem permissão para aprovar escalações de cenotécnica" });
       }
+
+      // Evento encerrado: só o administrador
+      if (!await assertEventEditable(inclusion.eventId, user, res)) return;
 
       if (inclusion.status !== 'aguardando_producao') {
         return res.status(400).json({ message: "Escalação não está aguardando aprovação do gestor" });
@@ -2429,6 +2455,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!hasPermission) {
         return res.status(403).json({ message: "Você não tem permissão para reprovar escalações de cenotécnica" });
       }
+
+      // Evento encerrado: só o administrador
+      if (!await assertEventEditable(inclusion.eventId, user, res)) return;
 
       if (inclusion.status !== 'aguardando_producao') {
         return res.status(400).json({ message: "Escalação não está aguardando aprovação do gestor" });
@@ -2517,6 +2546,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const current = await storage.getTeamInclusion(id);
       if (!current) return res.status(404).json({ message: "Escalação não encontrada" });
       if (current.status !== 'cancelado') return res.status(400).json({ message: "Apenas escalações canceladas podem ser reativadas" });
+      // Hoje só admin chega aqui (passa pela regra); a trava fica explícita
+      // para a rota não escapar se a permissão de reativar for ampliada.
+      if (!await assertEventEditable(current.eventId, user, res)) return;
 
       const updated = await storage.updateTeamInclusion(id, {
         status: 'pendente',
@@ -2533,7 +2565,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/team-inclusions/:id", async (req, res) => {
-    if (!await requireRoles(req, res, CADASTRO_ROLES)) return;
+    const deleteActor = await requireRoles(req, res, CADASTRO_ROLES);
+    if (!deleteActor) return;
     try {
       const { id } = req.params;
       // Use authenticated user ID or null (deletedBy is nullable foreign key)
@@ -2545,6 +2578,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isSuggestionInclusion(prevInclusion)) {
         return res.status(400).json({ message: "Esta vaga está em Validação de Escala — use a tela de Validação para alterá-la." });
       }
+      // Evento encerrado: só o administrador
+      if (!await assertEventEditable(prevInclusion.eventId, deleteActor, res)) return;
       const inclusion = await storage.updateTeamInclusion(id, {
         deletedAt: new Date(),
         deletedBy: userId,
@@ -2612,10 +2647,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/tickets", async (req, res) => {
-    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
+    const ticketCreator = await requireRoles(req, res, LOGISTICA_ROLES);
+    if (!ticketCreator) return;
     try {
       // Não logar o corpo: passagens contêm dados pessoais do passageiro
       const ticketData = insertTicketSchema.parse(req.body);
+      // Evento encerrado: só o administrador
+      if (!await assertInclusionEventEditable(ticketData.teamInclusionId, ticketCreator, res)) return;
       const ticket = await storage.createTicket(ticketData);
       const actorId = req.session?.userId;
       const actor = actorId ? await storage.getUser(actorId) : null;
@@ -2629,7 +2667,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/tickets/:id", async (req, res) => {
-    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
+    const ticketEditor = await requireRoles(req, res, LOGISTICA_ROLES);
+    if (!ticketEditor) return;
     try {
       const { id } = req.params;
       // Allowlist via schema: só colunas conhecidas de tickets entram. A passagem
@@ -2647,6 +2686,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       const prev = await storage.getTicket(id);
       if (!prev) return res.status(404).json({ message: "Passagem não encontrada" });
+      // Evento encerrado: só o administrador
+      if (!await assertInclusionEventEditable(prev.teamInclusionId, ticketEditor, res)) return;
       const ticket = await storage.updateTicket(id, updates);
       const actorId = req.session?.userId;
       const actor = actorId ? await storage.getUser(actorId) : null;
@@ -2668,10 +2709,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/accommodations", async (req, res) => {
-    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
+    const accommodationCreator = await requireRoles(req, res, LOGISTICA_ROLES);
+    if (!accommodationCreator) return;
     try {
       // Não logar o corpo: hospedagem contém dados pessoais do hóspede
       const accommodationData = insertAccommodationSchema.parse(req.body);
+      // Evento encerrado: só o administrador
+      if (!await assertInclusionEventEditable(accommodationData.teamInclusionId, accommodationCreator, res)) return;
       console.log("✅ Dados de hospedagem validados:", JSON.stringify(accommodationData, null, 2));
       const accommodation = await storage.createAccommodation(accommodationData);
       const actorId = req.session?.userId;
@@ -2686,15 +2730,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/accommodations/:id", async (req, res) => {
-    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
+    const accommodationEditor = await requireRoles(req, res, LOGISTICA_ROLES);
+    if (!accommodationEditor) return;
     try {
       const { id } = req.params;
-      const updates = { 
-        ...req.body, 
+      // Allowlist via schema: só colunas conhecidas de accommodations entram
+      // (antes o body inteiro ia direto para o UPDATE). O ator vem da sessão
+      // (updatedBy) e a hospedagem NUNCA troca de escalação pelo corpo — mandar
+      // um teamInclusionId de outro evento era o jeito de furar a trava de
+      // evento encerrado: a guarda checava o evento ANTIGO e o UPDATE movia a
+      // linha para o novo. Mesmo tratamento do PATCH de passagens.
+      const parsed = insertAccommodationSchema.partial().safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Dados inválidos", error: parsed.error.message });
+      }
+      const { teamInclusionId: bodyInclusionId, updatedBy: _ignoredActor, ...allowed } = parsed.data;
+      const updates = {
+        ...allowed,
         updatedAt: new Date(),
         updatedBy: req.session?.userId ?? null // ator vem da sessão, não do corpo
       };
       const prev = await storage.getAccommodation(id);
+      if (!prev) return res.status(404).json({ message: "Hospedagem não encontrada" });
+      // O client manda o teamInclusionId da própria hospedagem (é o mesmo do
+      // POST). Divergiu = tentativa de mover a linha: recusa em vez de ignorar
+      // em silêncio, para o erro aparecer em vez de virar um "salvou" mentiroso.
+      if (bodyInclusionId != null && bodyInclusionId !== prev.teamInclusionId) {
+        return res.status(400).json({ message: "A hospedagem não pode ser movida para outra escalação" });
+      }
+      // Evento encerrado: só o administrador. `prev` já está carregado, mas a
+      // guarda precisa do eventId (que mora na escalação, não na hospedagem).
+      if (!await assertInclusionEventEditable(prev.teamInclusionId, accommodationEditor, res)) return;
       const accommodation = await storage.updateAccommodation(id, updates);
       const actorId = req.session?.userId;
       const actor = actorId ? await storage.getUser(actorId) : null;
@@ -5222,6 +5288,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (isSuggestionInclusion(inclusion)) {
       return res.status(400).json({ message: "Esta vaga está em Validação de Escala — use a tela de Validação para alterá-la." });
     }
+    // Evento encerrado: só o administrador
+    if (!await assertEventEditable(inclusion.eventId, currentUser, res)) return;
     const currentCollaboratorId = inclusion.collaboratorId ?? null;
     if (!currentCollaboratorId) {
       return res.status(400).json({ message: "Esta escalação ainda não tem colaborador — não há troca a fazer." });
@@ -5273,10 +5341,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     try {
       // Buscar o swap request
-      const srRows = await db.execute(drizzleSql`SELECT * FROM swap_requests WHERE id = ${id}`);
+      const srRows = await db.execute(drizzleSql`SELECT sr.*, (SELECT event_id FROM team_inclusions WHERE id = sr.team_inclusion_id) AS inclusion_event_id
+        FROM swap_requests sr WHERE sr.id = ${id}`);
       const sr = ((srRows as any).rows ?? srRows)[0];
       if (!sr) return res.status(404).json({ message: "Solicitação não encontrada" });
       if (sr.status !== 'pendente') return res.status(400).json({ message: "Solicitação não está pendente" });
+      // Evento encerrado: só o administrador. O eventId já veio junto do swap
+      // request (subselect acima) — a guarda não relê a escalação.
+      if (!await assertInclusionEventEditable(sr.team_inclusion_id, currentUser, res, { eventId: sr.inclusion_event_id ?? null })) return;
 
       // Atualizar colaborador na team_inclusion
       await db.execute(drizzleSql`
@@ -5309,10 +5381,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!reviewComment?.trim()) return res.status(400).json({ message: "Motivo da rejeição é obrigatório" });
 
     try {
-      const srRows = await db.execute(drizzleSql`SELECT * FROM swap_requests WHERE id = ${id}`);
+      const srRows = await db.execute(drizzleSql`SELECT sr.*, (SELECT event_id FROM team_inclusions WHERE id = sr.team_inclusion_id) AS inclusion_event_id
+        FROM swap_requests sr WHERE sr.id = ${id}`);
       const sr = ((srRows as any).rows ?? srRows)[0];
       if (!sr) return res.status(404).json({ message: "Solicitação não encontrada" });
       if (sr.status !== 'pendente') return res.status(400).json({ message: "Solicitação não está pendente" });
+      // Evento encerrado: só o administrador. O eventId já veio junto do swap
+      // request (subselect acima) — a guarda não relê a escalação.
+      if (!await assertInclusionEventEditable(sr.team_inclusion_id, currentUser, res, { eventId: sr.inclusion_event_id ?? null })) return;
 
       await db.execute(drizzleSql`
         UPDATE swap_requests SET status = 'rejeitado', reviewed_by = ${currentUser.id}, reviewed_by_name = ${currentUser.name}, review_comment = ${reviewComment.trim()}, reviewed_at = NOW()
@@ -5333,7 +5409,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const { id } = req.params;
     try {
-      const srRows = await db.execute(drizzleSql`SELECT * FROM swap_requests WHERE id = ${id}`);
+      const srRows = await db.execute(drizzleSql`SELECT sr.*, (SELECT event_id FROM team_inclusions WHERE id = sr.team_inclusion_id) AS inclusion_event_id
+        FROM swap_requests sr WHERE sr.id = ${id}`);
       const sr = ((srRows as any).rows ?? srRows)[0];
       if (!sr) return res.status(404).json({ message: "Solicitação não encontrada" });
       if (sr.status !== 'pendente') return res.status(400).json({ message: "Solicitação não está pendente" });
@@ -5341,6 +5418,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isAdminOrPurchasing = ['admin', 'purchasing'].includes(normalizeRole(currentUser.role) ?? '');
       const isRequester = sr.requested_by === currentUser.id;
       if (!isAdminOrPurchasing && !isRequester) return res.status(403).json({ message: "Sem permissão para cancelar" });
+      // Evento encerrado: só o administrador. O eventId já veio junto do swap
+      // request (subselect acima) — a guarda não relê a escalação.
+      if (!await assertInclusionEventEditable(sr.team_inclusion_id, currentUser, res, { eventId: sr.inclusion_event_id ?? null })) return;
 
       await db.execute(drizzleSql`
         UPDATE swap_requests SET status = 'cancelado', reviewed_by = ${currentUser.id}, reviewed_by_name = ${currentUser.name}, reviewed_at = NOW()

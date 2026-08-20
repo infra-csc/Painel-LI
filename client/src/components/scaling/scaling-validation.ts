@@ -8,6 +8,7 @@ import type { TeamInclusion } from "@shared/schema";
 // `isCenotecnicaFunction` (alimentacao) exclui "sup ceno", que é produtor — não
 // confundir com o homônimo de use-scaling-data, que inclui (aprovação do gestor).
 import { isCenotecnicaFunction as isCenoEmpreitaFunction } from "@shared/alimentacao";
+import { PAST_EVENT_BLOCK_MSG } from "@shared/event-window";
 import { isEscalated } from "./scaling-utils";
 import type { ScalingData } from "./use-scaling-data";
 
@@ -21,7 +22,7 @@ export interface ValidationValues {
 type Rules = Pick<
   ScalingData,
   "isAtendimentoInclusion" | "isPercursoInclusion" | "getCollaboratorConflicts" | "getCollaboratorName" | "getEventName" |
-  "getFunctionName" | "canEditCollaborator" | "canConfirmEscalation"
+  "getFunctionName" | "canEditCollaborator" | "canConfirmEscalation" | "isEventLocked"
 >;
 
 export const ATENDIMENTO_MISSING_MSG = "Selecione o tipo de atendimento (Key Account ou Executivo de Contas).";
@@ -76,6 +77,8 @@ export const getCollaboratorConflictSummary = (inclusion: TeamInclusion, collabo
 
 export const getSaveBlockReason = (inclusion: TeamInclusion | null, values: ValidationValues, rules: Rules): string | null => {
   if (!inclusion) return "Nenhuma escalação selecionada.";
+  // Evento encerrado vem antes de tudo: é exatamente o 403 que o servidor daria
+  if (rules.isEventLocked(inclusion)) return PAST_EVENT_BLOCK_MSG;
   if (inclusion.status === "cancelado") return "Escalação cancelada — reative para editar.";
   if (isEscalated(inclusion)) {
     if (!rules.canEditCollaborator(inclusion)) return "Alteração bloqueada: passagem comprada, hospedagem reservada ou sem permissão.";
@@ -89,6 +92,7 @@ export const getSaveBlockReason = (inclusion: TeamInclusion | null, values: Vali
 
 export const getConfirmBlockReason = (inclusion: TeamInclusion | null, values: ValidationValues, rules: Rules): string | null => {
   if (!inclusion) return "Nenhuma escalação selecionada.";
+  if (rules.isEventLocked(inclusion)) return PAST_EVENT_BLOCK_MSG;
   if (inclusion.status === "cancelado") return "Escalação cancelada — reative para confirmar.";
   if (!rules.canConfirmEscalation(inclusion)) return "Apenas o responsável pela função pode confirmar escalações.";
   if (!values.collaboratorId) return "Selecione um colaborador antes de confirmar.";
@@ -104,6 +108,7 @@ export const getConfirmBlockReason = (inclusion: TeamInclusion | null, values: V
  * valores já gravados na escalação, sem edição). Null = elegível.
  */
 export const getBulkConfirmBlockReason = (inclusion: TeamInclusion, rules: Rules): string | null => {
+  if (rules.isEventLocked(inclusion)) return "Evento encerrado — só o administrador altera";
   if (inclusion.status === "cancelado") return "Escalação cancelada";
   if (isEscalated(inclusion)) return "Já confirmada";
   if (!rules.canConfirmEscalation(inclusion)) return "Sem permissão (apenas o responsável pela função)";

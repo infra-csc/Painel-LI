@@ -17,6 +17,8 @@ export interface TicketRowProps {
   hasApprovedSwap: boolean;
   selected: boolean;
   canEdit: boolean;
+  /** Evento encerrado: a linha não entra em ações em lote (servidor devolve 403). */
+  locked?: boolean;
   onToggleSelect: (inclusionId: string) => void;
   onOpen: (inclusion: TeamInclusion) => void;
 }
@@ -34,7 +36,7 @@ export function ticketSummaryLine(t: Ticket): string {
 
 function TicketRow({
   inclusion, ticket, rowIdx, eventName, functionName, collaboratorName, eventLocation,
-  hasPendingSwap, hasApprovedSwap, selected, canEdit, onToggleSelect, onOpen,
+  hasPendingSwap, hasApprovedSwap, selected, canEdit, locked, onToggleSelect, onOpen,
 }: TicketRowProps) {
   const cancelado = inclusion.status === "cancelado";
   const cellCls = `px-4 py-3 cursor-pointer ${cancelado ? "opacity-60" : ""}`;
@@ -57,7 +59,7 @@ function TicketRow({
     >
       {/* Checkbox — só para PENDENTES */}
       <td className="px-4 py-3 whitespace-nowrap w-10" onClick={(e) => e.stopPropagation()}>
-        {!ticket && !cancelado ? (
+        {!ticket && !cancelado && !locked ? (
           <input
             type="checkbox"
             checked={selected}

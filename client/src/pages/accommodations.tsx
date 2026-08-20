@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { canView, canEdit as canEditScreen } from "@/lib/permissions";
+import { useEventLock, PastEventBanner } from "@/lib/event-lock";
 import { hasRoleIn } from "@shared/roles";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
@@ -55,6 +56,9 @@ export default function Accommodations() {
   // Admin ou Compras — aceita aliases legados ("administrador", "compras"...)
   const isPurchasingRole = hasRoleIn(user?.role, ["admin", "purchasing"]);
   const canEditField = canEditScreen(user, "accommodations");
+  // Evento encerrado (regra 19/08): hospedagem depende da escalação — depois do
+  // término só o administrador age (o servidor devolve 403).
+  const eventLock = useEventLock();
 
   // ── Dados ──
   const {
@@ -66,9 +70,13 @@ export default function Accommodations() {
 
   // A seleção sobrevive à troca de filtros e a registros feitos em outra aba; o
   // contador e o botão de lote usam só o que ainda é aplicável.
-  const effectiveSelectedForBatch = selectedForBatch.filter((id) => selectableInclusionIds.has(id));
+  // Linhas de evento encerrado não entram no lote: o POST/PATCH tomaria 403.
+  const selectableAtivos = new Set(
+    filteredData.filter((inc) => selectableInclusionIds.has(inc.id) && !eventLock.isLockedInclusion(inc)).map((inc) => inc.id),
+  );
+  const effectiveSelectedForBatch = selectedForBatch.filter((id) => selectableAtivos.has(id));
   const allSelectableSelected =
-    selectableInclusionIds.size > 0 && Array.from(selectableInclusionIds).every((id) => selectedForBatch.includes(id));
+    selectableAtivos.size > 0 && Array.from(selectableAtivos).every((id) => selectedForBatch.includes(id));
 
   // ── Handlers de filtro/ordenação/seleção ──
   const patchFilters = useCallback((patch: Partial<AccommodationFilters>) => setFilters((prev) => ({ ...prev, ...patch })), []);
@@ -89,7 +97,7 @@ export default function Accommodations() {
     setSelectedForBatch((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   // Marcar todos = só os pendentes visíveis (canceladas não têm checkbox).
   const toggleAllSelection = () =>
-    setSelectedForBatch(allSelectableSelected ? [] : Array.from(selectableInclusionIds));
+    setSelectedForBatch(allSelectableSelected ? [] : Array.from(selectableAtivos));
 
   // ── Modal ──
   const openModal = (inclusion: TeamInclusion) => {
@@ -278,7 +286,8 @@ export default function Accommodations() {
   const selectedAccommodation = selectedInclusion ? accommodationMap.get(selectedInclusion.id) : undefined;
   const isPostPurchase = isPostPurchaseStatus(selectedInclusion?.status);
   // Antes de registrar: quem edita a tela. Depois: SÓ Compras/admin (decisão do usuário).
-  const canEditRecord = !!selectedInclusion && !!user && canEditField
+  const eventLocked = eventLock.isLockedInclusion(selectedInclusion);
+  const canEditRecord = !!selectedInclusion && !!user && canEditField && !eventLocked
     && selectedInclusion.status !== "cancelado" && (!isPostPurchase || isPurchasingRole);
   const lockedForRole = isPostPurchase && !isPurchasingRole && selectedInclusion?.status !== "cancelado";
 
@@ -296,6 +305,10 @@ export default function Accommodations() {
       </div>
 
       <SummaryCards counts={counts} activeStatus={filters.accommodationStatus} onSelectStatus={(s) => patchFilters({ accommodationStatus: s })} />
+
+      {/* Evento encerrado: banner discreto quando o filtro aponta para um evento
+          já terminado e o usuário não é o administrador. */}
+      <PastEventBanner show={filters.eventId !== "all" && eventLock.isReadOnlyPastEvent(filters.eventId)} />
 
       {/* Banner: trocas pendentes aguardando análise de Compras. Com o filtro ligado
           o banner continua visível mesmo sem resultados — ele é o único controle do toggle. */}
@@ -334,7 +347,7 @@ export default function Accommodations() {
         pendingSwapByInclusion={pendingSwapByInclusion}
         filters={filters} onFiltersChange={patchFilters} onClearFilters={clearFilters} hasActiveFilters={hasActiveFilters}
         sortConfig={sortConfig} onSort={handleSort}
-        batchMode={batchExpanded} selectedIds={selectedForBatch} selectableIds={selectableInclusionIds} allSelectableSelected={allSelectableSelected}
+        batchMode={batchExpanded} selectedIds={selectedForBatch} selectableIds={selectableAtivos} allSelectableSelected={allSelectableSelected}
         onToggleRow={toggleRowSelection} onToggleAll={toggleAllSelection}
         canEdit={canEditField} onOpen={openModal} counts={counts}
       />
@@ -346,7 +359,8 @@ export default function Accommodations() {
         func={selectedInclusion ? functionById.get(selectedInclusion.functionId) : undefined}
         collaborator={selectedInclusion?.collaboratorId ? collaboratorById.get(selectedInclusion.collaboratorId) : undefined}
         collaboratorById={collaboratorById} users={users}
-        canEditRecord={canEditRecord} isPurchasingRole={isPurchasingRole} lockedForRole={lockedForRole} isPostPurchase={isPostPurchase}
+        canEditRecord={canEditRecord} isPurchasingRole={isPurchasingRole && !eventLocked} lockedForRole={lockedForRole} isPostPurchase={isPostPurchase}
+        eventLocked={eventLocked} eventLockMessage={eventLock.lockReason(selectedInclusion?.eventId)}
         isSaving={createMutation.isPending || updateMutation.isPending} onSave={handleModalSave}
       />
 

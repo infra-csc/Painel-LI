@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { canView } from "@/lib/permissions";
+import { PastEventBanner } from "@/lib/event-lock";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import type { TeamInclusion, Comment } from "@shared/schema";
@@ -372,6 +373,11 @@ export default function Scaling() {
           <p className="text-sm text-slate-500 font-medium mt-0.5">Lista de escalações com informações detalhadas</p>
         </div>
       </div>
+
+      {/* Evento encerrado: banner discreto quando o filtro aponta para um evento
+          já terminado e o usuário não é o administrador (as ações da
+          tela já vêm desabilitadas com o motivo no tooltip). */}
+      <PastEventBanner show={filters.eventId !== "all" && !data.podeAgirEmEventoPassado && data.isPastEvent(filters.eventId)} />
 
       {canApproveProduction && (
         <ProductionApprovalsBanner pending={pendingProductionApprovals} inView={pendingProductionApprovalsInView} hasActiveFilters={hasActiveFilters} />

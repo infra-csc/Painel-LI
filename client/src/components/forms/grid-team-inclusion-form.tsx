@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import type { Event, Function } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
+import { useEventLock, PastEventBanner } from "@/lib/event-lock";
 
 const FUNCTION_ORDER = [
   'atendimento',
@@ -312,6 +313,13 @@ export default function GridTeamInclusionForm() {
   const { data: functions } = useQuery<Function[]>({
     queryKey: ["/api/functions"],
   });
+
+  // Evento encerrado (regra 20/08): criar escalação em evento que já passou é
+  // 403 no servidor — o botão fica desabilitado com o motivo.
+  const eventLock = useEventLock();
+  const eventoEncerrado = eventLock.isLockedEvent(selectedEventId);
+  // Motivo exato (encerrado x fora da lista) para o tooltip e o rótulo do botão.
+  const motivoBloqueio = eventLock.lockReason(selectedEventId);
 
   // O(1) lookup map: functionId → Function
   const functionMap = useMemo(() => {
@@ -1606,20 +1614,23 @@ export default function GridTeamInclusionForm() {
                     </button>
                   </div>
 
+                  <PastEventBanner show={eventoEncerrado} message={eventLock.bannerMessage(selectedEventId)} className="mb-2" />
                   <button
                     type="button"
                     onClick={handleSubmit}
-                    disabled={isProcessing || processedRanges.length === 0 || !selectedEventId}
-                    title={!selectedEventId ? "Selecione o evento para criar as escalações" : undefined}
+                    disabled={isProcessing || processedRanges.length === 0 || !selectedEventId || eventoEncerrado}
+                    title={motivoBloqueio ?? (!selectedEventId ? "Selecione o evento para criar as escalações" : undefined)}
                     className="w-full h-11 flex items-center justify-center gap-2 text-white text-sm font-semibold rounded-lg transition-all bg-primary hover:bg-primary-hover hover:-translate-y-0.5 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0"
                     data-testid="button-save-grid"
                   >
                     <Save className="w-4 h-4" />
                     {isProcessing
                       ? "Criando Escalações..."
-                      : !selectedEventId
-                        ? "Selecione o evento para criar"
-                        : `Criar ${processedRanges.length} Escalação(ões)`}
+                      : eventoEncerrado
+                        ? (motivoBloqueio ?? "Evento encerrado — só o administrador altera")
+                        : !selectedEventId
+                          ? "Selecione o evento para criar"
+                          : `Criar ${processedRanges.length} Escalação(ões)`}
                   </button>
                 </div>
               </div>

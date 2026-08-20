@@ -64,6 +64,13 @@ import {
   type VagaDecisionResult,
 } from "@shared/scaling-validation-rules";
 import { normalizeRole, type CanonicalRole } from "@shared/roles";
+import {
+  assertEventEditable,
+  assertLoadedEventEditable,
+  isEventIdBlockedForActor,
+  newEventCache,
+  PAST_EVENT_BLOCK_MSG,
+} from "./event-guard";
 
 // ── Dependências injetadas por routes.ts (evita import circular) ─────────────
 export interface ScalingValidationDeps {
@@ -486,6 +493,9 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
 
       const event = await storage.getEvent(eventId);
       if (!event) return res.status(404).json({ message: "Evento não encontrado" });
+      // Evento encerrado: só o administrador. Enviar a escala sugerida CRIA
+      // vagas — o evento já está carregado, então a guarda não relê nada.
+      if (!assertLoadedEventEditable(event, actor, res)) return;
 
       const functionsById = new Map((await storage.getFunctions()).map((f) => [f.id, f]));
       const now = new Date();
@@ -639,11 +649,19 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       const ids = Array.from(new Set(parsed.data.inclusionIds));
       const byId = new Map((await storage.getTeamInclusionsByIds(ids)).map((i) => [i.id, i]));
       const roleCache = new Map<string, FunctionManagerRole | null>();
+      // Evento encerrado: o lote não vira 403 inteiro — a vaga de evento
+      // encerrado entra em `skipped` como qualquer outra recusa de linha. O
+      // cache evita um getEvent por vaga (o lote é quase sempre de um evento só)
+      // e nem chega a ser consultado quando o ator é administrador.
+      const eventCache = newEventCache();
       const candidates: TeamInclusion[] = [];
       for (const id of ids) {
         const inclusion = byId.get(id);
         if (!inclusion || inclusion.deletedAt) { skipped.push({ id, reason: "Vaga não encontrada" }); continue; }
         if (!isSuggestionInclusion(inclusion)) { skipped.push({ id, reason: "Vaga não está em validação" }); continue; }
+        if (await isEventIdBlockedForActor(inclusion.eventId, actor, eventCache)) {
+          skipped.push({ id, reason: PAST_EVENT_BLOCK_MSG }); continue;
+        }
         if (!roleCache.has(inclusion.functionId)) roleCache.set(inclusion.functionId, await roleFor(inclusion.functionId, actor.id));
         if (!canValidateInclusion(roleCache.get(inclusion.functionId), admin)) {
           skipped.push({ id, reason: "Sem permissão para validar esta função" }); continue;
@@ -745,6 +763,9 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       res.status(403).json({ message: "Apenas o aprovador da função (ou admin) pode decidir a vaga validada" });
       return null;
     }
+    // Evento encerrado: só o administrador. Aqui, e não em cada handler, porque
+    // aprovar/reprovar/devolver passam todos por este carregamento.
+    if (!await assertEventEditable(inclusion.eventId, actor, res)) return null;
     return inclusion;
   }
 
@@ -822,11 +843,17 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       const ids = Array.from(new Set(parsed.data.ids ?? parsed.data.inclusionIds ?? []));
       const byId = new Map((await storage.getTeamInclusionsByIds(ids)).map((i) => [i.id, i]));
       const roleCache = new Map<string, FunctionManagerRole | null>();
+      // Evento encerrado: mesma regra do /validate — a linha entra em `skipped`
+      // em vez de derrubar o lote, com um getEvent por EVENTO (não por vaga).
+      const eventCache = newEventCache();
       const candidates: TeamInclusion[] = [];
       for (const id of ids) {
         const inclusion = byId.get(id);
         if (!inclusion || inclusion.deletedAt) { skipped.push({ id, reason: "Vaga não encontrada" }); continue; }
         if (!isSuggestionInclusion(inclusion)) { skipped.push({ id, reason: "Vaga não está em validação" }); continue; }
+        if (await isEventIdBlockedForActor(inclusion.eventId, actor, eventCache)) {
+          skipped.push({ id, reason: PAST_EVENT_BLOCK_MSG }); continue;
+        }
         if (!roleCache.has(inclusion.functionId)) roleCache.set(inclusion.functionId, await roleFor(inclusion.functionId, actor.id));
         if (!canApproveRequest(roleCache.get(inclusion.functionId), admin)) {
           skipped.push({ id, reason: "Sem permissão para aprovar esta função" }); continue;
@@ -1031,6 +1058,11 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     if (!canApproveRequest(role, isAdmin(actor))) {
       res.status(403).json({ message: "Apenas o aprovador da função (ou admin) pode decidir este pedido" }); return null;
     }
+    // Evento encerrado: só o administrador. Aqui, e não em cada handler, porque
+    // approve/reajustar/negar passam todos por este carregamento — e as três
+    // criam ou promovem vaga (o pedido de inclusão aprovado cria N vagas).
+    // O pedido guarda o eventId, então não é preciso carregar a vaga.
+    if (!await assertEventEditable(request.eventId, actor, res)) return null;
     return request;
   }
 
@@ -1281,6 +1313,9 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       if (!canApproveRequest(role, isAdmin(actor))) {
         return res.status(403).json({ message: "Apenas o aprovador da função (ou admin) pode decidir sem validação da área" });
       }
+      // Evento encerrado: só o administrador. O bypass aprova a vaga direto
+      // (vira Inclusão) — é exatamente o que não pode acontecer depois do fim.
+      if (!await assertEventEditable(inclusion.eventId, actor, res)) return;
       const comment = optionalCommentSchema.safeParse(req.body ?? {}).data?.comment ?? null;
       const action: SuggestionAction = kind === "approve" ? "aprovar_direto_bypass" : "reprovar_bypass";
       const next = rule(() => nextSuggestionState(inclusion, action));

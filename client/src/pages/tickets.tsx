@@ -8,6 +8,7 @@ import { type SortConfig, type SortField } from "@/components/common/sortable-he
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { canView, canEdit as canEditScreen } from "@/lib/permissions";
+import { PastEventBanner } from "@/lib/event-lock";
 import { useAuth } from "@/hooks/use-auth";
 import {
   getMissingRequiredFields,
@@ -368,6 +369,9 @@ export default function Tickets() {
         </div>
 
         <TicketsKpis kpis={kpis} />
+        {/* Evento encerrado: banner discreto quando o filtro aponta para um evento
+            já terminado e o usuário não é o administrador. */}
+        <PastEventBanner show={!!filteredEvent && data.isEventLocked({ eventId: filteredEvent.id })} />
         {isPurchasingRole && (
           <PendingSwapsBanner count={pendingTicketSwapsCount} active={showOnlyPendingSwaps} onToggle={() => setShowOnlyPendingSwaps(v => !v)} />
         )}

@@ -19,6 +19,7 @@ import type { TeamInclusion, Event, Function, Collaborator, Accommodation, Comme
 import type { AccommodationDraft, NormalizedSwap, UserLite } from "./types";
 import { brl, draftFrom, fetchSwaps, formatDate, isCheckOutAfterCheckIn } from "./utils";
 import SwapReviewPanel from "./swap-review-panel";
+import { PastEventBanner, PAST_EVENT_BLOCK_MSG } from "@/lib/event-lock";
 
 export interface AccommodationModalProps {
   open: boolean;
@@ -37,6 +38,10 @@ export interface AccommodationModalProps {
   isPurchasingRole: boolean;
   /** Registrada e o usuário não é Compras: somente leitura com aviso. */
   lockedForRole: boolean;
+  /** Evento encerrado (ou fora da lista): só leitura — o servidor responde 403. */
+  eventLocked?: boolean;
+  /** Texto do banner quando `eventLocked` — encerrado x indisponível. */
+  eventLockMessage?: string | null;
   isPostPurchase: boolean;
   isSaving: boolean;
   /** Persiste o rascunho (cria ou atualiza). Deve rejeitar (throw) em erro. */
@@ -83,7 +88,7 @@ export default function AccommodationModal(props: AccommodationModalProps) {
 
 function AccommodationModalContent({
   onClose, inclusion, accommodation, event, func, collaborator, collaboratorById, users,
-  canEditRecord, isPurchasingRole, lockedForRole, isPostPurchase, isSaving, onSave,
+  canEditRecord, isPurchasingRole, lockedForRole, eventLocked, eventLockMessage, isPostPurchase, isSaving, onSave,
 }: AccommodationModalProps & { inclusion: TeamInclusion }) {
   const { toast } = useToast();
   const [draft, setDraft] = useState<AccommodationDraft>(() => draftFrom(accommodation, inclusion));
@@ -259,6 +264,7 @@ function AccommodationModalContent({
           {/* ══ ABA: DADOS DA HOSPEDAGEM ══ */}
           <TabsContent value="dados" className="m-0 p-6">
             <div className="space-y-4">
+              <PastEventBanner show={!!eventLocked} message={eventLockMessage} />
               {lockedForRole && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 flex items-center gap-2" data-testid="notice-locked-for-role">
                   <Lock className="w-4 h-4 text-amber-600 shrink-0" />
@@ -472,7 +478,12 @@ function AccommodationModalContent({
 
       {/* ─── FOOTER ─── */}
       <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0 bg-white">
-        {lockedForRole && (
+        {eventLocked && (
+          <span className="mr-auto inline-flex items-center gap-1.5 text-[12px] text-amber-700" data-testid="footer-past-event-block">
+            <Lock className="w-3.5 h-3.5" /> {eventLockMessage || PAST_EVENT_BLOCK_MSG}
+          </span>
+        )}
+        {!eventLocked && lockedForRole && (
           <span className="mr-auto inline-flex items-center gap-1.5 text-[12px] text-slate-500">
             <Lock className="w-3.5 h-3.5" /> Somente Compras altera hospedagem registrada
           </span>

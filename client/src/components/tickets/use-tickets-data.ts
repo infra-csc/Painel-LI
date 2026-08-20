@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fixEncoding } from "@/lib/utils";
 import { purchasedValueKpi, isStoredTicketOneWay } from "@/lib/ticket-form";
+import { isEventPast, canActOnPastEvent } from "@shared/event-window";
 import type { SortConfig } from "@/components/common/sortable-header";
 import type {
   TeamInclusion, Event, Function, Collaborator, Ticket, Accommodation, User, SwapRequest,
@@ -187,6 +188,12 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
 
   const isPurchasingRole = !!user?.role && PURCHASING_ROLES.includes(user.role);
 
+  // Evento encerrado (regra do usuário, 20/08): passagem depende da escalação —
+  // depois do término só o administrador age (o servidor devolve 403).
+  const podeAgirEmEventoPassado = canActOnPastEvent(user?.role);
+  const isEventLocked = (inclusion: { eventId?: string | null }): boolean =>
+    !podeAgirEmEventoPassado && !!inclusion.eventId && isEventPast(eventById.get(inclusion.eventId)?.endDate);
+
   // ── Getters ──
   const getTicket = (inclusionId: string): Ticket | undefined => ticketByInclusion.get(inclusionId);
   const getEventName = (eventId: string) => eventById.get(eventId)?.name || "Evento não encontrado";
@@ -308,10 +315,12 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
   const selectableInclusionIds = useMemo(() => {
     const ids = new Set<string>();
     filteredTicketInclusions.forEach(inc => {
-      if (!ticketByInclusion.has(inc.id) && inc.status !== "cancelado") ids.add(inc.id);
+      // Evento encerrado fica fora do lote: o POST/PATCH tomaria 403
+      if (!ticketByInclusion.has(inc.id) && inc.status !== "cancelado" && !isEventLocked(inc)) ids.add(inc.id);
     });
     return ids;
-  }, [filteredTicketInclusions, ticketByInclusion]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredTicketInclusions, ticketByInclusion, eventById, podeAgirEmEventoPassado]);
 
   // ── KPIs do filtro atual ──
   const kpis = useMemo(() => {
@@ -329,7 +338,8 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
       }
     }
     return { total: filteredTicketInclusions.length, compradas, aguardando, semChegada, valor: purchasedValueKpi(values) };
-  }, [filteredTicketInclusions, ticketByInclusion]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredTicketInclusions, ticketByInclusion, eventById, podeAgirEmEventoPassado]);
 
   return {
     // dados crus
@@ -337,7 +347,7 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
     isLoading, loadError, retryLoad,
     // índices
     ticketByInclusion, eventById, functionById, collaboratorById, accommodationByInclusion,
-    pendingSwapByInclusion, approvedSwapInclusionIds, isPurchasingRole,
+    pendingSwapByInclusion, approvedSwapInclusionIds, isPurchasingRole, isEventLocked,
     // getters
     getTicket, getEventName, getFunctionName, getCollaboratorName, getCollaborator, getEventLocation, getUserName,
     // listas derivadas
