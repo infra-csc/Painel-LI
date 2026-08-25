@@ -441,43 +441,65 @@ describe("casamento tolerante de nomes de função", () => {
   });
 });
 
-describe("colagem no formato da logística", () => {
-  // Conteúdo VERBATIM da planilha que a logística usa (colunas separadas por TAB).
-  // Repare na coluna VAZIA entre "horario do retorno" e o 1º dia: é ela que quebra
-  // qualquer leitura por posição fixa.
-  const PLANILHA = [
-    "Circuito Das Estações - Primavera - Recife - 2026",
-    "\tida\tchegada (até...)\tretorno\thorario do retorno (a partir)\t\t08/set\t09/set\t10/set\t11/set\t12/set\t13/set\t\t\t\tobs",
-    "\t\t\tter\tqua\tqui\tsex\tsab\tdom",
-    "atendimento\tsexta-feira, 11 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t14-18h\t\t\t\t\t\t1\t1",
-    "dir prova\tquinta-feira, 10 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t14-18h\t\t\t\t\t1\t1\t1",
-    "produção\tquarta-feira, 9 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t20h+\t\t\t\t1\t1\t1\t1",
-    "produção local\t\t\t\t\t\t\t\t\t1\t2\t3",
-    "ativação sp\tquinta-feira, 10 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t14-18h\t\t\t\t\t1\t1\t1",
-    "ativação local\t\t\t\t\t\t\t\t\t\t1\t1",
-    "sup ceno\tquarta-feira, 9 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t20h+\t\t\t\t1\t1\t1\t1",
-    "cenotecnica\tquinta-feira, 10 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t20h+\t\t\t\t3\t3\t3\t3",
-    "cenotecnica local\t\t\t\t\t\t\t\t2\t2\t2",
-    "percurso\tsábado, 12 de setembro de 2026\t11h\tdomingo, 13 de setembro de 2026\t14-18h\t\t\t\t\t\t1\t1",
-    "kit\tquinta-feira, 10 de setembro de 2026\t11h\tdomingo, 13 de setembro de 2026\t14-18h\t\t\t\t1\t1\t1\t1",
-    "o2 prime\tquinta-feira, 10 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t14-18h\t\t\t\t\t1\t1\t1",
-    "",
-  ].join("\n");
+// Conteúdo VERBATIM da planilha que a logística usa (colunas separadas por TAB).
+// Repare na coluna VAZIA entre "horario do retorno" e o 1º dia: é ela que quebra
+// qualquer leitura por posição fixa. Cabeçalho e dados ficam separados aqui porque
+// o mesmo conteúdo é usado duas vezes: COM cabeçalho e SEM (só as linhas de dados,
+// que é o que sai do Excel quando o usuário seleciona apenas as linhas).
+const PLANILHA_A_CABECALHO = [
+  "Circuito Das Estações - Primavera - Recife - 2026",
+  "\tida\tchegada (até...)\tretorno\thorario do retorno (a partir)\t\t08/set\t09/set\t10/set\t11/set\t12/set\t13/set\t\t\t\tobs",
+  "\t\t\tter\tqua\tqui\tsex\tsab\tdom",
+];
+const PLANILHA_A_DADOS = [
+  "atendimento\tsexta-feira, 11 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t14-18h\t\t\t\t\t\t1\t1",
+  "dir prova\tquinta-feira, 10 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t14-18h\t\t\t\t\t1\t1\t1",
+  "produção\tquarta-feira, 9 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t20h+\t\t\t\t1\t1\t1\t1",
+  "produção local\t\t\t\t\t\t\t\t\t1\t2\t3",
+  "ativação sp\tquinta-feira, 10 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t14-18h\t\t\t\t\t1\t1\t1",
+  "ativação local\t\t\t\t\t\t\t\t\t\t1\t1",
+  "sup ceno\tquarta-feira, 9 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t20h+\t\t\t\t1\t1\t1\t1",
+  "cenotecnica\tquinta-feira, 10 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t20h+\t\t\t\t3\t3\t3\t3",
+  "cenotecnica local\t\t\t\t\t\t\t\t2\t2\t2",
+  "percurso\tsábado, 12 de setembro de 2026\t11h\tdomingo, 13 de setembro de 2026\t14-18h\t\t\t\t\t\t1\t1",
+  "kit\tquinta-feira, 10 de setembro de 2026\t11h\tdomingo, 13 de setembro de 2026\t14-18h\t\t\t\t1\t1\t1\t1",
+  "o2 prime\tquinta-feira, 10 de setembro de 2026\t23h\tdomingo, 13 de setembro de 2026\t14-18h\t\t\t\t\t1\t1\t1",
+];
+// Segunda planilha real (NETSHOES): as DATAS vêm numa linha e os RÓTULOS na
+// seguinte, e há DUAS colunas vazias entre o bloco de viagem e o 1º dia.
+const PLANILHA_B_CABECALHO = [
+  "NETSHOES RUN RECIFE - 2026\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t",
+  "\t\t\t\t\t\t\t14/out\t15/out\t16/out\t17/out\t18/out\t\t\t\t\tobs",
+  "\tida\tchegada (até...)\tretorno\thorario do retorno (a partir)\t\t\tqua\tqui\tsex\tsab\tdom\t\t\t\t\t",
+];
+const PLANILHA_B_DADOS = [
+  "atendimento\tsexta-feira, 16 de outubro de 2026\t11h\tdomingo, 18 de outubro de 2026\t14-18h\t\t\t\t\t1\t1\t1",
+  "produção\tquarta-feira, 14 de outubro de 2026\t23h\tdomingo, 18 de outubro de 2026\t20h+\t\t\t\t1\t1\t1\t1",
+  "produção local\t\t\t\t\t\t\t\t\t1\t2\t3",
+  "percurso\tsábado, 17 de outubro de 2026\t11h\tdomingo, 18 de outubro de 2026\t14-18h\t\t\t\t\t\t1\t1",
+  "kit\tquarta-feira, 14 de outubro de 2026\t23h\tdomingo, 18 de outubro de 2026\t14-18h\t\t\t\t1\t1\t1\t1",
+  "ativação local\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t",
+  "o2 prime\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t",
+];
+const CATALOGO_LOGISTICA = [
+  { id: "f-atend", name: "Atendimento" },
+  { id: "f-dir", name: "Dir Prova" },
+  { id: "f-prod", name: "Produção" },
+  { id: "f-prod-loc", name: "Produção Local" },
+  { id: "f-ativ-sp", name: "Ativação SP" },
+  { id: "f-ativ-loc", name: "Ativação Local" },
+  { id: "f-sup", name: "Sup Ceno" },
+  { id: "f-ceno", name: "Cenotécnica" },
+  { id: "f-ceno-loc", name: "Cenotécnica Local" },
+  { id: "f-perc", name: "Percurso" },
+  { id: "f-kit", name: "Kit" },
+  { id: "f-o2", name: "Clube O2" },
+];
 
-  const CATALOGO = [
-    { id: "f-atend", name: "Atendimento" },
-    { id: "f-dir", name: "Dir Prova" },
-    { id: "f-prod", name: "Produção" },
-    { id: "f-prod-loc", name: "Produção Local" },
-    { id: "f-ativ-sp", name: "Ativação SP" },
-    { id: "f-ativ-loc", name: "Ativação Local" },
-    { id: "f-sup", name: "Sup Ceno" },
-    { id: "f-ceno", name: "Cenotécnica" },
-    { id: "f-ceno-loc", name: "Cenotécnica Local" },
-    { id: "f-perc", name: "Percurso" },
-    { id: "f-kit", name: "Kit" },
-    { id: "f-o2", name: "Clube O2" },
-  ];
+describe("colagem no formato da logística", () => {
+  const PLANILHA = [...PLANILHA_A_CABECALHO, ...PLANILHA_A_DADOS, ""].join("\n");
+
+  const CATALOGO = CATALOGO_LOGISTICA;
   const GRADE = buildDateList("2026-09-08", "2026-09-13");
   const parse = (dates = GRADE, options?: Parameters<typeof parsePastedRows>[5]) =>
     parsePastedRows(PLANILHA, CATALOGO, dates, "2026", undefined, options);
@@ -621,6 +643,353 @@ describe("colagem no formato da logística", () => {
   });
 });
 
+describe("colagem da logística SEM a linha de cabeçalho (só as linhas de dados)", () => {
+  // É o que sai do Excel quando o usuário seleciona apenas as linhas de dados:
+  // mesmo conteúdo da planilha do bloco acima, sem título, sem a linha de datas e
+  // sem a linha de dias da semana.
+  const SEM_CABECALHO = PLANILHA_A_DADOS.join("\n");
+  const COM_CABECALHO = [...PLANILHA_A_CABECALHO, ...PLANILHA_A_DADOS, ""].join("\n");
+  const GRADE = buildDateList("2026-09-08", "2026-09-13");
+  const parse = (text: string, dates = GRADE) => parsePastedRows(text, CATALOGO_LOGISTICA, dates, "2026");
+  const byName = (res: ReturnType<typeof parse>, name: string) => res.rows.find((r) => r.functionName === name)!;
+  const qty = (res: ReturnType<typeof parse>, name: string) =>
+    Object.entries(byName(res, name).quantities).filter(([, q]) => q > 0);
+
+  it("é detectado como logística pela FORMA das linhas, não cai mais em briefing", () => {
+    expect(detectPasteFormat(SEM_CABECALHO)).toEqual({ format: "logistica", hadHeader: false });
+    expect(detectPasteFormat(SEM_CABECALHO, { dayCount: GRADE.length })).toEqual({ format: "logistica", hadHeader: false });
+    // Uma única linha já denuncia o formato (é a linha da prova do bug).
+    expect(detectPasteFormat(PLANILHA_A_DADOS[0], { dayCount: 6 })).toEqual({ format: "logistica", hadHeader: false });
+  });
+
+  it("a linha exata que o usuário colou (com espaços em volta das datas) sai certa", () => {
+    // Antes: era lida como "briefing", perdia ida/volta e punha as quantidades em 08 e 09.
+    const linha = "atendimento\t sexta-feira, 11 de setembro de 2026 \t23h\t domingo, 13 de setembro de 2026 \t14-18h\t\t\t\t\t\t1\t1";
+    expect(detectPasteFormat(linha, { dayCount: GRADE.length })).toEqual({ format: "logistica", hadHeader: false });
+    const res = parse(linha);
+    const r = res.rows[0];
+    expect(r.flightDepartureDate).toBe("2026-09-11");
+    expect(r.flightArrivalSuggestedTime).toBe("23:00");
+    expect(r.flightReturnDate).toBe("2026-09-13");
+    expect(r.flightReturnSuggestedTime).toBe("14:00");
+    expect(Object.entries(r.quantities).filter(([, q]) => q > 0)).toEqual([["2026-09-12", 1], ["2026-09-13", 1]]);
+  });
+
+  it("avisa que o alinhamento foi feito pelo período da grade", () => {
+    const res = parse(SEM_CABECALHO);
+    expect(res.alignedWithoutHeader).toBe(true);
+    expect(res.hadHeader).toBe(false);
+    expect(res.problem).toBeUndefined();
+    expect(summarizePaste(res).alignedWithoutHeader).toBe(true);
+    // COM cabeçalho não há palpite nenhum.
+    const comHeader = parse(COM_CABECALHO);
+    expect(comHeader.alignedWithoutHeader).toBe(false);
+    expect(summarizePaste(comHeader).alignedWithoutHeader).toBe(false);
+  });
+
+  it("dá exatamente o mesmo resultado da colagem COM cabeçalho", () => {
+    const semH = parse(SEM_CABECALHO);
+    const comH = parse(COM_CABECALHO);
+    const resumo = (res: ReturnType<typeof parse>) =>
+      res.rows.map((r) => ({
+        nome: r.functionName,
+        ida: r.flightDepartureDate, chegada: r.flightArrivalSuggestedTime,
+        volta: r.flightReturnDate, embarque: r.flightReturnSuggestedTime,
+        passagem: r.needsTicket, obs: r.observations,
+        dias: Object.entries(r.quantities).filter(([, q]) => q > 0),
+      }));
+    expect(resumo(semH)).toEqual(resumo(comH));
+    expect(semH.skippedNames).toEqual(comH.skippedNames);
+    expect(semH.unknownNames).toEqual(["o2 prime"]);
+    expect(semH.datesOutsideGrid).toEqual([]);
+  });
+
+  it("os dias caem nas datas certas (era o bug: 12 e 13 viravam 08 e 09)", () => {
+    const res = parse(SEM_CABECALHO);
+    expect(qty(res, "Atendimento")).toEqual([["2026-09-12", 1], ["2026-09-13", 1]]);
+    expect(qty(res, "Produção")).toEqual([["2026-09-10", 1], ["2026-09-11", 1], ["2026-09-12", 1], ["2026-09-13", 1]]);
+    expect(qty(res, "Produção Local")).toEqual([["2026-09-11", 1], ["2026-09-12", 2], ["2026-09-13", 3]]);
+    expect(qty(res, "Cenotécnica Local")).toEqual([["2026-09-10", 2], ["2026-09-11", 2], ["2026-09-12", 2]]);
+    expect(qty(res, "Percurso")).toEqual([["2026-09-12", 1], ["2026-09-13", 1]]);
+    expect(res.rows.every((r) => (r.quantities["2026-09-08"] ?? 0) === 0)).toBe(true);
+  });
+
+  it("datas e horários da viagem não se perdem", () => {
+    const res = parse(SEM_CABECALHO);
+    const prod = byName(res, "Produção");
+    expect(prod.flightDepartureDate).toBe("2026-09-09");
+    expect(prod.flightArrivalSuggestedTime).toBe("23:00");
+    expect(prod.flightReturnDate).toBe("2026-09-13");
+    expect(prod.flightReturnSuggestedTime).toBe("20:00"); // "20h+"
+    const atend = byName(res, "Atendimento");
+    expect(atend.flightDepartureDate).toBe("2026-09-11");
+    expect(atend.flightArrivalSuggestedTime).toBe("23:00");
+    expect(atend.flightReturnDate).toBe("2026-09-13");
+    expect(atend.flightReturnSuggestedTime).toBe("14:00"); // "14-18h"
+    expect(byName(res, "Kit").flightArrivalSuggestedTime).toBe("11:00");
+    expect(byName(res, "Percurso").flightArrivalSuggestedTime).toBe("11:00");
+  });
+
+  it("linhas 'local' ficam sem viagem e sem passagem", () => {
+    const res = parse(SEM_CABECALHO);
+    for (const name of ["Produção Local", "Ativação Local", "Cenotécnica Local"]) {
+      const r = byName(res, name);
+      expect(r.needsTicket, name).toBe(false);
+      expect(r.flightDepartureDate, name).toBe("");
+      expect(r.flightReturnDate, name).toBe("");
+      expect(r.flightArrivalSuggestedTime, name).toBe("");
+      expect(r.flightReturnSuggestedTime, name).toBe("");
+    }
+    for (const name of ["Produção", "Cenotécnica", "Percurso", "Kit"]) {
+      expect(byName(res, name).needsTicket, name).toBe(true);
+    }
+    for (const row of res.rows) expect(validateGridRow(row), row.functionName).toEqual({ errors: [], warnings: [] });
+  });
+
+  it("o nº de colunas vazias no meio pode mudar: o bloco de dias escorrega junto", () => {
+    // Mesma planilha com DUAS colunas separadoras (uma coluna vazia a mais).
+    const duasVazias = PLANILHA_A_DADOS.map((l) => {
+      const cols = l.split("\t");
+      return [...cols.slice(0, 5), "", ...cols.slice(5)].join("\t");
+    }).join("\n");
+    const res = parse(duasVazias);
+    expect(res.format).toBe("logistica");
+    expect(qty(res, "Atendimento")).toEqual([["2026-09-12", 1], ["2026-09-13", 1]]);
+    expect(qty(res, "Produção Local")).toEqual([["2026-09-11", 1], ["2026-09-12", 2], ["2026-09-13", 3]]);
+    // E sem NENHUMA coluna separadora (os dias colados logo depois do bloco fixo).
+    const semVazia = PLANILHA_A_DADOS.map((l) => {
+      const cols = l.split("\t");
+      return [...cols.slice(0, 5), ...cols.slice(6)].join("\t");
+    }).join("\n");
+    const res2 = parse(semVazia);
+    expect(qty(res2, "Atendimento")).toEqual([["2026-09-12", 1], ["2026-09-13", 1]]);
+    expect(qty(res2, "Produção Local")).toEqual([["2026-09-11", 1], ["2026-09-12", 2], ["2026-09-13", 3]]);
+  });
+
+  it("texto depois do bloco de dias vira observação; número vira dia fora do período", () => {
+    const comObs = [
+      `${PLANILHA_A_DADOS[0]}\t\t\t\tlevar crachá`,
+      `${PLANILHA_A_DADOS[2]}\t2`, // uma coluna de dia a mais: 14/set não existe na grade
+    ].join("\n");
+    const res = parse(comObs);
+    expect(byName(res, "Atendimento").observations).toBe("levar crachá");
+    expect(res.datesOutsideGrid).toEqual(["2026-09-14"]);
+  });
+
+  it("sem a coluna de datas, um período diferente realinha os dias (é o palpite que a tela avisa)", () => {
+    const curta = buildDateList("2026-09-10", "2026-09-13"); // 4 dias
+    const res = parse(SEM_CABECALHO, curta);
+    expect(res.alignedWithoutHeader).toBe(true);
+    // O bloco de 4 dias encosta à direita: as duas últimas colunas continuam sendo
+    // os dois últimos dias da grade.
+    expect(qty(res, "Atendimento")).toEqual([["2026-09-12", 1], ["2026-09-13", 1]]);
+    expect(qty(res, "Produção")).toEqual([["2026-09-10", 1], ["2026-09-11", 1], ["2026-09-12", 1], ["2026-09-13", 1]]);
+  });
+
+  it("não confunde os formatos antigos com a planilha da logística", () => {
+    const grade = ["Kit", "Aéreo", "09/09", "10h", "Aéreo", "13/09", "18:00", "sim", "sim", "obs", "1", "1", "2"].join("\t");
+    expect(detectPasteFormat(grade).format).toBe("grade");
+    const briefing = ["Kit", "Aéreo", "09/09", "10:00", "Aéreo", "13/09", "18:00", "sim", "1", "1", "2"].join("\t");
+    expect(detectPasteFormat(briefing).format).toBe("briefing");
+    // Forçar "logistica" num texto que não tem nem cabeçalho nem a forma da planilha
+    // continua avisando em vez de inventar linhas.
+    const forcado = parsePastedRows("Kit\t\t\t\t1", CATALOGO_LOGISTICA, GRADE, "2026", "logistica");
+    expect(forcado.rows).toEqual([]);
+    expect(forcado.problem).toBe("cabecalho-nao-encontrado");
+    expect(forcado.alignedWithoutHeader).toBe(false);
+  });
+});
+
+describe("colagem da logística com cabeçalho em DUAS linhas (datas e rótulos separados)", () => {
+  // Segunda planilha real: as datas vêm numa linha e os rótulos na seguinte, e há
+  // DUAS colunas vazias entre o bloco fixo e o 1º dia (a outra planilha tem uma).
+  // O conteúdo está no topo do arquivo (`PLANILHA_B_*`) porque também é usado sem
+  // as linhas de cabeçalho.
+  const PLANILHA_B = [...PLANILHA_B_CABECALHO, ...PLANILHA_B_DADOS].join("\n");
+  const GRADE = buildDateList("2026-10-14", "2026-10-18");
+  const parse = () => parsePastedRows(PLANILHA_B, CATALOGO_LOGISTICA, GRADE, "2026");
+  const byName = (res: ReturnType<typeof parse>, name: string) => res.rows.find((r) => r.functionName === name)!;
+  const qty = (res: ReturnType<typeof parse>, name: string) =>
+    Object.entries(byName(res, name).quantities).filter(([, q]) => q > 0);
+
+  it("o cabeçalho é montado juntando a linha de datas com a linha de rótulos", () => {
+    const h = findLogisticaHeader(PLANILHA_B.split("\n").map((l) => l.split("\t")))!;
+    expect(h.lineIndex).toBe(1); // começa na linha das datas (a 1ª é o título do evento)
+    expect(h.colDepartureDate).toBe(1); // veio da linha de rótulos, uma abaixo
+    expect(h.colArrivalTime).toBe(2);
+    expect(h.colReturnDate).toBe(3);
+    expect(h.colReturnTime).toBe(4);
+    expect(h.colObs).toBe(16);
+    // Duas colunas vazias (5 e 6) antes do 1º dia.
+    expect(h.dayColumns.map((c) => c.index)).toEqual([7, 8, 9, 10, 11]);
+    expect(h.dayColumns.map((c) => c.raw)).toEqual(["14/out", "15/out", "16/out", "17/out", "18/out"]);
+  });
+
+  it("é detectado como logística com cabeçalho", () => {
+    expect(detectPasteFormat(PLANILHA_B)).toEqual({ format: "logistica", hadHeader: true });
+    expect(detectPasteFormat(PLANILHA_B, { dayCount: GRADE.length })).toEqual({ format: "logistica", hadHeader: true });
+    const res = parse();
+    expect(res.format).toBe("logistica");
+    expect(res.hadHeader).toBe(true);
+    expect(res.alignedWithoutHeader).toBe(false);
+    expect(res.problem).toBeUndefined();
+  });
+
+  it("as quantidades vão pela DATA da coluna (não pela contagem de colunas)", () => {
+    const res = parse();
+    expect(qty(res, "Atendimento")).toEqual([["2026-10-16", 1], ["2026-10-17", 1], ["2026-10-18", 1]]);
+    expect(qty(res, "Produção")).toEqual([["2026-10-15", 1], ["2026-10-16", 1], ["2026-10-17", 1], ["2026-10-18", 1]]);
+    expect(qty(res, "Produção Local")).toEqual([["2026-10-16", 1], ["2026-10-17", 2], ["2026-10-18", 3]]);
+    expect(qty(res, "Percurso")).toEqual([["2026-10-17", 1], ["2026-10-18", 1]]);
+    expect(qty(res, "Kit")).toEqual([["2026-10-15", 1], ["2026-10-16", 1], ["2026-10-17", 1], ["2026-10-18", 1]]);
+    expect(res.datesOutsideGrid).toEqual([]);
+  });
+
+  it("viagem lida dos rótulos da 2ª linha do cabeçalho", () => {
+    const res = parse();
+    const atend = byName(res, "Atendimento");
+    expect(atend.flightDepartureDate).toBe("2026-10-16");
+    expect(atend.flightArrivalSuggestedTime).toBe("11:00");
+    expect(atend.flightReturnDate).toBe("2026-10-18");
+    expect(atend.flightReturnSuggestedTime).toBe("14:00");
+    const prod = byName(res, "Produção");
+    expect(prod.flightDepartureDate).toBe("2026-10-14");
+    expect(prod.flightArrivalSuggestedTime).toBe("23:00");
+    expect(prod.flightReturnSuggestedTime).toBe("20:00");
+    expect(byName(res, "Produção Local").needsTicket).toBe(false);
+    for (const row of res.rows) expect(validateGridRow(row), row.functionName).toEqual({ errors: [], warnings: [] });
+  });
+
+  it("linha só com o nome (sem viagem e sem quantidade) não vira vaga nem 'nome não reconhecido'", () => {
+    const res = parse();
+    expect(res.rows.map((r) => r.functionName)).toEqual([
+      "Atendimento", "Produção", "Produção Local", "Percurso", "Kit",
+    ]);
+    expect(res.skippedNames).toEqual([]); // "o2 prime" veio vazia: não é para reclamar dela
+    expect(res.unknownNames).toEqual([]);
+    // A linha de dias da semana (qua/qui/sex/sab/dom) também não entra como dados.
+    expect(res.rows.some((r) => normalizeStr(r.functionName) === "qua")).toBe(false);
+  });
+
+  it("as duas planilhas reais convivem no mesmo parser", () => {
+    const a = parsePastedRows(
+      [...PLANILHA_A_CABECALHO, ...PLANILHA_A_DADOS, ""].join("\n"),
+      CATALOGO_LOGISTICA, buildDateList("2026-09-08", "2026-09-13"), "2026",
+    );
+    const b = parse();
+    expect([a.format, b.format]).toEqual(["logistica", "logistica"]);
+    expect([a.rows.length, b.rows.length]).toEqual([11, 5]);
+    expect(a.rows[0].quantities["2026-09-12"]).toBe(1);
+    expect(b.rows[0].quantities["2026-10-16"]).toBe(1);
+  });
+});
+
+describe("classificador de colunas: as duas planilhas reais, com e sem cabeçalho", () => {
+  const GRADE_A = buildDateList("2026-09-08", "2026-09-13");
+  const GRADE_B = buildDateList("2026-10-14", "2026-10-18");
+  const A_COM = [...PLANILHA_A_CABECALHO, ...PLANILHA_A_DADOS, ""].join("\n");
+  const A_SEM = PLANILHA_A_DADOS.join("\n");
+  const B_COM = [...PLANILHA_B_CABECALHO, ...PLANILHA_B_DADOS].join("\n");
+  const B_SEM = PLANILHA_B_DADOS.join("\n");
+  const parse = (text: string, dates: string[]) => parsePastedRows(text, CATALOGO_LOGISTICA, dates, "2026");
+  const dias = (res: ReturnType<typeof parse>, name: string) => {
+    const row = res.rows.find((r) => r.functionName === name)!;
+    return Object.entries(row.quantities).filter(([, q]) => q > 0);
+  };
+
+  it("planilha B (2 linhas de cabeçalho, 2 colunas vazias) dá o mesmo resultado sem o cabeçalho", () => {
+    const com = parse(B_COM, GRADE_B);
+    const sem = parse(B_SEM, GRADE_B);
+    const resumo = (res: ReturnType<typeof parse>) =>
+      res.rows.map((r) => ({
+        nome: r.functionName,
+        ida: r.flightDepartureDate, chegada: r.flightArrivalSuggestedTime,
+        volta: r.flightReturnDate, embarque: r.flightReturnSuggestedTime,
+        passagem: r.needsTicket,
+        dias: Object.entries(r.quantities).filter(([, q]) => q > 0),
+      }));
+    expect(resumo(sem)).toEqual(resumo(com));
+    expect(dias(sem, "Atendimento")).toEqual([["2026-10-16", 1], ["2026-10-17", 1], ["2026-10-18", 1]]);
+    expect(dias(sem, "Produção")).toEqual([["2026-10-15", 1], ["2026-10-16", 1], ["2026-10-17", 1], ["2026-10-18", 1]]);
+    expect(dias(sem, "Kit")).toEqual([["2026-10-15", 1], ["2026-10-16", 1], ["2026-10-17", 1], ["2026-10-18", 1]]);
+    expect(dias(sem, "Percurso")).toEqual([["2026-10-17", 1], ["2026-10-18", 1]]);
+    // As linhas só com o nome continuam sendo ignoradas, sem virar "não reconhecido".
+    expect(sem.skippedNames).toEqual([]);
+    expect(sem.rows).toHaveLength(5);
+  });
+
+  it("o mapa de colunas entendido é exposto em res.layout", () => {
+    const comA = parse(A_COM, GRADE_A).layout!;
+    expect(comA.columns.funcao).toBe(0);
+    expect(comA.columns.dataIda).toBe(1);
+    expect(comA.columns.horaChegada).toBe(2);
+    expect(comA.columns.dataVolta).toBe(3);
+    expect(comA.columns.horaRetorno).toBe(4);
+    expect(comA.columns.obs).toBe(15);
+    expect(comA.columns.dias.map((d) => d.index)).toEqual([6, 7, 8, 9, 10, 11]);
+    expect(comA.columns.dias.map((d) => d.date)).toEqual(GRADE_A);
+    expect(comA.headerLines).toEqual([0, 1, 2]); // título + datas/rótulos + dias da semana
+    expect(comA.daysFromHeader).toBe(true);
+    expect(comA.alignedWithoutHeader).toBe(false);
+    expect(comA.confidence).toBe("alta");
+    expect(comA.warnings).toEqual([]);
+
+    const comB = parse(B_COM, GRADE_B).layout!;
+    expect(comB.columns.dias.map((d) => d.index)).toEqual([7, 8, 9, 10, 11]);
+    expect(comB.columns.dias.map((d) => d.date)).toEqual(GRADE_B);
+    expect(comB.columns.obs).toBe(16);
+    expect(comB.headerLines).toEqual([0, 1, 2]);
+    expect(comB.confidence).toBe("alta");
+  });
+
+  it("sem cabeçalho o layout avisa que os dias foram alinhados pelo período", () => {
+    const semA = parse(A_SEM, GRADE_A).layout!;
+    expect(semA.daysFromHeader).toBe(false);
+    expect(semA.alignedWithoutHeader).toBe(true);
+    expect(semA.headerLines).toEqual([]);
+    expect(semA.columns.dias.map((d) => d.index)).toEqual([6, 7, 8, 9, 10, 11]);
+    expect(semA.confidence).toBe("media"); // geometria e datas de volta concordam
+    expect(semA.warnings[0]).toContain("alinhados pelo período da grade (08/09 a 13/09)");
+
+    const semB = parse(B_SEM, GRADE_B).layout!;
+    expect(semB.columns.dias.map((d) => d.index)).toEqual([7, 8, 9, 10, 11]);
+    expect(semB.confidence).toBe("media");
+    expect(semB.warnings[0]).toContain("(14/10 a 18/10)");
+    expect(summarizePaste(parse(B_SEM, GRADE_B)).warnings[0]).toBe(semB.warnings[0]);
+    expect(summarizePaste(parse(B_SEM, GRADE_B)).confidence).toBe("media");
+  });
+
+  it("a coluna de observação é achada pelo rótulo ou pelo texto que sobra", () => {
+    const comObs = [
+      ...PLANILHA_B_CABECALHO,
+      `${PLANILHA_B_DADOS[0]}\t\t\t\t\tlevar crachá`, // a obs do cabeçalho está na coluna 16
+      ...PLANILHA_B_DADOS.slice(1),
+    ].join("\n");
+    const res = parse(comObs, GRADE_B);
+    expect(res.layout!.columns.obs).toBe(16);
+    expect(res.rows[0].observations).toBe("levar crachá");
+    // Sem cabeçalho, a mesma linha: a obs é o texto livre que sobra à direita.
+    const semCab = parse([`${PLANILHA_B_DADOS[0]}\t\t\t\t\tlevar crachá`, ...PLANILHA_B_DADOS.slice(1)].join("\n"), GRADE_B);
+    expect(semCab.rows[0].observations).toBe("levar crachá");
+    expect(dias(semCab, "Atendimento")).toEqual([["2026-10-16", 1], ["2026-10-17", 1], ["2026-10-18", 1]]);
+  });
+
+  it("os formatos briefing e grade continuam sendo lidos por posição", () => {
+    const FUNCS = [{ id: "f1", name: "Kit" }];
+    const briefing = ["Kit", "Aéreo", "09/09", "10:00", "Aéreo", "13/09", "18:00", "sim", "1", "0", "2"].join("\t");
+    const b = parsePastedRows(briefing, FUNCS, DATES, "2026");
+    expect(b.format).toBe("briefing");
+    expect(b.layout).toBeUndefined();
+    expect(b.alignedWithoutHeader).toBe(false);
+    expect(b.rows[0].quantities).toEqual({ "2026-09-10": 1, "2026-09-11": 0, "2026-09-12": 2 });
+    const grade = ["Kit", "Aéreo", "09/09", "10:00", "Aéreo", "13/09", "18:00", "sim", "sim", "levar crachá", "1", "0", "2"].join("\t");
+    const g = parsePastedRows(grade, FUNCS, DATES, "2026");
+    expect(g.format).toBe("grade");
+    expect(g.rows[0].observations).toBe("levar crachá");
+    expect(g.rows[0].quantities).toEqual({ "2026-09-10": 1, "2026-09-11": 0, "2026-09-12": 2 });
+  });
+});
+
 describe("expandPeriodForDates (ampliar a grade para cobrir os dias da planilha)", () => {
   const bounds = periodBounds("2026-09-10", "2026-09-13"); // 03/09 a 20/09
   it("amplia até cobrir os dias de fora", () => {
@@ -683,7 +1052,7 @@ describe("summarizePaste (resumo ao vivo do diálogo de colagem)", () => {
   it("repassa o problema estrutural e os dias fora do período da grade", () => {
     const s = summarizePaste({
       rows: [], skippedNames: [], unknownNames: [], datesOutsideGrid: ["2026-09-20", "2026-09-21"],
-      format: "logistica", hadHeader: false, problem: "cabecalho-nao-encontrado",
+      format: "logistica", hadHeader: false, alignedWithoutHeader: false, problem: "cabecalho-nao-encontrado",
     });
     expect(s.lines).toBe(0);
     expect(s.recognized).toBe(0);

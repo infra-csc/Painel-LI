@@ -44,6 +44,10 @@ import {
   SUGESTAO_STATUS,
   TRANSPORT_MODES,
   CHANGE_REQUEST_STATUS,
+  CANCELABLE_SUGESTAO_STATUS,
+  CANCEL_SEND_REQUEST_STATUS,
+  CANCEL_SEND_REQUEST_COMMENT,
+  isRequestCanceledByCancelSend,
   isSuggestionInclusion,
   nextSuggestionState,
   toInclusaoState,
@@ -628,6 +632,91 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       res.json(result);
     } catch (error) {
       sendError(res, error, "erro ao listar sugestões", "Erro ao buscar escala sugerida");
+    }
+  });
+
+  // DELETE /api/scaling-suggestions?eventId= — "Cancelar envio": desfaz o /bulk
+  // de um evento inteiro.
+  //
+  // Regra do usuário (19/08): depois de "Enviar para validação" não havia como
+  // voltar atrás — grade errada ou evento errado só saíam pedindo exclusão vaga
+  // por vaga na Validação. Aqui a logística remove TUDO de uma vez.
+  //
+  //  - autorização: a MESMA de quem envia (o /bulk) — admin e produção;
+  //  - evento encerrado: só o administrador (assertLoadedEventEditable);
+  //  - soft delete (deletedAt/deletedBy) das vagas em phase 'sugestao' com
+  //    status ainda NÃO decidido (pendente / validada / com pedido) — ou seja,
+  //    inclui o que a área já validou e o que tem pedido em aberto. NÃO toca no
+  //    que já virou Inclusão (phase 'inclusao') nem no que está
+  //    'sugestao_negada' (já saiu do fluxo). A regra é
+  //    `isCancelableSuggestion` (shared), a mesma que a tela usa para contar;
+  //  - os pedidos PENDENTES dessas vagas (e os de inclusão do evento, que
+  //    pedem vaga nova num envio que deixou de existir) viram 'negado' com
+  //    comentário — senão sobrariam órfãos na fila do aprovador;
+  //  - tudo numa transação (storage.cancelScalingSuggestionSend).
+  //
+  // Verbo DELETE na coleção com o mesmo `?eventId=` do GET: cancelar é a
+  // remoção do conjunto que o GET lista, não uma ação nova sobre uma vaga.
+  app.delete("/api/scaling-suggestions", async (req, res) => {
+    const actor = await requireRoles(req, res, ["admin", "production"]);
+    if (!actor) return;
+    try {
+      const eventId = String(req.query.eventId ?? "");
+      if (!eventId) return res.status(400).json({ message: "eventId é obrigatório" });
+
+      const event = await storage.getEvent(eventId);
+      if (!event) return res.status(404).json({ message: "Evento não encontrado" });
+      // Evento encerrado: só o administrador. O evento já está carregado (o nome
+      // vai para a auditoria), então a guarda não relê nada.
+      if (!assertLoadedEventEditable(event, actor, res)) return;
+
+      const now = new Date();
+      const { removed, requestsCanceled } = await storage.cancelScalingSuggestionSend({
+        eventId,
+        statuses: CANCELABLE_SUGESTAO_STATUS,
+        patch: { deletedAt: now, deletedBy: actor.id, updatedBy: actor.id },
+        logFor: (row) => ({
+          teamInclusionId: row.id,
+          action: "suggestion_send_canceled",
+          details: "Envio da escala sugerida cancelado pela logística — vaga removida da Validação de Escala",
+          previousValue: stateLabel(row),
+          newValue: "removida",
+          userId: actor.id,
+          userName: actor.name ?? "Usuário",
+        }),
+        shouldCancelRequest: isRequestCanceledByCancelSend,
+        requestPatch: {
+          status: CANCEL_SEND_REQUEST_STATUS,
+          reviewComment: CANCEL_SEND_REQUEST_COMMENT,
+          reviewedBy: actor.id,
+          reviewedByName: actor.name ?? "Usuário",
+          reviewedAt: now,
+        },
+      });
+
+      if (removed.length > 0) {
+        // Auditoria fora da transação: as vagas JÁ saíram e estão commitadas —
+        // uma falha aqui não pode virar 500 e fazer o usuário cancelar de novo.
+        try {
+          await createAuditLog(
+            "suggestion_send_canceled", "team_inclusion", removed[0].id,
+            {
+              count: removed.length,
+              requestsCanceled: requestsCanceled.length,
+              eventId,
+              eventName: event.name,
+              inclusionIds: removed.map((r) => r.id),
+            },
+            actor.id, actor.name, undefined, req,
+          );
+        } catch (auditError) {
+          console.error(`[Validação de Escala] falha ao auditar cancelamento do envio do evento ${eventId}:`, auditError);
+        }
+      }
+
+      res.json({ removed: removed.length, requestsCanceled: requestsCanceled.length });
+    } catch (error) {
+      sendError(res, error, "erro ao cancelar envio da sugestão", "Erro ao cancelar o envio da escala sugerida");
     }
   });
 

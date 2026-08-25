@@ -6,6 +6,9 @@ import {
   canValidateInclusion, canApproveRequest, daysPending,
   STALLED_DAYS, DANGER_DAYS, pendingSeverity, describeLastDecision, type LastDecisionInfo,
   describeVagaDecision, type LastVagaDecisionInfo, daysAwaitingApproval,
+  CHANGE_REQUEST_STATUS, CHANGE_REQUEST_STATUS_VALUES,
+  CANCELABLE_SUGESTAO_STATUS, isCancelableSuggestion, summarizeCancelableSuggestions,
+  isRequestCanceledByCancelSend, CANCEL_SEND_REQUEST_STATUS, CANCEL_SEND_REQUEST_COMMENT,
 } from "./scaling-validation-rules";
 
 const sug = (status: string) => ({ status, phase: SUGESTAO_PHASE });
@@ -602,5 +605,92 @@ describe("daysAwaitingApproval — o relógio da vaga validada é o validatedAt"
   it("aceita ISO e nunca devolve negativo", () => {
     expect(daysAwaitingApproval({ validatedAt: "2026-08-20T06:00:00.000Z" }, NOW)).toBe(0);
     expect(daysAwaitingApproval({ validatedAt: "2026-08-25T06:00:00.000Z" }, NOW)).toBe(0);
+  });
+});
+
+// ── Cancelar envio (desfazer o /bulk de um evento inteiro) ──────────────────
+// Regra do usuário (19/08): remove TODAS as vagas do evento que ainda estão no
+// fluxo de sugestão — inclusive as que a área já validou e as com pedido em
+// aberto. Nunca o que já virou Inclusão nem o que foi negado.
+
+describe("isCancelableSuggestion — o que o Cancelar envio remove", () => {
+  it("remove pendente, validada e com pedido de ajuste", () => {
+    expect(isCancelableSuggestion(sug(SUGESTAO_STATUS.PENDENTE))).toBe(true);
+    expect(isCancelableSuggestion(sug(SUGESTAO_STATUS.VALIDADA))).toBe(true);
+    expect(isCancelableSuggestion(sug(SUGESTAO_STATUS.AJUSTE))).toBe(true);
+  });
+  it("NÃO remove o que já virou Inclusão (phase 'inclusao')", () => {
+    expect(isCancelableSuggestion(INCLUSAO)).toBe(false);
+    // nem uma linha com status de sugestão que já saiu da fase (dado antigo)
+    expect(isCancelableSuggestion({ phase: "inclusao", status: SUGESTAO_STATUS.VALIDADA })).toBe(false);
+  });
+  it("NÃO remove as negadas (já saíram do fluxo, ficam no histórico)", () => {
+    expect(isCancelableSuggestion(sug(SUGESTAO_STATUS.NEGADA))).toBe(false);
+  });
+  it("NÃO remove vaga já excluída nem entrada vazia", () => {
+    expect(isCancelableSuggestion({ ...sug(SUGESTAO_STATUS.PENDENTE), deletedAt: new Date() })).toBe(false);
+    expect(isCancelableSuggestion({ ...sug(SUGESTAO_STATUS.VALIDADA), deletedAt: "2026-08-19T10:00:00.000Z" })).toBe(false);
+    expect(isCancelableSuggestion(null)).toBe(false);
+    expect(isCancelableSuggestion(undefined)).toBe(false);
+  });
+  it("a lista de status cancelável não inclui negada nem a aprovada legada", () => {
+    expect([...CANCELABLE_SUGESTAO_STATUS]).toEqual([
+      SUGESTAO_STATUS.PENDENTE, SUGESTAO_STATUS.VALIDADA, SUGESTAO_STATUS.AJUSTE,
+    ]);
+  });
+});
+
+describe("summarizeCancelableSuggestions — resumo mostrado na confirmação", () => {
+  const rows = [
+    sug(SUGESTAO_STATUS.PENDENTE),
+    sug(SUGESTAO_STATUS.PENDENTE),
+    sug(SUGESTAO_STATUS.VALIDADA),
+    sug(SUGESTAO_STATUS.AJUSTE),
+    sug(SUGESTAO_STATUS.NEGADA),                       // fora: já saiu do fluxo
+    INCLUSAO,                                          // fora: virou Inclusão
+    { ...sug(SUGESTAO_STATUS.VALIDADA), deletedAt: new Date() }, // fora: já excluída
+  ];
+  it("conta só o que sai, agrupado por etapa", () => {
+    expect(summarizeCancelableSuggestions(rows)).toEqual({
+      total: 4, aguardando: 2, validadas: 1, comPedido: 1,
+    });
+  });
+  it("o total é a soma dos grupos (nada é contado duas vezes)", () => {
+    const s = summarizeCancelableSuggestions(rows);
+    expect(s.aguardando + s.validadas + s.comPedido).toBe(s.total);
+  });
+  it("lista vazia / ausente vira resumo zerado", () => {
+    const zero = { total: 0, aguardando: 0, validadas: 0, comPedido: 0 };
+    expect(summarizeCancelableSuggestions([])).toEqual(zero);
+    expect(summarizeCancelableSuggestions(null)).toEqual(zero);
+    expect(summarizeCancelableSuggestions([INCLUSAO, sug(SUGESTAO_STATUS.NEGADA)])).toEqual(zero);
+  });
+});
+
+describe("isRequestCanceledByCancelSend — pedidos encerrados junto", () => {
+  const removidas = new Set(["vaga-1", "vaga-2"]);
+  const pendente = (teamInclusionId: string | null) => ({ status: CHANGE_REQUEST_STATUS.PENDENTE, teamInclusionId });
+
+  it("encerra o pedido pendente de uma vaga removida", () => {
+    expect(isRequestCanceledByCancelSend(pendente("vaga-1"), removidas)).toBe(true);
+  });
+  it("encerra o pedido de INCLUSÃO pendente (sem vaga): pede vaga nova num envio que sumiu", () => {
+    expect(isRequestCanceledByCancelSend(pendente(null), removidas)).toBe(true);
+  });
+  it("não encerra pedido de vaga que não saiu (ex.: já virou Inclusão)", () => {
+    expect(isRequestCanceledByCancelSend(pendente("vaga-9"), removidas)).toBe(false);
+  });
+  it("não mexe em pedido já decidido — histórico não é reescrito", () => {
+    for (const status of [CHANGE_REQUEST_STATUS.APROVADO, CHANGE_REQUEST_STATUS.NEGADO,
+      CHANGE_REQUEST_STATUS.REAJUSTADO, CHANGE_REQUEST_STATUS.REENVIADO_VALIDACAO]) {
+      expect(isRequestCanceledByCancelSend({ status, teamInclusionId: "vaga-1" }, removidas)).toBe(false);
+      expect(isRequestCanceledByCancelSend({ status, teamInclusionId: null }, removidas)).toBe(false);
+    }
+    expect(isRequestCanceledByCancelSend(null, removidas)).toBe(false);
+  });
+  it("o pedido encerrado vai para um status que já existe no enum", () => {
+    expect(CHANGE_REQUEST_STATUS_VALUES).toContain(CANCEL_SEND_REQUEST_STATUS);
+    expect(CANCEL_SEND_REQUEST_STATUS).toBe(CHANGE_REQUEST_STATUS.NEGADO);
+    expect(CANCEL_SEND_REQUEST_COMMENT).toMatch(/cancelad/i);
   });
 });

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
-  AlertTriangle, Check, CheckCircle2, ClipboardPaste, ExternalLink, Eye, History, ListPlus, Plus, RotateCcw, Send, Save,
+  AlertTriangle, Check, CheckCircle2, ClipboardPaste, ExternalLink, Eye, History, ListPlus, Plus, RotateCcw, Send, Save, Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,7 @@ import { apiErrorMessage, formatDateRange, formatDiarias, cn } from "@/lib/utils
 import { formatDayMonthBr } from "@/lib/dates";
 import { scalingHref, useScalingEvent } from "@/lib/use-scaling-event";
 import type { Event, Function as FunctionType } from "@shared/schema";
-import { TRANSPORT_MODE_LABELS } from "@shared/scaling-validation-rules";
+import { TRANSPORT_MODE_LABELS, summarizeCancelableSuggestions } from "@shared/scaling-validation-rules";
 import { SuggestionGrid, rowDomId } from "@/components/scaling-validation/suggestion-grid";
 import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module-nav";
 import {
@@ -38,7 +38,7 @@ import {
   validateGridRow,
   type PasteFormat, type PeriodExpansion, type RowValidation, type SuggestionGridRow,
 } from "@/components/scaling-validation/scaling-grid-utils";
-import { SUGGESTIONS_QUERY_KEY, type ApiError } from "@/components/scaling-validation/types";
+import { SUGGESTIONS_QUERY_KEY, invalidateScalingQueries, type ApiError, type SuggestionRow } from "@/components/scaling-validation/types";
 
 interface DraftPayload {
   rows: SuggestionGridRow[];
@@ -103,6 +103,8 @@ export default function ScalingSuggestionPage() {
   const askedMappingRef = useRef(false); // só interrompe uma vez: no 2º clique, o que não foi mapeado é descartado
   const [confirmSend, setConfirmSend] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  /** AlertDialog do "Cancelar envio" (remove todas as vagas já enviadas do evento). */
+  const [confirmCancelSend, setConfirmCancelSend] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [sent, setSent] = useState<SentInfo | null>(null);
   const draftLoadedFor = useRef<string | null>(null);
@@ -117,6 +119,14 @@ export default function ScalingSuggestionPage() {
   const readOnly = !hasPermission(user, "canEditScalingSuggestion");
 
   const { data: events, isLoading: loadingEvents, error: eventsError } = useQuery<Event[]>({ queryKey: ["/api/events"] });
+  // Vagas que este evento JÁ tem na Validação de Escala. A tela de sugestão não
+  // consultava isto: montava a grade do zero mesmo quando o envio anterior
+  // estava lá inteiro, e o usuário só descobria o envio duplicado depois.
+  const sentQuery = useQuery<SuggestionRow[]>({
+    queryKey: [SUGGESTIONS_QUERY_KEY, eventId],
+    queryFn: async () => (await apiRequest("GET", `${SUGGESTIONS_QUERY_KEY}?eventId=${encodeURIComponent(eventId)}`)).json(),
+    enabled: !!eventId && canAccess,
+  });
   const { data: functions, isLoading: loadingFunctions, error: functionsError, refetch: refetchFunctions } = useQuery<FunctionType[]>({ queryKey: ["/api/functions"] });
 
   const activeEvents = useMemo(
@@ -307,6 +317,9 @@ export default function ScalingSuggestionPage() {
     if (pastePreview.unknownNames.length > 0) w.push(plural(pastePreview.unknownNames.length, "nome não reconhecido", "nomes não reconhecidos"));
     if (pastePreview.outsideDays > 0) w.push(plural(pastePreview.outsideDays, "dia fora do período", "dias fora do período"));
     if (pastePreview.rowsWithoutQty > 0) w.push(plural(pastePreview.rowsWithoutQty, "linha sem quantidade", "linhas sem quantidade"));
+    // Avisos do classificador de colunas (ex.: dias alinhados pelo período por
+    // falta da linha de datas) — já vêm prontos em pt-BR do parser.
+    for (const msg of pastePreview.warnings ?? []) w.push(msg);
     return w;
   }, [pastePreview]);
   // O mapeamento manual de nomes é por usuário (o catálogo é o mesmo em todos os eventos).
@@ -525,6 +538,38 @@ export default function ScalingSuggestionPage() {
       toast({ title: "Não foi possível enviar", description: apiErrorMessage(err, "Nenhuma vaga foi criada. Revise a grade e tente novamente."), variant: "destructive" });
     },
   });
+  // ── Cancelar envio ──
+  // Resumo do que já está na Validação (a mesma regra do servidor decide o que
+  // entra na conta: pendente, validada e com pedido — nunca o que virou
+  // Inclusão nem o que foi negado).
+  const sentSummary = useMemo(() => summarizeCancelableSuggestions(sentQuery.data ?? []), [sentQuery.data]);
+
+  const cancelSendMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", `${SUGGESTIONS_QUERY_KEY}?eventId=${encodeURIComponent(eventId)}`);
+      return (await res.json()) as { removed: number; requestsCanceled: number };
+    },
+    onSuccess: (data) => {
+      invalidateScalingQueries(queryClient);
+      setConfirmCancelSend(false);
+      setSent(null); // libera a barra de ação: a tela volta a permitir montar e enviar
+      toast({
+        title: data.removed > 0 ? "Envio cancelado" : "Nada para cancelar",
+        description: data.removed > 0
+          ? `${data.removed} vaga(s) removida(s) da Validação${data.requestsCanceled > 0 ? ` e ${data.requestsCanceled} pedido(s) encerrado(s)` : ""}. Monte a grade de novo e envie quando quiser.`
+          : "Este evento não tem mais vagas em validação — a lista já estava vazia.",
+      });
+    },
+    onError: (err: ApiError) => {
+      setConfirmCancelSend(false);
+      toast({
+        title: "Não foi possível cancelar o envio",
+        description: apiErrorMessage(err, "Nenhuma vaga foi removida. Tente novamente."),
+        variant: "destructive",
+      });
+    },
+  });
+
   // "busy" trava a edição: enquanto envia OU em modo leitura.
   const busy = sendMutation.isPending || readOnly;
 
@@ -661,12 +706,70 @@ export default function ScalingSuggestionPage() {
                       <Link href={scalingHref("/scaling-event-view", sent.eventId)} className="inline-flex items-center gap-1 text-primary hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
                         <History className="w-3.5 h-3.5" aria-hidden="true" /> Histórico da Escala
                       </Link>
+                      {/* Desfazer aqui mesmo: é neste instante que o usuário percebe o evento/quantidade errados. */}
+                      {!readOnly && sentSummary.total > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmCancelSend(true)}
+                          disabled={cancelSendMutation.isPending}
+                          className="inline-flex items-center gap-1 text-red-700 hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:opacity-60"
+                          data-testid="scaling-suggestion-cancel-send-after"
+                        >
+                          <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
+                          {cancelSendMutation.isPending ? "Cancelando…" : "Cancelar envio"}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
                 <Button type="button" variant="outline" size="sm" className="rounded-lg h-8 bg-white" onClick={() => setSent(null)}>
                   <Plus className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Nova sugestão
                 </Button>
+              </div>
+            </section>
+          )}
+
+          {/* Envio já feito para este evento: acompanhar ou desfazer.
+              Escondido logo depois de enviar — ali o aviso verde acima já traz
+              o mesmo "Cancelar envio" e repetir o bloco só faria ruído. */}
+          {sentSummary.total > 0 && !sent && (
+            <section role="status" className="rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5" aria-labelledby="sug-ja-enviado">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <h2 id="sug-ja-enviado" className="text-sm font-semibold text-amber-900">
+                      Este evento já tem {sentSummary.total} {sentSummary.total === 1 ? "vaga enviada" : "vagas enviadas"} para validação
+                    </h2>
+                    <p className="text-xs text-amber-800 mt-0.5 tabular-nums">
+                      {[
+                        `${sentSummary.aguardando} aguardando validação`,
+                        `${sentSummary.validadas} ${sentSummary.validadas === 1 ? "validada" : "validadas"} pela área`,
+                        `${sentSummary.comPedido} com pedido em aberto`,
+                      ].join(" · ")}
+                    </p>
+                    <p className="text-xs text-amber-800 mt-1">
+                      Enviar de novo <strong>soma</strong> vagas às que já estão lá. Se a grade subiu errada, cancele o envio e monte de novo.
+                    </p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs font-medium">
+                      <Link href={scalingHref("/scaling-validation", eventId)} className="inline-flex items-center gap-1 text-primary hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+                        <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /> Acompanhar na Validação
+                      </Link>
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmCancelSend(true)}
+                          disabled={cancelSendMutation.isPending}
+                          className="inline-flex items-center gap-1 text-red-700 hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:opacity-60"
+                          data-testid="scaling-suggestion-cancel-send"
+                        >
+                          <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
+                          {cancelSendMutation.isPending ? "Cancelando…" : "Cancelar envio"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </section>
           )}
@@ -1125,6 +1228,39 @@ export default function ScalingSuggestionPage() {
             <AlertDialogCancel disabled={busy}>Voltar</AlertDialogCancel>
             <AlertDialogAction onClick={(e) => { e.preventDefault(); sendMutation.mutate(); }} disabled={busy} className="bg-primary hover:bg-primary-hover">
               {busy ? "Enviando…" : "Enviar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmar cancelamento do envio (remove TUDO que está na Validação) */}
+      <AlertDialog open={confirmCancelSend} onOpenChange={(o) => { if (!o) setConfirmCancelSend(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Cancelar o envio e remover {sentSummary.total} {sentSummary.total === 1 ? "vaga" : "vagas"} de {selectedEvent?.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="block">
+                Serão removidas <strong>todas as {sentSummary.total} {sentSummary.total === 1 ? "vaga" : "vagas"}</strong> deste evento que estão na Validação de Escala —
+                {" "}<strong>inclusive as {sentSummary.validadas} que a área já validou</strong> e as {sentSummary.comPedido} com pedido em aberto,
+                cujos pedidos pendentes são encerrados na fila do aprovador.
+              </span>
+              <span className="block mt-2">
+                As vagas já <strong>aprovadas</strong> (que viraram Inclusão de Equipe) e as já negadas <strong>não</strong> são afetadas.
+                As áreas deixam de ver as vagas removidas na hora. Não há como desfazer — para voltar, monte a grade e envie de novo.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelSendMutation.isPending}>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); cancelSendMutation.mutate(); }}
+              disabled={cancelSendMutation.isPending}
+              className="bg-destructive hover:bg-destructive/90"
+              data-testid="scaling-suggestion-cancel-send-confirm"
+            >
+              {cancelSendMutation.isPending ? "Cancelando…" : "Cancelar envio e remover"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

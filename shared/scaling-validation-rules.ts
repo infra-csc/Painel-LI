@@ -447,6 +447,111 @@ export function diffInclusion(current: InclusionForDiff, proposed: ProposedChang
 }
 
 // ---------------------------------------------------------------------------
+// Cancelar envio da sugestão (desfazer o /bulk)
+// ---------------------------------------------------------------------------
+//
+// Regra do usuário (19/08): depois de "Enviar para validação" a logística
+// precisa poder DESFAZER o envio inteiro de um evento — grade errada, evento
+// errado, quantidades erradas. Cancelar remove TODAS as vagas ainda no fluxo de
+// sugestão daquele evento, inclusive as que a área já validou e as que têm
+// pedido pendente (a tela avisa isso na confirmação).
+//
+// O que NÃO sai:
+//  - o que já virou Inclusão (`phase: 'inclusao'`) — a vaga saiu da sugestão e
+//    passou a ser escalação de verdade; desfazer isso é assunto da Escalação;
+//  - o que está `sugestao_negada` — já saiu do fluxo (reprovada/excluída) e
+//    fica só como histórico.
+
+/** Status de sugestão que o "Cancelar envio" remove (soft delete). */
+export const CANCELABLE_SUGESTAO_STATUS = [
+  SUGESTAO_STATUS.PENDENTE,
+  SUGESTAO_STATUS.VALIDADA,
+  SUGESTAO_STATUS.AJUSTE,
+] as const;
+export type CancelableSugestaoStatus = (typeof CANCELABLE_SUGESTAO_STATUS)[number];
+
+/** O mínimo que a regra precisa saber de uma vaga para decidir o cancelamento. */
+export interface CancelableRow {
+  phase?: string | null;
+  status?: string | null;
+  /** Vaga já excluída (soft delete) nunca entra de novo. */
+  deletedAt?: Date | string | null;
+}
+
+/**
+ * Esta vaga entra no "Cancelar envio"? Só fase 'sugestao', ainda não excluída e
+ * num status ainda NÃO decidido (pendente / validada / com pedido de ajuste).
+ * É a MESMA regra do filtro do servidor e da contagem que a tela mostra na
+ * confirmação — nunca duplique a lista de status.
+ */
+export function isCancelableSuggestion(row: CancelableRow | null | undefined): boolean {
+  if (!row) return false;
+  if (row.phase !== SUGESTAO_PHASE) return false;      // já virou Inclusão (ou nunca foi sugestão)
+  if (row.deletedAt) return false;                     // já excluída
+  return (CANCELABLE_SUGESTAO_STATUS as readonly string[]).includes(row.status ?? "");
+}
+
+/** Resumo do que será removido — o texto do bloco e do AlertDialog sai daqui. */
+export interface CancelSendSummary {
+  /** Total de vagas que serão removidas. */
+  total: number;
+  /** Ainda aguardando a validação da área (sugestao_pendente). */
+  aguardando: number;
+  /** Já validadas pela área, aguardando o aprovador (sugestao_validada). */
+  validadas: number;
+  /** Com pedido de ajuste/exclusão em aberto (sugestao_ajuste). */
+  comPedido: number;
+}
+
+/** Agrupa as vagas do evento no resumo do cancelamento (ignora o que não sai). */
+export function summarizeCancelableSuggestions(rows: readonly CancelableRow[] | null | undefined): CancelSendSummary {
+  const out: CancelSendSummary = { total: 0, aguardando: 0, validadas: 0, comPedido: 0 };
+  for (const row of rows ?? []) {
+    if (!isCancelableSuggestion(row)) continue;
+    out.total++;
+    if (row.status === SUGESTAO_STATUS.PENDENTE) out.aguardando++;
+    else if (row.status === SUGESTAO_STATUS.VALIDADA) out.validadas++;
+    else if (row.status === SUGESTAO_STATUS.AJUSTE) out.comPedido++;
+  }
+  return out;
+}
+
+/** O mínimo que a regra precisa saber de um pedido para decidir o cancelamento. */
+export interface CancelableRequest {
+  status?: string | null;
+  teamInclusionId?: string | null;
+}
+
+/**
+ * Este pedido é encerrado junto com o cancelamento do envio?
+ *
+ * Só pedidos PENDENTES — os já decididos são histórico. Entram os que apontam
+ * para uma vaga removida e também os pedidos de INCLUSÃO (teamInclusionId
+ * null): eles pedem uma vaga NOVA num envio que deixou de existir; deixá-los na
+ * fila faria o aprovador criar uma vaga órfã num evento sem sugestão.
+ *
+ * O status final é `negado` — é o valor que já existe no enum para "o pedido
+ * não vai adiante e a vaga não muda por causa dele". Não inventamos um
+ * 'cancelado' novo: nenhuma tela saberia lê-lo.
+ */
+export function isRequestCanceledByCancelSend(
+  request: CancelableRequest | null | undefined,
+  removedInclusionIds: ReadonlySet<string>,
+): boolean {
+  if (!request) return false;
+  if (request.status !== CHANGE_REQUEST_STATUS.PENDENTE) return false;
+  if (!request.teamInclusionId) return true;                 // pedido de inclusão: a vaga nem existe
+  return removedInclusionIds.has(request.teamInclusionId);
+}
+
+/** Status para onde vão os pedidos encerrados pelo cancelamento do envio. */
+export const CANCEL_SEND_REQUEST_STATUS = CHANGE_REQUEST_STATUS.NEGADO;
+
+/** Comentário gravado no pedido encerrado pelo cancelamento (a área precisa entender). */
+export const CANCEL_SEND_REQUEST_COMMENT =
+  "Envio da escala sugerida cancelado pela logística — o pedido foi encerrado sem decisão.";
+
+// ---------------------------------------------------------------------------
 // Permissões / prazos
 // ---------------------------------------------------------------------------
 

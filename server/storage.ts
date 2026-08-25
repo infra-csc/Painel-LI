@@ -63,6 +63,9 @@ export interface TeamInclusionListOptions {
 /** Phase das vagas ainda em validação pela área (espelha SUGESTAO_PHASE do shared). */
 const SUGESTAO_PHASE_VALUE = "sugestao";
 
+/** Pedido de ajuste ainda em aberto (espelha CHANGE_REQUEST_STATUS.PENDENTE do shared). */
+const PENDING_REQUEST_STATUS = "pendente";
+
 /** Remove sugestões (phase 'sugestao') de uma lista já carregada. */
 export function excludeSuggestions<T extends { phase: string | null }>(rows: T[]): T[] {
   return rows.filter((r) => r.phase !== SUGESTAO_PHASE_VALUE);
@@ -279,6 +282,13 @@ export interface IStorage {
     expected: { phase: string; status: string },
     logFor: (updated: TeamInclusion) => InsertTeamInclusionLog,
   ): Promise<TeamInclusion[]>;
+  /**
+   * "Cancelar envio" da Sugestão de Escala: soft delete de TODAS as vagas do
+   * evento ainda na etapa de sugestão + encerramento dos pedidos pendentes
+   * delas, numa única transação. Ver `cancelScalingSuggestionSend` na
+   * implementação para o contrato completo.
+   */
+  cancelScalingSuggestionSend(params: CancelSuggestionSendParams): Promise<CancelSuggestionSendResult>;
   /** Funções/eventos por id (Map por id no chamador) — evita carregar o catálogo inteiro. */
   getFunctionsByIds(ids: string[]): Promise<Function[]>;
   getEventsByIds(ids: string[]): Promise<Event[]>;
@@ -304,6 +314,30 @@ export interface IStorage {
 
 /** Linha completa de scaling_change_requests para inserção (identidade já resolvida pelo servidor). */
 export type InsertScalingChangeRequestRow = typeof scalingChangeRequests.$inferInsert;
+
+/** Entrada de `cancelScalingSuggestionSend` (quem decide O QUE sai é o chamador, via `statuses`). */
+export interface CancelSuggestionSendParams {
+  eventId: string;
+  /** Status de sugestão que saem (shared: CANCELABLE_SUGESTAO_STATUS). */
+  statuses: readonly string[];
+  /** Patch do soft delete (deletedAt/deletedBy/updatedBy). */
+  patch: Partial<InsertTeamInclusion>;
+  /** Log por vaga removida — gravado DENTRO da transação. */
+  logFor: (removed: TeamInclusion) => InsertTeamInclusionLog;
+  /**
+   * Quais pedidos PENDENTES do evento são encerrados junto (shared:
+   * `isRequestCanceledByCancelSend`). A regra vem de fora para não existir uma
+   * segunda cópia dela em SQL.
+   */
+  shouldCancelRequest: (request: ScalingChangeRequest, removedInclusionIds: ReadonlySet<string>) => boolean;
+  /** Patch dos pedidos encerrados (status/reviewComment/reviewedBy/reviewedByName/reviewedAt). */
+  requestPatch: Partial<InsertScalingChangeRequestRow>;
+}
+
+export interface CancelSuggestionSendResult {
+  removed: TeamInclusion[];
+  requestsCanceled: ScalingChangeRequest[];
+}
 
 // Database storage implementation using PostgreSQL + Drizzle
 export class DatabaseStorage implements IStorage {
@@ -1466,6 +1500,57 @@ export class DatabaseStorage implements IStorage {
         await tx.insert(teamInclusionLogs).values(updated.map((row) => logFor(row)));
       }
       return updated;
+    });
+  }
+
+  /**
+   * "Cancelar envio" da Sugestão de Escala — desfaz o /bulk de um evento inteiro.
+   *
+   * UMA transação com três passos: (1) soft delete das vagas do evento em
+   * phase 'sugestao' cujo status está em `statuses` e que ainda não foram
+   * excluídas; (2) um log por vaga removida; (3) encerramento dos pedidos
+   * PENDENTES daquelas vagas — mais os pedidos de INCLUSÃO do evento
+   * (team_inclusion_id null), que pedem uma vaga nova num envio que deixou de
+   * existir. Ou tudo entra, ou nada: sem a transação, um erro no meio deixaria
+   * vagas excluídas com pedidos vivos apontando para elas.
+   *
+   * A regra de QUEM sai (status / pedidos) mora em
+   * shared/scaling-validation-rules.ts — aqui só o SQL.
+   */
+  async cancelScalingSuggestionSend(params: CancelSuggestionSendParams): Promise<CancelSuggestionSendResult> {
+    const statuses = Array.from(new Set(params.statuses.filter(Boolean)));
+    if (statuses.length === 0) return { removed: [], requestsCanceled: [] };
+    return await db.transaction(async (tx) => {
+      const removed = await tx.update(teamInclusions)
+        .set(params.patch)
+        .where(and(
+          eq(teamInclusions.eventId, params.eventId),
+          eq(teamInclusions.phase, SUGESTAO_PHASE_VALUE),
+          inArray(teamInclusions.status, statuses),
+          isNull(teamInclusions.deletedAt),
+        ))
+        .returning();
+      // Nada removido: não há pedido a encerrar (o único caso de pedido sem vaga
+      // é o de inclusão, e ele só faz sentido com o envio ainda de pé).
+      if (removed.length === 0) return { removed, requestsCanceled: [] };
+
+      await tx.insert(teamInclusionLogs).values(removed.map((row) => params.logFor(row)));
+
+      // Os pedidos pendentes do evento são poucos (fila da área) — lê e decide
+      // com a regra do shared, em vez de reescrevê-la como um WHERE paralelo.
+      const removedIds = new Set(removed.map((r) => r.id));
+      const pending = await tx.select().from(scalingChangeRequests).where(and(
+        eq(scalingChangeRequests.eventId, params.eventId),
+        eq(scalingChangeRequests.status, PENDING_REQUEST_STATUS),
+      ));
+      const toCancel = pending.filter((r) => params.shouldCancelRequest(r, removedIds));
+      if (toCancel.length === 0) return { removed, requestsCanceled: [] };
+
+      const requestsCanceled = await tx.update(scalingChangeRequests)
+        .set({ ...params.requestPatch, updatedAt: new Date() })
+        .where(inArray(scalingChangeRequests.id, toCancel.map((r) => r.id)))
+        .returning();
+      return { removed, requestsCanceled };
     });
   }
 
