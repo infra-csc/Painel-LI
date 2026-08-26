@@ -80,9 +80,9 @@ function overlayReducer(state: OverlayState, action: OverlayAction): OverlayStat
 type QuickFilter = "pendentes" | "ajuste" | "inclusao" | "exclusao";
 
 /**
- * Abas da tela. "aprovacao" (vagas validadas pela área aguardando decisão) é o
- * caminho normal do fluxo desde 19/08 — por isso vem primeiro e vira o padrão
- * quando há itens.
+ * Abas da tela. A tela ABRE na "fila" com o filtro em pendentes (decisão do
+ * dono, 26/08); "aprovacao" (vagas validadas pela área) fica a um clique, na
+ * própria aba e no tile "Aguardando aprovação".
  */
 type ApprovalTab = "aprovacao" | "fila" | "paradas";
 
@@ -137,13 +137,8 @@ export default function ScalingApprovalPage() {
   const [onlyMineStalled, setOnlyMineStalled] = useState(true);
   /** "Vagas aguardando aprovação": mostra todas por padrão (as de outros aprovadores ficam com o cadeado). */
   const [onlyMineAwaiting, setOnlyMineAwaiting] = useState(false);
-  /**
-   * Abriu a aba na mão? Então o padrão automático ("aguardando aprovação"
-   * quando há itens) não mexe mais na escolha do usuário.
-   */
+  /** Marca que o usuário escolheu a aba (o deep-link de pedido também usa). */
   const tabPickedByUser = useRef(false);
-  /** Evento cujo padrão de aba já foi aplicado — o auto-switch roda uma vez por evento. */
-  const autoTabEventId = useRef<string | null>(null);
 
   // ── Dados ──
   const { data: events, isLoading: loadingEvents } = useQuery<Event[]>({ queryKey: ["/api/events"] });
@@ -298,14 +293,11 @@ export default function ScalingApprovalPage() {
    */
   // Vale também em "Todos os eventos" (chave "__todos__"): é justamente ali que
   // o aprovador precisa cair na fila que trava a escala.
-  useEffect(() => {
-    if (!isApprover || tabPickedByUser.current) return;
-    if (suggestionsQuery.isLoading || !suggestionsQuery.data) return;
-    const scope = eventId || "__todos__";
-    if (autoTabEventId.current === scope) return;
-    autoTabEventId.current = scope;
-    setTab(awaitingRowsAll.length > 0 ? "aprovacao" : "fila");
-  }, [isApprover, eventId, suggestionsQuery.isLoading, suggestionsQuery.data, awaitingRowsAll.length]);
+  // REVOGADO (26/08, decisão do dono: "os pendentes sempre vêm selecionado").
+  // A tela abre SEMPRE na fila de pedidos, com o filtro em "pendentes" — o
+  // auto-switch para "vagas aguardando aprovação" tirava essa seleção sozinho e
+  // o aprovador não sabia mais quantos pedidos tinha. A aba das vagas continua
+  // a um clique, no tile "Aguardando aprovação" e na própria aba.
 
   // ── Filtros locais ──
   const filtered = useMemo(() => {
