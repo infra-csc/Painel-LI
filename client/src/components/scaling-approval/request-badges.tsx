@@ -32,6 +32,26 @@ export function RequestTypeBadge({ type, className }: { type: string; className?
   );
 }
 
+/**
+ * "Já escalado" — o pedido é sobre uma vaga que JÁ SAIU da validação (regra do
+ * dono, 26/08: a área pede ajuste pelo modal de Escalação até a passagem ser
+ * comprada). Muda o que a decisão faz: aprovar aplica direto na escalação e
+ * "devolver para a área validar" não existe. Sem este aviso o aprovador decide
+ * achando que mexe numa vaga em fila.
+ */
+export function PostScalingBadge({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn("inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-[11px] font-semibold text-cyan-800 whitespace-nowrap", className)}
+      title="A pessoa já está escalada — a decisão é aplicada direto na escalação."
+      data-testid="badge-ja-escalado"
+    >
+      <UserCheck className="h-3 w-3" aria-hidden="true" />
+      Já escalado
+    </span>
+  );
+}
+
 // ── Status do pedido ─────────────────────────────────────────────────────────
 
 const REQUEST_STATUS_CLASS: Record<ChangeRequestStatus, string> = {

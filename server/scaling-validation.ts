@@ -1389,6 +1389,24 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
   }
 
   /**
+   * A janela do pedido ainda está aberta para ESTA vaga já escalada?
+   *
+   * Vale na abertura E na decisão: o pedido pode ficar dias pendente e a
+   * logística comprar a passagem no meio. Aplicar o ajuste depois da compra
+   * mudaria a data de um voo pago sem ninguém saber. Responde 409 (conflito de
+   * estado, o mesmo código que a tela já trata como "recarregue") com o motivo.
+   */
+  async function assertChangeWindowOpen(inclusion: TeamInclusion, actor: User, res: Response): Promise<boolean> {
+    const win = changeRequestWindow(inclusion, {
+      isAdmin: isAdmin(actor),
+      tickets: await storage.getTicketsByInclusionId(inclusion.id),
+    });
+    if (win.allowed) return true;
+    res.status(409).json({ message: win.message });
+    return false;
+  }
+
+  /**
    * Monta as N linhas de team_inclusions de um pedido de inclusão (NÃO grava —
    * quem grava é `storage.resolveScalingChangeRequest`, na mesma transação do
    * pedido).
@@ -1484,6 +1502,10 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         // transição a fazer — aplica o ajuste e a vaga fica exatamente onde
         // está, com a pessoa, a passagem e a hospedagem que já tem.
         const postScaling = !isSuggestionInclusion(inclusion);
+        // A janela é conferida DE NOVO aqui: entre abrir o pedido e decidir, a
+        // logística pode ter comprado a passagem — aprovar depois disso mudaria
+        // datas de um voo pago sem ninguém saber.
+        if (postScaling && !await assertChangeWindowOpen(inclusion, actor, res)) return;
         const patch: Partial<InsertTeamInclusion> = postScaling
           ? { ...proposedToPatch(proposed), updatedBy: actor.id }
           : (() => {
@@ -1612,6 +1634,9 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         // está na fila de validação. O aprovador reajusta e aplica, ou nega e a
         // vaga fica como está. A vaga NUNCA muda de fase por aqui.
         const postScaling = !isSuggestionInclusion(inclusion);
+        // Mesma reconferência da aprovação: só o "reajustar" mexe na vaga, mas
+        // negar depois da compra também precisa da mensagem certa.
+        if (postScaling && kind === "reajustar" && !await assertChangeWindowOpen(inclusion, actor, res)) return;
         if (postScaling && then === "reenviar_validacao") {
           return res.status(400).json({
             message: "A pessoa já está escalada: este pedido não volta para a validação. Aprove com ajustes ou negue.",
@@ -1860,19 +1885,24 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         });
       }
 
-      const window = changeRequestWindow(inclusion, {
-        isAdmin: admin,
-        tickets: isSuggestionInclusion(inclusion) ? null : await storage.getTicketsByInclusionId(inclusion.id),
-      });
+      const tickets = isSuggestionInclusion(inclusion) ? [] : await storage.getTicketsByInclusionId(inclusion.id);
+      const window = changeRequestWindow(inclusion, { isAdmin: admin, tickets });
       const pending = (await storage.getScalingChangeRequestsByInclusion(inclusion.id))
         .find((r) => r.status === CHANGE_REQUEST_STATUS.PENDENTE) ?? null;
+      // Passagem já em preparação (linha existe, compra ainda não): mudar data
+      // agora significa a logística refazer a cotação — a tela avisa antes.
+      const ticketInProgress = tickets.length > 0 && !window.adminOverride && window.allowed;
 
       res.json({
         canRequest: true,
         allowed: window.allowed,
+        // A tela usa o motivo para decidir o que mostrar: "passagem comprada" é
+        // aviso útil; vaga cancelada/excluída não merece cartão nenhum.
+        block: window.block ?? null,
         message: window.message ?? null,
         postScaling: window.postScaling,
         adminOverride: window.adminOverride,
+        ticketInProgress,
         pendingRequest: pending && {
           id: pending.id,
           requestType: pending.requestType,

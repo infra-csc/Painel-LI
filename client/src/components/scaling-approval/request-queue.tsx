@@ -6,7 +6,8 @@ import { cn } from "@/lib/utils";
 import { formatDateBr } from "@/lib/dates";
 import { CHANGE_REQUEST_STATUS, CHANGE_REQUEST_TYPE_LABELS, daysPending, type ChangeRequestType } from "@shared/scaling-validation-rules";
 import type { ChangeRequestItem } from "./types";
-import { CanDecideBadge, RequestAgeBadge, RequestStatusBadge, RequestTypeBadge } from "./request-badges";
+import { CanDecideBadge, PostScalingBadge, RequestAgeBadge, RequestStatusBadge, RequestTypeBadge } from "./request-badges";
+import { isPostValidationInclusion } from "@shared/scaling-change-window";
 
 interface RequestQueueProps {
   items: ChangeRequestItem[];
@@ -93,6 +94,7 @@ export function RequestQueue({ items, onOpen, showEvent = true, onApprove, onRea
                     <td className="px-2.5 py-2 align-middle">
                       <div className="flex flex-col items-start gap-1">
                         <RequestTypeBadge type={r.requestType} />
+                        {isPostValidationInclusion(r.inclusionState) && <PostScalingBadge />}
                         <RequestStatusBadge status={r.status} />
                       </div>
                     </td>
@@ -179,6 +181,7 @@ export function RequestQueue({ items, onOpen, showEvent = true, onApprove, onRea
               <div className="flex items-start justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                   <RequestTypeBadge type={r.requestType} />
+                  {isPostValidationInclusion(r.inclusionState) && <PostScalingBadge />}
                   <RequestStatusBadge status={r.status} />
                   {pending && <RequestAgeBadge days={days} />}
                   {pending && r.canDecide && <CanDecideBadge />}

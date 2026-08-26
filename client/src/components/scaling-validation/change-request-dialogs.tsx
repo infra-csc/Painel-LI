@@ -225,7 +225,7 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
           <DialogTitle>Pedir ajuste da vaga #{inclusion?.inclusionNumber}</DialogTitle>
           <DialogDescription>
             {functionName ?? "Função"}{event ? ` · ${event.name}` : ""}. Altere só o que precisa — o aprovador vê o “de/para”.
-            {postScaling && " A pessoa continua escalada: nada muda até o aprovador aceitar."}
+            {postScaling && " A vaga continua como está — nada muda até o aprovador aceitar."}
           </DialogDescription>
         </DialogHeader>
 

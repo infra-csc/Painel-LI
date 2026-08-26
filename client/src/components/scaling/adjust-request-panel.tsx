@@ -22,6 +22,7 @@ import { AdjustRequestDialog } from "@/components/scaling-validation/change-requ
 import { invalidateScalingQueries } from "@/components/scaling-validation/types";
 import { formatDateBr } from "@/lib/dates";
 import { CHANGE_REQUEST_TYPE_LABELS } from "@shared/scaling-validation-rules";
+import type { ChangeWindowBlock } from "@shared/scaling-change-window";
 import type { Event, TeamInclusion } from "@shared/schema";
 
 /** Resposta de GET /api/team-inclusions/:id/change-window */
@@ -30,12 +31,16 @@ export interface ChangeWindowResponse {
   canRequest: boolean;
   /** A janela permite abrir pedido agora (já considerando admin). */
   allowed: boolean;
+  /** Código do bloqueio (null = evento encerrado ou nenhum). */
+  block?: ChangeWindowBlock | null;
   /** Motivo do bloqueio em pt-BR, quando `allowed` é false. */
   message?: string | null;
   /** Vaga já escalada (muda o texto do diálogo). */
   postScaling: boolean;
   /** Passou só porque é administrador — a área veria bloqueio. */
   adminOverride: boolean;
+  /** Existe passagem em preparação (ainda não comprada) para esta vaga. */
+  ticketInProgress?: boolean;
   /** Pedido em aberto desta vaga, se houver. */
   pendingRequest: {
     id: string;
@@ -93,6 +98,9 @@ export function AdjustRequestPanel({ inclusion, event, functionName }: {
   }
 
   if (!data.allowed) {
+    // Vaga cancelada ou excluída não ganha cartão: a tela já mostra isso no
+    // status, e um aviso de "ajuste indisponível" só ocuparia espaço.
+    if (data.block === "vaga_cancelada" || data.block === "vaga_excluida") return null;
     return (
       <div className={`${CARD} border-slate-200`} data-testid="card-pedido-ajuste-bloqueado">
         <div className={`${HEAD} bg-slate-50 border-slate-100`}>
@@ -119,6 +127,11 @@ export function AdjustRequestPanel({ inclusion, event, functionName }: {
             {data.adminOverride
               ? " — a passagem já foi comprada, e só o administrador consegue abrir este pedido."
               : ", enquanto a passagem não for comprada."}
+            {data.ticketInProgress && (
+              <span className="block mt-1 text-amber-700">
+                A logística já está preparando a passagem desta vaga — mudar datas agora significa refazer a cotação.
+              </span>
+            )}
           </p>
           <Button
             type="button" variant="outline" onClick={() => setOpen(true)}

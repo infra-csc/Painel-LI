@@ -13,8 +13,9 @@ import {
 import { cn } from "@/lib/utils";
 import type { Event, TeamInclusion } from "@shared/schema";
 import { CHANGE_REQUEST_TYPE_LABELS, diffInclusion, type ChangeRequestType, type ProposedChanges } from "@shared/scaling-validation-rules";
+import { isPostValidationInclusion } from "@shared/scaling-change-window";
 import type { ChangeRequestItem, ReviewBody } from "./types";
-import { RequestTypeBadge } from "./request-badges";
+import { PostScalingBadge, RequestTypeBadge } from "./request-badges";
 import { DiffTable, ProposedList } from "./request-detail";
 import { targetLabel } from "./request-queue";
 import { ProposedChangesForm, draftFromProposed, draftToProposed, fullFromDraft, validateDraft, type ProposedDraft } from "./proposed-changes-form";
@@ -29,7 +30,11 @@ interface ApproveDialogProps {
   onConfirm: () => void;
 }
 
-function approveConsequence(type: ChangeRequestType, qty: number): string {
+function approveConsequence(type: ChangeRequestType, qty: number, postScaling = false): string {
+  // Vaga já escalada: aprovar NÃO devolve a vaga para a fila — aplica no lugar.
+  if (postScaling && type === "ajuste") {
+    return "As alterações são aplicadas na escalação atual. A pessoa continua escalada; passagem e hospedagem seguem com a logística.";
+  }
   switch (type) {
     case "ajuste": return "As alterações são aplicadas na vaga, que vira Inclusão de Equipe (aguardando escalação).";
     case "inclusao": return `${qty} ${qty === 1 ? "vaga nova nasce" : "vagas novas nascem"} já como Inclusão de Equipe (aguardando escalação).`;
@@ -46,6 +51,7 @@ export function ApproveRequestDialog({ open, onOpenChange, request, pending, onC
           <AlertDialogTitle className="flex items-center gap-2">
             Aprovar pedido de {CHANGE_REQUEST_TYPE_LABELS[type].toLowerCase()}?
             <RequestTypeBadge type={type} />
+            {isPostValidationInclusion(request?.inclusionState) && <PostScalingBadge />}
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-3 text-left">
@@ -56,7 +62,7 @@ export function ApproveRequestDialog({ open, onOpenChange, request, pending, onC
               </p>
               {request && type === "ajuste" && <DiffTable diff={request.diff} />}
               {request && type === "inclusao" && <ProposedList proposed={request.proposed} />}
-              <p className="text-xs text-slate-600">{approveConsequence(type, request?.proposed?.quantity ?? 1)}</p>
+              <p className="text-xs text-slate-600">{approveConsequence(type, request?.proposed?.quantity ?? 1, isPostValidationInclusion(request?.inclusionState))}</p>
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -91,7 +97,17 @@ interface ReviewDialogProps {
  * Rótulo + explicação de cada destino da vaga, dependentes de kind × tipo do
  * pedido (mesma regra do servidor: reviewHandler em server/scaling-validation.ts).
  */
-export function thenOption(value: ReviewBody["then"], kind: ReviewKind, type: ChangeRequestType): { label: string; hint: string } {
+export function thenOption(
+  value: ReviewBody["then"], kind: ReviewKind, type: ChangeRequestType,
+  /** Vaga já escalada: não existe "voltar para a fila" e a vaga não vira Inclusão de novo. */
+  postScaling = false,
+): { label: string; hint: string } {
+  if (postScaling) {
+    // Só "aprovar_direto" chega aqui (a outra opção nem é oferecida).
+    return kind === "reajustar"
+      ? { label: "Aplicar os ajustes na escalação", hint: "A pessoa continua escalada, com as suas alterações. Passagem e hospedagem seguem com a logística." }
+      : { label: "Manter a escalação como está", hint: "O pedido é negado e nada muda na vaga — a pessoa continua escalada como estava." };
+  }
   if (value === "reenviar_validacao") {
     if (kind === "reajustar") {
       return {
@@ -180,8 +196,12 @@ interface ReviewFormProps {
 const COMMENT_REQUIRED = "O comentário para a área é obrigatório.";
 
 function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFields, onCancel, onSubmit }: ReviewFormProps) {
+  // Pedido sobre vaga JÁ ESCALADA (modal de Escalação): o servidor recusa
+  // "reenviar_validacao" — a vaga não está em fila nenhuma para voltar. Aqui a
+  // opção nem aparece, e o destino já nasce em "aprovar_direto".
+  const postScaling = isPostValidationInclusion(request?.inclusionState);
   const [comment, setComment] = useState("");
-  const [then, setThen] = useState<ReviewBody["then"]>("reenviar_validacao");
+  const [then, setThen] = useState<ReviewBody["then"]>(postScaling ? "aprovar_direto" : "reenviar_validacao");
   const [editFields, setEditFields] = useState(false);
   const [draft, setDraft] = useState<ProposedDraft>(() => draftFromProposed(request?.proposed ?? null, inclusion));
   const [error, setError] = useState<string | null>(null);
@@ -273,8 +293,8 @@ function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFie
           <fieldset className="space-y-2">
             <legend className="text-xs text-slate-600 mb-1">Depois de {verb.toLowerCase()}, o que fazer com {subject}? <span className="text-red-500" aria-hidden="true">*</span></legend>
             <RadioGroup value={then} onValueChange={(v) => setThen(v as ReviewBody["then"])} disabled={pending} className="gap-2">
-              {THEN_VALUES.map((value) => {
-                const o = thenOption(value, kind, type);
+              {(postScaling ? (["aprovar_direto"] as ReviewBody["then"][]) : THEN_VALUES).map((value) => {
+                const o = thenOption(value, kind, type, postScaling);
                 return (
                   <label key={value} htmlFor={`rev-then-${value}`} className={cn("flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors", then === value ? "border-primary bg-brand-soft/40" : "border-slate-200 bg-white hover:border-slate-300")}>
                     <RadioGroupItem id={`rev-then-${value}`} value={value} className="mt-0.5" />
