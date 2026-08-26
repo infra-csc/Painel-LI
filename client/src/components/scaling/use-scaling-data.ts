@@ -132,6 +132,32 @@ export function useScalingData(opts: {
   const { data: pendingChanges } = useQuery<PendingChangeRequest[]>({
     queryKey: ["/api/scaling-change-requests/pending-by-inclusion"],
     staleTime: 30_000,
+    queryFn: async () => {
+      // Rota enxuta, feita para esta tela. Se o servidor ainda não a tiver
+      // (implantação atrasada), ela responde o HTML do SPA — daí a checagem do
+      // content-type — e caímos na fila completa de pedidos, que existe desde
+      // sempre. Quem não tem permissão nela simplesmente fica sem o selo, em
+      // vez de a tela inteira quebrar.
+      const enxuta = await fetch("/api/scaling-change-requests/pending-by-inclusion", { credentials: "include" });
+      if (enxuta.ok && enxuta.headers.get("content-type")?.includes("application/json")) {
+        return (await enxuta.json()) as PendingChangeRequest[];
+      }
+      const completa = await fetch("/api/scaling-change-requests?status=pendente", { credentials: "include" });
+      if (!completa.ok || !completa.headers.get("content-type")?.includes("application/json")) return [];
+      const rows = (await completa.json()) as {
+        teamInclusionId: string | null; requestType: string; reason: string | null;
+        requestedByName: string | null; createdAt: string | null;
+      }[];
+      return rows
+        .filter((r): r is PendingChangeRequest => !!r.teamInclusionId)
+        .map((r) => ({
+          teamInclusionId: r.teamInclusionId,
+          requestType: r.requestType,
+          reason: r.reason,
+          requestedByName: r.requestedByName,
+          createdAt: r.createdAt,
+        }));
+    },
   });
   const pendingChangeByInclusion = useMemo(() => {
     const m = new Map<string, PendingChangeRequest>();
