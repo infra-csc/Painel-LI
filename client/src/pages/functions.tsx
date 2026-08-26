@@ -13,7 +13,9 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Check, Loader2, X, Tag } from "lucide-react";
+import { AlertTriangle, Check, ClipboardCheck, Loader2, X, Tag } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import EscalaResponsaveisTab from "@/components/functions/escala-responsaveis-tab";
 import ConfirmModal from "@/components/common/confirm-modal";
 import { PageHeader } from "@/components/common/page-header";
 import { PageContainer } from "@/components/common/page-container";
@@ -460,6 +462,23 @@ export default function Functions() {
           }
         />
 
+        {/* ── Abas: catálogo de funções × responsáveis da Validação de Escala ── */}
+        <Tabs defaultValue="catalogo" className="w-full">
+          <TabsList className="mb-4 h-11 rounded-xl bg-muted/70 p-1">
+            <TabsTrigger value="catalogo" data-testid="tab-funcoes" className="rounded-lg px-4 text-[13px] font-bold gap-1.5">
+              <Tag className="w-3.5 h-3.5" /> Funções
+            </TabsTrigger>
+            <TabsTrigger value="escala" data-testid="tab-validacao-escala" className="rounded-lg px-4 text-[13px] font-bold gap-1.5">
+              <ClipboardCheck className="w-3.5 h-3.5" /> Validação de Escala
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="escala" className="mt-0">
+            <EscalaResponsaveisTab canManage={canManage} />
+          </TabsContent>
+
+          <TabsContent value="catalogo" className="mt-0">
+
         {/* ── Main card ── */}
         <div className="bg-card rounded-xl border border-border shadow-[0_20px_40px_rgba(20,27,43,0.03)] overflow-hidden">
 
@@ -598,6 +617,8 @@ export default function Functions() {
             </div>
           )}
         </div>
+          </TabsContent>
+        </Tabs>
       </PageContainer>
 
       <ConfirmModal
