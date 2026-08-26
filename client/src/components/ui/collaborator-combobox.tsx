@@ -22,6 +22,10 @@ interface CollaboratorComboboxProps {
   placeholder?: string;
   testId?: string;
   hideAll?: boolean;
+  /** Trava o seletor (evento encerrado, pedido de ajuste em análise…). */
+  disabled?: boolean;
+  /** Vira o `title` do gatilho travado — diz POR QUE não dá para trocar. */
+  disabledReason?: string | null;
 }
 
 export default function CollaboratorCombobox({
@@ -31,6 +35,8 @@ export default function CollaboratorCombobox({
   placeholder = "Selecionar colaborador",
   testId = "collaborator-combobox",
   hideAll = false,
+  disabled = false,
+  disabledReason,
 }: CollaboratorComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -74,7 +80,9 @@ export default function CollaboratorCombobox({
         <button
           data-testid={testId}
           type="button"
-          className="w-full h-9 flex items-center justify-between px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 hover:border-blue-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-200"
+          disabled={disabled}
+          title={disabled ? (disabledReason ?? undefined) : undefined}
+          className="w-full h-9 flex items-center justify-between px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 hover:border-blue-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-slate-200"
         >
           <span className="truncate mr-2">{displayValue}</span>
           <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />

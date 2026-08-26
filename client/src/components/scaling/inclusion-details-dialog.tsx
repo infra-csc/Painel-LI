@@ -457,7 +457,9 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                           {(() => {
                             const emitsNf = (inclusion as any).emitsNf !== false;
                             // Mesmo gate do Confirmar: responsável pela função, admin ou Compras
-                            const canToggleNf = canManageFunction(inclusion.functionId) && !eventLocked;
+                            // Pedido em análise trava aqui também: a NF entra na
+                            // conta do que o aprovador está decidindo.
+                            const canToggleNf = canManageFunction(inclusion.functionId) && !eventLocked && !requestLockReason;
                             const badgeCls = `inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-full transition-colors ${emitsNf ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`;
                             const dot = <span className={`w-1.5 h-1.5 rounded-full ${emitsNf ? "bg-emerald-500" : "bg-slate-400"}`} />;
                             const label = emitsNf ? "Emite NF" : "Não emite NF";
@@ -470,7 +472,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                     </span>
                                   </TooltipTrigger>
                                   <TooltipContent side="right" className="max-w-[260px] text-[12px]">
-                                    {eventLockReason ?? "Somente o responsável pela função, administradores ou Compras podem alterar se este escalado emite nota fiscal."}
+                                    {actionLockReason ?? "Somente o responsável pela função, administradores ou Compras podem alterar se este escalado emite nota fiscal."}
                                   </TooltipContent>
                                 </Tooltip>
                               );
@@ -609,6 +611,8 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                 placeholder="Selecione um colaborador"
                                 testId="select-collaborator-escalation"
                                 hideAll={true}
+                                disabled={!!requestLockReason}
+                                disabledReason={requestLockReason}
                               />
                             </div>
                             {!modalData.collaboratorId && !isEscalated(inclusion) && (
@@ -630,6 +634,8 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                     value={modalData.atendimentoTipo}
                                     onChange={(e) => setModalData(prev => ({ ...prev, atendimentoTipo: e.target.value }))}
                                     data-testid="select-atendimento-tipo"
+                                    disabled={!!requestLockReason}
+                                    title={requestLockReason ?? undefined}
                                     aria-invalid={missing}
                                     className={`w-full px-3 py-2 text-[13px] border rounded-xl bg-white focus:outline-none focus:ring-2 focus:border-transparent ${missing ? "border-red-300 focus:ring-red-300" : "border-slate-200 focus:ring-[#2563EB]"}`}
                                   >
@@ -704,6 +710,8 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                 <button
                                   type="button"
                                   onClick={() => setModalData(prev => ({ ...prev, departureFromSP: true, city: "São Paulo - SP" }))}
+                                  disabled={!!requestLockReason}
+                                  title={requestLockReason ?? undefined}
                                   className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${modalData.departureFromSP ? "bg-[#2563EB] text-white border-[#2563EB]" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`}
                                 >
                                   São Paulo - SP
@@ -711,6 +719,8 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                 <button
                                   type="button"
                                   onClick={() => setModalData(prev => ({ ...prev, departureFromSP: false, city: "" }))}
+                                  disabled={!!requestLockReason}
+                                  title={requestLockReason ?? undefined}
                                   className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${!modalData.departureFromSP ? "bg-slate-700 text-white border-slate-700" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`}
                                 >
                                   Outra cidade
@@ -722,6 +732,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                   value={modalData.city || ""}
                                   onChange={(e) => setModalData(prev => ({ ...prev, city: e.target.value }))}
                                   placeholder="Ex: Rio de Janeiro - RJ"
+                                  disabled={!!requestLockReason}
                                   autoFocus
                                   className="w-full px-3 py-2 text-[13px] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
                                 />
