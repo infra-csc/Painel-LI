@@ -32,6 +32,7 @@ import {
   type ScalingChangeRequest,
 } from "@shared/schema";
 import { eq, and, sql, isNull, ne, exists, asc, desc, inArray } from "drizzle-orm";
+import { VAGA_STATE_CHANGED_MSG } from "@shared/scaling-validation-rules";
 
 /** Papel de um responsável na Validação de Escala (function_managers.role). */
 export type FunctionManagerRole = "validador" | "aprovador";
@@ -297,16 +298,34 @@ export interface IStorage {
   getScalingChangeRequestsByInclusion(teamInclusionId: string): Promise<ScalingChangeRequest[]>;
   createScalingChangeRequest(request: InsertScalingChangeRequestRow): Promise<ScalingChangeRequest>;
   updateScalingChangeRequest(id: string, updates: Partial<InsertScalingChangeRequestRow>): Promise<ScalingChangeRequest | undefined>;
+  /**
+   * UPDATE guardado de UMA vaga: só grava se ela ainda estiver no estado
+   * `expected` (phase + um dos status) e não deletada. Devolve `undefined`
+   * quando 0 linhas — a vaga mudou de estado no meio (o chamador responde 409).
+   */
+  updateTeamInclusionIfState(
+    id: string,
+    patch: Partial<InsertTeamInclusion>,
+    expected: { phase: string; statuses: readonly string[] },
+  ): Promise<TeamInclusion | undefined>;
   createScalingChangeRequestWithTransition(
     request: InsertScalingChangeRequestRow,
     inclusionId: string | null,
-    newState: { phase: string; status: string; updatedBy?: string | null } | null,
+    newState: {
+      phase: string; status: string; updatedBy?: string | null;
+      /** Estado que a vaga PRECISA ter para a transição valer (guarda TOCTOU). */
+      expected: { phase: string; statuses: readonly string[] };
+    } | null,
   ): Promise<{ request: ScalingChangeRequest; inclusion: TeamInclusion | null }>;
   resolveScalingChangeRequest(
     requestId: string,
     requestUpdates: Partial<InsertScalingChangeRequestRow>,
     ops?: {
-      inclusionUpdate?: { id: string; patch: Partial<InsertTeamInclusion> } | null;
+      inclusionUpdate?: {
+        id: string; patch: Partial<InsertTeamInclusion>;
+        /** Estado que a vaga PRECISA ter para o patch valer (guarda TOCTOU). */
+        expected?: { phase: string; statuses: readonly string[] };
+      } | null;
       inclusionInserts?: InsertTeamInclusion[];
     },
   ): Promise<{ request: ScalingChangeRequest; updatedInclusion: TeamInclusion | null; createdInclusions: TeamInclusion[] }>;
@@ -1603,13 +1622,41 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
+  /**
+   * UPDATE guardado pelo estado esperado (mesmo padrão de
+   * `validateScalingSuggestionsBatch`): a decisão concorrente que chegou antes
+   * mudou phase/status e este UPDATE simplesmente não encontra a linha.
+   */
+  async updateTeamInclusionIfState(
+    id: string,
+    patch: Partial<InsertTeamInclusion>,
+    expected: { phase: string; statuses: readonly string[] },
+  ): Promise<TeamInclusion | undefined> {
+    const [row] = await db.update(teamInclusions)
+      .set(patch)
+      .where(and(
+        eq(teamInclusions.id, id),
+        isNull(teamInclusions.deletedAt),
+        eq(teamInclusions.phase, expected.phase),
+        inArray(teamInclusions.status, [...expected.statuses]),
+      ))
+      .returning();
+    return row;
+  }
+
   // Abertura de pedido + transição da vaga (pendente → ajuste) na MESMA
   // transação: sem isso, um retry podia gravar o pedido e deixar a vaga no
-  // estado antigo (ou vice-versa).
+  // estado antigo (ou vice-versa). O UPDATE da vaga é GUARDADO pelo estado
+  // esperado (`newState.expected`): se uma decisão concorrente já tirou a vaga
+  // de lá, 0 linhas → a transação ABORTA e o pedido NÃO fica criado (senão
+  // sobraria um pedido pendente preso apontando para uma vaga já decidida).
   async createScalingChangeRequestWithTransition(
     request: InsertScalingChangeRequestRow,
     inclusionId: string | null,
-    newState: { phase: string; status: string; updatedBy?: string | null } | null,
+    newState: {
+      phase: string; status: string; updatedBy?: string | null;
+      expected: { phase: string; statuses: readonly string[] };
+    } | null,
   ): Promise<{ request: ScalingChangeRequest; inclusion: TeamInclusion | null }> {
     return await db.transaction(async (tx) => {
       const [created] = await tx.insert(scalingChangeRequests).values(request).returning();
@@ -1617,9 +1664,15 @@ export class DatabaseStorage implements IStorage {
       if (inclusionId && newState) {
         const [row] = await tx.update(teamInclusions)
           .set({ phase: newState.phase, status: newState.status, updatedBy: newState.updatedBy ?? undefined })
-          .where(eq(teamInclusions.id, inclusionId))
+          .where(and(
+            eq(teamInclusions.id, inclusionId),
+            isNull(teamInclusions.deletedAt),
+            eq(teamInclusions.phase, newState.expected.phase),
+            inArray(teamInclusions.status, [...newState.expected.statuses]),
+          ))
           .returning();
-        if (!row) throw new Error("Vaga do pedido não encontrada");
+        // Lança DENTRO da transação: o insert do pedido é desfeito junto.
+        if (!row) throw new Error(VAGA_STATE_CHANGED_MSG);
         inclusion = row;
       }
       return { request: created, inclusion };
@@ -1641,7 +1694,10 @@ export class DatabaseStorage implements IStorage {
     requestId: string,
     requestUpdates: Partial<InsertScalingChangeRequestRow>,
     ops: {
-      inclusionUpdate?: { id: string; patch: Partial<InsertTeamInclusion> } | null;
+      inclusionUpdate?: {
+        id: string; patch: Partial<InsertTeamInclusion>;
+        expected?: { phase: string; statuses: readonly string[] };
+      } | null;
       inclusionInserts?: InsertTeamInclusion[];
     } = {},
   ): Promise<{ request: ScalingChangeRequest; updatedInclusion: TeamInclusion | null; createdInclusions: TeamInclusion[] }> {
@@ -1655,11 +1711,24 @@ export class DatabaseStorage implements IStorage {
 
       let updatedInclusion: TeamInclusion | null = null;
       if (ops.inclusionUpdate) {
+        // UPDATE guardado pelo estado esperado (quando o chamador o informa):
+        // se a vaga já não está mais lá (decisão concorrente), 0 linhas → a
+        // transação ABORTA e o pedido volta a 'pendente' intacto.
+        const expected = ops.inclusionUpdate.expected;
         const [row] = await tx.update(teamInclusions)
           .set(ops.inclusionUpdate.patch)
-          .where(eq(teamInclusions.id, ops.inclusionUpdate.id))
+          .where(and(
+            eq(teamInclusions.id, ops.inclusionUpdate.id),
+            ...(expected
+              ? [
+                  isNull(teamInclusions.deletedAt),
+                  eq(teamInclusions.phase, expected.phase),
+                  inArray(teamInclusions.status, [...expected.statuses]),
+                ]
+              : []),
+          ))
           .returning();
-        if (!row) throw new Error("Vaga do pedido não encontrada");
+        if (!row) throw new Error(expected ? VAGA_STATE_CHANGED_MSG : "Vaga do pedido não encontrada");
         updatedInclusion = row;
       }
       const createdInclusions: TeamInclusion[] = [];

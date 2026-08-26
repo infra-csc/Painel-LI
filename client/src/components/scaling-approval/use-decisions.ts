@@ -95,11 +95,13 @@ export function useDecisionMutations(opts: DecisionOptions = {}) {
     const status = err?.status;
 
     if (isStaleDecisionError(err)) {
-      // Item já decidido/alterado por outra pessoa: avisa, recarrega e fecha o que estiver aberto.
+      // Item já decidido/alterado por outra pessoa: avisa, recarrega e fecha o que
+      // estiver aberto. Toast NEUTRO de propósito: o caso típico é o duplo clique
+      // logo após um sucesso da mesma ação — um segundo toast vermelho gritando
+      // "não foi possível" ao lado do verde de sucesso só confundiria.
       toast({
-        title,
-        description: `${apiErrorMessage(err, "Este item mudou desde que você o abriu.")} A lista foi atualizada.`,
-        variant: "destructive",
+        title: "Este item já tinha sido decidido",
+        description: "A lista foi atualizada.",
       });
       invalidateAll();
       opts.onStale?.();

@@ -116,7 +116,13 @@ function toViewRow(row: ApiViewRow): EventViewRow {
 /** Slug ASCII p/ nome de arquivo. */
 const slugify = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase();
 function downloadCsv(filename: string, header: string[], lines: string[][]) {
-  const qv = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const qv = (v: unknown) => {
+    let s = String(v ?? "");
+    // Anti-injeção de fórmula: célula que começa com = + - @ ganharia vida no Excel
+    // ("=cmd|…"). O apóstrofo na frente faz o Excel tratá-la como texto puro.
+    if (/^[=+\-@]/.test(s.trimStart())) s = `'${s}`;
+    return `"${s.replace(/"/g, '""')}"`;
+  };
   const body = [header.map(qv).join(";"), ...lines.map((l) => l.map(qv).join(";"))].join("\r\n");
   const blob = new Blob(["﻿" + body], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");

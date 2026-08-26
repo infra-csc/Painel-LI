@@ -9,6 +9,7 @@ import {
   CHANGE_REQUEST_STATUS, CHANGE_REQUEST_STATUS_VALUES,
   CANCELABLE_SUGESTAO_STATUS, isCancelableSuggestion, summarizeCancelableSuggestions,
   isRequestCanceledByCancelSend, CANCEL_SEND_REQUEST_STATUS, CANCEL_SEND_REQUEST_COMMENT,
+  isRealYmd, isValidHhmm, ymdSchema, hhmmSchema, VAGA_STATE_CHANGED_MSG,
 } from "./scaling-validation-rules";
 
 const sug = (status: string) => ({ status, phase: SUGESTAO_PHASE });
@@ -692,5 +693,87 @@ describe("isRequestCanceledByCancelSend — pedidos encerrados junto", () => {
     expect(CHANGE_REQUEST_STATUS_VALUES).toContain(CANCEL_SEND_REQUEST_STATUS);
     expect(CANCEL_SEND_REQUEST_STATUS).toBe(CHANGE_REQUEST_STATUS.NEGADO);
     expect(CANCEL_SEND_REQUEST_COMMENT).toMatch(/cancelad/i);
+  });
+});
+
+describe("isRealYmd — datas de calendário REAIS (round-trip UTC)", () => {
+  it("aceita datas que existem", () => {
+    expect(isRealYmd("2026-01-31")).toBe(true);
+    expect(isRealYmd("2026-02-28")).toBe(true);
+    expect(isRealYmd("2028-02-29")).toBe(true); // bissexto
+    expect(isRealYmd("2026-12-31")).toBe(true);
+  });
+  it("rejeita datas que o regex aceita mas não existem", () => {
+    expect(isRealYmd("2027-02-29")).toBe(false); // 2027 não é bissexto
+    expect(isRealYmd("2026-09-31")).toBe(false); // setembro tem 30
+    expect(isRealYmd("2026-13-01")).toBe(false);
+    expect(isRealYmd("2026-00-10")).toBe(false);
+    expect(isRealYmd("2026-04-31")).toBe(false);
+  });
+  it("rejeita formato fora de AAAA-MM-DD", () => {
+    expect(isRealYmd("26-01-01")).toBe(false);
+    expect(isRealYmd("2026/01/01")).toBe(false);
+    expect(isRealYmd("")).toBe(false);
+  });
+  it("ymdSchema devolve 'Data inexistente' para data impossível", () => {
+    const r = ymdSchema.safeParse("2027-02-29");
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0]?.message).toBe("Data inexistente");
+    expect(ymdSchema.safeParse("2026-06-15").success).toBe(true);
+  });
+});
+
+describe("isValidHhmm — horários reais (00:00–23:59)", () => {
+  it("aceita horários válidos", () => {
+    expect(isValidHhmm("00:00")).toBe(true);
+    expect(isValidHhmm("23:59")).toBe(true);
+    expect(isValidHhmm("07:30")).toBe(true);
+  });
+  it("rejeita o que o regex sozinho deixaria passar", () => {
+    expect(isValidHhmm("24:00")).toBe(false);
+    expect(isValidHhmm("23:60")).toBe(false);
+    expect(isValidHhmm("99:99")).toBe(false);
+  });
+  it("rejeita formato fora de HH:MM", () => {
+    expect(isValidHhmm("7:30")).toBe(false);
+    expect(isValidHhmm("0730")).toBe(false);
+  });
+  it("hhmmSchema rejeita '24:00' com mensagem pt-BR", () => {
+    const r = hhmmSchema.safeParse("24:00");
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0]?.message).toMatch(/Horário inexistente/);
+  });
+});
+
+describe("parseProposedChanges — datas/horários reais e tetos de entrada", () => {
+  it("rejeita workDays com data inexistente", () => {
+    expect(() => parseProposedChanges({ v: 1, workDays: ["2027-02-29"], quantity: 1 }, "inclusao"))
+      .toThrow(/Data inexistente/);
+    expect(() => parseProposedChanges({ v: 1, workDays: ["2026-09-31"] }, "ajuste"))
+      .toThrow(/Data inexistente/);
+  });
+  it("rejeita flightDepartureDate inexistente e horário 24:00", () => {
+    expect(() => parseProposedChanges({ v: 1, flightDepartureDate: "2026-11-31" }, "ajuste"))
+      .toThrow(/Data inexistente/);
+    expect(() => parseProposedChanges({ v: 1, flightDepartureSuggestedTime: "24:00" }, "ajuste"))
+      .toThrow(/Horário inexistente/);
+  });
+  it("quantity tem teto de 50 vagas por pedido", () => {
+    expect(() => parseProposedChanges({ v: 1, workDays: ["2026-06-01"], quantity: 51 }, "inclusao"))
+      .toThrow(/máxima é 50/);
+    const ok = parseProposedChanges({ v: 1, workDays: ["2026-06-01"], quantity: 50 }, "inclusao");
+    expect(ok.quantity).toBe(50);
+  });
+  it("observations tem teto de 1000 caracteres", () => {
+    expect(() => parseProposedChanges({ v: 1, observations: "x".repeat(1001) }, "ajuste"))
+      .toThrow(/máximo 1000/);
+    const ok = parseProposedChanges({ v: 1, observations: "x".repeat(1000) }, "ajuste");
+    expect(ok.observations).toHaveLength(1000);
+  });
+});
+
+describe("VAGA_STATE_CHANGED_MSG — corrida perdida vira 409 com texto pt-BR", () => {
+  it("mensagem estável (o servidor a usa para mapear o 409)", () => {
+    expect(VAGA_STATE_CHANGED_MSG).toBe("A vaga mudou de estado — recarregue a lista");
   });
 });

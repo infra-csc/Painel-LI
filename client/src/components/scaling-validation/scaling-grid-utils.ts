@@ -236,6 +236,62 @@ export function reframeRows(rows: SuggestionGridRow[], dates: string[]): Suggest
   });
 }
 
+// ── Blindagem do rascunho salvo em localStorage ─────────────────────────────
+
+const TRANSPORT_MODE_SET = new Set<string>(TRANSPORT_MODES);
+const draftStr = (v: unknown): string => (typeof v === "string" ? v : "");
+const draftMode = (v: unknown): TransportMode | "" =>
+  typeof v === "string" && TRANSPORT_MODE_SET.has(v) ? (v as TransportMode) : "";
+
+/**
+ * Reconstrói UMA linha vinda do rascunho do localStorage, campo a campo, com o
+ * shape garantido de `SuggestionGridRow` — ou null quando a linha não tem nem o
+ * mínimo (functionId/functionName). Um rascunho corrompido (extensão, versão
+ * antiga, edição manual) não pode derrubar o render da grade.
+ */
+export function sanitizeDraftRow(raw: unknown): SuggestionGridRow | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.functionId !== "string" || !r.functionId.trim()) return null;
+  if (typeof r.functionName !== "string" || !r.functionName.trim()) return null;
+  const quantities: Record<string, number> = {};
+  if (r.quantities && typeof r.quantities === "object" && !Array.isArray(r.quantities)) {
+    for (const [d, q] of Object.entries(r.quantities as Record<string, unknown>)) {
+      if (!YMD_RE.test(d)) continue;
+      const n = typeof q === "number" && Number.isFinite(q) ? Math.floor(q) : 0;
+      quantities[d] = Math.max(0, Math.min(QTY_MAX, n));
+    }
+  }
+  return {
+    rowId: typeof r.rowId === "string" && r.rowId
+      ? r.rowId
+      : `${r.functionId}-draft-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    functionId: r.functionId,
+    functionName: r.functionName,
+    quantities,
+    transportModeIda: draftMode(r.transportModeIda),
+    flightDepartureDate: draftStr(r.flightDepartureDate),
+    flightArrivalSuggestedTime: draftStr(r.flightArrivalSuggestedTime),
+    transportModeVolta: draftMode(r.transportModeVolta),
+    flightReturnDate: draftStr(r.flightReturnDate),
+    flightReturnSuggestedTime: draftStr(r.flightReturnSuggestedTime),
+    needsAccommodation: r.needsAccommodation === true,
+    needsTicket: r.needsTicket === true,
+    observations: draftStr(r.observations),
+  };
+}
+
+/** Sanitiza a lista de linhas do rascunho: linha inválida é descartada, o resto sobrevive. */
+export function sanitizeDraftRows(raw: unknown): SuggestionGridRow[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SuggestionGridRow[] = [];
+  for (const item of raw) {
+    const row = sanitizeDraftRow(item);
+    if (row) out.push(row);
+  }
+  return out;
+}
+
 /**
  * Decomposição "por pessoa" — mesma regra da grade da Inclusão de Equipe:
  * para cada linha, a pessoa N trabalha em todos os dias cuja quantidade é ≥ N.
@@ -423,6 +479,13 @@ export interface PasteResult {
    * cada coluna). Dias vazios fora do período não entram aqui — não há o que perder.
    */
   datesOutsideGrid: string[];
+  /**
+   * Células de quantidade cujo valor aplicado NÃO é o que estava escrito: texto
+   * coagido pelo parseInt ("2x" → 2, "abc" → 0) ou número clampado pelo teto
+   * (`QTY_MAX`) / pelo piso 0. O resumo transforma isso num aviso visível —
+   * ajustar em silêncio esconderia diferenças entre a planilha e a grade.
+   */
+  adjustedQtyCells: number;
   /** Formato efetivamente usado (detectado ou forçado). */
   format: PasteFormat;
   /** true quando havia cabeçalho e ele foi ignorado. */
@@ -460,6 +523,19 @@ export interface PasteOptions {
 }
 
 const splitCols = (line: string) => line.split("\t").map((c) => c.trim());
+
+/**
+ * Lê uma célula de quantidade e diz se o valor aplicado difere do que estava
+ * escrito: coerção do parseInt ("2x" → 2, "abc" → 0) ou clamp pelo teto
+ * (`QTY_MAX`) / pelo piso 0. Célula vazia não é ajuste — é só um dia sem gente.
+ */
+export function readQtyCell(raw: string): { value: number; adjusted: boolean } {
+  const s = raw.trim();
+  if (!s) return { value: 0, adjusted: false };
+  const n = parseInt(s, 10);
+  const value = Number.isNaN(n) ? 0 : Math.max(0, Math.min(QTY_MAX, n));
+  return { value, adjusted: !/^\d+$/.test(s) || n > QTY_MAX };
+}
 
 // ── Casamento tolerante de nomes de função ───────────────────────────────────
 
@@ -1100,7 +1176,7 @@ function parseLogisticaText(
   // avisar é melhor do que inventar colunas a partir de um texto qualquer.
   if (!findLogisticaHeader(grid) && !hasLogisticaRowShape(grid)) {
     return {
-      rows: [], skippedNames: [], unknownNames: [], datesOutsideGrid: [],
+      rows: [], skippedNames: [], unknownNames: [], datesOutsideGrid: [], adjustedQtyCells: 0,
       format: "logistica", hadHeader: false, alignedWithoutHeader: false, problem: "cabecalho-nao-encontrado",
     };
   }
@@ -1116,6 +1192,7 @@ function parseLogisticaText(
   const rows: SuggestionGridRow[] = [];
   const skippedNames: string[] = [];
   const outside = new Set<string>();
+  let adjustedQtyCells = 0;
   for (let i = 0; i < grid.length; i++) {
     if (headerLines.has(i)) continue;
     const cols = grid[i];
@@ -1142,9 +1219,10 @@ function parseLogisticaText(
       : !!(row.flightDepartureDate || row.flightReturnDate);
 
     for (const dc of cols3.dias) {
-      const n = parseInt(cell(cols, dc.index) || "0", 10);
-      if (Number.isNaN(n) || n <= 0) continue;
-      if (inGrid.has(dc.date)) row.quantities[dc.date] = Math.min(QTY_MAX, n);
+      const q = readQtyCell(cell(cols, dc.index));
+      if (q.adjusted) adjustedQtyCells++;
+      if (q.value <= 0) continue;
+      if (inGrid.has(dc.date)) row.quantities[dc.date] = q.value;
       else outside.add(dc.date); // fora do período: a tela oferece ampliar a grade
     }
     // Sem as datas do cabeçalho, um número DEPOIS do bloco de dias só pode ser um
@@ -1162,6 +1240,7 @@ function parseLogisticaText(
   return {
     rows, skippedNames, unknownNames: dedupe(skippedNames),
     datesOutsideGrid: Array.from(outside).sort(),
+    adjustedQtyCells,
     format: "logistica",
     hadHeader: layout.headerLines.length > 0,
     alignedWithoutHeader: layout.alignedWithoutHeader,
@@ -1283,10 +1362,22 @@ export function parsePastedRows(
   const lines = text.trim().split(/\r?\n/);
   const match = buildFunctionMatcher(functions, options?.nameMap);
   let headerSkipped = false;
+  let adjustedQtyCells = 0;
+  const seenHeaderLines = new Set<string>();
   lines.forEach((line, i) => {
     if (!line.trim()) return;
     const cols = splitCols(line);
-    if (!headerSkipped && rows.length === 0 && skippedNames.length === 0 && isHeaderLine(cols)) { headerSkipped = true; return; }
+    if (isHeaderLine(cols)) {
+      const headerKey = cols.join("\t");
+      if (!headerSkipped && rows.length === 0 && skippedNames.length === 0) {
+        headerSkipped = true;
+        seenHeaderLines.add(headerKey);
+        return;
+      }
+      // Cabeçalho REPETIDO no meio do texto (duas colagens emendadas): pular de
+      // novo, em vez de devolvê-lo como "função não reconhecida".
+      if (seenHeaderLines.has(headerKey)) return;
+    }
     const name = cols[0];
     if (!name) return;
     const func = match(name);
@@ -1304,13 +1395,14 @@ export function parsePastedRows(
       row.observations = cols[9] ?? "";
     }
     for (let j = qtyStart; j < cols.length && j - qtyStart < dates.length; j++) {
-      const n = parseInt(cols[j] || "0", 10);
-      row.quantities[dates[j - qtyStart]] = Number.isNaN(n) ? 0 : Math.max(0, Math.min(QTY_MAX, n));
+      const q = readQtyCell(cols[j] ?? "");
+      if (q.adjusted) adjustedQtyCells++;
+      row.quantities[dates[j - qtyStart]] = q.value;
     }
     rows.push(row);
   });
   return {
-    rows, skippedNames, unknownNames: dedupe(skippedNames), datesOutsideGrid: [],
+    rows, skippedNames, unknownNames: dedupe(skippedNames), datesOutsideGrid: [], adjustedQtyCells,
     format, hadHeader: headerSkipped, alignedWithoutHeader: false,
   };
 }
@@ -1331,6 +1423,8 @@ export interface PasteSummary {
   outsideDays: number;
   /** Linhas reconhecidas que não trouxeram nenhuma quantidade. */
   rowsWithoutQty: number;
+  /** Células de quantidade coagidas ("2x" → 2) ou clampadas pelo teto — ver `PasteResult.adjustedQtyCells`. */
+  adjustedQtyCells: number;
   /**
    * Planilha da logística colada SEM a linha de datas: os dias foram alinhados
    * pela ordem do período da grade. A tela deve avisar antes de aplicar — ver o
@@ -1358,6 +1452,11 @@ export function summarizePaste(res: PasteResult): PasteSummary {
     }
     if (!hasQty) rowsWithoutQty += 1;
   }
+  // Ajuste silencioso de quantidade ("2x" → 2, clamp no teto) vira aviso visível.
+  const warnings = [...(res.layout?.warnings ?? [])];
+  if (res.adjustedQtyCells > 0) {
+    warnings.push(`${res.adjustedQtyCells} célula(s) de quantidade foram ajustadas — confira`);
+  }
   return {
     format: res.format,
     hadHeader: res.hadHeader,
@@ -1367,9 +1466,10 @@ export function summarizePaste(res: PasteResult): PasteSummary {
     mappedDays: days.size,
     outsideDays: res.datesOutsideGrid.length,
     rowsWithoutQty,
+    adjustedQtyCells: res.adjustedQtyCells,
     alignedWithoutHeader: res.alignedWithoutHeader,
     confidence: res.layout?.confidence,
-    warnings: res.layout?.warnings ?? [],
+    warnings,
     columns: res.layout?.columns,
     problem: res.problem,
   };

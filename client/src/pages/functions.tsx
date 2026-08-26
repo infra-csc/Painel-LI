@@ -331,6 +331,9 @@ export default function Functions() {
   // Espelha POST/PATCH/DELETE /api/functions e /:id/managers (CADASTRO_ROLES).
   // RH e Área de Função só visualizam.
   const canManage = hasPermission(user, "canManageFunctions");
+  // Aba "Validação de Escala": permissão própria, diferente do catálogo
+  // ("são permissões diferentes" — decisão do usuário). Hoje: só admin.
+  const canSeeEscalaTab = hasPermission(user, "canAccessScalingManagers");
 
   const form = useForm<FunctionFormData>({
     resolver: zodResolver(functionFormSchema),
@@ -462,20 +465,26 @@ export default function Functions() {
           }
         />
 
-        {/* ── Abas: catálogo de funções × responsáveis da Validação de Escala ── */}
+        {/* ── Abas: catálogo de funções × responsáveis da Validação de Escala.
+            Sem a permissão própria da aba, nem a TabsList aparece — a tela é o
+            catálogo direto, como sempre foi. ── */}
         <Tabs defaultValue="catalogo" className="w-full">
-          <TabsList className="mb-4 h-11 rounded-xl bg-muted/70 p-1">
-            <TabsTrigger value="catalogo" data-testid="tab-funcoes" className="rounded-lg px-4 text-[13px] font-bold gap-1.5">
-              <Tag className="w-3.5 h-3.5" /> Funções
-            </TabsTrigger>
-            <TabsTrigger value="escala" data-testid="tab-validacao-escala" className="rounded-lg px-4 text-[13px] font-bold gap-1.5">
-              <ClipboardCheck className="w-3.5 h-3.5" /> Validação de Escala
-            </TabsTrigger>
-          </TabsList>
+          {canSeeEscalaTab && (
+            <TabsList className="mb-4 h-11 rounded-xl bg-muted/70 p-1">
+              <TabsTrigger value="catalogo" data-testid="tab-funcoes" className="rounded-lg px-4 text-[13px] font-bold gap-1.5">
+                <Tag className="w-3.5 h-3.5" /> Funções
+              </TabsTrigger>
+              <TabsTrigger value="escala" data-testid="tab-validacao-escala" className="rounded-lg px-4 text-[13px] font-bold gap-1.5">
+                <ClipboardCheck className="w-3.5 h-3.5" /> Validação de Escala
+              </TabsTrigger>
+            </TabsList>
+          )}
 
-          <TabsContent value="escala" className="mt-0">
-            <EscalaResponsaveisTab canManage={canManage} />
-          </TabsContent>
+          {canSeeEscalaTab && (
+            <TabsContent value="escala" className="mt-0">
+              <EscalaResponsaveisTab canManage={canManage} />
+            </TabsContent>
+          )}
 
           <TabsContent value="catalogo" className="mt-0">
 

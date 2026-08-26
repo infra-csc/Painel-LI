@@ -23,6 +23,19 @@
  * nunca setamos status/phase "na mão". A identidade do ator vem sempre da
  * sessão. Autenticação é global (server/index.ts); aqui só AUTORIZAÇÃO.
  *
+ * QUEM DECIDE (regra do usuário, 20/08 — o CADASTRO manda): o módulo é visível
+ * para TODOS os perfis; quem VALIDA é quem está cadastrado como `validador` da
+ * função em function_managers, e quem APROVA é quem está cadastrado como
+ * `aprovador` — QUALQUER que seja o papel global do usuário (admin decide
+ * sempre). O papel global só define defaults de visualização (ex.: quais papéis
+ * veem a fila inteira de pedidos); ele NUNCA tira nem dá o poder de decidir —
+ * isso é exclusivo do cadastro por função.
+ *
+ * CORRIDAS (TOCTOU): toda mutação de vaga lida antes e gravada depois usa
+ * UPDATE guardado pelo estado esperado (WHERE phase/status + RETURNING);
+ * 0 linhas → 409 `VAGA_STATE_CHANGED_MSG` (ou skipped, nos lotes) — nunca uma
+ * decisão por cima da outra.
+ *
  * Registro: `registerScalingValidationRoutes(app, deps)` em server/routes.ts.
  */
 import type { Express, Request, Response } from "express";
@@ -57,6 +70,9 @@ import {
   canValidateInclusion,
   canApproveRequest,
   requestStatusForAction,
+  isRealYmd,
+  isValidHhmm,
+  VAGA_STATE_CHANGED_MSG,
   PROPOSED_FIELD_LABELS,
   type ProposedChanges,
   type ProposedField,
@@ -93,8 +109,11 @@ export interface ScalingValidationDeps {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
-const ymd = z.string().regex(YMD, "Data inválida (use AAAA-MM-DD)");
-const hhmm = z.string().regex(/^\d{2}:\d{2}$/, "Horário inválido (use HH:MM)");
+// Formato E existência real da data/horário (o mesmo refine do shared —
+// "2027-02-29" / "24:00" passam no regex mas não existem no calendário/relógio).
+const ymd = z.string().regex(YMD, "Data inválida (use AAAA-MM-DD)").refine(isRealYmd, "Data inexistente");
+const hhmm = z.string().regex(/^\d{2}:\d{2}$/, "Horário inválido (use HH:MM)")
+  .refine(isValidHhmm, "Horário inexistente (use HH:MM entre 00:00 e 23:59)");
 
 /** "" → null nos campos de data/hora (mesmo tratamento do /bulk histórico). */
 function blankToNull<T extends Record<string, any>>(obj: T, keys: string[]): T {
@@ -151,24 +170,21 @@ async function getActor(req: Request, res: Response): Promise<User | null> {
 const isAdmin = (u: User) => normalizeRole(u.role) === "admin";
 
 /**
- * Papéis que VEEM a fila inteira de pedidos (matriz §7 do briefing).
- * `financial` entra aqui como LEITURA — ele acompanha os pedidos mas nunca
- * decide (ver `isViewOnlyRequests`). Quem não está nesta lista ainda pode ver a
- * fila FILTRADA às funções em que é `aprovador` (fallback do aprovador, abaixo);
- * o 403 sobra só para quem não é nem papel autorizado nem aprovador.
+ * Papéis que VEEM a fila inteira de pedidos (default de VISUALIZAÇÃO por papel).
+ * Quem não está nesta lista ainda pode ver a fila FILTRADA às funções em que é
+ * `aprovador` (fallback do aprovador, abaixo); o 403 sobra só para quem não é
+ * nem papel autorizado nem aprovador.
+ *
+ * REGRA (20/08 — o CADASTRO manda): o papel global NUNCA decide `canDecide`.
+ * Aprovador cadastrado em function_managers decide, qualquer que seja o papel
+ * (inclusive `financial`); quem não é aprovador da função não decide, mesmo
+ * com papel "forte". As rotas de decisão exigem admin OU aprovador da função —
+ * nada além disso.
  */
 const canViewRequestsByRole = (u: User) => {
   const r = normalizeRole(u.role);
   return r === "admin" || r === "purchasing" || r === "production" || r === "financial";
 };
-
-/**
- * Papel que SÓ acompanha (matriz §7: financial = view na Aprovação de Escala).
- * Para ele `canDecide` é sempre false nos payloads — a UI nunca oferece um botão
- * de decisão. As rotas de decisão continuam exigindo ser `aprovador` da função
- * (ou admin), então isto só ESCONDE uma ação, nunca concede uma.
- */
-const isViewOnlyRequests = (u: User) => normalizeRole(u.role) === "financial";
 
 async function roleFor(functionId: string, userId: string): Promise<FunctionManagerRole | null> {
   return storage.getUserFunctionRole(functionId, userId);
@@ -216,7 +232,7 @@ function sendError(res: Response, error: unknown, logPrefix: string, fallback: s
       : error.message;
     return res.status(400).json({ message });
   }
-  if (error instanceof Error && error.message === ALREADY_DECIDED) {
+  if (error instanceof Error && (error.message === ALREADY_DECIDED || error.message === VAGA_STATE_CHANGED_MSG)) {
     return res.status(409).json({ message: error.message });
   }
   console.error(`[Validação de Escala] ${logPrefix}:`, error);
@@ -440,14 +456,16 @@ const suggestionRowSchema = z.object({
   flightArrivalSuggestedTime: hhmm.nullish(),
   flightReturnDate: ymd.nullish(),
   flightReturnSuggestedTime: hhmm.nullish(),
-  city: z.string().nullish(),
-  observations: z.string().nullish(),
+  city: z.string().max(1000, "Cidade pode ter no máximo 1000 caracteres").nullish(),
+  observations: z.string().max(1000, "Observações podem ter no máximo 1000 caracteres").nullish(),
 });
 
 const bulkSuggestionSchema = z.object({
   eventId: z.string().min(1, "eventId é obrigatório"),
-  rows: z.array(suggestionRowSchema).min(1, "Informe ao menos uma vaga sugerida"),
-  eventObservations: z.string().nullish(),
+  rows: z.array(suggestionRowSchema)
+    .min(1, "Informe ao menos uma vaga sugerida")
+    .max(500, "Envie no máximo 500 vagas por vez"),
+  eventObservations: z.string().max(1000, "Observações do evento podem ter no máximo 1000 caracteres").nullish(),
 });
 
 const DATE_KEYS = [
@@ -455,21 +473,32 @@ const DATE_KEYS = [
   "flightDepartureSuggestedTime", "flightArrivalSuggestedTime", "flightReturnSuggestedTime",
 ];
 
-const idsSchema = z.object({ inclusionIds: z.array(z.string().min(1)).min(1, "Informe ao menos uma vaga") });
+/** Lote de ids (validação/aprovação): tamanho de tela, nunca ilimitado. */
+const idsArray = z.array(z.string().min(1))
+  .min(1, "Informe ao menos uma vaga")
+  .max(500, "Envie no máximo 500 vagas por vez");
+
+const idsSchema = z.object({ inclusionIds: idsArray });
+
+/** Comentários livres: teto generoso para o texto humano, sem aceitar um payload sem fim. */
+const COMMENT_MAX = 2000;
+const COMMENT_MAX_MSG = "Comentário pode ter no máximo 2000 caracteres";
 
 const reviewSchema = z.object({
-  comment: z.string().trim().min(1, "Informe um comentário para a área"),
+  comment: z.string().trim().min(1, "Informe um comentário para a área").max(COMMENT_MAX, COMMENT_MAX_MSG),
   then: z.enum(["reenviar_validacao", "aprovar_direto"]),
   editedChanges: z.unknown().optional(),
 });
 
-const optionalCommentSchema = z.object({ comment: z.string().trim().optional() });
+const optionalCommentSchema = z.object({ comment: z.string().trim().max(COMMENT_MAX, COMMENT_MAX_MSG).optional() });
 /** Decisões que devolvem/reprovam a vaga precisam explicar o porquê para a área. */
-const requiredCommentSchema = z.object({ comment: z.string().trim().min(1, "Informe um comentário para a área") });
+const requiredCommentSchema = z.object({
+  comment: z.string().trim().min(1, "Informe um comentário para a área").max(COMMENT_MAX, COMMENT_MAX_MSG),
+});
 /** Lote de aprovação do aprovador. Aceita `ids` (contrato) ou `inclusionIds` (mesmo shape do /validate). */
 const approveBatchSchema = z.object({
-  ids: z.array(z.string().min(1)).min(1, "Informe ao menos uma vaga").optional(),
-  inclusionIds: z.array(z.string().min(1)).min(1, "Informe ao menos uma vaga").optional(),
+  ids: idsArray.optional(),
+  inclusionIds: idsArray.optional(),
 }).refine((b) => (b.ids ?? b.inclusionIds ?? []).length > 0, { message: "Informe ao menos uma vaga" });
 
 /** Vaga já validada pela área mudou de estado entre a leitura e a decisão → 409. */
@@ -584,11 +613,10 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       if (!eventId) return res.status(400).json({ message: "eventId é obrigatório" });
 
       const admin = isAdmin(actor);
-      const viewOnly = isViewOnlyRequests(actor);
       const [rows, validatorIds, approverIds, requests] = await Promise.all([
         storage.getTeamInclusions(false, "sugestao", { eventId }),
         storage.getUserManagedFunctionIds(actor.id, "validador"),
-        admin || viewOnly ? Promise.resolve([] as string[]) : storage.getUserManagedFunctionIds(actor.id, "aprovador"),
+        admin ? Promise.resolve([] as string[]) : storage.getUserManagedFunctionIds(actor.id, "aprovador"),
         // Todos os pedidos do evento (pendentes E resolvidos): os pendentes viram
         // `pendingRequest`, os resolvidos alimentam `lastDecision`.
         storage.getScalingChangeRequests({ eventId }),
@@ -621,8 +649,8 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         .map((i) => ({
           ...i,
           canEdit: admin || validates.has(i.functionId),
-          // `viewOnly` (financial) nunca decide — nem o bypass das "vagas paradas".
-          canDecide: !viewOnly && (admin || approves.has(i.functionId)),
+          // O CADASTRO manda: aprovador da função decide, qualquer que seja o papel.
+          canDecide: admin || approves.has(i.functionId),
           daysPending: daysPending(i.suggestionSentAt, now),
           pendingRequest: pendingByInclusion.get(i.id) ?? null,
           lastDecision: pickLastDecision(i, requests),
@@ -837,20 +865,21 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
 
   /**
    * Carrega a vaga em `sugestao_validada` e checa que o ator é aprovador da
-   * função (ou admin). 404 vaga inexistente/excluída; 409 quando ela não está
-   * mais aguardando aprovação (já virou Inclusão, foi devolvida, ganhou pedido
-   * pendente…); 403 sem permissão.
+   * função (ou admin). 404 vaga inexistente/excluída; 403 sem permissão — ANTES
+   * do 409 de estado, para quem não pode decidir não sondar em que pé a vaga
+   * está; 409 quando ela não está mais aguardando aprovação (já virou Inclusão,
+   * foi devolvida, ganhou pedido pendente…).
    */
   async function loadValidatedForApprover(res: Response, actor: User, id: string): Promise<TeamInclusion | null> {
     const inclusion = await storage.getTeamInclusion(id);
     if (!inclusion || inclusion.deletedAt) { res.status(404).json({ message: "Vaga não encontrada" }); return null; }
-    if (!isSuggestionInclusion(inclusion) || inclusion.status !== SUGESTAO_STATUS.VALIDADA) {
-      res.status(409).json({ message: VAGA_STATE_CHANGED }); return null;
-    }
     const role = await roleFor(inclusion.functionId, actor.id);
     if (!canApproveRequest(role, isAdmin(actor))) {
       res.status(403).json({ message: "Apenas o aprovador da função (ou admin) pode decidir a vaga validada" });
       return null;
+    }
+    if (!isSuggestionInclusion(inclusion) || inclusion.status !== SUGESTAO_STATUS.VALIDADA) {
+      res.status(409).json({ message: VAGA_STATE_CHANGED }); return null;
     }
     // Evento encerrado: só o administrador. Aqui, e não em cada handler, porque
     // aprovar/reprovar/devolver passam todos por este carregamento.
@@ -894,9 +923,13 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
 
       const next = rule(() => nextSuggestionState(inclusion, VAGA_DECISION_ACTION[kind]));
       const now = new Date();
-      const updated = await storage.updateTeamInclusion(
+      // UPDATE guardado: só grava se a vaga AINDA está validada aguardando o
+      // aprovador — decisão concorrente que chegou antes leva; esta leva 409.
+      const updated = await storage.updateTeamInclusionIfState(
         inclusion.id, vagaDecisionPatch(kind, inclusion, next, actor, now),
+        { phase: SUGESTAO_PHASE, statuses: [SUGESTAO_STATUS.VALIDADA] },
       );
+      if (!updated) return res.status(409).json({ message: VAGA_STATE_CHANGED_MSG });
       const { action, detail, message } = VAGA_DECISION_LOG[kind];
       await inclusionLog(
         inclusion.id, action, detailsWithComment(detail, comment),
@@ -1011,18 +1044,32 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       const parsed = insertScalingChangeRequestSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Dados inválidos no pedido", errors: parsed.error.flatten() });
       const body = parsed.data;
+      // Teto do texto livre (o schema compartilhado não o impõe): pt-BR, 400.
+      if (typeof body.reason === "string" && body.reason.length > 2000) {
+        return res.status(400).json({ message: "Justificativa pode ter no máximo 2000 caracteres" });
+      }
 
       let proposed: ProposedChanges;
       try { proposed = parseProposedChanges(body.proposedChanges, body.requestType); }
       catch (e) { return res.status(400).json({ message: e instanceof Error ? e.message : "proposedChanges inválido" }); }
 
       const admin = isAdmin(actor);
+      // Permissão ANTES de sondar a vaga/pedido pendente: quem não é validador
+      // da função não descobre estado de vagas alheias por aqui.
+      const role = await roleFor(body.functionId, actor.id);
+      if (!canValidateInclusion(role, admin)) {
+        return res.status(403).json({ message: "Apenas o validador da função (ou admin) pode abrir pedidos" });
+      }
+
       let inclusion: TeamInclusion | undefined;
 
       if (body.requestType === "inclusao") {
         const [event, func] = await Promise.all([storage.getEvent(body.eventId), storage.getFunction(body.functionId)]);
         if (!event) return res.status(404).json({ message: "Evento não encontrado" });
         if (!func) return res.status(404).json({ message: "Função não encontrada" });
+        // Evento encerrado: só o administrador — era a única mutação do módulo
+        // sem a guarda. O evento já está carregado; a guarda não relê nada.
+        if (!assertLoadedEventEditable(event, actor, res)) return;
       } else {
         inclusion = await storage.getTeamInclusion(body.teamInclusionId!);
         if (!inclusion || inclusion.deletedAt) return res.status(404).json({ message: "Vaga sugerida não encontrada" });
@@ -1030,21 +1077,21 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         if (inclusion.functionId !== body.functionId || inclusion.eventId !== body.eventId) {
           return res.status(400).json({ message: "functionId/eventId do pedido não correspondem à vaga" });
         }
+        // Evento encerrado: só o administrador (mesma regra do ramo de inclusão).
+        if (!await assertEventEditable(inclusion.eventId, actor, res)) return;
         const pending = (await storage.getScalingChangeRequestsByInclusion(inclusion.id))
           .find((r) => r.status === CHANGE_REQUEST_STATUS.PENDENTE);
         if (pending) return res.status(409).json({ message: "Já existe um pedido pendente para esta vaga" });
-      }
-
-      const role = await roleFor(body.functionId, actor.id);
-      if (!canValidateInclusion(role, admin)) {
-        return res.status(403).json({ message: "Apenas o validador da função (ou admin) pode abrir pedidos" });
       }
 
       // Transição da vaga ANTES de gravar o pedido: se for inválida, nada é gravado.
       let next: { phase: string; status: string } | null = null;
       if (inclusion) next = rule(() => nextSuggestionState(inclusion!, "pedir_ajuste"));
 
-      // Pedido + transição da vaga na MESMA transação (storage).
+      // Pedido + transição da vaga na MESMA transação (storage). O UPDATE da
+      // vaga exige o estado de onde "pedir_ajuste" é válido (pendente ou
+      // validada): se uma decisão concorrente já a tirou de lá, a transação
+      // aborta com 409 e o pedido NÃO fica criado.
       const { request: created, inclusion: updated } = await storage.createScalingChangeRequestWithTransition(
         {
           teamInclusionId: inclusion?.id ?? null,
@@ -1059,7 +1106,12 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           status: CHANGE_REQUEST_STATUS.PENDENTE,
         },
         inclusion?.id ?? null,
-        inclusion && next ? { phase: next.phase, status: next.status, updatedBy: actor.id } : null,
+        inclusion && next
+          ? {
+              phase: next.phase, status: next.status, updatedBy: actor.id,
+              expected: { phase: SUGESTAO_PHASE, statuses: [SUGESTAO_STATUS.PENDENTE, SUGESTAO_STATUS.VALIDADA] },
+            }
+          : null,
       );
 
       if (inclusion && updated) {
@@ -1073,9 +1125,11 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     }
   });
 
-  // GET /api/scaling-change-requests?status=&eventId= — admin/compras/produção/RH
-  // veem tudo (RH só acompanha: canDecide sempre false); qualquer outro papel vê
-  // os pedidos das funções em que é aprovador. Sem nenhuma das duas coisas → 403.
+  // GET /api/scaling-change-requests?status=&eventId= — papéis de
+  // `canViewRequestsByRole` veem a fila inteira; qualquer outro papel vê os
+  // pedidos das funções em que é aprovador. Sem nenhuma das duas coisas → 403.
+  // `canDecide` sai SEMPRE do cadastro (aprovador da função ou admin) — o papel
+  // global nunca força view-only: quem está cadastrado decide.
   app.get("/api/scaling-change-requests", async (req, res) => {
     const actor = await getActor(req, res);
     if (!actor) return;
@@ -1085,7 +1139,6 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
 
       let functionIds: string[] | undefined;
       const admin = isAdmin(actor);
-      const viewOnly = isViewOnlyRequests(actor);
       // Papel autorizado vê a fila inteira; quem não é papel autorizado ainda vê
       // a fila FILTRADA às funções em que é aprovador; o resto leva 403.
       if (!canViewRequestsByRole(actor)) {
@@ -1093,7 +1146,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         if (functionIds.length === 0) return res.status(403).json({ message: "Sem permissão para ver pedidos de ajuste" });
       }
       const approverIds = new Set(
-        admin || viewOnly ? [] : (functionIds ?? await storage.getUserManagedFunctionIds(actor.id, "aprovador")),
+        admin ? [] : (functionIds ?? await storage.getUserManagedFunctionIds(actor.id, "aprovador")),
       );
 
       // Só o que os pedidos listados precisam: vagas (inArray de
@@ -1123,7 +1176,8 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           inclusionState: inc ? { phase: inc.phase, status: inc.status } : null,
           proposed,
           diff,
-          canDecide: !viewOnly && (admin || approverIds.has(r.functionId)),
+          // O CADASTRO manda: aprovador da função decide, qualquer que seja o papel.
+          canDecide: admin || approverIds.has(r.functionId),
         };
       });
       res.set("Cache-Control", "no-store");
@@ -1133,19 +1187,23 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     }
   });
 
-  /** Carrega pedido pendente + checa que o ator é aprovador da função (ou admin). */
+  /**
+   * Carrega pedido pendente + checa que o ator é aprovador da função (ou admin).
+   * O 403 vem ANTES do 409 de estado: quem não pode decidir não fica sondando
+   * se o pedido já foi decidido.
+   */
   async function loadPendingRequestForApprover(req: Request, res: Response, actor: User): Promise<ScalingChangeRequest | null> {
     const request = await storage.getScalingChangeRequest(req.params.id);
     if (!request) { res.status(404).json({ message: "Pedido não encontrado" }); return null; }
+    const role = await roleFor(request.functionId, actor.id);
+    if (!canApproveRequest(role, isAdmin(actor))) {
+      res.status(403).json({ message: "Apenas o aprovador da função (ou admin) pode decidir este pedido" }); return null;
+    }
     if (request.status !== CHANGE_REQUEST_STATUS.PENDENTE) {
       // 409 (conflito de estado), igual ao que o storage devolve quando perde a
       // corrida da trava em resolveScalingChangeRequest — o cliente trata os dois
       // do mesmo jeito ("recarregue a lista").
       res.status(409).json({ message: ALREADY_DECIDED }); return null;
-    }
-    const role = await roleFor(request.functionId, actor.id);
-    if (!canApproveRequest(role, isAdmin(actor))) {
-      res.status(403).json({ message: "Apenas o aprovador da função (ou admin) pode decidir este pedido" }); return null;
     }
     // Evento encerrado: só o administrador. Aqui, e não em cada handler, porque
     // approve/reajustar/negar passam todos por este carregamento — e as três
@@ -1222,7 +1280,11 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     try {
       const request = await loadPendingRequestForApprover(req, res, actor);
       if (!request) return;
-      const comment = optionalCommentSchema.safeParse(req.body ?? {}).data?.comment ?? null;
+      const parsedComment = optionalCommentSchema.safeParse(req.body ?? {});
+      if (!parsedComment.success) {
+        return res.status(400).json({ message: parsedComment.error.issues[0]?.message ?? "Dados inválidos" });
+      }
+      const comment = parsedComment.data.comment?.trim() || null;
       const proposed = rule(() => parseProposedChanges(request.proposedChanges, request.requestType as any));
       const now = new Date();
       let inclusionResult: TeamInclusion | TeamInclusion[] | null = null;
@@ -1255,9 +1317,14 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
               phase: next.phase, status: next.status,
               deletedAt: now, deletedBy: actor.id, updatedBy: actor.id,
             };
-        // Vaga + pedido na MESMA transação.
+        // Vaga + pedido na MESMA transação. O UPDATE da vaga exige que ela
+        // AINDA esteja em sugestao_ajuste — decisão concorrente → 409 e o
+        // pedido continua pendente (a transação aborta inteira).
         const result = await storage.resolveScalingChangeRequest(request.id, requestUpdates, {
-          inclusionUpdate: { id: inclusion.id, patch },
+          inclusionUpdate: {
+            id: inclusion.id, patch,
+            expected: { phase: SUGESTAO_PHASE, statuses: [SUGESTAO_STATUS.AJUSTE] },
+          },
         });
         updatedRequest = result.request;
         const updated = result.updatedInclusion!;
@@ -1365,9 +1432,13 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           // instante do reviewedAt — o GET usa isso para casar a decisão).
           patch.suggestionSentAt = now;
         }
-        // Vaga + pedido na MESMA transação.
+        // Vaga + pedido na MESMA transação, com o UPDATE guardado: as ações de
+        // reajustar/negar só valem com a vaga AINDA em sugestao_ajuste.
         const result = await storage.resolveScalingChangeRequest(request.id, requestUpdates, {
-          inclusionUpdate: { id: inclusion.id, patch },
+          inclusionUpdate: {
+            id: inclusion.id, patch,
+            expected: { phase: SUGESTAO_PHASE, statuses: [SUGESTAO_STATUS.AJUSTE] },
+          },
         });
         updatedRequest = result.request;
         const updated = result.updatedInclusion!;
@@ -1397,21 +1468,32 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     try {
       const inclusion = await storage.getTeamInclusion(req.params.id);
       if (!inclusion || inclusion.deletedAt) return res.status(404).json({ message: "Vaga não encontrada" });
-      if (!isSuggestionInclusion(inclusion)) return res.status(400).json({ message: "A vaga não está na etapa de Validação de Escala" });
+      // 403 antes das checagens de estado: quem não é aprovador não sonda o
+      // estado da vaga por aqui.
       const role = await roleFor(inclusion.functionId, actor.id);
       if (!canApproveRequest(role, isAdmin(actor))) {
         return res.status(403).json({ message: "Apenas o aprovador da função (ou admin) pode decidir sem validação da área" });
       }
+      if (!isSuggestionInclusion(inclusion)) return res.status(400).json({ message: "A vaga não está na etapa de Validação de Escala" });
       // Evento encerrado: só o administrador. O bypass aprova a vaga direto
       // (vira Inclusão) — é exatamente o que não pode acontecer depois do fim.
       if (!await assertEventEditable(inclusion.eventId, actor, res)) return;
-      const comment = optionalCommentSchema.safeParse(req.body ?? {}).data?.comment ?? null;
+      const parsedComment = optionalCommentSchema.safeParse(req.body ?? {});
+      if (!parsedComment.success) {
+        return res.status(400).json({ message: parsedComment.error.issues[0]?.message ?? "Dados inválidos" });
+      }
+      const comment = parsedComment.data.comment?.trim() || null;
       const action: SuggestionAction = kind === "approve" ? "aprovar_direto_bypass" : "reprovar_bypass";
       const next = rule(() => nextSuggestionState(inclusion, action));
       const now = new Date();
       const patch: Partial<InsertTeamInclusion> = { phase: next.phase, status: next.status, updatedBy: actor.id };
       if (kind === "approve") { patch.validatedAt = now; patch.validatedBy = actor.id; }
-      const updated = await storage.updateTeamInclusion(inclusion.id, patch);
+      // UPDATE guardado: o bypass só vale com a vaga AINDA em sugestao_pendente
+      // (a área validou / outra decisão chegou antes → 409).
+      const updated = await storage.updateTeamInclusionIfState(
+        inclusion.id, patch, { phase: SUGESTAO_PHASE, statuses: [SUGESTAO_STATUS.PENDENTE] },
+      );
+      if (!updated) return res.status(409).json({ message: VAGA_STATE_CHANGED_MSG });
       const detail = kind === "approve"
         ? "Vaga aprovada direto pelo aprovador (sem validação da área) — virou Inclusão"
         : "Vaga reprovada pelo aprovador (sem validação da área) — fica registrada como negada";

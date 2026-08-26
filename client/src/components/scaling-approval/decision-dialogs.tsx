@@ -185,6 +185,11 @@ function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFie
   const [draft, setDraft] = useState<ProposedDraft>(() => draftFromProposed(request?.proposed ?? null, inclusion));
   const [error, setError] = useState<string | null>(null);
 
+  // Reajuste de AJUSTE sem a vaga carregada: o formulário partiria só do pedido e o
+  // envio mandaria os demais campos vazios — apagando voo/observações da vaga real.
+  // Enquanto a inclusão não chega, editar campos fica bloqueado.
+  const awaitingInclusion = kind === "reajustar" && type === "ajuste" && !inclusion;
+
   // Se a vaga chegou depois de o diálogo abrir (ajuste), recarrega o rascunho ainda intocado.
   const inclusionId = inclusion?.id ?? null;
   useEffect(() => {
@@ -199,7 +204,7 @@ function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFie
   const submit = () => {
     if (!comment.trim()) { setError(COMMENT_REQUIRED); return; }
     let editedChanges: ProposedChanges | undefined;
-    if (canEditFields && editFields) {
+    if (canEditFields && editFields && !awaitingInclusion) {
       const errs = validateDraft(draft, type);
       if (errs.length) { setError(errs[0]); return; }
       const p = draftToProposed(draft, type, inclusion);
@@ -230,17 +235,15 @@ function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFie
           {/* 2) Editar campos (só reajuste de ajuste/inclusão) */}
           {canEditFields && (
             <div className="space-y-3">
-              <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                <Checkbox checked={editFields} disabled={pending} onCheckedChange={(c) => setEditFields(c === true)} />
+              <label className={cn("flex items-center gap-2 text-sm text-slate-700", awaitingInclusion ? "cursor-not-allowed opacity-60" : "cursor-pointer")}>
+                <Checkbox checked={editFields && !awaitingInclusion} disabled={pending || awaitingInclusion} onCheckedChange={(c) => setEditFields(c === true)} />
                 <PencilLine className="w-4 h-4 text-slate-400" aria-hidden="true" /> Editar os campos propostos antes de decidir
               </label>
-              {editFields && (
+              {awaitingInclusion && (
+                <p className="text-[11px] text-slate-500">Aguarde a vaga carregar para editar os campos — sem os dados atuais dela, o envio apagaria voo e observações.</p>
+              )}
+              {editFields && !awaitingInclusion && (
                 <div className="rounded-2xl border border-slate-200 p-4 space-y-4">
-                  {type === "ajuste" && !inclusion && (
-                    <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                      A vaga atual não foi carregada; o formulário parte só do pedido. Os campos preenchidos serão enviados como estão.
-                    </p>
-                  )}
                   <ProposedChangesForm type={type} value={draft} onChange={setDraft} event={event} disabled={pending} idPrefix="rev" />
                   {type === "ajuste" && inclusion && (
                     <div>

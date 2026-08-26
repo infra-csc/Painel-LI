@@ -41,25 +41,22 @@ export interface RolePermissions {
   canChangeUserRole: boolean;    // espelha PATCH /api/users/:id — role/area só admin (allowedFieldsForAdmin)
   canAccessCalendar: boolean;
   canAccessBaggage: boolean;     // controle de bagagem — admin e compras
-  // LIBERAÇÃO ATUAL (decisão do usuário, 19/08): o módulo inteiro aparece
-  // SÓ PARA ADMIN enquanto o fluxo é testado — nenhum outro papel vê as 4 telas
-  // no menu nem entra pela rota. A matriz do briefing (abaixo) fica registrada
-  // para quando a liberação for ampliada: basta devolver os `true` por papel.
-  // ── Módulo Validação de Escala (matriz do briefing §7) ──────────────────
-  // Tela                 | admin | production | purchasing | financial | function_area
-  // Sugestão de Escala   | edit  | edit       | view       | view      | none
-  // Validação de Escala  | edit  | view       | view       | view      | edit (só das funções em que é validador — canEdit do servidor)
-  // Aprovação de Escala  | edit  | edit       | edit       | view      | view (só os pedidos das funções em que é aprovador — filtro do servidor)
-  // Histórico da Escala  | view  | view       | view       | view      | view
-  // "Access" = entra na tela (menu + rota); "Edit" = pode gravar. A decisão
-  // final de cada linha/pedido continua sendo do servidor (canEdit/canDecide).
-  canAccessScalingSuggestion: boolean; // entra na Sugestão (view) — admin, production, purchasing, financial
-  canEditScalingSuggestion: boolean;   // espelha POST /api/scaling-suggestions/bulk (admin, production)
-  canAccessScalingValidation: boolean; // GET /api/scaling-suggestions — todos os perfis logados
-  canEditScalingValidation: boolean;   // espelha POST /api/scaling-suggestions/validate — admin e function_area (validador da função; canEdit do servidor)
-  canAccessScalingApproval: boolean;   // GET /api/scaling-change-requests — admin/production/purchasing/financial por papel + function_area (o servidor filtra às funções em que é aprovador, ou responde 403)
-  canEditScalingApproval: boolean;     // espelha a decisão de pedidos — admin, production, purchasing (canDecide do servidor por pedido é a trava final)
-  canAccessScalingEventView: boolean;  // GET /api/scaling-suggestions/event-view — qualquer usuário logado (somente leitura)
+  // ── Módulo Validação de Escala (decisão do usuário, 20/08 — revoga o
+  // admin-only de 19/08) ───────────────────────────────────────────────────
+  // Regra: ACESSO às 4 telas é de TODOS os papéis conhecidos; a ESCRITA real
+  // vem do CADASTRO em Funções (validador/aprovador) — as flags de edit abaixo
+  // são apenas o default do papel; quem não tem cadastro nenhum visualiza.
+  // Ex.: um validador cadastrado de qualquer papel valida (canEdit do servidor)
+  // e um aprovador cadastrado de qualquer papel decide (canDecide do servidor).
+  // Perfil desconhecido continua sem nada.
+  canAccessScalingSuggestion: boolean; // entra na Sugestão — todos os papéis conhecidos
+  canEditScalingSuggestion: boolean;   // default do papel: monta/envia/cancela a sugestão — espelha POST /api/scaling-suggestions/bulk (admin, production)
+  canAccessScalingValidation: boolean; // GET /api/scaling-suggestions — todos os papéis conhecidos
+  canEditScalingValidation: boolean;   // default do papel: admin, function_area — mas as telas já deixam validador CADASTRADO de qualquer papel validar (canEdit do servidor)
+  canAccessScalingApproval: boolean;   // GET /api/scaling-change-requests — todos os papéis conhecidos (o servidor filtra/decide por cadastro)
+  canEditScalingApproval: boolean;     // default do papel: admin — a decisão real é o canDecide do servidor, por cadastro de aprovador (qualquer papel cadastrado decide)
+  canAccessScalingEventView: boolean;  // GET /api/scaling-suggestions/event-view — todos os papéis conhecidos (somente leitura)
+  canAccessScalingManagers: boolean;   // aba Responsáveis da Escala dentro de Funções — permissões próprias, diferentes do catálogo (só admin)
 }
 
 export function getRolePermissions(role: UserRole): RolePermissions {
@@ -98,6 +95,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessScalingApproval: true,
         canEditScalingApproval: true,
         canAccessScalingEventView: true,
+        canAccessScalingManagers: true,   // aba Responsáveis da Escala — só admin
       };
 
     case "production":
@@ -126,13 +124,14 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: false,
-        canAccessScalingSuggestion: false,
-        canEditScalingSuggestion: false,
-        canAccessScalingValidation: false,
-        canEditScalingValidation: false,
-        canAccessScalingApproval: false,
-        canEditScalingApproval: false,
-        canAccessScalingEventView: false,
+        canAccessScalingSuggestion: true,
+        canEditScalingSuggestion: true,   // production monta/envia/cancela a sugestão (espelha o /bulk)
+        canAccessScalingValidation: true,
+        canEditScalingValidation: false,  // valida se for validador cadastrado (canEdit do servidor)
+        canAccessScalingApproval: true,
+        canEditScalingApproval: false,    // decide se for aprovador cadastrado (canDecide do servidor)
+        canAccessScalingEventView: true,
+        canAccessScalingManagers: false,  // aba Responsáveis da Escala — só admin
       };
 
     case "function_area":
@@ -161,16 +160,14 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: false,
-        canAccessScalingSuggestion: false,
+        canAccessScalingSuggestion: true,
         canEditScalingSuggestion: false,
-        canAccessScalingValidation: false,
-        canEditScalingValidation: false,   // valida só as funções em que é validador (canEdit do servidor)
-        // Entra na Aprovação porque o servidor tem o fallback do APROVADOR: quem é
-        // 'aprovador' de alguma função vê (e decide) os pedidos dela. Quem não for
-        // aprovador de nada leva 403 e a tela mostra o estado neutro.
-        canAccessScalingApproval: false,
-        canEditScalingApproval: false,    // §7: não é papel de decisão — quem libera é o canDecide do servidor
-        canAccessScalingEventView: false,
+        canAccessScalingValidation: true,
+        canEditScalingValidation: true,   // valida só as funções em que é validador (canEdit do servidor)
+        canAccessScalingApproval: true,   // quem é aprovador cadastrado decide; quem não é visualiza o estado neutro
+        canEditScalingApproval: false,    // a decisão real é o canDecide do servidor, por cadastro
+        canAccessScalingEventView: true,
+        canAccessScalingManagers: false,  // aba Responsáveis da Escala — só admin
       };
 
     case "purchasing":
@@ -199,13 +196,14 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: true,
-        canAccessScalingSuggestion: false,   // view (a tela do outro agente adotará canEditScalingSuggestion)
+        canAccessScalingSuggestion: true,   // view por padrão de papel
         canEditScalingSuggestion: false,
-        canAccessScalingValidation: false,
-        canEditScalingValidation: false,
-        canAccessScalingApproval: false,
-        canEditScalingApproval: false,
-        canAccessScalingEventView: false,
+        canAccessScalingValidation: true,
+        canEditScalingValidation: false,    // valida se for validador cadastrado (canEdit do servidor)
+        canAccessScalingApproval: true,
+        canEditScalingApproval: false,      // decide se for aprovador cadastrado (canDecide do servidor)
+        canAccessScalingEventView: true,
+        canAccessScalingManagers: false,    // aba Responsáveis da Escala — só admin
       };
 
     case "financial":
@@ -234,13 +232,14 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: false,
-        canAccessScalingSuggestion: false,   // view (a tela do outro agente adotará canEditScalingSuggestion)
+        canAccessScalingSuggestion: true,   // view por padrão de papel
         canEditScalingSuggestion: false,
-        canAccessScalingValidation: false,
-        canEditScalingValidation: false,
-        canAccessScalingApproval: false,     // view — o GET aceita financial; canDecide vem sempre false do servidor
-        canEditScalingApproval: false,
-        canAccessScalingEventView: false,
+        canAccessScalingValidation: true,
+        canEditScalingValidation: false,    // valida se for validador cadastrado (canEdit do servidor)
+        canAccessScalingApproval: true,
+        canEditScalingApproval: false,      // decide se for aprovador cadastrado (canDecide do servidor)
+        canAccessScalingEventView: true,
+        canAccessScalingManagers: false,    // aba Responsáveis da Escala — só admin
       };
 
     default:
@@ -276,6 +275,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessScalingApproval: false,
         canEditScalingApproval: false,
         canAccessScalingEventView: false,
+        canAccessScalingManagers: false,
       };
   }
 }

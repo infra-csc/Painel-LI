@@ -3,8 +3,8 @@ import {
   buildDateList, buildFunctionMatcher, buildReadDateList, countDaysInclusive, countOutsidePeriod, decomposeGridRows,
   detectPasteFormat, emptyGridRow, expandPeriodForDates, findLogisticaHeader, functionNameKey, mergePastedRows,
   MAX_GRID_DAYS, MAX_READ_DAYS, parseLongDateBr, parsePastedRows, parsePtBrTime, parseSheetDate, parseShortDate,
-  parseTimeHHMM, parseTransportMode, pasteConflicts, periodBounds, periodProblem, reframeRows, resolveHeaderDate,
-  summarizePaste, validateGridRow, normalizeStr,
+  parseTimeHHMM, parseTransportMode, pasteConflicts, periodBounds, periodProblem, readQtyCell, reframeRows, resolveHeaderDate,
+  sanitizeDraftRow, sanitizeDraftRows, summarizePaste, validateGridRow, normalizeStr, QTY_MAX,
 } from "./scaling-grid-utils";
 
 const DATES = ["2026-09-10", "2026-09-11", "2026-09-12"];
@@ -1051,12 +1051,134 @@ describe("summarizePaste (resumo ao vivo do diálogo de colagem)", () => {
 
   it("repassa o problema estrutural e os dias fora do período da grade", () => {
     const s = summarizePaste({
-      rows: [], skippedNames: [], unknownNames: [], datesOutsideGrid: ["2026-09-20", "2026-09-21"],
+      rows: [], skippedNames: [], unknownNames: [], datesOutsideGrid: ["2026-09-20", "2026-09-21"], adjustedQtyCells: 0,
       format: "logistica", hadHeader: false, alignedWithoutHeader: false, problem: "cabecalho-nao-encontrado",
     });
     expect(s.lines).toBe(0);
     expect(s.recognized).toBe(0);
     expect(s.outsideDays).toBe(2);
     expect(s.problem).toBe("cabecalho-nao-encontrado");
+  });
+});
+
+describe("readQtyCell (coerção visível de quantidade)", () => {
+  it("célula vazia é dia sem gente, não ajuste", () => {
+    expect(readQtyCell("")).toEqual({ value: 0, adjusted: false });
+    expect(readQtyCell("   ")).toEqual({ value: 0, adjusted: false });
+  });
+  it("inteiro limpo dentro do teto passa sem ajuste", () => {
+    expect(readQtyCell("0")).toEqual({ value: 0, adjusted: false });
+    expect(readQtyCell("3")).toEqual({ value: 3, adjusted: false });
+    expect(readQtyCell(` ${QTY_MAX} `)).toEqual({ value: QTY_MAX, adjusted: false });
+  });
+  it("coerção do parseInt conta como ajuste ('2x' → 2, 'abc' → 0, '-1' → 0)", () => {
+    expect(readQtyCell("2x")).toEqual({ value: 2, adjusted: true });
+    expect(readQtyCell("abc")).toEqual({ value: 0, adjusted: true });
+    expect(readQtyCell("-1")).toEqual({ value: 0, adjusted: true });
+  });
+  it("clamp pelo teto conta como ajuste", () => {
+    expect(readQtyCell("99")).toEqual({ value: QTY_MAX, adjusted: true });
+  });
+});
+
+describe("colagem: células de quantidade ajustadas viram aviso no resumo", () => {
+  const FUNCS = [{ id: "f1", name: "Kit" }, { id: "f2", name: "Produção" }];
+
+  it("conta coerções e clamps e soma o aviso ao resumo", () => {
+    const text = ["Kit", "", "", "", "", "", "", "não", "não", "", "2x", "99", "1"].join("\t");
+    const res = parsePastedRows(text, FUNCS, DATES, "2026");
+    expect(res.format).toBe("grade");
+    expect(res.adjustedQtyCells).toBe(2); // "2x" coagido + "99" clampado; "1" passa limpo
+    expect(res.rows[0].quantities).toEqual({ "2026-09-10": 2, "2026-09-11": QTY_MAX, "2026-09-12": 1 });
+    const s = summarizePaste(res);
+    expect(s.adjustedQtyCells).toBe(2);
+    expect(s.warnings).toContain("2 célula(s) de quantidade foram ajustadas — confira");
+  });
+
+  it("colagem limpa não ganha aviso nenhum", () => {
+    const text = ["Kit", "", "", "", "", "", "", "não", "não", "", "1", "0", "2"].join("\t");
+    const s = summarizePaste(parsePastedRows(text, FUNCS, DATES, "2026"));
+    expect(s.adjustedQtyCells).toBe(0);
+    expect(s.warnings).toEqual([]);
+  });
+});
+
+describe("colagem: cabeçalho repetido no meio do texto", () => {
+  const FUNCS = [{ id: "f1", name: "Kit" }, { id: "f2", name: "Produção" }];
+  const HEADER = ["Função", "Modal ida", "Data ida", "Hora desembarque", "Modal volta", "Data volta", "Hora embarque", "Hotel", "Passagem", "Observação", "10/09", "11/09", "12/09"].join("\t");
+  const KIT = ["Kit", "", "", "", "", "", "", "não", "não", "", "1", "0", "0"].join("\t");
+  const PROD = ["Produção", "", "", "", "", "", "", "não", "não", "", "0", "2", "0"].join("\t");
+
+  it("duas colagens emendadas: o cabeçalho repetido é pulado, não vira 'função não reconhecida'", () => {
+    const res = parsePastedRows([HEADER, KIT, HEADER, PROD].join("\n"), FUNCS, DATES, "2026");
+    expect(res.hadHeader).toBe(true);
+    expect(res.rows.map((r) => r.functionName)).toEqual(["Kit", "Produção"]);
+    expect(res.skippedNames).toEqual([]);
+    expect(res.unknownNames).toEqual([]);
+  });
+
+  it("um cabeçalho DIFERENTE no meio continua aparecendo como não reconhecido (não é o mesmo bloco)", () => {
+    const OTHER = ["Funções da outra planilha", "a", "b"].join("\t");
+    const res = parsePastedRows([HEADER, KIT, OTHER, PROD].join("\n"), FUNCS, DATES, "2026");
+    expect(res.rows.map((r) => r.functionName)).toEqual(["Kit", "Produção"]);
+    expect(res.skippedNames).toEqual(["Funções da outra planilha"]);
+  });
+});
+
+describe("sanitizeDraftRows (rascunho blindado do localStorage)", () => {
+  const VALID = {
+    rowId: "f1-1", functionId: "f1", functionName: "Kit",
+    quantities: { "2026-09-10": 2 },
+    transportModeIda: "aereo", flightDepartureDate: "2026-09-09", flightArrivalSuggestedTime: "10:00",
+    transportModeVolta: "onibus", flightReturnDate: "2026-09-13", flightReturnSuggestedTime: "18:00",
+    needsAccommodation: true, needsTicket: true, observations: "obs",
+  };
+
+  it("linha válida sobrevive intacta", () => {
+    expect(sanitizeDraftRow(VALID)).toEqual(VALID);
+  });
+
+  it("o que não é lista (ou linha sem o mínimo) é descartado sem derrubar nada", () => {
+    expect(sanitizeDraftRows(undefined)).toEqual([]);
+    expect(sanitizeDraftRows("corrompido")).toEqual([]);
+    expect(sanitizeDraftRows({ rows: [] })).toEqual([]);
+    expect(sanitizeDraftRows([null, "x", 7, [], { functionId: "f1" }, { functionName: "Kit" }])).toEqual([]);
+    // A linha boa sobrevive mesmo cercada de lixo.
+    expect(sanitizeDraftRows([null, VALID, { foo: "bar" }])).toEqual([VALID]);
+  });
+
+  it("quantities vira objeto são: chave não-data sai, número é clampado, tipo errado vira 0", () => {
+    const row = sanitizeDraftRow({
+      ...VALID,
+      quantities: { "2026-09-10": 99, "2026-09-11": -3, "2026-09-12": "2", "não-é-data": 5, "2026-09-13": 1.9 },
+    })!;
+    expect(row.quantities).toEqual({ "2026-09-10": QTY_MAX, "2026-09-11": 0, "2026-09-12": 0, "2026-09-13": 1 });
+  });
+
+  it("quantities ausente/corrompido não derruba a linha (vira objeto vazio)", () => {
+    expect(sanitizeDraftRow({ ...VALID, quantities: undefined })!.quantities).toEqual({});
+    expect(sanitizeDraftRow({ ...VALID, quantities: "x" })!.quantities).toEqual({});
+    expect(sanitizeDraftRow({ ...VALID, quantities: [1, 2] })!.quantities).toEqual({});
+  });
+
+  it("campos de texto e booleanos são coagidos; modal desconhecido cai para vazio", () => {
+    const row = sanitizeDraftRow({
+      ...VALID,
+      transportModeIda: "jetpack", transportModeVolta: 3,
+      flightDepartureDate: 42, observations: { a: 1 },
+      needsAccommodation: "sim", needsTicket: 1,
+    })!;
+    expect(row.transportModeIda).toBe("");
+    expect(row.transportModeVolta).toBe("");
+    expect(row.flightDepartureDate).toBe("");
+    expect(row.observations).toBe("");
+    expect(row.needsAccommodation).toBe(false);
+    expect(row.needsTicket).toBe(false);
+  });
+
+  it("rowId ausente ganha um novo (a grade precisa de chave estável por linha)", () => {
+    const row = sanitizeDraftRow({ ...VALID, rowId: undefined })!;
+    expect(typeof row.rowId).toBe("string");
+    expect(row.rowId.length).toBeGreaterThan(0);
   });
 });

@@ -4,40 +4,43 @@ import { getRolePermissions, type UserRole } from "./role-utils";
 /**
  * Módulo Validação de Escala.
  *
- * LIBERAÇÃO ATUAL (decisão do usuário, 19/08): as 4 telas aparecem SÓ PARA
- * ADMIN enquanto o fluxo é testado. A matriz do briefing §7 (produção edita a
- * Sugestão, área valida as funções dela, etc.) continua documentada em
- * role-utils.ts para quando a liberação for ampliada — quando isso acontecer,
- * estes testes voltam a distinguir papel a papel.
+ * REGRA ATUAL (decisão do usuário, 20/08 — revoga o admin-only de 19/08):
+ * ACESSO às 4 telas é de TODOS os papéis conhecidos; a ESCRITA real vem do
+ * CADASTRO em Funções (validador/aprovador) — as flags de edit são só o
+ * default do papel; quem não tem cadastro nenhum visualiza. Perfil
+ * desconhecido continua sem nada.
  */
 describe("getRolePermissions — módulo Validação de Escala", () => {
   const roles: UserRole[] = ["admin", "production", "function_area", "purchasing", "financial"];
-  const outrosPapeis = roles.filter((r) => r !== "admin");
 
-  it("admin entra e edita as 4 telas", () => {
-    const p = getRolePermissions("admin");
-    expect(p.canAccessScalingSuggestion && p.canEditScalingSuggestion).toBe(true);
-    expect(p.canAccessScalingValidation && p.canEditScalingValidation).toBe(true);
-    expect(p.canAccessScalingApproval && p.canEditScalingApproval).toBe(true);
-    expect(p.canAccessScalingEventView).toBe(true);
-  });
-
-  it("nenhum outro papel vê o módulo (menu nem rota)", () => {
-    for (const r of outrosPapeis) {
+  it("todos os papéis conhecidos acessam as 4 telas", () => {
+    for (const r of roles) {
       const p = getRolePermissions(r);
-      expect(p.canAccessScalingSuggestion).toBe(false);
-      expect(p.canAccessScalingValidation).toBe(false);
-      expect(p.canAccessScalingApproval).toBe(false);
-      expect(p.canAccessScalingEventView).toBe(false);
+      expect(p.canAccessScalingSuggestion).toBe(true);
+      expect(p.canAccessScalingValidation).toBe(true);
+      expect(p.canAccessScalingApproval).toBe(true);
+      expect(p.canAccessScalingEventView).toBe(true);
     }
   });
 
-  it("sem acesso não há edição", () => {
-    for (const r of outrosPapeis) {
+  it("edição da Sugestão (default do papel): admin e production — espelha o /bulk", () => {
+    for (const r of roles) {
       const p = getRolePermissions(r);
-      expect(p.canEditScalingSuggestion).toBe(false);
-      expect(p.canEditScalingValidation).toBe(false);
-      expect(p.canEditScalingApproval).toBe(false);
+      expect(p.canEditScalingSuggestion).toBe(r === "admin" || r === "production");
+    }
+  });
+
+  it("edição da Validação (default do papel): admin e function_area — validador cadastrado de qualquer papel valida via canEdit do servidor", () => {
+    for (const r of roles) {
+      const p = getRolePermissions(r);
+      expect(p.canEditScalingValidation).toBe(r === "admin" || r === "function_area");
+    }
+  });
+
+  it("edição da Aprovação (default do papel): só admin — a decisão real é o canDecide do servidor, por cadastro de aprovador", () => {
+    for (const r of roles) {
+      const p = getRolePermissions(r);
+      expect(p.canEditScalingApproval).toBe(r === "admin");
     }
   });
 
@@ -50,11 +53,23 @@ describe("getRolePermissions — módulo Validação de Escala", () => {
     }
   });
 
-  it("perfil desconhecido não acessa nada do módulo", () => {
+  it("perfil desconhecido não acessa nem edita nada do módulo", () => {
     const p = getRolePermissions("qualquer" as UserRole);
     expect(p.canAccessScalingSuggestion).toBe(false);
     expect(p.canAccessScalingValidation).toBe(false);
     expect(p.canAccessScalingApproval).toBe(false);
     expect(p.canAccessScalingEventView).toBe(false);
+    expect(p.canEditScalingSuggestion).toBe(false);
+    expect(p.canEditScalingValidation).toBe(false);
+    expect(p.canEditScalingApproval).toBe(false);
+  });
+
+  it("aba Responsáveis da Escala (dentro de Funções): permissão própria, só admin — diferente do catálogo", () => {
+    for (const r of roles) {
+      const p = getRolePermissions(r);
+      expect(p.canAccessScalingManagers).toBe(r === "admin");
+    }
+    // desconhecido também fica de fora
+    expect(getRolePermissions("qualquer" as UserRole).canAccessScalingManagers).toBe(false);
   });
 });

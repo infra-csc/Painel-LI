@@ -34,7 +34,7 @@ import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module
 import {
   buildDateList, countOutsidePeriod, decomposeGridRows, detectPasteFormat, emptyGridRow, expandPeriodForDates,
   functionNameKey, mergePastedRows, parsePastedRows, pasteConflicts, periodBounds, periodProblem, PERIOD_MARGIN_DAYS,
-  PERIOD_PROBLEM_MESSAGES, PASTE_FORMAT_LABELS, reframeRows, sortFunctionsByOrder, summarizeGrid, summarizePaste,
+  PERIOD_PROBLEM_MESSAGES, PASTE_FORMAT_LABELS, reframeRows, sanitizeDraftRows, sortFunctionsByOrder, summarizeGrid, summarizePaste,
   validateGridRow,
   type PasteFormat, type PeriodExpansion, type RowValidation, type SuggestionGridRow,
 } from "@/components/scaling-validation/scaling-grid-utils";
@@ -141,8 +141,17 @@ export default function ScalingSuggestionPage() {
   const periodError = useMemo(() => {
     if (!eventId) return null;
     const p = periodProblem(periodStart, periodEnd);
-    return p ? PERIOD_PROBLEM_MESSAGES[p] : null;
-  }, [eventId, periodStart, periodEnd]);
+    if (p) return PERIOD_PROBLEM_MESSAGES[p];
+    // O min/max do input não segura data DIGITADA: a margem de ±PERIOD_MARGIN_DAYS
+    // em torno do evento é imposta aqui (e em requestPeriod) de verdade.
+    if (bounds.min && periodStart < bounds.min) {
+      return `O início da grade não pode ser antes de ${formatDayMonthBr(bounds.min)} (${PERIOD_MARGIN_DAYS} dias antes do evento). A grade continua com o período anterior.`;
+    }
+    if (bounds.max && periodEnd > bounds.max) {
+      return `O fim da grade não pode passar de ${formatDayMonthBr(bounds.max)} (${PERIOD_MARGIN_DAYS} dias depois do evento). A grade continua com o período anterior.`;
+    }
+    return null;
+  }, [eventId, periodStart, periodEnd, bounds]);
 
   const draftKey = eventId ? `scaling-suggestion-draft:${user?.id ?? "anon"}:${eventId}` : null;
 
@@ -164,16 +173,30 @@ export default function ScalingSuggestionPage() {
       try {
         const raw = localStorage.getItem(draftKey);
         if (raw) {
-          const d = JSON.parse(raw) as DraftPayload;
-          if (d && Array.isArray(d.rows) && Date.now() - (d.timestamp || 0) < DRAFT_TTL_MS) {
-            const validPeriod = !periodProblem(d.periodStart, d.periodEnd);
-            const start = validPeriod ? d.periodStart : selectedEvent.startDate;
-            const end = validPeriod ? d.periodEnd : selectedEvent.endDate;
-            loadPeriod(start, end);
-            setEventObservations(d.eventObservations ?? loadedObsRef.current);
-            setRows(validPeriod ? d.rows : reframeRows(d.rows, buildDateList(start, end)));
-            restored = true;
-            toast({ title: "Rascunho restaurado", description: `Grade de ${selectedEvent.name} recuperada do rascunho local.` });
+          const d = JSON.parse(raw) as Partial<DraftPayload> | null;
+          if (d && typeof d === "object" && Date.now() - (Number(d.timestamp) || 0) < DRAFT_TTL_MS) {
+            // Blindagem: o rascunho vem de localStorage (versão antiga, extensão,
+            // edição manual) — o shape é reconstruído linha a linha e linha
+            // inválida é descartada; um draft corrompido não pode derrubar o render.
+            const draftRows = sanitizeDraftRows(d.rows);
+            const b = periodBounds(selectedEvent.startDate, selectedEvent.endDate);
+            const draftStart = typeof d.periodStart === "string" ? d.periodStart : "";
+            const draftEnd = typeof d.periodEnd === "string" ? d.periodEnd : "";
+            // Período do rascunho também respeita a margem de ±7 dias do evento.
+            const validPeriod = !periodProblem(draftStart, draftEnd)
+              && (!b.min || draftStart >= b.min) && (!b.max || draftEnd <= b.max);
+            const start = validPeriod ? draftStart : selectedEvent.startDate;
+            const end = validPeriod ? draftEnd : selectedEvent.endDate;
+            const draftObs = typeof d.eventObservations === "string" ? d.eventObservations : loadedObsRef.current;
+            if (draftRows.length > 0 || draftObs !== loadedObsRef.current) {
+              loadPeriod(start, end);
+              setEventObservations(draftObs);
+              setRows(reframeRows(draftRows, buildDateList(start, end)));
+              restored = true;
+              toast({ title: "Rascunho restaurado", description: `Grade de ${selectedEvent.name} recuperada do rascunho local.` });
+            } else {
+              localStorage.removeItem(draftKey); // nada aproveitável sobrou do rascunho
+            }
           } else {
             localStorage.removeItem(draftKey);
           }
@@ -223,10 +246,14 @@ export default function ScalingSuggestionPage() {
   const requestPeriod = useCallback((start: string, end: string) => {
     setPeriodStart(start); setPeriodEnd(end);
     if (periodProblem(start, end)) return; // grade mantém o período anterior; aviso inline explica
+    // Margem de ±PERIOD_MARGIN_DAYS imposta também para data digitada (o min/max
+    // do input só vale para o seletor): fora dela a grade não muda e o aviso
+    // inline (periodError) explica o limite.
+    if ((bounds.min && start < bounds.min) || (bounds.max && end > bounds.max)) return;
     const outside = countOutsidePeriod(rowsRef.current, buildDateList(start, end));
     if (outside.pessoasDia > 0) { setPendingPeriod({ start, end, ...outside }); return; }
     applyPeriod(start, end);
-  }, [applyPeriod]);
+  }, [applyPeriod, bounds]);
   /** Volta os inputs ao período aplicado (lê do ref: também é chamado ao fechar o diálogo logo após aplicar). */
   const cancelPendingPeriod = useCallback(() => {
     setPeriodStart(appliedRef.current.start); setPeriodEnd(appliedRef.current.end); setPendingPeriod(null);
@@ -543,6 +570,12 @@ export default function ScalingSuggestionPage() {
   // entra na conta: pendente, validada e com pedido — nunca o que virou
   // Inclusão nem o que foi negado).
   const sentSummary = useMemo(() => summarizeCancelableSuggestions(sentQuery.data ?? []), [sentQuery.data]);
+  // O aviso anti-duplicação não pode falhar em silêncio: enquanto não se sabe o
+  // que este evento JÁ tem na Validação (consulta falhou ou ainda carregando),
+  // o Enviar fica bloqueado — enviar às cegas poderia duplicar a escala inteira.
+  const sentCheckFailed = !!eventId && sentQuery.isError;
+  const sentCheckLoading = !!eventId && sentQuery.isLoading;
+  const sendBlocked = sentCheckFailed || sentCheckLoading;
 
   const cancelSendMutation = useMutation({
     mutationFn: async () => {
@@ -575,6 +608,16 @@ export default function ScalingSuggestionPage() {
 
   const openConfirmSend = () => {
     if (!eventId) { toast({ title: "Selecione o evento", variant: "destructive" }); return; }
+    if (sendBlocked) {
+      toast({
+        title: "Não dá para enviar ainda",
+        description: sentCheckFailed
+          ? "Não foi possível verificar se este evento já tem vagas enviadas. Use “Tentar novamente” no aviso acima antes de enviar."
+          : "Verificando se este evento já tem vagas enviadas — aguarde um instante.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (records.length === 0) { toast({ title: "Grade vazia", description: "Informe ao menos uma quantidade na grade.", variant: "destructive" }); return; }
     if (pendencias.errors.length > 0) {
       const texts = pendencias.errors.map((e) => e.text);
@@ -727,6 +770,29 @@ export default function ScalingSuggestionPage() {
                 </Button>
               </div>
             </section>
+          )}
+
+          {/* A verificação anti-duplicação falhou: sem saber o que já foi enviado,
+              o Enviar fica bloqueado — o usuário resolve aqui, não descobre depois. */}
+          {sentCheckFailed && (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+              <div className="flex items-start gap-2 text-xs text-red-800 min-w-0">
+                <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-red-600" aria-hidden="true" />
+                <span>
+                  <span className="font-semibold">Não foi possível verificar se este evento já tem vagas enviadas.</span>{" "}
+                  {apiErrorMessage(sentQuery.error as ApiError, "Verifique sua conexão.")}{" "}
+                  O envio fica bloqueado até essa verificação funcionar — enviar às cegas poderia duplicar a escala.
+                </span>
+              </div>
+              <Button
+                type="button" variant="outline" size="sm" className="rounded-lg h-8 bg-white"
+                disabled={sentQuery.isFetching}
+                onClick={() => sentQuery.refetch()}
+                data-testid="scaling-suggestion-sent-retry"
+              >
+                {sentQuery.isFetching ? "Verificando…" : "Tentar novamente"}
+              </Button>
+            </div>
           )}
 
           {/* Envio já feito para este evento: acompanhar ou desfazer.
@@ -901,9 +967,14 @@ export default function ScalingSuggestionPage() {
                     <Save className="w-3.5 h-3.5" aria-hidden="true" /> Rascunho salvo automaticamente neste navegador (por evento).
                   </p>
                 </div>
-                <Button type="button" onClick={openConfirmSend} disabled={records.length === 0 || busy || pendencias.errors.length > 0} className="rounded-xl bg-primary hover:bg-primary-hover">
+                <Button
+                  type="button" onClick={openConfirmSend}
+                  disabled={records.length === 0 || busy || pendencias.errors.length > 0 || sendBlocked}
+                  title={sentCheckFailed ? "Bloqueado: não foi possível verificar as vagas já enviadas deste evento." : undefined}
+                  className="rounded-xl bg-primary hover:bg-primary-hover"
+                >
                   <Send className="w-4 h-4 mr-2" aria-hidden="true" />
-                  {busy ? "Enviando…" : "Enviar para validação"}
+                  {busy ? "Enviando…" : sentCheckLoading ? "Verificando envios…" : "Enviar para validação"}
                 </Button>
               </div>
             </div>

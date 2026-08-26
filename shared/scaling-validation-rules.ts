@@ -293,9 +293,43 @@ export function requestStatusForAction(action: SuggestionAction): ChangeRequestS
 const DATE_YMD = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_HHMM = /^\d{2}:\d{2}$/;
 
-const ymd = z.string().regex(DATE_YMD, "Data inválida (use AAAA-MM-DD)");
-const hhmm = z.string().regex(TIME_HHMM, "Horário inválido (use HH:MM)");
+/**
+ * "AAAA-MM-DD" existe MESMO no calendário? O regex aceita "2027-02-29" e
+ * "2026-09-31"; aqui a string é reconstruída via Date UTC (round-trip): se o
+ * JavaScript "normalizou" (29/02 → 01/03), a data não existia.
+ */
+export function isRealYmd(s: string): boolean {
+  if (!DATE_YMD.test(s)) return false;
+  const [y, m, d] = s.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
+
+/** "HH:MM" é um horário de verdade (00:00–23:59)? O regex sozinho aceita "24:00" / "23:60". */
+export function isValidHhmm(s: string): boolean {
+  if (!TIME_HHMM.test(s)) return false;
+  const [h, min] = s.split(":").map(Number);
+  return h <= 23 && min <= 59;
+}
+
+const ymd = z.string()
+  .regex(DATE_YMD, "Data inválida (use AAAA-MM-DD)")
+  .refine(isRealYmd, "Data inexistente");
+const hhmm = z.string()
+  .regex(TIME_HHMM, "Horário inválido (use HH:MM)")
+  .refine(isValidHhmm, "Horário inexistente (use HH:MM entre 00:00 e 23:59)");
 const transportMode = z.enum(TRANSPORT_MODES);
+
+/** Zod de data/horário do módulo — o servidor reutiliza para o /bulk (nunca duplique o refine). */
+export const ymdSchema = ymd;
+export const hhmmSchema = hhmm;
+
+/**
+ * A vaga mudou de estado entre a leitura e a gravação (decisão concorrente
+ * venceu a corrida). O servidor devolve 409 com esta mensagem — o cliente
+ * recarrega a lista.
+ */
+export const VAGA_STATE_CHANGED_MSG = "A vaga mudou de estado — recarregue a lista";
 
 export const proposedChangesSchema = z.object({
   v: z.literal(1),
@@ -310,8 +344,8 @@ export const proposedChangesSchema = z.object({
   transportModeVolta: transportMode.nullable().optional(),
   needsTicket: z.boolean().optional(),
   needsAccommodation: z.boolean().optional(),
-  quantity: z.number().int("Quantidade deve ser um número inteiro").min(1, "Quantidade mínima é 1").optional(),
-  observations: z.string().nullable().optional(),
+  quantity: z.number().int("Quantidade deve ser um número inteiro").min(1, "Quantidade mínima é 1").max(50, "Quantidade máxima é 50 vagas por pedido").optional(),
+  observations: z.string().max(1000, "Observações podem ter no máximo 1000 caracteres").nullable().optional(),
 }).strict();
 
 export type ProposedChanges = z.infer<typeof proposedChangesSchema>;
