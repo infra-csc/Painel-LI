@@ -8,10 +8,19 @@ import {
 } from "@shared/scaling-validation-rules";
 import { toIsoDate } from "@/lib/dates";
 
-/** Linha devolvida por GET /api/scaling-suggestions?eventId= */
+/** Linha devolvida por GET /api/scaling-suggestions (com ou sem `?eventId=`) */
 export type SuggestionRow = Omit<TeamInclusion, "workDays"> & {
   /** Dias de trabalho como "YYYY-MM-DD" (o servidor pode mandar ISO completo — use `workDaysOf`). */
   workDays: string[] | null;
+  /**
+   * Evento da vaga — o servidor anexa nome e período em toda linha. É o que
+   * permite às telas abrirem em "Todos os eventos" (regra do dono, 26/08)
+   * mostrando a que evento cada vaga pertence. Opcionais no tipo: linha vinda
+   * de cache antigo (ou de evento apagado) não quebra a tela.
+   */
+  eventName?: string | null;
+  eventStartDate?: string | null;
+  eventEndDate?: string | null;
   canEdit: boolean;
   /** Admin/aprovador da função — pode decidir pedidos desta vaga (Aprovação de Escala). */
   canDecide: boolean;

@@ -10,6 +10,7 @@ import {
   CANCELABLE_SUGESTAO_STATUS, isCancelableSuggestion, summarizeCancelableSuggestions,
   isRequestCanceledByCancelSend, CANCEL_SEND_REQUEST_STATUS, CANCEL_SEND_REQUEST_COMMENT,
   isRealYmd, isValidHhmm, ymdSchema, hhmmSchema, VAGA_STATE_CHANGED_MSG,
+  DEFAULT_APPROVER_SETTING_KEY, approverSource, canApproveInFunction, usesDefaultApprover,
 } from "./scaling-validation-rules";
 
 const sug = (status: string) => ({ status, phase: SUGESTAO_PHASE });
@@ -775,5 +776,56 @@ describe("parseProposedChanges — datas/horários reais e tetos de entrada", ()
 describe("VAGA_STATE_CHANGED_MSG — corrida perdida vira 409 com texto pt-BR", () => {
   it("mensagem estável (o servidor a usa para mapear o 409)", () => {
     expect(VAGA_STATE_CHANGED_MSG).toBe("A vaga mudou de estado — recarregue a lista");
+  });
+});
+
+describe("aprovador padrão do sistema (regra do dono, 26/08)", () => {
+  it("a chave de system_settings é estável (migração + servidor + tela usam a mesma)", () => {
+    expect(DEFAULT_APPROVER_SETTING_KEY).toBe("escala_aprovador_padrao");
+  });
+
+  it("função SEM aprovador cadastrado: o aprovador padrão decide", () => {
+    const ctx = { roleForFunction: null, isDefaultApprover: true, functionHasApprover: false };
+    expect(canApproveInFunction(ctx)).toBe(true);
+    expect(approverSource(ctx)).toBe("padrao");
+    expect(usesDefaultApprover(ctx)).toBe(true);
+  });
+
+  it("função SEM aprovador cadastrado: quem NÃO é o padrão continua sem decidir", () => {
+    const ctx = { roleForFunction: null, isDefaultApprover: false, functionHasApprover: false };
+    expect(canApproveInFunction(ctx)).toBe(false);
+    expect(approverSource(ctx)).toBeNull();
+  });
+
+  it("validador da função não vira aprovador por causa do padrão", () => {
+    expect(canApproveInFunction({ roleForFunction: "validador", isDefaultApprover: false, functionHasApprover: false })).toBe(false);
+  });
+
+  it("função COM aprovador cadastrado: o cadastrado decide igual a antes (origem 'cadastro')", () => {
+    const ctx = { roleForFunction: "aprovador" as const, isDefaultApprover: false, functionHasApprover: true };
+    expect(canApproveInFunction(ctx)).toBe(true);
+    expect(approverSource(ctx)).toBe("cadastro");
+    expect(usesDefaultApprover(ctx)).toBe(false);
+    // O comportamento antigo continua valendo palavra por palavra.
+    expect(canApproveRequest(ctx.roleForFunction, false)).toBe(true);
+  });
+
+  it("o padrão é aprovador GLOBAL: decide também em função que já tem aprovador", () => {
+    expect(canApproveInFunction({ roleForFunction: null, isDefaultApprover: true, functionHasApprover: true })).toBe(true);
+  });
+
+  it("admin decide sempre e a origem é 'admin' (inalterado)", () => {
+    for (const hasApprover of [true, false]) {
+      const ctx = { roleForFunction: null, isAdmin: true, isDefaultApprover: false, functionHasApprover: hasApprover };
+      expect(canApproveInFunction(ctx)).toBe(true);
+      expect(approverSource(ctx)).toBe("admin");
+    }
+  });
+
+  it("contexto vazio não dá permissão a ninguém", () => {
+    expect(canApproveInFunction({})).toBe(false);
+    expect(approverSource({})).toBeNull();
+    // Sem saber se a função tem aprovador, não afirma que ela usa o padrão.
+    expect(usesDefaultApprover({})).toBe(false);
   });
 });

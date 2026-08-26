@@ -1,14 +1,23 @@
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, History, Hotel, MessageSquareWarning, Plane, Undo2 } from "lucide-react";
+import {
+  ArrowRight, BedDouble, CalendarDays, CheckCheck, History, MessageSquareWarning,
+  PencilLine, Route, StickyNote, Ticket, Trash2, Undo2,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { apiRequest } from "@/lib/queryClient";
-import { formatDateBr, formatDayMonthBr } from "@/lib/dates";
+import { formatDateBr } from "@/lib/dates";
 import { cn, formatDiarias } from "@/lib/utils";
 import type { Event } from "@shared/schema";
-import { CHANGE_REQUEST_TYPE_LABELS, type ChangeRequestType } from "@shared/scaling-validation-rules";
-import { StatusCell, legLabel, periodLabel } from "./suggestions-list";
+import {
+  CHANGE_REQUEST_TYPE_LABELS, SUGESTAO_STATUS_LABELS,
+  type ChangeRequestType, type SugestaoStatus,
+} from "@shared/scaling-validation-rules";
+import { StatusCell } from "./suggestions-list";
+import { CHIP_NEUTRAL, DayLabel, LegChip, NeedChip, dayInfo, dayText } from "./logistics-chips";
 import {
   DECISION_TONE_CLASS, TEAM_INCLUSIONS_QUERY_KEY, canRequestChange, canValidate,
   describeLastDecision, describeVagaDecision, workDaysOf, type InclusionLog, type SuggestionRow,
@@ -38,21 +47,172 @@ interface SuggestionDetailDrawerProps {
   onClosed?: () => void;
 }
 
-const SECTION = "text-[11px] font-bold uppercase tracking-wide text-slate-500";
+// ── Vocabulário: nada de chave de banco na tela ──────────────────────────────
 
+/**
+ * Fases de `team_inclusions` em pt-BR — mesma leitura do `getPhaseLabel` de
+ * `client/src/components/scaling/scaling-utils.ts` (mapa local para não acoplar
+ * o módulo da Validação ao da Escalação).
+ */
+const PHASE_LABELS: Record<string, string> = {
+  sugestao: "Sugestão",
+  inclusao: "Inclusão de Equipe",
+  escalacao: "Escalação",
+  passagem: "Compra de Passagem",
+  hospedagem: "Hospedagem",
+  aprovacao: "Aprovação",
+};
+
+/**
+ * Status de `team_inclusions` FORA da sugestão (a vaga aprovada vira inclusão
+ * comum) — mesmos rótulos do mapa pt-BR de
+ * `client/src/components/scaling/swap-request-panel.tsx`.
+ */
+const INCLUSION_STATUS_LABELS: Record<string, string> = {
+  rascunho: "Rascunho",
+  planejado: "Planejado",
+  confirmado: "Confirmado",
+  pendente: "Pendente",
+  reaberto: "Reaberto",
+  escalacao: "Escalado",
+  passagem: "Aguardando passagem",
+  passagem_comprada: "Passagem comprada",
+  hospedagem: "Aguardando hospedagem",
+  hospedagem_comprada: "Hospedagem reservada",
+  hospedagem_passagem_comprada: "Passagem e hospedagem prontas",
+  aprovacao: "Em aprovação",
+  aprovado: "Aprovado",
+  cancelado: "Cancelado",
+  aguardando_producao: "Aguardando a produção",
+};
+
+/** Estados que o servidor escreve à mão no log (server/scaling-validation.ts). */
+const SPECIAL_STATE_LABELS: Record<string, string> = {
+  removida: "Removida da sugestão",
+};
+
+/**
+ * Ações de log em pt-BR — só as que este módulo gera. Mesma ideia do
+ * `LOG_ACTION_LABELS` de `client/src/components/scaling/inclusion-details-tabs.tsx`
+ * (aqui sem emoji, e usado apenas como reserva quando o log vem sem frase).
+ */
+const LOG_ACTION_LABELS: Record<string, string> = {
+  created: "Criada",
+  create: "Criada",
+  update: "Atualizada",
+  deleted: "Excluída",
+  delete: "Excluída",
+  status_changed: "Status alterado",
+  suggestion_sent: "Escala sugerida enviada",
+  suggestion_validated: "Validada pela área",
+  suggestion_approved: "Aprovada pelo aprovador",
+  suggestion_rejected: "Reprovada pelo aprovador",
+  suggestion_returned: "Devolvida para a área",
+  suggestion_change_requested: "Pedido aberto pela área",
+  created_from_change_request: "Criada por pedido de inclusão",
+  change_request_approved: "Pedido aprovado",
+  change_request_reajustar: "Pedido reajustado",
+  change_request_negar: "Pedido negado",
+  suggestion_bypass_approve: "Aprovada sem validação da área",
+  suggestion_bypass_reject: "Reprovada sem validação da área",
+};
+
+/** Chave técnica (snake_case, com ou sem "fase/status") — nunca vai para a tela. */
+const TECHNICAL_KEY_RE = /^[a-z][a-z0-9_]*(?:\/[a-z][a-z0-9_]*)?$/;
+
+const statusLabel = (s: string): string | null =>
+  SUGESTAO_STATUS_LABELS[s as SugestaoStatus] ?? INCLUSION_STATUS_LABELS[s] ?? SPECIAL_STATE_LABELS[s] ?? null;
+
+/**
+ * Estado da vaga em pt-BR a partir do que o log guardou ("sugestao/
+ * sugestao_pendente", "sugestao_pendente", "inclusao/planejado", "removida").
+ * `null` quando não há rótulo — a regra é não mostrar nada, jamais a chave crua.
+ */
+function stateLabel(raw: string): string | null {
+  if (raw.includes("/")) {
+    const [phase, status] = raw.split("/");
+    const st = statusLabel(status);
+    if (!st) return null;
+    const ph = PHASE_LABELS[phase];
+    // Dentro da sugestão o próprio rótulo do status já diz a fase.
+    return ph && phase !== "sugestao" ? `${ph} · ${st}` : st;
+  }
+  return statusLabel(raw);
+}
+
+/**
+ * Um lado do "de → para" do log. Estado conhecido vira rótulo pt-BR; chave
+ * técnica sem rótulo (dado legado, fase nova) some; valor humano que o log já
+ * grava em português (nome, período, observação) passa como está.
+ */
+function valueText(raw: string | null | undefined): string | null {
+  const v = raw?.trim();
+  if (!v) return null;
+  const state = stateLabel(v);
+  if (state) return state;
+  return TECHNICAL_KEY_RE.test(v) ? null : v;
+}
+
+// ── Estilo ───────────────────────────────────────────────────────────────────
+
+const SECTION = "flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400";
+const CARD = "rounded-2xl border border-slate-200 bg-white p-3.5 space-y-2";
+
+/** "Qua 20/08 14:32" — dia da semana como no resto do módulo. */
 function fmtDateTime(v: string | Date | null | undefined): string {
   if (!v) return "—";
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return "—";
-  return `${formatDateBr(d)} ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+  const weekday = dayText(d).split(" ")[0];
+  const time = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  return `${weekday ? `${weekday} ` : ""}${formatDateBr(d)} ${time}`;
 }
 
-function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+function Card({ id, title, icon: Icon, children }: {
+  id: string; title: string; icon?: LucideIcon; children: React.ReactNode;
+}) {
   return (
-    <div className={cn("space-y-0.5", className)}>
-      <dt className="text-[11px] text-slate-500">{label}</dt>
-      <dd className="text-sm text-slate-800">{children}</dd>
-    </div>
+    <section aria-labelledby={id} className={CARD}>
+      <h3 id={id} className={SECTION}>
+        {Icon && <Icon className="w-3.5 h-3.5" aria-hidden="true" />}
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+/** Chip de dia em leitura — mesma caixa do `WorkDaysPicker`, sem clique. */
+function DayChip({ v }: { v: string }) {
+  const h = dayInfo(v);
+  if (!h) return null;
+  return (
+    <span className={cn(
+      "flex flex-col items-center min-w-[52px] rounded-lg border border-slate-200 px-2 py-1 text-[11px] leading-tight text-slate-600",
+      h.isWeekend ? "bg-orange-50/50" : "bg-white",
+    )}>
+      <span className="font-semibold tabular-nums">{h.date}</span>
+      <span className={cn("text-[10px]", h.isWeekend ? "text-orange-700" : "text-slate-500")}>{h.dayName}</span>
+    </span>
+  );
+}
+
+const NOT_NEEDED = {
+  passagem: { Icon: Ticket, text: "Sem passagem", label: "Não precisa de passagem" },
+  hotel: { Icon: BedDouble, text: "Sem hotel", label: "Não precisa de hospedagem" },
+} as const;
+
+/**
+ * O detalhe afirma o que a lista deixa implícito: aqui "não precisa" aparece,
+ * mas no MESMO chip, em estado neutro — nunca como texto solto.
+ */
+function NotNeededChip({ kind }: { kind: keyof typeof NOT_NEEDED }) {
+  const { Icon, text, label } = NOT_NEEDED[kind];
+  return (
+    <span role="img" aria-label={label} title={label} className={cn(CHIP_NEUTRAL, "text-slate-400")}>
+      <Icon className="h-3 w-3 shrink-0 text-slate-300" aria-hidden="true" />
+      {text}
+    </span>
   );
 }
 
@@ -72,6 +232,10 @@ export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, 
   const mayValidate = !!row && !!onValidate && canValidate(row);
   const mayRequest = !!row && canRequestChange(row);
   const showFooter = mayValidate || (mayRequest && (!!onAdjust || !!onDelete));
+  const start = days[0] ?? "";
+  const end = days.length ? days[days.length - 1] : "";
+  const hasLeg = !!row && !!(row.transportModeIda || row.flightDepartureDate || row.flightArrivalSuggestedTime
+    || row.transportModeVolta || row.flightReturnDate || row.flightReturnSuggestedTime);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -83,24 +247,24 @@ export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, 
       >
         {row ? (
           <>
-            <SheetHeader className="px-5 pt-5 pb-3 border-b border-slate-100 text-left space-y-2">
-              <SheetTitle className="text-base leading-tight flex items-center gap-2">
-                <span className="inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-blue-800">#{row.inclusionNumber}</span>
-                <span className="truncate">{functionName ?? "Função"}</span>
+            <SheetHeader className="shrink-0 border-b border-slate-100 bg-white px-5 pb-3 pt-5 text-left space-y-2">
+              <SheetTitle className="flex items-center gap-2 text-base leading-tight">
+                <span className="inline-flex items-center rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-primary">#{row.inclusionNumber}</span>
+                <span className="truncate font-semibold text-slate-900">{functionName ?? "Função"}</span>
               </SheetTitle>
-              <SheetDescription className="text-xs">
+              <SheetDescription className="text-xs text-slate-500">
                 {event?.name ?? "Evento"}{row.area ? ` · ${row.area}` : ""}
                 {row.canEdit ? " · você valida esta função" : " · somente leitura"}
               </SheetDescription>
               <StatusCell row={row} approverNames={approverNames} />
             </SheetHeader>
 
-            <div className="flex-1 overflow-y-auto">
-              <div className="px-5 py-4 space-y-5">
+            <div className="flex-1 overflow-y-auto bg-slate-50/60">
+              <div className="space-y-3 px-4 py-4">
                 {/* Decisão do aprovador (a vaga voltou) */}
                 {row.lastDecision && decision && (
-                  <section aria-labelledby="det-decisao" className={cn("rounded-xl border px-3 py-2.5 space-y-1", DECISION_TONE_CLASS[decision.tone])}>
-                    <p id="det-decisao" className="text-[11px] font-bold uppercase tracking-wide inline-flex items-center gap-1">
+                  <section aria-labelledby="det-decisao" className={cn("rounded-2xl border px-3.5 py-3 space-y-1", DECISION_TONE_CLASS[decision.tone])}>
+                    <p id="det-decisao" className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em]">
                       <Undo2 className="w-3.5 h-3.5" aria-hidden="true" /> {decision.title} · pedido de {(CHANGE_REQUEST_TYPE_LABELS[row.lastDecision.requestType] ?? row.lastDecision.requestType).toLowerCase()}
                     </p>
                     <p className="text-sm text-slate-800 whitespace-pre-wrap">{row.lastDecision.comment?.trim() ? row.lastDecision.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}</p>
@@ -110,8 +274,8 @@ export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, 
 
                 {/* Decisão do aprovador sobre a VAGA (devolvida/reprovada/aprovada) */}
                 {row.lastVagaDecision && vagaDecision && (
-                  <section aria-labelledby="det-decisao-vaga" className={cn("rounded-xl border px-3 py-2.5 space-y-1", DECISION_TONE_CLASS[vagaDecision.tone])}>
-                    <p id="det-decisao-vaga" className="text-[11px] font-bold uppercase tracking-wide inline-flex items-center gap-1">
+                  <section aria-labelledby="det-decisao-vaga" className={cn("rounded-2xl border px-3.5 py-3 space-y-1", DECISION_TONE_CLASS[vagaDecision.tone])}>
+                    <p id="det-decisao-vaga" className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em]">
                       <Undo2 className="w-3.5 h-3.5" aria-hidden="true" /> {vagaDecision.title}
                     </p>
                     <p className="text-sm text-slate-800 whitespace-pre-wrap">{row.lastVagaDecision.comment?.trim() ? row.lastVagaDecision.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}</p>
@@ -121,8 +285,8 @@ export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, 
 
                 {/* Pedido pendente */}
                 {pending && (
-                  <section aria-labelledby="det-pedido" className="rounded-xl border border-violet-200 bg-violet-50/60 px-3 py-2.5 space-y-1">
-                    <p id="det-pedido" className="text-[11px] font-bold uppercase tracking-wide text-violet-700 inline-flex items-center gap-1">
+                  <section aria-labelledby="det-pedido" className="rounded-2xl border border-violet-200 bg-violet-50/60 px-3.5 py-3 space-y-1">
+                    <p id="det-pedido" className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-violet-700">
                       <MessageSquareWarning className="w-3.5 h-3.5" aria-hidden="true" /> Pedido de {(CHANGE_REQUEST_TYPE_LABELS[pending.requestType as ChangeRequestType] ?? pending.requestType).toLowerCase()} aguardando o aprovador
                     </p>
                     <p className="text-sm text-slate-800 whitespace-pre-wrap">{pending.reason}</p>
@@ -130,54 +294,62 @@ export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, 
                   </section>
                 )}
 
-                {/* Observações */}
-                <section aria-labelledby="det-obs" className="space-y-1.5">
-                  <h3 id="det-obs" className={SECTION}>Observações da vaga</h3>
-                  {row.observations ? (
-                    <p className="text-sm text-slate-800 whitespace-pre-wrap rounded-lg bg-slate-50 border border-slate-100 px-3 py-2">{row.observations}</p>
+                {/* Período e diárias */}
+                <Card id="det-periodo" title="Período e diárias" icon={CalendarDays}>
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-slate-800">
+                    {start ? (
+                      <span className="font-medium">
+                        <DayLabel v={start} />
+                        {end && end !== start && <> <span className="text-slate-300" aria-hidden="true">–</span> <DayLabel v={end} /></>}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">Período não definido</span>
+                    )}
+                    <span className="inline-flex items-center rounded-md bg-brand-soft px-2 py-0.5 text-[11px] font-semibold tabular-nums text-primary">
+                      {formatDiarias(days.length || row.dailyRates || 0)}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5 border-t border-slate-100 pt-2">
+                    <p className="text-[11px] text-slate-500">
+                      Dias de trabalho <span className="tabular-nums">({days.length})</span>
+                    </p>
+                    {days.length ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {days.map((d) => <DayChip key={d} v={d} />)}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400">Nenhum dia marcado.</p>
+                    )}
+                  </div>
+                </Card>
+
+                {/* Logística — mesmos chips da grade e da lista */}
+                <Card id="det-log" title="Logística" icon={Route}>
+                  {hasLeg ? (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <LegChip dir="ida" mode={row.transportModeIda} date={row.flightDepartureDate} time={row.flightArrivalSuggestedTime} />
+                      <LegChip dir="volta" mode={row.transportModeVolta} date={row.flightReturnDate} time={row.flightReturnSuggestedTime} />
+                    </div>
                   ) : (
-                    <p className="text-sm text-slate-500 italic">Sem observações.</p>
+                    <p className="text-xs text-slate-400">Sem viagem definida para esta vaga.</p>
                   )}
-                </section>
+                  <div className="flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-2">
+                    {row.needsTicket ? <NeedChip kind="passagem" /> : <NotNeededChip kind="passagem" />}
+                    {row.needsAccommodation ? <NeedChip kind="hotel" /> : <NotNeededChip kind="hotel" />}
+                  </div>
+                </Card>
 
-                {/* Período */}
-                <section aria-labelledby="det-periodo" className="space-y-1.5">
-                  <h3 id="det-periodo" className={cn(SECTION, "inline-flex items-center gap-1")}><CalendarDays className="w-3.5 h-3.5" aria-hidden="true" /> Período e diárias</h3>
-                  <dl className="grid grid-cols-2 gap-3">
-                    <Field label="Período"><span className="font-mono tabular-nums">{periodLabel(row)}</span></Field>
-                    <Field label="Diárias">{formatDiarias(days.length || row.dailyRates || 0)}</Field>
-                    <Field label={`Dias de trabalho (${days.length})`} className="col-span-2">
-                      {days.length ? (
-                        <div className="flex flex-wrap gap-1">
-                          {days.map((d) => <span key={d} className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[11px] tabular-nums">{formatDayMonthBr(d)}</span>)}
-                        </div>
-                      ) : "—"}
-                    </Field>
-                  </dl>
-                </section>
-
-                {/* Logística */}
-                <section aria-labelledby="det-log" className="space-y-1.5">
-                  <h3 id="det-log" className={SECTION}>Logística</h3>
-                  <dl className="grid grid-cols-2 gap-3">
-                    <Field label="Ida">{legLabel(row.transportModeIda, row.flightDepartureDate, row.flightArrivalSuggestedTime)}</Field>
-                    <Field label="Volta">{legLabel(row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime)}</Field>
-                    <Field label="Passagem">
-                      <span className={cn("inline-flex items-center gap-1", row.needsTicket ? "text-violet-700 font-semibold" : "text-slate-500")}>
-                        <Plane className="w-3.5 h-3.5" aria-hidden="true" /> {row.needsTicket ? "Precisa" : "Não precisa"}
-                      </span>
-                    </Field>
-                    <Field label="Hospedagem">
-                      <span className={cn("inline-flex items-center gap-1", row.needsAccommodation ? "text-sky-700 font-semibold" : "text-slate-500")}>
-                        <Hotel className="w-3.5 h-3.5" aria-hidden="true" /> {row.needsAccommodation ? "Precisa" : "Não precisa"}
-                      </span>
-                    </Field>
-                  </dl>
-                </section>
+                {/* Observações */}
+                <Card id="det-obs" title="Observações da vaga" icon={StickyNote}>
+                  {row.observations ? (
+                    <p className="whitespace-pre-wrap text-sm text-slate-800">{row.observations}</p>
+                  ) : (
+                    <p className="text-xs text-slate-400">Sem observações.</p>
+                  )}
+                </Card>
 
                 {/* Histórico */}
-                <section aria-labelledby="det-hist" className="space-y-1.5">
-                  <h3 id="det-hist" className={cn(SECTION, "inline-flex items-center gap-1")}><History className="w-3.5 h-3.5" aria-hidden="true" /> Histórico</h3>
+                <Card id="det-hist" title="Histórico" icon={History}>
                   {logsQuery.isLoading ? (
                     <div className="space-y-2" role="status" aria-label="Carregando histórico">
                       <Skeleton className="h-4 w-3/4" /><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-2/3" />
@@ -185,45 +357,66 @@ export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, 
                   ) : logsQuery.isError ? (
                     <p className="text-xs text-slate-500">Não foi possível carregar o histórico.</p>
                   ) : !logsQuery.data?.length ? (
-                    <p className="text-sm text-slate-500 italic">Sem registros.</p>
+                    <p className="text-xs text-slate-400">Sem registros.</p>
                   ) : (
-                    <ol className="relative border-l border-slate-200 ml-1.5 space-y-3">
-                      {logsQuery.data.map((log) => (
-                        <li key={log.id} className="ml-4">
-                          <span className="absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full border border-white bg-slate-300" aria-hidden="true" />
-                          <p className="text-sm text-slate-800">{log.details}</p>
-                          {(log.previousValue || log.newValue) && (
-                            <p className="text-[11px] text-slate-600 font-mono">
-                              {log.previousValue && <span className="line-through text-slate-500">{log.previousValue}</span>}
-                              {log.previousValue && log.newValue && <span aria-hidden="true"> → </span>}
-                              {log.newValue}
-                            </p>
-                          )}
-                          <p className="text-[11px] text-slate-500">{log.userName} · {fmtDateTime(log.createdAt)}</p>
-                        </li>
-                      ))}
+                    <ol className="relative ml-1.5 space-y-3 border-l border-slate-200">
+                      {logsQuery.data.map((log) => {
+                        const before = valueText(log.previousValue);
+                        const after = valueText(log.newValue);
+                        const phrase = log.details?.trim() || LOG_ACTION_LABELS[log.action] || "Atualização da vaga";
+                        return (
+                          <li key={log.id} className="ml-4">
+                            <span className="absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full border border-white bg-slate-300" aria-hidden="true" />
+                            <p className="text-sm text-slate-800">{phrase}</p>
+                            {/* Basta um dos dois lados: campo esvaziado tem "de"
+                                sem "para", e guardar tudo pelo "para" fazia o
+                                registro sumir inteiro. */}
+                            {(before || after) && (
+                              <p className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] text-slate-400">
+                                {before && (
+                                  <>
+                                    <span className="line-through decoration-slate-300">{before}</span>
+                                    {after && <ArrowRight className="h-3 w-3 shrink-0" aria-hidden="true" />}
+                                  </>
+                                )}
+                                {after
+                                  ? <span className="font-medium text-slate-500">{after}</span>
+                                  : <span className="italic text-slate-400">(esvaziado)</span>}
+                              </p>
+                            )}
+                            <p className="mt-0.5 text-[11px] text-slate-500">{log.userName} · {fmtDateTime(log.createdAt)}</p>
+                          </li>
+                        );
+                      })}
                     </ol>
                   )}
-                </section>
+                </Card>
               </div>
             </div>
 
             {showFooter && (
-              <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-3">
+              <div className="shrink-0 flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-white px-5 py-3">
                 {mayRequest && onDelete && (
                   <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg border-red-200 text-red-700 hover:bg-red-50" onClick={() => onDelete(row)}>
-                    Pedir exclusão
+                    <Trash2 className="w-4 h-4 mr-1.5" aria-hidden="true" /> Pedir exclusão
                   </Button>
                 )}
                 {mayRequest && onAdjust && (
                   <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg" onClick={() => onAdjust(row)}>
-                    Pedir ajuste
+                    <PencilLine className="w-4 h-4 mr-1.5" aria-hidden="true" /> Pedir ajuste
                   </Button>
                 )}
                 {mayValidate && (
-                  <Button type="button" size="sm" className="h-9 rounded-lg bg-emerald-600 font-semibold text-white hover:bg-emerald-700" onClick={() => onValidate!(row)}>
-                    Validar vaga
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button type="button" size="sm" className="h-9 rounded-lg bg-emerald-600 font-semibold text-white hover:bg-emerald-700" onClick={() => onValidate!(row)}>
+                        <CheckCheck className="w-4 h-4 mr-1.5" aria-hidden="true" /> Validar vaga
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs text-xs">
+                      A área confirma a vaga como está — ela segue para o aprovador.
+                    </TooltipContent>
+                  </Tooltip>
                 )}
               </div>
             )}

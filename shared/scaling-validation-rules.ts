@@ -605,6 +605,73 @@ export function canApproveRequest(
   return Boolean(isAdmin) || userRoleForFunction === "aprovador";
 }
 
+// ── Aprovador PADRÃO do sistema (regra do dono, 26/08) ───────────────────────
+//
+// "O aprovador sempre será o Pedro Telles". O poder de decidir continua saindo
+// do cadastro por função (`function_managers`), mas função nova criada sem
+// aprovador prendia a vaga validada numa fila sem ninguém do outro lado. Para
+// eliminar esse buraco existe UM aprovador padrão do sistema, guardado em
+// `system_settings` na chave abaixo (valor = `users.id`).
+//
+// ESCOLHA EXPLÍCITA (autorizada pelo dono): o aprovador padrão é o aprovador
+// GLOBAL — ele decide em QUALQUER função, tenha ela aprovador cadastrado ou
+// não. Quando a função tem aprovador próprio, esse aprovador continua decidindo
+// exatamente como antes (nada muda para ele); o padrão apenas soma. É por isso
+// que `approverSource` distingue de ONDE veio o poder: o cadastro específico
+// vence na hora de EXPLICAR quem decide na tela, mesmo que os dois possam.
+
+/** Chave de `system_settings` com o `users.id` do aprovador padrão da escala. */
+export const DEFAULT_APPROVER_SETTING_KEY = "escala_aprovador_padrao";
+
+/**
+ * Teto de linhas do modo "todos os eventos" (`eventId` ausente nos GETs da
+ * Validação de Escala). É teto de SEGURANÇA, não paginação: o servidor corta
+ * sempre o menos urgente e a tela avisa que cortou, oferecendo o filtro por
+ * evento. Servidor e tela leem a mesma constante — o aviso só aparece quando o
+ * corte de fato pode ter acontecido.
+ */
+export const ALL_EVENTS_ROW_LIMIT = 500;
+
+/** De onde vem o poder de decidir daquele usuário naquela função. */
+export type ApproverSource = "admin" | "cadastro" | "padrao";
+
+export interface ApproverContext {
+  /** Papel do usuário NA FUNÇÃO (function_managers) — null quando não é responsável. */
+  roleForFunction?: FunctionManagerRole | null;
+  isAdmin?: boolean;
+  /** O usuário é o aprovador padrão do sistema (system_settings). */
+  isDefaultApprover?: boolean;
+  /** A função tem ALGUM aprovador cadastrado? Só explica a origem — não muda a permissão. */
+  functionHasApprover?: boolean;
+}
+
+/**
+ * Origem do poder de decidir; `null` quando o usuário não decide aquela função.
+ * Ordem: admin > aprovador cadastrado da função > aprovador padrão do sistema.
+ */
+export function approverSource(ctx: ApproverContext): ApproverSource | null {
+  if (ctx.isAdmin) return "admin";
+  if (ctx.roleForFunction === "aprovador") return "cadastro";
+  if (ctx.isDefaultApprover) return "padrao";
+  return null;
+}
+
+/**
+ * Pode decidir pedidos / a vaga validada / o bypass, já com o aprovador padrão.
+ * Superconjunto de `canApproveRequest`: nunca tira permissão de quem já tinha.
+ */
+export function canApproveInFunction(ctx: ApproverContext): boolean {
+  return approverSource(ctx) !== null;
+}
+
+/**
+ * A função depende do aprovador padrão (não tem aprovador próprio cadastrado)?
+ * Só para a tela do admin dizer "Aprovador padrão: Fulano" — nunca é alarme.
+ */
+export function usesDefaultApprover(ctx: Pick<ApproverContext, "functionHasApprover">): boolean {
+  return ctx.functionHasApprover === false;
+}
+
 /** Vaga/pedido "parado": a partir de quantos dias sinalizar (âmbar) e escalar (vermelho). */
 export const STALLED_DAYS = 3;
 export const DANGER_DAYS = 7;

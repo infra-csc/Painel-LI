@@ -26,13 +26,25 @@ export default function Topbar({ topOffset, onOpenPalette, onOpenShortcuts }: {
   onOpenShortcuts: () => void;
 }) {
   const [location] = useLocation();
-  const { mode, hidden, isDesktop, isMobileOpen, toggleMobile, cycle } = useShellMode();
+  const { mode, hidden, isDesktop, isMobileOpen, toggleMobile, toggleMenu } = useShellMode();
   const crumb = breadcrumbFor(location);
   const showBrand = !isDesktop || hidden;
 
+  // Alternador de DUAS posições: aberto → recolhe; recolhido ou oculto → abre.
+  // Esconder o menu (modo foco) é ação deliberada — fica no rodapé do menu e no ⌘.
+  const isOpen = isDesktop ? mode === "expandido" : isMobileOpen;
+  // No compacto o menu CONTINUA na tela (trilho de ícones navegável): dizer
+  // aria-expanded="false" ali mentiria para o leitor de tela. Só o modo foco
+  // (oculto) some de verdade.
+  const isVisibleToAT = isDesktop ? mode !== "oculto" : isMobileOpen;
+  // "Expandir o menu" é o mesmo nome do botão no rodapé do menu — dois rótulos
+  // para o mesmo comando confundiam quem navega por voz.
   const toggleLabel = !isDesktop
     ? (isMobileOpen ? "Fechar menu" : "Abrir menu")
-    : mode === "expandido" ? "Recolher o menu" : mode === "compacto" ? "Esconder o menu" : "Mostrar o menu";
+    : isOpen ? "Recolher o menu" : mode === "compacto" ? "Expandir o menu" : "Abrir o menu";
+  const toggleIcon = !isDesktop
+    ? (isMobileOpen ? "close" : "menu")
+    : isOpen ? "left_panel_close" : "left_panel_open";
 
   return (
     <header
@@ -43,13 +55,13 @@ export default function Topbar({ topOffset, onOpenPalette, onOpenShortcuts }: {
         <TooltipTrigger asChild>
           <button
             type="button"
-            onClick={isDesktop ? cycle : toggleMobile}
+            onClick={isDesktop ? toggleMenu : toggleMobile}
             aria-label={toggleLabel}
-            aria-expanded={isDesktop ? !hidden : isMobileOpen}
+            aria-expanded={isVisibleToAT}
             aria-controls="app-sidebar"
             className="flex items-center justify-center w-[34px] h-[34px] shrink-0 rounded-lg border-0 bg-transparent text-slate-600 cursor-pointer transition-colors hover:bg-slate-100 outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           >
-            <MI name={!isDesktop ? (isMobileOpen ? "close" : "menu") : mode === "expandido" ? "menu_open" : "menu"} size={20} />
+            <MI name={toggleIcon} size={20} />
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom" sideOffset={6}>{toggleLabel}{isDesktop ? ` (${MOD}\\)` : ""}</TooltipContent>

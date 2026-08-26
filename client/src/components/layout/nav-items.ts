@@ -24,8 +24,19 @@ export interface NavGroup {
   /** Cor do ícone do grupo (ajuda a se localizar no menu). */
   iconClass: string;
   ids: string[];
-  /** Subconjunto contíguo com rótulo próprio (ex.: as 4 telas do fluxo da Escala). */
-  subgroup?: { label: string; ids: string[] };
+  /**
+   * Subconjunto contíguo com rótulo e COR próprios (ex.: as 4 telas do fluxo da
+   * Escala). A cor separada existe para o módulo novo não se confundir com o
+   * fluxo antigo do mesmo grupo.
+   */
+  subgroup?: {
+    label: string;
+    /** Cor dos ÍCONES das telas do subgrupo. */
+    iconClass: string;
+    /** Cor do sub-rótulo — o mesmo matiz, um tom mais fechado para o texto miúdo. */
+    labelClass: string;
+    ids: string[];
+  };
 }
 
 export const ALL_TABS: NavTab[] = [
@@ -65,7 +76,16 @@ export const MENU_GROUPS: NavGroup[] = [
     iconClass: "text-orange-500",
     // Módulo de Escala na ordem do fluxo: Sugestão → Validação → Aprovação → Histórico
     ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "scaling-event-view", "team-inclusion", "scaling", "tickets", "accommodations", "operational-mirror", "baggage-control"],
-    subgroup: { label: "Escala", ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "scaling-event-view"] },
+    // Ciano: o fluxo da Escala é um módulo à parte do operacional antigo
+    // (Inclusão, Escalação, Passagens…), e a cor diz isso sem caixa nem borda.
+    subgroup: {
+      label: "Escala",
+      iconClass: "text-cyan-600",
+      // cyan-800 cheio: em 10px, o cyan-700 a 80% dava 3,66:1 sobre branco —
+      // abaixo do mínimo de 4,5:1 para texto pequeno.
+      labelClass: "text-cyan-800",
+      ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "scaling-event-view"],
+    },
   },
   { title: "Financeiro", iconClass: "text-emerald-600", ids: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "flash-account", "calculation-rules", "system-settings"] },
   { title: "Gestão", iconClass: "text-violet-600", ids: ["consultation", "admin-users", "simulation"] },
@@ -102,6 +122,14 @@ export function visibleGroups(user: User | null): ResolvedGroup[] {
   })).filter((g) => g.items.length > 0);
 }
 
+/**
+ * Cor do ícone de UMA tela no menu: a do subgrupo, quando ela pertence a um;
+ * senão a do grupo. O item ATIVO ignora isto e usa sempre o azul de marca.
+ */
+export function iconClassFor(group: NavGroup, tabId: string): string {
+  return group.subgroup?.ids.includes(tabId) ? group.subgroup.iconClass : group.iconClass;
+}
+
 /** Grupo (e subgrupo) a que uma tela pertence — base da trilha do topo. */
 export function groupOf(tabId: string): { group: NavGroup; subLabel?: string } | undefined {
   for (const group of MENU_GROUPS) {
@@ -129,7 +157,8 @@ export function breadcrumbFor(path: string): Breadcrumb | null {
     trail: found ? [found.group.title, ...(found.subLabel ? [found.subLabel] : [])] : [],
     label: tab.label,
     icon: tab.icon,
-    iconClass: found?.group.iconClass ?? "text-primary",
+    // Mesma cor que a tela tem no menu (o subgrupo Escala manda na sua).
+    iconClass: found ? iconClassFor(found.group, tab.id) : "text-primary",
   };
 }
 

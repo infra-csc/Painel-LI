@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
-import { CalendarDays, CheckCircle2, CheckSquare, ClipboardCheck, Clock, EyeOff, Search, ShieldCheck, Square } from "lucide-react";
+import { CalendarDays, CheckCircle2, CheckSquare, Clock, EyeOff, Search, ShieldCheck, Square } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -23,6 +23,7 @@ import { scalingHref, useScalingEvent } from "@/lib/use-scaling-event";
 import { normalizeRole } from "@shared/roles";
 import type { Event } from "@shared/schema";
 import {
+  ALL_EVENTS_ROW_LIMIT,
   CHANGE_REQUEST_STATUS, CHANGE_REQUEST_STATUS_LABELS, CHANGE_REQUEST_STATUS_VALUES,
   CHANGE_REQUEST_TYPES, CHANGE_REQUEST_TYPE_LABELS, STALLED_DAYS, SUGESTAO_STATUS, daysPending,
   pendingSeverity, type ChangeRequestType,
@@ -112,7 +113,9 @@ export default function ScalingApprovalPage() {
   const canDecideByRole = hasPermission(user, "canEditScalingApproval");
 
   // ── Estado ──
-  const { eventId, setEventId, sanitize } = useScalingEvent(BASE_PATH);
+  // A tela ABRE em "Todos os eventos" (regra do dono, 26/08): o combobox é
+  // FILTRO. Sem `?eventId=` na URL, nada é pré-selecionado.
+  const { eventId, setEventId, sanitize } = useScalingEvent(BASE_PATH, { allEventsDefault: true });
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const searchString = useSearch();
@@ -206,18 +209,40 @@ export default function ScalingApprovalPage() {
   /** Evento da vaga que o Sheet aberto precisa (formulário editável do ajuste). */
   const sheetEventId = openRequest?.requestType === "ajuste" && openRequest.teamInclusionId ? openRequest.eventId : "";
   /**
-   * Com evento escolhido, o aprovador SEMPRE carrega as sugestões: a aba
-   * "Vagas aguardando aprovação" é o caminho normal e o contador dela precisa
-   * do dado antes de a aba abrir. Sem evento (ou para quem não decide), busca
-   * só o que o Sheet aberto precisa.
+   * Quem DECIDE carrega as vagas SEMPRE — com evento escolhido ou em "Todos os
+   * eventos" (aí o servidor devolve as vagas em validação de todos, com teto).
+   *
+   * Antes a busca dependia de haver evento selecionado, e o contador
+   * "Aguardando aprovação" caía para 0 no padrão da tela: o aprovador via
+   * "nenhum pedido pendente — bom trabalho" com 15 vagas validadas esperando
+   * decisão. A tela MENTIA; é o caso que esta query resolve.
+   *
+   * Quem não decide continua buscando só o que o Sheet aberto precisa.
    */
-  const suggestionsEventId = eventId && (isApprover || tab !== "fila") ? eventId : sheetEventId;
+  const suggestionsEventId = isApprover ? eventId : sheetEventId;
+  const suggestionsEnabled = canAccess && (isApprover || !!sheetEventId);
   const suggestionsQuery = useQuery<StalledRow[]>({
     queryKey: [SUGGESTIONS_QUERY_KEY, suggestionsEventId],
-    queryFn: async () => (await apiRequest("GET", `${SUGGESTIONS_QUERY_KEY}?eventId=${encodeURIComponent(suggestionsEventId)}`)).json(),
-    enabled: canAccess && !!suggestionsEventId,
+    queryFn: async () =>
+      (await apiRequest(
+        "GET",
+        suggestionsEventId ? `${SUGGESTIONS_QUERY_KEY}?eventId=${encodeURIComponent(suggestionsEventId)}` : SUGGESTIONS_QUERY_KEY,
+      )).json(),
+    enabled: suggestionsEnabled,
     staleTime: 15_000,
   });
+  /**
+   * Enquanto as vagas carregam, NENHUM contador pode mostrar 0 — repetir a
+   * mentira em outra forma. Os tiles mostram "…" enquanto isto for true.
+   */
+  const loadingAwaiting = suggestionsEnabled && (suggestionsQuery.isLoading || (isApprover && !suggestionsQuery.data && !suggestionsQuery.error));
+  /** O servidor cortou a lista de vagas? (só existe teto no modo "todos"). */
+  const suggestionsTruncated = !suggestionsEventId && (suggestionsQuery.data?.length ?? 0) >= ALL_EVENTS_ROW_LIMIT;
+  /** Quantos eventos estão representados nas vagas exibidas (modo "todos"). */
+  const eventsInSuggestions = useMemo(
+    () => new Set((suggestionsQuery.data ?? []).map((r) => r.eventId)).size,
+    [suggestionsQuery.data],
+  );
   const openInclusion = useMemo(
     () => (openRequest?.teamInclusionId ? (suggestionsQuery.data ?? []).find((s) => s.id === openRequest.teamInclusionId) ?? null : null),
     [suggestionsQuery.data, openRequest?.teamInclusionId],
@@ -265,11 +290,14 @@ export default function ScalingApprovalPage() {
    * Aba padrão: com vagas aguardando aprovação, é ali que o aprovador precisa
    * estar. Roda uma vez por evento e só enquanto o usuário não escolheu aba.
    */
+  // Vale também em "Todos os eventos" (chave "__todos__"): é justamente ali que
+  // o aprovador precisa cair na fila que trava a escala.
   useEffect(() => {
-    if (!isApprover || !eventId || tabPickedByUser.current) return;
+    if (!isApprover || tabPickedByUser.current) return;
     if (suggestionsQuery.isLoading || !suggestionsQuery.data) return;
-    if (autoTabEventId.current === eventId) return;
-    autoTabEventId.current = eventId;
+    const scope = eventId || "__todos__";
+    if (autoTabEventId.current === scope) return;
+    autoTabEventId.current = scope;
     setTab(awaitingRowsAll.length > 0 ? "aprovacao" : "fila");
   }, [isApprover, eventId, suggestionsQuery.isLoading, suggestionsQuery.data, awaitingRowsAll.length]);
 
@@ -395,10 +423,6 @@ export default function ScalingApprovalPage() {
 
   const loadError = listQuery.error as ApiError | null;
   const forbidden = loadError?.status === 403;
-  const needsEventHint = (tab === "paradas" || tab === "aprovacao") && !eventId;
-  const needsEventHintText = tab === "aprovacao"
-    ? "Escolha um evento para ver as vagas aguardando aprovação."
-    : "Escolha um evento para ver as vagas paradas.";
   /** "Posso decidir" (contador + filtro) só faz sentido para quem decide alguma coisa. */
   const showMineFilter = !isAdmin && !readOnlyMode;
 
@@ -413,12 +437,13 @@ export default function ScalingApprovalPage() {
         : awaitingRowsAll.length ? "text-sky-700" : "",
       active: tab === "aprovacao",
       onClick: () => switchTab("aprovacao"),
-      hint: !eventId
-        ? "Escolha um evento para ver as vagas aguardando aprovação"
-        : stalledAwaiting.count
-          ? `${stalledAwaiting.count} vaga(s) parada(s) há ${STALLED_DAYS} dias ou mais esperando a sua decisão`
-          : "Vagas validadas pela área que dependem da sua decisão",
-      loading: !!eventId && suggestionsQuery.isLoading,
+      hint: stalledAwaiting.count
+        ? `${stalledAwaiting.count} vaga(s) parada(s) há ${STALLED_DAYS} dias ou mais esperando a sua decisão`
+        : eventId
+          ? "Vagas validadas pela área que dependem da sua decisão"
+          : "Vagas validadas pela área, de todos os eventos, que dependem da sua decisão",
+      // Nunca 0 enquanto carrega: o tile mostra "…" (o 0 falso foi o achado do dono).
+      loading: loadingAwaiting,
     }] : []),
     { key: "pendentes", label: "Pendentes", n: counts.pendentes, cls: "", active: activeQuick === "pendentes" && !lateOnly && !mineOnly && tab === "fila", onClick: () => { setLateOnly(false); setMineOnly(false); applyQuick("pendentes"); }, hint: "Ver todos os pendentes" },
     { key: "ajuste", label: "Ajustes", n: counts.ajuste, cls: "text-amber-700", active: activeQuick === "ajuste", onClick: () => applyQuick("ajuste"), hint: "Filtrar por ajustes pendentes" },
@@ -446,7 +471,7 @@ export default function ScalingApprovalPage() {
             {loadingEvents ? (
               <div className="h-8 w-[280px] max-w-full rounded-lg bg-slate-100 animate-pulse" aria-hidden="true" />
             ) : (
-              <div className={cn("w-[280px] max-w-full", needsEventHint && "rounded-lg ring-2 ring-primary/40 ring-offset-1")}>
+              <div className="w-[280px] max-w-full">
                 <EventCombobox events={activeEvents} value={eventId || ALL} onValueChange={(v) => setEventId(v === ALL ? "" : v)} placeholder="Todos os eventos" showAllOption testId="scaling-approval-event" className="h-8 rounded-lg font-semibold" />
               </div>
             )}
@@ -473,7 +498,12 @@ export default function ScalingApprovalPage() {
             <Input id="apr-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Função, evento, #ID, solicitante ou motivo" className="h-8 pl-8 rounded-lg bg-slate-50 text-[13px]" />
           </div>
         </div>
-        {needsEventHint && <p className="-mt-1 text-[11px] text-primary" id="apr-event-hint">{needsEventHintText}</p>}
+        {!eventId && isApprover && eventsInSuggestions > 0 && (
+          <p className="-mt-1 text-[11px] text-slate-500">
+            Mostrando vagas de {eventsInSuggestions} {eventsInSuggestions === 1 ? "evento" : "eventos"} — escolha um evento acima para filtrar.
+            {suggestionsTruncated ? ` Só as ${ALL_EVENTS_ROW_LIMIT} que esperam há mais tempo cabem nesta lista.` : ""}
+          </p>
+        )}
 
         {/* Contadores = filtros rápidos (clicar de novo limpa) */}
         <div className="flex flex-wrap gap-2" role="group" aria-label="Resumo da fila (filtros rápidos)">
@@ -511,11 +541,11 @@ export default function ScalingApprovalPage() {
             {/* Caminho normal do fluxo desde 19/08: validar não aprova — a vaga passa por aqui. */}
             {isApprover && (
               <TabsTrigger value="aprovacao" className={TAB_TRIGGER}>
-                Vagas aguardando aprovação{eventId && awaitingRowsAll.length > 0 ? ` (${awaitingRowsAll.length})` : ""}
+                Vagas aguardando aprovação{awaitingRowsAll.length > 0 ? ` (${awaitingRowsAll.length})` : ""}
               </TabsTrigger>
             )}
             <TabsTrigger value="fila" className={TAB_TRIGGER}>Fila de pedidos</TabsTrigger>
-            {isApprover && <TabsTrigger value="paradas" className={TAB_TRIGGER}>Vagas paradas{eventId && stalledRows.length > 0 ? ` (${stalledRows.length})` : ""}</TabsTrigger>}
+            {isApprover && <TabsTrigger value="paradas" className={TAB_TRIGGER}>Vagas paradas{stalledRows.length > 0 ? ` (${stalledRows.length})` : ""}</TabsTrigger>}
           </TabsList>
           <div className="flex flex-wrap items-center gap-3">
             {tab === "fila" && showMineFilter && (
@@ -539,21 +569,22 @@ export default function ScalingApprovalPage() {
                 label={`Só as minhas funções${onlyMineStalled && stalledRows.length !== stalledRowsAll.length ? ` (${stalledRowsAll.length - stalledRows.length} oculta(s))` : ""}`}
               />
             )}
+            {/* Única região aria-live da tela — a contagem da aba aberta. */}
             <p className="text-xs text-slate-500" aria-live="polite">
               {tab === "fila"
                 ? `${filtered.length} de ${items.length} pedido(s)`
                 : tab === "aprovacao"
-                  ? "Vagas validadas pela área — aguardando a sua decisão"
-                  : `Vagas que a área não validou há ${STALLED_DAYS} dias ou mais`}
+                  ? `${awaitingRows.length} vaga(s) validada(s) aguardando a sua decisão${!eventId && eventsInSuggestions > 1 ? ` · ${eventsInSuggestions} eventos` : ""}`
+                  : `${stalledRows.length} vaga(s) sem validação da área há ${STALLED_DAYS} dias ou mais`}
             </p>
           </div>
         </div>
 
         {isApprover && (
           <TabsContent value="aprovacao" className="mt-0 space-y-3">
-            {!eventId ? (
-              <EmptyState icon={ClipboardCheck} title="Selecione um evento" description="As vagas aguardando aprovação são listadas por evento. Escolha um evento no filtro acima." />
-            ) : suggestionsQuery.isLoading ? (
+            {/* Sem evento a aba mostra as vagas de TODOS os eventos — o estado
+                vazio só aparece quando está vazio DE VERDADE (regra do dono). */}
+            {suggestionsQuery.isLoading ? (
               <LoadingState count={4} label="Carregando vagas…" />
             ) : suggestionsQuery.error ? (
               <ErrorState title="Não foi possível carregar as vagas" description={apiErrorMessage(suggestionsQuery.error, "Tente novamente.")} onRetry={() => suggestionsQuery.refetch()} />
@@ -585,6 +616,7 @@ export default function ScalingApprovalPage() {
                     functionNameById={functionNameById}
                     userNameById={userNameById}
                     approverNamesFor={(row) => approverNamesByFunctionId.get(row.functionId) ?? []}
+                    showEvent={!eventId}
                     busy={busyVagas}
                     onApprove={(selectedRows) => approveVagas.mutate({ ids: selectedRows.map((r) => r.id) })}
                     // mutateAsync: o diálogo de reprovar/devolver só fecha (e só
@@ -634,9 +666,8 @@ export default function ScalingApprovalPage() {
 
         {isApprover && (
           <TabsContent value="paradas" className="mt-0 space-y-3">
-            {!eventId ? (
-              <EmptyState icon={ClipboardCheck} title="Selecione um evento" description="As vagas paradas são listadas por evento. Escolha um evento no filtro acima." />
-            ) : suggestionsQuery.isLoading ? (
+            {/* Idem: "Vagas paradas" não exige mais escolher um evento. */}
+            {suggestionsQuery.isLoading ? (
               <LoadingState count={4} label="Carregando vagas…" />
             ) : suggestionsQuery.error ? (
               <ErrorState title="Não foi possível carregar as vagas" description={apiErrorMessage(suggestionsQuery.error, "Tente novamente.")} onRetry={() => suggestionsQuery.refetch()} />
@@ -654,6 +685,7 @@ export default function ScalingApprovalPage() {
                     functionNameById={functionNameById}
                     canActOn={(row) => row.canDecide === true}
                     approverNamesFor={(row) => approverNamesByFunctionId.get(row.functionId) ?? []}
+                    showEvent={!eventId}
                     busy={busy}
                     onDecide={(row, kind, comment) => bypass.mutate({ inclusionId: row.id, kind, comment })}
                   />

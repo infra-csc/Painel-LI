@@ -4446,8 +4446,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...cenoEmpreitaDefaultsMap(),
       };
       const result: Record<string, number> = { ...defaults };
+      // Esta rota entrega VALORES (centavos e percentuais inteiros) — o cliente
+      // tipa a resposta como Record<string, number>. system_settings, porém, é
+      // uma tabela genérica de key/value em texto e já guarda chaves NÃO
+      // numéricas (ex.: `escala_aprovador_padrao`, cujo value é um users.id).
+      // Um parseInt nessas linhas viraria NaN e sairia como `null` no JSON,
+      // poluindo a resposta — então ignoramos tudo que não for inteiro finito.
+      // Chaves não numéricas têm caminho próprio (o aprovador padrão é lido em
+      // GET /api/scaling-default-approver).
+      // O teste é o value INTEIRO casar com um inteiro — parseInt sozinho não
+      // serve, porque um UUID que comece com dígito ("3f2a-…") viraria 3.
       for (const s of settings) {
-        result[s.key] = parseInt(s.value, 10);
+        const raw = (s.value ?? "").trim();
+        if (!/^-?\d+$/.test(raw)) continue;
+        const parsed = parseInt(raw, 10);
+        if (!Number.isFinite(parsed)) continue;
+        result[s.key] = parsed;
       }
       res.json(result);
     } catch (error) {

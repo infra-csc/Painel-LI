@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { EmptyState } from "@/components/common/empty-state";
 import { cn, formatDiarias } from "@/lib/utils";
-import { PendingDaysBadge, periodLabel, workDaysOf } from "@/components/scaling-validation/suggestions-list";
+import { PendingDaysBadge, eventPeriodLabel, periodLabel, workDaysOf } from "@/components/scaling-validation/suggestions-list";
 import { STALLED_DAYS } from "@shared/scaling-validation-rules";
 import type { StalledRow as SuggestionRow } from "./types";
 
@@ -24,6 +24,11 @@ interface StalledSuggestionsProps {
   canActOn: (row: SuggestionRow) => boolean;
   /** Nome(s) do(s) aprovador(es) da função da linha, para explicar quem decide. */
   approverNamesFor?: (row: SuggestionRow) => string[];
+  /**
+   * "Todos os eventos": a coluna Evento aparece (a lista mistura eventos e a
+   * ordem continua sendo pelo tempo parado). Com filtro por evento ela some.
+   */
+  showEvent?: boolean;
   busy?: boolean;
   onDecide: (row: SuggestionRow, kind: "approve" | "reject", comment?: string) => void;
 }
@@ -34,7 +39,7 @@ const TH = "px-2.5 py-2 text-left text-[11px] uppercase tracking-[0.06em] text-s
  * "Vagas paradas": sugestões que a área nunca validou (sugestao_pendente, sem
  * pedido) há ≥ STALLED_DAYS dias. O aprovador pode aprovar direto ou reprovar (bypass).
  */
-export function StalledSuggestions({ rows, functionNameById, canActOn, approverNamesFor, busy, onDecide }: StalledSuggestionsProps) {
+export function StalledSuggestions({ rows, functionNameById, canActOn, approverNamesFor, showEvent = false, busy, onDecide }: StalledSuggestionsProps) {
   const [confirm, setConfirm] = useState<{ row: SuggestionRow; kind: "approve" | "reject" } | null>(null);
   const [comment, setComment] = useState("");
 
@@ -46,7 +51,15 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
   };
 
   if (rows.length === 0) {
-    return <EmptyState icon={CheckCircle2} title="Nenhuma vaga parada" description={`Todas as vagas pendentes deste evento têm menos de ${STALLED_DAYS} dias ou já estão com pedido aberto.`} />;
+    return (
+      <EmptyState
+        icon={CheckCircle2}
+        title="Nenhuma vaga parada"
+        description={showEvent
+          ? `Nenhum evento tem vaga esperando validação da área há ${STALLED_DAYS} dias ou mais sem pedido aberto.`
+          : `Todas as vagas pendentes deste evento têm menos de ${STALLED_DAYS} dias ou já estão com pedido aberto.`}
+      />
+    );
   }
 
   return (
@@ -66,6 +79,7 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
             <thead className="bg-slate-50">
               <tr>
                 <th scope="col" className={TH}>Vaga</th>
+                {showEvent && <th scope="col" className={cn(TH, "min-w-[170px]")}>Evento</th>}
                 <th scope="col" className={TH}>Área</th>
                 <th scope="col" className={TH}>Período / diárias</th>
                 <th scope="col" className={TH}>Parada há</th>
@@ -90,6 +104,14 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                         </div>
                       </div>
                     </td>
+                    {showEvent && (
+                      <td className="px-2.5 py-2 align-middle max-w-[220px]">
+                        <span className="block truncate text-[13px] font-semibold text-slate-700" title={row.eventName ?? undefined}>
+                          {row.eventName ?? "Evento sem nome"}
+                        </span>
+                        <span className="block font-mono text-[11px] text-slate-400">{eventPeriodLabel(row) || "—"}</span>
+                      </td>
+                    )}
                     <td className="px-2.5 py-2 align-middle text-xs text-slate-600">{row.area ?? "—"}</td>
                     <td className="px-2.5 py-2 align-middle whitespace-nowrap">
                       <span className="font-mono tabular-nums text-xs text-slate-700">{periodLabel(row)}</span>

@@ -38,6 +38,7 @@ import type { TeamInclusion } from "@shared/schema";
 import { getStatusBadge } from "./scaling-table";
 import ConfirmDialog from "./confirm-dialog";
 import { SwapStatusCard, RequestSwapButton, SwapRequestDialog } from "./swap-request-panel";
+import { AdjustRequestPanel } from "./adjust-request-panel";
 import { ProductionApprovalCard } from "./production-approval-card";
 import { PassagemTab, HospedagemTab, ComentariosTab } from "./inclusion-details-tabs";
 import { parseDay, isEscalated, isEscalationConfirmed, isCityFromSP, formatDateWithWeekday, type ModalData } from "./scaling-utils";
@@ -248,7 +249,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
   }, [open, hasPrev, hasNext, onNavigate]);
 
   const {
-    collaborators,
+    collaborators, events,
     getEventName, getFunctionName, getCollaboratorName, getCollaboratorCity,
     getPurchasedTicket, getTicket, getAccommodation,
     canManageFunction, canEditCollaborator, canConfirmEscalation, canApproveProduction, isAdminOrPurchasing,
@@ -777,6 +778,16 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                       </div>
                     </div>
                   </div>
+
+                  {/* Pedido de ajuste da vaga já escalada (regra do dono, 26/08):
+                      dias, diárias e viagem ainda podem mudar por pedido ao
+                      aprovador enquanto a passagem não for comprada. Quem decide
+                      se aparece é o servidor (papel + janela). */}
+                  <AdjustRequestPanel
+                    inclusion={inclusion}
+                    event={events?.find(e => e.id === inclusion.eventId)}
+                    functionName={getFunctionName(inclusion.functionId)}
+                  />
 
                   {/* Tipo de freela da cenotécnica (empreita) — definido AQUI, na
                       Escalação, por pedido do usuário (19/08). Aparece também

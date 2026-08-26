@@ -24,7 +24,7 @@ import { formatDateRange } from "@/lib/dates";
 import { scalingHref } from "@/lib/use-scaling-event";
 import type { Event } from "@shared/schema";
 import { MI } from "./mi";
-import { visibleTabs, groupOf, SCALING_MODULE_PATHS } from "./nav-items";
+import { visibleTabs, groupOf, iconClassFor, SCALING_MODULE_PATHS } from "./nav-items";
 import { MOD } from "./shortcuts";
 
 export default function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -93,7 +93,7 @@ export default function CommandPalette({ open, onOpenChange }: { open: boolean; 
                     onSelect={() => go(tab.path)}
                     className="gap-2.5 px-2.5 py-2 rounded-lg text-[13px] cursor-pointer"
                   >
-                    <span className={found?.group.iconClass ?? "text-primary"}>
+                    <span className={found ? iconClassFor(found.group, tab.id) : "text-primary"}>
                       <MI name={tab.icon} filled size={17} />
                     </span>
                     <span className="flex-1 text-slate-900">{tab.label}</span>

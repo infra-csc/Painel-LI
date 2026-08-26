@@ -12,7 +12,7 @@ import {
 import { EmptyState } from "@/components/common/empty-state";
 import { cn, formatDiarias } from "@/lib/utils";
 import { formatDateBr } from "@/lib/dates";
-import { periodLabel, workDaysOf } from "@/components/scaling-validation/suggestions-list";
+import { eventPeriodLabel, periodLabel, workDaysOf } from "@/components/scaling-validation/suggestions-list";
 import { DANGER_DAYS, STALLED_DAYS, daysAwaitingApproval, pendingSeverity } from "@shared/scaling-validation-rules";
 import { isStaleDecisionError } from "./use-decisions";
 import type { StalledRow as SuggestionRow, VagaDecisionKind } from "./types";
@@ -24,6 +24,13 @@ interface AwaitingApprovalProps {
   userNameById?: Map<string, string>;
   /** Nome(s) do(s) aprovador(es) da função da linha, para explicar quem decide. */
   approverNamesFor?: (row: SuggestionRow) => string[];
+  /**
+   * "Todos os eventos": a fila mistura eventos, então cada linha precisa dizer
+   * de qual é. A ORDEM continua sendo por tempo de espera (a vaga mais antiga
+   * no topo, venha do evento que vier) — agrupar por evento esconderia a que
+   * está travando a escala. Com um evento filtrado a coluna some.
+   */
+  showEvent?: boolean;
   busy?: boolean;
   /** Aprovação em lote (POST /aprovar-lote). */
   onApprove: (rows: SuggestionRow[]) => void;
@@ -141,7 +148,7 @@ const DECISION_COPY: Record<VagaDecisionKind, { title: string; help: string; act
  * últimas com comentário obrigatório, uma vaga por vez.
  */
 export function AwaitingApproval({
-  rows, functionNameById, userNameById, approverNamesFor, busy, onApprove, onDecide,
+  rows, functionNameById, userNameById, approverNamesFor, showEvent = false, busy, onApprove, onDecide,
 }: AwaitingApprovalProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   /** Vagas do diálogo de aprovação — o da barra (seleção) e o do botão da linha usam o mesmo. */
@@ -251,6 +258,7 @@ export function AwaitingApproval({
                   />
                 </th>
                 <th scope="col" className={TH}>Vaga</th>
+                {showEvent && <th scope="col" className={cn(TH, "min-w-[170px]")}>Evento</th>}
                 <th scope="col" className={TH}>Período / diárias</th>
                 <th scope="col" className={TH}>Validada por</th>
                 <th scope="col" className={TH}>Aguardando</th>
@@ -287,6 +295,14 @@ export function AwaitingApproval({
                         </div>
                       </div>
                     </td>
+                    {showEvent && (
+                      <td className="px-2.5 py-2 align-middle max-w-[220px]">
+                        <span className="block truncate text-[13px] font-semibold text-slate-700" title={row.eventName ?? undefined}>
+                          {row.eventName ?? "Evento sem nome"}
+                        </span>
+                        <span className="block font-mono text-[11px] text-slate-400">{eventPeriodLabel(row) || "—"}</span>
+                      </td>
+                    )}
                     <td className="px-2.5 py-2 align-middle whitespace-nowrap">
                       <span className="font-mono tabular-nums text-xs text-slate-700">{periodLabel(row)}</span>
                       <span className="ml-1.5 text-[11px] text-slate-400">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
@@ -345,6 +361,9 @@ export function AwaitingApproval({
                     <li key={r.id} className="flex items-center gap-2 px-3 py-1.5">
                       <span className="rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800">#{r.inclusionNumber}</span>
                       <span className="truncate font-semibold">{functionNameById.get(r.functionId) ?? "—"}</span>
+                      {/* Lote de "todos os eventos" pode misturar eventos: o
+                          aprovador precisa ver isso ANTES de confirmar. */}
+                      {showEvent && <span className="truncate text-slate-500">{r.eventName ?? "—"}</span>}
                       <span className="ml-auto font-mono text-slate-500 whitespace-nowrap">{periodLabel(r)}</span>
                     </li>
                   ))}

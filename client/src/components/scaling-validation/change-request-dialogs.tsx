@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { apiErrorMessage, formatDiarias } from "@/lib/utils";
-import type { Event, Function as FunctionType } from "@shared/schema";
+import type { Event, Function as FunctionType, TeamInclusion } from "@shared/schema";
 import {
   diffInclusion, PROPOSED_FIELD_LABELS, TRANSPORT_MODE_LABELS,
   type ProposedChanges, type ProposedField, type TransportMode,
@@ -23,6 +23,29 @@ import { describeLastDecision, invalidateScalingQueries, workDaysOf, ymd, type A
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 const orNull = <T,>(v: T | ""): T | null => (v === "" ? null : v);
+
+// ── Casca dos diálogos ───────────────────────────────────────────────────────
+// Mesma estrutura do "Reajustar pedido" da Aprovação: cabeçalho fixo, corpo
+// rolável e rodapé preso — o motivo do pedido e os botões nunca somem da vista.
+
+const DIALOG_SHELL = "p-0 gap-0 flex flex-col max-h-[92vh] overflow-hidden rounded-2xl";
+const DIALOG_SHELL_WIDE = `${DIALOG_SHELL} max-w-3xl`;
+const DIALOG_HEADER = "px-6 pt-6 pb-3 border-b border-slate-100 pr-12";
+const DIALOG_BODY = "flex-1 overflow-y-auto px-6 py-4 space-y-4";
+const DIALOG_STICKY = "shrink-0 border-t border-slate-200 bg-slate-50/60 px-6 py-3 space-y-2";
+
+/** Motivo do pedido — obrigatório nos três diálogos, sempre no rodapé fixo. */
+function ReasonField({ id, value, onChange, disabled, placeholder, label = "Motivo do pedido" }: {
+  id: string; value: string; onChange: (v: string) => void; disabled?: boolean; placeholder: string; label?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id} className="text-xs text-slate-600">{label} <span className="text-red-500" aria-hidden="true">*</span></Label>
+      <Textarea id={id} rows={2} maxLength={1000} value={value} disabled={disabled} required aria-required="true"
+        placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className="rounded-lg text-sm bg-white" />
+    </div>
+  );
+}
 
 /** Callback disparado após o pedido ser aceito pelo servidor (id da vaga; null em inclusão). */
 export type OnRequestSent = (inclusionId: string | null) => void;
@@ -75,7 +98,7 @@ export function ApproverCommentBanner({ info }: { info: LastDecisionInfo | null 
   const when = info.at ? formatDateBr(info.at) : "";
   const typeLabel = CHANGE_REQUEST_TYPE_LABELS[info.requestType] ?? info.requestType;
   return (
-    <div role="note" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 space-y-1">
+    <div role="note" className="rounded-2xl border border-amber-300 bg-amber-50 px-3 py-2.5 space-y-1">
       <p className="text-[11px] font-bold uppercase tracking-wide text-amber-800">{d.title} · pedido de {typeLabel.toLowerCase()}</p>
       <p className="text-sm text-slate-800 whitespace-pre-wrap">{info.comment?.trim() ? info.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}</p>
       <p className="text-[11px] text-slate-600">{info.byName ?? "Aprovador"}{when ? ` · ${when}` : ""}</p>
@@ -85,16 +108,35 @@ export function ApproverCommentBanner({ info }: { info: LastDecisionInfo | null 
 
 // ── Pedido de AJUSTE ─────────────────────────────────────────────────────────
 
+/**
+ * Vaga que este diálogo consegue ajustar.
+ *
+ * Estruturalmente menor que `SuggestionRow` porque o mesmo diálogo agora abre
+ * de DOIS lugares (regra do dono, 26/08): da Validação, com a linha rica da API
+ * de sugestões, e do modal de Escalação, com a `TeamInclusion` crua de uma vaga
+ * JÁ ESCALADA. Os dois formatos entram aqui sem conversão.
+ */
+export type AdjustableInclusion = Omit<TeamInclusion, "workDays"> & {
+  workDays: string[] | null;
+  /** Só a Validação traz (banner do último comentário do aprovador). */
+  lastDecision?: LastDecisionInfo | null;
+};
+
 interface AdjustRequestDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  inclusion: SuggestionRow | null;
+  inclusion: AdjustableInclusion | null;
   event?: Event;
   functionName?: string;
   onSent?: OnRequestSent;
+  /**
+   * Vaga já escalada (pedido aberto pelo modal de Escalação). Muda só o texto:
+   * a pessoa continua escalada e nada muda até o aprovador decidir.
+   */
+  postScaling?: boolean;
 }
 
-export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, functionName, onSent }: AdjustRequestDialogProps) {
+export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, functionName, onSent, postScaling }: AdjustRequestDialogProps) {
   const [workDays, setWorkDays] = useState<string[]>([]);
   const [dailyRates, setDailyRates] = useState<string>("");
   const [dailyRatesTouched, setDailyRatesTouched] = useState(false);
@@ -178,15 +220,16 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
 
   return (
     <Dialog open={open} onOpenChange={(o) => !mutation.isPending && onOpenChange(o)}>
-      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl">
-        <DialogHeader>
+      <DialogContent className={DIALOG_SHELL_WIDE}>
+        <DialogHeader className={DIALOG_HEADER}>
           <DialogTitle>Pedir ajuste da vaga #{inclusion?.inclusionNumber}</DialogTitle>
           <DialogDescription>
             {functionName ?? "Função"}{event ? ` · ${event.name}` : ""}. Altere só o que precisa — o aprovador vê o “de/para”.
+            {postScaling && " A pessoa continua escalada: nada muda até o aprovador aceitar."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className={DIALOG_BODY}>
           <ApproverCommentBanner info={inclusion?.lastDecision} />
           <div className="space-y-2">
             <Label className="text-xs text-slate-600">Dias de trabalho <span className="text-red-400">*</span></Label>
@@ -208,7 +251,7 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
           <TravelFields idPrefix="adj" value={travel} disabled={mutation.isPending} onChange={(p) => setTravel((t) => ({ ...t, ...p }))} />
 
           {diff.length > 0 && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3" data-testid="adjust-diff">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3" data-testid="adjust-diff">
               <p className="text-[11px] font-bold uppercase tracking-wide text-amber-700 mb-2">O que muda ({diff.length})</p>
               <ul className="space-y-1 text-xs text-slate-700">
                 {diff.map((d) => (
@@ -222,21 +265,19 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
               </ul>
             </div>
           )}
-
-          <div className="space-y-1">
-            <Label htmlFor="adj-reason" className="text-xs text-slate-600">Motivo do pedido <span className="text-red-400">*</span></Label>
-            <Textarea id="adj-reason" rows={3} maxLength={1000} value={reason} disabled={mutation.isPending} required aria-required="true"
-              placeholder="Explique para o aprovador por que a vaga precisa mudar." onChange={(e) => setReason(e.target.value)} className="rounded-lg text-sm" />
-          </div>
-          {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
         </div>
 
-        <DialogFooter className="border-t border-slate-100 pt-3">
-          <Button type="button" variant="outline" className="rounded-lg" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
-          <Button type="button" onClick={submit} disabled={mutation.isPending} className="rounded-lg bg-primary hover:bg-primary-hover">
-            {mutation.isPending ? "Enviando…" : "Enviar pedido de ajuste"}
-          </Button>
-        </DialogFooter>
+        <div className={DIALOG_STICKY}>
+          <ReasonField id="adj-reason" value={reason} disabled={mutation.isPending} onChange={setReason}
+            placeholder="Explique para o aprovador por que a vaga precisa mudar." />
+          {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" className="rounded-lg bg-white" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
+            <Button type="button" onClick={submit} disabled={mutation.isPending} className="rounded-lg bg-primary hover:bg-primary-hover">
+              {mutation.isPending ? "Enviando…" : "Enviar pedido de ajuste"}
+            </Button>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -275,26 +316,30 @@ export function DeleteRequestDialog({ open, onOpenChange, inclusion, functionNam
 
   return (
     <Dialog open={open} onOpenChange={(o) => !mutation.isPending && onOpenChange(o)}>
-      <DialogContent className="max-w-md rounded-2xl">
-        <DialogHeader>
+      <DialogContent className={`${DIALOG_SHELL} max-w-md`}>
+        <DialogHeader className={DIALOG_HEADER}>
           <DialogTitle>Pedir exclusão da vaga #{inclusion?.inclusionNumber}</DialogTitle>
           <DialogDescription>
             {functionName ?? "Função"} — a vaga fica aguardando o aprovador. Se ele aprovar a exclusão, ela sai da escala e fica registrada como negada; se negar, volta para você validar.
           </DialogDescription>
         </DialogHeader>
-        <ApproverCommentBanner info={inclusion?.lastDecision} />
-        <div className="space-y-1">
-          <Label htmlFor="del-reason" className="text-xs text-slate-600">Motivo <span className="text-red-400">*</span></Label>
-          <Textarea id="del-reason" rows={3} maxLength={1000} value={reason} disabled={mutation.isPending} required aria-required="true"
-            placeholder="Por que esta vaga não deve existir?" onChange={(e) => setReason(e.target.value)} className="rounded-lg text-sm" />
-          {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
+
+        <div className={DIALOG_BODY}>
+          <ApproverCommentBanner info={inclusion?.lastDecision} />
+          <p className="text-xs text-slate-500">Nada é apagado agora: o pedido vai para o aprovador da função com o motivo abaixo.</p>
         </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" className="rounded-lg" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
-          <Button type="button" variant="destructive" className="rounded-lg" onClick={submit} disabled={mutation.isPending}>
-            {mutation.isPending ? "Enviando…" : "Pedir exclusão"}
-          </Button>
-        </DialogFooter>
+
+        <div className={DIALOG_STICKY}>
+          <ReasonField id="del-reason" label="Motivo da exclusão" value={reason} disabled={mutation.isPending} onChange={setReason}
+            placeholder="Por que esta vaga não deve existir?" />
+          {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" className="rounded-lg bg-white" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
+            <Button type="button" variant="destructive" className="rounded-lg" onClick={submit} disabled={mutation.isPending}>
+              {mutation.isPending ? "Enviando…" : "Pedir exclusão"}
+            </Button>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -390,13 +435,13 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
 
   return (
     <Dialog open={open} onOpenChange={(o) => !mutation.isPending && onOpenChange(o)}>
-      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl">
-        <DialogHeader>
+      <DialogContent className={DIALOG_SHELL_WIDE}>
+        <DialogHeader className={DIALOG_HEADER}>
           <DialogTitle>Incluir escalação{event ? ` — ${event.name}` : ""}</DialogTitle>
           <DialogDescription>Pedido de vaga nova para o aprovador da função. Se aprovado, as vagas nascem já como Inclusão (aguardando escalação).</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className={DIALOG_BODY}>
           <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
             <div className="space-y-1">
               <Label htmlFor="inc-function" className="text-xs text-slate-600">Função <span className="text-red-400">*</span></Label>
@@ -433,20 +478,19 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
           </div>
 
           <TravelFields idPrefix="inc" value={travel} disabled={mutation.isPending} onChange={(p) => setTravel((t) => ({ ...t, ...p }))} />
-          <div className="space-y-1">
-            <Label htmlFor="inc-reason" className="text-xs text-slate-600">Motivo do pedido <span className="text-red-400">*</span></Label>
-            <Textarea id="inc-reason" rows={3} maxLength={1000} value={reason} disabled={mutation.isPending} required aria-required="true"
-              placeholder="Por que a escala precisa desta(s) vaga(s) a mais?" onChange={(e) => setReason(e.target.value)} className="rounded-lg text-sm" />
-          </div>
-          {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
         </div>
 
-        <DialogFooter className="border-t border-slate-100 pt-3">
-          <Button type="button" variant="outline" className="rounded-lg" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
-          <Button type="button" onClick={submit} disabled={mutation.isPending || !event} className="rounded-lg bg-primary hover:bg-primary-hover">
-            {mutation.isPending ? "Enviando…" : "Enviar pedido de inclusão"}
-          </Button>
-        </DialogFooter>
+        <div className={DIALOG_STICKY}>
+          <ReasonField id="inc-reason" value={reason} disabled={mutation.isPending} onChange={setReason}
+            placeholder="Por que a escala precisa desta(s) vaga(s) a mais?" />
+          {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" className="rounded-lg bg-white" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
+            <Button type="button" onClick={submit} disabled={mutation.isPending || !event} className="rounded-lg bg-primary hover:bg-primary-hover">
+              {mutation.isPending ? "Enviando…" : "Enviar pedido de inclusão"}
+            </Button>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

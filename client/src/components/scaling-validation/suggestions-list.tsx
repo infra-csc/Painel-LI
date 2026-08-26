@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 import {
-  BedDouble, CheckCheck, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Clock, Lock,
-  MessageSquareWarning, PlaneLanding, PlaneTakeoff, PencilLine, Ticket, Trash2, Undo2, UserX,
+  CalendarDays, CheckCheck, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Clock, Lock,
+  MessageSquareWarning, PencilLine, Trash2, Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type SortConfig } from "@/components/common/sortable-header";
-import { cn, formatDiarias } from "@/lib/utils";
+import { cn, formatDateRange, formatDiarias } from "@/lib/utils";
 import { formatDateBr, formatDayMonthBr } from "@/lib/dates";
 import {
   SUGESTAO_STATUS, SUGESTAO_STATUS_LABELS, TRANSPORT_MODE_LABELS, CHANGE_REQUEST_TYPE_LABELS,
@@ -20,6 +20,7 @@ import {
   lockReason, workDaysOf, ymd,
   type DecisionDescription, type SuggestionRow,
 } from "./types";
+import { DayLabel, LegChip, NeedChips, dayText } from "./logistics-chips";
 
 // Reexport: outros módulos (ex.: scaling-approval) importam daqui.
 export { workDaysOf } from "./types";
@@ -95,32 +96,19 @@ export function PendingDaysBadge({ row, approverNames }: { row: PendingDaysRow; 
   );
 }
 
-/**
- * Vaga validada numa função SEM aprovador cadastrado: fila silenciosa — ninguém
- * recebe essa vaga do outro lado. O banner do topo da tela explica o conserto
- * (cadastrar em Funções); aqui o aviso fica na linha.
- */
-export function NoApproverBadge({ row, approverNames }: { row: PendingDaysRow; approverNames: string[] | undefined }) {
-  if (row.status !== SUGESTAO_STATUS.VALIDADA || approverNames === undefined || approverNames.length > 0) return null;
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span tabIndex={0} className={cn(BADGE, "bg-red-50 text-red-700 border-red-200")}>
-          <UserX className="w-3 h-3" aria-hidden="true" /> sem aprovador
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs text-xs">
-        Esta função não tem aprovador cadastrado — a vaga validada não vai para ninguém. Peça ao administrador para cadastrar um aprovador em Funções.
-      </TooltipContent>
-    </Tooltip>
-  );
-}
+// O badge vermelho "sem aprovador" foi REMOVIDO em 26/08 (decisão do dono: "não
+// tem isso de sem aprovador" — existe um aprovador padrão do sistema, então
+// nenhuma vaga validada fica sem quem decida). A salvaguarda continua onde ela
+// é acionável: na aba "Validação de Escala" dentro de Funções, que mostra ao
+// admin quais funções estão no aprovador padrão. Aqui, na tela da ÁREA, o aviso
+// era só ruído — quem valida não cadastra aprovador.
 
 function fmtDateTime(v: string | Date | null | undefined): string {
   if (!v) return "";
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return "";
-  return `${formatDateBr(d)} ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+  const weekday = dayText(d).split(" ")[0];
+  return `${weekday ? `${weekday} ` : ""}${formatDateBr(d)} ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 export function PendingRequestBadge({ row }: { row: SuggestionRow }) {
@@ -198,7 +186,6 @@ export function StatusCell({ row, approverNames }: { row: SuggestionRow; approve
     <div className="flex flex-wrap items-center gap-1">
       <SuggestionStatusBadge status={row.status} />
       <PendingDaysBadge row={row} approverNames={approverNames} />
-      <NoApproverBadge row={row} approverNames={approverNames} />
       <PendingRequestBadge row={row} />
       <LastDecisionBadge info={row.lastDecision} />
       <VagaDecisionBadge info={row.lastVagaDecision} />
@@ -226,12 +213,26 @@ export function legLabel(mode: string | null | undefined, date: unknown, time: s
   return parts.length ? parts.join(" ") : "—";
 }
 
-/** "05/09 – 08/09 · 4 diárias" com "N dias" (lista de dias) em tooltip. */
+/** Pontas do período: dias de trabalho quando existem, senão o intervalo da escala. */
+function periodEnds(row: SuggestionRow): [string, string] {
+  const days = workDaysOf(row);
+  if (days.length > 0) return [days[0], days[days.length - 1]];
+  return [ymd(row.scheduleStartDate), ymd(row.scheduleEndDate)];
+}
+
+/** "Sáb 05/09 – Ter 08/09 · 4 diárias" com "N dias" (lista de dias) em tooltip. */
 function PeriodCell({ row, className }: { row: SuggestionRow; className?: string }) {
   const days = workDaysOf(row);
+  const [start, end] = periodEnds(row);
   const label = (
     <span className={cn("font-mono tabular-nums", className)}>
-      {periodLabel(row)} <span className="text-slate-500 font-sans">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
+      {start
+        ? <>
+            <DayLabel v={start} />
+            {end && end !== start && <> – <DayLabel v={end} /></>}
+          </>
+        : "—"}
+      {" "}<span className="text-slate-500 font-sans">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
     </span>
   );
   if (days.length === 0) return label;
@@ -240,36 +241,27 @@ function PeriodCell({ row, className }: { row: SuggestionRow; className?: string
       <TooltipTrigger asChild><span tabIndex={0} className="cursor-help underline decoration-dotted decoration-slate-300 underline-offset-2">{label}</span></TooltipTrigger>
       <TooltipContent side="top" className="max-w-xs text-xs">
         <p className="font-semibold">{days.length} {days.length === 1 ? "dia" : "dias"} de trabalho</p>
-        <p className="font-mono">{days.map((d) => formatDayMonthBr(d)).join(", ")}</p>
+        <p className="font-mono">{days.map((d) => dayText(d) || formatDayMonthBr(d)).join(", ")}</p>
       </TooltipContent>
     </Tooltip>
   );
 }
 
-const CHIP = "inline-flex items-center gap-1 h-[22px] rounded-full px-2 text-[11px] font-medium whitespace-nowrap";
-
-/** Ida/volta + o que a vaga precisa, em chips (uma coluna só de "Logística"). */
+/**
+ * Ida/volta + o que a vaga precisa, em chips (uma coluna só de "Logística") —
+ * mesma linguagem visual da grade da Sugestão (`logistics-chips`).
+ */
 function LogisticsChips({ row }: { row: SuggestionRow }) {
-  const ida = legLabel(row.transportModeIda, row.flightDepartureDate, row.flightArrivalSuggestedTime);
-  const volta = legLabel(row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime);
+  const hasLeg = !!(row.transportModeIda || row.flightDepartureDate || row.flightArrivalSuggestedTime
+    || row.transportModeVolta || row.flightReturnDate || row.flightReturnSuggestedTime);
+  if (!hasLeg && !row.needsTicket && !row.needsAccommodation) {
+    return <span className="text-[11px] text-slate-400">Sem logística</span>;
+  }
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <span className={cn(CHIP, "bg-brand-soft text-primary")}>
-        <PlaneTakeoff className="w-3 h-3" aria-hidden="true" /><span className="sr-only">Ida: </span>{ida}
-      </span>
-      <span className={cn(CHIP, "bg-brand-soft text-primary")}>
-        <PlaneLanding className="w-3 h-3" aria-hidden="true" /><span className="sr-only">Volta: </span>{volta}
-      </span>
-      {row.needsTicket && (
-        <span className={cn(CHIP, "bg-violet-50 text-violet-700")}>
-          <Ticket className="w-3 h-3" aria-hidden="true" />Passagem
-        </span>
-      )}
-      {row.needsAccommodation && (
-        <span className={cn(CHIP, "bg-sky-50 text-sky-700")}>
-          <BedDouble className="w-3 h-3" aria-hidden="true" />Hotel
-        </span>
-      )}
+      <LegChip dir="ida" mode={row.transportModeIda} date={row.flightDepartureDate} time={row.flightArrivalSuggestedTime} />
+      <LegChip dir="volta" mode={row.transportModeVolta} date={row.flightReturnDate} time={row.flightReturnSuggestedTime} />
+      <NeedChips needsTicket={row.needsTicket} needsAccommodation={row.needsAccommodation} />
     </div>
   );
 }
@@ -302,6 +294,63 @@ function LockedHint({ reason }: { reason: string }) {
 
 export type SuggestionSortField = "id" | "function" | "period";
 
+// ── Agrupamento por evento (modo "Todos os eventos", 26/08) ──────────────────
+
+export interface EventGroup {
+  key: string;
+  name: string;
+  /** "05/09 – 08/09/2026" — vazio quando o servidor não sabe o período. */
+  period: string;
+  rows: SuggestionRow[];
+}
+
+/** Período do evento de uma linha, no formato do resto do módulo. */
+export function eventPeriodLabel(row: Pick<SuggestionRow, "eventStartDate" | "eventEndDate">): string {
+  const start = ymd(row.eventStartDate);
+  if (!start) return "";
+  return formatDateRange(start, ymd(row.eventEndDate) || start, { withYear: true });
+}
+
+/**
+ * Agrupa as vagas por EVENTO mantendo a ordem que a tela já escolheu dentro de
+ * cada grupo (função, período, o que o usuário ordenou). Os grupos saem do mais
+ * recente para o mais antigo — quem abre "Todos os eventos" quer ver primeiro o
+ * que está acontecendo agora; sem data, o desempate é pelo nome.
+ */
+export function groupRowsByEvent(rows: SuggestionRow[]): EventGroup[] {
+  const groups = new Map<string, EventGroup & { start: string }>();
+  for (const row of rows) {
+    const key = row.eventId ?? "";
+    let g = groups.get(key);
+    if (!g) {
+      g = {
+        key,
+        name: row.eventName ?? "Evento sem nome",
+        period: eventPeriodLabel(row),
+        start: ymd(row.eventStartDate),
+        rows: [],
+      };
+      groups.set(key, g);
+    }
+    g.rows.push(row);
+  }
+  return Array.from(groups.values()).sort(
+    (a, b) => b.start.localeCompare(a.start) || a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }),
+  );
+}
+
+/** Rótulo do evento na linha/no card — mesmo padrão tipográfico do módulo. */
+function EventLine({ row }: { row: SuggestionRow }) {
+  const period = eventPeriodLabel(row);
+  return (
+    <span className="flex items-center gap-1 text-[11px] text-slate-500 min-w-0">
+      <CalendarDays className="w-3 h-3 shrink-0 text-slate-400" aria-hidden="true" />
+      <span className="truncate font-semibold text-slate-600">{row.eventName ?? "Evento sem nome"}</span>
+      {period && <span className="font-mono text-slate-400 whitespace-nowrap">· {period}</span>}
+    </span>
+  );
+}
+
 /** Ações por vaga (uma linha da tabela / um card). */
 export interface SuggestionRowActions {
   onValidate?: (row: SuggestionRow) => void;
@@ -329,6 +378,12 @@ export interface SuggestionsListProps extends SuggestionRowActions {
    * tela). Prop ausente → a tela não sabe e nada é afirmado.
    */
   approverNamesFor?: (row: SuggestionRow) => string[];
+  /**
+   * Modo "Todos os eventos": a tabela ganha cabeçalho de grupo por evento e o
+   * card ganha a linha do evento. Com um evento selecionado fica `false` — a
+   * barra de contexto já diz qual é, repetir em toda linha seria ruído.
+   */
+  showEvent?: boolean;
 }
 
 const TH = "px-3 py-2 text-left text-[11px] uppercase tracking-widest text-slate-500 font-semibold whitespace-nowrap";
@@ -430,7 +485,7 @@ function RowActions({ row, onValidate, onAdjust, onDelete, onOpenDetail, compact
 
 export function SuggestionsList({
   rows, functionNameById, selectableIds, selectedIds, onToggle, onToggleAll, showSelection, sortConfig, onSort,
-  onOpenDetail, highlightId, approverNamesFor, onValidate, onAdjust, onDelete,
+  onOpenDetail, highlightId, approverNamesFor, showEvent = false, onValidate, onAdjust, onDelete,
 }: SuggestionsListProps) {
   const selectableList = Array.from(selectableIds);
   const selectedVisible = selectableList.filter((id) => selectedIds.has(id)).length;
@@ -460,14 +515,66 @@ export function SuggestionsList({
     return <span className="block truncate text-[11px] text-slate-500" title={text}>{text}</span>;
   };
 
+  /** Uma linha da tabela (a mesma, agrupada por evento ou não). */
+  const tableRow = (row: SuggestionRow, i: number) => {
+    const selectable = selectableIds.has(row.id);
+    const selected = selectedIds.has(row.id);
+    const reason = selectable ? null : lockReason(row);
+    return (
+      <tr key={row.id} data-testid={`suggestion-row-${row.inclusionNumber}`}
+        className={cn("border-b border-slate-100 transition-colors", selected ? "bg-brand-soft/50" : i % 2 === 1 ? "bg-slate-50/40" : "bg-white", rowTone(row), pulse(row))}>
+        <td className="p-0 w-9">
+          <span className={cn("ml-2 block h-9 w-1 rounded-full", railClass(row.status))} aria-hidden="true" />
+        </td>
+        {showSelection && (
+          <td className="px-1 py-2 text-center">
+            {selectable ? (
+              <Checkbox checked={selected} onCheckedChange={() => onToggle(row.id)} aria-label={`Selecionar vaga #${row.inclusionNumber}`} />
+            ) : (
+              <LockedHint reason={reason ?? "Sem ações disponíveis"} />
+            )}
+          </td>
+        )}
+        <td className="px-3 py-2 max-w-[300px]">
+          <div className="flex items-center gap-2 min-w-0">
+            <IdChip row={row} onClick={onOpenDetail ? () => onOpenDetail(row) : undefined} />
+            <div className="min-w-0">
+              {nameButton(row)}
+              {areaLine(row)}
+            </div>
+          </div>
+        </td>
+        <td className="px-3 py-2 text-xs whitespace-nowrap"><PeriodCell row={row} /></td>
+        <td className="px-3 py-2"><LogisticsChips row={row} /></td>
+        <td className="px-3 py-2 min-w-[240px]"><StatusCell row={row} approverNames={approverNamesFor?.(row)} /></td>
+        <td className="px-3 py-2 text-right">
+          <RowActions row={row} {...rowActions} onOpenDetail={onOpenDetail} />
+        </td>
+      </tr>
+    );
+  };
+
+  /** Colunas da tabela — o cabeçalho de grupo atravessa todas. */
+  const colCount = showSelection ? 7 : 6;
+  const groups = showEvent ? groupRowsByEvent(rows) : [];
+
   return (
     <>
       {/* Tabela (≥ md) */}
-      <div className="hidden md:block rounded-2xl border border-slate-200 bg-white overflow-hidden">
-        <div className="overflow-x-auto max-h-[70vh]">
+      {/* Nada de `overflow-hidden` aqui: qualquer ancestral com overflow vira
+          um contêiner de rolagem e o `sticky` do cabeçalho passa a se ancorar
+          NELE — que não rola — ou seja, o cabeçalho não gruda em lugar nenhum. */}
+      <div className="hidden md:block rounded-2xl border border-slate-200 bg-white">
+        {/* Sem altura máxima: a lista rola COM a página (nada de barra dentro de
+            barra). Até `xl` a tabela (980px) pode não caber e precisa da barra
+            horizontal; de `xl` para cima ela cabe, o overflow volta a `visible`
+            e só então o cabeçalho consegue grudar no topo da página. */}
+        <div className="overflow-x-auto xl:overflow-x-visible">
           <table className="w-full min-w-[980px] text-sm">
             <caption className="sr-only">Vagas sugeridas do evento</caption>
-            <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10 shadow-[0_1px_0_0_rgb(226_232_240)]">
+            {/* --sticky-top (main-layout) = barra do topo + banner de simulação:
+                o cabeçalho para EMBAIXO do que está fixo, nunca atrás. */}
+            <thead className="bg-slate-50 border-b border-slate-200 sticky top-[var(--sticky-top,3.5rem)] z-10 shadow-[0_1px_0_0_rgb(226_232_240)] [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
               <tr className="group">
                 <th scope="col" className="w-9 p-0"><span className="sr-only">Situação</span></th>
                 {showSelection && (
@@ -495,45 +602,27 @@ export function SuggestionsList({
                 <th scope="col" className={cn(TH, "min-w-[180px] text-right")}>Ações</th>
               </tr>
             </thead>
-            <tbody>
-              {rows.map((row, i) => {
-                const selectable = selectableIds.has(row.id);
-                const selected = selectedIds.has(row.id);
-                const reason = selectable ? null : lockReason(row);
-                return (
-                  <tr key={row.id} data-testid={`suggestion-row-${row.inclusionNumber}`}
-                    className={cn("border-b border-slate-100 transition-colors", selected ? "bg-brand-soft/50" : i % 2 === 1 ? "bg-slate-50/40" : "bg-white", rowTone(row), pulse(row))}>
-                    <td className="p-0 w-9">
-                      <span className={cn("ml-2 block h-9 w-1 rounded-full", railClass(row.status))} aria-hidden="true" />
-                    </td>
-                    {showSelection && (
-                      <td className="px-1 py-2 text-center">
-                        {selectable ? (
-                          <Checkbox checked={selected} onCheckedChange={() => onToggle(row.id)} aria-label={`Selecionar vaga #${row.inclusionNumber}`} />
-                        ) : (
-                          <LockedHint reason={reason ?? "Sem ações disponíveis"} />
-                        )}
-                      </td>
-                    )}
-                    <td className="px-3 py-2 max-w-[300px]">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <IdChip row={row} onClick={onOpenDetail ? () => onOpenDetail(row) : undefined} />
-                        <div className="min-w-0">
-                          {nameButton(row)}
-                          {areaLine(row)}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-xs whitespace-nowrap"><PeriodCell row={row} /></td>
-                    <td className="px-3 py-2"><LogisticsChips row={row} /></td>
-                    <td className="px-3 py-2 min-w-[240px]"><StatusCell row={row} approverNames={approverNamesFor?.(row)} /></td>
-                    <td className="px-3 py-2 text-right">
-                      <RowActions row={row} {...rowActions} onOpenDetail={onOpenDetail} />
-                    </td>
+            {/* Um <tbody> por evento no modo "Todos os eventos" (HTML válido:
+                a tabela aceita vários), com um cabeçalho de grupo por bloco. */}
+            {showEvent ? (
+              groups.map((g) => (
+                <tbody key={g.key}>
+                  <tr className="bg-slate-50/80">
+                    <th scope="colgroup" colSpan={colCount} className="border-y border-slate-200 px-3 py-1.5 text-left">
+                      <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Evento</span>
+                        <span className="text-[13px] font-semibold text-slate-800">{g.name}</span>
+                        {g.period && <span className="font-mono text-[11px] text-slate-500">{g.period}</span>}
+                        <span className="text-[11px] text-slate-400">· {g.rows.length} {g.rows.length === 1 ? "vaga" : "vagas"}</span>
+                      </span>
+                    </th>
                   </tr>
-                );
-              })}
-            </tbody>
+                  {g.rows.map((row, i) => tableRow(row, i))}
+                </tbody>
+              ))
+            ) : (
+              <tbody>{rows.map((row, i) => tableRow(row, i))}</tbody>
+            )}
           </table>
         </div>
       </div>
@@ -563,6 +652,7 @@ export function SuggestionsList({
                         <span className="min-w-0 flex-1">{nameButton(row)}</span>
                       </div>
                       {areaLine(row)}
+                      {showEvent && <EventLine row={row} />}
                     </div>
                   </div>
                   <p className="text-xs"><PeriodCell row={row} /></p>

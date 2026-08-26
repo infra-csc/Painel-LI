@@ -19,12 +19,28 @@ export function scalingHref(path: string, eventId?: string | null, extra?: Recor
   return qs ? `${path}?${qs}` : path;
 }
 
-export function useScalingEvent(basePath: string, opts?: { extraParams?: () => Record<string, string> }) {
+export function useScalingEvent(
+  basePath: string,
+  opts?: {
+    extraParams?: () => Record<string, string>;
+    /**
+     * Tela que ABRE em "Todos os eventos" (regra do dono, 26/08: "aparecer
+     * inicialmente de todos e se eu quiser ver de algum eu seleciono o
+     * evento"). Nessas telas o evento vem SÓ da URL — sem `?eventId=`, sem
+     * filtro. O último evento usado continua sendo gravado (os links entre as
+     * telas do módulo carregam o contexto pela própria URL), mas ele não
+     * escolhe mais sozinho um filtro que o usuário não pediu.
+     */
+    allEventsDefault?: boolean;
+  },
+) {
   const searchString = useSearch();
   const [, setLocation] = useLocation();
   const urlEventId = useMemo(() => new URLSearchParams(searchString).get("eventId") ?? "", [searchString]);
+  const allEventsDefault = opts?.allEventsDefault ?? false;
   const [eventId, setEventIdState] = useState<string>(() =>
-    urlEventId || (typeof window !== "undefined" ? localStorage.getItem(SCALING_LAST_EVENT_KEY) ?? "" : ""),
+    urlEventId
+    || (allEventsDefault || typeof window === "undefined" ? "" : localStorage.getItem(SCALING_LAST_EVENT_KEY) ?? ""),
   );
 
   // URL → estado (só quando difere; evita loop)

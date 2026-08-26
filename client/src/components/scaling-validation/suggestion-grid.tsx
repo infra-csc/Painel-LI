@@ -1,13 +1,11 @@
 import { memo, useMemo, useState } from "react";
-import { Bus, Car, ChevronsRight, ClipboardPaste, Copy, MoreHorizontal, Pencil, Plane, Plus, Trash2 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { ClipboardPaste, Copy, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { formatDayMonthBr } from "@/lib/dates";
-import { TRANSPORT_MODE_LABELS, type TransportMode } from "@shared/scaling-validation-rules";
 import { QtyCell } from "./qty-cell";
 import { LogisticsPanel } from "./logistics-panel";
+import { CHIP_NEUTRAL, LegChip, NeedChips, dayText } from "./logistics-chips";
 import { formatDateHeader, totalsByDay, type DateHeader, type RowValidation, type SuggestionGridRow } from "./scaling-grid-utils";
 
 export interface SuggestionGridProps {
@@ -21,8 +19,6 @@ export interface SuggestionGridProps {
   onChangeQty: (rowId: string, date: string, value: number) => void;
   onDuplicateRow: (rowId: string) => void;
   onRemoveRow: (rowId: string) => void;
-  /** Repete a quantidade do primeiro dia em todos os dias da linha. */
-  onRepeatFirst: (rowId: string) => void;
   /** Saídas do estado vazio "Nenhuma função na grade". */
   onPaste: () => void;
   onAddFunction: () => void;
@@ -30,21 +26,12 @@ export interface SuggestionGridProps {
 }
 
 const TH = "px-2 py-2 text-center border-r border-slate-100 text-xs uppercase tracking-wide text-slate-500 font-semibold whitespace-nowrap";
-const CHIP = "inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[11px] text-slate-600 whitespace-nowrap";
 
 /** Atributo usado pela página para focar a linha a partir dos chips de pendência. */
 export const rowDomId = (rowId: string) => `sug-row-${rowId}`;
 
-const MODE_ICONS: Record<TransportMode, LucideIcon> = {
-  aereo: Plane, onibus: Bus, van: Bus, carro: Car, transfer: Car,
-};
-
-function legSummary(prefix: string, mode: TransportMode | "", date: string, time: string): string {
-  if (!mode && !date && !time) return "";
-  const parts = [mode ? TRANSPORT_MODE_LABELS[mode] : prefix];
-  if (date) parts.push(formatDayMonthBr(date));
-  return parts.join(" ") + (time ? ` · ${time}` : "");
-}
+/** A perna tem algo a dizer (modal, data ou hora)? */
+const hasLeg = (mode: string, date: string, time: string) => !!(mode || date || time);
 
 interface GridRowProps {
   row: SuggestionGridRow;
@@ -60,12 +47,11 @@ interface GridRowProps {
   onChangeQty: SuggestionGridProps["onChangeQty"];
   onDuplicateRow: SuggestionGridProps["onDuplicateRow"];
   onRemoveRow: SuggestionGridProps["onRemoveRow"];
-  onRepeatFirst: SuggestionGridProps["onRepeatFirst"];
 }
 
 const GridRow = memo(function GridRow({
   row, rowIdx, headers, issues, area, colCount, expanded, disabled,
-  onToggleExpand, onChangeRow, onChangeQty, onDuplicateRow, onRemoveRow, onRepeatFirst,
+  onToggleExpand, onChangeRow, onChangeQty, onDuplicateRow, onRemoveRow,
 }: GridRowProps) {
   const total = headers.reduce((acc, h) => acc + (row.quantities[h.ymd] || 0), 0);
   const errors = issues?.errors ?? [];
@@ -76,11 +62,9 @@ const GridRow = memo(function GridRow({
   const dot = errors.length > 0 ? "bg-red-500" : warnings.length > 0 ? "bg-amber-500" : total > 0 ? "bg-primary" : "bg-slate-300";
   const zebra = rowIdx % 2 === 1 ? "bg-slate-50" : "bg-white";
 
-  const ida = legSummary("Ida", row.transportModeIda, row.flightDepartureDate, row.flightArrivalSuggestedTime);
-  const volta = legSummary("Volta", row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime);
-  const hasLogistics = !!(ida || volta || row.needsAccommodation || row.needsTicket || row.observations);
-  const IdaIcon = row.transportModeIda ? MODE_ICONS[row.transportModeIda] : null;
-  const VoltaIcon = row.transportModeVolta ? MODE_ICONS[row.transportModeVolta] : null;
+  const hasLogistics = hasLeg(row.transportModeIda, row.flightDepartureDate, row.flightArrivalSuggestedTime)
+    || hasLeg(row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime)
+    || row.needsAccommodation || row.needsTicket || !!row.observations;
 
   return (
     <>
@@ -101,16 +85,6 @@ const GridRow = memo(function GridRow({
                 </span>
               )}
             </div>
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => onRepeatFirst(row.rowId)}
-              aria-label={`Repetir o primeiro valor em todos os dias — ${row.functionName}`}
-              title="Repetir o primeiro valor em todos os dias"
-              className="mt-0.5 shrink-0 rounded-md p-1 text-slate-300 opacity-0 transition-opacity hover:bg-brand-soft hover:text-primary focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100 disabled:pointer-events-none"
-            >
-              <ChevronsRight className="w-3.5 h-3.5" aria-hidden="true" />
-            </button>
           </div>
         </td>
 
@@ -139,20 +113,17 @@ const GridRow = memo(function GridRow({
         <td className="px-2 py-1.5 border-r border-slate-100">
           <div className="flex items-center gap-1.5 min-w-0">
             <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-              {ida && (
-                <span className={cn(CHIP, "shrink-0")} title={`Ida — ${ida}`}>
-                  {IdaIcon && <IdaIcon className="w-3 h-3 text-slate-400" aria-hidden="true" />}{ida}
-                </span>
-              )}
-              {volta && (
-                <span className={cn(CHIP, "shrink-0")} title={`Volta — ${volta}`}>
-                  {VoltaIcon && <VoltaIcon className="w-3 h-3 text-slate-400 -scale-x-100" aria-hidden="true" />}{volta}
-                </span>
-              )}
-              {row.needsAccommodation && <span className={cn(CHIP, "shrink-0")}>Hotel</span>}
-              {row.needsTicket && <span className={cn(CHIP, "shrink-0")}>Passagem</span>}
+              <LegChip
+                dir="ida" mode={row.transportModeIda} className="shrink-0"
+                date={row.flightDepartureDate} time={row.flightArrivalSuggestedTime}
+              />
+              <LegChip
+                dir="volta" mode={row.transportModeVolta} className="shrink-0"
+                date={row.flightReturnDate} time={row.flightReturnSuggestedTime}
+              />
+              <NeedChips needsTicket={row.needsTicket} needsAccommodation={row.needsAccommodation} className="shrink-0" />
               {row.observations && (
-                <span className={cn(CHIP, "min-w-0")} title={row.observations}>
+                <span className={cn(CHIP_NEUTRAL, "min-w-0")} title={row.observations}>
                   <span className="truncate italic">{row.observations}</span>
                 </span>
               )}
@@ -216,7 +187,7 @@ const GridRow = memo(function GridRow({
  */
 export function SuggestionGrid({
   rows, dates, issuesByRow, areaByFunctionId, onChangeRow, onChangeQty, onDuplicateRow, onRemoveRow,
-  onRepeatFirst, onPaste, onAddFunction, disabled,
+  onPaste, onAddFunction, disabled,
 }: SuggestionGridProps) {
   const headers = useMemo(() => dates.map((ymd) => ({ ymd, ...formatDateHeader(ymd) })), [dates]);
   const [openRowId, setOpenRowId] = useState<string | null>(null);
@@ -278,7 +249,6 @@ export function SuggestionGrid({
                 onChangeQty={onChangeQty}
                 onDuplicateRow={onDuplicateRow}
                 onRemoveRow={onRemoveRow}
-                onRepeatFirst={onRepeatFirst}
               />
             ))}
           </tbody>
@@ -311,7 +281,7 @@ export function SuggestionGrid({
                   <span className="whitespace-nowrap">↑/↓ ajusta · ←/→ navega · Enter desce · Delete zera</span>
                   {totals.peakTotal > 0 && (
                     <span className="ml-3 whitespace-nowrap font-semibold text-primary">
-                      Pico em {formatDayMonthBr(totals.peakDate)} ({totals.peakTotal} {totals.peakTotal === 1 ? "pessoa" : "pessoas"})
+                      Pico em {dayText(totals.peakDate)} ({totals.peakTotal} {totals.peakTotal === 1 ? "pessoa" : "pessoas"})
                     </span>
                   )}
                 </td>

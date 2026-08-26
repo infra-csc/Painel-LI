@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   CalendarDays, CheckCheck, CheckSquare, ChevronDown, ChevronUp, ClipboardCheck, CloudOff, Eye, EyeOff,
-  History, Info, MessageSquare, PencilLine, Plus, Search, Square, Trash2, Users, UserX, X,
+  History, Info, MessageSquare, PencilLine, Plus, Search, Square, Trash2, Users, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +30,7 @@ import { apiErrorMessage, cn, formatDateRange } from "@/lib/utils";
 import { scalingHref, useScalingEvent } from "@/lib/use-scaling-event";
 import { normalizeRole } from "@shared/roles";
 import type { Event } from "@shared/schema";
-import { SUGESTAO_STATUS, STALLED_DAYS, pendingSeverity } from "@shared/scaling-validation-rules";
+import { ALL_EVENTS_ROW_LIMIT, SUGESTAO_STATUS, STALLED_DAYS, pendingSeverity } from "@shared/scaling-validation-rules";
 import { SuggestionsList, periodLabel, type SuggestionSortField } from "@/components/scaling-validation/suggestions-list";
 import { ScheduleBoard } from "@/components/scaling-validation/schedule-board";
 import { AdjustRequestDialog, DeleteRequestDialog, IncludeRequestDialog } from "@/components/scaling-validation/change-request-dialogs";
@@ -83,7 +83,9 @@ export default function ScalingValidationPage() {
   const canValidateByRole = hasPermission(user, "canEditScalingValidation");
 
   // ── Estado ──
-  const { eventId, setEventId, sanitize } = useScalingEvent(BASE_PATH);
+  // A tela ABRE em "Todos os eventos" (regra do dono, 26/08): o combobox virou
+  // FILTRO. Sem `?eventId=` na URL, nada é pré-selecionado.
+  const { eventId, setEventId, sanitize } = useScalingEvent(BASE_PATH, { allEventsDefault: true });
   const [tab, setTab] = useState<"lista" | "escala">("lista");
   const [search, setSearch] = useState("");
   const [functionFilter, setFunctionFilter] = useState(ALL);
@@ -122,13 +124,25 @@ export default function ScalingValidationPage() {
   // ── Dados ──
   const { data: events, isLoading: loadingEvents } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const { data: functions, isLoading: loadingFunctions } = useQuery<FunctionWithManagers[]>({ queryKey: ["/api/functions"] });
+  // Sem evento a rota devolve as vagas em validação de TODOS os eventos (o
+  // servidor aplica o teto de ALL_EVENTS_ROW_LIMIT linhas, as mais antigas
+  // primeiro). A chave do cache mantém o eventId — a mesma de sempre quando há
+  // filtro, e "" no modo "todos".
   const suggestionsQuery = useQuery<SuggestionRow[]>({
     queryKey: [SUGGESTIONS_QUERY_KEY, eventId],
-    queryFn: async () => (await apiRequest("GET", `${SUGGESTIONS_QUERY_KEY}?eventId=${encodeURIComponent(eventId)}`)).json(),
-    enabled: !!eventId,
+    queryFn: async () =>
+      (await apiRequest("GET", eventId ? `${SUGGESTIONS_QUERY_KEY}?eventId=${encodeURIComponent(eventId)}` : SUGGESTIONS_QUERY_KEY)).json(),
+    // Quem não tem acesso vê o cartão de "Acesso negado" — nem chega a buscar.
+    enabled: canAccess,
     staleTime: 15_000,
   });
   const rows = useMemo(() => suggestionsQuery.data ?? [], [suggestionsQuery.data]);
+  /** O servidor cortou a lista? (teto só existe no modo "todos os eventos"). */
+  const truncated = !eventId && rows.length >= ALL_EVENTS_ROW_LIMIT;
+  /** Quantos eventos há no conjunto exibido — só faz sentido no modo "todos". */
+  const eventsInList = useMemo(() => new Set(rows.map((r) => r.eventId)).size, [rows]);
+  /** Aba efetiva: sem evento, o quadro "Escala" não existe — cai na Lista. */
+  const boardTab = !eventId && tab === "escala" ? "lista" : tab;
   const rowById = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
 
   const activeEvents = useMemo(() => (events ?? []).filter((e) => e.status !== "excluido" && e.status !== "excluído"), [events]);
@@ -174,10 +188,14 @@ export default function ScalingValidationPage() {
   }, [rows, functions]);
 
   /**
-   * Aprovador(es) cadastrados por função (/api/functions já traz `managers`).
-   * A área precisa disto por DOIS motivos: dizer no tooltip da vaga validada
-   * quem tem de decidir e — o caso grave — avisar quando NÃO EXISTE aprovador:
-   * a vaga validada some numa fila silenciosa, sem ninguém do outro lado.
+   * Aprovador(es) cadastrados por função (/api/functions já traz `managers`) —
+   * serve ao tooltip da vaga validada ("quem tem de decidir").
+   *
+   * O alarme de "função sem aprovador" saiu daqui em 26/08 (decisão do dono:
+   * "não tem isso de sem aprovador" — o sistema tem um aprovador padrão). A
+   * salvaguarda mudou de lugar, não sumiu: quem cadastra aprovador é o admin,
+   * e é na aba "Validação de Escala" de Funções que ele vê quais funções estão
+   * no aprovador padrão. Na tela da área o aviso era só ruído.
    */
   const approverNamesByFunctionId = useMemo(
     () => new Map((functions ?? []).map((f) => [
@@ -185,11 +203,6 @@ export default function ScalingValidationPage() {
       (f.managers ?? []).filter((m) => m.role === "aprovador").map((m) => m.userName).filter(Boolean),
     ])),
     [functions],
-  );
-  /** Funções COM vaga neste evento e SEM nenhum aprovador cadastrado. */
-  const functionsWithoutApprover = useMemo(
-    () => functionsInEvent.filter((f) => (approverNamesByFunctionId.get(f.id) ?? []).length === 0),
-    [functionsInEvent, approverNamesByFunctionId],
   );
 
   const filteredRows = useMemo(() => {
@@ -473,17 +486,23 @@ export default function ScalingValidationPage() {
               <div className="h-8 rounded-lg bg-slate-100 animate-pulse" aria-hidden="true" />
             ) : (
               <EventCombobox
-                events={activeEvents} value={eventId} showAllOption={false}
+                events={activeEvents} value={eventId || ALL} showAllOption
                 onValueChange={(v) => setEventId(v === ALL ? "" : v)}
-                placeholder="Selecione um evento" testId="scaling-validation-event"
+                placeholder="Todos os eventos" testId="scaling-validation-event"
                 className="h-8 font-semibold"
               />
             )}
           </div>
-          {selectedEvent && (
+          {selectedEvent ? (
             <p className="text-xs text-slate-500 truncate max-w-[300px]">
               <span className="font-mono">{formatDateRange(selectedEvent.startDate, selectedEvent.endDate, { withYear: true })}</span>
               {selectedEvent.location ? ` · ${selectedEvent.location}` : ""}
+            </p>
+          ) : (
+            <p className="text-xs text-slate-500">
+              {eventsInList > 0
+                ? `Vagas em validação de ${eventsInList} ${eventsInList === 1 ? "evento" : "eventos"} — escolha um para filtrar.`
+                : "Todos os eventos — escolha um para filtrar."}
             </p>
           )}
           {scopeLabel && (
@@ -521,8 +540,8 @@ export default function ScalingValidationPage() {
         </div>
       )}
 
-      {/* KPIs */}
-      {eventId && rows.length > 0 && (
+      {/* KPIs — somam SEMPRE o conjunto exibido (um evento ou todos). */}
+      {rows.length > 0 && (
         // <dl>/<dt>/<dd>: cada KPI é um par rótulo/valor de verdade para o
         // leitor de tela (um <div aria-label> sem role seria ignorado).
         <dl className="flex flex-wrap items-stretch gap-2" aria-label="Resumo do evento">
@@ -567,24 +586,18 @@ export default function ScalingValidationPage() {
         </dl>
       )}
 
-      {/* Fila silenciosa: validar não adianta se a função não tem aprovador. */}
-      {eventId && rows.length > 0 && functionsWithoutApprover.length > 0 && (
+      {/* Teto do modo "todos os eventos": a lista foi cortada, o filtro é a saída. */}
+      {truncated && (
         <p role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          <UserX className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+          <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
           <span>
-            <span className="font-semibold">
-              {functionsWithoutApprover.length} {functionsWithoutApprover.length === 1 ? "função sem aprovador cadastrado" : "funções sem aprovador cadastrado"}
-            </span>{" "}
-            ({functionsWithoutApprover.slice(0, 3).map((f) => f.name).join(", ")}
-            {functionsWithoutApprover.length > 3 ? ` e mais ${functionsWithoutApprover.length - 3}` : ""}) — vaga validada nessas funções fica parada, sem ninguém para aprovar.
-            Peça ao administrador para cadastrar um aprovador em <span className="font-semibold">Funções</span>.
+            <span className="font-semibold">Mostrando as {ALL_EVENTS_ROW_LIMIT} vagas que esperam há mais tempo</span> — pode haver outras.
+            Escolha um evento no filtro acima para ver a lista completa dele.
           </span>
         </p>
       )}
 
-      {!eventId ? (
-        <EmptyState title="Selecione um evento" description="A escala sugerida é por evento. Escolha um acima para ver as vagas da sua área." />
-      ) : suggestionsQuery.isLoading || (loadingFunctions && !functions) ? (
+      {suggestionsQuery.isLoading || (loadingFunctions && !functions) ? (
         <LoadingState count={5} className="rounded-2xl" label={loadingFunctions ? "Carregando funções…" : "Carregando escala sugerida…"} />
       ) : loadError ? (
         <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5">
@@ -598,28 +611,34 @@ export default function ScalingValidationPage() {
       ) : rows.length === 0 ? (
         <div className="space-y-2">
           <EmptyState
-            title="Nenhuma vaga sugerida neste evento"
-            description="A logística ainda não enviou a escala sugerida deste evento, ou todas as vagas já foram aprovadas e seguiram para a Inclusão de Equipe. Você pode pedir a inclusão de uma vaga nova a qualquer momento."
+            title={eventId ? "Nenhuma vaga sugerida neste evento" : "Nenhuma vaga em validação"}
+            description={eventId
+              ? "A logística ainda não enviou a escala sugerida deste evento, ou todas as vagas já foram aprovadas e seguiram para a Inclusão de Equipe. Você pode pedir a inclusão de uma vaga nova a qualquer momento."
+              : "Nenhum evento tem vaga aguardando validação, pedido em aberto ou vaga esperando aprovação. Para pedir a inclusão de uma vaga nova, escolha um evento no filtro acima."}
             action={!readOnlyMode ? includeButton : undefined}
           />
           {approvedGoesToScaling}
           {hasPermission(user, "canAccessScalingEventView") && (
             <p className="text-center">
               <Link href={scalingHref("/scaling-event-view", eventId)} className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-primary underline-offset-2 hover:underline">
-                <History className="w-3 h-3" aria-hidden="true" /> Ver histórico completo do evento
+                <History className="w-3 h-3" aria-hidden="true" /> {eventId ? "Ver histórico completo do evento" : "Ver o histórico da escala"}
               </Link>
             </p>
           )}
         </div>
       ) : (
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "lista" | "escala")} className="space-y-3">
+        <Tabs value={boardTab} onValueChange={(v) => setTab(v as "lista" | "escala")} className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <TabsList className="rounded-xl">
               <TabsTrigger value="lista" className="rounded-lg">Lista</TabsTrigger>
-              <TabsTrigger value="escala" className="rounded-lg">Escala</TabsTrigger>
+              {/* O quadro é função × dia DE UM evento: sem evento escolhido ele
+                  somaria dias de eventos diferentes na mesma coluna. */}
+              {eventId && <TabsTrigger value="escala" className="rounded-lg">Escala</TabsTrigger>}
             </TabsList>
             <p className="text-xs text-slate-500" aria-live="polite">
-              {tab === "lista" ? `${filteredRows.length} de ${rows.length} vaga(s)` : "Quadro de todas as áreas (somente leitura)"}
+              {boardTab === "lista"
+                ? `${filteredRows.length} de ${rows.length} vaga(s)${!eventId && eventsInList > 0 ? ` · ${eventsInList} ${eventsInList === 1 ? "evento" : "eventos"}` : ""}`
+                : "Quadro de todas as áreas (somente leitura)"}
             </p>
           </div>
 
@@ -695,8 +714,11 @@ export default function ScalingValidationPage() {
                 onDelete={openDelete}
                 highlightId={pulseId}
                 // Só depois que /api/functions responde: enquanto carrega, a
-                // tela não sabe quem aprova e não pode acusar "sem aprovador".
+                // tela não sabe quem aprova (o tooltip da vaga validada omite).
                 approverNamesFor={functions ? (r) => approverNamesByFunctionId.get(r.functionId) ?? [] : undefined}
+                // "Todos os eventos": a lista agrupa por evento e cada card
+                // ganha a linha do evento; com filtro, a barra já diz qual é.
+                showEvent={!eventId}
               />
             )}
             {approvedGoesToScaling}

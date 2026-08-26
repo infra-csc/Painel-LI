@@ -28,8 +28,6 @@ export interface ContextBarProps {
   disabled?: boolean;
   observations: string;
   onObservationsChange: (v: string) => void;
-  /** "HH:MM" do último auto-save do rascunho (null = nada salvo ainda). */
-  draftSavedAt: string | null;
   eventTestId?: string;
 }
 
@@ -44,7 +42,7 @@ const PERIOD_HINT = `A grade pode começar até ${PERIOD_MARGIN_DAYS} dias antes
 export function ContextBar({
   events, eventId, onEventChange, selectedEvent, periodStart, periodEnd, onPeriodChange, bounds,
   daysCount, onEventPeriod, onShrink, canShrink, periodInvalid, disabled, observations, onObservationsChange,
-  draftSavedAt, eventTestId,
+  eventTestId,
 }: ContextBarProps) {
   const [showComments, setShowComments] = useState(false);
   const obsId = useId();
@@ -112,38 +110,32 @@ export function ContextBar({
           </button>
         </div>
 
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          {draftSavedAt && (
-            <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-500 whitespace-nowrap">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-              Rascunho salvo {draftSavedAt}
-            </span>
+        {/* Último chip da linha — o textarea abre abaixo, em linha própria. */}
+        <button
+          type="button" className={cn(CHIP_BTN, "ml-auto", showComments && "border-primary/30 bg-brand-soft text-primary")}
+          disabled={!eventId}
+          aria-expanded={showComments} aria-controls={obsId}
+          onClick={() => setShowComments((v) => !v)}
+        >
+          <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
+          Comentários
+          {obsLen > 0 && (
+            <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-semibold text-primary tabular-nums">{obsLen}</span>
           )}
-          <button
-            type="button" className={CHIP_BTN} disabled={!eventId}
-            aria-expanded={showComments} aria-controls={obsId}
-            onClick={() => setShowComments((v) => !v)}
-          >
-            <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
-            Comentários do evento
-            {obsLen > 0 && (
-              <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-semibold text-primary tabular-nums">{obsLen}</span>
-            )}
-            {showComments
-              ? <ChevronUp className="w-3 h-3 text-slate-400" aria-hidden="true" />
-              : <ChevronDown className="w-3 h-3 text-slate-400" aria-hidden="true" />}
-          </button>
-        </div>
+          {showComments
+            ? <ChevronUp className="w-3 h-3 text-slate-400" aria-hidden="true" />
+            : <ChevronDown className="w-3 h-3 text-slate-400" aria-hidden="true" />}
+        </button>
       </div>
 
       {showComments && (
         <div id={obsId} className="mt-2.5 border-t border-slate-100 pt-2.5 space-y-1">
-          <Label htmlFor="sug-event-obs" className="sr-only">Comentários gerais do evento</Label>
+          <Label htmlFor="sug-event-obs" className="text-xs font-semibold text-slate-600">Comentários gerais do evento</Label>
           <Textarea
             id="sug-event-obs" value={observations} disabled={!eventId || disabled} rows={2} maxLength={2000}
             placeholder="Orientações gerais para as áreas (horários de montagem, ponto de encontro, restrições…)."
             onChange={(e) => onObservationsChange(e.target.value)}
-            className={cn("rounded-lg text-sm min-h-0", observations && "bg-brand-soft/40 border-primary/20")}
+            className={cn("w-full rounded-lg text-sm min-h-0", observations && "bg-brand-soft/40 border-primary/20")}
           />
           <p className="text-[11px] text-slate-500">Salvos nas observações do evento junto com o envio da escala.</p>
         </div>

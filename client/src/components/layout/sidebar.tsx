@@ -19,7 +19,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { MI, initials } from "./mi";
 import { useShellMode } from "./use-shell-mode";
 import { useShellData } from "./use-shell-data";
-import { visibleGroups, tabById, subgroupEdges, type NavGroup, type NavTab } from "./nav-items";
+import { visibleGroups, tabById, subgroupEdges, iconClassFor, type NavGroup, type NavTab } from "./nav-items";
 import { getFavorites, setFavorites, getClosedGroups, setClosedGroups, SHELL_PREFS_EVENT } from "./shell-prefs";
 
 /** Largura da gaveta no mobile (o desenho pede 272px, mais folgada que a de desktop). */
@@ -150,7 +150,7 @@ export default function Sidebar() {
             isActive ? "bg-brand-soft" : "bg-transparent hover:bg-brand-soft/60",
           )}
         >
-          <span className={cn("flex items-center justify-center w-[22px] h-[22px] shrink-0", isActive ? "text-primary" : group.iconClass)}>
+          <span className={cn("flex items-center justify-center w-[22px] h-[22px] shrink-0", isActive ? "text-primary" : iconClassFor(group, tab.id))}>
             <MI name={tab.icon} filled size={18} />
           </span>
           <span className={cn(
@@ -240,7 +240,7 @@ export default function Sidebar() {
                     <div key={`${tab.id}-sub`} className="flex flex-col">
                       {start && (
                         <span className="flex items-center gap-1.5 px-2.5 pt-1.5 pb-0.5">
-                          <span className="text-[10px] font-medium tracking-wide text-slate-400">{group.subgroup!.label}</span>
+                          <span className={cn("text-[10px] font-semibold tracking-wide", group.subgroup!.labelClass)}>{group.subgroup!.label}</span>
                           <span aria-hidden="true" className="flex-1 h-px bg-slate-100" />
                         </span>
                       )}
@@ -408,7 +408,7 @@ export default function Sidebar() {
                           className={cn(
                             "relative flex items-center justify-center py-2 rounded-lg no-underline transition-colors",
                             "outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                            isActive ? "bg-brand-soft text-primary" : cn("bg-transparent hover:bg-brand-soft/60", group.iconClass),
+                            isActive ? "bg-brand-soft text-primary" : cn("bg-transparent hover:bg-brand-soft/60", iconClassFor(group, tab.id)),
                           )}
                         >
                           <MI name={tab.icon} filled size={18} />

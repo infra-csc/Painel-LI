@@ -9,8 +9,8 @@ export const combo = (key: string) => (IS_MAC ? `${MOD}${key}` : `${MOD}+${key}`
 
 export const SHORTCUTS: { keys: string; what: string }[] = [
   { keys: combo("K"), what: "Abrir a busca de telas e eventos" },
-  { keys: combo("\\"), what: "Alternar entre menu expandido e compacto" },
-  { keys: combo("."), what: "Modo foco — esconde o menu" },
+  { keys: combo("\\"), what: "Abrir ou recolher o menu" },
+  { keys: combo("."), what: "Modo foco — esconde o menu (e traz de volta)" },
   { keys: combo("/"), what: "Mostrar esta lista de atalhos" },
   { keys: "Esc", what: "Fechar a busca, o menu aberto ou a gaveta" },
 ];

@@ -31,7 +31,7 @@ import {
   scalingChangeRequests,
   type ScalingChangeRequest,
 } from "@shared/schema";
-import { eq, and, sql, isNull, ne, exists, asc, desc, inArray } from "drizzle-orm";
+import { eq, and, or, sql, isNull, isNotNull, ne, exists, asc, desc, inArray } from "drizzle-orm";
 import { VAGA_STATE_CHANGED_MSG } from "@shared/scaling-validation-rules";
 
 /** Papel de um responsável na Validação de Escala (function_managers.role). */
@@ -59,6 +59,28 @@ export type TeamInclusionPhaseFilter = "sugestao" | "all" | undefined;
 export interface TeamInclusionListOptions {
   /** Só vagas deste evento. */
   eventId?: string;
+  /**
+   * Só vagas destes eventos (recorte "todos os eventos" da Validação de Escala:
+   * o servidor calcula antes o conjunto de eventos que ainda importa e passa
+   * aqui — a lista NUNCA é filtrada em JS depois de carregar a tabela toda).
+   * Lista vazia devolve [] sem ir ao banco.
+   */
+  eventIds?: string[];
+  /**
+   * Ordena por `suggestionSentAt`; 'asc' põe primeiro quem espera há mais tempo
+   * — combinada com `limit`, é o que garante que o teto corte o que é menos
+   * urgente, nunca a vaga mais antiga parada.
+   */
+  orderBySuggestionSentAt?: "asc" | "desc";
+  /** Teto de linhas, aplicado no banco (LIMIT), não em JS. */
+  limit?: number;
+  /**
+   * Só o que passou pela Validação de Escala: vaga em `phase = 'sugestao'` OU
+   * vaga que já virou Inclusão mas nasceu de uma sugestão (`suggestionSentAt`
+   * preenchido). É o mesmo recorte que a consulta histórica fazia em JS —
+   * trazido para o banco para o `limit` cortar as linhas certas.
+   */
+  fromSuggestionOnly?: boolean;
 }
 
 /** Phase das vagas ainda em validação pela área (espelha SUGESTAO_PHASE do shared). */
@@ -174,6 +196,7 @@ export interface IStorage {
   // Tickets
   getTickets(): Promise<Ticket[]>;
   getTicket(id: string): Promise<Ticket | undefined>;
+  getTicketsByInclusionId(teamInclusionId: string): Promise<Ticket[]>;
   createTicket(ticket: InsertTicket): Promise<Ticket>;
   updateTicket(id: string, ticket: Partial<InsertTicket>): Promise<Ticket>;
   
@@ -293,7 +316,7 @@ export interface IStorage {
   /** Funções/eventos por id (Map por id no chamador) — evita carregar o catálogo inteiro. */
   getFunctionsByIds(ids: string[]): Promise<Function[]>;
   getEventsByIds(ids: string[]): Promise<Event[]>;
-  getScalingChangeRequests(filters?: { status?: string; eventId?: string; functionIds?: string[] }): Promise<ScalingChangeRequest[]>;
+  getScalingChangeRequests(filters?: { status?: string; eventId?: string; eventIds?: string[]; functionIds?: string[] }): Promise<ScalingChangeRequest[]>;
   getScalingChangeRequest(id: string): Promise<ScalingChangeRequest | undefined>;
   getScalingChangeRequestsByInclusion(teamInclusionId: string): Promise<ScalingChangeRequest[]>;
   createScalingChangeRequest(request: InsertScalingChangeRequestRow): Promise<ScalingChangeRequest>;
@@ -717,7 +740,8 @@ export class DatabaseStorage implements IStorage {
       })
       .from(teamInclusions)
       .leftJoin(functions, eq(teamInclusions.functionId, functions.id))
-      .leftJoin(events, eq(teamInclusions.eventId, events.id));
+      .leftJoin(events, eq(teamInclusions.eventId, events.id))
+      .$dynamic();
 
     // Filtros: deletados (soft delete) e phase.
     // Por padrão as sugestões (phase 'sugestao') NÃO saem daqui — só a Validação
@@ -727,9 +751,33 @@ export class DatabaseStorage implements IStorage {
     if (phase === "sugestao") conditions.push(eq(teamInclusions.phase, SUGESTAO_PHASE_VALUE));
     else if (phase !== "all") conditions.push(ne(teamInclusions.phase, SUGESTAO_PHASE_VALUE));
     if (opts.eventId) conditions.push(eq(teamInclusions.eventId, opts.eventId));
+    if (opts.eventIds) {
+      // Recorte vazio = nada a devolver (inArray com lista vazia é SQL inválido).
+      if (opts.eventIds.length === 0) return [];
+      conditions.push(inArray(teamInclusions.eventId, opts.eventIds));
+    }
 
-    if (conditions.length === 0) return await query;
-    return await query.where(and(...conditions));
+    if (opts.fromSuggestionOnly) {
+      conditions.push(
+        or(eq(teamInclusions.phase, SUGESTAO_PHASE_VALUE), isNotNull(teamInclusions.suggestionSentAt))!,
+      );
+    }
+
+    // WHERE → ORDER BY → LIMIT, nesta ordem (a do SQL e a que o builder exige).
+    // ORDER BY / LIMIT só quando pedidos: sem eles o comportamento é o de sempre
+    // (lista inteira, ordem física do Postgres) — nenhuma chamada existente muda.
+    let q = conditions.length === 0 ? query : query.where(and(...conditions));
+    if (opts.orderBySuggestionSentAt) {
+      // NULLS LAST nos dois sentidos: no DESC o Postgres põe NULL primeiro, e
+      // linha sem `suggestionSentAt` comeria o `limit` das que interessam.
+      q = q.orderBy(
+        opts.orderBySuggestionSentAt === "asc"
+          ? asc(teamInclusions.suggestionSentAt)
+          : sql`${teamInclusions.suggestionSentAt} DESC NULLS LAST`,
+      );
+    }
+    if (opts.limit) q = q.limit(opts.limit);
+    return await q;
   }
 
   async getTeamInclusion(id: string): Promise<TeamInclusion | undefined> {
@@ -1036,6 +1084,17 @@ export class DatabaseStorage implements IStorage {
   async getTicket(id: string): Promise<Ticket | undefined> {
     const [ticket] = await db.select().from(tickets).where(eq(tickets.id, id));
     return ticket;
+  }
+
+  /**
+   * Passagens de UMA vaga (ida e volta podem ser linhas separadas).
+   *
+   * Existe para a janela do pedido de ajuste (`shared/scaling-change-window`):
+   * a pergunta "já compraram a passagem desta vaga?" não pode custar um
+   * `getTickets()` da tabela inteira a cada abertura de modal.
+   */
+  async getTicketsByInclusionId(teamInclusionId: string): Promise<Ticket[]> {
+    return await db.select().from(tickets).where(eq(tickets.teamInclusionId, teamInclusionId));
   }
 
   async createTicket(ticketData: InsertTicket): Promise<Ticket> {
@@ -1585,10 +1644,16 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(events).where(inArray(events.id, unique));
   }
 
-  async getScalingChangeRequests(filters?: { status?: string; eventId?: string; functionIds?: string[] }): Promise<ScalingChangeRequest[]> {
+  async getScalingChangeRequests(filters?: { status?: string; eventId?: string; eventIds?: string[]; functionIds?: string[] }): Promise<ScalingChangeRequest[]> {
     const conditions = [];
     if (filters?.status && filters.status !== "all") conditions.push(eq(scalingChangeRequests.status, filters.status));
     if (filters?.eventId && filters.eventId !== "all") conditions.push(eq(scalingChangeRequests.eventId, filters.eventId));
+    // Recorte "todos os eventos" da Validação de Escala: o servidor manda o
+    // conjunto de eventos que ainda importa — filtro no banco, nunca em JS.
+    if (filters?.eventIds) {
+      if (filters.eventIds.length === 0) return [];
+      conditions.push(inArray(scalingChangeRequests.eventId, filters.eventIds));
+    }
     if (filters?.functionIds) {
       if (filters.functionIds.length === 0) return [];
       conditions.push(inArray(scalingChangeRequests.functionId, filters.functionIds));

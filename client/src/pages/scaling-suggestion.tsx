@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
-  AlertTriangle, CalendarDays, Check, CheckCircle2, ClipboardPaste, ExternalLink, Eye, FolderInput, History,
+  AlertTriangle, CalendarDays, Check, CheckCircle2, ClipboardPaste, ExternalLink, Eye, FolderInput,
   ListPlus, Plus, RotateCcw, Send, Save, Undo2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -315,16 +315,6 @@ export default function ScalingSuggestionPage() {
     setRows((prev) => prev.filter((r) => r.rowId !== rowId));
   }, []);
   const rowToRemove = useMemo(() => rows.find((r) => r.rowId === confirmRemove), [rows, confirmRemove]);
-  /** "Repetir o primeiro valor em todos os dias" da linha. */
-  const repeatFirstValue = useCallback((rowId: string) => {
-    setRows((prev) => prev.map((r) => {
-      if (r.rowId !== rowId) return r;
-      const first = dates.length ? (r.quantities[dates[0]] || 0) : 0;
-      const quantities: Record<string, number> = {};
-      for (const d of dates) quantities[d] = first;
-      return { ...r, quantities };
-    }));
-  }, [dates]);
 
   const presentFunctionIds = useMemo(() => new Set(rows.map((r) => r.functionId)), [rows]);
   const toggleToAdd = (id: string) => setSelectedToAdd((prev) => {
@@ -783,7 +773,6 @@ export default function ScalingSuggestionPage() {
             disabled={busy}
             observations={eventObservations}
             onObservationsChange={setEventObservations}
-            draftSavedAt={draftSavedAt}
             eventTestId="scaling-suggestion-event"
           />
 
@@ -834,9 +823,6 @@ export default function ScalingSuggestionPage() {
                 <>
                   <Link href={scalingHref("/scaling-validation", sent.eventId)} className={BANNER_LINK}>
                     <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /> Ver na Validação
-                  </Link>
-                  <Link href={scalingHref("/scaling-event-view", sent.eventId)} className={BANNER_LINK}>
-                    <History className="w-3.5 h-3.5" aria-hidden="true" /> Histórico
                   </Link>
                   {/* Desfazer aqui mesmo: é neste instante que o usuário percebe o evento/quantidade errados. */}
                   {!readOnly && sentSummary.total > 0 && (
@@ -1007,7 +993,7 @@ export default function ScalingSuggestionPage() {
                 <SuggestionGrid
                   rows={rows} dates={dates} issuesByRow={issuesByRow} areaByFunctionId={areaByFunctionId}
                   onChangeRow={changeRow} onChangeQty={changeQty}
-                  onDuplicateRow={duplicateRow} onRemoveRow={removeRow} onRepeatFirst={repeatFirstValue}
+                  onDuplicateRow={duplicateRow} onRemoveRow={removeRow}
                   onPaste={openPaste} onAddFunction={openAddFunction}
                   disabled={busy}
                 />
@@ -1066,7 +1052,13 @@ export default function ScalingSuggestionPage() {
                     {records.length > 0 && <span className="text-slate-500"> · {summary.pessoasDia} pessoas-dia em {summary.funcoes} {summary.funcoes === 1 ? "linha" : "linhas"}</span>}
                   </p>
                   <p className={cn(HINT, "flex items-center gap-1.5 mt-0.5")}>
-                    <Save className="w-3.5 h-3.5" aria-hidden="true" /> Rascunho salvo neste navegador, por evento — 7 dias.
+                    {draftSavedAt
+                      ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
+                      : <Save className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
+                    <span>
+                      {draftSavedAt ? <>Rascunho salvo <span className="tabular-nums">{draftSavedAt}</span> · </> : "Rascunho salvo "}
+                      neste navegador, por evento — 7 dias.
+                    </span>
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">

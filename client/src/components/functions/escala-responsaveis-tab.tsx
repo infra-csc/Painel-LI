@@ -16,6 +16,8 @@ import type { FunctionWithManagers } from "@/components/scaling-validation/types
 
 type ManagerRole = "validador" | "aprovador";
 type Manager = NonNullable<FunctionWithManagers["managers"]>[number];
+/** GET /api/scaling-default-approver — quem decide quando a função não tem aprovador próprio. */
+type DefaultApprover = { userId: string | null; userName: string | null };
 
 const SOFT_INPUT = "w-full text-foreground border-0 rounded-[10px] bg-brand-soft outline-none focus-visible:ring-2 focus-visible:ring-ring/25 placeholder:text-muted-foreground";
 
@@ -294,6 +296,16 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
   const { data: functions, isLoading, isError, error, refetch } = useQuery<FunctionWithManagers[]>({ queryKey: ["/api/functions"] });
   // GET /api/users recusa quem não gerencia — só busca para quem pode editar.
   const { data: users } = useQuery<UserType[]>({ queryKey: ["/api/users"], enabled: canManage });
+  // Aprovador padrão do sistema: função sem aprovador próprio não fica sem quem
+  // decida, então isso é informação, não alarme. Carregando/erro → sem linha.
+  const { data: defaultApprover } = useQuery<DefaultApprover>({ queryKey: ["/api/scaling-default-approver"] });
+
+  // Nunca exibimos o id: sem nome, texto genérico; sem padrão configurado, nada.
+  const defaultApproverText = useMemo(() => {
+    if (!defaultApprover?.userId) return null;
+    const name = defaultApprover.userName?.trim();
+    return name ? `Aprovador padrão: ${name}` : "Aprovador padrão do sistema";
+  }, [defaultApprover]);
 
   const visible = useMemo(() => {
     let list = (functions ?? [])
@@ -304,7 +316,8 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
   }, [functions, search]);
 
   const allVisible = useMemo(() => (functions ?? []).filter(f => f.responsibleArea !== "__system__"), [functions]);
-  const missingApprover = useMemo(() => allVisible.filter(f => !(f.managers ?? []).some(m => m.role === "aprovador")), [allVisible]);
+  // Funções sem aprovador PRÓPRIO — caem no aprovador padrão (não é pendência).
+  const usingDefault = useMemo(() => allVisible.filter(f => !(f.managers ?? []).some(m => m.role === "aprovador")), [allVisible]);
 
   const sortedUsers = useMemo(
     () => [...(users ?? [])].sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email, "pt-BR")),
@@ -340,10 +353,14 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
       .sort((a, b) => a.userName.localeCompare(b.userName, "pt-BR"));
     return (
       <div className="flex flex-wrap items-center gap-1.5">
-        {managers.length === 0 && (
-          <span className={cn("text-[11px] italic", role === "aprovador" ? "text-amber-600 font-semibold not-italic" : "text-slate-400")}>
-            {role === "aprovador" ? "Sem aprovador" : "Nenhum validador"}
-          </span>
+        {managers.length === 0 && (role === "aprovador"
+          // Sem aprovador próprio: quem decide é o padrão do sistema — nota
+          // discreta, sem cor de alerta. O admin segue livre para cadastrar um
+          // aprovador específico da função no "+" ao lado.
+          ? defaultApproverText && (
+              <span className="text-[11px] text-slate-500">{defaultApproverText}</span>
+            )
+          : <span className="text-[11px] italic text-slate-400">Nenhum validador</span>
         )}
         {managers.map(m => (
           <ManagerChip key={m.userId} manager={m} canManage={canManage}
@@ -363,16 +380,9 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
   return (
     <div className="bg-card rounded-xl border border-border shadow-[0_20px_40px_rgba(20,27,43,0.03)] overflow-hidden">
 
-      {/* Aviso: funções sem aprovador travam a esteira da Validação de Escala */}
-      {!isLoading && missingApprover.length > 0 && (
-        <div className="flex items-start gap-3 mx-4 sm:mx-6 mt-4 px-4 py-3 rounded-xl border border-amber-200 bg-amber-50" role="status">
-          <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-          <p className="text-[12px] text-amber-800 m-0 leading-relaxed">
-            <strong>{missingApprover.length} {missingApprover.length === 1 ? "função está" : "funções estão"} sem aprovador.</strong>{" "}
-            Vagas validadas dessas funções ficam paradas aguardando aprovação — defina ao menos um aprovador para cada uma (linhas destacadas abaixo).
-          </p>
-        </div>
-      )}
+      {/* Sem banner de "sem aprovador": com o aprovador padrão do sistema,
+          nenhuma vaga validada fica sem quem decida. Cada função mostra a nota
+          discreta do padrão na própria coluna Aprovadores. */}
 
       {/* Atalho por área */}
       {canManage && !isLoading && allVisible.length > 0 && (
@@ -437,22 +447,16 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
               </tr>
             </thead>
             <tbody>
-              {visible.map(func => {
-                const semAprovador = !(func.managers ?? []).some(m => m.role === "aprovador");
-                return (
-                  <tr key={func.id}
-                    className={cn("transition-colors border-b border-border/50 hover:bg-brand-soft/30", semAprovador && "bg-amber-50/40 border-l-2 border-l-amber-400")}>
-                    <td className="px-4 sm:px-6 py-3.5 align-top">
-                      <span className="text-[14px] font-semibold text-foreground capitalize">{func.name}</span>
-                      {semAprovador && (
-                        <span className="block text-[10px] font-bold text-amber-600 uppercase tracking-wide mt-0.5">Sem aprovador</span>
-                      )}
-                    </td>
-                    <td className="px-4 sm:px-6 py-3.5 align-top">{cellFor(func, "validador")}</td>
-                    <td className="px-4 sm:px-6 py-3.5 align-top">{cellFor(func, "aprovador")}</td>
-                  </tr>
-                );
-              })}
+              {visible.map(func => (
+                <tr key={func.id}
+                  className="transition-colors border-b border-border/50 hover:bg-brand-soft/30">
+                  <td className="px-4 sm:px-6 py-3.5 align-top">
+                    <span className="text-[14px] font-semibold text-foreground capitalize">{func.name}</span>
+                  </td>
+                  <td className="px-4 sm:px-6 py-3.5 align-top">{cellFor(func, "validador")}</td>
+                  <td className="px-4 sm:px-6 py-3.5 align-top">{cellFor(func, "aprovador")}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -463,7 +467,11 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
           <span className="text-xs text-slate-400 font-medium">
             {search
               ? `Mostrando ${visible.length} de ${allVisible.length} funções`
-              : `${allVisible.length} ${allVisible.length === 1 ? "função" : "funções"} · ${missingApprover.length} sem aprovador`}
+              : `${allVisible.length} ${allVisible.length === 1 ? "função" : "funções"}${
+                  defaultApproverText && usingDefault.length > 0
+                    ? ` · ${usingDefault.length} no aprovador padrão`
+                    : ""
+                }`}
           </span>
         </div>
       )}

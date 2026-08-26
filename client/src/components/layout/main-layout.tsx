@@ -14,7 +14,7 @@ import SystemNoticeBar from "./system-notice";
 import CommandPalette from "./command-palette";
 import ShortcutsDialog from "./shortcuts-dialog";
 import { useAuth } from "@/hooks/use-auth";
-import { useSidebar } from "@/contexts/sidebar-context";
+import { useSidebar, TOPBAR_H } from "@/contexts/sidebar-context";
 import { useShellMode } from "./use-shell-mode";
 
 interface MainLayoutProps {
@@ -23,7 +23,7 @@ interface MainLayoutProps {
 
 export default function MainLayout({ children }: MainLayoutProps) {
   const { sidebarWidth } = useSidebar();
-  const { toggleCompacto, toggleFoco, isMobileOpen, setMobileOpen } = useShellMode();
+  const { toggleMenu, toggleFoco, isMobileOpen, setMobileOpen } = useShellMode();
   // Modo Simulação: o banner global é fixo no topo — todo o layout desce a
   // altura dele (inclusive a sidebar, que lê o mesmo flag).
   const { simulation } = useAuth();
@@ -37,9 +37,18 @@ export default function MainLayout({ children }: MainLayoutProps) {
   // ── Atalhos globais ──
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
+      // AltGr chega como Ctrl+Alt no teclado ABNT2: sem esta guarda os atalhos
+      // engoliriam caracteres que o usuário está DIGITANDO.
+      const mod = (e.metaKey || e.ctrlKey) && !e.altKey;
+      // Digitando num campo (motivo do pedido, busca, observações), o atalho não
+      // rouba a tecla nem abre painel por cima do diálogo aberto.
+      const el = e.target as HTMLElement | null;
+      const typing = !!el && (
+        el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable
+      );
+      if (mod && typing) return;
       if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); setPaletteOpen((v) => !v); return; }
-      if (mod && e.key === "\\") { e.preventDefault(); toggleCompacto(); return; }
+      if (mod && e.key === "\\") { e.preventDefault(); toggleMenu(); return; }
       if (mod && e.key === ".") { e.preventDefault(); toggleFoco(); return; }
       if (mod && e.key === "/") { e.preventDefault(); setShortcutsOpen((v) => !v); return; }
       if (e.key === "Escape") {
@@ -50,12 +59,19 @@ export default function MainLayout({ children }: MainLayoutProps) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [toggleCompacto, toggleFoco, isMobileOpen, setMobileOpen]);
+  }, [toggleMenu, toggleFoco, isMobileOpen, setMobileOpen]);
 
   return (
     <div
       className="min-h-dvh bg-background"
-      style={simActive ? { paddingTop: SIMULATION_BANNER_H } : undefined}
+      style={{
+        ...(simActive ? { paddingTop: SIMULATION_BANNER_H } : {}),
+        // Onde termina o que está fixo no topo (barra do topo + banner de
+        // simulação, quando ativo). Cabeçalhos `sticky` de tabela usam esta
+        // medida — com `top-14` cravado eles ficavam ATRÁS da barra em
+        // simulação, que empurra tudo 40px para baixo.
+        ["--sticky-top" as string]: `${TOPBAR_H + (simActive ? SIMULATION_BANNER_H : 0)}px`,
+      } as React.CSSProperties}
     >
       <SimulationBanner />
       <Sidebar />

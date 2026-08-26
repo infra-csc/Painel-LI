@@ -42,11 +42,22 @@ import { APPROVAL_QUERY_KEYS } from "@/components/scaling-approval/types";
 const ALL = "all";
 const BASE_PATH = "/scaling-event-view";
 
-type ApiViewRow = TeamInclusion & { requests: ScalingChangeRequest[] };
+type ApiViewRow = TeamInclusion & {
+  requests: ScalingChangeRequest[];
+  /** Evento da vaga — o servidor anexa (necessário no modo "Todos os eventos"). */
+  eventName?: string | null;
+  eventStartDate?: string | null;
+  eventEndDate?: string | null;
+};
 interface EventViewData {
   suggestions: ApiViewRow[];
   inclusions: ApiViewRow[];
   requests: ScalingChangeRequest[];
+  /** Só no modo "Todos os eventos": a consulta bateu no teto de linhas. */
+  truncated?: boolean;
+  rowLimit?: number | null;
+  /** Quantos eventos entraram no recorte do servidor. */
+  eventCount?: number;
 }
 /** Linha da tela: a da API + os campos que os componentes da Validação (lista/quadro) esperam. */
 type EventViewRow = ApiViewRow & SuggestionRow;
@@ -194,15 +205,22 @@ interface TlEntry {
   quote?: string;
   href?: string;
   linkLabel?: string;
+  /** Evento do movimento — a linha do tempo agrupa por ele no modo "todos". */
+  eventId?: string;
 }
 
-/** Agrupa por minuto: um envio/validação/exclusão em lote vira UM movimento. */
-function batchByMinute<T>(items: T[], at: (x: T) => unknown): { at: Date; items: T[] }[] {
-  const map = new Map<number, { at: Date; items: T[] }>();
+/**
+ * Agrupa por minuto: um envio/validação/exclusão em lote vira UM movimento.
+ * `bucket` separa lotes que caíram no mesmo minuto mas são de EVENTOS
+ * diferentes — no modo "Todos os eventos" eles virariam um cartão só, dizendo
+ * que uma escala foi enviada para funções de dois eventos ao mesmo tempo.
+ */
+function batchByMinute<T>(items: T[], at: (x: T) => unknown, bucket?: (x: T) => string): { at: Date; items: T[] }[] {
+  const map = new Map<string, { at: Date; items: T[] }>();
   for (const it of items) {
     const d = toDate(at(it));
     if (!d) continue;
-    const k = Math.floor(d.getTime() / 60_000);
+    const k = `${Math.floor(d.getTime() / 60_000)}|${bucket?.(it) ?? ""}`;
     const g = map.get(k);
     if (g) g.items.push(it);
     else map.set(k, { at: d, items: [it] });
@@ -241,6 +259,9 @@ function ViewEmpty({ icon: Icon, title, description, onClear, live }: {
   );
 }
 
+/** Quantos eventos a linha do tempo mostra por vez no modo "Todos os eventos". */
+const TIMELINE_EVENTS_STEP = 3;
+
 const TH = "px-3 py-2 text-left text-[11px] uppercase tracking-widest text-slate-500 font-semibold whitespace-nowrap";
 const LABEL = "text-xs text-slate-500";
 const CHIP = "inline-flex items-center h-[22px] rounded-full px-2 text-[11px] font-medium";
@@ -262,10 +283,21 @@ export default function ScalingEventViewPage() {
   const tabParams = useCallback((t: Tab): Record<string, string> => (t === "timeline" ? {} : { tab: t }), []);
 
   // ── Evento (URL ?eventId= > último usado no módulo) ──
-  const { eventId, setEventId, sanitize } = useScalingEvent(BASE_PATH, { extraParams: () => tabParams(tab) });
+  // Abre em "Todos os eventos" (regra do dono, 26/08) — o combobox é filtro.
+  const { eventId, setEventId, sanitize } = useScalingEvent(BASE_PATH, {
+    extraParams: () => tabParams(tab),
+    allEventsDefault: true,
+  });
   const setTab = useCallback((t: Tab) => {
     setLocation(scalingHref(BASE_PATH, eventId, tabParams(t)), { replace: true });
   }, [eventId, setLocation, tabParams]);
+  /**
+   * Aba EFETIVA: sem evento selecionado o quadro "Escala" não existe (função ×
+   * dia de eventos diferentes na mesma coluna não quer dizer nada), então um
+   * `?tab=escala` antigo cai na Lista. Tudo que descreve a aba VISÍVEL —
+   * contagem, exportação, banner — lê daqui; só a URL continua com `tab`.
+   */
+  const effectiveTab: Tab = !eventId && tab === "escala" ? "lista" : tab;
 
   const [search, setSearch] = useState("");
   const [originFilter, setOriginFilter] = useState(ALL);
@@ -275,6 +307,8 @@ export default function ScalingEventViewPage() {
   /** Categorias visíveis na linha do tempo. */
   const [tlCats, setTlCats] = useState<TlCat[]>(TL_ORDER);
   const [exportOpen, setExportOpen] = useState(false);
+  /** Quantos eventos a linha do tempo mostra no modo "Todos os eventos". */
+  const [visibleEvents, setVisibleEvents] = useState(TIMELINE_EVENTS_STEP);
 
   // ── Dados ──
   const { data: events, isLoading: loadingEvents } = useQuery<Event[]>({ queryKey: ["/api/events"] });
@@ -284,13 +318,33 @@ export default function ScalingEventViewPage() {
   const functionNameById = useMemo(() => new Map((functions ?? []).map((f) => [f.id, f.name])), [functions]);
   useEffect(() => { sanitize(events ? activeEvents.map((e) => e.id) : undefined); }, [events, activeEvents, sanitize]);
 
+  // Sem evento: o servidor devolve o histórico de TODOS os eventos que ainda
+  // importam (com vaga em validação, pedido em aberto ou encerrados há pouco),
+  // com teto de linhas e `truncated` na resposta.
   const viewQuery = useQuery<EventViewData>({
     queryKey: [APPROVAL_QUERY_KEYS.eventView, eventId],
-    queryFn: async () => (await apiRequest("GET", `${APPROVAL_QUERY_KEYS.eventView}?eventId=${encodeURIComponent(eventId)}`)).json(),
-    enabled: !!eventId,
+    queryFn: async () =>
+      (await apiRequest(
+        "GET",
+        eventId ? `${APPROVAL_QUERY_KEYS.eventView}?eventId=${encodeURIComponent(eventId)}` : APPROVAL_QUERY_KEYS.eventView,
+      )).json(),
     staleTime: 15_000,
   });
+  const truncated = !eventId && viewQuery.data?.truncated === true;
+  /** Quantos eventos o servidor considerou no recorte "todos os eventos". */
+  const eventsInView = viewQuery.data?.eventCount ?? 0;
+  const eventById = useMemo(() => new Map(activeEvents.map((e) => [e.id, e])), [activeEvents]);
   const rows = useMemo<EventViewRow[]>(() => [...(viewQuery.data?.suggestions ?? []), ...(viewQuery.data?.inclusions ?? [])].map(toViewRow), [viewQuery.data]);
+  /**
+   * eventId → nome vindo das PRÓPRIAS linhas. Rede de segurança para o evento
+   * que não está mais na lista ativa (excluído): o histórico continua sabendo
+   * de que evento a vaga era, sem mostrar um UUID.
+   */
+  const eventNameByRowId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of rows) if (r.eventId && r.eventName) map.set(r.eventId, r.eventName);
+    return map;
+  }, [rows]);
   const rowById = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
   /** Vagas vivas (sem soft-delete) — base dos KPIs e do quadro. */
   const liveRows = useMemo(() => rows.filter((r) => !isDeleted(r)), [rows]);
@@ -355,7 +409,7 @@ export default function ScalingEventViewPage() {
    * usuário está pedindo "me mostre estas vagas", e limpar um filtro invisível
    * ali o levaria para a Lista sem filtro nenhum.
    */
-  const kpiWouldClear = (key: string) => key === ALL || (tab === "lista" && originFilter === key);
+  const kpiWouldClear = (key: string) => key === ALL || (effectiveTab === "lista" && originFilter === key);
   const onKpiClick = (key: string) => {
     setOriginFilter(kpiWouldClear(key) ? ALL : key);
     if (tab !== "lista") setTab("lista");
@@ -379,19 +433,22 @@ export default function ScalingEventViewPage() {
     const out: TlEntry[] = [];
     const fnName = (id: string) => functionNameById.get(id) ?? "—";
 
-    for (const g of batchByMinute(rows, (r) => r.suggestionSentAt)) {
+    // `eventOf` separa os lotes por evento (ver `batchByMinute`) e carimba a
+    // entrada, para a linha do tempo poder agrupar por evento.
+    const eventOf = (r: EventViewRow) => r.eventId ?? "";
+    for (const g of batchByMinute(rows, (r) => r.suggestionSentAt, eventOf)) {
       const funcs = new Set(g.items.map((r) => r.functionId)).size;
       const pessoasDia = g.items.reduce((a, r) => a + (workDaysOf(r).length || r.dailyRates || 0), 0);
       out.push({
-        id: `envio-${g.at.getTime()}`, cat: "envio", at: g.at,
+        id: `envio-${g.items[0].eventId}-${g.at.getTime()}`, cat: "envio", at: g.at, eventId: g.items[0].eventId,
         title: "Escala sugerida enviada para validação", tag: "Envio",
         text: `${namesOf(g.items, functionNameById)} — a logística mandou as vagas para as áreas conferirem.`,
         chips: [plural(g.items.length, "vaga", "vagas"), plural(funcs, "função", "funções"), `${pessoasDia} pessoas-dia`],
       });
     }
-    for (const g of batchByMinute(rows, (r) => r.validatedAt)) {
+    for (const g of batchByMinute(rows, (r) => r.validatedAt, eventOf)) {
       out.push({
-        id: `val-${g.at.getTime()}`, cat: "validacao", at: g.at,
+        id: `val-${g.items[0].eventId}-${g.at.getTime()}`, cat: "validacao", at: g.at, eventId: g.items[0].eventId,
         title: `Área validou ${plural(g.items.length, "vaga", "vagas")}`, tag: "Validação",
         text: `${namesOf(g.items, functionNameById)} — seguiram para a aprovação.`,
         chips: idChips(g.items),
@@ -403,17 +460,17 @@ export default function ScalingEventViewPage() {
     // é bumpado por qualquer edição posterior (escalação, passagem, hospedagem),
     // o texto é conservador: diz que a vaga está em Inclusão e que a data é a da
     // última alteração, sem afirmar que aquele minuto foi o clique do aprovador.
-    for (const g of batchByMinute(rows.filter((r) => !isSuggestionInclusion(r) && !isDeleted(r)), (r) => r.updatedAt)) {
+    for (const g of batchByMinute(rows.filter((r) => !isSuggestionInclusion(r) && !isDeleted(r)), (r) => r.updatedAt, eventOf)) {
       out.push({
-        id: `apr-${g.at.getTime()}`, cat: "decisao", at: g.at,
+        id: `apr-${g.items[0].eventId}-${g.at.getTime()}`, cat: "decisao", at: g.at, eventId: g.items[0].eventId,
         title: `${plural(g.items.length, "vaga virou", "vagas viraram")} Inclusão de Equipe`, tag: "Aprovação",
         text: `${namesOf(g.items, functionNameById)} — aprovadas pelo aprovador e fora da Validação (data da última alteração da vaga).`,
         chips: idChips(g.items),
       });
     }
-    for (const g of batchByMinute(rows, (r) => r.deletedAt)) {
+    for (const g of batchByMinute(rows, (r) => r.deletedAt, eventOf)) {
       out.push({
-        id: `del-${g.at.getTime()}`, cat: "exclusao", at: g.at,
+        id: `del-${g.items[0].eventId}-${g.at.getTime()}`, cat: "exclusao", at: g.at, eventId: g.items[0].eventId,
         title: `${plural(g.items.length, "vaga excluída", "vagas excluídas")}`, tag: "Excluída",
         text: `${namesOf(g.items, functionNameById)} — fora da soma dos indicadores e do quadro.`,
         chips: idChips(g.items),
@@ -423,11 +480,12 @@ export default function ScalingEventViewPage() {
       const tipo = CHANGE_REQUEST_TYPE_LABELS[r.requestType as ChangeRequestType] ?? r.requestType;
       const alvo = r.teamInclusionId ? `vaga #${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "—"}` : "vaga nova";
       const where = `${fnName(r.functionId)} · ${alvo}${r.area ? ` · ${r.area}` : ""}`;
-      const href = canOpenApproval ? scalingHref("/scaling-approval", eventId, { request: r.id }) : undefined;
+      // O link leva ao evento DO PEDIDO (no modo "todos", `eventId` é vazio).
+      const href = canOpenApproval ? scalingHref("/scaling-approval", eventId || r.eventId, { request: r.id }) : undefined;
       const created = toDate(r.createdAt);
       if (created) {
         out.push({
-          id: `req-${r.id}`, cat: "pedido", at: created,
+          id: `req-${r.id}`, cat: "pedido", at: created, eventId: r.eventId,
           title: `Pedido de ${tipo.toLowerCase()} aberto`, tag: tipo,
           text: where, author: r.requestedByName ? `${r.requestedByName} (solicitante)` : undefined,
           quote: r.reason ?? undefined, href, linkLabel: "Abrir na Aprovação",
@@ -437,7 +495,7 @@ export default function ScalingEventViewPage() {
       if (reviewed) {
         const st = CHANGE_REQUEST_STATUS_LABELS[r.status as ChangeRequestStatus] ?? r.status;
         out.push({
-          id: `dec-${r.id}`, cat: "decisao", at: reviewed,
+          id: `dec-${r.id}`, cat: "decisao", at: reviewed, eventId: r.eventId,
           title: `Pedido de ${tipo.toLowerCase()} — ${st.toLowerCase()}`, tag: st,
           text: where, author: r.reviewedByName ? `${r.reviewedByName} (aprovador)` : undefined,
           quote: r.reviewComment ?? undefined, href, linkLabel: "Abrir na Aprovação",
@@ -456,17 +514,47 @@ export default function ScalingEventViewPage() {
       .filter((e) => !q || `${e.title} ${e.text} ${e.tag} ${e.author ?? ""} ${e.quote ?? ""} ${(e.chips ?? []).join(" ")}`.toLowerCase().includes(q));
   }, [timeline, tlCats, search]);
   /** Movimentos agrupados por dia (mais recente primeiro). */
-  const timelineDays = useMemo(() => {
+  const groupByDay = useCallback((entries: TlEntry[]) => {
     const today = formatDateBr(new Date());
     const out: { key: string; label: string; items: TlEntry[] }[] = [];
-    for (const e of filteredTimeline) {
+    for (const e of entries) {
       const key = formatDateBr(e.at);
       let g = out.find((x) => x.key === key);
       if (!g) { g = { key, label: key === today ? `${key} · hoje` : key, items: [] }; out.push(g); }
       g.items.push(e);
     }
     return out;
-  }, [filteredTimeline]);
+  }, []);
+  const timelineDays = useMemo(() => groupByDay(filteredTimeline), [groupByDay, filteredTimeline]);
+
+  /**
+   * Modo "Todos os eventos": a linha do tempo de todos os eventos de uma vez
+   * ficaria interminável e misturaria histórias diferentes. Por isso ela é
+   * agrupada POR EVENTO (o de movimento mais recente primeiro) e só os
+   * `TIMELINE_EVENTS_STEP` primeiros aparecem — o resto vem no "Ver mais".
+   * Dentro de cada evento continua a leitura por dia de sempre.
+   */
+  const timelineEvents = useMemo(() => {
+    if (eventId) return [];
+    const out: { key: string; name: string; period: string; items: TlEntry[] }[] = [];
+    for (const e of filteredTimeline) {
+      const key = e.eventId ?? "";
+      let g = out.find((x) => x.key === key);
+      if (!g) {
+        const ev = eventById.get(key);
+        out.push((g = {
+          key,
+          name: ev?.name ?? eventNameByRowId.get(key) ?? "Evento sem nome",
+          period: ev ? formatDateRange(ev.startDate, ev.endDate, { withYear: true }) : "",
+          items: [],
+        }));
+      }
+      g.items.push(e);
+    }
+    // `filteredTimeline` já vem do mais recente para o mais antigo, então a
+    // ordem de aparição dos grupos já é a ordem certa.
+    return out;
+  }, [eventId, filteredTimeline, eventById, eventNameByRowId]);
   const timelineStart = timeline.length ? formatDateBr(timeline[timeline.length - 1].at) : "";
   const lastMovement = timeline[0] ?? null;
 
@@ -523,31 +611,37 @@ export default function ScalingEventViewPage() {
   }, []);
 
   // ── Export CSV da ABA corrente (BOM + ;) ──
-  const exportEnabled = !!eventId && (
-    tab === "timeline" ? filteredTimeline.length > 0
-      : tab === "lista" ? filteredRows.length > 0
-        : tab === "escala" ? boardRows.length > 0
+  // Exporta o que está na tela — inclusive em "Todos os eventos" (a Lista e os
+  // Pedidos saem com a coluna Evento; o quadro "Escala" só existe com filtro).
+  const exportEnabled = (
+    effectiveTab === "timeline" ? filteredTimeline.length > 0
+      : effectiveTab === "lista" ? filteredRows.length > 0
+        : effectiveTab === "escala" ? !!eventId && boardRows.length > 0
           : requests.length > 0
   );
-  const exportFilename = `historico-escala-${slugify(selectedEvent?.name ?? "evento")}-${tab}-${todayIso()}.csv`;
+  const exportFilename = `historico-escala-${slugify(selectedEvent?.name ?? (eventId ? "evento" : "todos-os-eventos"))}-${effectiveTab}-${todayIso()}.csv`;
   const exportCsv = () => {
     setExportOpen(false);
     const filename = exportFilename;
-    if (tab === "timeline") {
-      const header = ["Data", "Hora", "Tipo", "Movimento", "Descrição", "Quem", "Vagas", "Comentário"];
+    if (effectiveTab === "timeline") {
+      const header = [...(eventId ? [] : ["Evento"]), "Data", "Hora", "Tipo", "Movimento", "Descrição", "Quem", "Vagas", "Comentário"];
       const lines = filteredTimeline.map((e) => [
+        ...(eventId ? [] : [e.eventId ? eventNameOf({ eventId: e.eventId }) : "—"]),
         formatDateBr(e.at), hhmm(e.at), TL[e.cat].label, e.title, e.text,
         e.author ?? "", (e.chips ?? []).join(", "), e.quote ?? "",
       ]);
       downloadCsv(filename, header, lines);
       return;
     }
-    if (tab === "lista") {
-      const header = ["ID", "Função", "Área", "Origem/Status", "Período", "Dias de trabalho", "Diárias", "Ida", "Volta", "Passagem", "Hotel", "Pedidos", "Observações", "Último movimento", "Movimento em"];
+    if (effectiveTab === "lista") {
+      // Em "Todos os eventos" a planilha precisa dizer de que evento é cada
+      // linha — sem isso o arquivo mistura eventos sem aviso.
+      const header = [...(eventId ? [] : ["Evento"]), "ID", "Função", "Área", "Origem/Status", "Período", "Dias de trabalho", "Diárias", "Ida", "Volta", "Passagem", "Hotel", "Pedidos", "Observações", "Último movimento", "Movimento em"];
       const lines = filteredRows.map((r) => {
         const days = workDaysOf(r);
         const last = lastMoveOf(r);
         return [
+          ...(eventId ? [] : [eventNameOf(r)]),
           `#${r.inclusionNumber}`, functionNameById.get(r.functionId) ?? "", r.area ?? "", originLabel(r), periodLabel(r),
           days.map((d) => formatDayMonthBr(d)).join(", "), String(days.length || r.dailyRates || 0),
           legLabel(r.transportModeIda, r.flightDepartureDate, r.flightArrivalSuggestedTime),
@@ -559,7 +653,7 @@ export default function ScalingEventViewPage() {
       downloadCsv(filename, header, lines);
       return;
     }
-    if (tab === "escala") {
+    if (effectiveTab === "escala") {
       // Mesma agregação do ScheduleBoard: função × dia (soma de vagas por dia).
       let min = ymd(selectedEvent?.startDate); let max = ymd(selectedEvent?.endDate);
       for (const r of boardRows) {
@@ -594,8 +688,9 @@ export default function ScalingEventViewPage() {
       downloadCsv(filename, ["Função", "Área", "Vagas", ...dates.map((d) => formatDayMonthBr(d)), "Pessoas-dia"], [...lines, totalRow]);
       return;
     }
-    const header = ["Tipo", "Função", "Vaga", "Área", "Solicitante", "Aberto em", "Motivo", "Status", "Revisado por", "Revisado em", "Comentário"];
+    const header = [...(eventId ? [] : ["Evento"]), "Tipo", "Função", "Vaga", "Área", "Solicitante", "Aberto em", "Motivo", "Status", "Revisado por", "Revisado em", "Comentário"];
     const lines = requests.map((r) => [
+      ...(eventId ? [] : [eventNameOf(r)]),
       CHANGE_REQUEST_TYPE_LABELS[r.requestType as ChangeRequestType] ?? r.requestType,
       functionNameById.get(r.functionId) ?? "",
       r.teamInclusionId ? `#${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "—"}` : "vaga nova",
@@ -614,12 +709,69 @@ export default function ScalingEventViewPage() {
     ) : null
   );
 
-  const showData = !!eventId && !viewQuery.isLoading && !viewQuery.error && (rows.length > 0 || requests.length > 0);
+  const showData = !viewQuery.isLoading && !viewQuery.error && (rows.length > 0 || requests.length > 0);
+  /** Nome do evento de uma linha (lista/CSV no modo "todos os eventos"). */
+  const eventNameOf = useCallback(
+    (row: { eventId: string; eventName?: string | null }) =>
+      row.eventName ?? eventById.get(row.eventId)?.name ?? eventNameByRowId.get(row.eventId) ?? "—",
+    [eventById, eventNameByRowId],
+  );
   const countText =
-    tab === "timeline" ? `${filteredTimeline.length} de ${timeline.length} movimento(s)`
-      : tab === "lista" ? `${filteredRows.length} de ${rows.length} vaga(s)`
-        : tab === "escala" ? "Quadro função × dia (vagas negadas e excluídas não entram)"
+    effectiveTab === "timeline" ? `${filteredTimeline.length} de ${timeline.length} movimento(s)`
+      : effectiveTab === "lista" ? `${filteredRows.length} de ${rows.length} vaga(s)`
+        : effectiveTab === "escala" ? "Quadro função × dia (vagas negadas e excluídas não entram)"
           : `${requests.length} pedido(s)`;
+
+  /**
+   * Bloco de dias da linha do tempo — o MESMO markup com evento selecionado e
+   * dentro de cada evento no modo "todos" (a leitura não muda de um para outro).
+   */
+  const renderTimelineDays = (days: { key: string; label: string; items: TlEntry[] }[]) =>
+    days.map((g) => (
+      <div key={g.key} className="flex flex-col">
+        <div className="sticky top-0 z-[2] flex items-center gap-2.5 bg-white pb-2 pt-3">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-slate-800">{g.label}</span>
+          <span className="text-[11px] text-slate-400">{plural(g.items.length, "movimento", "movimentos")}</span>
+          <span className="h-px flex-1 bg-slate-100" aria-hidden="true" />
+        </div>
+        <ol className="m-0 flex list-none flex-col gap-3 border-l border-slate-200 pl-6">
+          {g.items.map((e) => {
+            const c = TL[e.cat];
+            return (
+              <li key={e.id} className="relative">
+                <span className={cn("absolute -left-[33px] top-0.5 inline-flex h-[18px] w-[18px] items-center justify-center rounded-full border-2 border-white text-white", c.dot)} aria-hidden="true">
+                  <c.icon className="h-2.5 w-2.5" />
+                </span>
+                <div className={cn("flex flex-col gap-1.5 rounded-xl border p-2.5", c.card)}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[13px] font-semibold text-slate-800">{e.title}</span>
+                    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide", c.tag)}>{e.tag}</span>
+                    <span className="ml-auto font-mono text-[11px] text-slate-400">{hhmm(e.at)}</span>
+                  </div>
+                  {e.text && <p className="text-xs text-slate-600">{e.text}</p>}
+                  {e.chips && e.chips.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {e.chips.map((ch, i) => <span key={`${e.id}-${i}`} className={cn(CHIP, "bg-slate-100 text-slate-600")}>{ch}</span>)}
+                    </div>
+                  )}
+                  {e.quote && <p className={cn("border-l-2 pl-2.5 text-xs text-slate-700 whitespace-pre-wrap break-words", c.quote)}>{e.quote}</p>}
+                  {(e.author || e.href) && (
+                    <div className="flex flex-wrap items-center gap-3">
+                      {e.author && <span className="text-[11px] text-slate-400">{e.author}</span>}
+                      {e.href && (
+                        <Link href={e.href} className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline">
+                          <ExternalLink className="h-3 w-3" aria-hidden="true" />{e.linkLabel}
+                        </Link>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    ));
 
   // ── Render ──
   return (
@@ -635,11 +787,11 @@ export default function ScalingEventViewPage() {
               <TooltipTrigger asChild>
                 <span className="inline-flex" tabIndex={exportEnabled ? -1 : 0}>
                   <Button type="button" size="sm" variant="outline" className="rounded-lg" disabled={!exportEnabled} onClick={() => setExportOpen(true)}>
-                    <Download className="w-4 h-4 mr-1.5" aria-hidden="true" /> Exportar CSV · {TAB_LABEL[tab]}
+                    <Download className="w-4 h-4 mr-1.5" aria-hidden="true" /> Exportar CSV · {TAB_LABEL[effectiveTab]}
                   </Button>
                 </span>
               </TooltipTrigger>
-              <TooltipContent>{exportEnabled ? `Exporta a aba ${TAB_LABEL[tab]}` : "Nada para exportar nesta aba"}</TooltipContent>
+              <TooltipContent>{exportEnabled ? `Exporta a aba ${TAB_LABEL[effectiveTab]}` : "Nada para exportar nesta aba"}</TooltipContent>
             </Tooltip>
           </>
         }
@@ -656,17 +808,23 @@ export default function ScalingEventViewPage() {
               <div className="h-8 rounded-lg bg-slate-100 animate-pulse" aria-hidden="true" />
             ) : (
               <EventCombobox
-                events={activeEvents} value={eventId} showAllOption={false}
+                events={activeEvents} value={eventId || ALL} showAllOption
                 onValueChange={(v) => setEventId(v === ALL ? "" : v)}
-                placeholder="Selecione um evento" testId="scaling-event-view-event"
+                placeholder="Todos os eventos" testId="scaling-event-view-event"
                 className="h-8 font-semibold"
               />
             )}
           </div>
-          {selectedEvent && (
+          {selectedEvent ? (
             <p className={cn(LABEL, "truncate")}>
               <span className="font-mono">{formatDateRange(selectedEvent.startDate, selectedEvent.endDate, { withYear: true })}</span>
               {selectedEvent.location ? ` · ${selectedEvent.location}` : ""}
+            </p>
+          ) : (
+            <p className={cn(LABEL, "truncate")}>
+              {eventsInView > 0
+                ? `${eventsInView} ${eventsInView === 1 ? "evento" : "eventos"} — com vaga em validação, pedido em aberto ou encerrados há pouco.`
+                : "Todos os eventos — escolha um para filtrar."}
             </p>
           )}
           {showData && lastMovement && (
@@ -728,7 +886,7 @@ export default function ScalingEventViewPage() {
       </section>
 
       {/* ── Onde a escala está travada (sem role=status: a contagem das abas é a única região live) ── */}
-      {showData && stalled && (tab === "timeline" || tab === "lista") && (
+      {showData && stalled && (effectiveTab === "timeline" || effectiveTab === "lista") && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5">
           <Timer className="w-4 h-4 text-amber-600 shrink-0" aria-hidden="true" />
           <div className="min-w-0">
@@ -743,14 +901,19 @@ export default function ScalingEventViewPage() {
         </div>
       )}
 
-      {!eventId ? (
-        <ViewEmpty
-          live
-          icon={CalendarRange}
-          title="Selecione um evento"
-          description="O histórico é por evento: escolha um acima para ver a linha do tempo da escala, a situação de cada vaga e os pedidos."
-        />
-      ) : viewQuery.isLoading ? (
+      {/* Teto do modo "todos os eventos" — a consulta histórica é a que mais
+          cresce, então quando ela é cortada o filtro é a saída. */}
+      {truncated && (
+        <p role="status" className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-800">
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>
+            <span className="font-semibold">Histórico parcial</span> — são muitos movimentos para mostrar de uma vez
+            {viewQuery.data?.rowLimit ? ` (teto de ${viewQuery.data.rowLimit} vagas)` : ""}. Escolha um evento acima para ver o histórico completo dele.
+          </span>
+        </p>
+      )}
+
+      {viewQuery.isLoading ? (
         <LoadingState count={5} label="Carregando escala do evento…" />
       ) : viewQuery.error ? (
         <div role="alert" className="rounded-2xl border border-red-200 bg-white p-6 text-center">
@@ -763,16 +926,20 @@ export default function ScalingEventViewPage() {
         <ViewEmpty
           live
           icon={CalendarRange}
-          title="Nenhuma vaga passou pela Validação de Escala neste evento"
-          description="A logística ainda não enviou a escala sugerida deste evento."
+          title={eventId ? "Nenhuma vaga passou pela Validação de Escala neste evento" : "Nenhuma vaga passou pela Validação de Escala"}
+          description={eventId
+            ? "A logística ainda não enviou a escala sugerida deste evento."
+            : "Nenhum evento do recorte (com vaga em validação, pedido em aberto ou encerrado há pouco) tem histórico de escala. Escolha um evento acima para consultar o histórico dele."}
         />
       ) : (
-        <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="space-y-3">
+        <Tabs value={effectiveTab} onValueChange={(v) => setTab(v as Tab)} className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <TabsList className="h-auto rounded-xl bg-slate-100 p-[3px]">
               <TabsTrigger value="timeline" className="h-7 rounded-lg px-3.5 text-[13px]">Linha do tempo</TabsTrigger>
               <TabsTrigger value="lista" className="h-7 rounded-lg px-3.5 text-[13px]">Lista</TabsTrigger>
-              <TabsTrigger value="escala" className="h-7 rounded-lg px-3.5 text-[13px]">Escala</TabsTrigger>
+              {/* O quadro é função × dia DE UM evento: sem filtro ele somaria
+                  dias de eventos diferentes na mesma coluna. */}
+              {eventId && <TabsTrigger value="escala" className="h-7 rounded-lg px-3.5 text-[13px]">Escala</TabsTrigger>}
               <TabsTrigger value="pedidos" className="h-7 rounded-lg px-3.5 text-[13px]">Pedidos{requests.length ? ` (${requests.length})` : ""}</TabsTrigger>
             </TabsList>
             <p className={LABEL} aria-live="polite">{countText}</p>
@@ -830,53 +997,35 @@ export default function ScalingEventViewPage() {
                   onClear={tlHasFilters ? clearTlFilters : undefined}
                 />
               )
+            ) : !eventId ? (
+              /* "Todos os eventos": um bloco por EVENTO (o de movimento mais
+                 recente primeiro), N por vez — dentro dele, os dias de sempre. */
+              <div className="space-y-3">
+                {timelineEvents.slice(0, visibleEvents).map((g) => (
+                  <section key={g.key} className="rounded-2xl border border-slate-200 bg-white px-4 pb-4 pt-1" aria-label={`Movimentos de ${g.name}`}>
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-slate-100 pb-2 pt-3">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Evento</span>
+                      <span className="text-[13px] font-semibold text-slate-800">{g.name}</span>
+                      {g.period && <span className="font-mono text-[11px] text-slate-500">{g.period}</span>}
+                      <span className="text-[11px] text-slate-400">· {plural(g.items.length, "movimento", "movimentos")}</span>
+                    </div>
+                    {renderTimelineDays(groupByDay(g.items))}
+                  </section>
+                ))}
+                {timelineEvents.length > visibleEvents && (
+                  <div className="flex justify-center">
+                    <Button
+                      type="button" variant="outline" size="sm" className="rounded-lg"
+                      onClick={() => setVisibleEvents((n) => n + TIMELINE_EVENTS_STEP)}
+                    >
+                      Ver mais eventos ({timelineEvents.length - visibleEvents} {timelineEvents.length - visibleEvents === 1 ? "restante" : "restantes"})
+                    </Button>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="rounded-2xl border border-slate-200 bg-white px-4 pb-4 pt-1">
-                {timelineDays.map((g) => (
-                  <div key={g.key} className="flex flex-col">
-                    <div className="sticky top-0 z-[2] flex items-center gap-2.5 bg-white pb-2 pt-3">
-                      <span className="text-[11px] font-bold uppercase tracking-wide text-slate-800">{g.label}</span>
-                      <span className="text-[11px] text-slate-400">{plural(g.items.length, "movimento", "movimentos")}</span>
-                      <span className="h-px flex-1 bg-slate-100" aria-hidden="true" />
-                    </div>
-                    <ol className="m-0 flex list-none flex-col gap-3 border-l border-slate-200 pl-6">
-                      {g.items.map((e) => {
-                        const c = TL[e.cat];
-                        return (
-                          <li key={e.id} className="relative">
-                            <span className={cn("absolute -left-[33px] top-0.5 inline-flex h-[18px] w-[18px] items-center justify-center rounded-full border-2 border-white text-white", c.dot)} aria-hidden="true">
-                              <c.icon className="h-2.5 w-2.5" />
-                            </span>
-                            <div className={cn("flex flex-col gap-1.5 rounded-xl border p-2.5", c.card)}>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-[13px] font-semibold text-slate-800">{e.title}</span>
-                                <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide", c.tag)}>{e.tag}</span>
-                                <span className="ml-auto font-mono text-[11px] text-slate-400">{hhmm(e.at)}</span>
-                              </div>
-                              {e.text && <p className="text-xs text-slate-600">{e.text}</p>}
-                              {e.chips && e.chips.length > 0 && (
-                                <div className="flex flex-wrap gap-1.5">
-                                  {e.chips.map((ch, i) => <span key={`${e.id}-${i}`} className={cn(CHIP, "bg-slate-100 text-slate-600")}>{ch}</span>)}
-                                </div>
-                              )}
-                              {e.quote && <p className={cn("border-l-2 pl-2.5 text-xs text-slate-700 whitespace-pre-wrap break-words", c.quote)}>{e.quote}</p>}
-                              {(e.author || e.href) && (
-                                <div className="flex flex-wrap items-center gap-3">
-                                  {e.author && <span className="text-[11px] text-slate-400">{e.author}</span>}
-                                  {e.href && (
-                                    <Link href={e.href} className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline">
-                                      <ExternalLink className="h-3 w-3" aria-hidden="true" />{e.linkLabel}
-                                    </Link>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ol>
-                  </div>
-                ))}
+                {renderTimelineDays(timelineDays)}
                 {timelineStart && (
                   <p className="mt-4 text-center text-[11px] text-slate-400">Fim do histórico — a escala deste evento começou em {timelineStart}.</p>
                 )}
@@ -934,6 +1083,7 @@ export default function ScalingEventViewPage() {
                         <tr>
                           <th className="w-9 border-b border-slate-200 px-0"><span className="sr-only">Origem</span></th>
                           <th className={TH}>Vaga</th>
+                          {!eventId && <th className={cn(TH, "min-w-[170px]")}>Evento</th>}
                           <th className={TH}>Período / diárias</th>
                           <th className={TH}>Logística</th>
                           <th className={cn(TH, "min-w-[230px]")}>Origem / status</th>
@@ -972,6 +1122,14 @@ export default function ScalingEventViewPage() {
                                   </div>
                                 </div>
                               </td>
+                              {!eventId && (
+                                <td className="px-3 py-2 max-w-[220px]">
+                                  <span className="block truncate text-[13px] font-semibold text-slate-700" title={eventNameOf(row)}>{eventNameOf(row)}</span>
+                                  <span className="block font-mono text-[11px] text-slate-400">
+                                    {row.eventStartDate ? formatDateRange(ymd(row.eventStartDate), ymd(row.eventEndDate) || ymd(row.eventStartDate), { withYear: true }) : "—"}
+                                  </span>
+                                </td>
+                              )}
                               <td className="px-3 py-2 whitespace-nowrap">
                                 <span className={cn("font-mono text-xs tabular-nums", dim ? "text-slate-400" : "text-slate-700")}>{periodLabel(row)}</span>
                                 <span className="ml-1 text-[11px] text-slate-400">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
@@ -1022,6 +1180,7 @@ export default function ScalingEventViewPage() {
                           {functionNameById.get(row.functionId) ?? "—"}
                         </p>
                         <p className={LABEL}>{row.area ?? "Sem área"}</p>
+                        {!eventId && <p className={cn(LABEL, "truncate font-semibold text-slate-600")}>{eventNameOf(row)}</p>}
                         <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                           <dt className="text-slate-500">Período</dt><dd className="font-mono text-slate-700">{periodLabel(row)} · {formatDiarias(days.length || row.dailyRates || 0)}</dd>
                           <dt className="text-slate-500">Ida</dt><dd className="text-slate-700">{legLabel(row.transportModeIda, row.flightDepartureDate, row.flightArrivalSuggestedTime)}</dd>
@@ -1102,6 +1261,8 @@ export default function ScalingEventViewPage() {
                             <td className="px-3 py-2.5 align-top"><RequestTypeBadge type={r.requestType} /></td>
                             <td className="px-3 py-2.5 align-top max-w-[280px]">
                               <span className="block text-[13px] font-semibold text-slate-800 truncate">{functionNameById.get(r.functionId) ?? "—"}</span>
+                              {/* Sem filtro de evento, o pedido precisa dizer de qual ele é. */}
+                              {!eventId && <span className="block truncate text-[11px] font-semibold text-slate-500" title={eventNameOf(r)}>{eventNameOf(r)}</span>}
                               <span className="block font-mono text-[11px] text-slate-400">
                                 {r.teamInclusionId ? `vaga #${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "—"}` : "vaga nova"}{r.area ? ` · ${r.area}` : ""}
                               </span>
@@ -1163,11 +1324,11 @@ export default function ScalingEventViewPage() {
           <DialogHeader>
             <DialogTitle>Exportar o histórico em CSV</DialogTitle>
             <DialogDescription>
-              O arquivo sai com a aba aberta agora — <strong className="font-semibold text-slate-700">{TAB_LABEL[tab]}</strong> — separado por ponto e vírgula, pronto para o Excel.
+              O arquivo sai com a aba aberta agora — <strong className="font-semibold text-slate-700">{TAB_LABEL[effectiveTab]}</strong> — separado por ponto e vírgula, pronto para o Excel.
             </DialogDescription>
           </DialogHeader>
           <ul className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-            {EXPORT_COLS[tab].map(([grupo, cols]) => (
+            {EXPORT_COLS[effectiveTab].map(([grupo, cols]) => (
               <li key={grupo} className="border-b border-slate-100 px-3 py-1.5 text-xs text-slate-500 last:border-b-0">
                 <span className="font-semibold text-slate-700">{grupo}</span> {cols}
               </li>

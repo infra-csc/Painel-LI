@@ -31,6 +31,15 @@
  * veem a fila inteira de pedidos); ele NUNCA tira nem dá o poder de decidir —
  * isso é exclusivo do cadastro por função.
  *
+ * APROVADOR PADRÃO (regra do dono, 26/08 — "sempre será o Pedro Telles"): há um
+ * aprovador GLOBAL, guardado em `system_settings.escala_aprovador_padrao`, que
+ * decide em QUALQUER função. Ele não tira nada de ninguém — quem é aprovador
+ * cadastrado continua decidindo exatamente como antes —; ele existe para que
+ * função criada sem aprovador não prenda a vaga validada numa fila sem ninguém
+ * do outro lado. Toda guarda de decisão passa por `canDecideFunction` (que
+ * chama `canApproveInFunction`, do shared); a chave sem valor configurado
+ * devolve o comportamento antigo, palavra por palavra.
+ *
  * CORRIDAS (TOCTOU): toda mutação de vaga lida antes e gravada depois usa
  * UPDATE guardado pelo estado esperado (WHERE phase/status + RETURNING);
  * 0 linhas → 409 `VAGA_STATE_CHANGED_MSG` (ou skipped, nos lotes) — nunca uma
@@ -69,6 +78,9 @@ import {
   daysPending,
   canValidateInclusion,
   canApproveRequest,
+  canApproveInFunction,
+  DEFAULT_APPROVER_SETTING_KEY,
+  ALL_EVENTS_ROW_LIMIT,
   requestStatusForAction,
   isRealYmd,
   isValidHhmm,
@@ -83,10 +95,12 @@ import {
   type LastVagaDecisionInfo,
   type VagaDecisionResult,
 } from "@shared/scaling-validation-rules";
+import { changeRequestWindow, type ChangeWindow } from "@shared/scaling-change-window";
 import { normalizeRole, type CanonicalRole } from "@shared/roles";
 import {
   assertEventEditable,
   assertLoadedEventEditable,
+  isEventBlockedForActor,
   isEventIdBlockedForActor,
   newEventCache,
   PAST_EVENT_BLOCK_MSG,
@@ -192,6 +206,96 @@ const canViewRequestsByRole = (u: User) => {
 
 async function roleFor(functionId: string, userId: string): Promise<FunctionManagerRole | null> {
   return storage.getUserFunctionRole(functionId, userId);
+}
+
+// ── Aprovador PADRÃO do sistema (regra do dono, 26/08) ───────────────────────
+// "O aprovador sempre será o Pedro Telles": o cadastro por função continua
+// mandando, mas função criada sem aprovador prendia a vaga validada numa fila
+// sem ninguém do outro lado. `system_settings.escala_aprovador_padrao` guarda o
+// `users.id` do aprovador global, que decide em QUALQUER função — sem tirar
+// nada de quem já é aprovador cadastrado (ver `canApproveInFunction`, shared).
+//
+// Cache curto em processo: a resolução entra em toda decisão e em cada linha
+// das listas; sem ele seria um SELECT na tabela de configurações por requisição.
+const DEFAULT_APPROVER_TTL_MS = 30_000;
+let defaultApproverCache: { at: number; id: string | null } | null = null;
+
+/** `users.id` do aprovador padrão (null quando a chave não está configurada). */
+async function defaultApproverId(): Promise<string | null> {
+  const now = Date.now();
+  if (defaultApproverCache && now - defaultApproverCache.at < DEFAULT_APPROVER_TTL_MS) {
+    return defaultApproverCache.id;
+  }
+  let id: string | null = null;
+  try {
+    const settings = await storage.getSystemSettings();
+    id = settings.find((s) => s.key === DEFAULT_APPROVER_SETTING_KEY)?.value?.trim() || null;
+  } catch (error) {
+    // Configuração indisponível NUNCA pode virar 500 numa listagem: sem o
+    // padrão, vale exatamente a regra antiga (cadastro por função).
+    console.error("[Validação de Escala] falha ao ler o aprovador padrão:", error);
+    return defaultApproverCache?.id ?? null;
+  }
+  defaultApproverCache = { at: now, id };
+  return id;
+}
+
+/** O ator é o aprovador padrão do sistema? */
+async function isDefaultApprover(actor: User): Promise<boolean> {
+  const id = await defaultApproverId();
+  return !!id && id === actor.id;
+}
+
+/**
+ * Pode decidir esta função? Admin, aprovador cadastrado dela ou o aprovador
+ * padrão do sistema. Substitui o `canApproveRequest` cru em TODAS as guardas de
+ * decisão — o shared é quem define a regra.
+ */
+async function canDecideFunction(functionId: string, actor: User): Promise<boolean> {
+  const role = await roleFor(functionId, actor.id);
+  return canApproveInFunction({
+    roleForFunction: role,
+    isAdmin: isAdmin(actor),
+    isDefaultApprover: await isDefaultApprover(actor),
+  });
+}
+
+/** Mensagem única do 403 de decisão (agora o padrão também é uma saída válida). */
+const NOT_APPROVER_MSG = "Apenas o aprovador da função, o aprovador padrão do sistema ou um administrador pode decidir";
+
+// ── Modo "todos os eventos" (eventId opcional, regra do dono de 26/08) ───────
+//
+// O teto de linhas do modo sem evento (`ALL_EVENTS_ROW_LIMIT`, do shared) vale
+// só aqui: o recorte com `eventId` continua sem teto nenhum. É um teto de
+// SEGURANÇA (não uma paginação): as telas avisam quando ele corta e o filtro
+// por evento é a saída. As linhas cortadas são sempre as MENOS urgentes
+// (ordenação por `suggestionSentAt` crescente).
+
+/**
+ * Janela dos eventos JÁ ENCERRADOS que continuam na consulta histórica sem
+ * evento. Só vale para o `event-view` (que enxerga vaga aprovada, negada e
+ * excluída, ou seja, o passado inteiro); a lista de vagas em validação NÃO tem
+ * corte por data — vaga velha e parada é justamente o que precisa aparecer.
+ */
+const ALL_EVENTS_RECENT_DAYS = 60;
+
+/** Data (YYYY-MM-DD) de `ALL_EVENTS_RECENT_DAYS` dias atrás. */
+function recentEventsCutoffYmd(now: Date = new Date()): string {
+  const d = new Date(now.getTime() - ALL_EVENTS_RECENT_DAYS * 86_400_000);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Campos do evento anexados a cada linha (nome + período): a tela agrupa e
+ * ordena por evento no modo "todos". Vêm de UMA consulta em lote
+ * (`getEventsByIds`), nunca de um SELECT por linha.
+ */
+function eventFieldsOf(event: { name: string; startDate: string; endDate: string } | undefined) {
+  return {
+    eventName: event?.name ?? null,
+    eventStartDate: event?.startDate ?? null,
+    eventEndDate: event?.endDate ?? null,
+  };
 }
 
 async function inclusionLog(
@@ -596,12 +700,29 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     }
   });
 
-  // GET /api/scaling-suggestions?eventId= — sugestões ativas do evento (todas
-  // as áreas). Qualquer usuário logado pode ver. Cada linha traz:
+  // GET /api/scaling-suggestions?eventId= — sugestões ativas (todas as áreas).
+  // Qualquer usuário logado pode ver.
+  //
+  // `eventId` é OPCIONAL (regra do dono, 26/08 — "aparecer inicialmente de
+  // todos e se eu quiser ver de algum eu seleciono o evento"): SEM ele a rota
+  // devolve as vagas em validação de TODOS os eventos, com as mesmas regras de
+  // permissão por linha. O recorte de volume é o próprio `phase = 'sugestao'`:
+  // só sai daqui o que ainda está no fluxo (a vaga aprovada virou Inclusão e a
+  // negada só existe no histórico). NÃO existe corte por data — era exatamente
+  // a vaga velha e parada que precisava aparecer —, e sim um teto de linhas
+  // (`ALL_EVENTS_ROW_LIMIT`) aplicado no banco sobre as MAIS ANTIGAS primeiro:
+  // se algo for cortado, é o menos urgente. A resposta continua sendo um ARRAY
+  // (contrato inalterado); o corte é anunciado nos cabeçalhos
+  // `X-Scaling-Truncated` / `X-Scaling-Row-Limit`.
+  //
+  // Cada linha traz:
+  //  - eventName / eventStartDate / eventEndDate: o evento da vaga, para a tela
+  //    agrupar e ordenar no modo "todos os eventos";
   //  - canEdit: admin ou VALIDADOR da função (pode validar / pedir ajuste);
-  //  - canDecide: admin ou APROVADOR da função — aprovar/reprovar/devolver a
-  //    vaga já validada (sugestao_validada) e o bypass das "vagas paradas"
-  //    (sugestao_pendente). A lista inclui as VALIDADAS: só as NEGADAS saem.
+  //  - canDecide: admin, APROVADOR da função ou o APROVADOR PADRÃO do sistema —
+  //    aprovar/reprovar/devolver a vaga já validada (sugestao_validada) e o
+  //    bypass das "vagas paradas" (sugestao_pendente). A lista inclui as
+  //    VALIDADAS: só as NEGADAS saem.
   //  - daysPending: dias desde suggestionSentAt (reinicia a cada reenvio);
   //  - pendingRequest: pedido pendente da vaga (ou null);
   //  - lastDecision: última decisão do aprovador sobre um PEDIDO que explica o
@@ -614,17 +735,33 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     if (!actor) return;
     try {
       const eventId = String(req.query.eventId ?? "");
-      if (!eventId) return res.status(400).json({ message: "eventId é obrigatório" });
 
       const admin = isAdmin(actor);
-      const [rows, validatorIds, approverIds, requests] = await Promise.all([
-        storage.getTeamInclusions(false, "sugestao", { eventId }),
+      // Sem evento: teto no BANCO (limit+1 para saber que houve corte) e as mais
+      // antigas primeiro. Com evento: exatamente como antes, sem teto.
+      const [rowsRaw, validatorIds, approverIds, defaultApprover] = await Promise.all([
+        eventId
+          ? storage.getTeamInclusions(false, "sugestao", { eventId })
+          : storage.getTeamInclusions(false, "sugestao", {
+              orderBySuggestionSentAt: "asc",
+              limit: ALL_EVENTS_ROW_LIMIT + 1,
+            }),
         storage.getUserManagedFunctionIds(actor.id, "validador"),
         admin ? Promise.resolve([] as string[]) : storage.getUserManagedFunctionIds(actor.id, "aprovador"),
-        // Todos os pedidos do evento (pendentes E resolvidos): os pendentes viram
-        // `pendingRequest`, os resolvidos alimentam `lastDecision`.
-        storage.getScalingChangeRequests({ eventId }),
+        isDefaultApprover(actor),
       ]);
+      const truncated = !eventId && rowsRaw.length > ALL_EVENTS_ROW_LIMIT;
+      const rows = truncated ? rowsRaw.slice(0, ALL_EVENTS_ROW_LIMIT) : rowsRaw;
+
+      // Pedidos (pendentes E resolvidos): os pendentes viram `pendingRequest`,
+      // os resolvidos alimentam `lastDecision`. Sem evento, uma consulta EM
+      // LOTE pelos eventos que de fato estão na lista — nunca a tabela toda.
+      const eventIds = Array.from(new Set(rows.map((i) => i.eventId).filter(Boolean)));
+      const [requests, eventsOfRows] = await Promise.all([
+        eventId ? storage.getScalingChangeRequests({ eventId }) : storage.getScalingChangeRequests({ eventIds }),
+        storage.getEventsByIds(eventIds),
+      ]);
+      const eventById = new Map(eventsOfRows.map((e) => [e.id, e]));
       const validates = new Set(validatorIds);
       const approves = new Set(approverIds);
       const pendingByInclusion = new Map<string, ScalingChangeRequest>();
@@ -652,15 +789,23 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       const result = active
         .map((i) => ({
           ...i,
+          ...eventFieldsOf(eventById.get(i.eventId)),
           canEdit: admin || validates.has(i.functionId),
-          // O CADASTRO manda: aprovador da função decide, qualquer que seja o papel.
-          canDecide: admin || approves.has(i.functionId),
+          // O CADASTRO manda: aprovador da função decide, qualquer que seja o
+          // papel — e o APROVADOR PADRÃO do sistema decide em qualquer função.
+          canDecide: admin || approves.has(i.functionId) || defaultApprover,
           daysPending: daysPending(i.suggestionSentAt, now),
           pendingRequest: pendingByInclusion.get(i.id) ?? null,
           lastDecision: pickLastDecision(i, requests),
           lastVagaDecision: pickLastVagaDecision(i, logsByInclusion.get(i.id) ?? []),
         }));
       res.set("Cache-Control", "no-store");
+      // Corte anunciado no cabeçalho: o corpo continua sendo um array puro
+      // (as telas que sempre mandam eventId não mudam em nada).
+      if (!eventId) {
+        res.set("X-Scaling-Row-Limit", String(ALL_EVENTS_ROW_LIMIT));
+        if (truncated) res.set("X-Scaling-Truncated", "1");
+      }
       res.json(result);
     } catch (error) {
       sendError(res, error, "erro ao listar sugestões", "Erro ao buscar escala sugerida");
@@ -877,9 +1022,8 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
   async function loadValidatedForApprover(res: Response, actor: User, id: string): Promise<TeamInclusion | null> {
     const inclusion = await storage.getTeamInclusion(id);
     if (!inclusion || inclusion.deletedAt) { res.status(404).json({ message: "Vaga não encontrada" }); return null; }
-    const role = await roleFor(inclusion.functionId, actor.id);
-    if (!canApproveRequest(role, isAdmin(actor))) {
-      res.status(403).json({ message: "Apenas o aprovador da função (ou admin) pode decidir a vaga validada" });
+    if (!await canDecideFunction(inclusion.functionId, actor)) {
+      res.status(403).json({ message: NOT_APPROVER_MSG });
       return null;
     }
     if (!isSuggestionInclusion(inclusion) || inclusion.status !== SUGESTAO_STATUS.VALIDADA) {
@@ -961,6 +1105,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     if (!parsed.success) return res.status(400).json({ message: "Dados inválidos", errors: parsed.error.flatten() });
     try {
       const admin = isAdmin(actor);
+      const defaultApprover = await isDefaultApprover(actor);
       const ok: string[] = [];
       const skipped: { id: string; reason: string }[] = [];
       const now = new Date();
@@ -981,7 +1126,8 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           skipped.push({ id, reason: PAST_EVENT_BLOCK_MSG }); continue;
         }
         if (!roleCache.has(inclusion.functionId)) roleCache.set(inclusion.functionId, await roleFor(inclusion.functionId, actor.id));
-        if (!canApproveRequest(roleCache.get(inclusion.functionId), admin)) {
+        // Aprovador padrão do sistema decide qualquer função (regra do dono, 26/08).
+        if (!canApproveInFunction({ roleForFunction: roleCache.get(inclusion.functionId), isAdmin: admin, isDefaultApprover: defaultApprover })) {
           skipped.push({ id, reason: "Sem permissão para aprovar esta função" }); continue;
         }
         try { nextSuggestionState(inclusion, "aprovar_vaga"); }
@@ -1066,6 +1212,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       }
 
       let inclusion: TeamInclusion | undefined;
+      let window: ChangeWindow | null = null;
 
       if (body.requestType === "inclusao") {
         const [event, func] = await Promise.all([storage.getEvent(body.eventId), storage.getFunction(body.functionId)]);
@@ -1077,9 +1224,22 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       } else {
         inclusion = await storage.getTeamInclusion(body.teamInclusionId!);
         if (!inclusion || inclusion.deletedAt) return res.status(404).json({ message: "Vaga sugerida não encontrada" });
-        if (!isSuggestionInclusion(inclusion)) return res.status(400).json({ message: "A vaga não está na etapa de Validação de Escala" });
         if (inclusion.functionId !== body.functionId || inclusion.eventId !== body.eventId) {
           return res.status(400).json({ message: "functionId/eventId do pedido não correspondem à vaga" });
+        }
+        // Janela do pedido (regra do dono, 26/08): em validação, sempre; depois
+        // de escalado, até a passagem ser comprada. As passagens só são lidas
+        // quando a vaga já saiu da validação — antes disso não existem.
+        window = changeRequestWindow(inclusion, {
+          isAdmin: admin,
+          tickets: isSuggestionInclusion(inclusion) ? null : await storage.getTicketsByInclusionId(inclusion.id),
+        });
+        if (!window.allowed) return res.status(403).json({ message: window.message });
+        // Tirar da escala alguém que JÁ ESTÁ escalado não é pedido de ajuste: a
+        // Escalação tem o fluxo de troca/cancelamento, com passagem e hospedagem
+        // no meio. Barrar aqui evita um "aprovado" que apagaria a vaga por baixo.
+        if (window.postScaling && body.requestType === "exclusao") {
+          return res.status(400).json({ message: "A pessoa já está escalada — use a troca ou o cancelamento na Escalação." });
         }
         // Evento encerrado: só o administrador (mesma regra do ramo de inclusão).
         if (!await assertEventEditable(inclusion.eventId, actor, res)) return;
@@ -1089,8 +1249,11 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       }
 
       // Transição da vaga ANTES de gravar o pedido: se for inválida, nada é gravado.
+      // Vaga JÁ ESCALADA não transiciona: a pessoa continua escalada, com
+      // passagem e hospedagem de pé, enquanto o aprovador não decide. O pedido
+      // fica pendurado nela e a trava contra pedido duplicado é a mesma.
       let next: { phase: string; status: string } | null = null;
-      if (inclusion) next = rule(() => nextSuggestionState(inclusion!, "pedir_ajuste"));
+      if (inclusion && !window?.postScaling) next = rule(() => nextSuggestionState(inclusion!, "pedir_ajuste"));
 
       // Pedido + transição da vaga na MESMA transação (storage). O UPDATE da
       // vaga exige o estado de onde "pedir_ajuste" é válido (pendente ou
@@ -1121,6 +1284,11 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       if (inclusion && updated) {
         await inclusionLog(inclusion.id, "suggestion_change_requested",
           `Pedido de ${body.requestType} aberto pela área: ${body.reason}`, stateLabel(inclusion), stateLabel(updated), actor);
+      } else if (inclusion && window?.postScaling) {
+        // Sem mudança de estado para registrar (de = para): o histórico da vaga
+        // mostra que o pedido existe, que é o que a Escalação precisa saber.
+        await inclusionLog(inclusion.id, "suggestion_change_requested",
+          `Pedido de ajuste aberto sobre vaga já escalada: ${body.reason}`, stateLabel(inclusion), stateLabel(inclusion), actor);
       }
       await createAuditLog("create", "scaling_change_request", created.id, created, actor.id, actor.name, undefined, req);
       res.status(201).json(created);
@@ -1143,14 +1311,17 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
 
       let functionIds: string[] | undefined;
       const admin = isAdmin(actor);
+      // O aprovador PADRÃO do sistema decide qualquer função, então vê a fila
+      // inteira — igual ao admin e aos papéis de `canViewRequestsByRole`.
+      const defaultApprover = await isDefaultApprover(actor);
       // Papel autorizado vê a fila inteira; quem não é papel autorizado ainda vê
       // a fila FILTRADA às funções em que é aprovador; o resto leva 403.
-      if (!canViewRequestsByRole(actor)) {
+      if (!canViewRequestsByRole(actor) && !defaultApprover) {
         functionIds = await storage.getUserManagedFunctionIds(actor.id, "aprovador");
         if (functionIds.length === 0) return res.status(403).json({ message: "Sem permissão para ver pedidos de ajuste" });
       }
       const approverIds = new Set(
-        admin ? [] : (functionIds ?? await storage.getUserManagedFunctionIds(actor.id, "aprovador")),
+        admin || defaultApprover ? [] : (functionIds ?? await storage.getUserManagedFunctionIds(actor.id, "aprovador")),
       );
 
       // Só o que os pedidos listados precisam: vagas (inArray de
@@ -1180,8 +1351,9 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           inclusionState: inc ? { phase: inc.phase, status: inc.status } : null,
           proposed,
           diff,
-          // O CADASTRO manda: aprovador da função decide, qualquer que seja o papel.
-          canDecide: admin || approverIds.has(r.functionId),
+          // O CADASTRO manda: aprovador da função decide, qualquer que seja o
+          // papel — e o APROVADOR PADRÃO do sistema decide em qualquer função.
+          canDecide: admin || defaultApprover || approverIds.has(r.functionId),
         };
       });
       res.set("Cache-Control", "no-store");
@@ -1199,9 +1371,8 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
   async function loadPendingRequestForApprover(req: Request, res: Response, actor: User): Promise<ScalingChangeRequest | null> {
     const request = await storage.getScalingChangeRequest(req.params.id);
     if (!request) { res.status(404).json({ message: "Pedido não encontrado" }); return null; }
-    const role = await roleFor(request.functionId, actor.id);
-    if (!canApproveRequest(role, isAdmin(actor))) {
-      res.status(403).json({ message: "Apenas o aprovador da função (ou admin) pode decidir este pedido" }); return null;
+    if (!await canDecideFunction(request.functionId, actor)) {
+      res.status(403).json({ message: NOT_APPROVER_MSG }); return null;
     }
     if (request.status !== CHANGE_REQUEST_STATUS.PENDENTE) {
       // 409 (conflito de estado), igual ao que o storage devolve quando perde a
@@ -1308,31 +1479,44 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       } else {
         const inclusion = await storage.getTeamInclusion(request.teamInclusionId!);
         if (!inclusion) return res.status(404).json({ message: "Vaga do pedido não encontrada" });
-        const next = rule(() => nextSuggestionState(inclusion, "aprovar_pedido", { requestType: request.requestType as any }));
         const isAjuste = request.requestType === "ajuste";
-        const patch: Partial<InsertTeamInclusion> = isAjuste
-          ? {
-              ...proposedToPatch(proposed),
-              phase: next.phase, status: next.status,
-              validatedAt: inclusion.validatedAt ?? now, validatedBy: inclusion.validatedBy ?? actor.id,
-              updatedBy: actor.id,
-            }
-          : {
-              phase: next.phase, status: next.status,
-              deletedAt: now, deletedBy: actor.id, updatedBy: actor.id,
-            };
+        // Vaga JÁ ESCALADA (pedido aberto pelo modal de Escalação): não há
+        // transição a fazer — aplica o ajuste e a vaga fica exatamente onde
+        // está, com a pessoa, a passagem e a hospedagem que já tem.
+        const postScaling = !isSuggestionInclusion(inclusion);
+        const patch: Partial<InsertTeamInclusion> = postScaling
+          ? { ...proposedToPatch(proposed), updatedBy: actor.id }
+          : (() => {
+              const next = rule(() => nextSuggestionState(inclusion, "aprovar_pedido", { requestType: request.requestType as any }));
+              return isAjuste
+                ? {
+                    ...proposedToPatch(proposed),
+                    phase: next.phase, status: next.status,
+                    validatedAt: inclusion.validatedAt ?? now, validatedBy: inclusion.validatedBy ?? actor.id,
+                    updatedBy: actor.id,
+                  }
+                : {
+                    phase: next.phase, status: next.status,
+                    deletedAt: now, deletedBy: actor.id, updatedBy: actor.id,
+                  };
+            })();
         // Vaga + pedido na MESMA transação. O UPDATE da vaga exige que ela
-        // AINDA esteja em sugestao_ajuste — decisão concorrente → 409 e o
-        // pedido continua pendente (a transação aborta inteira).
+        // AINDA esteja onde estava quando o pedido foi aberto — decisão
+        // concorrente (ou vaga que andou na Escalação) → 409 e o pedido
+        // continua pendente (a transação aborta inteira).
         const result = await storage.resolveScalingChangeRequest(request.id, requestUpdates, {
           inclusionUpdate: {
             id: inclusion.id, patch,
-            expected: { phase: SUGESTAO_PHASE, statuses: [SUGESTAO_STATUS.AJUSTE] },
+            expected: postScaling
+              ? { phase: inclusion.phase, statuses: [inclusion.status] }
+              : { phase: SUGESTAO_PHASE, statuses: [SUGESTAO_STATUS.AJUSTE] },
           },
         });
         updatedRequest = result.request;
         const updated = result.updatedInclusion!;
-        const detail = isAjuste
+        const detail = postScaling
+          ? `Pedido de ajuste aprovado por ${actor.name} — aplicado na vaga já escalada`
+          : isAjuste
           ? `Pedido de ajuste aprovado por ${actor.name} — vaga virou Inclusão`
           : `Pedido de exclusão aprovado por ${actor.name} — vaga removida da escala`;
         await inclusionLog(inclusion.id, "change_request_approved", detail, stateLabel(inclusion), stateLabel(updated), actor);
@@ -1424,29 +1608,51 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       } else {
         const inclusion = await storage.getTeamInclusion(request.teamInclusionId!);
         if (!inclusion) return res.status(404).json({ message: "Vaga do pedido não encontrada" });
-        const next = rule(() => nextSuggestionState(inclusion, action));
-        const patch: Partial<InsertTeamInclusion> = { phase: next.phase, status: next.status, updatedBy: actor.id };
-        if (kind === "reajustar" && changesToApply && requestType === "ajuste") Object.assign(patch, proposedToPatch(changesToApply));
-        if (next.phase !== SUGESTAO_PHASE) {
-          patch.validatedAt = inclusion.validatedAt ?? now;
-          patch.validatedBy = inclusion.validatedBy ?? actor.id;
-        } else {
-          // Reenvio para validação: a vaga volta a sugestao_pendente e o
-          // contador de atraso REINICIA (suggestionSentAt = agora, mesmo
-          // instante do reviewedAt — o GET usa isso para casar a decisão).
-          patch.suggestionSentAt = now;
+        // Vaga JÁ ESCALADA: não existe "devolver para a área validar" — ela não
+        // está na fila de validação. O aprovador reajusta e aplica, ou nega e a
+        // vaga fica como está. A vaga NUNCA muda de fase por aqui.
+        const postScaling = !isSuggestionInclusion(inclusion);
+        if (postScaling && then === "reenviar_validacao") {
+          return res.status(400).json({
+            message: "A pessoa já está escalada: este pedido não volta para a validação. Aprove com ajustes ou negue.",
+          });
         }
+        const patch: Partial<InsertTeamInclusion> = postScaling
+          ? { updatedBy: actor.id }
+          : (() => {
+              const next = rule(() => nextSuggestionState(inclusion, action));
+              const p: Partial<InsertTeamInclusion> = { phase: next.phase, status: next.status, updatedBy: actor.id };
+              if (next.phase !== SUGESTAO_PHASE) {
+                p.validatedAt = inclusion.validatedAt ?? now;
+                p.validatedBy = inclusion.validatedBy ?? actor.id;
+              } else {
+                // Reenvio para validação: a vaga volta a sugestao_pendente e o
+                // contador de atraso REINICIA (suggestionSentAt = agora, mesmo
+                // instante do reviewedAt — o GET usa isso para casar a decisão).
+                p.suggestionSentAt = now;
+              }
+              return p;
+            })();
+        // Em vaga já escalada, "negar" não muda nada nela — só o pedido é
+        // decidido; "reajustar" aplica o que o aprovador editou.
+        if (kind === "reajustar" && changesToApply && requestType === "ajuste") Object.assign(patch, proposedToPatch(changesToApply));
         // Vaga + pedido na MESMA transação, com o UPDATE guardado: as ações de
-        // reajustar/negar só valem com a vaga AINDA em sugestao_ajuste.
+        // reajustar/negar só valem com a vaga AINDA onde estava.
         const result = await storage.resolveScalingChangeRequest(request.id, requestUpdates, {
           inclusionUpdate: {
             id: inclusion.id, patch,
-            expected: { phase: SUGESTAO_PHASE, statuses: [SUGESTAO_STATUS.AJUSTE] },
+            expected: postScaling
+              ? { phase: inclusion.phase, statuses: [inclusion.status] }
+              : { phase: SUGESTAO_PHASE, statuses: [SUGESTAO_STATUS.AJUSTE] },
           },
         });
         updatedRequest = result.request;
         const updated = result.updatedInclusion!;
-        const detail = kind === "reajustar"
+        const detail = postScaling
+          ? (kind === "reajustar"
+              ? "Pedido reajustado e aplicado pelo aprovador — a vaga continua escalada"
+              : "Pedido negado pelo aprovador — a vaga continua escalada como estava")
+          : kind === "reajustar"
           ? (then === "reenviar_validacao" ? "Pedido reajustado pelo aprovador — vaga devolvida para validação da área" : "Pedido reajustado e aprovado direto pelo aprovador — vaga virou Inclusão")
           : (then === "reenviar_validacao" ? "Pedido negado pelo aprovador — vaga devolvida para validação da área" : "Pedido negado e vaga aprovada direto como estava — virou Inclusão");
         await inclusionLog(inclusion.id, `change_request_${kind}`, detailsWithComment(detail, comment), stateLabel(inclusion), stateLabel(updated), actor);
@@ -1474,9 +1680,8 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       if (!inclusion || inclusion.deletedAt) return res.status(404).json({ message: "Vaga não encontrada" });
       // 403 antes das checagens de estado: quem não é aprovador não sonda o
       // estado da vaga por aqui.
-      const role = await roleFor(inclusion.functionId, actor.id);
-      if (!canApproveRequest(role, isAdmin(actor))) {
-        return res.status(403).json({ message: "Apenas o aprovador da função (ou admin) pode decidir sem validação da área" });
+      if (!await canDecideFunction(inclusion.functionId, actor)) {
+        return res.status(403).json({ message: NOT_APPROVER_MSG });
       }
       if (!isSuggestionInclusion(inclusion)) return res.status(400).json({ message: "A vaga não está na etapa de Validação de Escala" });
       // Evento encerrado: só o administrador. O bypass aprova a vaga direto
@@ -1514,17 +1719,63 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
   // GET /api/scaling-suggestions/event-view?eventId= — consulta histórica:
   // todas as sugestões (incl. aprovadas/negadas/excluídas) + inclusões já em
   // 'inclusao' que nasceram de sugestão (suggestionSentAt não nulo) + pedidos.
+  //
+  // `eventId` é OPCIONAL (regra do dono, 26/08). SEM ele o histórico é o de
+  // TODOS os eventos que ainda importam, num recorte explícito — aqui, ao
+  // contrário da lista de vagas em validação, o passado inteiro caberia na
+  // consulta, então o corte é obrigatório:
+  //   (a) eventos com vaga ainda em validação (phase 'sugestao');
+  //   (b) eventos com pedido em aberto;
+  //   (c) eventos encerrados nos últimos ALL_EVENTS_RECENT_DAYS dias.
+  // Sobre esse conjunto vale o mesmo teto de linhas, agora com as MAIS RECENTES
+  // primeiro (histórico se lê do fim para o começo) e `truncated` na resposta —
+  // que já era um objeto, então nada de contrato muda para quem manda eventId.
   app.get("/api/scaling-suggestions/event-view", async (req, res) => {
     const actor = await getActor(req, res);
     if (!actor) return;
     try {
       const eventId = String(req.query.eventId ?? "");
-      if (!eventId) return res.status(400).json({ message: "eventId é obrigatório" });
-      const [all, requests] = await Promise.all([
-        storage.getTeamInclusions(true, "all", { eventId }),
-        storage.getScalingChangeRequests({ eventId }),
-      ]);
+
+      // Recorte de eventos do modo "todos" (união de (a), (b) e (c)).
+      let scopeEventIds: string[] | undefined;
+      if (!eventId) {
+        const cutoff = recentEventsCutoffYmd();
+        const [openRows, openRequests, allEvents] = await Promise.all([
+          storage.getTeamInclusions(false, "sugestao"),
+          storage.getScalingChangeRequests({ status: CHANGE_REQUEST_STATUS.PENDENTE }),
+          storage.getEvents(),
+        ]);
+        const ids = new Set<string>();
+        for (const r of openRows) if (r.eventId) ids.add(r.eventId);
+        for (const r of openRequests) if (r.eventId) ids.add(r.eventId);
+        // A tabela de eventos é pequena e já vem inteira para a tela; o recorte
+        // por data sai daqui sem custo de consulta extra.
+        for (const e of allEvents) if ((e.endDate ?? "") >= cutoff) ids.add(e.id);
+        scopeEventIds = Array.from(ids);
+      }
+
+      const listOpts = eventId
+        ? { eventId }
+        : {
+            eventIds: scopeEventIds ?? [],
+            fromSuggestionOnly: true,
+            orderBySuggestionSentAt: "desc" as const,
+            limit: ALL_EVENTS_ROW_LIMIT + 1,
+          };
+      const allRaw = await storage.getTeamInclusions(true, "all", listOpts);
+      const truncated = !eventId && allRaw.length > ALL_EVENTS_ROW_LIMIT;
+      const all = truncated ? allRaw.slice(0, ALL_EVENTS_ROW_LIMIT) : allRaw;
+
       const rows = all.filter((i) => isSuggestionInclusion(i) || (i.suggestionSentAt && !i.deletedAt));
+      const rowEventIds = Array.from(new Set(rows.map((i) => i.eventId).filter(Boolean)));
+      const [requests, eventsOfRows] = await Promise.all([
+        eventId
+          ? storage.getScalingChangeRequests({ eventId })
+          : storage.getScalingChangeRequests({ eventIds: scopeEventIds ?? [] }),
+        storage.getEventsByIds(rowEventIds),
+      ]);
+      const eventById = new Map(eventsOfRows.map((e) => [e.id, e]));
+
       const requestsByInclusion = new Map<string, ScalingChangeRequest[]>();
       for (const r of requests) {
         if (!r.teamInclusionId) continue;
@@ -1532,14 +1783,106 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         list.push(r);
         requestsByInclusion.set(r.teamInclusionId, list);
       }
+      const withExtras = (i: TeamInclusion) => ({
+        ...i,
+        ...eventFieldsOf(eventById.get(i.eventId)),
+        requests: requestsByInclusion.get(i.id) ?? [],
+      });
       res.set("Cache-Control", "no-store");
       res.json({
-        suggestions: rows.filter((i) => isSuggestionInclusion(i)).map((i) => ({ ...i, requests: requestsByInclusion.get(i.id) ?? [] })),
-        inclusions: rows.filter((i) => !isSuggestionInclusion(i)).map((i) => ({ ...i, requests: requestsByInclusion.get(i.id) ?? [] })),
+        suggestions: rows.filter((i) => isSuggestionInclusion(i)).map(withExtras),
+        inclusions: rows.filter((i) => !isSuggestionInclusion(i)).map(withExtras),
         requests,
+        // Só no modo "todos os eventos": a tela avisa e oferece o filtro.
+        truncated,
+        rowLimit: eventId ? null : ALL_EVENTS_ROW_LIMIT,
+        eventCount: eventId ? 1 : (scopeEventIds?.length ?? 0),
       });
     } catch (error) {
       sendError(res, error, "erro na consulta do evento", "Erro ao consultar histórico da escala");
+    }
+  });
+
+  // GET /api/scaling-default-approver — quem é o aprovador padrão do sistema
+  // (regra do dono, 26/08: "sempre será o Pedro Telles"). Só leitura, para a
+  // tela do admin mostrar "Aprovador padrão: Fulano" nas funções sem aprovador
+  // próprio. Devolve `{ userId: null, userName: null }` quando não configurado
+  // — a tela simplesmente não mostra a linha.
+  app.get("/api/scaling-default-approver", async (req, res) => {
+    const actor = await getActor(req, res);
+    if (!actor) return;
+    try {
+      const userId = await defaultApproverId();
+      if (!userId) return res.json({ userId: null, userName: null });
+      const user = await storage.getUser(userId);
+      // Id configurado apontando para usuário que não existe mais: devolve o id
+      // sem nome (a tela cai no texto genérico) em vez de inventar alguém.
+      res.set("Cache-Control", "no-store");
+      res.json({ userId, userName: user?.name ?? null });
+    } catch (error) {
+      sendError(res, error, "erro ao ler o aprovador padrão", "Erro ao buscar o aprovador padrão");
+    }
+  });
+
+  /**
+   * GET /api/team-inclusions/:id/change-window — o modal de Escalação pergunta
+   * "esta pessoa pode receber pedido de ajuste agora?" e recebe papel + janela +
+   * pedido em aberto numa resposta só.
+   *
+   * Existe para a tela não recalcular permissão: quem responde é a mesma regra
+   * que o POST usa para aceitar ou recusar (`changeRequestWindow`), então o
+   * botão nunca promete o que a API vai negar. Só leitura.
+   */
+  app.get("/api/team-inclusions/:id/change-window", async (req, res) => {
+    const actor = await getActor(req, res);
+    if (!actor) return;
+    try {
+      const inclusion = await storage.getTeamInclusion(req.params.id);
+      if (!inclusion) return res.status(404).json({ message: "Vaga não encontrada" });
+
+      const admin = isAdmin(actor);
+      const role = await roleFor(inclusion.functionId, actor.id);
+      const canRequest = canValidateInclusion(role, admin);
+      res.set("Cache-Control", "no-store");
+      // Sem papel para pedir: a tela não mostra nada. Devolve cedo para não
+      // sondar passagens nem pedidos de vaga alheia.
+      if (!canRequest) {
+        return res.json({ canRequest: false, allowed: false, postScaling: false, adminOverride: false, pendingRequest: null });
+      }
+
+      // Evento encerrado (20/08) trava antes da janela da passagem: a mensagem
+      // que a área vê é a do evento, que é o bloqueio mais forte.
+      const event = await storage.getEvent(inclusion.eventId);
+      if (event && isEventBlockedForActor(event, actor)) {
+        return res.json({
+          canRequest: true, allowed: false, message: PAST_EVENT_BLOCK_MSG,
+          postScaling: !isSuggestionInclusion(inclusion), adminOverride: false, pendingRequest: null,
+        });
+      }
+
+      const window = changeRequestWindow(inclusion, {
+        isAdmin: admin,
+        tickets: isSuggestionInclusion(inclusion) ? null : await storage.getTicketsByInclusionId(inclusion.id),
+      });
+      const pending = (await storage.getScalingChangeRequestsByInclusion(inclusion.id))
+        .find((r) => r.status === CHANGE_REQUEST_STATUS.PENDENTE) ?? null;
+
+      res.json({
+        canRequest: true,
+        allowed: window.allowed,
+        message: window.message ?? null,
+        postScaling: window.postScaling,
+        adminOverride: window.adminOverride,
+        pendingRequest: pending && {
+          id: pending.id,
+          requestType: pending.requestType,
+          reason: pending.reason,
+          requestedByName: pending.requestedByName,
+          createdAt: pending.createdAt,
+        },
+      });
+    } catch (error) {
+      sendError(res, error, "erro ao ler a janela de ajuste", "Erro ao verificar o pedido de ajuste");
     }
   });
 }
