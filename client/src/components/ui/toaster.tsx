@@ -16,7 +16,9 @@ export function Toaster() {
       {toasts.map(function ({ id, title, description, action, ...props }) {
         return (
           <Toast key={id} {...props}>
-            <div className="grid gap-1">
+            {/* min-w-0: sem isto o texto não encolhe e o botão de ação
+                espremia o título em três linhas. */}
+            <div className="grid gap-1 min-w-0 flex-1">
               {title && <ToastTitle>{title}</ToastTitle>}
               {description && (
                 <ToastDescription>{description}</ToastDescription>

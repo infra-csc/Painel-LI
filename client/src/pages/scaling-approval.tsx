@@ -54,18 +54,24 @@ function requestsUrl(status: string | undefined, eventId: string | undefined): s
 
 // ── Overlay (Sheet + diálogos) — um único estado {id, mode} ──────────────────
 type OverlayMode = "closed" | "sheet" | "approve" | "reajustar" | "negar";
-interface OverlayState { id: string | null; mode: OverlayMode }
+/**
+ * `origin` guarda de ONDE a decisão foi aberta: da linha da fila ou de dentro
+ * do detalhe. É o que faz "Voltar" devolver o usuário ao lugar certo — decidir
+ * pela linha e cair num detalhe que ninguém pediu era parte do "às vezes o
+ * detalhe aparece, às vezes não" que o dono viu.
+ */
+interface OverlayState { id: string | null; mode: OverlayMode; origin: "fila" | "detalhe" }
 type OverlayAction =
   | { type: "open"; id: string }
-  | { type: "mode"; mode: Exclude<OverlayMode, "closed"> }
-  | { type: "back" }        // fecha o diálogo, mantém o Sheet
+  | { type: "mode"; mode: Exclude<OverlayMode, "closed">; origin?: "fila" | "detalhe" }
+  | { type: "back" }        // fecha o diálogo e volta para onde veio
   | { type: "close" };      // fecha tudo (mantém o id para a animação de saída)
 
 function overlayReducer(state: OverlayState, action: OverlayAction): OverlayState {
   switch (action.type) {
-    case "open": return { id: action.id, mode: "sheet" };
-    case "mode": return state.id ? { ...state, mode: action.mode } : state;
-    case "back": return { ...state, mode: state.mode === "closed" ? "closed" : "sheet" };
+    case "open": return { id: action.id, mode: "sheet", origin: "detalhe" };
+    case "mode": return state.id ? { ...state, mode: action.mode, origin: action.origin ?? state.origin } : state;
+    case "back": return { ...state, mode: state.origin === "detalhe" ? "sheet" : "closed" };
     case "close": return { ...state, mode: "closed" };
   }
 }
@@ -127,7 +133,7 @@ export default function ScalingApprovalPage() {
   const [lateOnly, setLateOnly] = useState(false);
   const [mineOnly, setMineOnly] = useState(false);
   const [tab, setTab] = useState<ApprovalTab>("fila");
-  const [overlay, dispatch] = useReducer(overlayReducer, { id: null, mode: "closed" });
+  const [overlay, dispatch] = useReducer(overlayReducer, { id: null, mode: "closed", origin: "fila" });
   const [onlyMineStalled, setOnlyMineStalled] = useState(true);
   /** "Vagas aguardando aprovação": mostra todas por padrão (as de outros aprovadores ficam com o cadeado). */
   const [onlyMineAwaiting, setOnlyMineAwaiting] = useState(false);
@@ -392,7 +398,9 @@ export default function ScalingApprovalPage() {
   /** Abre o pedido já no diálogo pedido (ações da própria linha da fila). */
   const openDetailWithMode = (r: ChangeRequestItem, mode: Exclude<OverlayMode, "closed">) => {
     dispatch({ type: "open", id: r.id });
-    dispatch({ type: "mode", mode });
+    // Decidir pela LINHA abre só o diálogo (origin 'fila'): o detalhe atrás,
+    // que ninguém pediu, era o que deixava a tela inconsistente.
+    dispatch({ type: "mode", mode, origin: "fila" });
   };
   /** Próximo pendente da fila (na ordem visível), fora o que acabou de ser decidido. */
   const nextPendingAfter = (id: string | null) =>
@@ -406,7 +414,11 @@ export default function ScalingApprovalPage() {
       const next = nextPendingAfter(overlay.id);
       if (!next) return undefined;
       return (
-        <ToastAction altText="Abrir próximo pedido pendente" onClick={() => openDetail(next)}>
+        <ToastAction
+          altText="Abrir próximo pedido pendente"
+          onClick={() => openDetail(next)}
+          className="whitespace-nowrap border-slate-200 bg-white hover:bg-brand-soft hover:text-primary"
+        >
           Abrir próximo pendente
         </ToastAction>
       );
@@ -711,13 +723,15 @@ export default function ScalingApprovalPage() {
 
       {/* Nível 2 — detalhe */}
       <RequestDetailSheet
-        open={overlay.mode !== "closed"}
+        // Um overlay por vez: com um diálogo de decisão aberto, o detalhe sai
+        // de cena (o diálogo já mostra o de/para e a consequência).
+        open={overlay.mode === "sheet"}
         onOpenChange={(o) => { if (!o) closeAll(); }}
         request={openRequest}
         busy={busy}
-        onApprove={() => dispatch({ type: "mode", mode: "approve" })}
-        onReajustar={() => dispatch({ type: "mode", mode: "reajustar" })}
-        onNegar={() => dispatch({ type: "mode", mode: "negar" })}
+        onApprove={() => dispatch({ type: "mode", mode: "approve", origin: "detalhe" })}
+        onReajustar={() => dispatch({ type: "mode", mode: "reajustar", origin: "detalhe" })}
+        onNegar={() => dispatch({ type: "mode", mode: "negar", origin: "detalhe" })}
       />
       <ApproveRequestDialog
         open={overlay.mode === "approve"}
