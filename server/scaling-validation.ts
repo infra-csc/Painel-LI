@@ -750,23 +750,13 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         admin ? Promise.resolve([] as string[]) : storage.getUserManagedFunctionIds(actor.id, "aprovador"),
         isDefaultApprover(actor),
       ]);
-      /**
-       * CADA ÁREA VÊ SÓ A DELA (regra do dono, 26/08).
-       *
-       * A tela é da área que valida: quem tem cadastro em Funções enxerga as
-       * vagas das SUAS funções (como validador ou como aprovador) e nada mais.
-       * Fora dessa conta ficam quem manda em tudo — administrador e o aprovador
-       * padrão do sistema —, porque é deles a visão geral da fila.
-       *
-       * Quem não tem cadastro nenhum passa a ver uma lista vazia (antes via a
-       * escala inteira sem poder agir em nada). A visão geral, para esses, é o
-       * Histórico da Escala, que continua aberto.
-       */
-      const scopeToOwn = !admin && !defaultApprover;
-      const ownFunctionIds = new Set([...validatorIds, ...approverIds]);
-      const rowsInScope = scopeToOwn ? rowsRaw.filter((i) => ownFunctionIds.has(i.functionId)) : rowsRaw;
-      const truncated = !eventId && rowsInScope.length > ALL_EVENTS_ROW_LIMIT;
-      const rows = truncated ? rowsInScope.slice(0, ALL_EVENTS_ROW_LIMIT) : rowsInScope;
+      // TODO MUNDO VÊ A ESCALA INTEIRA; quem MEXE é quem tem permissão (regra
+      // do dono, 26/08 — revoga o recorte por área tentado no mesmo dia). A
+      // lista é a mesma para todos; `canEdit`/`canDecide` por linha continuam
+      // decidindo quem valida e quem aprova, e o filtro "Só as minhas funções"
+      // fica na mão de quem quiser estreitar a visão.
+      const truncated = !eventId && rowsRaw.length > ALL_EVENTS_ROW_LIMIT;
+      const rows = truncated ? rowsRaw.slice(0, ALL_EVENTS_ROW_LIMIT) : rowsRaw;
 
       // Pedidos (pendentes E resolvidos): os pendentes viram `pendingRequest`,
       // os resolvidos alimentam `lastDecision`. Sem evento, uma consulta EM
