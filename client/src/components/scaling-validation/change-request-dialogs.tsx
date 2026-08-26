@@ -134,9 +134,19 @@ interface AdjustRequestDialogProps {
    * a pessoa continua escalada e nada muda até o aprovador decidir.
    */
   postScaling?: boolean;
+  /**
+   * O QUE O PEDIDO PODE MUDAR (decisão do dono, 26/08):
+   *  - 'viagem' (padrão, tela de Validação): só IDA e VOLTA — transporte, datas,
+   *    horários e o que a vaga precisa (hotel/passagem). Sem dias, diárias nem
+   *    observações: campo a mais só confundia e obrigava a rolar o diálogo.
+   *  - 'completo' (modal de Escalação): inclui dias de trabalho, diárias e
+   *    observações — é ali que se pede "mais uma diária".
+   */
+  scope?: "viagem" | "completo";
 }
 
-export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, functionName, onSent, postScaling }: AdjustRequestDialogProps) {
+export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, functionName, onSent, postScaling, scope = "viagem" }: AdjustRequestDialogProps) {
+  const completo = scope === "completo";
   const [workDays, setWorkDays] = useState<string[]>([]);
   const [dailyRates, setDailyRates] = useState<string>("");
   const [dailyRatesTouched, setDailyRatesTouched] = useState(false);
@@ -178,8 +188,10 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
   // proposedChanges completo a partir do rascunho; o diff decide o que vai.
   const full: ProposedChanges = useMemo(() => ({
     v: 1,
-    workDays: workDays.length ? workDays : undefined,
-    dailyRates: dailyRates.trim() === "" ? undefined : Number(dailyRates),
+    // Fora do modo completo, dias/diárias/observações nem entram no pedido:
+    // ausentes no `proposedChanges`, ficam fora do de/para e do que é aplicado.
+    workDays: completo && workDays.length ? workDays : undefined,
+    dailyRates: !completo || dailyRates.trim() === "" ? undefined : Number(dailyRates),
     flightDepartureDate: orNull(travel.flightDepartureDate),
     flightDepartureSuggestedTime: orNull(travel.flightDepartureSuggestedTime),
     flightArrivalSuggestedTime: orNull(travel.flightArrivalSuggestedTime),
@@ -189,20 +201,27 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
     transportModeVolta: orNull(travel.transportModeVolta),
     needsTicket: travel.needsTicket,
     needsAccommodation: travel.needsAccommodation,
-    observations: observations.trim() === "" ? null : observations.trim(),
-  }), [workDays, dailyRates, travel, observations]);
+    observations: completo ? (observations.trim() === "" ? null : observations.trim()) : undefined,
+  }), [completo, workDays, dailyRates, travel, observations]);
 
   const diff = useMemo(() => (inclusion ? diffInclusion(inclusion, full) : []), [inclusion, full]);
 
   const submit = () => {
     if (!inclusion) return;
     if (!reason.trim()) { setError("Informe o motivo do pedido."); return; }
-    if (workDays.length === 0) { setError("Informe ao menos um dia de trabalho."); return; }
-    const n = Number(dailyRates);
-    if (!Number.isInteger(n) || n < 0) { setError("Diárias devem ser um número inteiro (0 ou mais)."); return; }
+    if (completo) {
+      if (workDays.length === 0) { setError("Informe ao menos um dia de trabalho."); return; }
+      const n = Number(dailyRates);
+      if (!Number.isInteger(n) || n < 0) { setError("Diárias devem ser um número inteiro (0 ou mais)."); return; }
+    }
     const travelErr = validateTravel(travel);
     if (travelErr.length) { setError(travelErr[0]); return; }
-    if (diff.length === 0) { setError("Nada foi alterado. Mude ao menos um campo ou use “Validar” se a vaga está correta."); return; }
+    if (diff.length === 0) {
+      setError(completo
+        ? "Nada foi alterado. Mude ao menos um campo ou use “Validar” se a vaga está correta."
+        : "Nada foi alterado na ida ou na volta. Mude ao menos um campo ou use “Validar” se a vaga está correta.");
+      return;
+    }
     setError(null);
     // Só os campos que mudaram (v:1 sempre)
     const proposed: ProposedChanges = { v: 1 };
@@ -224,29 +243,39 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
         <DialogHeader className={DIALOG_HEADER}>
           <DialogTitle>Pedir ajuste da vaga #{inclusion?.inclusionNumber}</DialogTitle>
           <DialogDescription>
-            {functionName ?? "Função"}{event ? ` · ${event.name}` : ""}. Altere só o que precisa — o aprovador vê o “de/para”.
+            {functionName ?? "Função"}{event ? ` · ${event.name}` : ""}.{" "}
+            {completo
+              ? "Altere só o que precisa — o aprovador vê o “de/para”."
+              : "Ida e volta da vaga — o aprovador vê o “de/para”."}
             {postScaling && " A vaga continua como está — nada muda até o aprovador aceitar."}
           </DialogDescription>
         </DialogHeader>
 
         <div className={DIALOG_BODY}>
           <ApproverCommentBanner info={inclusion?.lastDecision} />
-          <div className="space-y-2">
-            <Label className="text-xs text-slate-600">Dias de trabalho <span className="text-red-400">*</span></Label>
-            <WorkDaysPicker rangeStart={event?.startDate ?? ""} rangeEnd={event?.endDate ?? ""} value={workDays} onChange={handleWorkDaysChange} disabled={mutation.isPending} />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
-            <div className="space-y-1">
-              <Label htmlFor="adj-daily" className="text-xs text-slate-600">Diárias</Label>
-              <Input id="adj-daily" type="number" min={0} step={1} value={dailyRates} disabled={mutation.isPending}
-                onChange={(e) => { setDailyRatesTouched(true); setDailyRates(e.target.value); }} className="h-9 rounded-lg" />
-              <p className="text-[11px] text-slate-500">Padrão: {formatDiarias(workDays.length)} (1 por dia).</p>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="adj-obs" className="text-xs text-slate-600">Observações da vaga</Label>
-              <Textarea id="adj-obs" rows={2} maxLength={500} value={observations} disabled={mutation.isPending} onChange={(e) => setObservations(e.target.value)} className="rounded-lg text-sm" />
-            </div>
-          </div>
+          {/* Dias, diárias e observações só no modo completo (modal de
+              Escalação). Na Validação o pedido é de VIAGEM: campo a mais aqui
+              só confundia e obrigava a rolar o diálogo. */}
+          {completo && (
+            <>
+              <div className="space-y-2">
+                <Label className="text-xs text-slate-600">Dias de trabalho <span className="text-red-400">*</span></Label>
+                <WorkDaysPicker rangeStart={event?.startDate ?? ""} rangeEnd={event?.endDate ?? ""} value={workDays} onChange={handleWorkDaysChange} disabled={mutation.isPending} />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
+                <div className="space-y-1">
+                  <Label htmlFor="adj-daily" className="text-xs text-slate-600">Diárias</Label>
+                  <Input id="adj-daily" type="number" min={0} step={1} value={dailyRates} disabled={mutation.isPending}
+                    onChange={(e) => { setDailyRatesTouched(true); setDailyRates(e.target.value); }} className="h-9 rounded-lg" />
+                  <p className="text-[11px] text-slate-500">Padrão: {formatDiarias(workDays.length)} (1 por dia).</p>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="adj-obs" className="text-xs text-slate-600">Observações da vaga</Label>
+                  <Textarea id="adj-obs" rows={2} maxLength={500} value={observations} disabled={mutation.isPending} onChange={(e) => setObservations(e.target.value)} className="rounded-lg text-sm" />
+                </div>
+              </div>
+            </>
+          )}
 
           <TravelFields idPrefix="adj" value={travel} disabled={mutation.isPending} onChange={(p) => setTravel((t) => ({ ...t, ...p }))} />
 
