@@ -151,9 +151,6 @@ export function AdjustRequestPanel({ inclusion, event, functionName }: {
         event={event}
         functionName={functionName}
         postScaling={data.postScaling}
-        // Aqui (Escalação) o pedido é o completo — é nesta tela que se pede
-        // "mais uma diária"; a Validação fica só com ida e volta.
-        scope="completo"
         onSent={() => {
           invalidateScalingQueries(queryClient);
           queryClient.invalidateQueries({ queryKey: [`/api/team-inclusions/${inclusion.id}/change-window`] });

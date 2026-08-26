@@ -69,12 +69,12 @@ const CONTROL = "h-9 w-full rounded-lg text-xs bg-white";
  */
 const CONTROL_MODE = "h-9 w-full rounded-lg text-xs min-w-[136px] text-sm";
 /**
- * Grade única das duas pernas: transporte · data · saída · chegada.
+ * Grade única das duas pernas: transporte · data · horário.
  * Ida e volta usam ESTA constante — é o que garante o espelho (mesmas colunas,
- * mesmas larguras). A volta não tem hora de chegada no schema: a 4ª célula fica
- * vazia, em vez de o grupo seguinte escorregar para o buraco.
+ * mesmas larguras). Cada perna tem UM horário: desembarque na ida, embarque na
+ * volta (os mesmos da Sugestão).
  */
-const LEG_GRID = "grid gap-x-3 gap-y-2 grid-cols-2 sm:grid-cols-[minmax(140px,1.1fr)_minmax(150px,1.15fr)_minmax(96px,0.9fr)_minmax(96px,0.9fr)]";
+const LEG_GRID = "grid gap-x-3 gap-y-2 grid-cols-2 sm:grid-cols-[minmax(140px,1.1fr)_minmax(150px,1.15fr)_minmax(120px,1fr)]";
 
 /** Rótulo de 11px; nas datas, mostra o dia da semana ao lado (mesmo "Qua 14/10" da grade). */
 function FieldLabel({ htmlFor, text, date }: { htmlFor: string; text: string; date?: string }) {
@@ -121,8 +121,11 @@ export function TravelFields({ value, onChange, disabled, idPrefix: p }: TravelF
             <Input id={`${p}-date-ida`} type="date" value={value.flightDepartureDate} disabled={disabled}
               onChange={(e) => onChange({ flightDepartureDate: e.target.value })} className={CONTROL} />
           </div>
-          <TimeField id={`${p}-time-ida`} label="Saída (origem)" value={value.flightDepartureSuggestedTime} disabled={disabled}
-            onChange={(v) => onChange({ flightDepartureSuggestedTime: v })} />
+          {/* Saída da origem NÃO tem campo aqui (decisão do dono, 26/08): a
+              Sugestão nunca pediu esse horário — só "Desembarque até" na ida e
+              "Embarque a partir" na volta, que são os que a compra e a regra de
+              alimentação usam. Uma coluna a mais na ida só desalinhava o
+              espelho e não era preenchida por ninguém. */}
           <TimeField id={`${p}-time-chegada`} label="Desembarque (chegada)" value={value.flightArrivalSuggestedTime} disabled={disabled}
             onChange={(v) => onChange({ flightArrivalSuggestedTime: v })} />
         </div>
@@ -145,8 +148,6 @@ export function TravelFields({ value, onChange, disabled, idPrefix: p }: TravelF
           </div>
           <TimeField id={`${p}-time-volta`} label="Embarque (saída)" value={value.flightReturnSuggestedTime} disabled={disabled}
             onChange={(v) => onChange({ flightReturnSuggestedTime: v })} />
-          {/* Coluna da chegada da volta: sem campo no schema — célula vazia só para manter o espelho. */}
-          <div aria-hidden="true" className="hidden sm:block" />
         </div>
       </fieldset>
 
