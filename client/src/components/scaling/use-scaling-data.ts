@@ -48,6 +48,15 @@ export type ScalingUser = User | null | undefined;
 
 const ADMIN_ROLES = ["administrador", "admin", "administrator"];
 
+/** Pedido de ajuste/exclusão em aberto de uma vaga (GET pending-by-inclusion). */
+export interface PendingChangeRequest {
+  teamInclusionId: string;
+  requestType: string;
+  reason: string | null;
+  requestedByName: string | null;
+  createdAt: string | null;
+}
+
 export function useScalingData(opts: {
   filters: ScalingFilters;
   sortConfig: SortConfig | null;
@@ -115,6 +124,23 @@ export function useScalingData(opts: {
   }, [tickets]);
 
   // Passagem efetivamente comprada (purchaseDate) — a primeira comprada vence
+  /**
+   * Pedido de ajuste/exclusão EM ABERTO por vaga (regra do dono, 26/08).
+   * Uma consulta para a tela inteira: a lista marca a linha e o modal trava
+   * todas as ações enquanto o aprovador não decide.
+   */
+  const { data: pendingChanges } = useQuery<PendingChangeRequest[]>({
+    queryKey: ["/api/scaling-change-requests/pending-by-inclusion"],
+    staleTime: 30_000,
+  });
+  const pendingChangeByInclusion = useMemo(() => {
+    const m = new Map<string, PendingChangeRequest>();
+    (pendingChanges || []).forEach((p) => {
+      if (p.teamInclusionId && !m.has(p.teamInclusionId)) m.set(p.teamInclusionId, p);
+    });
+    return m;
+  }, [pendingChanges]);
+
   const purchasedTicketByInclusion = useMemo(() => {
     const m = new Map<string, Ticket>();
     (tickets || []).forEach(t => {
@@ -377,7 +403,7 @@ export function useScalingData(opts: {
     isLoading, isErrorInclusions, inclusionsError,
     // índices
     eventById, functionById, collaboratorById, ticketByInclusion, purchasedTicketByInclusion,
-    accommodationByInclusion, pendingSwapByInclusion, approvedSwapInclusionIds, firstSwapByInclusion,
+    accommodationByInclusion, pendingChangeByInclusion, pendingSwapByInclusion, approvedSwapInclusionIds, firstSwapByInclusion,
     // listas
     filteredTeamInclusions, scalingInclusions,
     pendingSwapInclusionsAll, pendingSwapInclusionsInView,

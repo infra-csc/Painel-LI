@@ -352,6 +352,8 @@ export default function Scaling() {
     onViewComments: handleViewComments,
     getFunctionName, getEventName, getCollaboratorName, getCollaboratorCity, getTicket, getAccommodation,
     pendingSwapByInclusion,
+    // Selo "Em aprovação de ajuste" na linha (regra do dono, 26/08).
+    pendingChangeByInclusion: data.pendingChangeByInclusion,
     approvedSwapInclusionIds: data.approvedSwapInclusionIds,
     seenSwapIds,
     currentUserId: user?.id,

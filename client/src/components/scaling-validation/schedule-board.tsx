@@ -106,7 +106,7 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
                   const n = line.perDay[d] || 0;
                   const { isWeekend } = formatDateHeader(d);
                   return (
-                    <td key={d} className={cn("px-1 py-1.5 text-center border-r border-slate-100", isWeekend && "bg-orange-50/30")}>
+                    <td key={d} className="px-1 py-1.5 text-center border-r border-slate-100">
                       {n > 0 ? (
                         <span className={cn("inline-flex items-center justify-center h-7 w-10 rounded-lg text-xs font-semibold tabular-nums", line.editable ? "bg-brand-soft text-primary" : "bg-slate-100 text-slate-600")}>{n}</span>
                       ) : (

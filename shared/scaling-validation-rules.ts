@@ -151,7 +151,8 @@ export interface NextSuggestionStateOptions {
  *   ÁREA
  *   sugestao_pendente --validar--> sugestao_validada            (aguarda o aprovador)
  *   sugestao_pendente --pedir_ajuste--> sugestao_ajuste
- *   sugestao_validada --pedir_ajuste--> sugestao_ajuste         (enquanto não foi aprovada)
+ *   (validada NÃO aceita pedir_ajuste: com a vaga na mesa do aprovador, a área
+ *    só pode pedir uma escalação NOVA — pedido de inclusão)
  *
  *   APROVADOR (vaga já validada pela área)
  *   sugestao_validada --aprovar_vaga--> inclusao/planejado
@@ -201,10 +202,13 @@ export function nextSuggestionState(
       throw invalid();
 
     case "pedir_ajuste":
-      // a área pode pedir ajuste/exclusão antes de validar E depois de validar,
-      // enquanto o aprovador ainda não decidiu — é o comportamento útil (a área
-      // percebe o erro depois de ter validado e ainda consegue corrigir).
-      if (current.status === S.PENDENTE || current.status === S.VALIDADA) return sug(S.AJUSTE);
+      // SÓ antes de validar (regra do dono, 26/08: "não posso editar enquanto
+      // estiver para aprovação, apenas incluir uma nova escalação"). Depois que
+      // a área valida, a vaga está na mesa do aprovador: mudá-la por baixo
+      // faria ele decidir sobre uma vaga que já não é a que ele viu. Se ainda
+      // faltar algo, o caminho é pedir uma escalação NOVA (pedido de inclusão),
+      // que não mexe na vaga em julgamento.
+      if (current.status === S.PENDENTE) return sug(S.AJUSTE);
       throw invalid();
 
     case "aprovar_vaga":
@@ -213,7 +217,13 @@ export function nextSuggestionState(
       throw invalid();
 
     case "reprovar_vaga":
-      if (current.status === S.VALIDADA) return sug(S.NEGADA);
+      // Reprovar DEVOLVE para a área (regra do dono, 26/08: "tanto o reprovado
+      // quanto o voltar pra área têm que voltar para validação, podendo deixar
+      // as funções mexerem de novo"). Antes a vaga morria em `sugestao_negada`
+      // e a área não tinha como corrigir — o que sobrava era refazer a
+      // sugestão inteira. A diferença entre reprovar e devolver fica no
+      // registro: o comentário do aprovador (obrigatório) diz qual foi.
+      if (current.status === S.VALIDADA) return sug(S.PENDENTE);
       throw invalid();
 
     case "devolver_validacao":
@@ -261,7 +271,7 @@ export function nextSuggestionState(
  * de `SUGGESTION_ACTIONS`. Deriva da própria máquina — nunca duplique a regra.
  *
  *  - sugestao_pendente → validar, pedir_ajuste, aprovar_direto_bypass, reprovar_bypass
- *  - sugestao_validada → pedir_ajuste, aprovar_vaga, reprovar_vaga, devolver_validacao
+ *  - sugestao_validada → aprovar_vaga, reprovar_vaga, devolver_validacao (a área não mexe mais)
  *  - sugestao_ajuste   → decisões do aprovador sobre o pedido
  *  - sugestao_negada / fora da fase 'sugestao' → nenhuma
  *
@@ -775,7 +785,9 @@ export function describeVagaDecision(info: LastVagaDecisionInfo): { title: strin
     case "devolvida":
       return { title: `Devolvida pelo aprovador para nova validação${suffix}`, tone: "warn" };
     case "reprovada":
-      return { title: `Vaga reprovada pelo aprovador${suffix}`, tone: "danger" };
+      // Reprovar também devolve para a área (26/08): o título diz o que a área
+      // tem de fazer, senão "reprovada" soa como fim de linha.
+      return { title: `Reprovada pelo aprovador — corrija e valide de novo${suffix}`, tone: "danger" };
     case "aprovada":
     default:
       return { title: `Vaga aprovada pelo aprovador${suffix}`, tone: "ok" };

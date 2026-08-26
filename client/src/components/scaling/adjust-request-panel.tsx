@@ -51,6 +51,37 @@ export interface ChangeWindowResponse {
   } | null;
 }
 
+/**
+ * Janela de pedido de UMA vaga. A chave é a mesma em todos os pontos de uso, e
+ * o TanStack faz uma requisição só — o modal inteiro (rodapé, cartões, este
+ * painel) enxerga o mesmo estado.
+ */
+export function useChangeWindow(inclusionId: string | undefined, enabled = true) {
+  return useQuery<ChangeWindowResponse>({
+    queryKey: [`/api/team-inclusions/${inclusionId}/change-window`],
+    enabled: enabled && !!inclusionId,
+    // Estado de outra pessoa (a logística pode comprar a passagem, o aprovador
+    // pode decidir enquanto o modal está aberto): não guarda resposta velha.
+    staleTime: 0,
+  });
+}
+
+/**
+ * Motivo (pt-BR) para travar TODA ação da Escalação — regra do dono (26/08):
+ * "enquanto tiver pedido de ajuste, bloquear qualquer ação e detalhar o
+ * porquê". Salvar/confirmar/trocar por baixo de um pedido em análise faria o
+ * aprovador decidir sobre uma vaga que já mudou.
+ */
+export function pendingRequestLock(w: ChangeWindowResponse | undefined): string | null {
+  const p = w?.pendingRequest;
+  if (!p) return null;
+  const tipo = (CHANGE_REQUEST_TYPE_LABELS[p.requestType] ?? p.requestType).toLowerCase();
+  const quem = p.requestedByName ? ` por ${p.requestedByName}` : "";
+  const quando = p.createdAt ? ` em ${formatDateBr(p.createdAt)}` : "";
+  const motivo = p.reason?.trim() ? ` Motivo: “${p.reason.trim()}”.` : "";
+  return `Pedido de ${tipo} em análise${quem}${quando} — a escalação fica travada até o aprovador decidir.${motivo}`;
+}
+
 const CARD = "mt-5 border rounded-2xl overflow-hidden";
 const HEAD = "border-b px-4 py-2.5 flex items-center gap-2 flex-wrap";
 const HEAD_LABEL = "text-[11px] font-black uppercase tracking-[0.12em]";
@@ -62,13 +93,7 @@ export function AdjustRequestPanel({ inclusion, event, functionName }: {
 }) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
-
-  const { data, isLoading } = useQuery<ChangeWindowResponse>({
-    queryKey: [`/api/team-inclusions/${inclusion.id}/change-window`],
-    // Estado de outra pessoa (a logística pode comprar a passagem enquanto o
-    // modal está aberto): não guarda resposta velha.
-    staleTime: 0,
-  });
+  const { data, isLoading } = useChangeWindow(inclusion.id);
 
   // Enquanto carrega, nada — piscar um botão que pode não existir é pior que esperar.
   if (isLoading || !data || !data.canRequest) return null;

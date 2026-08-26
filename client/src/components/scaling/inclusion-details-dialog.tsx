@@ -38,7 +38,7 @@ import type { TeamInclusion } from "@shared/schema";
 import { getStatusBadge } from "./scaling-table";
 import ConfirmDialog from "./confirm-dialog";
 import { SwapStatusCard, RequestSwapButton, SwapRequestDialog } from "./swap-request-panel";
-import { AdjustRequestPanel } from "./adjust-request-panel";
+import { AdjustRequestPanel, pendingRequestLock, useChangeWindow } from "./adjust-request-panel";
 import { ProductionApprovalCard } from "./production-approval-card";
 import { PassagemTab, HospedagemTab, ComentariosTab } from "./inclusion-details-tabs";
 import { parseDay, isEscalated, isEscalationConfirmed, isCityFromSP, formatDateWithWeekday, type ModalData } from "./scaling-utils";
@@ -259,6 +259,12 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
   // 403 do servidor — nenhuma ação daqui pode prometer o que a API vai negar.
   const eventLocked = !!inclusion && isEventLocked(inclusion);
   const eventLockReason = eventLocked ? PAST_EVENT_BLOCK_MSG : null;
+  // Pedido de ajuste em análise: a escalação inteira fica travada até o
+  // aprovador decidir (mesma consulta do painel "Precisa mudar algo?").
+  const changeWindow = useChangeWindow(inclusion?.id, open && !!inclusion?.id);
+  const requestLockReason = pendingRequestLock(changeWindow.data);
+  /** Um motivo só para os cartões internos: pedido em análise vence evento encerrado. */
+  const actionLockReason = requestLockReason ?? eventLockReason;
   const { comments, inclusionLogs, pendingSwap, latestSwap, users } = details;
 
   const getUserName = (userId: string): string => {
@@ -582,10 +588,10 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                               isAdminOrPurchasing={isAdminOrPurchasing}
                               getCollaboratorName={getCollaboratorName}
                               mutations={mutations}
-                              blockReason={eventLockReason}
+                              blockReason={actionLockReason}
                             />
                             {isEscalationConfirmed(inclusion) && inclusion.collaboratorId && !pendingSwap && (
-                              <RequestSwapButton onClick={() => setShowSwapModal(true)} blockReason={eventLockReason} />
+                              <RequestSwapButton onClick={() => setShowSwapModal(true)} blockReason={actionLockReason} />
                             )}
                           </div>
                         ) : (
@@ -748,7 +754,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                               );
                             })()}
                             {isEscalationConfirmed(inclusion) && inclusion.collaboratorId && !pendingSwap && (
-                              <RequestSwapButton onClick={() => setShowSwapModal(true)} blockReason={eventLockReason} />
+                              <RequestSwapButton onClick={() => setShowSwapModal(true)} blockReason={actionLockReason} />
                             )}
                           </div>
                         )}
@@ -797,7 +803,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                       inclusion={inclusion}
                       systemSettings={systemSettings}
                       canEdit={!eventLocked && !isReadOnly(inclusion, user) && canConfirmEscalation(inclusion)}
-                      disabledReason={eventLockReason}
+                      disabledReason={actionLockReason}
                       isCasa={collaborators?.find(c => c.id === (modalData.collaboratorId || inclusion.collaboratorId))?.type === "casa"}
                       mutation={mutations.setCenoFreelaTipo}
                     />
@@ -817,7 +823,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                     </div>
                   )}
 
-                  <ProductionApprovalCard inclusion={inclusion} canApprove={canApproveProduction} mutations={mutations} blockReason={eventLockReason} />
+                  <ProductionApprovalCard inclusion={inclusion} canApprove={canApproveProduction} mutations={mutations} blockReason={actionLockReason} />
 
                   {/* Anexos no Resumo */}
                   {(() => {
@@ -893,8 +899,11 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
               const isSaving = mutations.saveInclusion.isPending;
               const readOnly = isReadOnly(inclusion, user);
               const escalated = isEscalated(inclusion);
-              const saveReason = isSaving ? null : getSaveBlockReason(inclusion, modalData, data);
-              const confirmReason = isSaving ? null : getConfirmBlockReason(inclusion, modalData, data);
+              // Pedido em análise trava TUDO e explica o porquê (regra do dono,
+              // 26/08) — vem antes dos demais motivos porque é o mais forte:
+              // salvar por baixo faria o aprovador decidir sobre outra vaga.
+              const saveReason = isSaving ? null : (requestLockReason ?? getSaveBlockReason(inclusion, modalData, data));
+              const confirmReason = isSaving ? null : (requestLockReason ?? getConfirmBlockReason(inclusion, modalData, data));
               const showSave = !readOnly && (canEditCollaborator(inclusion) || !escalated);
               const showConfirm = !readOnly && !escalated;
               const inlineReason = showConfirm ? confirmReason : (showSave ? saveReason : null);

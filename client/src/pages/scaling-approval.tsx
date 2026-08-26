@@ -341,6 +341,19 @@ export default function ScalingApprovalPage() {
         : (typeFilter as QuickFilter);
   /** Trocar de aba por ação do usuário (aba ou tile) — congela o padrão automático. */
   const switchTab = (t: ApprovalTab) => { tabPickedByUser.current = true; setTab(t); };
+  /**
+   * Entrar na Fila pela ABA sempre mostra OS PENDENTES (regra do dono, 26/08:
+   * "na aprovação os pendentes têm que vir selecionado"). Sem isso a fila
+   * reabria com o recorte da última visita — "Ajuste", "atrasados" — e o
+   * aprovador achava que tinha 1 pedido quando tinha 3.
+   */
+  const openFilaTab = () => {
+    switchTab("fila");
+    setStatusFilter(CHANGE_REQUEST_STATUS.PENDENTE);
+    setTypeFilter(ALL);
+    setLateOnly(false);
+    setMineOnly(false);
+  };
   const applyQuick = (q: QuickFilter) => {
     switchTab("fila");
     if (activeQuick === q && q !== "pendentes") { setTypeFilter(ALL); return; }
@@ -535,7 +548,7 @@ export default function ScalingApprovalPage() {
         </div>
       )}
 
-      <Tabs value={tab} onValueChange={(v) => switchTab(v as ApprovalTab)} className="space-y-3">
+      <Tabs value={tab} onValueChange={(v) => (v === "fila" ? openFilaTab() : switchTab(v as ApprovalTab))} className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsList className="h-auto rounded-xl bg-slate-100 p-[3px]">
             {/* Caminho normal do fluxo desde 19/08: validar não aprova — a vaga passa por aqui. */}

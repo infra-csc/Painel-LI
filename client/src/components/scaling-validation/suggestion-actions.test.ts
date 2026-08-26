@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SUGESTAO_PHASE, SUGESTAO_STATUS } from "@shared/scaling-validation-rules";
-import { canActOn, canRequestChange, canValidate, lockReason } from "./types";
+import { AWAITING_APPROVAL_LOCK, canActOn, canRequestChange, canValidate, lockReason } from "./types";
 
 type Row = Parameters<typeof canActOn>[0];
 
@@ -20,13 +20,14 @@ describe("ações da área sobre a vaga", () => {
     expect(lockReason(r)).toBeNull();
   });
 
-  it("vaga validada não valida de novo, mas continua aceitando pedido", () => {
+  it("vaga validada não aceita mais nada da área — está com o aprovador", () => {
     const r = row({ status: SUGESTAO_STATUS.VALIDADA });
     expect(canValidate(r)).toBe(false);
-    expect(canRequestChange(r)).toBe(true);
-    // Selecionável: a área ainda pode pedir ajuste/exclusão enquanto o aprovador não decide.
-    expect(canActOn(r)).toBe(true);
-    expect(lockReason(r)).toBeNull();
+    // Regra do dono (26/08): "não posso editar enquanto estiver para aprovação,
+    // apenas incluir uma nova escalação". Ajuste e exclusão saem de cena.
+    expect(canRequestChange(r)).toBe(false);
+    expect(canActOn(r)).toBe(false);
+    expect(lockReason(r)).toBe(AWAITING_APPROVAL_LOCK);
   });
 
   it("pedido pendente trava a vaga (pendente ou validada)", () => {

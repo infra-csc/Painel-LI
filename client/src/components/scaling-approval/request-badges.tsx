@@ -3,8 +3,9 @@ import { cn } from "@/lib/utils";
 import { formatDateBr, formatDayMonthBr } from "@/lib/dates";
 import {
   CHANGE_REQUEST_TYPE_LABELS, CHANGE_REQUEST_STATUS_LABELS, TRANSPORT_MODE_LABELS,
-  DANGER_DAYS, STALLED_DAYS, pendingSeverity,
-  type ChangeRequestType, type ChangeRequestStatus, type ProposedField, type TransportMode,
+  DANGER_DAYS, STALLED_DAYS, PROPOSED_FIELD_LABELS, pendingSeverity,
+  type ChangeRequestType, type ChangeRequestStatus, type InclusionDiffEntry,
+  type ProposedChanges, type ProposedField, type TransportMode,
 } from "@shared/scaling-validation-rules";
 
 /** "dd/mm/aaaa hh:mm" (pt-BR) — único ponto de formatação de data+hora do módulo. */
@@ -112,6 +113,36 @@ export function CanDecideBadge({ className }: { className?: string }) {
 const ymd = (v: unknown) => (v ? String(v).slice(0, 10) : "");
 
 /** Valor legível de um campo de proposedChanges/diff (pt-BR). */
+/**
+ * O QUE o pedido muda, em uma linha: "Diárias 3 → 4 · Volta 18/10 → 19/10".
+ *
+ * Existe porque a fila só mostrava o MOTIVO ("teste") — o aprovador tinha de
+ * abrir cada pedido para descobrir o que estava sendo pedido (o dono, 26/08:
+ * "eu teria que bater o olho e saber o que foi solicitado"). Pedido de inclusão
+ * não tem de/para: descreve o que nasce.
+ */
+export function changeSummary(r: {
+  requestType: string;
+  diff?: InclusionDiffEntry[] | null;
+  proposed?: ProposedChanges | null;
+}): string {
+  if (r.requestType === "exclusao") return "Tirar a vaga da escala";
+  if (r.requestType === "inclusao") {
+    const q = r.proposed?.quantity ?? 1;
+    const dias = r.proposed?.workDays?.length ?? 0;
+    const diarias = r.proposed?.dailyRates ?? dias;
+    const partes = [`${q} ${q === 1 ? "vaga nova" : "vagas novas"}`];
+    if (diarias) partes.push(`${diarias} ${diarias === 1 ? "diária" : "diárias"}`);
+    if (dias) partes.push(`${dias} ${dias === 1 ? "dia" : "dias"}`);
+    return partes.join(" · ");
+  }
+  const diff = r.diff ?? [];
+  if (!diff.length) return "";
+  return diff
+    .map((d) => `${PROPOSED_FIELD_LABELS[d.field] ?? d.field}: ${formatProposedValue(d.field, d.from)} → ${formatProposedValue(d.field, d.to)}`)
+    .join(" · ");
+}
+
 export function formatProposedValue(field: ProposedField, v: unknown): string {
   if (v === null || v === undefined || v === "") return "—";
   switch (field) {

@@ -198,11 +198,10 @@ function Card({ id, title, icon: Icon, children }: {
 function DayChip({ v }: { v: string }) {
   const h = dayInfo(v);
   if (!h) return null;
+  // Sem fundo pintado no fim de semana: fundo aqui significaria "marcado"
+  // (mesma regra do seletor de dias) — o sinal fica no nome do dia.
   return (
-    <span className={cn(
-      "flex flex-col items-center min-w-[52px] rounded-lg border border-slate-200 px-2 py-1 text-[11px] leading-tight text-slate-600",
-      h.isWeekend ? "bg-orange-50/50" : "bg-white",
-    )}>
+    <span className="flex flex-col items-center min-w-[52px] rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] leading-tight text-slate-600">
       <span className="font-semibold tabular-nums">{h.date}</span>
       <span className={cn("text-[10px]", h.isWeekend ? "text-orange-700" : "text-slate-500")}>{h.dayName}</span>
     </span>

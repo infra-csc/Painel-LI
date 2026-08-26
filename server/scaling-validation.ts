@@ -750,8 +750,23 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         admin ? Promise.resolve([] as string[]) : storage.getUserManagedFunctionIds(actor.id, "aprovador"),
         isDefaultApprover(actor),
       ]);
-      const truncated = !eventId && rowsRaw.length > ALL_EVENTS_ROW_LIMIT;
-      const rows = truncated ? rowsRaw.slice(0, ALL_EVENTS_ROW_LIMIT) : rowsRaw;
+      /**
+       * CADA ÁREA VÊ SÓ A DELA (regra do dono, 26/08).
+       *
+       * A tela é da área que valida: quem tem cadastro em Funções enxerga as
+       * vagas das SUAS funções (como validador ou como aprovador) e nada mais.
+       * Fora dessa conta ficam quem manda em tudo — administrador e o aprovador
+       * padrão do sistema —, porque é deles a visão geral da fila.
+       *
+       * Quem não tem cadastro nenhum passa a ver uma lista vazia (antes via a
+       * escala inteira sem poder agir em nada). A visão geral, para esses, é o
+       * Histórico da Escala, que continua aberto.
+       */
+      const scopeToOwn = !admin && !defaultApprover;
+      const ownFunctionIds = new Set([...validatorIds, ...approverIds]);
+      const rowsInScope = scopeToOwn ? rowsRaw.filter((i) => ownFunctionIds.has(i.functionId)) : rowsRaw;
+      const truncated = !eventId && rowsInScope.length > ALL_EVENTS_ROW_LIMIT;
+      const rows = truncated ? rowsInScope.slice(0, ALL_EVENTS_ROW_LIMIT) : rowsInScope;
 
       // Pedidos (pendentes E resolvidos): os pendentes viram `pendingRequest`,
       // os resolvidos alimentam `lastDecision`. Sem evento, uma consulta EM
@@ -1049,7 +1064,16 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       patch.validatedAt = inclusion.validatedAt ?? now;
       patch.validatedBy = inclusion.validatedBy ?? actor.id;
     }
-    if (kind === "devolver") patch.suggestionSentAt = now;
+    // Reprovar e devolver mandam a vaga de volta para a área (regra do dono,
+    // 26/08): nos dois casos o relógio de "parada há N dias" recomeça agora —
+    // senão a vaga voltaria já marcada como atrasada por causa da espera do
+    // aprovador, que não é da área.
+    if (kind === "devolver" || kind === "reprovar") {
+      patch.suggestionSentAt = now;
+      // Volta a ser vaga "não validada": a área revalida do zero.
+      patch.validatedAt = null;
+      patch.validatedBy = null;
+    }
     return patch;
   }
 
@@ -1276,7 +1300,9 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         inclusion && next
           ? {
               phase: next.phase, status: next.status, updatedBy: actor.id,
-              expected: { phase: SUGESTAO_PHASE, statuses: [SUGESTAO_STATUS.PENDENTE, SUGESTAO_STATUS.VALIDADA] },
+              // Só "pendente": validada está na mesa do aprovador e não aceita
+              // mais pedido (regra do dono, 26/08).
+              expected: { phase: SUGESTAO_PHASE, statuses: [SUGESTAO_STATUS.PENDENTE] },
             }
           : null,
       );
@@ -1846,6 +1872,38 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       res.json({ userId, userName: user?.name ?? null });
     } catch (error) {
       sendError(res, error, "erro ao ler o aprovador padrão", "Erro ao buscar o aprovador padrão");
+    }
+  });
+
+  /**
+   * GET /api/scaling-change-requests/pending-by-inclusion — quais vagas têm
+   * pedido EM ABERTO, para a LISTA da Escalação marcar cada linha (regra do
+   * dono, 26/08: "sinalizar também que está em aprovação de ajuste").
+   *
+   * Uma consulta para a tela inteira, em vez de uma por linha. Devolve o
+   * mínimo: vaga, tipo, quem pediu, quando e o motivo — o mesmo que o selo
+   * mostra no tooltip. Só leitura, sem estado de vaga alheia além disso.
+   */
+  app.get("/api/scaling-change-requests/pending-by-inclusion", async (req, res) => {
+    const actor = await getActor(req, res);
+    if (!actor) return;
+    try {
+      const eventId = req.query.eventId ? String(req.query.eventId) : undefined;
+      const pend = await storage.getScalingChangeRequests({ status: CHANGE_REQUEST_STATUS.PENDENTE, eventId });
+      res.set("Cache-Control", "no-store");
+      res.json(
+        pend
+          .filter((r) => r.teamInclusionId)
+          .map((r) => ({
+            teamInclusionId: r.teamInclusionId,
+            requestType: r.requestType,
+            reason: r.reason,
+            requestedByName: r.requestedByName,
+            createdAt: r.createdAt,
+          })),
+      );
+    } catch (error) {
+      sendError(res, error, "erro ao listar pedidos em aberto", "Erro ao buscar pedidos em aberto");
     }
   });
 

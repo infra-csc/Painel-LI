@@ -89,7 +89,7 @@ const GridRow = memo(function GridRow({
         </td>
 
         {headers.map((h, colIdx) => (
-          <td key={h.ymd} className={cn("px-1 py-1.5 border-r border-slate-100 text-center", h.isWeekend && "bg-orange-50/30")}>
+          <td key={h.ymd} className="px-1 py-1.5 border-r border-slate-100 text-center">
             <QtyCell
               value={row.quantities[h.ymd] || 0}
               rowId={row.rowId}
@@ -267,7 +267,6 @@ export function SuggestionGrid({
                       className={cn(
                         "sticky bottom-0 z-20 border-t border-slate-200 bg-slate-50 px-1 py-2 text-center text-xs tabular-nums",
                         isPeak ? "bg-brand-soft font-bold text-primary" : t > 0 ? "font-semibold text-slate-700" : "text-slate-300",
-                        !isPeak && h.isWeekend && "bg-orange-50/60",
                       )}
                     >
                       {t > 0 ? t : "–"}

@@ -119,7 +119,7 @@ export function PendingRequestBadge({ row }: { row: SuggestionRow }) {
     <Tooltip>
       <TooltipTrigger asChild>
         <span tabIndex={0} className={cn(BADGE, "border-violet-200 bg-violet-50 text-violet-700")}>
-          <MessageSquareWarning className="w-3 h-3" aria-hidden="true" /> pedido de {label.toLowerCase()}
+          <MessageSquareWarning className="w-3 h-3" aria-hidden="true" /> Com pedido de {label.toLowerCase()}
         </span>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-xs text-xs space-y-1">
@@ -184,9 +184,14 @@ export function VagaDecisionBadge({ info }: { info: LastVagaDecisionInfo | null 
 export function StatusCell({ row, approverNames }: { row: SuggestionRow; approverNames?: string[] }) {
   return (
     <div className="flex flex-wrap items-center gap-1">
-      <SuggestionStatusBadge status={row.status} />
+      {/* Com pedido em aberto, UM selo só — o do pedido, que diz o tipo certo e
+          traz motivo/autor no tooltip. O status cru ("Com pedido de ajuste")
+          ao lado de "pedido de exclusão" dizia duas coisas diferentes sobre a
+          mesma vaga. */}
+      {row.pendingRequest
+        ? <PendingRequestBadge row={row} />
+        : <SuggestionStatusBadge status={row.status} />}
       <PendingDaysBadge row={row} approverNames={approverNames} />
-      <PendingRequestBadge row={row} />
       <LastDecisionBadge info={row.lastDecision} />
       <VagaDecisionBadge info={row.lastVagaDecision} />
     </div>
@@ -441,7 +446,12 @@ function RowActions({ row, onValidate, onAdjust, onDelete, onOpenDetail, compact
 }) {
   const mayValidate = onValidate && canValidate(row);
   const mayRequest = canRequestChange(row);
-  const reason = mayValidate || mayRequest ? null : lockReason(row);
+  // A coluna Status já diz "Com pedido de exclusão" e "Validada — aguardando
+  // aprovação". Repetir o mesmo motivo aqui em texto fazia a linha dizer três
+  // vezes a mesma coisa: aqui fica só o que o Status NÃO conta (a função não é
+  // sua). O cadeado da primeira coluna continua explicando no tooltip.
+  const lock = mayValidate || mayRequest ? null : lockReason(row);
+  const reason = lock && !row.pendingRequest && row.status !== SUGESTAO_STATUS.VALIDADA ? lock : null;
   return (
     <div className={cn("inline-flex items-center gap-1.5", compact && "flex-wrap")}>
       {mayValidate && (

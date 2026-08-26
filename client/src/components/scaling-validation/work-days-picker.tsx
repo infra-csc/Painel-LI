@@ -70,7 +70,10 @@ export function WorkDaysPicker({ rangeStart, rangeEnd, value, onChange, disabled
             className={cn(
               "flex flex-col items-center min-w-[52px] px-2 py-1 rounded-lg border text-[11px] leading-tight transition-colors",
               "focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60 disabled:cursor-not-allowed",
-              on ? "bg-primary text-white border-primary" : cn("bg-white text-slate-600 border-slate-200 hover:border-primary/40", isWeekend && "bg-orange-50/50"),
+              // FUNDO só significa "marcado" (regra do dono, 26/08): o fim de
+              // semana pintado parecia dia selecionado. Aqui ele aparece só no
+              // nome do dia, em laranja.
+              on ? "bg-primary text-white border-primary" : "bg-white text-slate-600 border-slate-200 hover:border-primary/40",
               !inEvent && !on && "border-dashed text-slate-400",
             )}
           >

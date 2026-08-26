@@ -29,7 +29,17 @@ const orNull = <T,>(v: T | ""): T | null => (v === "" ? null : v);
 // rolável e rodapé preso — o motivo do pedido e os botões nunca somem da vista.
 
 const DIALOG_SHELL = "p-0 gap-0 flex flex-col max-h-[92vh] overflow-hidden rounded-2xl";
-const DIALOG_SHELL_WIDE = `${DIALOG_SHELL} max-w-3xl`;
+/**
+ * Diálogo LARGO (pedido de ajuste e de inclusão).
+ *
+ * Regra do dono (26/08): "scroll em modal dificulta muito" — em vez de rolar,
+ * o diálogo cresce para o lado e o conteúdo vira duas colunas em telas grandes
+ * (o que é da VAGA à esquerda, a VIAGEM à direita). O `max-h`/overflow continua
+ * como rede de segurança para telas baixas, não como layout normal.
+ */
+const DIALOG_SHELL_WIDE = `${DIALOG_SHELL} max-w-5xl`;
+/** Duas colunas a partir de lg: dias/diárias/observações | ida e volta. */
+const DIALOG_TWO_COLS = "grid gap-4 lg:grid-cols-2 lg:items-start";
 const DIALOG_HEADER = "px-6 pt-6 pb-3 border-b border-slate-100 pr-12";
 const DIALOG_BODY = "flex-1 overflow-y-auto px-6 py-4 space-y-4";
 const DIALOG_STICKY = "shrink-0 border-t border-slate-200 bg-slate-50/60 px-6 py-3 space-y-2";
@@ -195,6 +205,17 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
 
   const diff = useMemo(() => (inclusion ? diffInclusion(inclusion, full) : []), [inclusion, full]);
 
+  /**
+   * Frase de divergência entre os dias marcados e o número de diárias — vazia
+   * quando os dois concordam (ou quando o campo ainda está vazio/inválido).
+   */
+  const daysVsDiarias = useMemo(() => {
+    const n = Number(dailyRates);
+    if (dailyRates.trim() === "" || !Number.isInteger(n) || n < 0) return "";
+    if (workDays.length === 0 || n === workDays.length) return "";
+    return `Você marcou ${workDays.length} ${workDays.length === 1 ? "dia" : "dias"} e pediu ${formatDiarias(n)}.`;
+  }, [dailyRates, workDays]);
+
   const submit = () => {
     if (!inclusion) return;
     if (!reason.trim()) { setError("Informe o motivo do pedido."); return; }
@@ -232,6 +253,10 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
 
         <div className={DIALOG_BODY}>
           <ApproverCommentBanner info={inclusion?.lastDecision} />
+          {/* Duas colunas: o que é da VAGA à esquerda, a VIAGEM à direita —
+              é o que faz o diálogo caber na tela sem barra de rolagem. */}
+          <div className={DIALOG_TWO_COLS}>
+          <div className="space-y-3">
           <div className="space-y-2">
             <Label className="text-xs text-slate-600">Dias de trabalho <span className="text-red-400">*</span></Label>
             <WorkDaysPicker rangeStart={event?.startDate ?? ""} rangeEnd={event?.endDate ?? ""} value={workDays} onChange={handleWorkDaysChange} disabled={mutation.isPending} />
@@ -240,16 +265,35 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
             <div className="space-y-1">
               <Label htmlFor="adj-daily" className="text-xs text-slate-600">Diárias</Label>
               <Input id="adj-daily" type="number" min={0} step={1} value={dailyRates} disabled={mutation.isPending}
+                aria-describedby="adj-daily-hint"
                 onChange={(e) => { setDailyRatesTouched(true); setDailyRates(e.target.value); }} className="h-9 rounded-lg" />
-              <p className="text-[11px] text-slate-500">Padrão: {formatDiarias(workDays.length)} (1 por dia).</p>
+              {/* Dias marcados e diárias precisam CONVERSAR: quando divergem, o
+                  diálogo diz em voz alta e oferece o acerto em um clique — em
+                  vez de deixar "1 dia marcado" ao lado de "3 diárias" sem
+                  explicação. Divergência pode ser proposital (meia diária,
+                  dia dobrado), então nada é corrigido por baixo. */}
+              {daysVsDiarias ? (
+                <p id="adj-daily-hint" className="text-[11px] text-amber-700">
+                  {daysVsDiarias}{" "}
+                  <button type="button" disabled={mutation.isPending}
+                    onClick={() => { setDailyRatesTouched(true); setDailyRates(String(workDays.length)); }}
+                    className="font-semibold underline underline-offset-2 hover:text-amber-800">
+                    usar {workDays.length}
+                  </button>
+                </p>
+              ) : (
+                <p id="adj-daily-hint" className="text-[11px] text-slate-500">Padrão: {formatDiarias(workDays.length)} (1 por dia).</p>
+              )}
             </div>
             <div className="space-y-1">
               <Label htmlFor="adj-obs" className="text-xs text-slate-600">Observações da vaga</Label>
               <Textarea id="adj-obs" rows={2} maxLength={500} value={observations} disabled={mutation.isPending} onChange={(e) => setObservations(e.target.value)} className="rounded-lg text-sm" />
             </div>
           </div>
+          </div>
 
           <TravelFields idPrefix="adj" value={travel} disabled={mutation.isPending} onChange={(p) => setTravel((t) => ({ ...t, ...p }))} />
+          </div>
 
           {diff.length > 0 && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3" data-testid="adjust-diff">

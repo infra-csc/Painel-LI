@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { formatDateBr } from "@/lib/dates";
 import { CHANGE_REQUEST_STATUS, CHANGE_REQUEST_TYPE_LABELS, daysPending, type ChangeRequestType } from "@shared/scaling-validation-rules";
 import type { ChangeRequestItem } from "./types";
-import { CanDecideBadge, PostScalingBadge, RequestAgeBadge, RequestStatusBadge, RequestTypeBadge } from "./request-badges";
+import { CanDecideBadge, PostScalingBadge, RequestAgeBadge, RequestStatusBadge, RequestTypeBadge, changeSummary } from "./request-badges";
 import { isPostValidationInclusion } from "@shared/scaling-change-window";
 
 interface RequestQueueProps {
@@ -116,6 +116,14 @@ export function RequestQueue({ items, onOpen, showEvent = true, onApprove, onRea
                       {r.reason
                         ? <span className="block text-xs text-slate-600 truncate" title={r.reason}>{r.reason}</span>
                         : <span className="block text-xs text-slate-300">—</span>}
+                      {/* O QUE está sendo pedido, no de/para — o motivo sozinho
+                          ("teste") obrigava a abrir cada pedido para descobrir. */}
+                      {(() => {
+                        const resumo = changeSummary(r);
+                        return resumo
+                          ? <span className="mt-0.5 block text-[11px] text-slate-500 truncate" title={resumo}>{resumo}</span>
+                          : null;
+                      })()}
                       {pending && r.canDecide && <CanDecideBadge className="mt-1" />}
                     </td>
                     <td className="px-2.5 py-2 align-middle whitespace-nowrap">
@@ -195,6 +203,7 @@ export function RequestQueue({ items, onOpen, showEvent = true, onApprove, onRea
               </p>
               <p className="text-[11px] text-slate-500">{showEvent && r.eventName ? `${r.eventName} · ` : ""}por {r.requestedByName}{!pending && r.createdAt ? ` · ${formatDateBr(new Date(r.createdAt))}` : ""}</p>
               {r.reason && <p className="text-xs text-slate-600 line-clamp-2" title={r.reason}>{r.reason}</p>}
+              {changeSummary(r) && <p className="text-[11px] text-slate-500 line-clamp-2">{changeSummary(r)}</p>}
             </li>
           );
         })}

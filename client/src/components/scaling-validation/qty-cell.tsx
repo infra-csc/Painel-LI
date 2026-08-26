@@ -79,7 +79,7 @@ export const QtyCell = memo(function QtyCell({ value, rowId, date, rowIdx, colId
         "focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-slate-300 disabled:opacity-60",
         value > 0
           ? "bg-brand-soft text-primary border border-primary/30"
-          : cn("bg-white text-slate-500 border border-slate-200", isWeekend && "bg-orange-50/40"),
+          : "bg-white text-slate-500 border border-slate-200",
       )}
     />
   );

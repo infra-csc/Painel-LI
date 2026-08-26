@@ -74,6 +74,18 @@ const MODE_ICONS: Record<TransportMode, LucideIcon> = {
 export type LegDirection = "ida" | "volta";
 const DIR_LABEL: Record<LegDirection, string> = { ida: "Ida", volta: "Volta" };
 
+/**
+ * Ida e volta empilhadas e iguais se confundem numa lista longa (o dono, 26/08:
+ * "está fácil de se confundir por aqui"). Cada direção ganha uma FAIXA de cor à
+ * esquerda e a palavra colorida — sinal que se lê antes da data. O fundo segue
+ * neutro de propósito: dentro do chip o dia de fim de semana já é laranja, e um
+ * fundo colorido brigaria com ele.
+ */
+const DIR_ACCENT: Record<LegDirection, { bar: string; icon: string; word: string }> = {
+  ida:   { bar: "border-l-2 border-l-sky-400",    icon: "text-sky-500",    word: "text-sky-800" },
+  volta: { bar: "border-l-2 border-l-indigo-400", icon: "text-indigo-500", word: "text-indigo-800" },
+};
+
 /** O banco guarda o modal como texto livre — só desenha ícone o que for válido. */
 const asMode = (m: string | null | undefined): TransportMode | null =>
   m && (TRANSPORT_MODES as readonly string[]).includes(m) ? (m as TransportMode) : null;
@@ -117,11 +129,12 @@ export function LegChip({ dir, mode, date, time, className }: LegChipProps) {
     hour ? `às ${hour}` : "",
   ].filter(Boolean).join(", ").replace(", às", " às");
 
+  const accent = DIR_ACCENT[dir];
   return (
-    <span role="img" aria-label={label} title={label} className={cn(CHIP_NEUTRAL, className)}>
-      <Mode className="h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />
-      {Arrow && <Arrow className="h-2.5 w-2.5 shrink-0 text-slate-400" aria-hidden="true" />}
-      <span className="font-medium text-slate-700">{DIR_LABEL[dir]}</span>
+    <span role="img" aria-label={label} title={label} className={cn(CHIP_NEUTRAL, accent.bar, "rounded-l-sm pl-1.5", className)}>
+      <Mode className={cn("h-3 w-3 shrink-0", accent.icon)} aria-hidden="true" />
+      {Arrow && <Arrow className={cn("h-2.5 w-2.5 shrink-0", accent.icon)} aria-hidden="true" />}
+      <span className={cn("font-semibold", accent.word)}>{DIR_LABEL[dir]}</span>
       {day && (
         <>
           <span className="text-slate-300" aria-hidden="true">·</span>

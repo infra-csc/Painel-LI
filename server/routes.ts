@@ -2021,6 +2021,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Evento encerrado: só o administrador
       if (!await assertEventEditable(currentInclusion.eventId, user, res)) return;
 
+      // Pedido de ajuste EM ANÁLISE trava a escalação inteira (regra do dono,
+      // 26/08). O aprovador está decidindo sobre a vaga como ela está; salvar
+      // por baixo faria a decisão cair sobre outra coisa. A tela já bloqueia e
+      // explica — aqui é a trava de verdade, para quem chamar a API direto.
+      const pendingChange = (await storage.getScalingChangeRequestsByInclusion(id))
+        .find((r) => r.status === "pendente");
+      if (pendingChange) {
+        return res.status(409).json({
+          message: `Há um pedido de ${pendingChange.requestType} aguardando o aprovador — a escalação fica travada até a decisão.`,
+        });
+      }
+
       // Transição de status/fase da escalação — uma linha por mudança
       if (req.body.status || req.body.phase) {
         console.log(

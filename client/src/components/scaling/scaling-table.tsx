@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
-import { MessageSquare, CalendarDays, MapPin, Plane, Bus, ArrowLeftRight, BedDouble, Receipt, Headset, Bike, Hammer } from "lucide-react";
+import { MessageSquare, CalendarDays, Clock, MapPin, Plane, Bus, ArrowLeftRight, BedDouble, Receipt, Headset, Bike, Hammer } from "lucide-react";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDiarias, formatDateRange } from "@/lib/utils";
 import type { TeamInclusion, Ticket, Accommodation } from "@shared/schema";
+import type { PendingChangeRequest } from "./use-scaling-data";
 import { isPercursoFunction, diasPercurseiro } from "@shared/calculation-rules";
 
 // Decisão do usuário (17/08): a Escalação não mostra alertas de regra do
@@ -140,6 +141,8 @@ export interface ScalingTableProps {
   getTicket: (inclusionId: string) => Ticket | undefined;
   getAccommodation: (inclusionId: string) => Accommodation | undefined;
   pendingSwapByInclusion: Map<string, NormalizedSwap>;
+  /** Vagas com pedido de ajuste/exclusão EM ABERTO — a linha avisa e o modal trava. */
+  pendingChangeByInclusion?: Map<string, PendingChangeRequest>;
   approvedSwapInclusionIds: Set<string>;
   /** Trocas pendentes que o solicitante já visualizou (não repete o badge) */
   seenSwapIds: Set<string>;
@@ -211,6 +214,7 @@ export default function ScalingTable({
   getTicket,
   getAccommodation,
   pendingSwapByInclusion,
+  pendingChangeByInclusion,
   approvedSwapInclusionIds,
   seenSwapIds,
   currentUserId,
@@ -445,6 +449,22 @@ export default function ScalingTable({
                   <td className="px-4 py-3">
                     <div className="flex flex-col gap-1.5">
                       <div>{getStatusBadge(inclusion, "sm")}</div>
+                      {/* Pedido em análise: a linha avisa antes de o usuário
+                          abrir o modal e descobrir que está tudo travado. */}
+                      {pendingChangeByInclusion?.get(inclusion.id) && (() => {
+                        const p = pendingChangeByInclusion.get(inclusion.id)!;
+                        const tipo = p.requestType === "exclusao" ? "exclusão" : "ajuste";
+                        return (
+                          <span
+                            className="inline-flex w-fit items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700"
+                            title={`Pedido de ${tipo} aguardando o aprovador${p.requestedByName ? ` · por ${p.requestedByName}` : ""}${p.reason ? ` · ${p.reason}` : ""}`}
+                            data-testid="badge-pedido-em-analise"
+                          >
+                            <Clock className="w-2.5 h-2.5" aria-hidden="true" />
+                            Em aprovação de {tipo}
+                          </span>
+                        );
+                      })()}
                       <div className="flex flex-wrap gap-1">
                         {ticket && (
                           ticket.transportType === "van" ? (

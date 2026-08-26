@@ -34,9 +34,12 @@ describe("nextSuggestionState — transições válidas", () => {
   it("aprovar_vaga (aprovador) leva a vaga validada para inclusao/planejado", () => {
     expect(nextSuggestionState(sug(SUGESTAO_STATUS.VALIDADA), "aprovar_vaga")).toEqual(INCLUSAO);
   });
-  it("reprovar_vaga -> sugestao_negada (fica registrada)", () => {
+  it("reprovar_vaga DEVOLVE para a área (não mata a vaga)", () => {
+    // Regra do dono (26/08): reprovar e devolver terminam no mesmo lugar — a
+    // vaga volta a pendente e a área pode mexer de novo. O que separa os dois é
+    // o comentário obrigatório do aprovador, no histórico.
     const r = nextSuggestionState(sug(SUGESTAO_STATUS.VALIDADA), "reprovar_vaga");
-    expect(r).toEqual(sug(SUGESTAO_STATUS.NEGADA));
+    expect(r).toEqual(sug(SUGESTAO_STATUS.PENDENTE));
     expect(r.phase).toBe("sugestao");
   });
   it("devolver_validacao -> volta para sugestao_pendente", () => {
@@ -55,9 +58,11 @@ describe("nextSuggestionState — transições válidas", () => {
     expect(revalidada).toEqual(sug(SUGESTAO_STATUS.VALIDADA));
     expect(nextSuggestionState(revalidada, "aprovar_vaga")).toEqual(INCLUSAO);
   });
-  it("pedir_ajuste -> sugestao_ajuste, antes E depois de validar", () => {
+  it("pedir_ajuste -> sugestao_ajuste, SÓ antes de validar", () => {
     expect(nextSuggestionState(sug(SUGESTAO_STATUS.PENDENTE), "pedir_ajuste")).toEqual(sug(SUGESTAO_STATUS.AJUSTE));
-    expect(nextSuggestionState(sug(SUGESTAO_STATUS.VALIDADA), "pedir_ajuste")).toEqual(sug(SUGESTAO_STATUS.AJUSTE));
+    // Validada está na mesa do aprovador (regra do dono, 26/08): a área não
+    // mexe mais na vaga — se faltar algo, pede uma escalação nova.
+    expect(() => nextSuggestionState(sug(SUGESTAO_STATUS.VALIDADA), "pedir_ajuste")).toThrow(/Transição inválida/);
   });
   it("aprovar_pedido (ajuste/inclusão) aplica e vai para inclusão", () => {
     expect(nextSuggestionState(sug(SUGESTAO_STATUS.AJUSTE), "aprovar_pedido")).toEqual(INCLUSAO);
@@ -129,9 +134,9 @@ describe("nextSuggestionState — transições inválidas (erro pt-BR)", () => {
       .toEqual(["validar", "pedir_ajuste", "aprovar_direto_bypass", "reprovar_bypass"]);
     expect(SUGGESTION_ACTIONS).toHaveLength(12);
   });
-  it("em sugestao_validada: só as ações do aprovador + pedir ajuste da área", () => {
+  it("em sugestao_validada: SÓ as ações do aprovador (a área não mexe mais)", () => {
     expect(availableSuggestionActions(sug(SUGESTAO_STATUS.VALIDADA)))
-      .toEqual(["pedir_ajuste", "aprovar_vaga", "reprovar_vaga", "devolver_validacao"]);
+      .toEqual(["aprovar_vaga", "reprovar_vaga", "devolver_validacao"]);
   });
   it("todas as ações têm rótulo pt-BR", () => {
     for (const a of SUGGESTION_ACTIONS) {
@@ -317,7 +322,8 @@ describe("describeVagaDecision", () => {
   });
   it("reprovada -> danger; aprovada -> ok", () => {
     expect(describeVagaDecision({ ...base, action: "reprovada", comment: "Vaga duplicada" })).toEqual({
-      title: "Vaga reprovada pelo aprovador: Vaga duplicada", tone: "danger",
+      // O título diz o próximo passo: reprovada volta para a área corrigir.
+      title: "Reprovada pelo aprovador — corrija e valide de novo: Vaga duplicada", tone: "danger",
     });
     expect(describeVagaDecision({ ...base, action: "aprovada" })).toEqual({
       title: "Vaga aprovada pelo aprovador", tone: "ok",

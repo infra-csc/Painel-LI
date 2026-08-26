@@ -150,6 +150,28 @@ export default function ScalingValidationPage() {
   const activeEvents = useMemo(() => (events ?? []).filter((e) => e.status !== "excluido" && e.status !== "excluído"), [events]);
   useEffect(() => { if (events) sanitize(activeEvents.map((e) => e.id)); }, [events, activeEvents, sanitize]);
   const selectedEvent = activeEvents.find((e) => e.id === eventId);
+
+  /**
+   * Evento de UMA vaga — o que os diálogos e o drawer precisam.
+   *
+   * Em "Todos os eventos" não existe `selectedEvent`, e sem ele o seletor de
+   * dias ficava sem período: só os dias já marcados apareciam, então não dava
+   * para ACRESCENTAR um dia no pedido de ajuste. Cada linha já vem com o nome e
+   * o período do seu evento (o servidor anexa), e é daí que sai o intervalo.
+   */
+  const eventOfRow = (row: SuggestionRow | null): Event | undefined => {
+    if (!row) return selectedEvent;
+    const known = activeEvents.find((e) => e.id === row.eventId);
+    if (known) return known;
+    if (!row.eventStartDate && !row.eventEndDate) return selectedEvent;
+    return {
+      ...(selectedEvent ?? ({} as Event)),
+      id: row.eventId,
+      name: row.eventName ?? "Evento",
+      startDate: row.eventStartDate ?? "",
+      endDate: row.eventEndDate ?? "",
+    } as Event;
+  };
   const functionNameById = useMemo(() => new Map((functions ?? []).map((f) => [f.id, f.name])), [functions]);
 
   /** Funções em que o usuário é validador (ou todas, se admin) — para "Incluir escalação". */
@@ -846,7 +868,7 @@ export default function ScalingValidationPage() {
 
       <AdjustRequestDialog
         open={adjustOpen} onOpenChange={(o) => { setAdjustOpen(o); if (!o) setRequestTargetId(null); }}
-        inclusion={requestTarget} event={selectedEvent}
+        inclusion={requestTarget} event={eventOfRow(requestTarget)}
         functionName={requestTarget ? functionNameById.get(requestTarget.functionId) : undefined} onSent={onRequestSent}
       />
       <DeleteRequestDialog
@@ -860,7 +882,7 @@ export default function ScalingValidationPage() {
         // Drawer fechado de vez: agora dá para abrir o diálogo que esperava
         // (o setTimeout deixa o Radix devolver o foco antes).
         onClosed={() => setTimeout(flushAfterDrawer, 0)}
-        row={detailRow} event={selectedEvent}
+        row={detailRow} event={eventOfRow(detailRow)}
         functionName={detailRow ? functionNameById.get(detailRow.functionId) : undefined}
         approverNames={functions && detailRow ? approverNamesByFunctionId.get(detailRow.functionId) ?? [] : undefined}
         // ‹ › e as setas do teclado andam nesta lista — a filtrada e ordenada

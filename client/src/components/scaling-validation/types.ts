@@ -93,9 +93,9 @@ export function canValidate(r: ActionableRow): boolean {
 }
 
 /**
- * A vaga aceita pedido de ajuste/exclusão? A máquina permite `pedir_ajuste`
- * também em `sugestao_validada` — enquanto o aprovador não decidiu, a área
- * ainda consegue corrigir o que validou.
+ * A vaga aceita pedido de ajuste/exclusão? Só antes de validar: depois que a
+ * área valida, a vaga está na mesa do aprovador e não se mexe mais nela (regra
+ * do dono, 26/08). Quem derruba isso é a máquina em `shared/` — aqui só se lê.
  */
 export function canRequestChange(r: ActionableRow): boolean {
   return r.canEdit && !r.pendingRequest && actionsOf(r).includes("pedir_ajuste");
@@ -110,12 +110,19 @@ export function canActOn(r: ActionableRow): boolean {
   return canValidate(r) || canRequestChange(r);
 }
 
+/**
+ * Trava da vaga já validada — texto único (a tabela, o drawer e o teste leem
+ * daqui). Diz o que ainda dá para fazer, senão vira beco sem saída.
+ */
+export const AWAITING_APPROVAL_LOCK =
+  "Aguardando o aprovador — a vaga não muda mais. Se faltar gente, peça uma escalação nova.";
+
 /** Motivo (pt-BR) de a linha não ser selecionável; null quando é. */
 export function lockReason(r: ActionableRow): string | null {
   if (canActOn(r)) return null;
   if (!r.canEdit) return "Você não valida esta função";
   if (r.pendingRequest) return "Há um pedido pendente para esta vaga";
-  if (r.status === SUGESTAO_STATUS.VALIDADA) return "Validada — aguardando o aprovador";
+  if (r.status === SUGESTAO_STATUS.VALIDADA) return AWAITING_APPROVAL_LOCK;
   return "Sem ações disponíveis nesta etapa";
 }
 
