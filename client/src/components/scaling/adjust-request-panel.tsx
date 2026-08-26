@@ -21,7 +21,8 @@ import { Button } from "@/components/ui/button";
 import { AdjustRequestDialog } from "@/components/scaling-validation/change-request-dialogs";
 import { invalidateScalingQueries } from "@/components/scaling-validation/types";
 import { formatDateBr } from "@/lib/dates";
-import { CHANGE_REQUEST_TYPE_LABELS } from "@shared/scaling-validation-rules";
+import { CHANGE_REQUEST_TYPE_LABELS, PROPOSED_FIELD_LABELS, type InclusionDiffEntry } from "@shared/scaling-validation-rules";
+import { formatProposedValue } from "@/components/scaling-approval/request-badges";
 import type { ChangeWindowBlock } from "@shared/scaling-change-window";
 import type { Event, TeamInclusion } from "@shared/schema";
 
@@ -48,6 +49,8 @@ export interface ChangeWindowResponse {
     reason: string | null;
     requestedByName: string | null;
     createdAt: string | null;
+    /** O de/para do que foi pedido (vazio em exclusão/inclusão). */
+    diff?: InclusionDiffEntry[];
   } | null;
 }
 
@@ -78,8 +81,19 @@ export function pendingRequestLock(w: ChangeWindowResponse | undefined): string 
   const tipo = (CHANGE_REQUEST_TYPE_LABELS[p.requestType] ?? p.requestType).toLowerCase();
   const quem = p.requestedByName ? ` por ${p.requestedByName}` : "";
   const quando = p.createdAt ? ` em ${formatDateBr(p.createdAt)}` : "";
+  // O QUE foi pedido vem antes do motivo: é o que a pessoa precisa saber para
+  // entender a trava. O motivo é o complemento, não o assunto.
+  const oQue = changeText(p.diff);
+  const pedido = oQue ? ` Pedido: ${oQue}.` : "";
   const motivo = p.reason?.trim() ? ` Motivo: “${p.reason.trim()}”.` : "";
-  return `Pedido de ${tipo} em análise${quem}${quando} — a escalação fica travada até o aprovador decidir.${motivo}`;
+  return `Pedido de ${tipo} em análise${quem}${quando} — a escalação fica travada até o aprovador decidir.${pedido}${motivo}`;
+}
+
+/** "Diárias: 3 → 4 · Volta: 18/10 → 19/10" — vazio quando não há de/para. */
+function changeText(diff: InclusionDiffEntry[] | undefined): string {
+  return (diff ?? [])
+    .map((d) => `${PROPOSED_FIELD_LABELS[d.field] ?? d.field}: ${formatProposedValue(d.field, d.from)} → ${formatProposedValue(d.field, d.to)}`)
+    .join(" · ");
 }
 
 const CARD = "mt-5 border rounded-2xl overflow-hidden";
@@ -108,9 +122,24 @@ export function AdjustRequestPanel({ inclusion, event, functionName }: {
           <Clock className="w-4 h-4 text-amber-500" aria-hidden="true" />
           <span className={`${HEAD_LABEL} text-amber-700`}>Pedido de {tipo.toLowerCase()} em análise</span>
         </div>
-        <div className="px-4 py-3 space-y-1">
-          <p className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-line">
-            {pending.reason?.trim() || "Sem motivo informado."}
+        <div className="px-4 py-3 space-y-2">
+          {/* O QUE muda vem primeiro, em de/para — o card mostrava só o motivo
+              e não dizia o que o aprovador está decidindo. */}
+          {(pending.diff?.length ?? 0) > 0 && (
+            <ul className="space-y-0.5 text-[13px] text-slate-800">
+              {pending.diff!.map((d) => (
+                <li key={d.field} className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="font-semibold">{PROPOSED_FIELD_LABELS[d.field] ?? d.field}</span>
+                  <span className="text-slate-400 line-through">{formatProposedValue(d.field, d.from)}</span>
+                  <span aria-hidden="true" className="text-slate-400">→</span>
+                  <span className="font-medium">{formatProposedValue(d.field, d.to)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-line">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Motivo · </span>
+            {pending.reason?.trim() || "não informado."}
           </p>
           <p className="text-[11px] text-slate-500">
             {pending.requestedByName ?? "Área"}

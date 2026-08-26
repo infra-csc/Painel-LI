@@ -1957,6 +1957,15 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           reason: pending.reason,
           requestedByName: pending.requestedByName,
           createdAt: pending.createdAt,
+          // O QUE foi pedido, no de/para — a tela mostrava só o motivo
+          // ("ddhg"), que não diz nada sobre a mudança em si. Mesmo cálculo do
+          // GET da fila de pedidos.
+          diff: (() => {
+            if (pending.requestType !== "ajuste") return [];
+            const proposed = safeJson(pending.proposedChanges) as ProposedChanges | null;
+            if (!proposed) return [];
+            try { return diffInclusion(inclusion, proposed); } catch { return []; }
+          })(),
         },
       });
     } catch (error) {
