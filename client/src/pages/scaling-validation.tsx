@@ -113,6 +113,8 @@ export default function ScalingValidationPage() {
   /** Ação que espera o drawer terminar de fechar — ver `runAfterDrawer`. */
   const pendingAfterDrawer = useRef<(() => void) | null>(null);
   const afterDrawerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Vaga a abrir no drawer assim que a validação corrente terminar ("Validar e próxima"). */
+  const chainNextId = useRef<string | null>(null);
 
   // Trocou de evento: limpa a seleção (evita agir em vaga que sumiu da lista).
   useEffect(() => { setSelected(new Set()); setDetailId(null); setRequestTargetId(null); setValidateTargetIds(null); }, [eventId]);
@@ -334,6 +336,25 @@ export default function ScalingValidationPage() {
 
   /** Validar uma vaga só: mesma confirmação do lote, mas com alvo próprio — a seleção fica intacta. */
   const validateOne = (row: SuggestionRow) => runAfterDrawer(() => { setValidateTargetIds([row.id]); setConfirmValidate(true); });
+
+  /**
+   * "Validar e próxima" (rodapé do drawer): encadeia a fila sem passar pela
+   * tabela. A próxima é a PRÓXIMA VALIDÁVEL na lista filtrada e ordenada que
+   * está na tela — não a próxima do evento inteiro. Guardada antes de validar,
+   * porque depois de validar a vaga atual sai da conta de "pendentes".
+   */
+  const nextValidatableAfter = (row: SuggestionRow): SuggestionRow | null => {
+    const i = filteredRows.findIndex((r) => r.id === row.id);
+    if (i < 0) return null;
+    for (let j = i + 1; j < filteredRows.length; j++) {
+      if (validatableAll.has(filteredRows[j].id)) return filteredRows[j];
+    }
+    return null;
+  };
+  const validateAndNext = (row: SuggestionRow) => {
+    chainNextId.current = nextValidatableAfter(row)?.id ?? null;
+    validateOne(row);
+  };
   const openAdjust = (row: SuggestionRow) => runAfterDrawer(() => { setRequestTargetId(row.id); setAdjustOpen(true); });
   const openDelete = (row: SuggestionRow) => runAfterDrawer(() => { setRequestTargetId(row.id); setDeleteOpen(true); });
 
@@ -360,8 +381,11 @@ export default function ScalingValidationPage() {
       setValidateTargetIds(null);
       setConfirmValidate(false);
       if (fromRow) {
-        // Ação de uma linha: o usuário continua onde estava; a vaga pulsa.
-        pulseRow(ids[0] ?? null);
+        // "Validar e próxima": abre a próxima vaga no drawer em vez de devolver
+        // o usuário para a tabela. Sem próxima, cai no comportamento de sempre.
+        const next = chainNextId.current;
+        chainNextId.current = null;
+        if (next) setDetailId(next); else pulseRow(ids[0] ?? null);
       } else if (topRef.current) {
         // Lote: volta ao topo mantendo filtros — as vagas continuam na lista
         // (agora "aguardando aprovação") e o resumo do topo é o que muda.
@@ -385,6 +409,7 @@ export default function ScalingValidationPage() {
     onError: (err: ApiError) => {
       setConfirmValidate(false);
       setValidateTargetIds(null);
+      chainNextId.current = null; // a corrente para aqui: nada de abrir a próxima
       toast({ title: "Não foi possível validar", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" });
     },
   });
@@ -734,13 +759,17 @@ export default function ScalingValidationPage() {
       {/* Barra de ações em massa */}
       {nSel > 0 && (
         <div role="region" aria-label="Ações para as vagas selecionadas"
-          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-3xl rounded-2xl border border-slate-200 bg-white shadow-lg px-4 py-3 flex flex-wrap items-center gap-2">
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-3xl rounded-2xl border border-slate-200 bg-white shadow-lg px-4 py-3 flex items-center gap-3">
           <div className="mr-auto min-w-0">
             <span className="block text-sm font-semibold text-slate-700">{nSel} {nSel === 1 ? "vaga selecionada" : "vagas selecionadas"}</span>
-            <span className="block text-[11px] text-slate-500">
-              {nSel > 1 ? "Ajuste e exclusão: selecione 1 vaga por vez." : "Validar age só sobre as que ainda estão pendentes."}
+            {/* Frase inteira, nunca cortada no meio: em 1366px a dica encolhe
+                antes dos botões (min-w-0 + truncate), que ficam sempre na mesma
+                linha graças ao flex-nowrap do grupo ao lado. */}
+            <span className="block truncate text-[11px] text-slate-500">
+              {nSel > 1 ? "Ajuste e exclusão: uma vaga por vez." : "Validar age só sobre as que ainda estão pendentes."}
             </span>
           </div>
+          <div className="flex items-center gap-2 flex-nowrap flex-shrink-0">
           <Button type="button" size="sm" variant="ghost" className="rounded-lg text-slate-500" onClick={() => setSelected(new Set())} aria-label="Limpar seleção">
             <X className="w-4 h-4" />
           </Button>
@@ -769,12 +798,13 @@ export default function ScalingValidationPage() {
               <CheckCheck className="w-4 h-4 mr-1.5" /> Validar ({nVal})
             </Button>
           </ActionWithHint>
+          </div>
         </div>
       )}
 
       {/* Confirmar validação */}
       {/* Fechar/cancelar zera só o alvo — a seleção do lote não é tocada. */}
-      <AlertDialog open={confirmValidate} onOpenChange={(o) => { setConfirmValidate(o); if (!o) setValidateTargetIds(null); }}>
+      <AlertDialog open={confirmValidate} onOpenChange={(o) => { setConfirmValidate(o); if (!o) { setValidateTargetIds(null); chainNextId.current = null; } }}>
         <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Validar {nConfirm} {nConfirm === 1 ? "vaga" : "vagas"}?</AlertDialogTitle>
@@ -833,8 +863,14 @@ export default function ScalingValidationPage() {
         row={detailRow} event={selectedEvent}
         functionName={detailRow ? functionNameById.get(detailRow.functionId) : undefined}
         approverNames={functions && detailRow ? approverNamesByFunctionId.get(detailRow.functionId) ?? [] : undefined}
+        // ‹ › e as setas do teclado andam nesta lista — a filtrada e ordenada
+        // que está na tela, não em todas as vagas do evento.
+        list={filteredRows}
+        onNavigate={(r) => setDetailId(r.id)}
         // Fora do modo leitura o rodapé do drawer repete as ações da linha.
         onValidate={anyEditable ? validateOne : undefined}
+        onValidateAndNext={anyEditable ? validateAndNext : undefined}
+        hasNextValidatable={!!detailRow && !!nextValidatableAfter(detailRow)}
         onAdjust={anyEditable ? openAdjust : undefined}
         onDelete={anyEditable ? openDelete : undefined}
       />

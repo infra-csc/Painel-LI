@@ -1715,3 +1715,24 @@ export function validateGridRow(row: SuggestionGridRow): RowValidation {
   if (errors.length === 0 && warnings.length === 0) return NO_ISSUES;
   return { errors, warnings };
 }
+
+/**
+ * Conteúdo REAL de um campo de logística, ou `null` quando não há nada.
+ *
+ * Não basta checar `null`/`""`: o dado vem de planilha e de import antigo, onde
+ * "vazio" às vezes é um travessão. Sem esta normalização o chip da lista virava
+ * "Volta · —", que AFIRMA uma viagem que não existe — pior do que não mostrar
+ * nada. Conta como ausência: vazio e qualquer string só de traços/pontuação
+ * ("—", "-", "--", "--:--", "/", ".").
+ *
+ * Mora aqui (e não no arquivo dos chips) porque é regra de leitura de dado, com
+ * teste próprio — os chips só a consomem.
+ */
+const EMPTY_MARKS = /^[\s‐-―\-.:_/]*$/;
+export function legValue(v: string | Date | null | undefined): string | Date | null {
+  if (v == null) return null;
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
+  const s = String(v).trim();
+  if (!s || EMPTY_MARKS.test(s)) return null;
+  return s;
+}

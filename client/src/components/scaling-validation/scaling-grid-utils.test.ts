@@ -5,6 +5,7 @@ import {
   MAX_GRID_DAYS, MAX_READ_DAYS, parseLongDateBr, parsePastedRows, parsePtBrTime, parseSheetDate, parseShortDate,
   parseTimeHHMM, parseTransportMode, pasteConflicts, periodBounds, periodProblem, readQtyCell, reframeRows, resolveHeaderDate,
   rowsFromSuggestions, sanitizeDraftRow, sanitizeDraftRows, summarizePaste, totalsByDay, validateGridRow, normalizeStr, QTY_MAX,
+  legValue,
 } from "./scaling-grid-utils";
 
 const DATES = ["2026-09-10", "2026-09-11", "2026-09-12"];
@@ -1373,5 +1374,37 @@ describe("rowsFromSuggestions (Copiar de evento)", () => {
     const res = rowsFromSuggestions(many, FUNCS, DATES);
     expect(res.rows[0].quantities["2026-09-10"]).toBe(QTY_MAX);
     expect(res.clampedCells).toBe(1);
+  });
+});
+
+describe("legValue — travessão solto é ausência, não conteúdo", () => {
+  it("devolve o conteúdo real quando existe", () => {
+    expect(legValue("onibus")).toBe("onibus");
+    expect(legValue(" 07:30 ")).toBe("07:30");
+    expect(legValue("2026-09-09")).toBe("2026-09-09");
+  });
+
+  it("trata vazio e marcas de vazio como ausência", () => {
+    expect(legValue(null)).toBeNull();
+    expect(legValue(undefined)).toBeNull();
+    expect(legValue("")).toBeNull();
+    expect(legValue("   ")).toBeNull();
+    expect(legValue("—")).toBeNull();   // travessão
+    expect(legValue("-")).toBeNull();
+    expect(legValue("--")).toBeNull();
+    expect(legValue("--:--")).toBeNull();
+    expect(legValue(" — ")).toBeNull();
+    expect(legValue("/")).toBeNull();
+  });
+
+  it("Date inválido é ausência; Date válido passa", () => {
+    expect(legValue(new Date("nada"))).toBeNull();
+    const d = new Date("2026-09-09T00:00:00Z");
+    expect(legValue(d)).toBe(d);
+  });
+
+  it("não engole conteúdo que só CONTÉM traço", () => {
+    expect(legValue("Rio - SP")).toBe("Rio - SP");
+    expect(legValue("07:30-09:00")).toBe("07:30-09:00");
   });
 });

@@ -5,7 +5,10 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TRANSPORT_MODES, TRANSPORT_MODE_LABELS, type TransportMode } from "@shared/scaling-validation-rules";
-import { formatDateHeader, type DateHeader } from "./scaling-grid-utils";
+import { formatDateHeader, legValue, type DateHeader } from "./scaling-grid-utils";
+
+/** Reexporta para quem já lia a normalização a partir dos chips. */
+export { legValue };
 
 /**
  * Linguagem visual única dos chips de logística — usada pela grade da Sugestão
@@ -100,9 +103,10 @@ export interface LegChipProps {
  * Sem modal, sem data e sem hora → não aparece (nada a dizer).
  */
 export function LegChip({ dir, mode, date, time, className }: LegChipProps) {
-  const m = asMode(mode);
-  const day = dayInfo(date);
-  const hour = time?.trim() ?? "";
+  // `legValue` primeiro: travessão solto no dado não pode virar chip.
+  const m = asMode(legValue(mode) as string | null);
+  const day = dayInfo(legValue(date));
+  const hour = (legValue(time) as string | null) ?? "";
   if (!m && !day && !hour) return null;
 
   const { Mode, Arrow } = legIcons(dir, m);

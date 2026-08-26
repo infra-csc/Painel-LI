@@ -1,7 +1,8 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowRight, BedDouble, CalendarDays, CheckCheck, History, MessageSquareWarning,
-  PencilLine, Route, StickyNote, Ticket, Trash2, Undo2,
+  ArrowRight, CalendarDays, CheckCheck, ChevronLeft, ChevronRight, History,
+  Luggage, MessageSquareWarning, PencilLine, StickyNote, Trash2, Undo2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,11 +14,11 @@ import { formatDateBr } from "@/lib/dates";
 import { cn, formatDiarias } from "@/lib/utils";
 import type { Event } from "@shared/schema";
 import {
-  CHANGE_REQUEST_TYPE_LABELS, SUGESTAO_STATUS_LABELS,
-  type ChangeRequestType, type SugestaoStatus,
+  CHANGE_REQUEST_TYPE_LABELS, SUGESTAO_STATUS_LABELS, TRANSPORT_MODES, TRANSPORT_MODE_LABELS,
+  type ChangeRequestType, type SugestaoStatus, type TransportMode,
 } from "@shared/scaling-validation-rules";
 import { StatusCell } from "./suggestions-list";
-import { CHIP_NEUTRAL, DayLabel, LegChip, NeedChip, dayInfo, dayText } from "./logistics-chips";
+import { DayLabel, LegChip, NeedChip, dayInfo, dayText, legValue } from "./logistics-chips";
 import {
   DECISION_TONE_CLASS, TEAM_INCLUSIONS_QUERY_KEY, canRequestChange, canValidate,
   describeLastDecision, describeVagaDecision, workDaysOf, type InclusionLog, type SuggestionRow,
@@ -38,6 +39,17 @@ interface SuggestionDetailDrawerProps {
   onValidate?: (row: SuggestionRow) => void;
   onAdjust?: (row: SuggestionRow) => void;
   onDelete?: (row: SuggestionRow) => void;
+  /**
+   * Fila que o ‹ › percorre — a lista JÁ FILTRADA E ORDENADA da tela. Sem ela o
+   * drawer continua funcionando, só sem navegação.
+   */
+  list?: SuggestionRow[];
+  /** Trocar a vaga aberta sem fechar o drawer. */
+  onNavigate?: (row: SuggestionRow) => void;
+  /** Valida a vaga atual e abre a próxima ainda pendente da fila. */
+  onValidateAndNext?: (row: SuggestionRow) => void;
+  /** Existe próxima pendente depois desta? (decide o rótulo do botão) */
+  hasNextValidatable?: boolean;
   /**
    * Chamado quando o drawer TERMINOU de fechar (fim da animação, foco já
    * devolvido). A tela usa isto para só então abrir um diálogo: dois overlays
@@ -197,27 +209,59 @@ function DayChip({ v }: { v: string }) {
   );
 }
 
-const NOT_NEEDED = {
-  passagem: { Icon: Ticket, text: "Sem passagem", label: "Não precisa de passagem" },
-  hotel: { Icon: BedDouble, text: "Sem hotel", label: "Não precisa de hospedagem" },
-} as const;
+/**
+ * Uma perna em texto corrido para a frase do histórico: "ida ônibus Qua 09/09
+ * 07:30". Devolve "" quando a perna não tem nada de real.
+ */
+function legPhrase(dir: "ida" | "volta", mode: unknown, date: unknown, time: unknown): string {
+  const m = legValue(mode as string | null) as string | null;
+  const modeLabel = m && (TRANSPORT_MODES as readonly string[]).includes(m)
+    ? TRANSPORT_MODE_LABELS[m as TransportMode].toLowerCase() : "";
+  const day = dayText(legValue(date as string | null));
+  const hour = (legValue(time as string | null) as string | null) ?? "";
+  const parts = [modeLabel, day, hour].filter(Boolean);
+  return parts.length ? `${dir} ${parts.join(" ")}` : "";
+}
 
 /**
- * O detalhe afirma o que a lista deixa implícito: aqui "não precisa" aparece,
- * mas no MESMO chip, em estado neutro — nunca como texto solto.
+ * Como a vaga foi sugerida, em uma frase — a entrada de criação do histórico.
+ *
+ * Existe porque a linha do tempo não pode AFIRMAR o que não aconteceu: quando a
+ * vaga ainda não tem log nenhum, o único fato verdadeiro é que a logística a
+ * sugeriu, e a frase descreve a própria vaga. A unidade sai de `formatDiarias`
+ * ("3 diárias"), nunca o número cru, que cortava a frase pela metade.
  */
-function NotNeededChip({ kind }: { kind: keyof typeof NOT_NEEDED }) {
-  const { Icon, text, label } = NOT_NEEDED[kind];
-  return (
-    <span role="img" aria-label={label} title={label} className={cn(CHIP_NEUTRAL, "text-slate-400")}>
-      <Icon className="h-3 w-3 shrink-0 text-slate-300" aria-hidden="true" />
-      {text}
-    </span>
-  );
+function describeSuggestedVaga(row: SuggestionRow): string {
+  const days = workDaysOf(row);
+  const diarias = formatDiarias(days.length || row.dailyRates || 0);
+  const legs = [
+    legPhrase("ida", row.transportModeIda, row.flightDepartureDate, row.flightArrivalSuggestedTime),
+    legPhrase("volta", row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime),
+  ].filter(Boolean);
+  const tail = legs.length ? legs.join(", ") : "sem logística";
+  return `Vaga sugerida pela logística — ${diarias}, ${tail}`;
+}
+
+/**
+ * A vaga tem ALGUMA perna de viagem?
+ *
+ * Passa por `legValue`, que trata travessão solto ("—", "-", "--:--") como
+ * ausência: sem isso um campo "vazio preenchido com traço" virava chip
+ * "Volta · —", que afirma viagem onde não há nenhuma.
+ */
+function hasAnyLeg(row: SuggestionRow): boolean {
+  return [
+    row.transportModeIda, row.flightDepartureDate, row.flightArrivalSuggestedTime,
+    row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime,
+  ].some((v) => legValue(v) !== null);
 }
 
 /** Drawer lateral com o detalhe completo de uma vaga sugerida (leitura). */
-export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, event, approverNames, onValidate, onAdjust, onDelete, onClosed }: SuggestionDetailDrawerProps) {
+export function SuggestionDetailDrawer({
+  open, onOpenChange, row, functionName, event, approverNames,
+  onValidate, onAdjust, onDelete, onClosed,
+  list, onNavigate, onValidateAndNext, hasNextValidatable,
+}: SuggestionDetailDrawerProps) {
   const logsQuery = useQuery<InclusionLog[]>({
     queryKey: [TEAM_INCLUSIONS_QUERY_KEY, row?.id, "logs"],
     queryFn: async () => (await apiRequest("GET", `${TEAM_INCLUSIONS_QUERY_KEY}/${row!.id}/logs`)).json(),
@@ -234,8 +278,28 @@ export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, 
   const showFooter = mayValidate || (mayRequest && (!!onAdjust || !!onDelete));
   const start = days[0] ?? "";
   const end = days.length ? days[days.length - 1] : "";
-  const hasLeg = !!row && !!(row.transportModeIda || row.flightDepartureDate || row.flightArrivalSuggestedTime
-    || row.transportModeVolta || row.flightReturnDate || row.flightReturnSuggestedTime);
+  const hasLeg = !!row && hasAnyLeg(row);
+  const hasLogistics = hasLeg || !!row?.needsTicket || !!row?.needsAccommodation;
+
+  // ── Navegação pela fila (‹ ›, ← →) ──
+  const queue = list ?? [];
+  const index = row ? queue.findIndex((r) => r.id === row.id) : -1;
+  const prevRow = index > 0 ? queue[index - 1] : null;
+  const nextRow = index >= 0 && index < queue.length - 1 ? queue[index + 1] : null;
+  const canNavigate = !!onNavigate && index >= 0 && queue.length > 1;
+
+  useEffect(() => {
+    if (!open || !canNavigate) return;
+    const onKey = (e: KeyboardEvent) => {
+      // Digitando (comentário, busca) as setas são do campo, não da fila.
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      if (e.key === "ArrowLeft" && prevRow) { e.preventDefault(); onNavigate!(prevRow); }
+      if (e.key === "ArrowRight" && nextRow) { e.preventDefault(); onNavigate!(nextRow); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, canNavigate, prevRow, nextRow, onNavigate]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -251,6 +315,27 @@ export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, 
               <SheetTitle className="flex items-center gap-2 text-base leading-tight">
                 <span className="inline-flex items-center rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-primary">#{row.inclusionNumber}</span>
                 <span className="truncate font-semibold text-slate-900">{functionName ?? "Função"}</span>
+                {/* Fila de 14 vagas não pode obrigar a fechar e reabrir. O ‹ ›
+                    fica à esquerda do X (pr-8 reserva o lugar dele). */}
+                {canNavigate && (
+                  <span className="ml-auto mr-8 flex shrink-0 items-center gap-1.5">
+                    <span className="text-[11px] tabular-nums text-slate-400">{index + 1} de {queue.length}</span>
+                    <button
+                      type="button" onClick={() => prevRow && onNavigate!(prevRow)} disabled={!prevRow}
+                      title="Vaga anterior (←)" aria-label="Vaga anterior"
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent"
+                    >
+                      <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button" onClick={() => nextRow && onNavigate!(nextRow)} disabled={!nextRow}
+                      title="Próxima vaga (→)" aria-label="Próxima vaga"
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent"
+                    >
+                      <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </span>
+                )}
               </SheetTitle>
               <SheetDescription className="text-xs text-slate-500">
                 {event?.name ?? "Evento"}{row.area ? ` · ${row.area}` : ""}
@@ -323,28 +408,34 @@ export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, 
                   </div>
                 </Card>
 
-                {/* Logística — mesmos chips da grade e da lista */}
-                <Card id="det-log" title="Logística" icon={Route}>
-                  {hasLeg ? (
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <LegChip dir="ida" mode={row.transportModeIda} date={row.flightDepartureDate} time={row.flightArrivalSuggestedTime} />
-                      <LegChip dir="volta" mode={row.transportModeVolta} date={row.flightReturnDate} time={row.flightReturnSuggestedTime} />
-                    </div>
+                {/* Logística — mesmos chips da grade e da lista. Ausência não
+                    vira chip: sem nada, uma frase; e nunca "Sem passagem" ao
+                    lado de um chip positivo (peso visual igual para presença e
+                    ausência confunde). */}
+                <Card id="det-log" title="Logística" icon={Luggage}>
+                  {hasLogistics ? (
+                    <>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <LegChip dir="ida" mode={row.transportModeIda} date={row.flightDepartureDate} time={row.flightArrivalSuggestedTime} />
+                        <LegChip dir="volta" mode={row.transportModeVolta} date={row.flightReturnDate} time={row.flightReturnSuggestedTime} />
+                        {row.needsTicket && <NeedChip kind="passagem" />}
+                        {row.needsAccommodation && <NeedChip kind="hotel" />}
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        Modal, datas e horários vêm da sugestão da logística — mudar isso é pedido de ajuste.
+                      </p>
+                    </>
                   ) : (
-                    <p className="text-xs text-slate-400">Sem viagem definida para esta vaga.</p>
+                    <p className="text-xs italic text-slate-400">Sem logística — esta vaga não precisa de passagem nem de hospedagem.</p>
                   )}
-                  <div className="flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-2">
-                    {row.needsTicket ? <NeedChip kind="passagem" /> : <NotNeededChip kind="passagem" />}
-                    {row.needsAccommodation ? <NeedChip kind="hotel" /> : <NotNeededChip kind="hotel" />}
-                  </div>
                 </Card>
 
                 {/* Observações */}
                 <Card id="det-obs" title="Observações da vaga" icon={StickyNote}>
-                  {row.observations ? (
+                  {row.observations?.trim() ? (
                     <p className="whitespace-pre-wrap text-sm text-slate-800">{row.observations}</p>
                   ) : (
-                    <p className="text-xs text-slate-400">Sem observações.</p>
+                    <p className="text-xs italic text-slate-400">Sem observações — a logística não escreveu nada para esta vaga.</p>
                   )}
                 </Card>
 
@@ -357,7 +448,19 @@ export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, 
                   ) : logsQuery.isError ? (
                     <p className="text-xs text-slate-500">Não foi possível carregar o histórico.</p>
                   ) : !logsQuery.data?.length ? (
-                    <p className="text-xs text-slate-400">Sem registros.</p>
+                    // Sem log gravado, a linha do tempo mostra o único fato que
+                    // existe — a vaga sugerida —, descrevendo a própria vaga.
+                    // Nunca entradas fixas de devolução/ajuste: afirmariam
+                    // evento que não aconteceu.
+                    <ol className="relative ml-1.5 space-y-3 border-l border-slate-200">
+                      <li className="ml-4">
+                        <span className="absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full border border-white bg-slate-300" aria-hidden="true" />
+                        <p className="text-sm text-slate-800">{describeSuggestedVaga(row)}</p>
+                        {row.suggestionSentAt && (
+                          <p className="mt-0.5 text-[11px] text-slate-500">{fmtDateTime(row.suggestionSentAt)}</p>
+                        )}
+                      </li>
+                    </ol>
                   ) : (
                     <ol className="relative ml-1.5 space-y-3 border-l border-slate-200">
                       {logsQuery.data.map((log) => {
@@ -405,6 +508,24 @@ export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, 
                   <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg" onClick={() => onAdjust(row)}>
                     <PencilLine className="w-4 h-4 mr-1.5" aria-hidden="true" /> Pedir ajuste
                   </Button>
+                )}
+                {/* Encadeia a fila: valida e já abre a próxima pendente, sem
+                    passar pela tabela. Só aparece quando existe próxima. */}
+                {mayValidate && onValidateAndNext && hasNextValidatable && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button" size="sm" variant="outline"
+                        className="h-9 rounded-lg border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                        onClick={() => onValidateAndNext(row)}
+                      >
+                        <CheckCheck className="w-4 h-4 mr-1.5" aria-hidden="true" /> Validar e próxima
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs text-xs">
+                      Valida esta vaga e já abre a próxima pendente.
+                    </TooltipContent>
+                  </Tooltip>
                 )}
                 {mayValidate && (
                   <Tooltip>

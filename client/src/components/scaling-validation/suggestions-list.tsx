@@ -20,7 +20,7 @@ import {
   lockReason, workDaysOf, ymd,
   type DecisionDescription, type SuggestionRow,
 } from "./types";
-import { DayLabel, LegChip, NeedChips, dayText } from "./logistics-chips";
+import { DayLabel, LegChip, NeedChips, dayText, legValue } from "./logistics-chips";
 
 // Reexport: outros módulos (ex.: scaling-approval) importam daqui.
 export { workDaysOf } from "./types";
@@ -231,7 +231,8 @@ function PeriodCell({ row, className }: { row: SuggestionRow; className?: string
             <DayLabel v={start} />
             {end && end !== start && <> – <DayLabel v={end} /></>}
           </>
-        : "—"}
+        // Travessão solto não diz nada a quem lê: a falta vira frase.
+        : <span className="font-sans italic text-slate-400">Sem período</span>}
       {" "}<span className="text-slate-500 font-sans">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
     </span>
   );
@@ -252,10 +253,14 @@ function PeriodCell({ row, className }: { row: SuggestionRow; className?: string
  * mesma linguagem visual da grade da Sugestão (`logistics-chips`).
  */
 function LogisticsChips({ row }: { row: SuggestionRow }) {
-  const hasLeg = !!(row.transportModeIda || row.flightDepartureDate || row.flightArrivalSuggestedTime
-    || row.transportModeVolta || row.flightReturnDate || row.flightReturnSuggestedTime);
+  // `legValue` trata travessão solto como ausência: campo "—" não pode virar
+  // chip nem fazer a vaga parecer que tem viagem.
+  const hasLeg = [
+    row.transportModeIda, row.flightDepartureDate, row.flightArrivalSuggestedTime,
+    row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime,
+  ].some((v) => legValue(v) !== null);
   if (!hasLeg && !row.needsTicket && !row.needsAccommodation) {
-    return <span className="text-[11px] text-slate-400">Sem logística</span>;
+    return <span className="text-[11px] italic text-slate-400">Sem logística</span>;
   }
   return (
     <div className="flex flex-wrap items-center gap-1.5">
