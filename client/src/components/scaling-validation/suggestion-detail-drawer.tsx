@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, History, Hotel, MessageSquareWarning, Plane, Undo2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiRequest } from "@/lib/queryClient";
@@ -8,7 +9,10 @@ import { cn, formatDiarias } from "@/lib/utils";
 import type { Event } from "@shared/schema";
 import { CHANGE_REQUEST_TYPE_LABELS, type ChangeRequestType } from "@shared/scaling-validation-rules";
 import { StatusCell, legLabel, periodLabel } from "./suggestions-list";
-import { DECISION_TONE_CLASS, TEAM_INCLUSIONS_QUERY_KEY, describeLastDecision, describeVagaDecision, workDaysOf, type InclusionLog, type SuggestionRow } from "./types";
+import {
+  DECISION_TONE_CLASS, TEAM_INCLUSIONS_QUERY_KEY, canRequestChange, canValidate,
+  describeLastDecision, describeVagaDecision, workDaysOf, type InclusionLog, type SuggestionRow,
+} from "./types";
 
 interface SuggestionDetailDrawerProps {
   open: boolean;
@@ -18,6 +22,20 @@ interface SuggestionDetailDrawerProps {
   event?: Event;
   /** Aprovador(es) da função — mesmo contrato do StatusCell (undefined = a tela não sabe). */
   approverNames?: string[];
+  /**
+   * Ações do rodapé — ausentes em modo leitura. Quais aparecem sai das mesmas
+   * regras da linha (`canValidate` / `canRequestChange`).
+   */
+  onValidate?: (row: SuggestionRow) => void;
+  onAdjust?: (row: SuggestionRow) => void;
+  onDelete?: (row: SuggestionRow) => void;
+  /**
+   * Chamado quando o drawer TERMINOU de fechar (fim da animação, foco já
+   * devolvido). A tela usa isto para só então abrir um diálogo: dois overlays
+   * Radix trocando focus-trap/scroll-lock no mesmo tick deixam a página com o
+   * scroll travado e o foco perdido.
+   */
+  onClosed?: () => void;
 }
 
 const SECTION = "text-[11px] font-bold uppercase tracking-wide text-slate-500";
@@ -39,7 +57,7 @@ function Field({ label, children, className }: { label: string; children: React.
 }
 
 /** Drawer lateral com o detalhe completo de uma vaga sugerida (leitura). */
-export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, event, approverNames }: SuggestionDetailDrawerProps) {
+export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, event, approverNames, onValidate, onAdjust, onDelete, onClosed }: SuggestionDetailDrawerProps) {
   const logsQuery = useQuery<InclusionLog[]>({
     queryKey: [TEAM_INCLUSIONS_QUERY_KEY, row?.id, "logs"],
     queryFn: async () => (await apiRequest("GET", `${TEAM_INCLUSIONS_QUERY_KEY}/${row!.id}/logs`)).json(),
@@ -51,10 +69,18 @@ export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, 
   const decision = row ? describeLastDecision(row.lastDecision) : null;
   const vagaDecision = row ? describeVagaDecision(row.lastVagaDecision) : null;
   const pending = row?.pendingRequest ?? null;
+  const mayValidate = !!row && !!onValidate && canValidate(row);
+  const mayRequest = !!row && canRequestChange(row);
+  const showFooter = mayValidate || (mayRequest && (!!onAdjust || !!onDelete));
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-xl p-0 flex flex-col overflow-hidden">
+      <SheetContent
+        side="right" className="w-full sm:max-w-xl p-0 flex flex-col overflow-hidden"
+        // Sem preventDefault: o foco volta para quem abriu o drawer, e só
+        // depois disso a tela abre o diálogo que estava esperando.
+        onCloseAutoFocus={() => onClosed?.()}
+      >
         {row ? (
           <>
             <SheetHeader className="px-5 pt-5 pb-3 border-b border-slate-100 text-left space-y-2">
@@ -181,6 +207,26 @@ export function SuggestionDetailDrawer({ open, onOpenChange, row, functionName, 
                 </section>
               </div>
             </div>
+
+            {showFooter && (
+              <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-3">
+                {mayRequest && onDelete && (
+                  <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg border-red-200 text-red-700 hover:bg-red-50" onClick={() => onDelete(row)}>
+                    Pedir exclusão
+                  </Button>
+                )}
+                {mayRequest && onAdjust && (
+                  <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg" onClick={() => onAdjust(row)}>
+                    Pedir ajuste
+                  </Button>
+                )}
+                {mayValidate && (
+                  <Button type="button" size="sm" className="h-9 rounded-lg bg-emerald-600 font-semibold text-white hover:bg-emerald-700" onClick={() => onValidate!(row)}>
+                    Validar vaga
+                  </Button>
+                )}
+              </div>
+            )}
           </>
         ) : (
           <div className="p-5"><SheetTitle className="sr-only">Detalhe da vaga</SheetTitle><SheetDescription className="text-sm text-slate-500">Nenhuma vaga selecionada.</SheetDescription></div>

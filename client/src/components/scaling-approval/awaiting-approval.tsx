@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CheckCircle2, Clock, Hotel, Lock, Plane, Undo2, X, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Lock, Undo2, X, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -35,8 +35,10 @@ interface AwaitingApprovalProps {
   onDecide: (row: SuggestionRow, kind: VagaDecisionKind, comment: string) => void | Promise<unknown>;
 }
 
-const TH = "px-3 py-2 text-left text-xs uppercase tracking-wider text-slate-500 font-semibold whitespace-nowrap";
+const TH = "px-2.5 py-2 text-left text-[11px] uppercase tracking-[0.06em] text-slate-500 font-semibold whitespace-nowrap border-b border-slate-200";
 const BADGE = "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap";
+/** Botão de ação por linha (ícone só) — mesma caixa 28×28 do mockup. */
+const ICON_BTN = "h-7 w-7 p-0 rounded-lg";
 const MAX_LISTED = 5;
 
 /**
@@ -52,7 +54,14 @@ export function daysAwaiting(row: SuggestionRow): number {
 function AwaitingBadge({ days }: { days: number }) {
   const sev = pendingSeverity(days);
   const text = days <= 0 ? "hoje" : `há ${days} ${days === 1 ? "dia" : "dias"}`;
-  if (sev === "ok") return <span className="text-xs text-slate-500">{text}</span>;
+  // Neutro: sem tooltip, só a etiqueta cinza (mesma caixa das demais — a coluna não "pula").
+  if (sev === "ok") {
+    return (
+      <span className={cn(BADGE, "bg-slate-50 text-slate-500 border-slate-200")}>
+        <Clock className="w-3 h-3" aria-hidden="true" /> {text}
+      </span>
+    );
+  }
   const danger = sev === "danger";
   return (
     <Tooltip>
@@ -68,17 +77,19 @@ function AwaitingBadge({ days }: { days: number }) {
   );
 }
 
+const CHIP = "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap";
+
 function TravelCell({ row }: { row: SuggestionRow }) {
-  const items: { on: boolean; icon: typeof Plane; label: string; cls: string }[] = [
-    { on: !!row.needsTicket, icon: Plane, label: "Passagem", cls: "text-violet-700" },
-    { on: !!row.needsAccommodation, icon: Hotel, label: "Hotel", cls: "text-sky-700" },
-  ];
-  if (items.every((i) => !i.on)) return <span className="text-slate-300" aria-label="Sem passagem e sem hotel">—</span>;
+  const items = [
+    { on: !!row.needsTicket, label: "Passagem", title: "Precisa de passagem", cls: "bg-violet-50 text-violet-700" },
+    { on: !!row.needsAccommodation, label: "Hotel", title: "Precisa de hospedagem", cls: "bg-sky-50 text-sky-700" },
+  ].filter((i) => i.on);
+  if (items.length === 0) {
+    return <span className={cn(CHIP, "bg-slate-50 text-slate-400")} aria-label="Sem passagem e sem hotel">—</span>;
+  }
   return (
-    <span className="inline-flex items-center gap-1.5">
-      {items.map(({ on, icon: Icon, label, cls }) =>
-        on ? <Icon key={label} className={cn("w-4 h-4", cls)} aria-label={`Precisa de ${label.toLowerCase()}`} /> : null,
-      )}
+    <span className="inline-flex items-center justify-center gap-1.5">
+      {items.map((i) => <span key={i.label} className={cn(CHIP, i.cls)} title={i.title}>{i.label}</span>)}
     </span>
   );
 }
@@ -90,7 +101,7 @@ function ValidatedCell({ row, userNameById }: { row: SuggestionRow; userNameById
   return (
     <span className="block text-xs text-slate-600">
       {name ? <span className="font-semibold text-slate-700">{name}</span> : <span className="text-slate-500">Área responsável</span>}
-      {when && <span className="block font-mono tabular-nums text-slate-500">{when}</span>}
+      {when && <span className="block font-mono tabular-nums text-[11px] text-slate-400">{when}</span>}
     </span>
   );
 }
@@ -126,15 +137,16 @@ const DECISION_COPY: Record<VagaDecisionKind, { title: string; help: string; act
 /**
  * "Vagas aguardando aprovação": vagas em `sugestao_validada` — a área já validou
  * e agora depende do aprovador. Caminho normal do fluxo (regra de 19/08):
- * aprovar (em lote), reprovar ou devolver para a área — as duas últimas com
- * comentário obrigatório, uma vaga por vez.
+ * aprovar (em lote ou linha a linha), reprovar ou devolver para a área — as duas
+ * últimas com comentário obrigatório, uma vaga por vez.
  */
 export function AwaitingApproval({
   rows, functionNameById, userNameById, approverNamesFor, busy, onApprove, onDecide,
 }: AwaitingApprovalProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [confirmApprove, setConfirmApprove] = useState(false);
-  const [decision, setDecision] = useState<VagaDecisionKind | null>(null);
+  /** Vagas do diálogo de aprovação — o da barra (seleção) e o do botão da linha usam o mesmo. */
+  const [confirmRows, setConfirmRows] = useState<SuggestionRow[] | null>(null);
+  const [decision, setDecision] = useState<{ kind: VagaDecisionKind; row: SuggestionRow } | null>(null);
   const [comment, setComment] = useState("");
 
   const selectableIds = useMemo(() => new Set(rows.filter((r) => r.canDecide === true).map((r) => r.id)), [rows]);
@@ -153,7 +165,7 @@ export function AwaitingApproval({
   const toggle = (id: string) => setSelected((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(selectableIds));
 
-  const openDecision = (kind: VagaDecisionKind) => { setComment(""); setDecision(kind); };
+  const openDecision = (kind: VagaDecisionKind, row: SuggestionRow) => { setComment(""); setDecision({ kind, row }); };
   /**
    * Fecha e limpa SÓ no sucesso: fechar antes da resposta fazia o aprovador
    * redigitar o comentário obrigatório inteiro num 500. A exceção é o item que
@@ -162,9 +174,9 @@ export function AwaitingApproval({
    */
   const submitDecision = async () => {
     const text = comment.trim();
-    if (!single || !decision || !text) return;
+    if (!decision || !text) return;
     try {
-      await onDecide(single, decision, text);
+      await onDecide(decision.row, decision.kind, text);
       setDecision(null);
       setComment("");
     } catch (err) {
@@ -182,7 +194,8 @@ export function AwaitingApproval({
     );
   }
 
-  const copy = decision ? DECISION_COPY[decision] : null;
+  const copy = decision ? DECISION_COPY[decision.kind] : null;
+  const nConfirm = confirmRows?.length ?? 0;
 
   return (
     <>
@@ -191,16 +204,16 @@ export function AwaitingApproval({
           className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2">
           <div className="mr-auto min-w-0">
             <span className="block text-sm font-semibold text-slate-700">{nSel} {nSel === 1 ? "vaga selecionada" : "vagas selecionadas"}</span>
-            {nSel > 1 && <span className="block text-[11px] text-slate-500">Reprovar e devolver: uma vaga por vez.</span>}
+            <span className="block text-[11px] text-slate-500">Reprovar e devolver: uma vaga por vez.</span>
           </div>
-          <Button type="button" size="sm" variant="ghost" className="rounded-lg text-slate-500" onClick={() => setSelected(new Set())} aria-label="Limpar seleção">
+          <Button type="button" size="sm" variant="ghost" className={cn(ICON_BTN, "text-slate-500")} onClick={() => setSelected(new Set())} aria-label="Limpar seleção">
             <X className="w-4 h-4" />
           </Button>
           <Tooltip>
             <TooltipTrigger asChild>
               <span tabIndex={single ? -1 : 0} className="inline-flex">
-                <Button type="button" size="sm" variant="outline" className="rounded-lg" disabled={!single || busy} onClick={() => openDecision("devolver")}>
-                  <Undo2 className="w-4 h-4 mr-1.5" /> Devolver para a área
+                <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg text-xs" disabled={!single || busy} onClick={() => single && openDecision("devolver", single)}>
+                  <Undo2 className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Devolver para a área
                 </Button>
               </span>
             </TooltipTrigger>
@@ -209,26 +222,26 @@ export function AwaitingApproval({
           <Tooltip>
             <TooltipTrigger asChild>
               <span tabIndex={single ? -1 : 0} className="inline-flex">
-                <Button type="button" size="sm" variant="outline" className="rounded-lg text-red-700 border-red-200 hover:bg-red-50" disabled={!single || busy} onClick={() => openDecision("reprovar")}>
-                  <XCircle className="w-4 h-4 mr-1.5" /> Reprovar
+                <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg text-xs text-red-700 border-red-200 hover:bg-red-50" disabled={!single || busy} onClick={() => single && openDecision("reprovar", single)}>
+                  <XCircle className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Reprovar
                 </Button>
               </span>
             </TooltipTrigger>
             {!single && <TooltipContent side="top" className="text-xs">Selecione apenas uma vaga para reprovar</TooltipContent>}
           </Tooltip>
-          <Button type="button" size="sm" className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white" disabled={busy} onClick={() => setConfirmApprove(true)}>
-            <CheckCircle2 className="w-4 h-4 mr-1.5" /> Aprovar ({nSel})
+          <Button type="button" size="sm" className="h-7 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-700 text-white" disabled={busy} onClick={() => setConfirmRows(selectedRows)}>
+            <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Aprovar ({nSel})
           </Button>
         </div>
       )}
 
       <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[880px] text-sm">
+          <table className="w-full min-w-[1040px] text-[13px]">
             <caption className="sr-only">Vagas validadas pela área, aguardando a decisão do aprovador</caption>
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="bg-slate-50">
               <tr>
-                <th scope="col" className={cn(TH, "w-10 text-center")}>
+                <th scope="col" className={cn(TH, "w-10 px-1 text-center")}>
                   <Checkbox
                     checked={allSelected ? true : someSelected ? "indeterminate" : false}
                     disabled={selectableIds.size === 0}
@@ -237,12 +250,12 @@ export function AwaitingApproval({
                     aria-label={allSelected ? "Desmarcar todas as vagas" : "Selecionar todas as vagas que você pode decidir"}
                   />
                 </th>
-                <th scope="col" className={TH}>ID</th>
-                <th scope="col" className={TH}>Função</th>
+                <th scope="col" className={TH}>Vaga</th>
                 <th scope="col" className={TH}>Período / diárias</th>
                 <th scope="col" className={TH}>Validada por</th>
                 <th scope="col" className={TH}>Aguardando</th>
-                <th scope="col" className={cn(TH, "text-center")}>Passagem / hotel</th>
+                <th scope="col" className={cn(TH, "text-center")}>Logística</th>
+                <th scope="col" className={cn(TH, "text-right min-w-[210px]")}>Decisão</th>
               </tr>
             </thead>
             <tbody>
@@ -250,31 +263,67 @@ export function AwaitingApproval({
                 const selectable = selectableIds.has(row.id);
                 const isSelected = selectable && selected.has(row.id);
                 const approvers = approverNamesFor?.(row) ?? [];
+                const lockReason = approvers.length ? `Aprovador: ${approvers.join(", ")}` : "Você não é aprovador desta função";
                 const days = workDaysOf(row);
+                const fnName = functionNameById.get(row.functionId) ?? "—";
                 return (
                   <tr key={row.id} data-testid={`awaiting-row-${row.inclusionNumber}`}
-                    className={cn("border-b border-slate-100", isSelected ? "bg-brand-soft/50" : i % 2 === 1 ? "bg-slate-50/40" : "bg-white")}>
-                    <td className="px-3 py-2 text-center">
+                    className={cn("border-b border-slate-100", isSelected ? "bg-brand-soft/50" : i % 2 === 1 ? "bg-slate-50/50" : "bg-white")}>
+                    <td className="px-1 py-2 text-center align-middle">
                       {selectable ? (
                         <Checkbox checked={isSelected} onCheckedChange={() => toggle(row.id)} aria-label={`Selecionar vaga #${row.inclusionNumber}`} />
                       ) : (
                         <LockedHint reason={approvers.length ? `Você não é aprovador desta função. Aprovador: ${approvers.join(", ")}` : "Você não é aprovador desta função"} />
                       )}
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs text-slate-500 tabular-nums">#{row.inclusionNumber}</td>
-                    <td className="px-3 py-2 font-semibold text-slate-800 max-w-[240px]">
-                      <span className="block truncate" title={functionNameById.get(row.functionId)}>{functionNameById.get(row.functionId) ?? "—"}</span>
-                      <span className="block text-[11px] font-normal text-slate-400 truncate" title={row.observations ?? undefined}>
-                        {row.area ?? "Sem área"}{row.observations ? ` · ${row.observations}` : ""}
-                      </span>
+                    <td className="px-2.5 py-2 align-middle max-w-[260px]">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="inline-flex shrink-0 rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800 tabular-nums">#{row.inclusionNumber}</span>
+                        <div className="min-w-0">
+                          <span className="block font-semibold text-slate-800 truncate" title={fnName}>{fnName}</span>
+                          <span className="block text-[11px] text-slate-400 truncate" title={row.observations ?? undefined}>
+                            {row.area ?? "Sem área"}{row.observations ? ` · ${row.observations}` : ""}
+                          </span>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-3 py-2 text-xs whitespace-nowrap">
-                      <span className="font-mono tabular-nums text-slate-700">{periodLabel(row)}</span>
-                      <span className="ml-1.5 text-slate-400">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
+                    <td className="px-2.5 py-2 align-middle whitespace-nowrap">
+                      <span className="font-mono tabular-nums text-xs text-slate-700">{periodLabel(row)}</span>
+                      <span className="ml-1.5 text-[11px] text-slate-400">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
                     </td>
-                    <td className="px-3 py-2"><ValidatedCell row={row} userNameById={userNameById} /></td>
-                    <td className="px-3 py-2"><AwaitingBadge days={daysAwaiting(row)} /></td>
-                    <td className="px-3 py-2 text-center"><TravelCell row={row} /></td>
+                    <td className="px-2.5 py-2 align-middle"><ValidatedCell row={row} userNameById={userNameById} /></td>
+                    <td className="px-2.5 py-2 align-middle"><AwaitingBadge days={daysAwaiting(row)} /></td>
+                    <td className="px-2.5 py-2 align-middle text-center"><TravelCell row={row} /></td>
+                    <td className="px-2.5 py-2 align-middle text-right">
+                      {selectable ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button type="button" size="sm" variant="outline" className={ICON_BTN} disabled={busy}
+                                onClick={() => openDecision("devolver", row)} aria-label={`Devolver a vaga #${row.inclusionNumber} para a área`}>
+                                <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">Devolver para a área</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button type="button" size="sm" variant="outline" className={cn(ICON_BTN, "text-red-700 border-red-200 hover:bg-red-50")} disabled={busy}
+                                onClick={() => openDecision("reprovar", row)} aria-label={`Reprovar a vaga #${row.inclusionNumber}`}>
+                                <XCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">Reprovar vaga</TooltipContent>
+                          </Tooltip>
+                          <Button type="button" size="sm" className="h-7 rounded-lg px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white" disabled={busy}
+                            onClick={() => setConfirmRows([row])} aria-label={`Aprovar a vaga #${row.inclusionNumber}`}>
+                            <CheckCircle2 className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Aprovar
+                          </Button>
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 truncate inline-block max-w-[200px]" title={lockReason}>{lockReason}</span>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -283,25 +332,25 @@ export function AwaitingApproval({
         </div>
       </div>
 
-      {/* Aprovar em lote */}
-      <AlertDialog open={confirmApprove} onOpenChange={setConfirmApprove}>
+      {/* Aprovar (lote ou uma vaga) */}
+      <AlertDialog open={confirmRows !== null} onOpenChange={(o) => { if (!o) setConfirmRows(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Aprovar {nSel} {nSel === 1 ? "vaga" : "vagas"}?</AlertDialogTitle>
+            <AlertDialogTitle>Aprovar {nConfirm} {nConfirm === 1 ? "vaga" : "vagas"}?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
-                <p>{nSel === 1 ? "A vaga vira" : "As vagas viram"} Inclusão de Equipe (aguardando escalação) e {nSel === 1 ? "sai" : "saem"} desta lista.</p>
-                <ul className="rounded-lg border border-slate-200 bg-slate-50 divide-y divide-slate-100 text-xs text-slate-700">
-                  {selectedRows.slice(0, MAX_LISTED).map((r) => (
+                <p>{nConfirm === 1 ? "A vaga vira" : "As vagas viram"} Inclusão de Equipe (aguardando escalação) e {nConfirm === 1 ? "sai" : "saem"} desta lista.</p>
+                <ul className="rounded-lg border border-slate-200 bg-white divide-y divide-slate-100 text-xs text-slate-700">
+                  {(confirmRows ?? []).slice(0, MAX_LISTED).map((r) => (
                     <li key={r.id} className="flex items-center gap-2 px-3 py-1.5">
                       <span className="rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800">#{r.inclusionNumber}</span>
                       <span className="truncate font-semibold">{functionNameById.get(r.functionId) ?? "—"}</span>
                       <span className="ml-auto font-mono text-slate-500 whitespace-nowrap">{periodLabel(r)}</span>
                     </li>
                   ))}
-                  {selectedRows.length > MAX_LISTED && (
+                  {nConfirm > MAX_LISTED && (
                     <li className="px-3 py-1.5 text-slate-500">
-                      … e mais {selectedRows.length - MAX_LISTED} {selectedRows.length - MAX_LISTED === 1 ? "vaga" : "vagas"}
+                      … e mais {nConfirm - MAX_LISTED} {nConfirm - MAX_LISTED === 1 ? "vaga" : "vagas"}
                     </li>
                   )}
                 </ul>
@@ -312,10 +361,10 @@ export function AwaitingApproval({
             <AlertDialogCancel disabled={busy}>Voltar</AlertDialogCancel>
             <AlertDialogAction
               className="bg-emerald-600 hover:bg-emerald-700"
-              disabled={busy || nSel === 0}
-              onClick={(e) => { e.preventDefault(); onApprove(selectedRows); setConfirmApprove(false); }}
+              disabled={busy || nConfirm === 0}
+              onClick={(e) => { e.preventDefault(); if (confirmRows) onApprove(confirmRows); setConfirmRows(null); }}
             >
-              {busy ? "Aprovando…" : `Aprovar (${nSel})`}
+              {busy ? "Aprovando…" : `Aprovar (${nConfirm})`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -327,17 +376,17 @@ export function AwaitingApproval({
           <AlertDialogHeader>
             <AlertDialogTitle>{copy?.title}</AlertDialogTitle>
             <AlertDialogDescription>
-              Vaga #{single?.inclusionNumber} · {single ? functionNameById.get(single.functionId) ?? "Função" : ""}. {copy?.help}
+              Vaga #{decision?.row.inclusionNumber} · {decision ? functionNameById.get(decision.row.functionId) ?? "Função" : ""}. {copy?.help}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-1">
             <Label htmlFor="vaga-decision-comment" className="text-xs text-slate-600">Comentário para a área (obrigatório)</Label>
             <Textarea
               id="vaga-decision-comment" rows={3} maxLength={500} value={comment} required aria-required="true"
-              onChange={(e) => setComment(e.target.value)} className="rounded-lg text-sm"
+              onChange={(e) => setComment(e.target.value)} className="rounded-lg text-sm bg-white"
               placeholder="Explique o que precisa ser revisto — fica registrado no histórico da vaga."
             />
-            {comment.trim() === "" && <p className="text-[11px] text-slate-500">Sem comentário a área não sabe o que corrigir.</p>}
+            <p className="text-[11px] text-slate-400">Sem comentário a área não sabe o que corrigir.</p>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>Voltar</AlertDialogCancel>

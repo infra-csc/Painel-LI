@@ -16,6 +16,7 @@ import { CHANGE_REQUEST_TYPE_LABELS, diffInclusion, type ChangeRequestType, type
 import type { ChangeRequestItem, ReviewBody } from "./types";
 import { RequestTypeBadge } from "./request-badges";
 import { DiffTable, ProposedList } from "./request-detail";
+import { targetLabel } from "./request-queue";
 import { ProposedChangesForm, draftFromProposed, draftToProposed, fullFromDraft, validateDraft, type ProposedDraft } from "./proposed-changes-form";
 
 // ── Aprovar (confirmação com resumo) ─────────────────────────────────────────
@@ -50,7 +51,7 @@ export function ApproveRequestDialog({ open, onOpenChange, request, pending, onC
             <div className="space-y-3 text-left">
               <p>
                 <span className="font-semibold text-slate-700">{request?.functionName ?? "Função"}</span>
-                {request?.inclusionNumber ? <span className="font-mono text-slate-500"> · vaga #{request.inclusionNumber}</span> : null}
+                {request ? <span className="font-mono text-slate-500"> · {targetLabel(request)}</span> : null}
                 {request?.eventName ? <span className="text-slate-500"> · {request.eventName}</span> : null}
               </p>
               {request && type === "ajuste" && <DiffTable diff={request.diff} />}
@@ -139,7 +140,7 @@ export function ReviewRequestDialog({ open, onOpenChange, kind, request, inclusi
           </DialogTitle>
           <DialogDescription>
             {request?.functionName ?? "Função"}
-            {request?.inclusionNumber ? ` · vaga #${request.inclusionNumber}` : ""}
+            {request ? ` · ${targetLabel(request)}` : ""}
             {request?.eventName ? ` · ${request.eventName}` : ""}
             {kind === "reajustar"
               ? " — você altera o pedido (ou mantém como veio) e decide o que acontece com a vaga."
@@ -228,7 +229,7 @@ function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFie
             <Textarea id="rev-comment" rows={3} maxLength={1000} value={comment} disabled={pending} required aria-required="true"
               aria-invalid={error === COMMENT_REQUIRED || undefined}
               placeholder={kind === "reajustar" ? "Explique o que foi ajustado e por quê." : "Explique por que o pedido foi negado."}
-              onChange={(e) => setComment(e.target.value)} className="rounded-lg text-sm" />
+              onChange={(e) => setComment(e.target.value)} className="rounded-lg text-sm bg-white" />
             <p className="text-[11px] text-slate-400">Entra na conversa do pedido e no histórico da vaga.</p>
           </div>
 
@@ -243,7 +244,7 @@ function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFie
                 <p className="text-[11px] text-slate-500">Aguarde a vaga carregar para editar os campos — sem os dados atuais dela, o envio apagaria voo e observações.</p>
               )}
               {editFields && !awaitingInclusion && (
-                <div className="rounded-2xl border border-slate-200 p-4 space-y-4">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-4">
                   <ProposedChangesForm type={type} value={draft} onChange={setDraft} event={event} disabled={pending} idPrefix="rev" />
                   {type === "ajuste" && inclusion && (
                     <div>
@@ -275,7 +276,7 @@ function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFie
               {THEN_VALUES.map((value) => {
                 const o = thenOption(value, kind, type);
                 return (
-                  <label key={value} htmlFor={`rev-then-${value}`} className={cn("flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors", then === value ? "border-primary bg-brand-soft/40" : "border-slate-200 hover:border-slate-300")}>
+                  <label key={value} htmlFor={`rev-then-${value}`} className={cn("flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors", then === value ? "border-primary bg-brand-soft/40" : "border-slate-200 bg-white hover:border-slate-300")}>
                     <RadioGroupItem id={`rev-then-${value}`} value={value} className="mt-0.5" />
                     <span className="min-w-0">
                       <span className="block text-sm font-semibold text-slate-800">{o.label}</span>
@@ -291,9 +292,9 @@ function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFie
         </div>
       </div>
 
-      <DialogFooter className="border-t border-slate-100 bg-white px-6 py-3 gap-2 sm:gap-0">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={pending}>Cancelar</Button>
-        <Button type="button" onClick={submit} disabled={pending} className={kind === "negar" ? "bg-red-600 hover:bg-red-700 text-white" : "bg-primary hover:bg-primary-hover"}>
+      <DialogFooter className="border-t border-slate-200 bg-slate-50/60 px-6 py-3 gap-2 sm:gap-0">
+        <Button type="button" variant="outline" onClick={onCancel} disabled={pending} className="rounded-lg bg-white">Cancelar</Button>
+        <Button type="button" onClick={submit} disabled={pending} className={cn("rounded-lg", kind === "negar" ? "bg-red-600 hover:bg-red-700 text-white" : "bg-primary hover:bg-primary-hover")}>
           {pending ? `${verb.replace(/r$/, "ndo")}…` : verb}
         </Button>
       </DialogFooter>

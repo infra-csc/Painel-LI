@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, Timer, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,7 +28,7 @@ interface StalledSuggestionsProps {
   onDecide: (row: SuggestionRow, kind: "approve" | "reject", comment?: string) => void;
 }
 
-const TH = "px-3 py-2 text-left text-xs uppercase tracking-wider text-slate-500 font-semibold whitespace-nowrap";
+const TH = "px-2.5 py-2 text-left text-[11px] uppercase tracking-[0.06em] text-slate-500 font-semibold whitespace-nowrap border-b border-slate-200";
 
 /**
  * "Vagas paradas": sugestões que a área nunca validou (sugestao_pendente, sem
@@ -51,18 +51,25 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
 
   return (
     <>
+      <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <Timer className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+        <span>
+          <span className="font-semibold">Vagas que a área nunca validou há {STALLED_DAYS} dias ou mais.</span>{" "}
+          Você pode aprovar direto ou reprovar sem a validação da área — a decisão fica registrada no histórico da vaga.
+        </span>
+      </p>
+
       <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-sm">
+          <table className="w-full min-w-[820px] text-[13px]">
             <caption className="sr-only">Vagas sem validação da área há {STALLED_DAYS} dias ou mais</caption>
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="bg-slate-50">
               <tr>
-                <th className={TH}>ID</th>
-                <th className={TH}>Função</th>
-                <th className={TH}>Área</th>
-                <th className={TH}>Período / diárias</th>
-                <th className={TH}>Parada há</th>
-                <th className={cn(TH, "text-right")}>Ações</th>
+                <th scope="col" className={TH}>Vaga</th>
+                <th scope="col" className={TH}>Área</th>
+                <th scope="col" className={TH}>Período / diárias</th>
+                <th scope="col" className={TH}>Parada há</th>
+                <th scope="col" className={cn(TH, "text-right min-w-[250px]")}>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -70,33 +77,37 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                 const days = workDaysOf(row);
                 const canAct = canActOn(row);
                 const approvers = approverNamesFor?.(row) ?? [];
+                const lockReason = approvers.length ? `Aprovador: ${approvers.join(", ")}` : "Você não é aprovador desta função";
+                const fnName = functionNameById.get(row.functionId) ?? "—";
                 return (
-                  <tr key={row.id} className={cn("border-b border-slate-100", i % 2 === 1 ? "bg-slate-50/40" : "bg-white")}>
-                    <td className="px-3 py-2 font-mono text-xs text-slate-500 tabular-nums">#{row.inclusionNumber}</td>
-                    <td className="px-3 py-2 font-semibold text-slate-800 max-w-[240px]">
-                      <span className="block truncate" title={functionNameById.get(row.functionId)}>{functionNameById.get(row.functionId) ?? "—"}</span>
-                      {row.observations && <span className="block text-[11px] font-normal text-slate-400 truncate" title={row.observations}>{row.observations}</span>}
+                  <tr key={row.id} className={cn("border-b border-slate-100", i % 2 === 1 ? "bg-slate-50/50" : "bg-white")}>
+                    <td className="px-2.5 py-2 align-middle max-w-[260px]">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="inline-flex shrink-0 rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800 tabular-nums">#{row.inclusionNumber}</span>
+                        <div className="min-w-0">
+                          <span className="block font-semibold text-slate-800 truncate" title={fnName}>{fnName}</span>
+                          <span className="block text-[11px] text-slate-400 truncate" title={row.observations ?? undefined}>{row.observations || "—"}</span>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-3 py-2 text-xs text-slate-600">{row.area ?? "—"}</td>
-                    <td className="px-3 py-2 text-xs">
-                      <span className="font-mono tabular-nums text-slate-700">{periodLabel(row)}</span>
-                      <span className="ml-1.5 text-slate-400">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
+                    <td className="px-2.5 py-2 align-middle text-xs text-slate-600">{row.area ?? "—"}</td>
+                    <td className="px-2.5 py-2 align-middle whitespace-nowrap">
+                      <span className="font-mono tabular-nums text-xs text-slate-700">{periodLabel(row)}</span>
+                      <span className="ml-1.5 text-[11px] text-slate-400">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
                     </td>
-                    <td className="px-3 py-2"><PendingDaysBadge row={row} /></td>
-                    <td className="px-3 py-2">
+                    <td className="px-2.5 py-2 align-middle"><PendingDaysBadge row={row} approverNames={approvers} /></td>
+                    <td className="px-2.5 py-2 align-middle text-right">
                       {canAct ? (
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button type="button" size="sm" className="h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white" disabled={busy} onClick={() => openConfirm(row, "approve")}>
-                            <CheckCircle2 className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Aprovar direto
-                          </Button>
-                          <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg text-red-700 border-red-200 hover:bg-red-50" disabled={busy} onClick={() => openConfirm(row, "reject")}>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg px-2.5 text-xs text-red-700 border-red-200 hover:bg-red-50" disabled={busy} onClick={() => openConfirm(row, "reject")}>
                             <XCircle className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Reprovar
                           </Button>
-                        </div>
+                          <Button type="button" size="sm" className="h-7 rounded-lg px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white" disabled={busy} onClick={() => openConfirm(row, "approve")}>
+                            <CheckCircle2 className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Aprovar direto
+                          </Button>
+                        </span>
                       ) : (
-                        <p className="text-right text-[11px] text-slate-400 max-w-[220px] ml-auto truncate" title={approvers.length ? `Aprovador: ${approvers.join(", ")}` : undefined}>
-                          {approvers.length ? `Aprovador: ${approvers.join(", ")}` : "Você não é aprovador desta função"}
-                        </p>
+                        <span className="inline-block max-w-[220px] truncate text-[11px] text-slate-400" title={lockReason}>{lockReason}</span>
                       )}
                     </td>
                   </tr>
@@ -122,7 +133,8 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
           </AlertDialogHeader>
           <div className="space-y-1">
             <Label htmlFor="bypass-comment" className="text-xs text-slate-600">Comentário (opcional)</Label>
-            <Textarea id="bypass-comment" rows={2} maxLength={500} value={comment} onChange={(e) => setComment(e.target.value)} className="rounded-lg text-sm" placeholder="Fica registrado no histórico da vaga." />
+            <Textarea id="bypass-comment" rows={2} maxLength={500} value={comment} onChange={(e) => setComment(e.target.value)} className="rounded-lg text-sm bg-white" placeholder="Fica registrado no histórico da vaga." />
+            <p className="text-[11px] text-slate-400">Fica registrado no histórico da vaga.</p>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Voltar</AlertDialogCancel>

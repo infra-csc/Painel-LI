@@ -5,8 +5,8 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 export const SIDEBAR_W = 248;
 /** Largura do menu lateral no modo compacto (só ícones). */
 export const SIDEBAR_COMPACT_W = 56;
-/** Altura da barra superior exibida apenas em telas < lg. */
-export const TOPBAR_H = 48;
+/** Altura da barra superior (agora em todos os tamanhos de tela). */
+export const TOPBAR_H = 56;
 
 // Breakpoint "lg" do Tailwind. Abaixo dele o menu vira gaveta (drawer) e não
 // ocupa espaço no layout.

@@ -1,178 +1,264 @@
-import { memo, useMemo } from "react";
-import { Copy, MoreHorizontal, Trash2 } from "lucide-react";
+import { memo, useMemo, useState } from "react";
+import { Bus, Car, ChevronsRight, ClipboardPaste, Copy, MoreHorizontal, Pencil, Plane, Plus, Trash2 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { formatDayMonthBr } from "@/lib/dates";
+import { TRANSPORT_MODE_LABELS, type TransportMode } from "@shared/scaling-validation-rules";
 import { QtyCell } from "./qty-cell";
-import { ModeSelect } from "./mode-select";
-import { formatDateHeader, type DateHeader, type RowValidation, type SuggestionGridRow } from "./scaling-grid-utils";
+import { LogisticsPanel } from "./logistics-panel";
+import { formatDateHeader, totalsByDay, type DateHeader, type RowValidation, type SuggestionGridRow } from "./scaling-grid-utils";
 
-interface SuggestionGridProps {
+export interface SuggestionGridProps {
   rows: SuggestionGridRow[];
   dates: string[];
   /** Validação por rowId, computada uma vez na página (erros bloqueiam, avisos não). */
   issuesByRow: ReadonlyMap<string, RowValidation>;
+  /** Área responsável por função (11px sob o nome). */
+  areaByFunctionId: ReadonlyMap<string, string>;
   onChangeRow: (rowId: string, patch: Partial<SuggestionGridRow>) => void;
   onChangeQty: (rowId: string, date: string, value: number) => void;
   onDuplicateRow: (rowId: string) => void;
   onRemoveRow: (rowId: string) => void;
+  /** Repete a quantidade do primeiro dia em todos os dias da linha. */
+  onRepeatFirst: (rowId: string) => void;
+  /** Saídas do estado vazio "Nenhuma função na grade". */
+  onPaste: () => void;
+  onAddFunction: () => void;
   disabled?: boolean;
 }
 
 const TH = "px-2 py-2 text-center border-r border-slate-100 text-xs uppercase tracking-wide text-slate-500 font-semibold whitespace-nowrap";
-const inputCls = (filled: boolean) =>
-  cn("h-8 text-center text-xs rounded-lg transition-colors focus:ring-2 focus:ring-primary/30 focus:border-primary",
-    filled ? "bg-brand-soft/60 border-primary/30" : "bg-white border-slate-200");
+const CHIP = "inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[11px] text-slate-600 whitespace-nowrap";
 
-/** Atributo usado pela página para focar a linha a partir do banner de pendências. */
+/** Atributo usado pela página para focar a linha a partir dos chips de pendência. */
 export const rowDomId = (rowId: string) => `sug-row-${rowId}`;
+
+const MODE_ICONS: Record<TransportMode, LucideIcon> = {
+  aereo: Plane, onibus: Bus, van: Bus, carro: Car, transfer: Car,
+};
+
+function legSummary(prefix: string, mode: TransportMode | "", date: string, time: string): string {
+  if (!mode && !date && !time) return "";
+  const parts = [mode ? TRANSPORT_MODE_LABELS[mode] : prefix];
+  if (date) parts.push(formatDayMonthBr(date));
+  return parts.join(" ") + (time ? ` · ${time}` : "");
+}
 
 interface GridRowProps {
   row: SuggestionGridRow;
   rowIdx: number;
   headers: readonly (DateHeader & { ymd: string })[];
   issues: RowValidation | undefined;
+  area: string | undefined;
+  colCount: number;
+  expanded: boolean;
   disabled?: boolean;
+  onToggleExpand: (rowId: string) => void;
   onChangeRow: SuggestionGridProps["onChangeRow"];
   onChangeQty: SuggestionGridProps["onChangeQty"];
   onDuplicateRow: SuggestionGridProps["onDuplicateRow"];
   onRemoveRow: SuggestionGridProps["onRemoveRow"];
+  onRepeatFirst: SuggestionGridProps["onRepeatFirst"];
 }
 
-const GridRow = memo(function GridRow({ row, rowIdx, headers, issues, disabled, onChangeRow, onChangeQty, onDuplicateRow, onRemoveRow }: GridRowProps) {
+const GridRow = memo(function GridRow({
+  row, rowIdx, headers, issues, area, colCount, expanded, disabled,
+  onToggleExpand, onChangeRow, onChangeQty, onDuplicateRow, onRemoveRow, onRepeatFirst,
+}: GridRowProps) {
   const total = headers.reduce((acc, h) => acc + (row.quantities[h.ymd] || 0), 0);
   const errors = issues?.errors ?? [];
   const warnings = issues?.warnings ?? [];
+  const issueText = errors[0] ?? warnings[0] ?? null;
+  const issueExtra = errors.length + warnings.length - 1;
+  // Ponto de status da linha: cinza vazio · azul ok · âmbar aviso · vermelho erro.
+  const dot = errors.length > 0 ? "bg-red-500" : warnings.length > 0 ? "bg-amber-500" : total > 0 ? "bg-primary" : "bg-slate-300";
   const zebra = rowIdx % 2 === 1 ? "bg-slate-50" : "bg-white";
+
+  const ida = legSummary("Ida", row.transportModeIda, row.flightDepartureDate, row.flightArrivalSuggestedTime);
+  const volta = legSummary("Volta", row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime);
+  const hasLogistics = !!(ida || volta || row.needsAccommodation || row.needsTicket || row.observations);
+  const IdaIcon = row.transportModeIda ? MODE_ICONS[row.transportModeIda] : null;
+  const VoltaIcon = row.transportModeVolta ? MODE_ICONS[row.transportModeVolta] : null;
+
   return (
-    <tr id={rowDomId(row.rowId)} data-row-id={row.rowId} className={cn("group border-b border-slate-100 transition-colors hover:bg-blue-50/40", zebra)}>
-      <td className={cn("px-3 py-1.5 border-r border-slate-200 font-semibold text-slate-800 sticky left-0 z-10 w-[180px] min-w-[180px] max-w-[180px] transition-colors group-hover:bg-blue-50", zebra)}>
-        <span className="block truncate" title={row.functionName}>{row.functionName}</span>
-        {errors.length > 0 ? (
-          <span className="block text-xs font-normal text-red-700 truncate" title={[...errors, ...warnings].join("; ")}>
-            {errors[0]}{errors.length + warnings.length > 1 ? ` (+${errors.length + warnings.length - 1})` : ""}
-          </span>
-        ) : warnings.length > 0 ? (
-          <span className="block text-xs font-normal text-amber-700 truncate" title={warnings.join("; ")}>
-            {warnings[0]}{warnings.length > 1 ? ` (+${warnings.length - 1})` : ""}
-          </span>
-        ) : null}
-      </td>
-      {headers.map((h, colIdx) => (
-        <td key={h.ymd} className={cn("px-1 py-1.5 border-r border-slate-100 text-center", h.isWeekend && "bg-orange-50/30")}>
-          <QtyCell
-            value={row.quantities[h.ymd] || 0}
-            rowId={row.rowId}
-            date={h.ymd}
-            rowIdx={rowIdx}
-            colIdx={colIdx}
-            functionName={row.functionName}
-            dayLabel={`${h.dayName} ${h.date}`}
-            isWeekend={h.isWeekend}
-            disabled={disabled}
-            onChangeQty={onChangeQty}
-          />
+    <>
+      <tr id={rowDomId(row.rowId)} data-row-id={row.rowId} className={cn("group border-b border-slate-100 transition-colors hover:bg-blue-50/40", zebra, expanded && "border-b-0")}>
+        {/* Função: ponto de status + nome + área + pendência + repetir 1º valor */}
+        <td className={cn("px-3 py-1.5 border-r border-slate-200 sticky left-0 z-10 w-[220px] min-w-[220px] max-w-[220px] transition-colors group-hover:bg-blue-50", zebra)}>
+          <div className="flex items-start gap-1.5">
+            <span className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", dot)} aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-slate-800" title={row.functionName}>{row.functionName}</span>
+              {area && <span className="block truncate text-[11px] text-slate-400" title={area}>{area}</span>}
+              {issueText && (
+                <span
+                  className={cn("block truncate text-[11px]", errors.length > 0 ? "text-red-700" : "text-amber-700")}
+                  title={[...errors, ...warnings].join("; ")}
+                >
+                  {issueText}{issueExtra > 0 ? ` (+${issueExtra})` : ""}
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onRepeatFirst(row.rowId)}
+              aria-label={`Repetir o primeiro valor em todos os dias — ${row.functionName}`}
+              title="Repetir o primeiro valor em todos os dias"
+              className="mt-0.5 shrink-0 rounded-md p-1 text-slate-300 opacity-0 transition-opacity hover:bg-brand-soft hover:text-primary focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100 disabled:pointer-events-none"
+            >
+              <ChevronsRight className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          </div>
         </td>
-      ))}
-      <td className="px-2 py-1.5 border-r border-slate-100 border-l border-l-slate-200 text-center text-xs font-semibold tabular-nums text-slate-600">
-        {total > 0 ? total : <span className="text-slate-300">–</span>}
-      </td>
-      <td className="px-1.5 py-1.5 border-r border-slate-100">
-        <ModeSelect value={row.transportModeIda} disabled={disabled} label={`Modal de ida — ${row.functionName}`} onChange={(v) => onChangeRow(row.rowId, { transportModeIda: v })} />
-      </td>
-      <td className="px-1.5 py-1.5 border-r border-slate-100">
-        <Input type="date" value={row.flightDepartureDate} disabled={disabled} aria-label={`Data de ida — ${row.functionName}`}
-          onChange={(e) => onChangeRow(row.rowId, { flightDepartureDate: e.target.value })} className={cn(inputCls(!!row.flightDepartureDate), "w-[130px]")} />
-      </td>
-      <td className="px-1.5 py-1.5 border-r border-slate-100">
-        <Input type="time" value={row.flightArrivalSuggestedTime} disabled={disabled} aria-label={`Horário de desembarque — ${row.functionName}`}
-          onChange={(e) => onChangeRow(row.rowId, { flightArrivalSuggestedTime: e.target.value })} className={cn(inputCls(!!row.flightArrivalSuggestedTime), "w-[96px]")} />
-      </td>
-      <td className="px-1.5 py-1.5 border-r border-slate-100">
-        <ModeSelect value={row.transportModeVolta} disabled={disabled} label={`Modal de volta — ${row.functionName}`} onChange={(v) => onChangeRow(row.rowId, { transportModeVolta: v })} />
-      </td>
-      <td className="px-1.5 py-1.5 border-r border-slate-100">
-        <Input type="date" value={row.flightReturnDate} disabled={disabled} aria-label={`Data de volta — ${row.functionName}`}
-          onChange={(e) => onChangeRow(row.rowId, { flightReturnDate: e.target.value })} className={cn(inputCls(!!row.flightReturnDate), "w-[130px]")} />
-      </td>
-      <td className="px-1.5 py-1.5 border-r border-slate-100">
-        <Input type="time" value={row.flightReturnSuggestedTime} disabled={disabled} aria-label={`Horário de embarque da volta — ${row.functionName}`}
-          onChange={(e) => onChangeRow(row.rowId, { flightReturnSuggestedTime: e.target.value })} className={cn(inputCls(!!row.flightReturnSuggestedTime), "w-[96px]")} />
-      </td>
-      <td className="px-2 py-1.5 border-r border-slate-100 text-center">
-        <Checkbox checked={row.needsAccommodation} disabled={disabled} aria-label={`Precisa de hospedagem — ${row.functionName}`}
-          onCheckedChange={(c) => onChangeRow(row.rowId, { needsAccommodation: c === true })} />
-      </td>
-      <td className="px-2 py-1.5 border-r border-slate-100 text-center">
-        <Checkbox checked={row.needsTicket} disabled={disabled} aria-label={`Precisa de passagem — ${row.functionName}`}
-          onCheckedChange={(c) => onChangeRow(row.rowId, { needsTicket: c === true })} />
-      </td>
-      <td className="px-1.5 py-1.5 border-r border-slate-100">
-        <Input value={row.observations} disabled={disabled} maxLength={500} placeholder="Observação da linha" aria-label={`Observação — ${row.functionName}`}
-          onChange={(e) => onChangeRow(row.rowId, { observations: e.target.value })} className={cn(inputCls(!!row.observations), "text-left min-w-[180px] placeholder:text-slate-300")} />
-      </td>
-      <td className="px-1 py-1.5 text-center">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button type="button" variant="ghost" size="sm" disabled={disabled} aria-label={`Ações da linha ${row.functionName}`} className="h-8 w-8 p-0 text-slate-500 hover:text-slate-800 rounded-lg">
-              <MoreHorizontal className="w-4 h-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onDuplicateRow(row.rowId)}>
-              <Copy className="w-3.5 h-3.5 mr-2" /> Duplicar linha
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onRemoveRow(row.rowId)} className="text-destructive">
-              <Trash2 className="w-3.5 h-3.5 mr-2" /> Remover
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </td>
-    </tr>
+
+        {headers.map((h, colIdx) => (
+          <td key={h.ymd} className={cn("px-1 py-1.5 border-r border-slate-100 text-center", h.isWeekend && "bg-orange-50/30")}>
+            <QtyCell
+              value={row.quantities[h.ymd] || 0}
+              rowId={row.rowId}
+              date={h.ymd}
+              rowIdx={rowIdx}
+              colIdx={colIdx}
+              functionName={row.functionName}
+              dayLabel={`${h.dayName} ${h.date}`}
+              isWeekend={h.isWeekend}
+              disabled={disabled}
+              onChangeQty={onChangeQty}
+            />
+          </td>
+        ))}
+
+        <td className="px-2 py-1.5 border-r border-slate-100 border-l border-l-slate-200 text-center text-xs font-semibold tabular-nums text-slate-600">
+          {total > 0 ? total : <span className="text-slate-300">–</span>}
+        </td>
+
+        {/* Logística e observação: chips de leitura em UMA linha + botão do painel */}
+        <td className="px-2 py-1.5 border-r border-slate-100">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+              {ida && (
+                <span className={cn(CHIP, "shrink-0")} title={`Ida — ${ida}`}>
+                  {IdaIcon && <IdaIcon className="w-3 h-3 text-slate-400" aria-hidden="true" />}{ida}
+                </span>
+              )}
+              {volta && (
+                <span className={cn(CHIP, "shrink-0")} title={`Volta — ${volta}`}>
+                  {VoltaIcon && <VoltaIcon className="w-3 h-3 text-slate-400 -scale-x-100" aria-hidden="true" />}{volta}
+                </span>
+              )}
+              {row.needsAccommodation && <span className={cn(CHIP, "shrink-0")}>Hotel</span>}
+              {row.needsTicket && <span className={cn(CHIP, "shrink-0")}>Passagem</span>}
+              {row.observations && (
+                <span className={cn(CHIP, "min-w-0")} title={row.observations}>
+                  <span className="truncate italic">{row.observations}</span>
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onToggleExpand(row.rowId)}
+              aria-expanded={expanded}
+              className={cn(
+                "inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border px-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none",
+                expanded
+                  ? "border-primary/30 bg-brand-soft text-primary"
+                  : hasLogistics
+                    ? "border-slate-200 bg-white text-slate-600 hover:border-primary/30 hover:text-primary"
+                    : "border-dashed border-slate-300 bg-white text-slate-500 hover:border-primary/40 hover:text-primary",
+              )}
+            >
+              {!expanded && <Pencil className="w-3 h-3" aria-hidden="true" />}
+              {expanded ? "Fechar logística" : hasLogistics ? "Editar" : "Definir logística"}
+            </button>
+          </div>
+        </td>
+
+        <td className="px-1 py-1.5 text-center w-[44px]">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="ghost" size="sm" disabled={disabled} aria-label={`Ações da linha ${row.functionName}`} className="h-8 w-8 p-0 text-slate-500 hover:text-slate-800 rounded-lg">
+                <MoreHorizontal className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onDuplicateRow(row.rowId)}>
+                <Copy className="w-3.5 h-3.5 mr-2" /> Duplicar linha
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onRemoveRow(row.rowId)} className="text-destructive">
+                <Trash2 className="w-3.5 h-3.5 mr-2" /> Remover
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </td>
+      </tr>
+
+      {/* Painel expandido de logística (um por vez, controlado pela grade) */}
+      {expanded && (
+        <tr className="border-b border-slate-200">
+          <td colSpan={colCount} className="bg-slate-50 px-4 py-3">
+            <LogisticsPanel row={row} disabled={disabled} onChangeRow={onChangeRow} />
+          </td>
+        </tr>
+      )}
+    </>
   );
 });
 
 /**
- * Grade função × dia da Sugestão de Escala. Cada linha: quantidade por dia +
- * modal/data/horário de ida e volta + hotel/passagem + observação.
+ * Grade função × dia da Sugestão de Escala, com quantidades separadas da
+ * logística: colunas de dia + Total + UMA coluna de logística (chips + painel
+ * expandido) + rodapé fixo "Pessoas por dia" com o pico do evento.
  * Componente controlado (o estado mora na página, que também cuida do rascunho).
  */
-export function SuggestionGrid({ rows, dates, issuesByRow, onChangeRow, onChangeQty, onDuplicateRow, onRemoveRow, disabled }: SuggestionGridProps) {
+export function SuggestionGrid({
+  rows, dates, issuesByRow, areaByFunctionId, onChangeRow, onChangeQty, onDuplicateRow, onRemoveRow,
+  onRepeatFirst, onPaste, onAddFunction, disabled,
+}: SuggestionGridProps) {
   const headers = useMemo(() => dates.map((ymd) => ({ ymd, ...formatDateHeader(ymd) })), [dates]);
+  const [openRowId, setOpenRowId] = useState<string | null>(null);
+  const toggleExpand = (rowId: string) => setOpenRowId((cur) => (cur === rowId ? null : rowId));
+  const totals = useMemo(() => totalsByDay(rows, dates), [rows, dates]);
+  // Função (220) + dias (58) + Total (48) + Logística (mín. 260) + ações (44):
+  // 6 dias cabem em ~960px — sem rolagem horizontal num notebook de 1366px.
+  const colCount = dates.length + 4;
+  const minWidth = 220 + dates.length * 58 + 48 + 260 + 44;
 
   return (
     <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
       <div className="overflow-x-auto max-h-[560px]">
-        <table className="w-full min-w-[1100px] text-sm">
+        <table className="w-full text-sm" style={{ minWidth }}>
           <thead className="bg-slate-50 sticky top-0 z-20">
             <tr>
-              <th scope="col" className={cn(TH, "text-left w-[180px] min-w-[180px] max-w-[180px] sticky left-0 bg-slate-50 z-30 border-r-slate-200 px-3")}>Função</th>
+              <th scope="col" className={cn(TH, "text-left w-[220px] min-w-[220px] max-w-[220px] sticky left-0 bg-slate-50 z-30 border-r-slate-200 px-3")}>Função</th>
               {headers.map((h) => (
-                <th key={h.ymd} scope="col" className={cn(TH, "w-16", h.isWeekend ? "bg-orange-50 text-orange-700" : "bg-blue-50/50")}>
+                <th key={h.ymd} scope="col" className={cn(TH, "w-[58px] min-w-[58px]", h.isWeekend ? "bg-orange-50 text-orange-700" : "bg-blue-50/50")}>
                   <div className="leading-none font-bold">{h.date}</div>
                   <div className="text-xs mt-0.5 font-normal normal-case tracking-normal">{h.dayName}</div>
                 </th>
               ))}
-              <th scope="col" className={cn(TH, "bg-slate-50 border-l border-l-slate-200")}>Total</th>
-              <th scope="col" className={TH}>Modal ida</th>
-              <th scope="col" className={TH}>Data ida</th>
-              <th scope="col" className={TH}>Desembarque</th>
-              <th scope="col" className={TH}>Modal volta</th>
-              <th scope="col" className={TH}>Data volta</th>
-              <th scope="col" className={TH}>Embarque</th>
-              <th scope="col" className={TH}>Hotel</th>
-              <th scope="col" className={TH}>Passagem</th>
-              <th scope="col" className={cn(TH, "min-w-[180px] text-left")}>Observação</th>
-              <th scope="col" className={cn(TH, "border-r-0 w-12")}><span className="sr-only">Ações</span></th>
+              <th scope="col" className={cn(TH, "w-[48px] bg-slate-50 border-l border-l-slate-200")}>Total</th>
+              <th scope="col" className={cn(TH, "text-left min-w-[260px]")}>Logística e observação</th>
+              <th scope="col" className={cn(TH, "border-r-0 w-[44px]")}><span className="sr-only">Ações</span></th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={dates.length + 12} className="px-4 py-8 text-center text-sm text-slate-500 italic">
-                  Nenhuma função na grade. Use "Adicionar função" ou "Colar da planilha".
+                <td colSpan={colCount} className="px-6 py-10 text-center">
+                  <p className="text-sm font-medium text-slate-600">Nenhuma função na grade</p>
+                  <p className="text-xs text-slate-500 mt-1">Cole a escala direto da planilha ou adicione as funções uma a uma.</p>
+                  <div className="mt-3 flex flex-wrap justify-center gap-2">
+                    <Button type="button" size="sm" disabled={disabled} onClick={onPaste} className="rounded-lg bg-primary hover:bg-primary-hover">
+                      <ClipboardPaste className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Colar da planilha
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={onAddFunction} className="rounded-lg">
+                      <Plus className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Adicionar função
+                    </Button>
+                  </div>
                 </td>
               </tr>
             )}
@@ -183,14 +269,55 @@ export function SuggestionGrid({ rows, dates, issuesByRow, onChangeRow, onChange
                 rowIdx={rowIdx}
                 headers={headers}
                 issues={issuesByRow.get(row.rowId)}
+                area={areaByFunctionId.get(row.functionId)}
+                colCount={colCount}
+                expanded={openRowId === row.rowId}
                 disabled={disabled}
+                onToggleExpand={toggleExpand}
                 onChangeRow={onChangeRow}
                 onChangeQty={onChangeQty}
                 onDuplicateRow={onDuplicateRow}
                 onRemoveRow={onRemoveRow}
+                onRepeatFirst={onRepeatFirst}
               />
             ))}
           </tbody>
+          {rows.length > 0 && (
+            <tfoot>
+              <tr>
+                <td className="sticky bottom-0 left-0 z-30 border-t border-slate-200 bg-slate-50 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                  Pessoas por dia
+                </td>
+                {headers.map((h) => {
+                  const t = totals.byDay[h.ymd] || 0;
+                  const isPeak = totals.peakDate === h.ymd && totals.peakTotal > 0;
+                  return (
+                    <td
+                      key={h.ymd}
+                      className={cn(
+                        "sticky bottom-0 z-20 border-t border-slate-200 bg-slate-50 px-1 py-2 text-center text-xs tabular-nums",
+                        isPeak ? "bg-brand-soft font-bold text-primary" : t > 0 ? "font-semibold text-slate-700" : "text-slate-300",
+                        !isPeak && h.isWeekend && "bg-orange-50/60",
+                      )}
+                    >
+                      {t > 0 ? t : "–"}
+                    </td>
+                  );
+                })}
+                <td className="sticky bottom-0 z-20 border-t border-slate-200 border-l border-l-slate-200 bg-slate-50 px-2 py-2 text-center text-xs font-bold tabular-nums text-primary">
+                  {totals.grand > 0 ? totals.grand : "–"}
+                </td>
+                <td colSpan={2} className="sticky bottom-0 z-20 border-t border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-400">
+                  <span className="whitespace-nowrap">↑/↓ ajusta · ←/→ navega · Enter desce · Delete zera</span>
+                  {totals.peakTotal > 0 && (
+                    <span className="ml-3 whitespace-nowrap font-semibold text-primary">
+                      Pico em {formatDayMonthBr(totals.peakDate)} ({totals.peakTotal} {totals.peakTotal === 1 ? "pessoa" : "pessoas"})
+                    </span>
+                  )}
+                </td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </div>

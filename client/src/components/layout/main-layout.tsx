@@ -1,20 +1,56 @@
+/**
+ * CASCA DO APP — banner de simulação (quando ativo) + menu lateral + barra do
+ * topo + conteúdo da página.
+ *
+ * Ordem vertical: banner fixo (40px) → topo sticky → faixa de aviso → página.
+ * O `<main>` continua deslocado por `sidebarWidth` (telas com barra fixa no
+ * rodapé leem essa mesma medida do contexto).
+ */
+import { useCallback, useEffect, useState } from "react";
 import Sidebar from "./sidebar";
+import Topbar from "./topbar";
 import SimulationBanner, { SIMULATION_BANNER_H } from "./simulation-banner";
+import SystemNoticeBar from "./system-notice";
+import CommandPalette from "./command-palette";
+import ShortcutsDialog from "./shortcuts-dialog";
 import { useAuth } from "@/hooks/use-auth";
-import { useSidebar, TOPBAR_H } from "@/contexts/sidebar-context";
-import { X, Menu } from "lucide-react";
-import logoImg from "@assets/image_1776349526988.png";
+import { useSidebar } from "@/contexts/sidebar-context";
+import { useShellMode } from "./use-shell-mode";
 
 interface MainLayoutProps {
   children: React.ReactNode;
 }
 
 export default function MainLayout({ children }: MainLayoutProps) {
-  const { isFocusMode, exitFocusMode, sidebarWidth, isMobileOpen, toggleMobile } = useSidebar();
+  const { sidebarWidth } = useSidebar();
+  const { toggleCompacto, toggleFoco, isMobileOpen, setMobileOpen } = useShellMode();
   // Modo Simulação: o banner global é fixo no topo — todo o layout desce a
   // altura dele (inclusive a sidebar, que lê o mesmo flag).
   const { simulation } = useAuth();
   const simActive = !!simulation?.active;
+
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const openPalette = useCallback(() => setPaletteOpen(true), []);
+  const openShortcuts = useCallback(() => setShortcutsOpen(true), []);
+
+  // ── Atalhos globais ──
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); setPaletteOpen((v) => !v); return; }
+      if (mod && e.key === "\\") { e.preventDefault(); toggleCompacto(); return; }
+      if (mod && e.key === ".") { e.preventDefault(); toggleFoco(); return; }
+      if (mod && e.key === "/") { e.preventDefault(); setShortcutsOpen((v) => !v); return; }
+      if (e.key === "Escape") {
+        // Diálogos e popovers do Radix já fecham sozinhos no Esc; aqui sobra a
+        // gaveta mobile, que é um overlay nosso.
+        if (isMobileOpen) setMobileOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleCompacto, toggleFoco, isMobileOpen, setMobileOpen]);
 
   return (
     <div
@@ -24,51 +60,25 @@ export default function MainLayout({ children }: MainLayoutProps) {
       <SimulationBanner />
       <Sidebar />
 
-      {/* Barra superior — só em telas < lg. Fica no fluxo (sticky), então o
-          h1 da página nunca fica escondido atrás do botão de menu. */}
-      <header
-        className="lg:hidden sticky top-0 z-30 flex items-center gap-2 px-2 bg-white/90 backdrop-blur border-b border-slate-200"
-        style={{ height: TOPBAR_H, top: simActive ? SIMULATION_BANNER_H : 0 }}
-      >
-        <button
-          type="button"
-          onClick={toggleMobile}
-          aria-label={isMobileOpen ? "Fechar menu" : "Abrir menu"}
-          aria-expanded={isMobileOpen}
-          aria-controls="app-sidebar"
-          className="flex items-center justify-center w-10 h-10 rounded-lg text-slate-600 hover:bg-slate-100 active:bg-slate-200"
-        >
-          {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
-        <div className="flex items-center gap-2 min-w-0">
-          <img src={logoImg} alt="" aria-hidden="true" className="w-6 h-6 object-contain shrink-0" />
-          <span className="text-sm font-bold text-primary truncate">Norte</span>
-          <span className="text-xs text-slate-400 truncate">Logística Interna</span>
-        </div>
-      </header>
-
-      {/* Modo foco só existe em desktop (em < lg o menu já é uma gaveta), então
-          o botão de sair não aparece no mobile e não disputa espaço com o
-          hambúrguer da barra superior. */}
-      {isFocusMode && (
-        <button
-          onClick={exitFocusMode}
-          className="hidden lg:flex fixed top-4 left-4 z-50 items-center gap-2 px-3 py-2 bg-primary hover:bg-primary-hover text-primary-foreground rounded-lg shadow-lg transition-all duration-200"
-          title="Sair do modo foco"
-        >
-          <X className="w-4 h-4" />
-          <span className="text-sm font-medium">Sair do Foco</span>
-        </button>
-      )}
-
-      <main
-        className="min-h-dvh transition-[margin] duration-300"
+      <div
+        className="flex min-h-dvh flex-col transition-[margin] duration-300"
         style={{ marginLeft: sidebarWidth }}
       >
-        <div className="p-4 sm:p-6 lg:p-8">
-          {children}
-        </div>
-      </main>
+        <Topbar
+          topOffset={simActive ? SIMULATION_BANNER_H : 0}
+          onOpenPalette={openPalette}
+          onOpenShortcuts={openShortcuts}
+        />
+        <SystemNoticeBar />
+        <main className="flex-1">
+          <div className="p-4 sm:p-6 lg:p-8">
+            {children}
+          </div>
+        </main>
+      </div>
+
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     </div>
   );
 }

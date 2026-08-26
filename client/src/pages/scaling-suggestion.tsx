@@ -2,20 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
-  AlertTriangle, Check, CheckCircle2, ClipboardPaste, ExternalLink, Eye, History, ListPlus, Plus, RotateCcw, Send, Save, Undo2,
+  AlertTriangle, CalendarDays, Check, CheckCircle2, ClipboardPaste, ExternalLink, Eye, FolderInput, History,
+  ListPlus, Plus, RotateCcw, Send, Save, Undo2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import EventCombobox from "@/components/ui/event-combobox";
 import { PageContainer } from "@/components/common/page-container";
 import { PageHeader } from "@/components/common/page-header";
 import { LoadingState } from "@/components/common/loading-state";
@@ -31,12 +26,16 @@ import type { Event, Function as FunctionType } from "@shared/schema";
 import { TRANSPORT_MODE_LABELS, summarizeCancelableSuggestions } from "@shared/scaling-validation-rules";
 import { SuggestionGrid, rowDomId } from "@/components/scaling-validation/suggestion-grid";
 import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module-nav";
+import { ContextBar } from "@/components/scaling-validation/context-bar";
+import { StateBanner } from "@/components/scaling-validation/state-banner";
+import { ConfirmDialog } from "@/components/scaling-validation/confirm-dialog";
+import { CopyEventDialog } from "@/components/scaling-validation/copy-event-dialog";
 import {
   buildDateList, countOutsidePeriod, decomposeGridRows, detectPasteFormat, emptyGridRow, expandPeriodForDates,
   functionNameKey, mergePastedRows, parsePastedRows, pasteConflicts, periodBounds, periodProblem, PERIOD_MARGIN_DAYS,
   PERIOD_PROBLEM_MESSAGES, PASTE_FORMAT_LABELS, reframeRows, sanitizeDraftRows, sortFunctionsByOrder, summarizeGrid, summarizePaste,
   validateGridRow,
-  type PasteFormat, type PeriodExpansion, type RowValidation, type SuggestionGridRow,
+  type CopyFromEventResult, type PasteFormat, type PeriodExpansion, type RowValidation, type SuggestionGridRow,
 } from "@/components/scaling-validation/scaling-grid-utils";
 import { SUGGESTIONS_QUERY_KEY, invalidateScalingQueries, type ApiError, type SuggestionRow } from "@/components/scaling-validation/types";
 
@@ -51,19 +50,26 @@ interface DraftPayload {
 interface Period { start: string; end: string }
 interface PendingPeriod extends Period { pessoasDia: number; dias: number }
 interface PendingPaste { rows: SuggestionGridRow[]; skippedNames: string[]; conflicts: string[]; format: PasteFormat }
+/** "Copiar de evento" que vai substituir linhas já preenchidas: mesma confirmação da colagem. */
+interface PendingCopy { result: CopyFromEventResult; sourceName: string; conflicts: string[] }
 /** Dias que a planilha traz preenchidos mas estão fora do período atual da grade. */
 interface PendingPasteDates { dates: string[]; expansion: PeriodExpansion }
-interface SentInfo { created: number; eventId: string; eventName: string }
+interface SentInfo { created: number; eventId: string; eventName: string; byFunction: { name: string; count: number }[] }
 
 const DRAFT_TTL_MS = 7 * 24 * 3600_000; // rascunho por evento vale 7 dias
 /** Valor sentinela do Select de mapeamento (Radix não aceita SelectItem com value ""). */
 const SKIP_FUNCTION = "__descartar__";
 const SECTION_TITLE = "text-[11px] font-bold uppercase tracking-wide text-slate-500";
 const HINT = "text-xs text-slate-500";
+const PILL = "inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 tabular-nums";
+const PILL_BRAND = "inline-flex items-center rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-primary tabular-nums";
+const BANNER_LINK = "inline-flex items-center gap-1 text-primary hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
+const BANNER_DANGER_LINK = "inline-flex items-center gap-1 text-red-700 hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:opacity-60";
 const EMPTY_PERIOD: Period = { start: "", end: "" };
 /** Espera antes de reanalisar a colagem (o resumo ao vivo não roda a cada tecla). */
 const PASTE_PREVIEW_DEBOUNCE_MS = 200;
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const nowHHMM = () => new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
 function writeDraft(key: string, payload: Omit<DraftPayload, "timestamp">, hasContent: boolean) {
   try {
@@ -89,6 +95,7 @@ export default function ScalingSuggestionPage() {
   const [showAddFunction, setShowAddFunction] = useState(false);
   const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(() => new Set());
   const [showPaste, setShowPaste] = useState(false);
+  const [showCopyEvent, setShowCopyEvent] = useState(false);
   const [pasteText, setPasteText] = useState("");
   /** Cópia atrasada de `pasteText`: é o que alimenta o resumo ao vivo. */
   const [pasteTextDebounced, setPasteTextDebounced] = useState("");
@@ -96,6 +103,7 @@ export default function ScalingSuggestionPage() {
   /** "Formatos aceitos" (com o Select de formato) — fechado por padrão. */
   const [showPasteHelp, setShowPasteHelp] = useState(false);
   const [pendingPaste, setPendingPaste] = useState<PendingPaste | null>(null);
+  const [pendingCopy, setPendingCopy] = useState<PendingCopy | null>(null);
   const [pendingPasteDates, setPendingPasteDates] = useState<PendingPasteDates | null>(null);
   // Nomes da planilha que o catálogo não reconhece + a função escolhida à mão para cada um.
   const [unknownNames, setUnknownNames] = useState<string[]>([]);
@@ -103,10 +111,14 @@ export default function ScalingSuggestionPage() {
   const askedMappingRef = useRef(false); // só interrompe uma vez: no 2º clique, o que não foi mapeado é descartado
   const [confirmSend, setConfirmSend] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
-  /** AlertDialog do "Cancelar envio" (remove todas as vagas já enviadas do evento). */
+  /** ConfirmDialog do "Cancelar envio" (remove todas as vagas já enviadas do evento). */
   const [confirmCancelSend, setConfirmCancelSend] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [sent, setSent] = useState<SentInfo | null>(null);
+  /** Prévia das vagas sob demanda (painel colado acima da barra de envio). */
+  const [previewOpen, setPreviewOpen] = useState(false);
+  /** "HH:MM" do último auto-save do rascunho — o indicador da barra de contexto. */
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const draftLoadedFor = useRef<string | null>(null);
   const loadedObsRef = useRef("");
   // Espelhos síncronos (callbacks estáveis leem daqui sem depender de `rows`/`applied`).
@@ -136,6 +148,10 @@ export default function ScalingSuggestionPage() {
   useEffect(() => { if (events) sanitize(activeEvents.map((e) => e.id)); }, [events, activeEvents, sanitize]);
   const selectedEvent = useMemo(() => activeEvents.find((e) => e.id === eventId), [activeEvents, eventId]);
   const sortedFunctions = useMemo(() => sortFunctionsByOrder(functions ?? []), [functions]);
+  const areaByFunctionId = useMemo(
+    () => new Map((functions ?? []).map((f) => [f.id, f.responsibleArea ?? ""] as const)),
+    [functions],
+  );
   const dates = useMemo(() => buildDateList(applied.start, applied.end), [applied]);
   const bounds = useMemo(() => periodBounds(selectedEvent?.startDate ?? "", selectedEvent?.endDate ?? ""), [selectedEvent]);
   const periodError = useMemo(() => {
@@ -167,6 +183,8 @@ export default function ScalingSuggestionPage() {
     draftLoadedFor.current = selectedEvent.id;
     loadedObsRef.current = selectedEvent.observations ?? "";
     setSent(null);
+    setPreviewOpen(false);
+    setDraftSavedAt(null);
 
     let restored = false;
     if (draftKey && !readOnly) {
@@ -219,6 +237,7 @@ export default function ScalingSuggestionPage() {
     if (!draftKey || readOnly || draftLoadedFor.current !== eventId) return;
     const t = setTimeout(() => {
       writeDraft(draftKey, { rows, periodStart: applied.start, periodEnd: applied.end, eventObservations }, hasContent);
+      setDraftSavedAt(hasContent ? nowHHMM() : null);
     }, 1500);
     return () => clearTimeout(t);
   }, [rows, applied, eventObservations, hasContent, draftKey, eventId, readOnly]);
@@ -258,6 +277,16 @@ export default function ScalingSuggestionPage() {
   const cancelPendingPeriod = useCallback(() => {
     setPeriodStart(appliedRef.current.start); setPeriodEnd(appliedRef.current.end); setPendingPeriod(null);
   }, []);
+  /** Chip "Período do evento": volta a grade para as datas do evento. */
+  const applyEventPeriod = useCallback(() => {
+    if (!selectedEvent) return;
+    requestPeriod(selectedEvent.startDate, selectedEvent.endDate);
+  }, [selectedEvent, requestPeriod]);
+  /** Chip "Encolher 1 dia": tira o último dia da grade (com a confirmação de sempre se houver gente nele). */
+  const shrinkOneDay = useCallback(() => {
+    if (dates.length <= 1) return;
+    requestPeriod(applied.start, dates[dates.length - 2]);
+  }, [dates, applied.start, requestPeriod]);
 
   // ── Edição da grade ──
   const changeRow = useCallback((rowId: string, patch: Partial<SuggestionGridRow>) => {
@@ -286,6 +315,16 @@ export default function ScalingSuggestionPage() {
     setRows((prev) => prev.filter((r) => r.rowId !== rowId));
   }, []);
   const rowToRemove = useMemo(() => rows.find((r) => r.rowId === confirmRemove), [rows, confirmRemove]);
+  /** "Repetir o primeiro valor em todos os dias" da linha. */
+  const repeatFirstValue = useCallback((rowId: string) => {
+    setRows((prev) => prev.map((r) => {
+      if (r.rowId !== rowId) return r;
+      const first = dates.length ? (r.quantities[dates[0]] || 0) : 0;
+      const quantities: Record<string, number> = {};
+      for (const d of dates) quantities[d] = first;
+      return { ...r, quantities };
+    }));
+  }, [dates]);
 
   const presentFunctionIds = useMemo(() => new Set(rows.map((r) => r.functionId)), [rows]);
   const toggleToAdd = (id: string) => setSelectedToAdd((prev) => {
@@ -309,6 +348,23 @@ export default function ScalingSuggestionPage() {
     setShowAddFunction(false);
   };
 
+  // ── Copiar de evento ──
+  const commitCopy = useCallback((result: CopyFromEventResult, sourceName: string, replaced: number) => {
+    setRows((prev) => mergePastedRows(prev, result.rows));
+    setPendingCopy(null);
+    toast({
+      title: "Grade copiada",
+      description: `${plural(result.rows.length, "linha", "linhas")} de ${sourceName} ${result.rows.length === 1 ? "entrou" : "entraram"} na grade${replaced ? `, ${plural(replaced, "função substituída", "funções substituídas")}` : ""} — revise as quantidades e a logística antes de enviar.`,
+    });
+  }, [toast]);
+  const applyCopy = useCallback((result: CopyFromEventResult, sourceName: string) => {
+    if (readOnly) return; // modo leitura não monta grade (nem conseguiria limpar depois)
+    // Substituir linha já preenchida pede a MESMA confirmação da colagem.
+    const conflicts = pasteConflicts(rowsRef.current, result.rows);
+    if (conflicts.length > 0) { setPendingCopy({ result, sourceName, conflicts }); return; }
+    commitCopy(result, sourceName, 0);
+  }, [readOnly, commitCopy]);
+
   // ── Colagem ──
   // Debounce leve: só reanalisa a colagem quando o usuário para de digitar/colar.
   useEffect(() => {
@@ -324,19 +380,25 @@ export default function ScalingSuggestionPage() {
     [pasteTextDebounced, dates.length],
   );
   /** Resultado da leitura, ao vivo, só para exibição — nada é aplicado na grade aqui. */
-  const pastePreview = useMemo(() => {
+  const pasteParsed = useMemo(() => {
     if (!showPaste || !pasteTextDebounced.trim()) return null;
-    const res = parsePastedRows(
+    return parsePastedRows(
       pasteTextDebounced, functions ?? [], dates, pasteYear,
       pasteFormat === "auto" ? undefined : pasteFormat, { nameMap: pasteNameMap },
     );
-    return summarizePaste(res);
   }, [showPaste, pasteTextDebounced, functions, dates, pasteYear, pasteFormat, pasteNameMap]);
+  const pastePreview = useMemo(() => (pasteParsed ? summarizePaste(pasteParsed) : null), [pasteParsed]);
   /** Enquanto o debounce não alcança o texto, o resumo mostra "analisando". */
   const pasteAnalyzing = !!pasteText.trim() && pasteText !== pasteTextDebounced;
   /** Nomes a mapear: o que o resumo ao vivo achou (com o que `runPaste` apontou como reserva). */
   const unknownToMap = pastePreview ? pastePreview.unknownNames : unknownNames;
   const pasteApplyCount = pastePreview?.recognized ?? 0;
+  /** "Como vai entrar na grade": quantas linhas substituem funções já na grade × quantas são novas. */
+  const pasteImpact = useMemo(() => {
+    if (!pasteParsed) return { replaced: 0, added: 0 };
+    const replaced = pasteParsed.rows.filter((r) => presentFunctionIds.has(r.functionId)).length;
+    return { replaced, added: pasteParsed.rows.length - replaced };
+  }, [pasteParsed, presentFunctionIds]);
   /** Avisos do resumo: não impedem aplicar, mas o usuário precisa vê-los antes. */
   const pasteWarnings = useMemo(() => {
     if (!pastePreview) return [];
@@ -403,11 +465,14 @@ export default function ScalingSuggestionPage() {
       });
       return;
     }
-    if (res.unknownNames.length > 0 && !askedMappingRef.current) {
+    // "Decidido" = o nome tem entrada no mapa, inclusive quando a escolha foi
+    // "Descartar linha" (SKIP_FUNCTION). Só o que continua sem decisão interrompe.
+    const undecided = res.unknownNames.filter((n) => !(functionNameKey(n) in nameMap));
+    if (undecided.length > 0 && !askedMappingRef.current) {
       askedMappingRef.current = true;
       setUnknownNames(res.unknownNames);
       toast({
-        title: `${res.unknownNames.length} função(ões) não reconhecida(s)`,
+        title: `${undecided.length} função(ões) não reconhecida(s)`,
         description: "Escolha a função correspondente de cada nome abaixo e aplique de novo. O que ficar sem função é descartado.",
         variant: "destructive",
       });
@@ -466,19 +531,21 @@ export default function ScalingSuggestionPage() {
       });
     }
   };
+  /**
+   * Registra a decisão do usuário para um nome não reconhecido. "Descartar linha"
+   * também é decisão: fica gravada como SKIP_FUNCTION (nenhuma função tem esse id,
+   * então o parser continua ignorando o nome) para o Aplicar não perguntar de novo.
+   */
   const mapUnknownName = (name: string, value: string) => {
     const key = functionNameKey(name);
-    setPasteNameMap((prev) => {
-      const next = { ...prev };
-      if (value === SKIP_FUNCTION) delete next[key]; else next[key] = value;
-      return next;
-    });
+    setPasteNameMap((prev) => ({ ...prev, [key]: value }));
   };
 
   const clearGrid = () => {
     setRows([]);
     setEventObservations(loadedObsRef.current);
     if (draftKey) localStorage.removeItem(draftKey);
+    setDraftSavedAt(null);
     setConfirmClear(false);
   };
 
@@ -552,12 +619,22 @@ export default function ScalingSuggestionPage() {
       queryClient.invalidateQueries({ queryKey: [`${SUGGESTIONS_QUERY_KEY}/event-view`] });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      // Quebra por função para a faixa pós-envio (calculada antes de limpar a grade).
+      const byFunction: SentInfo["byFunction"] = [];
+      const byIdx = new Map<string, number>();
+      for (const r of records) {
+        const i = byIdx.get(r.functionName);
+        if (i === undefined) { byIdx.set(r.functionName, byFunction.length); byFunction.push({ name: r.functionName, count: 1 }); }
+        else byFunction[i].count++;
+      }
       // Comentários já foram gravados no evento: passam a ser a base "carregada".
       loadedObsRef.current = eventObservations;
       if (draftKey) localStorage.removeItem(draftKey);
       setRows([]);
+      setPreviewOpen(false);
+      setDraftSavedAt(null);
       setConfirmSend(false);
-      setSent({ created: data.created, eventId, eventName: selectedEvent?.name ?? "" });
+      setSent({ created: data.created, eventId, eventName: selectedEvent?.name ?? "", byFunction });
       toast({ title: "Escala enviada para validação", description: `${data.created} vaga(s) criada(s) e enviada(s) às áreas.` });
     },
     onError: (err: ApiError) => {
@@ -630,6 +707,27 @@ export default function ScalingSuggestionPage() {
 
   const gridReady = !!eventId && dates.length > 0;
   const vagasLabel = `${records.length} ${records.length === 1 ? "vaga" : "vagas"}`;
+  const focusEventPicker = () => {
+    document.querySelector<HTMLButtonElement>('[data-testid="scaling-suggestion-event"]')?.click();
+  };
+
+  // ── UMA faixa de estado por vez (nunca três empilhadas) ──
+  /** Envio somado ao que o evento já tinha: a faixa verde mostra o total real da Validação. */
+  const sentTotalExtra = !!sent && sent.eventId === eventId && sentSummary.total > sent.created;
+  const banner: "sentCheckFailed" | "functionsError" | "sent" | "jaEnviado" | "leitura" | null =
+    sentCheckFailed ? "sentCheckFailed"
+      : functionsError ? "functionsError"
+        : sent ? "sent"
+          : sentSummary.total > 0 ? "jaEnviado"
+            : readOnly ? "leitura"
+              : null;
+
+  const sendLabel = readOnly ? "Somente leitura"
+    : sendMutation.isPending ? "Enviando…"
+      : sentCheckLoading ? "Verificando envios…"
+        : pendencias.errors.length > 0 ? "Revise para enviar"
+          : records.length > 0 ? `Enviar ${vagasLabel}` : "Enviar vagas";
+  const sendDisabled = readOnly || records.length === 0 || busy || pendencias.errors.length > 0 || sendBlocked;
 
   // ── Render ──
   if (!canAccess) {
@@ -652,207 +750,172 @@ export default function ScalingSuggestionPage() {
         actions={<ScalingModuleNav current="suggestion" eventId={eventId} />}
       />
 
-      {readOnly && (
-        <div role="note" className="flex items-start gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700">
-          <Eye className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-500" aria-hidden="true" />
-          <span><span className="font-semibold">Modo leitura</span> — só Produção/Admin montam e enviam sugestões. Você pode consultar o evento e seguir para as outras telas do módulo.</span>
-        </div>
-      )}
-
       {eventsError ? (
-        <div className="rounded-2xl border border-red-200 bg-white p-6 text-center">
-          <p className="text-sm font-semibold text-slate-700">Não foi possível carregar os eventos</p>
-          <p className="text-xs text-slate-500 mt-1">{apiErrorMessage(eventsError, "Verifique sua conexão e tente novamente.")}</p>
-          <Button variant="outline" size="sm" className="mt-3 rounded-lg" onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/events"] })}>Tentar novamente</Button>
-        </div>
+        <StateBanner
+          tone="red" icon={AlertTriangle} role="alert"
+          title="Não foi possível carregar eventos e funções"
+          detail={<>{apiErrorMessage(eventsError, "Verifique sua conexão e tente novamente.")} O rascunho local da grade está intacto — nada se perdeu.</>}
+          actions={
+            <Button variant="outline" size="sm" className="rounded-lg h-8 bg-white" onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/events"] })}>
+              Tentar novamente
+            </Button>
+          }
+        />
       ) : loadingEvents || loadingFunctions ? (
         <LoadingState count={3} label="Carregando eventos e funções…" />
       ) : (
         <>
-          {functionsError && (
-            <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
-              <div className="flex items-start gap-2 text-xs text-red-800">
-                <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-red-600" aria-hidden="true" />
-                <span>
-                  <span className="font-semibold">Não foi possível carregar as funções.</span>{" "}
-                  {apiErrorMessage(functionsError as ApiError, "Sem a lista de funções, não dá para adicionar linhas nem colar da planilha.")}
-                </span>
-              </div>
-              <Button type="button" variant="outline" size="sm" className="rounded-lg h-8" onClick={() => refetchFunctions()}>Tentar novamente</Button>
-            </div>
-          )}
+          {/* Barra de contexto: evento · período do evento · GRADE · comentários (disclosure) */}
+          <ContextBar
+            events={activeEvents}
+            eventId={eventId}
+            onEventChange={setEventId}
+            selectedEvent={selectedEvent}
+            periodStart={periodStart}
+            periodEnd={periodEnd}
+            onPeriodChange={requestPeriod}
+            bounds={bounds}
+            daysCount={dates.length}
+            onEventPeriod={applyEventPeriod}
+            onShrink={shrinkOneDay}
+            canShrink={dates.length > 1}
+            periodInvalid={!!periodError}
+            disabled={busy}
+            observations={eventObservations}
+            onObservationsChange={setEventObservations}
+            draftSavedAt={draftSavedAt}
+            eventTestId="scaling-suggestion-event"
+          />
 
-          {/* Evento + período + comentários */}
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 space-y-4" aria-labelledby="sug-evento">
-            <h2 id="sug-evento" className={SECTION_TITLE}>Evento</h2>
-            <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
-              <div className="space-y-1.5">
-                <span id="sug-event-label" className={cn(HINT, "block font-medium leading-none")}>Evento <span className="text-red-500" aria-hidden="true">*</span></span>
-                <div role="group" aria-labelledby="sug-event-label">
-                  <EventCombobox events={activeEvents} value={eventId} onValueChange={(v) => setEventId(v === "all" ? "" : v)} placeholder="Selecione um evento" showAllOption={false} testId="scaling-suggestion-event" />
-                </div>
-                {selectedEvent && (
-                  <p className={HINT}>
-                    Período do evento: <span className="font-mono">{formatDateRange(selectedEvent.startDate, selectedEvent.endDate, { withYear: true })}</span>
-                    {selectedEvent.location ? ` · ${selectedEvent.location}` : ""}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="sug-period-start" className={cn(HINT, "font-medium")}>Início da grade</Label>
-                <Input id="sug-period-start" type="date" value={periodStart} disabled={!eventId || busy}
-                  min={bounds.min || undefined} max={bounds.max || undefined}
-                  aria-invalid={!!periodError} aria-describedby={periodError ? "sug-period-error" : "sug-period-hint"}
-                  onChange={(e) => requestPeriod(e.target.value, periodEnd)} className="h-9 rounded-lg" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="sug-period-end" className={cn(HINT, "font-medium")}>Fim da grade</Label>
-                <Input id="sug-period-end" type="date" value={periodEnd} disabled={!eventId || busy}
-                  min={periodStart || bounds.min || undefined} max={bounds.max || undefined}
-                  aria-invalid={!!periodError} aria-describedby={periodError ? "sug-period-error" : "sug-period-hint"}
-                  onChange={(e) => requestPeriod(periodStart, e.target.value)} className="h-9 rounded-lg" />
-              </div>
-            </div>
-            {periodError ? (
-              <p id="sug-period-error" role="alert" className="flex items-start gap-1.5 text-xs text-red-700 -mt-2">
-                <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" aria-hidden="true" /> {periodError}
-              </p>
-            ) : (
-              <p id="sug-period-hint" className={cn(HINT, "-mt-2")}>
-                A grade pode começar até {PERIOD_MARGIN_DAYS} dias antes e terminar até {PERIOD_MARGIN_DAYS} dias depois do evento.
-              </p>
-            )}
-            <div className="space-y-1.5">
-              <Label htmlFor="sug-event-obs" className={cn(HINT, "font-medium")}>Comentários gerais do evento</Label>
-              <Textarea id="sug-event-obs" value={eventObservations} disabled={!eventId || busy} rows={3} maxLength={2000}
-                placeholder="Orientações gerais para as áreas (horários de montagem, ponto de encontro, restrições…)."
-                onChange={(e) => setEventObservations(e.target.value)} className="rounded-lg text-sm" />
-              <p className={HINT}>Salvo nas observações do evento junto com o envio da escala.</p>
-            </div>
-          </section>
-
-          {/* Pós-envio */}
-          {sent && (
-            <section role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:p-5" aria-labelledby="sug-sent">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" aria-hidden="true" />
-                  <div>
-                    <h2 id="sug-sent" className="text-sm font-semibold text-emerald-900">
-                      {sent.created} {sent.created === 1 ? "vaga enviada" : "vagas enviadas"} para {sent.eventName}
-                    </h2>
-                    <p className="text-xs text-emerald-800 mt-0.5">As áreas responsáveis já veem as vagas na Validação de Escala.</p>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs font-medium">
-                      <Link href={scalingHref("/scaling-validation", sent.eventId)} className="inline-flex items-center gap-1 text-primary hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
-                        <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /> Ver na Validação
-                      </Link>
-                      <Link href={scalingHref("/scaling-event-view", sent.eventId)} className="inline-flex items-center gap-1 text-primary hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
-                        <History className="w-3.5 h-3.5" aria-hidden="true" /> Histórico da Escala
-                      </Link>
-                      {/* Desfazer aqui mesmo: é neste instante que o usuário percebe o evento/quantidade errados. */}
-                      {!readOnly && sentSummary.total > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setConfirmCancelSend(true)}
-                          disabled={cancelSendMutation.isPending}
-                          className="inline-flex items-center gap-1 text-red-700 hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:opacity-60"
-                          data-testid="scaling-suggestion-cancel-send-after"
-                        >
-                          <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
-                          {cancelSendMutation.isPending ? "Cancelando…" : "Cancelar envio"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <Button type="button" variant="outline" size="sm" className="rounded-lg h-8 bg-white" onClick={() => setSent(null)}>
-                  <Plus className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Nova sugestão
+          {/* Uma faixa de estado por vez */}
+          {banner === "sentCheckFailed" && (
+            <StateBanner
+              tone="red" icon={AlertTriangle} role="alert"
+              title="Não foi possível verificar se este evento já tem vagas enviadas"
+              detail={<>{apiErrorMessage(sentQuery.error as ApiError, "Verifique sua conexão.")} O envio fica bloqueado até essa verificação funcionar — enviar às cegas poderia duplicar a escala. O rascunho local está intacto.</>}
+              actions={
+                <Button
+                  type="button" variant="outline" size="sm" className="rounded-lg h-8 bg-white"
+                  disabled={sentQuery.isFetching}
+                  onClick={() => sentQuery.refetch()}
+                  data-testid="scaling-suggestion-sent-retry"
+                >
+                  {sentQuery.isFetching ? "Verificando…" : "Tentar novamente"}
                 </Button>
-              </div>
-            </section>
+              }
+            />
           )}
-
-          {/* A verificação anti-duplicação falhou: sem saber o que já foi enviado,
-              o Enviar fica bloqueado — o usuário resolve aqui, não descobre depois. */}
-          {sentCheckFailed && (
-            <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
-              <div className="flex items-start gap-2 text-xs text-red-800 min-w-0">
-                <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-red-600" aria-hidden="true" />
-                <span>
-                  <span className="font-semibold">Não foi possível verificar se este evento já tem vagas enviadas.</span>{" "}
-                  {apiErrorMessage(sentQuery.error as ApiError, "Verifique sua conexão.")}{" "}
-                  O envio fica bloqueado até essa verificação funcionar — enviar às cegas poderia duplicar a escala.
+          {banner === "functionsError" && (
+            <StateBanner
+              tone="red" icon={AlertTriangle} role="alert"
+              title="Não foi possível carregar as funções"
+              detail={<>{apiErrorMessage(functionsError as ApiError, "Sem a lista de funções, não dá para adicionar linhas nem colar da planilha.")} O rascunho local está intacto.</>}
+              actions={
+                <Button type="button" variant="outline" size="sm" className="rounded-lg h-8 bg-white" onClick={() => refetchFunctions()}>
+                  Tentar novamente
+                </Button>
+              }
+            />
+          )}
+          {banner === "sent" && sent && (
+            <StateBanner
+              tone="emerald" icon={CheckCircle2} role="note"
+              title={`${sent.created} ${sent.created === 1 ? "vaga enviada" : "vagas enviadas"} — as áreas já veem tudo na Validação`}
+              detail={
+                sent.byFunction.length > 0 || sentTotalExtra ? (
+                  <span className="tabular-nums">
+                    {sent.byFunction.map((b) => `${b.name} ×${b.count}`).join(" · ")}
+                    {/* O evento já tinha vagas: sem isto, o total real na Validação sumia da tela. */}
+                    {sentTotalExtra && `${sent.byFunction.length > 0 ? " · " : ""}${sentSummary.total} no total na Validação`}
+                  </span>
+                ) : undefined
+              }
+              actions={
+                <>
+                  <Link href={scalingHref("/scaling-validation", sent.eventId)} className={BANNER_LINK}>
+                    <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /> Ver na Validação
+                  </Link>
+                  <Link href={scalingHref("/scaling-event-view", sent.eventId)} className={BANNER_LINK}>
+                    <History className="w-3.5 h-3.5" aria-hidden="true" /> Histórico
+                  </Link>
+                  {/* Desfazer aqui mesmo: é neste instante que o usuário percebe o evento/quantidade errados. */}
+                  {!readOnly && sentSummary.total > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmCancelSend(true)}
+                      disabled={cancelSendMutation.isPending}
+                      className={BANNER_DANGER_LINK}
+                      data-testid="scaling-suggestion-cancel-send-after"
+                    >
+                      <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
+                      {cancelSendMutation.isPending ? "Cancelando…" : "Cancelar envio"}
+                    </button>
+                  )}
+                  <Button type="button" variant="outline" size="sm" className="rounded-lg h-8 bg-white" onClick={() => setSent(null)}>
+                    <Plus className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Nova sugestão
+                  </Button>
+                </>
+              }
+            />
+          )}
+          {banner === "jaEnviado" && (
+            <StateBanner
+              tone="amber" icon={AlertTriangle} role="note"
+              title={`Este evento já tem ${sentSummary.total} ${sentSummary.total === 1 ? "vaga" : "vagas"} na Validação — enviar de novo soma às que já estão lá`}
+              detail={
+                <span className="tabular-nums">
+                  {sentSummary.aguardando} aguardando · {sentSummary.validadas} {sentSummary.validadas === 1 ? "validada" : "validadas"} · {sentSummary.comPedido} com pedido. Se a grade subiu errada, cancele o envio e monte de novo.
                 </span>
-              </div>
-              <Button
-                type="button" variant="outline" size="sm" className="rounded-lg h-8 bg-white"
-                disabled={sentQuery.isFetching}
-                onClick={() => sentQuery.refetch()}
-                data-testid="scaling-suggestion-sent-retry"
-              >
-                {sentQuery.isFetching ? "Verificando…" : "Tentar novamente"}
-              </Button>
-            </div>
+              }
+              actions={
+                <>
+                  <Link href={scalingHref("/scaling-validation", eventId)} className={BANNER_LINK}>
+                    <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /> Acompanhar
+                  </Link>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmCancelSend(true)}
+                      disabled={cancelSendMutation.isPending}
+                      className={BANNER_DANGER_LINK}
+                      data-testid="scaling-suggestion-cancel-send"
+                    >
+                      <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
+                      {cancelSendMutation.isPending ? "Cancelando…" : "Cancelar envio"}
+                    </button>
+                  )}
+                </>
+              }
+            />
           )}
-
-          {/* Envio já feito para este evento: acompanhar ou desfazer.
-              Escondido logo depois de enviar — ali o aviso verde acima já traz
-              o mesmo "Cancelar envio" e repetir o bloco só faria ruído. */}
-          {sentSummary.total > 0 && !sent && (
-            <section role="status" className="rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5" aria-labelledby="sug-ja-enviado">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex items-start gap-3 min-w-0">
-                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
-                  <div className="min-w-0">
-                    <h2 id="sug-ja-enviado" className="text-sm font-semibold text-amber-900">
-                      Este evento já tem {sentSummary.total} {sentSummary.total === 1 ? "vaga enviada" : "vagas enviadas"} para validação
-                    </h2>
-                    <p className="text-xs text-amber-800 mt-0.5 tabular-nums">
-                      {[
-                        `${sentSummary.aguardando} aguardando validação`,
-                        `${sentSummary.validadas} ${sentSummary.validadas === 1 ? "validada" : "validadas"} pela área`,
-                        `${sentSummary.comPedido} com pedido em aberto`,
-                      ].join(" · ")}
-                    </p>
-                    <p className="text-xs text-amber-800 mt-1">
-                      Enviar de novo <strong>soma</strong> vagas às que já estão lá. Se a grade subiu errada, cancele o envio e monte de novo.
-                    </p>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs font-medium">
-                      <Link href={scalingHref("/scaling-validation", eventId)} className="inline-flex items-center gap-1 text-primary hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
-                        <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /> Acompanhar na Validação
-                      </Link>
-                      {!readOnly && (
-                        <button
-                          type="button"
-                          onClick={() => setConfirmCancelSend(true)}
-                          disabled={cancelSendMutation.isPending}
-                          className="inline-flex items-center gap-1 text-red-700 hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:opacity-60"
-                          data-testid="scaling-suggestion-cancel-send"
-                        >
-                          <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
-                          {cancelSendMutation.isPending ? "Cancelando…" : "Cancelar envio"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
+          {banner === "leitura" && (
+            <StateBanner
+              tone="slate" icon={Eye} role="note"
+              title="Modo leitura — só Produção e Admin montam e enviam"
+              detail="Você pode consultar o evento e seguir para as outras telas do módulo."
+              actions={
+                <Link href={scalingHref("/scaling-validation", eventId)} className={BANNER_LINK}>
+                  <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /> Abrir na Validação
+                </Link>
+              }
+            />
           )}
 
           {/* Grade */}
           <section className="space-y-3" aria-labelledby="sug-grade">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <h2 id="sug-grade" className={SECTION_TITLE}>Grade função × dia</h2>
                 {/* Única região aria-live da tela: resume o que muda a cada edição. */}
-                <span className="text-xs text-slate-600 tabular-nums" aria-live="polite" aria-atomic="true">
+                <div className="flex flex-wrap items-center gap-1.5" aria-live="polite" aria-atomic="true">
                   {rows.length > 0 && (
                     <>
-                      {summary.funcoes} {summary.funcoes === 1 ? "linha" : "linhas"} · {summary.pessoasDia} pessoas-dia · <span className="font-semibold text-slate-800">{vagasLabel}</span>
+                      <span className={PILL}>{summary.funcoes} {summary.funcoes === 1 ? "linha" : "linhas"}</span>
+                      <span className={PILL}>{summary.pessoasDia} pessoas-dia</span>
+                      <span className={PILL_BRAND}>{vagasLabel}</span>
                     </>
                   )}
-                </span>
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button type="button" variant="outline" size="sm" className="rounded-lg h-8" disabled={!gridReady || busy || !!functionsError} onClick={openPaste}>
@@ -861,121 +924,187 @@ export default function ScalingSuggestionPage() {
                 <Button type="button" variant="outline" size="sm" className="rounded-lg h-8" disabled={!gridReady || busy || !!functionsError} onClick={openAddFunction}>
                   <Plus className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Adicionar função
                 </Button>
+                <Button type="button" variant="outline" size="sm" className="rounded-lg h-8" disabled={!gridReady || busy || !!functionsError} onClick={() => setShowCopyEvent(true)}>
+                  <FolderInput className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Copiar de evento
+                </Button>
                 <Button type="button" variant="ghost" size="sm" className="rounded-lg h-8 text-slate-600" disabled={(!hasContent) || busy} onClick={() => setConfirmClear(true)}>
                   <RotateCcw className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Limpar
                 </Button>
               </div>
             </div>
 
+            {/* Erro de período: inline, em vermelho, acima da grade. */}
+            {periodError && (
+              <p id="sug-period-error" role="alert" className="flex items-start gap-1.5 text-xs text-red-700">
+                <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" aria-hidden="true" /> {periodError}
+              </p>
+            )}
+
+            {/* Pendências: uma faixa com chips clicáveis (clique foca a célula da linha). */}
+            {gridReady && (pendencias.errors.length > 0 || pendencias.warnings.length > 0) && (
+              <div className={cn("rounded-xl border py-2.5 px-3.5", pendencias.errors.length > 0 ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50")}>
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className={cn("w-3.5 h-3.5 mt-0.5 shrink-0", pendencias.errors.length > 0 ? "text-red-600" : "text-amber-600")} aria-hidden="true" />
+                  <div className="min-w-0 flex-1">
+                    <p className={cn("text-xs font-semibold", pendencias.errors.length > 0 ? "text-red-800" : "text-amber-800")}>
+                      {pendencias.errors.length > 0
+                        ? `${pendencias.errors.length} ${pendencias.errors.length === 1 ? "pendência impede" : "pendências impedem"} o envio`
+                        : `${pendencias.warnings.length} ${pendencias.warnings.length === 1 ? "aviso" : "avisos"} — não impedem o envio`}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {pendencias.errors.map((p, i) => (
+                        <button key={`e-${p.rowId}-${i}`} type="button" onClick={() => focusRow(p.rowId)}
+                          className="rounded-full border border-red-300 bg-white px-2 py-0.5 text-[11px] font-medium text-red-700 transition-colors hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400">
+                          {p.text}
+                        </button>
+                      ))}
+                      {pendencias.warnings.map((p, i) => (
+                        <button key={`w-${p.rowId}-${i}`} type="button" onClick={() => focusRow(p.rowId)}
+                          className="rounded-full border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-medium text-amber-800 transition-colors hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
+                          {p.text}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {!eventId ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">
-                Selecione um evento para montar a grade.
+              /* Estado vazio com saída: escolher evento ou copiar de um anterior. */
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+                <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-primary" aria-hidden="true">
+                  <CalendarDays className="w-5 h-5" />
+                </span>
+                <p className="mt-3 text-sm font-semibold text-slate-700">Escolha o evento para abrir a grade</p>
+                <p className="mx-auto mt-1 max-w-md text-xs text-slate-500">
+                  A grade cobre o período do evento (ajustável em até {PERIOD_MARGIN_DAYS} dias para cada lado) e o rascunho fica salvo neste navegador por 7 dias, separado por evento.
+                </p>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  <Button type="button" size="sm" className="rounded-lg bg-primary hover:bg-primary-hover" onClick={focusEventPicker}>
+                    Selecionar evento
+                  </Button>
+                  <Button
+                    type="button" variant="outline" size="sm" className="rounded-lg"
+                    disabled={busy || !!functionsError}
+                    title={readOnly ? "Modo leitura — só Produção e Admin montam a grade" : undefined}
+                    onClick={() => setShowCopyEvent(true)}
+                  >
+                    <FolderInput className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Copiar de um evento anterior
+                  </Button>
+                </div>
+                {readOnly && (
+                  <p className={cn(HINT, "mt-3")}>Em modo leitura dá para consultar a tela, mas não montar nem enviar a grade.</p>
+                )}
               </div>
             ) : dates.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">
                 Informe um período válido para a grade.
               </div>
             ) : (
-              <>
-                {(pendencias.errors.length > 0 || pendencias.warnings.length > 0) && (
-                  <div className={cn("rounded-xl border px-3 py-2 text-xs", pendencias.errors.length > 0 ? "border-red-200 bg-red-50 text-red-800" : "border-amber-200 bg-amber-50 text-amber-800")}>
-                    <div className="flex items-start gap-2">
-                      <AlertTriangle className={cn("w-3.5 h-3.5 mt-0.5 shrink-0", pendencias.errors.length > 0 ? "text-red-600" : "text-amber-600")} aria-hidden="true" />
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold">
-                          {pendencias.errors.length > 0
-                            ? `${pendencias.errors.length} ${pendencias.errors.length === 1 ? "pendência impede" : "pendências impedem"} o envio`
-                            : `${pendencias.warnings.length} ${pendencias.warnings.length === 1 ? "aviso" : "avisos"} (não impedem o envio)`}
-                        </p>
-                        <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                          {[...pendencias.errors, ...pendencias.warnings.map((w) => ({ ...w, warn: true }))].map((p, i) => (
-                            <li key={`${p.rowId}-${i}`}>
-                              <button type="button" onClick={() => focusRow(p.rowId)}
-                                className={cn("underline underline-offset-2 rounded hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current", "warn" in p && pendencias.errors.length > 0 && "text-amber-800")}>
-                                {p.text}
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
+              /* Modo leitura desabilita a grade inteira. */
+              <div className={cn(readOnly && "opacity-75 pointer-events-none")} aria-disabled={readOnly || undefined}>
                 <SuggestionGrid
-                  rows={rows} dates={dates} issuesByRow={issuesByRow}
+                  rows={rows} dates={dates} issuesByRow={issuesByRow} areaByFunctionId={areaByFunctionId}
                   onChangeRow={changeRow} onChangeQty={changeQty}
-                  onDuplicateRow={duplicateRow} onRemoveRow={removeRow}
+                  onDuplicateRow={duplicateRow} onRemoveRow={removeRow} onRepeatFirst={repeatFirstValue}
+                  onPaste={openPaste} onAddFunction={openAddFunction}
                   disabled={busy}
                 />
-              </>
+              </div>
             )}
           </section>
 
-          {/* Prévia */}
-          {gridReady && !readOnly && (
-            <section className="rounded-2xl border border-slate-200 bg-white overflow-hidden" aria-labelledby="sug-previa">
-              <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
-                <h2 id="sug-previa" className={SECTION_TITLE}>Prévia das vagas que serão criadas</h2>
-              </div>
-              {records.length === 0 ? (
-                <p className="text-slate-500 text-sm text-center py-5 italic">Nenhuma vaga configurada ainda — preencha as quantidades por dia.</p>
-              ) : (
-                <div className="max-h-[360px] overflow-y-auto">
-                  {previewGroups.map((group, gi) => (
-                    <div key={group.key} className={gi > 0 ? "border-t border-slate-100" : ""}>
-                      <div className="flex items-center justify-between px-4 py-1.5 bg-slate-50/70">
-                        <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                          <span className="w-1.5 h-1.5 rounded-full bg-primary/40 shrink-0" aria-hidden="true" />
-                          {group.functionName}
-                        </span>
-                        <span className="text-xs text-slate-500 tabular-nums">{group.records.length} {group.records.length === 1 ? "vaga" : "vagas"}</span>
+          {/* Barra de envio (sticky) + prévia sob demanda */}
+          {gridReady && !sent && (
+            <div className="sticky bottom-0 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 pb-3 pt-2 bg-gradient-to-t from-background via-background to-transparent">
+              {previewOpen && records.length > 0 && (
+                <div role="region" aria-labelledby="sug-previa" className="mb-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
+                  <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2">
+                    <h2 id="sug-previa" className={SECTION_TITLE}>Prévia das vagas que serão criadas</h2>
+                    <button type="button" onClick={() => setPreviewOpen(false)} aria-label="Fechar prévia"
+                      className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <X className="w-3.5 h-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
+                  <div className="max-h-[260px] overflow-y-auto">
+                    {previewGroups.map((group, gi) => (
+                      <div key={group.key} className={gi > 0 ? "border-t border-slate-100" : ""}>
+                        <div className="flex items-center justify-between px-4 py-1.5 bg-slate-50/70">
+                          <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary/40 shrink-0" aria-hidden="true" />
+                            {group.functionName}
+                          </span>
+                          <span className="text-xs text-slate-500 tabular-nums">{group.records.length} {group.records.length === 1 ? "vaga" : "vagas"}</span>
+                        </div>
+                        {group.records.map((rec, i) => {
+                          const ida = rec.transportModeIda ? `Ida ${TRANSPORT_MODE_LABELS[rec.transportModeIda]}${rec.flightDepartureDate ? ` ${formatDayMonthBr(rec.flightDepartureDate)}` : ""}${rec.flightArrivalSuggestedTime ? ` ${rec.flightArrivalSuggestedTime}` : ""}` : "";
+                          const volta = rec.transportModeVolta ? `Volta ${TRANSPORT_MODE_LABELS[rec.transportModeVolta]}${rec.flightReturnDate ? ` ${formatDayMonthBr(rec.flightReturnDate)}` : ""}${rec.flightReturnSuggestedTime ? ` ${rec.flightReturnSuggestedTime}` : ""}` : "";
+                          const logistica = [ida, volta].filter(Boolean).join(" · ");
+                          return (
+                            <div key={`${group.key}-${i}`} className={cn("grid grid-cols-[auto_minmax(0,1fr)] sm:grid-cols-[auto_auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1 pl-8 pr-4 py-1.5 text-xs", i % 2 === 1 ? "bg-slate-50/40" : "bg-white")}>
+                              <span className="text-slate-700 font-semibold bg-slate-100 rounded-full px-2 py-0.5 whitespace-nowrap">{formatDiarias(rec.dailyRates)}</span>
+                              <span className="text-slate-600 font-mono tabular-nums break-words">{rec.workDays.map((d) => formatDayMonthBr(d)).join(", ")}</span>
+                              <span className="col-span-2 sm:col-span-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-slate-500 min-w-0">
+                                {logistica && <span className="break-words">{logistica}</span>}
+                                {rec.needsAccommodation && <span className="text-xs font-semibold uppercase text-slate-600 bg-slate-100 rounded px-1.5 py-0.5">Hotel</span>}
+                                {rec.needsTicket && <span className="text-xs font-semibold uppercase text-slate-600 bg-slate-100 rounded px-1.5 py-0.5">Passagem</span>}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
-                      {group.records.map((rec, i) => {
-                        const ida = rec.transportModeIda ? `Ida ${TRANSPORT_MODE_LABELS[rec.transportModeIda]}${rec.flightDepartureDate ? ` ${formatDayMonthBr(rec.flightDepartureDate)}` : ""}${rec.flightArrivalSuggestedTime ? ` ${rec.flightArrivalSuggestedTime}` : ""}` : "";
-                        const volta = rec.transportModeVolta ? `Volta ${TRANSPORT_MODE_LABELS[rec.transportModeVolta]}${rec.flightReturnDate ? ` ${formatDayMonthBr(rec.flightReturnDate)}` : ""}${rec.flightReturnSuggestedTime ? ` ${rec.flightReturnSuggestedTime}` : ""}` : "";
-                        const logistica = [ida, volta].filter(Boolean).join(" · ");
-                        return (
-                          <div key={`${group.key}-${i}`} className={cn("grid grid-cols-[auto_minmax(0,1fr)] sm:grid-cols-[auto_auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1 pl-8 pr-4 py-1.5 text-xs", i % 2 === 1 ? "bg-slate-50/40" : "bg-white")}>
-                            <span className="text-slate-700 font-semibold bg-slate-100 rounded-full px-2 py-0.5 whitespace-nowrap">{formatDiarias(rec.dailyRates)}</span>
-                            <span className="text-slate-600 font-mono tabular-nums break-words">{rec.workDays.map((d) => formatDayMonthBr(d)).join(", ")}</span>
-                            <span className="col-span-2 sm:col-span-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-slate-500 min-w-0">
-                              {logistica && <span className="break-words">{logistica}</span>}
-                              {rec.needsAccommodation && <span className="text-xs font-semibold uppercase text-sky-800 bg-sky-50 rounded px-1.5 py-0.5">Hotel</span>}
-                              {rec.needsTicket && <span className="text-xs font-semibold uppercase text-violet-800 bg-violet-50 rounded px-1.5 py-0.5">Passagem</span>}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
-            </section>
-          )}
 
-          {/* Barra de ação (sticky) */}
-          {gridReady && !sent && !readOnly && (
-            <div className="sticky bottom-0 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 pb-3 pt-2 bg-gradient-to-t from-background via-background to-transparent">
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur px-4 py-3 shadow-lg">
                 <div className="min-w-0">
                   <p className="text-sm text-slate-700">
                     <span className="font-semibold text-slate-900 tabular-nums">{vagasLabel}</span>
                     {records.length > 0 && <span className="text-slate-500"> · {summary.pessoasDia} pessoas-dia em {summary.funcoes} {summary.funcoes === 1 ? "linha" : "linhas"}</span>}
-                    {pendencias.warnings.length > 0 && pendencias.errors.length === 0 && <span className="text-amber-700"> · {pendencias.warnings.length} {pendencias.warnings.length === 1 ? "aviso" : "avisos"}</span>}
                   </p>
                   <p className={cn(HINT, "flex items-center gap-1.5 mt-0.5")}>
-                    <Save className="w-3.5 h-3.5" aria-hidden="true" /> Rascunho salvo automaticamente neste navegador (por evento).
+                    <Save className="w-3.5 h-3.5" aria-hidden="true" /> Rascunho salvo neste navegador, por evento — 7 dias.
                   </p>
                 </div>
-                <Button
-                  type="button" onClick={openConfirmSend}
-                  disabled={records.length === 0 || busy || pendencias.errors.length > 0 || sendBlocked}
-                  title={sentCheckFailed ? "Bloqueado: não foi possível verificar as vagas já enviadas deste evento." : undefined}
-                  className="rounded-xl bg-primary hover:bg-primary-hover"
-                >
-                  <Send className="w-4 h-4 mr-2" aria-hidden="true" />
-                  {busy ? "Enviando…" : sentCheckLoading ? "Verificando envios…" : "Enviar para validação"}
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button" variant="outline" size="sm" className="rounded-lg h-9"
+                    disabled={records.length === 0}
+                    aria-expanded={previewOpen} aria-controls="sug-previa"
+                    onClick={() => setPreviewOpen((v) => !v)}
+                  >
+                    <Eye className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
+                    {previewOpen ? "Fechar prévia" : "Ver prévia das vagas"}
+                  </Button>
+                  {(pendencias.errors.length > 0 || pendencias.warnings.length > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => focusRow((pendencias.errors[0] ?? pendencias.warnings[0]).rowId)}
+                      className={cn(
+                        "inline-flex h-9 items-center rounded-lg border px-2.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2",
+                        pendencias.errors.length > 0
+                          ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100 focus-visible:ring-red-400"
+                          : "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-400",
+                      )}
+                    >
+                      {pendencias.errors.length > 0
+                        ? plural(pendencias.errors.length, "pendência", "pendências")
+                        : plural(pendencias.warnings.length, "aviso", "avisos")}
+                    </button>
+                  )}
+                  <Button
+                    type="button" onClick={openConfirmSend}
+                    disabled={sendDisabled}
+                    title={sentCheckFailed ? "Bloqueado: não foi possível verificar as vagas já enviadas deste evento." : undefined}
+                    className="rounded-xl bg-primary hover:bg-primary-hover"
+                  >
+                    <Send className="w-4 h-4 mr-2" aria-hidden="true" />
+                    {sendLabel}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -1022,86 +1151,79 @@ export default function ScalingSuggestionPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Colar da planilha */}
+      {/* Copiar de outro evento (usa o GET existente do outro evento) */}
+      <CopyEventDialog
+        open={showCopyEvent}
+        onOpenChange={setShowCopyEvent}
+        events={activeEvents}
+        currentEventId={eventId}
+        onSelectDestination={setEventId}
+        functions={functions ?? []}
+        dates={dates}
+        existingRows={rows}
+        onApply={applyCopy}
+      />
+
+      {/* Colar da planilha: decidir antes de aplicar */}
       <Dialog open={showPaste} onOpenChange={(o) => { if (!o) closePaste(); }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)_auto]">
+        <DialogContent className="max-w-[680px] max-h-[90vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)_auto]">
           <DialogHeader className="px-4 sm:px-5 pt-5 pb-3 pr-12">
             <DialogTitle>Colar da planilha</DialogTitle>
-            <DialogDescription>Copie as linhas no Excel e cole aqui — o formato é reconhecido sozinho.</DialogDescription>
+            <DialogDescription>Copie as linhas no Excel e cole aqui — o formato é reconhecido sozinho e nada entra na grade antes do "Aplicar".</DialogDescription>
           </DialogHeader>
 
-          {/* Corpo rolável: campo primeiro, resumo depois, ajuda no fim (recolhida). */}
+          {/* Corpo rolável: 1. campo · 2. resumo em chips · 3. nomes a mapear · 4. como vai entrar · 5. formato */}
           <div className="overflow-y-auto px-4 sm:px-5 pb-4 space-y-3">
             <Label htmlFor="sug-paste" className="sr-only">Conteúdo colado</Label>
             {/* Mudou o conteúdo colado → os nomes não reconhecidos são perguntados de novo. */}
             <Textarea
-              id="sug-paste" autoFocus value={pasteText} rows={9} placeholder="Cole aqui (Ctrl+V)"
+              id="sug-paste" autoFocus value={pasteText} rows={7} placeholder="Cole aqui (Ctrl+V)"
               onChange={(e) => { setPasteText(e.target.value); askedMappingRef.current = false; }}
-              className="font-mono text-xs rounded-lg min-h-[180px] placeholder:font-sans placeholder:text-sm placeholder:text-slate-400"
+              className="font-mono text-xs rounded-lg min-h-[150px] placeholder:font-sans placeholder:text-sm placeholder:text-slate-400"
             />
 
-            {/* Resumo ao vivo da leitura (nada é aplicado até clicar em "Aplicar"). */}
+            {/* 2. Resumo ao vivo em chips (nada é aplicado até clicar em "Aplicar"). */}
             {pasteText.trim() !== "" && (
-              <div
-                role="status" aria-live="polite"
-                className={cn(
-                  "rounded-lg border px-3 py-2 text-xs",
-                  pasteAnalyzing || !pastePreview ? "border-slate-200 bg-slate-50 text-slate-600"
-                    : pastePreview.recognized > 0 ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                      : "border-amber-300 bg-amber-50 text-amber-900",
-                )}
-              >
-                {pasteAnalyzing || !pastePreview ? (
-                  <span>Analisando o que você colou…</span>
-                ) : pastePreview.recognized > 0 ? (
-                  <>
-                    <p className="flex items-start gap-1.5 font-semibold">
-                      <CheckCircle2 className="w-3.5 h-3.5 mt-px shrink-0 text-emerald-600" aria-hidden="true" />
-                      <span>{PASTE_FORMAT_LABELS[pastePreview.format]}{pastePreview.hadHeader ? " · cabeçalho ignorado" : ""}</span>
-                    </p>
-                    <p className="mt-1 tabular-nums">
-                      {plural(pastePreview.lines, "linha lida", "linhas lidas")} · {plural(pastePreview.recognized, "função reconhecida", "funções reconhecidas")} · {plural(pastePreview.mappedDays, "dia mapeado", "dias mapeados")}
-                    </p>
-                    {pasteWarnings.length > 0 && (
-                      <p className="mt-1 flex items-start gap-1.5 text-amber-800">
-                        <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0 text-amber-600" aria-hidden="true" />
-                        <span>{pasteWarnings.join(" · ")}</span>
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <p className="flex items-start gap-1.5 font-semibold">
-                      <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0 text-amber-600" aria-hidden="true" />
-                      <span>
-                        {pastePreview.problem === "cabecalho-nao-encontrado"
-                          ? "Não consegui identificar o cabeçalho — escolha o formato abaixo."
-                          : "Nenhuma linha reconhecida."}
+              pasteAnalyzing || !pastePreview ? (
+                <p className="text-xs text-slate-500">Analisando o que você colou…</p>
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className={PILL}>{plural(pastePreview.lines, "linha lida", "linhas lidas")}</span>
+                    <span className={cn(pastePreview.recognized > 0 ? "inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 tabular-nums" : PILL)}>
+                      {pastePreview.recognized > 0 && <CheckCircle2 className="w-3 h-3 text-emerald-600" aria-hidden="true" />}
+                      {plural(pastePreview.recognized, "função reconhecida", "funções reconhecidas")}
+                    </span>
+                    <span className={PILL}>{plural(pastePreview.mappedDays, "dia mapeado", "dias mapeados")}</span>
+                    {pasteWarnings.map((w, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                        <AlertTriangle className="w-3 h-3 text-amber-600" aria-hidden="true" /> {w}
                       </span>
-                    </p>
-                    <p className="mt-1">
+                    ))}
+                  </div>
+                  {pastePreview.recognized === 0 && (
+                    <p className="text-xs text-amber-900">
                       {pastePreview.problem === "cabecalho-nao-encontrado"
-                        ? "No formato da logística é preciso colar também a linha de cabeçalho (ida, chegada, retorno e as colunas de dia)."
+                        ? "Não consegui identificar o cabeçalho — no formato da logística é preciso colar também a linha de cabeçalho (ida, chegada, retorno e as colunas de dia)."
                         : pastePreview.unknownNames.length > 0
                           ? "Nenhum dos nomes está no catálogo — aponte a função de cada um abaixo."
-                          : "Confira se as colunas vieram separadas por TAB (copie direto do Excel)."}
+                          : "Nenhuma linha reconhecida. Confira se as colunas vieram separadas por TAB (copie direto do Excel)."}
                     </p>
-                  </>
-                )}
-                {!pasteAnalyzing && pastePreview && (
-                  <button
-                    type="button" onClick={() => setShowPasteHelp(true)}
-                    className="mt-1.5 underline underline-offset-2 hover:opacity-80 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
-                  >
-                    {pasteFormat === "auto"
-                      ? "Não reconheceu? Escolher o formato"
-                      : `Formato definido à mão: ${PASTE_FORMAT_LABELS[pasteFormat]} — trocar`}
-                  </button>
-                )}
-              </div>
+                  )}
+                  <p className="text-[11px] text-slate-500">
+                    {PASTE_FORMAT_LABELS[pastePreview.format]}{pastePreview.hadHeader ? " · cabeçalho ignorado" : ""}.{" "}
+                    <button
+                      type="button" onClick={() => setShowPasteHelp(true)}
+                      className="underline underline-offset-2 hover:opacity-80 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
+                    >
+                      {pasteFormat === "auto" ? "Não reconheceu? Escolher o formato" : `Formato definido à mão — trocar`}
+                    </button>
+                  </p>
+                </div>
+              )
             )}
 
-            {/* Nomes que o catálogo não reconheceu: o usuário aponta a função certa antes de aplicar */}
+            {/* 3. Nomes que o catálogo não reconheceu: apontar a função certa (ou descartar) antes de aplicar */}
             {unknownToMap.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
                 <div>
@@ -1120,7 +1242,7 @@ export default function ScalingSuggestionPage() {
                         <Select value={pasteNameMap[key] ?? SKIP_FUNCTION} onValueChange={(v) => mapUnknownName(name, v)}>
                           <SelectTrigger aria-label={`Função para ${name}`} className="h-8 w-[260px] max-w-full text-xs rounded-lg bg-white"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value={SKIP_FUNCTION}>Descartar esta linha</SelectItem>
+                            <SelectItem value={SKIP_FUNCTION}>Descartar linha</SelectItem>
                             {sortedFunctions.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
@@ -1131,7 +1253,37 @@ export default function ScalingSuggestionPage() {
               </div>
             )}
 
-            {/* Ajuda: formatos aceitos + escolha manual do formato (fechado por padrão) */}
+            {/* 4. Como vai entrar na grade: prévia por função + substituídas × novas */}
+            {!pasteAnalyzing && pasteParsed && pasteParsed.rows.length > 0 && (
+              <div className="rounded-lg border border-slate-200 overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border-b border-slate-200 px-3 py-1.5">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Como vai entrar na grade</p>
+                  <p className={cn("text-[11px] tabular-nums", pasteImpact.replaced > 0 ? "font-medium text-amber-800" : "text-slate-500")}>
+                    {pasteImpact.replaced > 0
+                      ? `${plural(pasteImpact.replaced, "linha substituída", "linhas substituídas")}, ${pasteImpact.added} ${pasteImpact.added === 1 ? "nova" : "novas"}`
+                      : plural(pasteImpact.added, "linha nova", "linhas novas")}
+                  </p>
+                </div>
+                <ul className="max-h-[160px] overflow-y-auto divide-y divide-slate-100">
+                  {pasteParsed.rows.map((r) => {
+                    const days = dates.filter((d) => (r.quantities[d] || 0) > 0);
+                    return (
+                      <li key={r.rowId} className="flex items-baseline gap-2 px-3 py-1.5 text-xs">
+                        <span className="w-[150px] shrink-0 truncate font-semibold text-slate-800" title={r.functionName}>
+                          {r.functionName}
+                          {presentFunctionIds.has(r.functionId) && <span className="ml-1 font-normal text-amber-700">(substitui)</span>}
+                        </span>
+                        <span className="min-w-0 truncate font-mono tabular-nums text-slate-600">
+                          {days.length > 0 ? days.map((d) => `${formatDayMonthBr(d)}×${r.quantities[d]}`).join(" · ") : "sem quantidades"}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+
+            {/* 5. Formato: seletor + explicação curta, recolhidos */}
             <details
               open={showPasteHelp}
               onToggle={(e) => setShowPasteHelp((e.currentTarget as HTMLDetailsElement).open)}
@@ -1194,162 +1346,147 @@ export default function ScalingSuggestionPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Confirmações (componente único) */}
+
       {/* Colagem: substituir funções já na grade */}
-      <AlertDialog open={!!pendingPaste} onOpenChange={(o) => { if (!o) setPendingPaste(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Substituir {pendingPaste?.conflicts.length} {pendingPaste?.conflicts.length === 1 ? "função" : "funções"} já na grade?</AlertDialogTitle>
-            <AlertDialogDescription>
-              As linhas de <strong>{pendingPaste?.conflicts.join(", ")}</strong> serão substituídas pelas coladas (quantidades e dados de viagem). As demais linhas da grade ficam como estão.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Voltar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => pendingPaste && commitPaste(pendingPaste.rows, pendingPaste.skippedNames, pendingPaste.conflicts.length)} className="bg-primary hover:bg-primary-hover">
-              Substituir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!pendingPaste}
+        onOpenChange={(o) => { if (!o) setPendingPaste(null); }}
+        title={`Substituir ${pendingPaste?.conflicts.length} ${pendingPaste?.conflicts.length === 1 ? "função" : "funções"} já na grade?`}
+        cancelLabel="Voltar"
+        confirmLabel="Substituir"
+        onConfirm={() => pendingPaste && commitPaste(pendingPaste.rows, pendingPaste.skippedNames, pendingPaste.conflicts.length)}
+      >
+        <p>
+          As linhas de <strong>{pendingPaste?.conflicts.join(", ")}</strong> serão substituídas pelas coladas (quantidades e dados de viagem). As demais linhas da grade ficam como estão.
+        </p>
+      </ConfirmDialog>
+
+      {/* Copiar de evento: substituir funções já na grade (mesma confirmação da colagem) */}
+      <ConfirmDialog
+        open={!!pendingCopy}
+        onOpenChange={(o) => { if (!o) setPendingCopy(null); }}
+        title={`Substituir ${pendingCopy?.conflicts.length} ${pendingCopy?.conflicts.length === 1 ? "função" : "funções"} já na grade?`}
+        cancelLabel="Voltar"
+        confirmLabel="Substituir"
+        onConfirm={() => pendingCopy && commitCopy(pendingCopy.result, pendingCopy.sourceName, pendingCopy.conflicts.length)}
+      >
+        <p>
+          As linhas de <strong>{pendingCopy?.conflicts.join(", ")}</strong> serão substituídas pelas de <strong>{pendingCopy?.sourceName}</strong> (quantidades e dados de viagem)
+          — inclusive quando a cópia trouxer a função sem quantidade no período atual. As demais linhas da grade ficam como estão.
+        </p>
+      </ConfirmDialog>
 
       {/* Colagem: a planilha tem dias fora do período da grade */}
-      <AlertDialog open={!!pendingPasteDates} onOpenChange={(o) => { if (!o) setPendingPasteDates(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              A planilha tem {pendingPasteDates?.dates.length} {pendingPasteDates?.dates.length === 1 ? "dia" : "dias"} fora do período da grade
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingPasteDates && (
-                <>
-                  A grade cobre {formatDateRange(applied.start, applied.end)} e a planilha traz quantidades em{" "}
-                  <strong>{pendingPasteDates.dates.map((d) => formatDayMonthBr(d)).join(", ")}</strong>.{" "}
-                  {pendingPasteDates.expansion.changed ? (
-                    <>Posso ajustar o período para {formatDateRange(pendingPasteDates.expansion.start, pendingPasteDates.expansion.end)} e colar tudo.{" "}
-                      {pendingPasteDates.expansion.ignored.length > 0 && (
-                        <>Mesmo assim, {pendingPasteDates.expansion.ignored.map((d) => formatDayMonthBr(d)).join(", ")} continuam de fora
-                          (a grade só vai até {PERIOD_MARGIN_DAYS} dias antes/depois do evento).{" "}</>
-                      )}
-                    </>
-                  ) : (
-                    <>Não dá para ampliar a grade até esses dias (limite de {PERIOD_MARGIN_DAYS} dias antes/depois do evento). Colando assim, eles são ignorados.{" "}</>
-                  )}
-                  Mantendo o período, as quantidades desses dias são descartadas.
-                </>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={rejectPasteExpansion}>Manter período e ignorar</AlertDialogCancel>
-            {pendingPasteDates?.expansion.changed && (
-              <AlertDialogAction onClick={acceptPasteExpansion} className="bg-primary hover:bg-primary-hover">Ajustar o período</AlertDialogAction>
+      <ConfirmDialog
+        open={!!pendingPasteDates}
+        onOpenChange={(o) => { if (!o) setPendingPasteDates(null); }}
+        title={`A planilha tem ${pendingPasteDates?.dates.length} ${pendingPasteDates?.dates.length === 1 ? "dia" : "dias"} fora do período da grade`}
+        cancelLabel="Manter período e ignorar"
+        onCancel={rejectPasteExpansion}
+        confirmLabel={pendingPasteDates?.expansion.changed ? "Ajustar o período" : undefined}
+        onConfirm={acceptPasteExpansion}
+      >
+        {pendingPasteDates && (
+          <p>
+            A grade cobre {formatDateRange(applied.start, applied.end)} e a planilha traz quantidades em{" "}
+            <strong>{pendingPasteDates.dates.map((d) => formatDayMonthBr(d)).join(", ")}</strong>.{" "}
+            {pendingPasteDates.expansion.changed ? (
+              <>Posso ajustar o período para {formatDateRange(pendingPasteDates.expansion.start, pendingPasteDates.expansion.end)} e colar tudo.{" "}
+                {pendingPasteDates.expansion.ignored.length > 0 && (
+                  <>Mesmo assim, {pendingPasteDates.expansion.ignored.map((d) => formatDayMonthBr(d)).join(", ")} continuam de fora
+                    (a grade só vai até {PERIOD_MARGIN_DAYS} dias antes/depois do evento).{" "}</>
+                )}
+              </>
+            ) : (
+              <>Não dá para ampliar a grade até esses dias (limite de {PERIOD_MARGIN_DAYS} dias antes/depois do evento). Colando assim, eles são ignorados.{" "}</>
             )}
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            Mantendo o período, as quantidades desses dias são descartadas.
+          </p>
+        )}
+      </ConfirmDialog>
 
       {/* Encolher período com quantidades fora */}
-      <AlertDialog open={!!pendingPeriod} onOpenChange={(o) => { if (!o) cancelPendingPeriod(); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Descartar quantidades fora do novo período?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingPeriod && (
-                <>
-                  <strong>{pendingPeriod.pessoasDia} pessoas-dia</strong> em <strong>{pendingPeriod.dias} {pendingPeriod.dias === 1 ? "dia" : "dias"}</strong> fora do novo período
-                  ({formatDateRange(pendingPeriod.start, pendingPeriod.end)}) serão descartados. As demais quantidades continuam na grade.
-                </>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={cancelPendingPeriod}>Manter período</AlertDialogCancel>
-            <AlertDialogAction onClick={() => pendingPeriod && applyPeriod(pendingPeriod.start, pendingPeriod.end)} className="bg-destructive hover:bg-destructive/90">
-              Descartar e aplicar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!pendingPeriod}
+        onOpenChange={(o) => { if (!o) cancelPendingPeriod(); }}
+        title="Descartar quantidades fora do novo período?"
+        cancelLabel="Manter período"
+        onCancel={cancelPendingPeriod}
+        confirmLabel="Descartar e aplicar"
+        destructive
+        onConfirm={() => pendingPeriod && applyPeriod(pendingPeriod.start, pendingPeriod.end)}
+      >
+        {pendingPeriod && (
+          <p>
+            <strong>{pendingPeriod.pessoasDia} pessoas-dia</strong> em <strong>{pendingPeriod.dias} {pendingPeriod.dias === 1 ? "dia" : "dias"}</strong> fora do novo período
+            ({formatDateRange(pendingPeriod.start, pendingPeriod.end)}) serão descartados. As demais quantidades continuam na grade.
+          </p>
+        )}
+      </ConfirmDialog>
 
-      {/* Confirmar remoção de linha com quantidades */}
-      <AlertDialog open={!!confirmRemove} onOpenChange={(o) => { if (!o) setConfirmRemove(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remover a linha {rowToRemove?.functionName}?</AlertDialogTitle>
-            <AlertDialogDescription>Ela tem quantidades preenchidas — serão descartadas junto com os dados de viagem da linha.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => confirmRemove && removeRowNow(confirmRemove)} className="bg-destructive hover:bg-destructive/90">Remover</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Remover linha com quantidades */}
+      <ConfirmDialog
+        open={!!confirmRemove}
+        onOpenChange={(o) => { if (!o) setConfirmRemove(null); }}
+        title={`Remover a linha ${rowToRemove?.functionName}?`}
+        confirmLabel="Remover"
+        destructive
+        onConfirm={() => confirmRemove && removeRowNow(confirmRemove)}
+      >
+        <p>Ela tem quantidades preenchidas — serão descartadas junto com os dados de viagem da linha.</p>
+      </ConfirmDialog>
 
-      {/* Confirmar envio */}
-      <AlertDialog open={confirmSend} onOpenChange={setConfirmSend}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Enviar escala para validação?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Serão criadas <strong>{records.length}</strong> vaga(s) sugerida(s) para <strong>{selectedEvent?.name}</strong> e as áreas responsáveis passam a vê-las na Validação de Escala. A operação é única: ou todas entram, ou nenhuma.
-              {pendencias.warnings.length > 0 && <> Há {pendencias.warnings.length} {pendencias.warnings.length === 1 ? "aviso" : "avisos"} na grade (passagem sem datas) — o envio segue mesmo assim.</>}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Voltar</AlertDialogCancel>
-            <AlertDialogAction onClick={(e) => { e.preventDefault(); sendMutation.mutate(); }} disabled={busy} className="bg-primary hover:bg-primary-hover">
-              {busy ? "Enviando…" : "Enviar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Enviar */}
+      <ConfirmDialog
+        open={confirmSend}
+        onOpenChange={(o) => { if (!o) setConfirmSend(false); }}
+        title="Enviar escala para validação?"
+        cancelLabel="Voltar"
+        confirmLabel={busy ? "Enviando…" : "Enviar"}
+        pending={busy}
+        onConfirm={() => sendMutation.mutate()}
+      >
+        <p>
+          Serão criadas <strong>{records.length}</strong> vaga(s) sugerida(s) para <strong>{selectedEvent?.name}</strong> e as áreas responsáveis passam a vê-las na Validação de Escala. A operação é única: ou todas entram, ou nenhuma.
+          {pendencias.warnings.length > 0 && <> Há {pendencias.warnings.length} {pendencias.warnings.length === 1 ? "aviso" : "avisos"} na grade (passagem sem datas) — o envio segue mesmo assim.</>}
+        </p>
+      </ConfirmDialog>
 
-      {/* Confirmar cancelamento do envio (remove TUDO que está na Validação) */}
-      <AlertDialog open={confirmCancelSend} onOpenChange={(o) => { if (!o) setConfirmCancelSend(false); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Cancelar o envio e remover {sentSummary.total} {sentSummary.total === 1 ? "vaga" : "vagas"} de {selectedEvent?.name}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              <span className="block">
-                Serão removidas <strong>todas as {sentSummary.total} {sentSummary.total === 1 ? "vaga" : "vagas"}</strong> deste evento que estão na Validação de Escala —
-                {" "}<strong>inclusive as {sentSummary.validadas} que a área já validou</strong> e as {sentSummary.comPedido} com pedido em aberto,
-                cujos pedidos pendentes são encerrados na fila do aprovador.
-              </span>
-              <span className="block mt-2">
-                As vagas já <strong>aprovadas</strong> (que viraram Inclusão de Equipe) e as já negadas <strong>não</strong> são afetadas.
-                As áreas deixam de ver as vagas removidas na hora. Não há como desfazer — para voltar, monte a grade e envie de novo.
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={cancelSendMutation.isPending}>Voltar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => { e.preventDefault(); cancelSendMutation.mutate(); }}
-              disabled={cancelSendMutation.isPending}
-              className="bg-destructive hover:bg-destructive/90"
-              data-testid="scaling-suggestion-cancel-send-confirm"
-            >
-              {cancelSendMutation.isPending ? "Cancelando…" : "Cancelar envio e remover"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Cancelar envio (remove TUDO que está na Validação) */}
+      <ConfirmDialog
+        open={confirmCancelSend}
+        onOpenChange={(o) => { if (!o) setConfirmCancelSend(false); }}
+        title={`Cancelar o envio e remover ${sentSummary.total} ${sentSummary.total === 1 ? "vaga" : "vagas"} de ${selectedEvent?.name}?`}
+        cancelLabel="Voltar"
+        confirmLabel={cancelSendMutation.isPending ? "Cancelando…" : "Cancelar envio e remover"}
+        destructive
+        pending={cancelSendMutation.isPending}
+        onConfirm={() => cancelSendMutation.mutate()}
+        confirmTestId="scaling-suggestion-cancel-send-confirm"
+      >
+        <p>
+          Serão removidas <strong>todas as {sentSummary.total} {sentSummary.total === 1 ? "vaga" : "vagas"}</strong> deste evento que estão na Validação de Escala —
+          {" "}<strong>inclusive as {sentSummary.validadas} que a área já validou</strong> e as {sentSummary.comPedido} com pedido em aberto,
+          cujos pedidos pendentes são encerrados na fila do aprovador.
+        </p>
+        <p>
+          As vagas já <strong>aprovadas</strong> (que viraram Inclusão de Equipe) e as já negadas <strong>não</strong> são afetadas.
+          As áreas deixam de ver as vagas removidas na hora. Não há como desfazer — para voltar, monte a grade e envie de novo.
+        </p>
+      </ConfirmDialog>
 
-      {/* Confirmar limpar */}
-      <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Limpar a grade?</AlertDialogTitle>
-            <AlertDialogDescription>Todas as linhas, os comentários gerais editados e o rascunho local deste evento serão descartados. Nada é apagado no servidor.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={clearGrid} className="bg-destructive hover:bg-destructive/90">Limpar</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Limpar */}
+      <ConfirmDialog
+        open={confirmClear}
+        onOpenChange={(o) => { if (!o) setConfirmClear(false); }}
+        title="Limpar a grade?"
+        confirmLabel="Limpar"
+        destructive
+        onConfirm={clearGrid}
+      >
+        <p>Todas as linhas, os comentários gerais editados e o rascunho local deste evento serão descartados. Nada é apagado no servidor.</p>
+      </ConfirmDialog>
     </PageContainer>
   );
 }

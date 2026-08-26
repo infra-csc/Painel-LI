@@ -178,15 +178,15 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
 
   return (
     <Dialog open={open} onOpenChange={(o) => !mutation.isPending && onOpenChange(o)}>
-      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl">
         <DialogHeader>
           <DialogTitle>Pedir ajuste da vaga #{inclusion?.inclusionNumber}</DialogTitle>
           <DialogDescription>
-            {functionName ?? "Função"}{event ? ` · ${event.name}` : ""}. Altere só o que precisa; o aprovador vê o “de/para”.
+            {functionName ?? "Função"}{event ? ` · ${event.name}` : ""}. Altere só o que precisa — o aprovador vê o “de/para”.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5">
+        <div className="space-y-4">
           <ApproverCommentBanner info={inclusion?.lastDecision} />
           <div className="space-y-2">
             <Label className="text-xs text-slate-600">Dias de trabalho <span className="text-red-400">*</span></Label>
@@ -208,7 +208,7 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
           <TravelFields idPrefix="adj" value={travel} disabled={mutation.isPending} onChange={(p) => setTravel((t) => ({ ...t, ...p }))} />
 
           {diff.length > 0 && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3" data-testid="adjust-diff">
               <p className="text-[11px] font-bold uppercase tracking-wide text-amber-700 mb-2">O que muda ({diff.length})</p>
               <ul className="space-y-1 text-xs text-slate-700">
                 {diff.map((d) => (
@@ -231,9 +231,9 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
           {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
         </div>
 
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
-          <Button type="button" onClick={submit} disabled={mutation.isPending} className="bg-primary hover:bg-primary-hover">
+        <DialogFooter className="border-t border-slate-100 pt-3">
+          <Button type="button" variant="outline" className="rounded-lg" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
+          <Button type="button" onClick={submit} disabled={mutation.isPending} className="rounded-lg bg-primary hover:bg-primary-hover">
             {mutation.isPending ? "Enviando…" : "Enviar pedido de ajuste"}
           </Button>
         </DialogFooter>
@@ -275,7 +275,7 @@ export function DeleteRequestDialog({ open, onOpenChange, inclusion, functionNam
 
   return (
     <Dialog open={open} onOpenChange={(o) => !mutation.isPending && onOpenChange(o)}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md rounded-2xl">
         <DialogHeader>
           <DialogTitle>Pedir exclusão da vaga #{inclusion?.inclusionNumber}</DialogTitle>
           <DialogDescription>
@@ -290,8 +290,8 @@ export function DeleteRequestDialog({ open, onOpenChange, inclusion, functionNam
           {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
         </div>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
-          <Button type="button" variant="destructive" onClick={submit} disabled={mutation.isPending}>
+          <Button type="button" variant="outline" className="rounded-lg" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
+          <Button type="button" variant="destructive" className="rounded-lg" onClick={submit} disabled={mutation.isPending}>
             {mutation.isPending ? "Enviando…" : "Pedir exclusão"}
           </Button>
         </DialogFooter>
@@ -390,13 +390,13 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
 
   return (
     <Dialog open={open} onOpenChange={(o) => !mutation.isPending && onOpenChange(o)}>
-      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl">
         <DialogHeader>
           <DialogTitle>Incluir escalação{event ? ` — ${event.name}` : ""}</DialogTitle>
           <DialogDescription>Pedido de vaga nova para o aprovador da função. Se aprovado, as vagas nascem já como Inclusão (aguardando escalação).</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5">
+        <div className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
             <div className="space-y-1">
               <Label htmlFor="inc-function" className="text-xs text-slate-600">Função <span className="text-red-400">*</span></Label>
@@ -441,9 +441,9 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
           {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
         </div>
 
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
-          <Button type="button" onClick={submit} disabled={mutation.isPending || !event} className="bg-primary hover:bg-primary-hover">
+        <DialogFooter className="border-t border-slate-100 pt-3">
+          <Button type="button" variant="outline" className="rounded-lg" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
+          <Button type="button" onClick={submit} disabled={mutation.isPending || !event} className="rounded-lg bg-primary hover:bg-primary-hover">
             {mutation.isPending ? "Enviando…" : "Enviar pedido de inclusão"}
           </Button>
         </DialogFooter>

@@ -1,5 +1,7 @@
-import { ChevronRight } from "lucide-react";
+import type { MouseEvent } from "react";
+import { CheckCircle2, ChevronRight, PencilLine, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { formatDateBr } from "@/lib/dates";
 import { CHANGE_REQUEST_STATUS, CHANGE_REQUEST_TYPE_LABELS, daysPending, type ChangeRequestType } from "@shared/scaling-validation-rules";
@@ -11,12 +13,25 @@ interface RequestQueueProps {
   onOpen: (item: ChangeRequestItem) => void;
   /** Mostrar a coluna do evento (quando o filtro é "todos"). */
   showEvent?: boolean;
+  /** Decisões direto da fila (abrem os mesmos diálogos do detalhe). Sem elas a linha só abre o detalhe. */
+  onApprove?: (item: ChangeRequestItem) => void;
+  onReajustar?: (item: ChangeRequestItem) => void;
+  onNegar?: (item: ChangeRequestItem) => void;
+  busy?: boolean;
 }
 
-const TH = "px-3 py-2 text-left text-xs uppercase tracking-wider text-slate-500 font-semibold whitespace-nowrap";
+const TH = "px-2.5 py-2 text-left text-[11px] uppercase tracking-[0.06em] text-slate-500 font-semibold whitespace-nowrap border-b border-slate-200";
+const ICON_BTN = "h-7 w-7 p-0 rounded-lg";
+
+/** Faixa colorida da linha, por tipo de pedido — a mesma leitura de cor dos badges. */
+const RAIL_CLASS: Record<ChangeRequestType, string> = {
+  ajuste: "bg-amber-400",
+  inclusao: "bg-emerald-400",
+  exclusao: "bg-red-400",
+};
 
 /** Resumo de uma linha: "vaga #12" ou "N vaga(s) nova(s)". */
-function targetLabel(r: ChangeRequestItem): string {
+export function targetLabel(r: ChangeRequestItem): string {
   if (r.requestType === "inclusao") {
     const q = r.proposed?.quantity ?? 1;
     return `${q} ${q === 1 ? "vaga nova" : "vagas novas"}`;
@@ -29,67 +44,123 @@ function rowAriaLabel(r: ChangeRequestItem): string {
   return `Abrir pedido de ${type.toLowerCase()} — ${r.functionName ?? "função"}, ${targetLabel(r)}${r.canDecide ? " (você decide)" : ""}`;
 }
 
-/** Nível 1 — fila de pedidos (tabela ≥ md, cards < md). Um único alvo clicável por linha. */
-export function RequestQueue({ items, onOpen, showEvent = true }: RequestQueueProps) {
+/**
+ * Conveniência de mouse: a linha inteira abre o pedido, mas cliques que nasceram
+ * dentro de outro controle da linha (decidir, abrir, links, campos) são ignorados.
+ * O foco/teclado continua no <button> do nome — a linha não é um tab stop.
+ */
+function isInnerControlClick(e: MouseEvent<HTMLTableRowElement>): boolean {
+  return !!(e.target as HTMLElement).closest('button, a, input, [role="checkbox"]');
+}
+
+/** Nível 1 — fila de pedidos (tabela ≥ md, cards < md). Decisão na própria linha ou pelo detalhe. */
+export function RequestQueue({ items, onOpen, showEvent = true, onApprove, onReajustar, onNegar, busy }: RequestQueueProps) {
+  const canAct = !!(onApprove && onReajustar && onNegar);
   return (
     <>
       <div className="hidden md:block rounded-2xl border border-slate-200 bg-white overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-sm">
+          <table className="w-full min-w-[1000px] text-[13px]">
             <caption className="sr-only">Pedidos de ajuste, inclusão e exclusão</caption>
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="bg-slate-50">
               <tr>
-                <th className={TH}>Tipo</th>
-                <th className={TH}>Função / vaga</th>
-                {showEvent && <th className={TH}>Evento</th>}
-                <th className={TH}>Solicitante</th>
-                <th className={TH}>Motivo</th>
-                <th className={TH}>Aberto</th>
-                <th className={TH}>Status</th>
-                <th className={cn(TH, "text-right")}><span className="sr-only">Abrir</span></th>
+                <th scope="col" className={cn(TH, "w-9 px-0 pl-3")}><span className="sr-only">Tipo (faixa)</span></th>
+                <th scope="col" className={TH}>Pedido</th>
+                <th scope="col" className={TH}>Função / vaga</th>
+                {showEvent && <th scope="col" className={TH}>Evento</th>}
+                <th scope="col" className={cn(TH, "min-w-[240px]")}>Motivo</th>
+                <th scope="col" className={TH}>Aberto</th>
+                <th scope="col" className={cn(TH, "text-right", canAct ? "min-w-[230px]" : "min-w-[60px]")}>Decisão</th>
               </tr>
             </thead>
             <tbody>
               {items.map((r, i) => {
                 const pending = r.status === CHANGE_REQUEST_STATUS.PENDENTE;
                 const days = daysPending(r.createdAt);
+                const decidable = pending && r.canDecide && canAct;
                 return (
                   <tr
                     key={r.id}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={rowAriaLabel(r)}
+                    onClick={(e) => { if (!isInnerControlClick(e)) onOpen(r); }}
                     className={cn(
-                      "border-b border-slate-100 transition-colors cursor-pointer hover:bg-brand-soft/30 focus-visible:outline-none focus-visible:bg-brand-soft/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                      i % 2 === 1 ? "bg-slate-50/40" : "bg-white",
+                      "border-b border-slate-100 cursor-pointer transition-colors hover:bg-brand-soft/30",
+                      i % 2 === 1 ? "bg-slate-50/50" : "bg-white",
                     )}
-                    onClick={() => onOpen(r)}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(r); } }}
                   >
-                    <td className="px-3 py-2">
+                    <td className="w-9 p-0">
+                      <span className={cn("block w-1 h-12 ml-3 rounded-full", RAIL_CLASS[r.requestType as ChangeRequestType] ?? "bg-slate-300")} aria-hidden="true" />
+                    </td>
+                    <td className="px-2.5 py-2 align-middle">
                       <div className="flex flex-col items-start gap-1">
                         <RequestTypeBadge type={r.requestType} />
-                        {pending && r.canDecide && <CanDecideBadge />}
+                        <RequestStatusBadge status={r.status} />
                       </div>
                     </td>
-                    <td className="px-3 py-2 max-w-[260px]">
-                      <span className="block font-semibold text-slate-800 truncate" title={r.functionName ?? undefined}>{r.functionName ?? "—"}</span>
+                    <td className="px-2.5 py-2 align-middle max-w-[240px]">
+                      <button
+                        type="button"
+                        onClick={() => onOpen(r)}
+                        aria-label={rowAriaLabel(r)}
+                        className="block max-w-full truncate text-left font-semibold text-slate-800 rounded-sm hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        title={r.functionName ?? undefined}
+                      >
+                        {r.functionName ?? "—"}
+                      </button>
                       <span className="block text-[11px] text-slate-400 font-mono">{targetLabel(r)}{r.area ? ` · ${r.area}` : ""}</span>
+                      <span className="block text-[11px] text-slate-400 truncate" title={r.requestedByName ?? undefined}>por {r.requestedByName}</span>
                     </td>
-                    {showEvent && <td className="px-3 py-2 text-xs text-slate-600 max-w-[200px]"><span className="block truncate" title={r.eventName ?? undefined}>{r.eventName ?? "—"}</span></td>}
-                    <td className="px-3 py-2 text-xs text-slate-700 max-w-[160px]">
-                      <span className="block truncate" title={r.requestedByName ?? undefined}>{r.requestedByName}</span>
+                    {showEvent && <td className="px-2.5 py-2 align-middle text-xs text-slate-600 max-w-[180px]"><span className="block truncate" title={r.eventName ?? undefined}>{r.eventName ?? "—"}</span></td>}
+                    <td className="px-2.5 py-2 align-middle min-w-[240px] max-w-[340px]">
+                      {r.reason
+                        ? <span className="block text-xs text-slate-600 truncate" title={r.reason}>{r.reason}</span>
+                        : <span className="block text-xs text-slate-300">—</span>}
+                      {pending && r.canDecide && <CanDecideBadge className="mt-1" />}
                     </td>
-                    <td className="px-3 py-2 text-xs text-slate-600 max-w-[260px]">
-                      {r.reason ? <span className="block line-clamp-1 break-words" title={r.reason}>{r.reason}</span> : <span className="text-slate-300">—</span>}
+                    <td className="px-2.5 py-2 align-middle whitespace-nowrap">
+                      {pending
+                        ? <RequestAgeBadge days={days} />
+                        : <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-400">{formatDateBr(r.createdAt ? new Date(r.createdAt) : null)}</span>}
                     </td>
-                    <td className="px-3 py-2 text-xs whitespace-nowrap">
-                      {pending ? <RequestAgeBadge days={days} /> : <span className="font-mono text-slate-500">{formatDateBr(r.createdAt ? new Date(r.createdAt) : null)}</span>}
-                    </td>
-                    <td className="px-3 py-2"><RequestStatusBadge status={r.status} /></td>
-                    <td className="px-3 py-2 text-right">
-                      {/* Decorativo: a linha inteira é o alvo (evita botão aninhado no tab order). */}
-                      <ChevronRight className="w-4 h-4 text-primary inline-block" aria-hidden="true" />
+                    <td className="px-2.5 py-2 align-middle text-right">
+                      <span className="inline-flex items-center gap-1.5">
+                        {decidable && (
+                          <>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button type="button" size="sm" variant="outline" className={cn(ICON_BTN, "text-red-700 border-red-200 hover:bg-red-50")} disabled={busy}
+                                  onClick={() => onNegar!(r)} aria-label={`Negar o pedido de ${r.functionName ?? "função"}`}>
+                                  <XCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs">Negar pedido</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button type="button" size="sm" variant="outline" className={ICON_BTN} disabled={busy}
+                                  onClick={() => onReajustar!(r)} aria-label={`Reajustar o pedido de ${r.functionName ?? "função"}`}>
+                                  <PencilLine className="w-3.5 h-3.5" aria-hidden="true" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs">Reajustar pedido</TooltipContent>
+                            </Tooltip>
+                            <Button type="button" size="sm" className="h-7 rounded-lg px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white" disabled={busy}
+                              onClick={() => onApprove!(r)} aria-label={`Aprovar o pedido de ${r.functionName ?? "função"}`}>
+                              <CheckCircle2 className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Aprovar
+                            </Button>
+                          </>
+                        )}
+                        {pending && !r.canDecide && (
+                          <span className="text-[11px] text-slate-400">Aprovador da função decide</span>
+                        )}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button type="button" size="sm" variant="outline" className={cn(ICON_BTN, "text-primary")} onClick={() => onOpen(r)} aria-label={rowAriaLabel(r)}>
+                              <ChevronRight className="w-4 h-4" aria-hidden="true" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs">Abrir pedido</TooltipContent>
+                        </Tooltip>
+                      </span>
                     </td>
                   </tr>
                 );

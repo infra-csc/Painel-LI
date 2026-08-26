@@ -1,7 +1,9 @@
+import { BedDouble, Ticket } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { TRANSPORT_MODES, TRANSPORT_MODE_LABELS, type TransportMode } from "@shared/scaling-validation-rules";
 import type { TeamInclusion } from "@shared/schema";
 import { ymd } from "./types";
@@ -70,64 +72,76 @@ function ModeSelect({ id, value, onChange, disabled }: { id: string; value: Tran
   );
 }
 
-/** Bloco de campos de ida/volta + hotel/passagem, reutilizado nos diálogos de pedido. */
+const GROUP_TITLE = "text-[10px] font-bold uppercase tracking-wider text-slate-400";
+const FIELD_LABEL = "text-[11px] text-slate-500";
+
+/**
+ * Bloco de campos de ida/volta + hotel/passagem, reutilizado nos diálogos de
+ * pedido: um cartão só, com os três grupos lado a lado (ida · volta · precisa de).
+ */
 export function TravelFields({ value, onChange, disabled, idPrefix: p }: TravelFieldsProps) {
-  const lbl = "text-xs text-slate-600";
   return (
-    <div className="space-y-4">
-      <fieldset className="rounded-xl border border-slate-200 p-3 space-y-3">
-        <legend className="px-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Ida</legend>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-1">
-            <Label htmlFor={`${p}-mode-ida`} className={lbl}>Transporte</Label>
+    <div className="rounded-xl border border-slate-200 bg-white p-3 flex flex-wrap gap-x-6 gap-y-4">
+      <fieldset className="space-y-2 min-w-0">
+        <legend className={GROUP_TITLE}>Ida</legend>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="space-y-1 w-[120px]">
+            <Label htmlFor={`${p}-mode-ida`} className={FIELD_LABEL}>Transporte</Label>
             <ModeSelect id={`${p}-mode-ida`} value={value.transportModeIda} disabled={disabled} onChange={(v) => onChange({ transportModeIda: v })} />
           </div>
-          <div className="space-y-1">
-            <Label htmlFor={`${p}-date-ida`} className={lbl}>Data de ida</Label>
-            <Input id={`${p}-date-ida`} type="date" value={value.flightDepartureDate} disabled={disabled} onChange={(e) => onChange({ flightDepartureDate: e.target.value })} className="h-9 rounded-lg" />
+          <div className="space-y-1 w-[140px]">
+            <Label htmlFor={`${p}-date-ida`} className={FIELD_LABEL}>Data</Label>
+            <Input id={`${p}-date-ida`} type="date" value={value.flightDepartureDate} disabled={disabled} onChange={(e) => onChange({ flightDepartureDate: e.target.value })} className="h-9 rounded-lg text-xs" />
           </div>
-          <div className="space-y-1">
-            <Label htmlFor={`${p}-time-ida`} className={lbl}>Horário de saída</Label>
-            <Input id={`${p}-time-ida`} type="time" value={value.flightDepartureSuggestedTime} disabled={disabled} onChange={(e) => onChange({ flightDepartureSuggestedTime: e.target.value })} className="h-9 rounded-lg" />
+          <div className="space-y-1 w-[104px]">
+            <Label htmlFor={`${p}-time-ida`} className={FIELD_LABEL}>Saída</Label>
+            <Input id={`${p}-time-ida`} type="time" value={value.flightDepartureSuggestedTime} disabled={disabled} onChange={(e) => onChange({ flightDepartureSuggestedTime: e.target.value })} className="h-9 rounded-lg text-xs" />
           </div>
-          <div className="space-y-1">
-            <Label htmlFor={`${p}-time-chegada`} className={lbl}>Horário de desembarque</Label>
-            <Input id={`${p}-time-chegada`} type="time" value={value.flightArrivalSuggestedTime} disabled={disabled} onChange={(e) => onChange({ flightArrivalSuggestedTime: e.target.value })} className="h-9 rounded-lg" />
+          <div className="space-y-1 w-[104px]">
+            <Label htmlFor={`${p}-time-chegada`} className={FIELD_LABEL}>Desembarque</Label>
+            <Input id={`${p}-time-chegada`} type="time" value={value.flightArrivalSuggestedTime} disabled={disabled} onChange={(e) => onChange({ flightArrivalSuggestedTime: e.target.value })} className="h-9 rounded-lg text-xs" />
           </div>
         </div>
       </fieldset>
 
-      <fieldset className="rounded-xl border border-slate-200 p-3 space-y-3">
-        <legend className="px-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Volta</legend>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="space-y-1">
-            <Label htmlFor={`${p}-mode-volta`} className={lbl}>Transporte</Label>
+      <fieldset className="space-y-2 min-w-0">
+        <legend className={GROUP_TITLE}>Volta</legend>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="space-y-1 w-[120px]">
+            <Label htmlFor={`${p}-mode-volta`} className={FIELD_LABEL}>Transporte</Label>
             <ModeSelect id={`${p}-mode-volta`} value={value.transportModeVolta} disabled={disabled} onChange={(v) => onChange({ transportModeVolta: v })} />
           </div>
-          <div className="space-y-1">
-            <Label htmlFor={`${p}-date-volta`} className={lbl}>Data de volta</Label>
-            <Input id={`${p}-date-volta`} type="date" value={value.flightReturnDate} disabled={disabled} min={value.flightDepartureDate || undefined} onChange={(e) => onChange({ flightReturnDate: e.target.value })} className="h-9 rounded-lg" />
+          <div className="space-y-1 w-[140px]">
+            <Label htmlFor={`${p}-date-volta`} className={FIELD_LABEL}>Data</Label>
+            <Input id={`${p}-date-volta`} type="date" value={value.flightReturnDate} disabled={disabled} min={value.flightDepartureDate || undefined} onChange={(e) => onChange({ flightReturnDate: e.target.value })} className="h-9 rounded-lg text-xs" />
           </div>
-          <div className="space-y-1">
-            <Label htmlFor={`${p}-time-volta`} className={lbl}>Horário de embarque</Label>
-            <Input id={`${p}-time-volta`} type="time" value={value.flightReturnSuggestedTime} disabled={disabled} onChange={(e) => onChange({ flightReturnSuggestedTime: e.target.value })} className="h-9 rounded-lg" />
+          <div className="space-y-1 w-[104px]">
+            <Label htmlFor={`${p}-time-volta`} className={FIELD_LABEL}>Embarque</Label>
+            <Input id={`${p}-time-volta`} type="time" value={value.flightReturnSuggestedTime} disabled={disabled} onChange={(e) => onChange({ flightReturnSuggestedTime: e.target.value })} className="h-9 rounded-lg text-xs" />
           </div>
         </div>
       </fieldset>
 
-      <div className="flex flex-wrap gap-5">
-        <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-          <Checkbox id={`${p}-hotel`} checked={value.needsAccommodation} disabled={disabled} onCheckedChange={(c) => onChange({ needsAccommodation: c === true })} />
-          Precisa de hospedagem
-        </label>
-        <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-          <Checkbox id={`${p}-ticket`} checked={value.needsTicket} disabled={disabled} onCheckedChange={(c) => onChange({ needsTicket: c === true })} />
-          Precisa de passagem
-        </label>
-      </div>
+      <fieldset className="space-y-2">
+        <legend className={GROUP_TITLE}>Precisa de</legend>
+        <div className="flex items-center gap-2">
+          <label className={cn(NEED_CHIP, value.needsAccommodation ? NEED_ON : NEED_OFF, disabled && "opacity-60 cursor-not-allowed")}>
+            <Checkbox id={`${p}-hotel`} checked={value.needsAccommodation} disabled={disabled} onCheckedChange={(c) => onChange({ needsAccommodation: c === true })} />
+            <BedDouble className="w-3.5 h-3.5" aria-hidden="true" /> Hotel
+          </label>
+          <label className={cn(NEED_CHIP, value.needsTicket ? NEED_ON : NEED_OFF, disabled && "opacity-60 cursor-not-allowed")}>
+            <Checkbox id={`${p}-ticket`} checked={value.needsTicket} disabled={disabled} onCheckedChange={(c) => onChange({ needsTicket: c === true })} />
+            <Ticket className="w-3.5 h-3.5" aria-hidden="true" /> Passagem
+          </label>
+        </div>
+      </fieldset>
     </div>
   );
 }
+
+const NEED_CHIP = "inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs font-medium transition-colors";
+const NEED_ON = "border-primary/30 bg-brand-soft text-primary";
+const NEED_OFF = "border-slate-200 bg-white text-slate-600 hover:border-primary/30";
 
 /** Erros de consistência dos campos de viagem (vazio = ok). */
 export function validateTravel(v: TravelDraft): string[] {

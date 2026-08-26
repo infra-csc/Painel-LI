@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
-import { CheckCircle2, ClipboardCheck, Clock, EyeOff, Search, ShieldCheck } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { CalendarDays, CheckCircle2, CheckSquare, ClipboardCheck, Clock, EyeOff, Search, ShieldCheck, Square } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -81,12 +79,29 @@ type QuickFilter = "pendentes" | "ajuste" | "inclusao" | "exclusao";
  */
 type ApprovalTab = "aprovacao" | "fila" | "paradas";
 
-/** Colunas dos tiles (classe fixa: Tailwind não gera classe montada em runtime). */
-const TILE_COLS: Record<number, string> = {
-  5: "md:grid-cols-5",
-  6: "md:grid-cols-6",
-  7: "md:grid-cols-7",
-};
+const TAB_TRIGGER = "h-7 rounded-lg px-3.5 text-[13px] font-medium";
+
+/**
+ * Filtro liga/desliga da barra de abas ("Só as minhas funções" / "Só os que
+ * posso decidir"). Botão com `aria-pressed` — mesmo estado do checkbox que
+ * substituiu, com a caixa do mockup.
+ */
+function ToggleFilter({ pressed, onPressedChange, label }: { pressed: boolean; onPressedChange: (v: boolean) => void; label: string }) {
+  const Icon = pressed ? CheckSquare : Square;
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={() => onPressedChange(!pressed)}
+      className={cn(
+        "inline-flex items-center gap-2 h-7 rounded-lg border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        pressed ? "border-primary/30 bg-brand-soft text-primary" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+      )}
+    >
+      <Icon className="w-3.5 h-3.5" aria-hidden="true" />{label}
+    </button>
+  );
+}
 
 export default function ScalingApprovalPage() {
   usePageTitle("Aprovação de Escala");
@@ -333,6 +348,11 @@ export default function ScalingApprovalPage() {
   // ── Decisões ──
   const closeAll = () => dispatch({ type: "close" });
   const openDetail = (r: ChangeRequestItem) => dispatch({ type: "open", id: r.id });
+  /** Abre o pedido já no diálogo pedido (ações da própria linha da fila). */
+  const openDetailWithMode = (r: ChangeRequestItem, mode: Exclude<OverlayMode, "closed">) => {
+    dispatch({ type: "open", id: r.id });
+    dispatch({ type: "mode", mode });
+  };
   /** Próximo pendente da fila (na ordem visível), fora o que acabou de ser decidido. */
   const nextPendingAfter = (id: string | null) =>
     filtered.find((r) => r.id !== id && r.status === CHANGE_REQUEST_STATUS.PENDENTE && r.canDecide)
@@ -417,59 +437,46 @@ export default function ScalingApprovalPage() {
         actions={<ScalingModuleNav current="approval" eventId={eventId} />}
       />
 
-      {readOnlyMode && !forbidden && (
-        <div role="status" className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-          <EyeOff className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-          <span><span className="font-semibold">Modo leitura</span> — você acompanha os pedidos, mas não decide. Quem decide é o aprovador de cada função.</span>
-        </div>
-      )}
-
-      {/* Filtros + contadores */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 space-y-4" aria-labelledby="apr-filtros">
+      {/* Barra de contexto + filtros */}
+      <section className="rounded-2xl border border-slate-200 bg-white px-4 py-3 space-y-3" aria-labelledby="apr-filtros">
         <h2 id="apr-filtros" className="sr-only">Filtros</h2>
-        <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)] items-end">
-          <div className="space-y-1">
-            <Label className="text-xs text-slate-500">Evento</Label>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <CalendarDays className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
             {loadingEvents ? (
-              <div className="h-9 rounded-lg bg-slate-100 animate-pulse" aria-hidden="true" />
+              <div className="h-8 w-[280px] max-w-full rounded-lg bg-slate-100 animate-pulse" aria-hidden="true" />
             ) : (
-              <div className={cn(needsEventHint && "rounded-lg ring-2 ring-primary/40 ring-offset-1")}>
-                <EventCombobox events={activeEvents} value={eventId || ALL} onValueChange={(v) => setEventId(v === ALL ? "" : v)} placeholder="Todos os eventos" showAllOption testId="scaling-approval-event" />
+              <div className={cn("w-[280px] max-w-full", needsEventHint && "rounded-lg ring-2 ring-primary/40 ring-offset-1")}>
+                <EventCombobox events={activeEvents} value={eventId || ALL} onValueChange={(v) => setEventId(v === ALL ? "" : v)} placeholder="Todos os eventos" showAllOption testId="scaling-approval-event" className="h-8 rounded-lg font-semibold" />
               </div>
             )}
-            {needsEventHint && <p className="text-[11px] text-primary" id="apr-event-hint">{needsEventHintText}</p>}
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="apr-type" className="text-xs text-slate-500">Tipo</Label>
-            <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TypeFilter)}>
-              <SelectTrigger id="apr-type" className="h-9 rounded-lg"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Todos os tipos</SelectItem>
-                {CHANGE_REQUEST_TYPES.map((t) => <SelectItem key={t} value={t}>{CHANGE_REQUEST_TYPE_LABELS[t]}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="apr-status" className="text-xs text-slate-500">Status</Label>
-            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-              <SelectTrigger id="apr-status" className="h-9 rounded-lg"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Todos os status</SelectItem>
-                {CHANGE_REQUEST_STATUS_VALUES.map((s) => <SelectItem key={s} value={s}>{CHANGE_REQUEST_STATUS_LABELS[s]}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="apr-search" className="text-xs text-slate-500">Buscar</Label>
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-              <Input id="apr-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Função, evento, #ID, solicitante ou motivo" className="h-9 pl-8 rounded-lg" />
-            </div>
+          <Label htmlFor="apr-type" className="sr-only">Tipo</Label>
+          <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TypeFilter)}>
+            <SelectTrigger id="apr-type" className="h-8 min-w-[150px] w-auto rounded-lg text-[13px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todos os tipos</SelectItem>
+              {CHANGE_REQUEST_TYPES.map((t) => <SelectItem key={t} value={t}>{CHANGE_REQUEST_TYPE_LABELS[t]}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Label htmlFor="apr-status" className="sr-only">Status</Label>
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+            <SelectTrigger id="apr-status" className="h-8 min-w-[150px] w-auto rounded-lg text-[13px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todos os status</SelectItem>
+              {CHANGE_REQUEST_STATUS_VALUES.map((s) => <SelectItem key={s} value={s}>{CHANGE_REQUEST_STATUS_LABELS[s]}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <div className="relative flex-1 min-w-[220px]">
+            <Label htmlFor="apr-search" className="sr-only">Buscar</Label>
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+            <Input id="apr-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Função, evento, #ID, solicitante ou motivo" className="h-8 pl-8 rounded-lg bg-slate-50 text-[13px]" />
           </div>
         </div>
+        {needsEventHint && <p className="-mt-1 text-[11px] text-primary" id="apr-event-hint">{needsEventHintText}</p>}
 
         {/* Contadores = filtros rápidos (clicar de novo limpa) */}
-        <div className={cn("grid grid-cols-2 sm:grid-cols-3 gap-2", TILE_COLS[tiles.length] ?? "md:grid-cols-5")} role="group" aria-label="Resumo da fila (filtros rápidos)">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Resumo da fila (filtros rápidos)">
           {tiles.map((t) => (
             <button
               key={t.key}
@@ -478,12 +485,12 @@ export default function ScalingApprovalPage() {
               aria-pressed={t.active}
               title={t.hint}
               className={cn(
-                "rounded-xl border px-2 py-2 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "flex-1 min-w-[132px] rounded-xl border px-2.5 py-2 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 t.active ? "border-primary bg-brand-soft/60 shadow-sm" : "border-slate-100 bg-slate-50/60 hover:border-slate-300 hover:bg-white",
               )}
             >
-              <span className={cn("block text-xs uppercase tracking-wide", t.active ? "text-primary font-semibold" : "text-slate-500")}>{t.label}</span>
-              <span className={cn("block text-lg font-bold tabular-nums text-slate-800", t.cls)}>
+              <span className={cn("block text-[10px] font-semibold uppercase tracking-[0.05em]", t.active ? "text-primary" : "text-slate-500")}>{t.label}</span>
+              <span className={cn("mt-0.5 block text-lg font-bold tabular-nums text-slate-800", t.cls)}>
                 {(t.loading ?? pendingQuery.isLoading) ? "…" : t.n}
               </span>
             </button>
@@ -491,24 +498,46 @@ export default function ScalingApprovalPage() {
         </div>
       </section>
 
+      {readOnlyMode && !forbidden && (
+        <div role="status" className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-700">
+          <EyeOff className="w-4 h-4 shrink-0 text-slate-500" aria-hidden="true" />
+          <span><span className="font-semibold">Modo leitura</span> — você acompanha os pedidos, mas não decide. Quem decide é o aprovador de cada função.</span>
+        </div>
+      )}
+
       <Tabs value={tab} onValueChange={(v) => switchTab(v as ApprovalTab)} className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <TabsList className="rounded-xl">
+          <TabsList className="h-auto rounded-xl bg-slate-100 p-[3px]">
             {/* Caminho normal do fluxo desde 19/08: validar não aprova — a vaga passa por aqui. */}
             {isApprover && (
-              <TabsTrigger value="aprovacao" className="rounded-lg">
+              <TabsTrigger value="aprovacao" className={TAB_TRIGGER}>
                 Vagas aguardando aprovação{eventId && awaitingRowsAll.length > 0 ? ` (${awaitingRowsAll.length})` : ""}
               </TabsTrigger>
             )}
-            <TabsTrigger value="fila" className="rounded-lg">Fila de pedidos</TabsTrigger>
-            {isApprover && <TabsTrigger value="paradas" className="rounded-lg">Vagas paradas{eventId && stalledRows.length > 0 ? ` (${stalledRows.length})` : ""}</TabsTrigger>}
+            <TabsTrigger value="fila" className={TAB_TRIGGER}>Fila de pedidos</TabsTrigger>
+            {isApprover && <TabsTrigger value="paradas" className={TAB_TRIGGER}>Vagas paradas{eventId && stalledRows.length > 0 ? ` (${stalledRows.length})` : ""}</TabsTrigger>}
           </TabsList>
           <div className="flex flex-wrap items-center gap-3">
             {tab === "fila" && showMineFilter && (
-              <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
-                <Checkbox checked={mineOnly} onCheckedChange={(c) => setMineOnly(c === true)} aria-label="Só os que posso decidir" />
-                Só os que posso decidir{counts.meus ? ` (${counts.meus})` : ""}
-              </label>
+              <ToggleFilter
+                pressed={mineOnly}
+                onPressedChange={setMineOnly}
+                label={`Só os que posso decidir${counts.meus ? ` (${counts.meus})` : ""}`}
+              />
+            )}
+            {tab === "aprovacao" && showOnlyMineStalled && awaitingRowsAll.some((s) => s.canDecide !== true) && (
+              <ToggleFilter
+                pressed={onlyMineAwaiting}
+                onPressedChange={setOnlyMineAwaiting}
+                label={`Só as minhas funções${onlyMineAwaiting && awaitingRows.length !== awaitingRowsAll.length ? ` (${awaitingRowsAll.length - awaitingRows.length} oculta(s))` : ""}`}
+              />
+            )}
+            {tab === "paradas" && showOnlyMineStalled && stalledRowsAll.length > 0 && (
+              <ToggleFilter
+                pressed={onlyMineStalled}
+                onPressedChange={setOnlyMineStalled}
+                label={`Só as minhas funções${onlyMineStalled && stalledRows.length !== stalledRowsAll.length ? ` (${stalledRowsAll.length - stalledRows.length} oculta(s))` : ""}`}
+              />
             )}
             <p className="text-xs text-slate-500" aria-live="polite">
               {tab === "fila"
@@ -543,14 +572,6 @@ export default function ScalingApprovalPage() {
                       {stalledAwaiting.worst > 0 ? ` (a mais antiga há ${stalledAwaiting.worst} ${stalledAwaiting.worst === 1 ? "dia" : "dias"})` : ""} — a área já fez a parte dela.
                     </span>
                   </p>
-                )}
-                {showOnlyMineStalled && awaitingRowsAll.some((s) => s.canDecide !== true) && (
-                  <div className="flex items-center justify-end gap-2 text-xs text-slate-600">
-                    <Checkbox id="apr-only-mine-awaiting" checked={onlyMineAwaiting} onCheckedChange={(c) => setOnlyMineAwaiting(c === true)} />
-                    <label htmlFor="apr-only-mine-awaiting" className="cursor-pointer select-none">
-                      Só as minhas funções{onlyMineAwaiting && awaitingRows.length !== awaitingRowsAll.length ? ` (${awaitingRowsAll.length - awaitingRows.length} oculta(s))` : ""}
-                    </label>
-                  </div>
                 )}
                 {awaitingRows.length === 0 && awaitingRowsAll.length > 0 ? (
                   <EmptyState
@@ -597,7 +618,17 @@ export default function ScalingApprovalPage() {
               <EmptyState icon={CheckCircle2} title="Nenhum pedido pendente" description={eventId ? "Não há pedidos aguardando decisão neste evento." : "Não há pedidos aguardando decisão. Bom trabalho!"} />
             )
           ) : (
-            <RequestQueue items={filtered} onOpen={openDetail} showEvent={!eventId} />
+            <RequestQueue
+              items={filtered}
+              onOpen={openDetail}
+              showEvent={!eventId}
+              busy={busy}
+              // Decidir direto da fila: abre o pedido e já vai para o diálogo —
+              // "Cancelar"/"Voltar" cai no detalhe, o mesmo caminho do Sheet.
+              onApprove={(r) => openDetailWithMode(r, "approve")}
+              onReajustar={(r) => openDetailWithMode(r, "reajustar")}
+              onNegar={(r) => openDetailWithMode(r, "negar")}
+            />
           )}
         </TabsContent>
 
@@ -611,14 +642,6 @@ export default function ScalingApprovalPage() {
               <ErrorState title="Não foi possível carregar as vagas" description={apiErrorMessage(suggestionsQuery.error, "Tente novamente.")} onRetry={() => suggestionsQuery.refetch()} />
             ) : (
               <>
-                {showOnlyMineStalled && stalledRowsAll.length > 0 && (
-                  <div className="flex items-center justify-end gap-2 text-xs text-slate-600">
-                    <Checkbox id="apr-only-mine" checked={onlyMineStalled} onCheckedChange={(c) => setOnlyMineStalled(c === true)} />
-                    <label htmlFor="apr-only-mine" className="cursor-pointer select-none">
-                      Só as minhas funções{onlyMineStalled && stalledRows.length !== stalledRowsAll.length ? ` (${stalledRowsAll.length - stalledRows.length} oculta(s))` : ""}
-                    </label>
-                  </div>
-                )}
                 {stalledRows.length === 0 && stalledRowsAll.length > 0 ? (
                   <EmptyState
                     icon={CheckCircle2}

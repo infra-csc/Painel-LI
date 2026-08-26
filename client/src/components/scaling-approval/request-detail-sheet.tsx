@@ -7,6 +7,7 @@ import type { ChangeRequestItem } from "./types";
 import { CanDecideBadge, RequestAgeBadge, RequestStatusBadge, RequestTypeBadge, formatDateTimeBr } from "./request-badges";
 import { DiffTable, ProposedList, ReasonBlock } from "./request-detail";
 import { RequestChat } from "./request-chat";
+import { targetLabel } from "./request-queue";
 
 interface RequestDetailSheetProps {
   open: boolean;
@@ -52,7 +53,7 @@ export function RequestDetailSheet({ open, onOpenChange, request, onApprove, onR
               </div>
               <SheetTitle ref={titleRef} tabIndex={-1} className="text-base leading-tight outline-none">
                 {r.functionName ?? "Função"}
-                {r.inclusionNumber ? <span className="font-mono text-sm text-slate-400 font-normal"> · vaga #{r.inclusionNumber}</span> : null}
+                <span className="font-mono text-[13px] text-slate-400 font-normal"> · {targetLabel(r)}</span>
               </SheetTitle>
               <SheetDescription className="text-xs">
                 {r.eventName ?? "Evento"}{r.area ? ` · ${r.area}` : ""} · pedido por <span className="font-semibold text-slate-700">{r.requestedByName}</span> em {formatDateTimeBr(r.createdAt)}

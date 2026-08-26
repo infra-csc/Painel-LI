@@ -5,6 +5,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import type { Event } from "@shared/schema";
 
 function fmtDate(d?: string | null) {
@@ -25,6 +26,8 @@ interface EventComboboxProps {
   placeholder?: string;
   testId?: string;
   showAllOption?: boolean;
+  /** Classes extras do botão (ex.: `h-8 font-semibold` na barra de contexto da Sugestão). */
+  className?: string;
 }
 
 export default function EventCombobox({
@@ -34,6 +37,7 @@ export default function EventCombobox({
   placeholder = "Selecionar evento",
   testId = "event-combobox",
   showAllOption = true,
+  className,
 }: EventComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -68,7 +72,7 @@ export default function EventCombobox({
         <button
           data-testid={testId}
           type="button"
-          className="w-full h-9 flex items-center justify-between px-3 border border-slate-200 rounded-lg bg-white text-sm text-slate-700 cursor-pointer hover:border-blue-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-200"
+          className={cn("w-full h-9 flex items-center justify-between px-3 border border-slate-200 rounded-lg bg-white text-sm text-slate-700 cursor-pointer hover:border-blue-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-200", className)}
         >
           <span className="flex-1 text-left truncate text-slate-700">
             {displayValue}
