@@ -57,6 +57,7 @@ function safeTokenEqual(a: string, b: string): boolean {
 }
 import { getOperationalMirror, recalculateLogisticsSuggestions, exportOperationalMirrorExcel, patchOperationalMirrorCell } from "./operational-mirror";
 import { registerScalingValidationRoutes } from "./scaling-validation";
+import { effectiveUserId, registerSimulationRoutes } from "./simulation";
 import {
   uberGroups as uberGroupsTable,
   hotelRoomGroups as hotelRoomGroupsTable,
@@ -216,8 +217,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // rota /api exige sessão, exceto /api/auth, /api/integration e /api/portal).
   // Estes helpers cuidam da AUTORIZAÇÃO: quem, entre os autenticados, pode agir.
   // A identidade vem sempre da sessão — nunca do corpo da requisição.
+  // `effectiveUserId` (server/simulation.ts) devolve o usuário SIMULADO quando
+  // o admin está no modo "Ver como usuário" (as mutações já foram bloqueadas
+  // pelo guard global de somente leitura) e o usuário real fora dele.
   const requireRoles = async (req: any, res: any, roles: readonly CanonicalRole[]) => {
-    const userId = req.session?.userId;
+    const userId = effectiveUserId(req);
     if (!userId) {
       res.status(401).json({ message: "Não autenticado" });
       return null;
@@ -572,7 +576,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user = await storage.updateUser(user.id, updates as any) || user;
       }
 
-      // Criar sessão (marcada como autenticada via SSO)
+      // Criar sessão (marcada como autenticada via SSO). Uma simulação pendente
+      // ("Ver como usuário") NUNCA sobrevive à troca de dono da sessão — senão quem
+      // entra via SSO herdaria a identidade efetiva simulada pelo admin anterior.
+      delete (req.session as any).simulatedUserId;
+      delete (req.session as any).simulatedSince;
       req.session.userId = user.id;
       req.session.user = { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined };
       (req.session as any).ssoAuthenticated = true;
@@ -603,8 +611,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader("Pragma", "no-cache");
       res.setHeader("Expires", "0");
 
-      const userId = req.session.userId;
-      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+      // A autenticação (sessão + flag SSO) é SEMPRE do usuário REAL — a
+      // simulação roda por cima da sessão real e não mexe nisso.
+      const realUserId = req.session.userId;
+      if (!realUserId) return res.status(401).json({ message: "Não autenticado" });
 
       // Exige autenticação via SSO — sessões de login direto (sem flag) são rejeitadas
       // Em desenvolvimento, o check é ignorado para facilitar testes locais
@@ -614,14 +624,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Não autenticado", requirePortal: true });
       }
 
-      const user = await storage.getUser(userId);
+      // Modo Simulação: devolve o usuário SIMULADO + metadados para o banner.
+      let simulatedId = req.session.simulatedUserId;
+      let user = await storage.getUser(simulatedId ?? realUserId);
+      if (simulatedId && !user) {
+        // Usuário simulado sumiu do banco — encerra a simulação e volta ao real
+        delete req.session.simulatedUserId;
+        delete req.session.simulatedSince;
+        simulatedId = undefined;
+        user = await storage.getUser(realUserId);
+      }
       if (!user) {
         req.session.destroy(() => {});
         return res.status(401).json({ message: "Sessão inválida" });
       }
+
+      let simulation: { active: true; realUserName: string; simulatedSince: string | null } | null = null;
+      if (simulatedId) {
+        const realUser = await storage.getUser(realUserId);
+        simulation = {
+          active: true,
+          realUserName: realUser?.name ?? "Administrador",
+          simulatedSince: req.session.simulatedSince ?? null,
+        };
+      }
+
       const safeUser = { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined };
       const portalReturnUrl = (req.session as any).portalReturnUrl || null;
-      return res.json({ user: safeUser, portalReturnUrl });
+      return res.json({ user: safeUser, portalReturnUrl, simulation });
     } catch (error) {
       return res.status(500).json({ message: "Erro interno" });
     }
@@ -839,8 +869,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/users", async (req, res) => {
     try {
-      // Check authentication and authorization
-      const userId = req.session.userId;
+      // Check authentication and authorization (usuário efetivo — simulação)
+      const userId = effectiveUserId(req);
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
@@ -1346,10 +1376,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get functions for current user
+  // Get functions for current user (usuário efetivo — na simulação devolve as
+  // funções do usuário SIMULADO, como ele veria)
   app.get("/api/functions/my-functions", async (req, res) => {
     try {
-      const userId = req.session.userId;
+      const userId = effectiveUserId(req);
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
@@ -3251,8 +3282,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // System Logs route (admin only)
   app.get("/api/system-logs", async (req, res) => {
     try {
-      // Check authentication and authorization
-      const userId = req.session.userId;
+      // Check authentication and authorization (usuário efetivo — simulação)
+      const userId = effectiveUserId(req);
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
@@ -3419,8 +3450,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Budget Planned — Apply system defaults to all pending (not-yet-sent) records
   // ── Guardas do módulo financeiro ────────────────────────────────────────────
   // Identidade vem SOMENTE da sessão (o fallback _userId do corpo é forjável).
+  // Usuário EFETIVO: no modo simulação os GETs financeiros respondem como o
+  // usuário simulado (as escritas já foram barradas pelo guard global).
   const requireFinSession = (req: any, res: any): string | null => {
-    const userId = req.session?.userId;
+    const userId = effectiveUserId(req);
     if (!userId) {
       res.status(401).json({ message: "Não autenticado" });
       return null;
@@ -5065,7 +5098,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // GET /api/budget-notes?entityType=X&entityId=Y
   app.get("/api/budget-notes", async (req, res) => {
-    const userId = req.session.userId;
+    const userId = effectiveUserId(req);
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
     const { entityType, entityId } = req.query as Record<string, string>;
     if (!entityType || !entityId) return res.status(400).json({ message: "entityType e entityId obrigatórios" });
@@ -5129,7 +5162,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // GET /api/budget-notes/by-event?entityType=actual|planned&eventId=X
   app.get("/api/budget-notes/by-event", async (req, res) => {
-    const userId = req.session.userId;
+    const userId = effectiveUserId(req);
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
     const { entityType, eventId } = req.query as Record<string, string>;
     if (!entityType || !eventId) return res.status(400).json({ message: "entityType e eventId obrigatórios" });
@@ -5438,6 +5471,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Rotas em server/scaling-validation.ts; recebem os helpers de autorização e
   // auditoria daqui para não duplicar lógica nem criar import circular.
   registerScalingValidationRoutes(app, { requireRoles, createAuditLog });
+
+  // ── Modo Simulação — "Ver como usuário" (server/simulation.ts) ────────────
+  // POST /api/simulation/start e /stop; o guard de somente leitura vive em
+  // server/index.ts. Recebe o createAuditLog daqui pela mesma razão acima.
+  registerSimulationRoutes(app, { createAuditLog });
 
   const httpServer = createServer(app);
   return httpServer;

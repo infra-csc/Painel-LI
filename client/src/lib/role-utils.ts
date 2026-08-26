@@ -57,6 +57,7 @@ export interface RolePermissions {
   canEditScalingApproval: boolean;     // default do papel: admin — a decisão real é o canDecide do servidor, por cadastro de aprovador (qualquer papel cadastrado decide)
   canAccessScalingEventView: boolean;  // GET /api/scaling-suggestions/event-view — todos os papéis conhecidos (somente leitura)
   canAccessScalingManagers: boolean;   // aba Responsáveis da Escala dentro de Funções — permissões próprias, diferentes do catálogo (só admin)
+  canAccessSimulation: boolean;        // módulo "Ver como usuário" — espelha POST /api/simulation/start (só admin)
 }
 
 export function getRolePermissions(role: UserRole): RolePermissions {
@@ -96,6 +97,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditScalingApproval: true,
         canAccessScalingEventView: true,
         canAccessScalingManagers: true,   // aba Responsáveis da Escala — só admin
+        canAccessSimulation: true,        // "Ver como usuário" — só admin
       };
 
     case "production":
@@ -132,6 +134,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditScalingApproval: false,    // decide se for aprovador cadastrado (canDecide do servidor)
         canAccessScalingEventView: true,
         canAccessScalingManagers: false,  // aba Responsáveis da Escala — só admin
+        canAccessSimulation: false,       // "Ver como usuário" — só admin
       };
 
     case "function_area":
@@ -168,6 +171,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditScalingApproval: false,    // a decisão real é o canDecide do servidor, por cadastro
         canAccessScalingEventView: true,
         canAccessScalingManagers: false,  // aba Responsáveis da Escala — só admin
+        canAccessSimulation: false,       // "Ver como usuário" — só admin
       };
 
     case "purchasing":
@@ -204,6 +208,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditScalingApproval: false,      // decide se for aprovador cadastrado (canDecide do servidor)
         canAccessScalingEventView: true,
         canAccessScalingManagers: false,    // aba Responsáveis da Escala — só admin
+        canAccessSimulation: false,         // "Ver como usuário" — só admin
       };
 
     case "financial":
@@ -240,6 +245,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditScalingApproval: false,      // decide se for aprovador cadastrado (canDecide do servidor)
         canAccessScalingEventView: true,
         canAccessScalingManagers: false,    // aba Responsáveis da Escala — só admin
+        canAccessSimulation: false,         // "Ver como usuário" — só admin
       };
 
     default:
@@ -276,6 +282,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditScalingApproval: false,
         canAccessScalingEventView: false,
         canAccessScalingManagers: false,
+        canAccessSimulation: false,
       };
   }
 }

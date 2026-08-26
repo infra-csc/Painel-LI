@@ -44,6 +44,7 @@ const ScalingSuggestionPage  = lazy(() => import("@/pages/scaling-suggestion"));
 const ScalingValidationPage  = lazy(() => import("@/pages/scaling-validation"));
 const ScalingApprovalPage    = lazy(() => import("@/pages/scaling-approval"));
 const ScalingEventViewPage   = lazy(() => import("@/pages/scaling-event-view"));
+const SimulationPage         = lazy(() => import("@/pages/simulation"));
 
 import ProtectedRoute from "@/components/layout/protected-route";
 import { useAuth } from "@/hooks/use-auth";
@@ -100,6 +101,7 @@ const ORDERED_ROUTES: { path: string; permission: keyof RolePermissions }[] = [
   { path: "/system-settings",   permission: "canAccessFinanceiro"    },
   { path: "/consultation",      permission: "canAccessScreen6"       },
   { path: "/admin-users",       permission: "canAccessAdminUsers"    },
+  { path: "/simulation",        permission: "canAccessSimulation"    }, // "Ver como usuário" — só admin
 ];
 
 function HomeRedirect() {
@@ -242,6 +244,11 @@ function Router() {
             <Route path="/admin-users">
               <ProtectedRoute permission="canAccessAdminUsers">
                 <AdminUsers />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/simulation">
+              <ProtectedRoute permission="canAccessSimulation">
+                <SimulationPage />
               </ProtectedRoute>
             </Route>
             <Route path="/collaborators">

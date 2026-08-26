@@ -91,6 +91,7 @@ import {
   newEventCache,
   PAST_EVENT_BLOCK_MSG,
 } from "./event-guard";
+import { effectiveUserId } from "./simulation";
 
 // ── Dependências injetadas por routes.ts (evita import circular) ─────────────
 export interface ScalingValidationDeps {
@@ -160,7 +161,10 @@ function safeJson(raw: string | null | undefined): unknown {
 }
 
 async function getActor(req: Request, res: Response): Promise<User | null> {
-  const userId = (req as any).session?.userId as string | undefined;
+  // Usuário EFETIVO (server/simulation.ts): no modo "Ver como usuário" os GETs
+  // respondem como o usuário simulado — a fila que ele aprova, as funções que
+  // valida. As mutações nem chegam aqui (guard global de somente leitura).
+  const userId = effectiveUserId(req as any);
   if (!userId) { res.status(401).json({ message: "Não autenticado" }); return null; }
   const user = await storage.getUser(userId);
   if (!user) { res.status(401).json({ message: "Usuário não encontrado" }); return null; }

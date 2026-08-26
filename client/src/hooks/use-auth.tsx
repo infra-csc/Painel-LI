@@ -1,8 +1,20 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import type { User } from "@shared/schema";
 
+/**
+ * Modo Simulação ("Ver como usuário"): quando o admin está simulando outro
+ * usuário, o /api/auth/me devolve o usuário SIMULADO em `user` e estes
+ * metadados para o banner global. Fora da simulação é null.
+ */
+export interface SimulationInfo {
+  active: boolean;
+  realUserName: string;
+  simulatedSince: string | null;
+}
+
 interface AuthContextType {
   user: User | null;
+  simulation: SimulationInfo | null;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   setUser: (user: User | null) => void;
@@ -14,6 +26,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [simulation, setSimulation] = useState<SimulationInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -48,8 +61,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const res = await fetch("/api/auth/me", { credentials: "include" });
         if (res.ok) {
-          const { user: sessionUser, portalReturnUrl } = await res.json();
+          const { user: sessionUser, portalReturnUrl, simulation: sim } = await res.json();
           setUser(sessionUser);
+          setSimulation(sim?.active ? sim : null);
           localStorage.setItem("auth-user", JSON.stringify(sessionUser));
           if (portalReturnUrl) localStorage.setItem("portal-return-url", portalReturnUrl);
           setIsLoading(false);
@@ -102,11 +116,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     setUser(null);
+    setSimulation(null);
   };
 
   return (
     <AuthContext.Provider value={{
       user,
+      simulation,
       login,
       logout,
       setUser,

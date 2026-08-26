@@ -6,6 +6,7 @@ import rateLimit from "express-rate-limit";
 import { jwtVerify } from "jose";
 import { pool } from "./db";
 import { registerRoutes } from "./routes";
+import { simulationReadOnlyGuard } from "./simulation";
 import { setupVite, serveStatic, log } from "./vite";
 
 const PgSession = connectPgSimple(session);
@@ -212,7 +213,11 @@ app.use(async (req, res, next) => {
       user = await storage.updateUser(user.id, updates as any) || user;
     }
 
-    // Criar sessão (marcada como autenticada via SSO)
+    // Criar sessão (marcada como autenticada via SSO). Uma simulação pendente
+    // ("Ver como usuário") NUNCA sobrevive à troca de dono da sessão — senão
+    // quem entra via SSO herdaria a identidade efetiva simulada.
+    delete (req.session as any).simulatedUserId;
+    delete (req.session as any).simulatedSince;
     req.session.userId = user.id;
     req.session.user = { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined };
     (req.session as any).ssoAuthenticated = true;
@@ -261,6 +266,12 @@ app.use((req, res, next) => {
   );
   return res.status(401).json({ message: 'Não autenticado' });
 });
+
+// ── Modo Simulação: somente leitura ───────────────────────────────────────
+// Com `session.simulatedUserId` setado (admin vendo o sistema como outro
+// usuário — server/simulation.ts), toda mutação em /api responde 403, exceto
+// sair da simulação e logout. GET/HEAD/OPTIONS passam (OPTIONS = preflight).
+app.use(simulationReadOnlyGuard);
 
 // CSRF defense-in-depth — como em produção o cookie de sessão é SameSite=None
 // (necessário para o contexto cross-site do Portal Norte), validamos a origem

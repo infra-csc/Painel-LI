@@ -1,4 +1,6 @@
 import Sidebar from "./sidebar";
+import SimulationBanner, { SIMULATION_BANNER_H } from "./simulation-banner";
+import { useAuth } from "@/hooks/use-auth";
 import { useSidebar, TOPBAR_H } from "@/contexts/sidebar-context";
 import { X, Menu } from "lucide-react";
 import logoImg from "@assets/image_1776349526988.png";
@@ -9,16 +11,24 @@ interface MainLayoutProps {
 
 export default function MainLayout({ children }: MainLayoutProps) {
   const { isFocusMode, exitFocusMode, sidebarWidth, isMobileOpen, toggleMobile } = useSidebar();
+  // Modo Simulação: o banner global é fixo no topo — todo o layout desce a
+  // altura dele (inclusive a sidebar, que lê o mesmo flag).
+  const { simulation } = useAuth();
+  const simActive = !!simulation?.active;
 
   return (
-    <div className="min-h-dvh bg-background">
+    <div
+      className="min-h-dvh bg-background"
+      style={simActive ? { paddingTop: SIMULATION_BANNER_H } : undefined}
+    >
+      <SimulationBanner />
       <Sidebar />
 
       {/* Barra superior — só em telas < lg. Fica no fluxo (sticky), então o
           h1 da página nunca fica escondido atrás do botão de menu. */}
       <header
         className="lg:hidden sticky top-0 z-30 flex items-center gap-2 px-2 bg-white/90 backdrop-blur border-b border-slate-200"
-        style={{ height: TOPBAR_H }}
+        style={{ height: TOPBAR_H, top: simActive ? SIMULATION_BANNER_H : 0 }}
       >
         <button
           type="button"

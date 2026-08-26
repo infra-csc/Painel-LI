@@ -73,3 +73,21 @@ describe("getRolePermissions — módulo Validação de Escala", () => {
     expect(getRolePermissions("qualquer" as UserRole).canAccessScalingManagers).toBe(false);
   });
 });
+
+/**
+ * Módulo Simulação — "Ver como usuário" (espelha POST /api/simulation/start,
+ * que só o admin REAL da sessão pode chamar).
+ */
+describe("getRolePermissions — módulo Simulação (Ver como usuário)", () => {
+  const roles: UserRole[] = ["admin", "production", "function_area", "purchasing", "financial"];
+
+  it("só admin acessa o módulo de simulação", () => {
+    for (const r of roles) {
+      expect(getRolePermissions(r).canAccessSimulation).toBe(r === "admin");
+    }
+  });
+
+  it("perfil desconhecido não acessa", () => {
+    expect(getRolePermissions("qualquer" as UserRole).canAccessSimulation).toBe(false);
+  });
+});

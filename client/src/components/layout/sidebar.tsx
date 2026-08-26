@@ -7,6 +7,7 @@ import { useState, useMemo, useEffect } from "react";
 import { getSeenState } from "@/lib/seenSwaps";
 import { cn } from "@/lib/utils";
 import { useSidebar, SIDEBAR_W, SIDEBAR_COMPACT_W } from "@/contexts/sidebar-context";
+import { SIMULATION_BANNER_H } from "./simulation-banner";
 import { useQuery } from "@tanstack/react-query";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
@@ -64,6 +65,7 @@ const allTabs = [
   { id: "system-settings",   path: "/system-settings",   label: "Valores Padrão",        icon: "settings_suggest", permission: "canAccessFinanceiro"    as const },
   { id: "consultation",      path: "/consultation",      label: "Log de auditoria",        icon: "manage_search", permission: "canAccessScreen6"       as const },
   { id: "admin-users",       path: "/admin-users",       label: "Usuários",              icon: "manage_accounts", permission: "canAccessAdminUsers"    as const },
+  { id: "simulation",        path: "/simulation",        label: "Ver como usuário",      icon: "visibility", permission: "canAccessSimulation"    as const },
 ];
 
 // Cor por GRUPO (semântica: ajuda a se localizar no menu). O item ativo usa
@@ -80,7 +82,7 @@ const menuGroups: { title: string; iconClass: string; ids: string[]; subgroup?: 
     subgroup: { label: "Escala", ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "scaling-event-view"] },
   },
   { title: "Financeiro",  iconClass: "text-emerald-600", ids: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "flash-account", "calculation-rules", "system-settings"] },
-  { title: "Gestão",      iconClass: "text-violet-600",  ids: ["consultation", "admin-users"] },
+  { title: "Gestão",      iconClass: "text-violet-600",  ids: ["consultation", "admin-users", "simulation"] },
 ];
 
 
@@ -115,7 +117,9 @@ function IconBtn({ icon, label, onClick, danger, className }: {
 
 export default function Sidebar() {
   const [location] = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, simulation } = useAuth();
+  // Modo Simulação: o banner global ocupa o topo — a sidebar desce junto.
+  const simActive = !!simulation?.active;
   const {
     isCollapsed, isCompact, isFocusMode, isDesktop, isMobileOpen,
     toggleCollapsed, toggleCompact, enterFocusMode, exitFocusMode, setMobileOpen,
@@ -293,7 +297,12 @@ export default function Sidebar() {
           isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           sidebarHidden && "lg:-translate-x-full"
         )}
-        style={{ width: asideWidth }}
+        style={{
+          width: asideWidth,
+          ...(simActive
+            ? { top: SIMULATION_BANNER_H, height: `calc(100dvh - ${SIMULATION_BANNER_H}px)` }
+            : {}),
+        }}
       >
 
         {/* ── Logo ── */}
