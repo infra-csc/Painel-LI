@@ -60,6 +60,30 @@ export const functionUsers = pgTable("function_users", {
 }));
 
 // Tabela para usuários responsáveis pela função (podem confirmar escalações)
+/**
+ * Responsáveis do MÓDULO DE ESCALA (validador da área / aprovador dos pedidos).
+ *
+ * Tabela PRÓPRIA, separada de `function_managers` (decisão do dono, 27/08:
+ * "eu disse que era separado"). As duas listas existiam na mesma tabela e se
+ * atropelavam: cadastrar um aprovador da Escala dava a ele acesso de
+ * responsável na Escalação/Produção, e mexer na lista da Escala removia gente
+ * da lista clássica. Agora cada cadastro cuida da sua vida.
+ *
+ * A unicidade é por (função, usuário, papel): a mesma pessoa pode ser
+ * validadora de uma função e aprovadora de outra — e, se fizer sentido, as duas
+ * coisas na mesma função.
+ */
+export const scalingFunctionManagers = pgTable("scaling_function_managers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  functionId: varchar("function_id").notNull().references(() => functions.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  /** 'validador' (área que valida a sugestão) | 'aprovador' (decide os pedidos) */
+  role: text("role").notNull().default("validador"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  unq: unique().on(table.functionId, table.userId, table.role),
+}));
+
 export const functionManagers = pgTable("function_managers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   functionId: varchar("function_id").notNull().references(() => functions.id, { onDelete: 'cascade' }),
@@ -513,6 +537,11 @@ export const insertFunctionUserSchema = createInsertSchema(functionUsers).omit({
   createdAt: true,
 });
 
+export const insertScalingFunctionManagerSchema = createInsertSchema(scalingFunctionManagers).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertFunctionManagerSchema = createInsertSchema(functionManagers).omit({
   id: true,
   createdAt: true,
@@ -671,6 +700,9 @@ export type FunctionUser = typeof functionUsers.$inferSelect;
 export type InsertFunctionUser = z.infer<typeof insertFunctionUserSchema>;
 
 export type FunctionManager = typeof functionManagers.$inferSelect;
+/** Responsável do módulo de Escala (tabela própria — ver scalingFunctionManagers). */
+export type ScalingFunctionManager = typeof scalingFunctionManagers.$inferSelect;
+export type InsertScalingFunctionManager = z.infer<typeof insertScalingFunctionManagerSchema>;
 export type InsertFunctionManager = z.infer<typeof insertFunctionManagerSchema>;
 
 export type FunctionValue = typeof functionValues.$inferSelect;

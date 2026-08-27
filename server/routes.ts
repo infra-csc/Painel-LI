@@ -1515,6 +1515,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Responsáveis do MÓDULO DE ESCALA — cadastro SEPARADO ──────────────────
+  // Decisão do dono (27/08): esta lista não é a de responsáveis da função. Elas
+  // moravam na mesma tabela, e mexer em uma mexia na outra — cadastrar um
+  // aprovador dava acesso de responsável na Escalação, e tirar alguém daqui
+  // tirava da lista clássica. Agora são tabelas diferentes.
+  app.get("/api/scaling-function-managers", async (_req, res) => {
+    try {
+      res.json(await storage.getAllScalingManagers());
+    } catch {
+      res.status(500).json({ message: "Erro ao buscar responsáveis da Escala" });
+    }
+  });
+
+  app.post("/api/scaling-function-managers", async (req, res) => {
+    // Só o administrador cuida deste cadastro (permissão própria, decisão de 26/08).
+    const actor = await requireRoles(req, res, ["admin"]);
+    if (!actor) return;
+    const parsed = z.object({
+      functionId: z.string().min(1),
+      userId: z.string().min(1),
+      role: z.enum(["validador", "aprovador"]).default("validador"),
+    }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Dados inválidos", errors: parsed.error.flatten() });
+    try {
+      const row = await storage.addScalingManager(parsed.data);
+      await createAuditLog("create", "scaling_function_manager", row.id, row, actor.id, actor.name, undefined, req);
+      res.json(row);
+    } catch {
+      res.status(400).json({ message: "Erro ao adicionar responsável da Escala" });
+    }
+  });
+
+  app.delete("/api/scaling-function-managers/:functionId/:userId", async (req, res) => {
+    const actor = await requireRoles(req, res, ["admin"]);
+    if (!actor) return;
+    const role = req.query.role === "aprovador" || req.query.role === "validador" ? req.query.role : undefined;
+    try {
+      await storage.removeScalingManager(req.params.functionId, req.params.userId, role);
+      await createAuditLog("delete", "scaling_function_manager", `${req.params.functionId}:${req.params.userId}`,
+        { functionId: req.params.functionId, userId: req.params.userId, role: role ?? "todos" }, actor.id, actor.name, undefined, req);
+      res.json({ success: true });
+    } catch {
+      res.status(400).json({ message: "Erro ao remover responsável da Escala" });
+    }
+  });
+
   app.get("/api/functions/:id/managers", async (req, res) => {
     try {
       const { id } = req.params;

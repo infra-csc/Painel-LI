@@ -21,7 +21,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { apiErrorMessage, cn } from "@/lib/utils";
 import { scalingHref, useScalingEvent } from "@/lib/use-scaling-event";
 import { normalizeRole } from "@shared/roles";
-import type { Event } from "@shared/schema";
+import type { Event, User as UserType } from "@shared/schema";
 import {
   ALL_EVENTS_ROW_LIMIT,
   CHANGE_REQUEST_STATUS, CHANGE_REQUEST_STATUS_LABELS, CHANGE_REQUEST_STATUS_VALUES,
@@ -36,6 +36,7 @@ import { ApproveRequestDialog, ReviewRequestDialog } from "@/components/scaling-
 import { StalledSuggestions } from "@/components/scaling-approval/stalled-suggestions";
 import { AwaitingApproval, daysAwaiting } from "@/components/scaling-approval/awaiting-approval";
 import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module-nav";
+import { useEscalaManagers } from "@/components/scaling-validation/use-escala-managers";
 import { useDecisionMutations } from "@/components/scaling-approval/use-decisions";
 
 const ALL = "all";
@@ -123,6 +124,8 @@ export default function ScalingApprovalPage() {
   // FILTRO. Sem `?eventId=` na URL, nada é pré-selecionado.
   const { eventId, setEventId, sanitize } = useScalingEvent(BASE_PATH, { allEventsDefault: true });
   const { toast } = useToast();
+  // Nomes dos responsáveis: o cadastro da Escala guarda ids.
+  const { data: usuariosParaNome } = useQuery<UserType[]>({ queryKey: ["/api/users"] });
   const [, setLocation] = useLocation();
   const searchString = useSearch();
   /** Deep-link do Histórico: `?request=<id>` → abre o Sheet daquele pedido e limpa o param (capturado no 1º render, antes de o hook de evento reescrever a URL). */
@@ -142,7 +145,9 @@ export default function ScalingApprovalPage() {
 
   // ── Dados ──
   const { data: events, isLoading: loadingEvents } = useQuery<Event[]>({ queryKey: ["/api/events"] });
-  const { data: functions } = useQuery<FunctionWithManagers[]>({ queryKey: ["/api/functions"] });
+  const { data: funcoesCruas } = useQuery<FunctionWithManagers[]>({ queryKey: ["/api/functions"] });
+  // `managers` desta tela vem do cadastro PRÓPRIO da Escala (27/08).
+  const { functions } = useEscalaManagers(funcoesCruas, usuariosParaNome);
   const activeEvents = useMemo(() => (events ?? []).filter((e) => e.status !== "excluido" && e.status !== "excluído"), [events]);
   useEffect(() => { if (events) sanitize(activeEvents.map((e) => e.id)); }, [events, activeEvents, sanitize]);
   const selectedEvent = activeEvents.find((e) => e.id === eventId) ?? null;

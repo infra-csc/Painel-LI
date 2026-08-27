@@ -29,13 +29,14 @@ import { apiRequest } from "@/lib/queryClient";
 import { apiErrorMessage, cn, formatDateRange } from "@/lib/utils";
 import { scalingHref, useScalingEvent } from "@/lib/use-scaling-event";
 import { normalizeRole } from "@shared/roles";
-import type { Event } from "@shared/schema";
+import type { Event, User as UserType } from "@shared/schema";
 import { ALL_EVENTS_ROW_LIMIT, SUGESTAO_STATUS, STALLED_DAYS, pendingSeverity } from "@shared/scaling-validation-rules";
 import { SuggestionsList, periodLabel, type SuggestionSortField } from "@/components/scaling-validation/suggestions-list";
 import { ScheduleBoard } from "@/components/scaling-validation/schedule-board";
 import { AdjustRequestDialog, DeleteRequestDialog, IncludeRequestDialog } from "@/components/scaling-validation/change-request-dialogs";
 import { SuggestionDetailDrawer } from "@/components/scaling-validation/suggestion-detail-drawer";
 import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module-nav";
+import { useEscalaManagers } from "@/components/scaling-validation/use-escala-managers";
 import {
   SUGGESTIONS_QUERY_KEY, canActOn, canValidate, invalidateScalingQueries, workDaysOf,
   type ApiError, type FunctionWithManagers, type SuggestionRow, type ValidateResult,
@@ -76,6 +77,8 @@ export default function ScalingValidationPage() {
   usePageTitle("Validação de Escala");
   const { user } = useAuth();
   const { toast } = useToast();
+  // Nomes dos responsáveis: o cadastro da Escala guarda ids.
+  const { data: usuariosParaNome } = useQuery<UserType[]>({ queryKey: ["/api/users"] });
   const queryClient = useQueryClient();
   const isAdmin = normalizeRole(user?.role) === "admin";
   const canAccess = hasPermission(user, "canAccessScalingValidation");
@@ -125,7 +128,10 @@ export default function ScalingValidationPage() {
 
   // ── Dados ──
   const { data: events, isLoading: loadingEvents } = useQuery<Event[]>({ queryKey: ["/api/events"] });
-  const { data: functions, isLoading: loadingFunctions } = useQuery<FunctionWithManagers[]>({ queryKey: ["/api/functions"] });
+  const { data: funcoesCruas, isLoading: loadingFunctions } = useQuery<FunctionWithManagers[]>({ queryKey: ["/api/functions"] });
+  // `managers` desta tela vem do cadastro PRÓPRIO da Escala (27/08), não da
+  // lista clássica de responsáveis da função.
+  const { functions } = useEscalaManagers(funcoesCruas, usuariosParaNome);
   // Sem evento a rota devolve as vagas em validação de TODOS os eventos (o
   // servidor aplica o teto de ALL_EVENTS_ROW_LIMIT linhas, as mais antigas
   // primeiro). A chave do cache mantém o eventId — a mesma de sempre quando há

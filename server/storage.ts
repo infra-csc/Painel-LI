@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { db } from "./db";
 import { 
   users, events, functions, collaborators, teamInclusions, tickets, accommodations, financial, comments, systemLogs,
-  functionUsers, functionManagers, teamInclusionLogs, functionValues, budgetPlanned, budgetActual, budgetComparison, systemSettings, invoices, paymentCompanies,
+  functionUsers, functionManagers, scalingFunctionManagers, teamInclusionLogs, functionValues, budgetPlanned, budgetActual, budgetComparison, systemSettings, invoices, paymentCompanies,
   type User, type InsertUser,
   type Event, type InsertEvent,
   type Function, type InsertFunction,
@@ -15,6 +15,7 @@ import {
   type SystemLog, type InsertSystemLog,
   type FunctionUser, type InsertFunctionUser,
   type FunctionManager, type InsertFunctionManager,
+  type ScalingFunctionManager, type InsertScalingFunctionManager,
   type TeamInclusionLog, type InsertTeamInclusionLog,
   type FunctionValue, type InsertFunctionValue,
   type BudgetPlanned, type InsertBudgetPlanned,
@@ -593,6 +594,36 @@ export class DatabaseStorage implements IStorage {
     return fm;
   }
 
+  // ── Responsáveis do MÓDULO DE ESCALA (tabela própria) ────────────────────
+  async getScalingManagers(functionId: string): Promise<ScalingFunctionManager[]> {
+    return await db.select().from(scalingFunctionManagers).where(eq(scalingFunctionManagers.functionId, functionId));
+  }
+
+  async getAllScalingManagers(): Promise<ScalingFunctionManager[]> {
+    return await db.select().from(scalingFunctionManagers);
+  }
+
+  async addScalingManager(row: InsertScalingFunctionManager): Promise<ScalingFunctionManager> {
+    const [novo] = await db.insert(scalingFunctionManagers).values(row)
+      .onConflictDoNothing({ target: [scalingFunctionManagers.functionId, scalingFunctionManagers.userId, scalingFunctionManagers.role] })
+      .returning();
+    if (novo) return novo;
+    // Já existia: devolve a linha atual (o cadastro é idempotente).
+    const [atual] = await db.select().from(scalingFunctionManagers).where(and(
+      eq(scalingFunctionManagers.functionId, row.functionId),
+      eq(scalingFunctionManagers.userId, row.userId),
+      eq(scalingFunctionManagers.role, row.role ?? "validador"),
+    )).limit(1);
+    return atual;
+  }
+
+  async removeScalingManager(functionId: string, userId: string, role?: FunctionManagerRole): Promise<void> {
+    const cond = role
+      ? and(eq(scalingFunctionManagers.functionId, functionId), eq(scalingFunctionManagers.userId, userId), eq(scalingFunctionManagers.role, role))
+      : and(eq(scalingFunctionManagers.functionId, functionId), eq(scalingFunctionManagers.userId, userId));
+    await db.delete(scalingFunctionManagers).where(cond);
+  }
+
   async removeUserFromAllFunctions(userId: string): Promise<void> {
     await db.delete(functionManagers).where(eq(functionManagers.userId, userId));
   }
@@ -626,25 +657,30 @@ export class DatabaseStorage implements IStorage {
     return Number(result[0]?.count) > 0;
   }
 
+  /**
+   * Papel do usuário NO MÓDULO DE ESCALA — lê a tabela própria
+   * (`scaling_function_managers`), não a lista clássica de responsáveis.
+   * Aprovador vence validador quando a pessoa é as duas coisas na função.
+   */
   async getUserFunctionRole(functionId: string, userId: string): Promise<FunctionManagerRole | null> {
-    const [row] = await db
-      .select({ role: functionManagers.role })
-      .from(functionManagers)
-      .where(and(eq(functionManagers.functionId, functionId), eq(functionManagers.userId, userId)))
-      .limit(1);
-    if (!row) return null;
-    return row.role === "aprovador" ? "aprovador" : "validador";
+    const rows = await db
+      .select({ role: scalingFunctionManagers.role })
+      .from(scalingFunctionManagers)
+      .where(and(eq(scalingFunctionManagers.functionId, functionId), eq(scalingFunctionManagers.userId, userId)));
+    if (rows.length === 0) return null;
+    return rows.some((r) => r.role === "aprovador") ? "aprovador" : "validador";
   }
 
   async isUserFunctionApprover(functionId: string, userId: string): Promise<boolean> {
     return (await this.getUserFunctionRole(functionId, userId)) === "aprovador";
   }
 
+  /** Funções em que o usuário é validador/aprovador NO MÓDULO DE ESCALA. */
   async getUserManagedFunctionIds(userId: string, role?: FunctionManagerRole): Promise<string[]> {
     const rows = await db
-      .select({ functionId: functionManagers.functionId, role: functionManagers.role })
-      .from(functionManagers)
-      .where(eq(functionManagers.userId, userId));
+      .select({ functionId: scalingFunctionManagers.functionId, role: scalingFunctionManagers.role })
+      .from(scalingFunctionManagers)
+      .where(eq(scalingFunctionManagers.userId, userId));
     return rows
       .filter((r) => !role || (r.role === "aprovador" ? "aprovador" : "validador") === role)
       .map((r) => r.functionId);

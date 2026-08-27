@@ -293,7 +293,15 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
 
-  const { data: functions, isLoading, isError, error, refetch } = useQuery<FunctionWithManagers[]>({ queryKey: ["/api/functions"] });
+  const { data: funcoesCruas, isLoading, isError, error, refetch } = useQuery<FunctionWithManagers[]>({ queryKey: ["/api/functions"] });
+  /**
+   * Cadastro PRÓPRIO da Escala (27/08) — tabela separada da lista clássica de
+   * responsáveis da função. Antes as duas eram a mesma coisa: cadastrar aqui
+   * dava acesso de responsável na Escalação, e remover aqui tirava de lá.
+   */
+  const { data: escalaManagers } = useQuery<{ functionId: string; userId: string; role: ManagerRole }[]>({
+    queryKey: ["/api/scaling-function-managers"],
+  });
   // GET /api/users recusa quem não gerencia — só busca para quem pode editar.
   const { data: users } = useQuery<UserType[]>({ queryKey: ["/api/users"], enabled: canManage });
   // Aprovador padrão do sistema: função sem aprovador próprio não fica sem quem
@@ -306,6 +314,17 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
     const name = defaultApprover.userName?.trim();
     return name ? `Aprovador padrão: ${name}` : "Aprovador padrão do sistema";
   }, [defaultApprover]);
+
+  const functions = useMemo<FunctionWithManagers[]>(() => {
+    const nomePorUsuario = new Map((users ?? []).map(u => [u.id, u.name || u.email]));
+    const porFuncao = new Map<string, NonNullable<FunctionWithManagers["managers"]>>();
+    for (const m of escalaManagers ?? []) {
+      const lista = porFuncao.get(m.functionId) ?? [];
+      lista.push({ userId: m.userId, userName: nomePorUsuario.get(m.userId) ?? "Usuário", role: m.role });
+      porFuncao.set(m.functionId, lista);
+    }
+    return (funcoesCruas ?? []).map(f => ({ ...f, managers: porFuncao.get(f.id) ?? [] }));
+  }, [funcoesCruas, escalaManagers, users]);
 
   const visible = useMemo(() => {
     let list = (functions ?? [])
@@ -325,25 +344,29 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
   );
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["/api/functions"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/function-managers/all"] });
+    // Só o cadastro da Escala: a lista clássica de responsáveis não é mexida
+    // por esta tela (é o ponto da separação).
+    queryClient.invalidateQueries({ queryKey: ["/api/scaling-function-managers"] });
   };
 
   const addMutation = useMutation({
     mutationFn: async (v: { functionId: string; userId: string; role: ManagerRole }) =>
-      (await apiRequest("POST", `/api/functions/${v.functionId}/managers`, { userId: v.userId, role: v.role })).json(),
+      (await apiRequest("POST", "/api/scaling-function-managers", { functionId: v.functionId, userId: v.userId, role: v.role })).json(),
     onSuccess: (_d, v) => { invalidate(); toast({ title: v.role === "aprovador" ? "Aprovador adicionado!" : "Validador adicionado!" }); },
     onError: (err: any) => toast({ title: "Erro ao adicionar responsável", description: errMsg(err, "Tente novamente."), variant: "destructive" }),
   });
   const moveMutation = useMutation({
     mutationFn: async (v: { functionId: string; userId: string; role: ManagerRole }) =>
-      (await apiRequest("PATCH", `/api/functions/${v.functionId}/managers/${v.userId}`, { role: v.role })).json(),
+      // Trocar de papel = tirar do papel antigo e pôr no novo (a unicidade da
+      // tabela é por função + usuário + papel).
+      (await apiRequest("DELETE", `/api/scaling-function-managers/${v.functionId}/${v.userId}`).then(() =>
+        apiRequest("POST", "/api/scaling-function-managers", { functionId: v.functionId, userId: v.userId, role: v.role }))).json(),
     onSuccess: (_d, v) => { invalidate(); toast({ title: "Papel alterado!", description: `Agora é ${roleLabel(v.role)} desta função.` }); },
     onError: (err: any) => toast({ title: "Erro ao alterar papel", description: errMsg(err, "Tente novamente."), variant: "destructive" }),
   });
   const removeMutation = useMutation({
     mutationFn: async (v: { functionId: string; userId: string }) =>
-      (await apiRequest("DELETE", `/api/functions/${v.functionId}/managers/${v.userId}`)).json(),
+      (await apiRequest("DELETE", `/api/scaling-function-managers/${v.functionId}/${v.userId}`)).json(),
     onSuccess: () => { invalidate(); toast({ title: "Responsável removido." }); },
     onError: (err: any) => toast({ title: "Erro ao remover responsável", description: errMsg(err, "Tente novamente."), variant: "destructive" }),
   });
