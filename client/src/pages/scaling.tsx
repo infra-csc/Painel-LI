@@ -29,7 +29,7 @@ import { useScalingData, useInclusionDetails, DEFAULT_SCALING_FILTERS, type Scal
 import { useScalingMutations, type InclusionSavePayload } from "@/components/scaling/use-scaling-mutations";
 import { useAttachments } from "@/components/scaling/use-attachments";
 import { exportScalingPdf, exportScalingXlsxColunas } from "@/components/scaling/export-scaling-xlsx";
-import { ExportColumnsDialog } from "@/components/scaling/export-columns-dialog";
+import { ExportColumnsDialog, type ExportScope } from "@/components/scaling/export-columns-dialog";
 import { getSaveBlockReason, getConfirmBlockReason, getBulkConfirmBlockReason } from "@/components/scaling/scaling-validation";
 import { describeLoadError, isEscalated, modalDataFromInclusion, type ModalData } from "@/components/scaling/scaling-utils";
 
@@ -279,7 +279,7 @@ export default function Scaling() {
     setExportOpen(true);
   };
 
-  const handleExportToExcel = async (colunas?: string[], formato: "xlsx" | "pdf" = "xlsx") => {
+  const handleExportToExcel = async (colunas?: string[], formato: "xlsx" | "pdf" = "xlsx", scope: ExportScope = "todas") => {
     // A planilha inclui CPF/telefone/nascimento — a trava fica aqui também
     if (!canExport) {
       toast({ title: "Sem permissão", description: "Somente administradores, Compras e RH/Financeiro podem exportar a planilha.", variant: "destructive" });
@@ -289,9 +289,21 @@ export default function Scaling() {
       toast({ title: "Erro", description: "Não há escalações para exportar", variant: "destructive" });
       return;
     }
-    const activeInclusions = scalingInclusions.filter(i => i.status !== "cancelado" && !i.deletedAt);
+    // Recorte pedido no modal: a agência só quer quem voa; o hotel, quem dorme.
+    const noScope = (i: TeamInclusion) =>
+      scope === "transporte" ? !!i.needsTicket
+      : scope === "hospedagem" ? !!i.needsAccommodation
+      : scope === "sem-passagem" ? !i.needsTicket
+      : true;
+    const activeInclusions = scalingInclusions.filter(i => i.status !== "cancelado" && !i.deletedAt && noScope(i));
     if (activeInclusions.length === 0) {
-      toast({ title: "Erro", description: "Não há escalações ativas para exportar", variant: "destructive" });
+      toast({
+        title: "Nada nesse recorte",
+        description: scope === "todas"
+          ? "Não há escalações ativas para exportar."
+          : "Nenhuma escalação ativa se encaixa no recorte escolhido — troque em “Quais linhas”.",
+        variant: "destructive",
+      });
       return;
     }
     const [{ data: freshComments, isError: commentsFailed }, { data: freshUsers }] = await Promise.all([
@@ -536,9 +548,9 @@ export default function Scaling() {
         open={exportOpen}
         onOpenChange={setExportOpen}
         exporting={exporting}
-        onExport={async (colunas, formato) => {
+        onExport={async (colunas, formato, scope) => {
           setExporting(true);
-          try { await handleExportToExcel(colunas, formato); setExportOpen(false); }
+          try { await handleExportToExcel(colunas, formato, scope); setExportOpen(false); }
           finally { setExporting(false); }
         }}
       />
