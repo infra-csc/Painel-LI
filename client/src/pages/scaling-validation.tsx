@@ -131,7 +131,7 @@ export default function ScalingValidationPage() {
   // primeiro). A chave do cache mantém o eventId — a mesma de sempre quando há
   // filtro, e "" no modo "todos".
   const suggestionsQuery = useQuery<SuggestionRow[]>({
-    queryKey: [SUGGESTIONS_QUERY_KEY, eventId],
+    queryKey: [SUGGESTIONS_QUERY_KEY, eventId || "__todos__"],
     queryFn: async () =>
       (await apiRequest("GET", eventId ? `${SUGGESTIONS_QUERY_KEY}?eventId=${encodeURIComponent(eventId)}` : SUGGESTIONS_QUERY_KEY)).json(),
     // Quem não tem acesso vê o cartão de "Acesso negado" — nem chega a buscar.

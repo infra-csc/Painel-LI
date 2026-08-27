@@ -223,7 +223,7 @@ export default function ScalingApprovalPage() {
   const suggestionsEventId = isApprover ? eventId : sheetEventId;
   const suggestionsEnabled = canAccess && (isApprover || !!sheetEventId);
   const suggestionsQuery = useQuery<StalledRow[]>({
-    queryKey: [SUGGESTIONS_QUERY_KEY, suggestionsEventId],
+    queryKey: [SUGGESTIONS_QUERY_KEY, suggestionsEventId || "__todos__"],
     queryFn: async () =>
       (await apiRequest(
         "GET",

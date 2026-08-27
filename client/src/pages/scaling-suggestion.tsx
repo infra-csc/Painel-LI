@@ -135,7 +135,11 @@ export default function ScalingSuggestionPage() {
   // consultava isto: montava a grade do zero mesmo quando o envio anterior
   // estava lá inteiro, e o usuário só descobria o envio duplicado depois.
   const sentQuery = useQuery<SuggestionRow[]>({
-    queryKey: [SUGGESTIONS_QUERY_KEY, eventId],
+    // Chave PRÓPRIA ("de-evento") — a Validação guarda o modo "todos os
+    // eventos" em [SUGGESTIONS_QUERY_KEY, ""], e sem este prefixo esta tela lia
+    // aquele cache quando ficava sem evento escolhido: o aviso acendia com a
+    // contagem do app inteiro e o "Cancelar envio" saía sem eventId.
+    queryKey: [SUGGESTIONS_QUERY_KEY, "de-evento", eventId],
     queryFn: async () => (await apiRequest("GET", `${SUGGESTIONS_QUERY_KEY}?eventId=${encodeURIComponent(eventId)}`)).json(),
     enabled: !!eventId && canAccess,
   });
@@ -646,6 +650,9 @@ export default function ScalingSuggestionPage() {
 
   const cancelSendMutation = useMutation({
     mutationFn: async () => {
+      // Rede de segurança: sem evento o servidor responderia "eventId é
+      // obrigatório", e o usuário levaria a culpa por um estado da tela.
+      if (!eventId) throw new Error("Escolha o evento antes de cancelar o envio.");
       const res = await apiRequest("DELETE", `${SUGGESTIONS_QUERY_KEY}?eventId=${encodeURIComponent(eventId)}`);
       return (await res.json()) as { removed: number; requestsCanceled: number };
     },
@@ -708,7 +715,9 @@ export default function ScalingSuggestionPage() {
     sentCheckFailed ? "sentCheckFailed"
       : functionsError ? "functionsError"
         : sent ? "sent"
-          : sentSummary.total > 0 ? "jaEnviado"
+          // Sem evento escolhido não há o que avisar (nem o que cancelar): o
+          // aviso fala de UM evento e a ação de cancelar exige o eventId.
+          : (!!eventId && sentSummary.total > 0) ? "jaEnviado"
             : readOnly ? "leitura"
               : null;
 
