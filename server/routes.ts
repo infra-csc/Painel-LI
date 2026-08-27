@@ -2709,6 +2709,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /**
+   * POST /api/tickets/emitidas — body { inclusionIds: string[], emitida: boolean }
+   *
+   * "O bilhete saiu" dito à mão por quem compra (regra do dono, 26/08), uma
+   * vaga ou várias de uma vez. A partir do carimbo a área não pede mais ajuste
+   * naquela vaga; preencher os dados da passagem continua liberado — por isso
+   * marcar NÃO exige passagem preenchida: se a vaga ainda não tem linha de
+   * passagem, uma é criada só com o carimbo.
+   *
+   * Desmarcar existe porque erro de clique acontece: reabre a janela de ajuste.
+   * Tudo vai para a auditoria, com quem marcou e quando.
+   */
+  app.post("/api/tickets/emitidas", async (req, res) => {
+    const actor = await requireRoles(req, res, LOGISTICA_ROLES);
+    if (!actor) return;
+    const ids: string[] = Array.isArray(req.body?.inclusionIds) ? req.body.inclusionIds.filter((x: unknown) => typeof x === "string") : [];
+    const emitida = req.body?.emitida !== false;
+    if (ids.length === 0) return res.status(400).json({ message: "Escolha ao menos uma vaga." });
+    if (ids.length > 200) return res.status(400).json({ message: "Marque no máximo 200 vagas por vez." });
+    try {
+      const agora = new Date();
+      const ok: string[] = [];
+      const pulados: { id: string; motivo: string }[] = [];
+      for (const inclusionId of ids) {
+        const inclusion = await storage.getTeamInclusion(inclusionId);
+        if (!inclusion || inclusion.deletedAt) { pulados.push({ id: inclusionId, motivo: "vaga não encontrada" }); continue; }
+        // Evento encerrado: mesma trava do resto da escalação.
+        if (!await assertInclusionEventEditable(inclusionId, actor, res)) return;
+        const doVaga = await storage.getTicketsByInclusionId(inclusionId);
+        const patch = { emittedAt: emitida ? agora : null, emittedBy: emitida ? actor.id : null, updatedAt: agora, updatedBy: actor.id };
+        if (doVaga.length === 0) {
+          if (!emitida) { pulados.push({ id: inclusionId, motivo: "sem passagem para desmarcar" }); continue; }
+          // Sem linha de passagem ainda: o carimbo cria a linha mínima, e quem
+          // preenche completa depois.
+          const criada = await storage.createTicket({ teamInclusionId: inclusionId, ...patch } as any);
+          await createAuditLog("emitir", "ticket", criada.id, criada, actor.id, actor.name, undefined, req);
+        } else {
+          for (const t of doVaga) {
+            const atualizada = await storage.updateTicket(t.id, patch as any);
+            await createAuditLog(emitida ? "emitir" : "desfazer_emissao", "ticket", t.id, atualizada, actor.id, actor.name, t, req);
+          }
+        }
+        ok.push(inclusionId);
+      }
+      res.json({ ok, pulados, emitida });
+    } catch (error) {
+      console.error("erro ao marcar passagem emitida:", error);
+      res.status(500).json({ message: "Erro ao marcar as passagens" });
+    }
+  });
+
   app.patch("/api/tickets/:id", async (req, res) => {
     const ticketEditor = await requireRoles(req, res, LOGISTICA_ROLES);
     if (!ticketEditor) return;

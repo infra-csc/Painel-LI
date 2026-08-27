@@ -122,7 +122,13 @@ export default function TicketModal({
     // Perfil (18/08): Key Account / Gerente = 44/44; cenotécnica 35/35; demais 40/40
     const perfil = refeicaoPerfil(data.getFunctionName(inclusion.functionId), inclusion.atendimentoTipo);
     const { almocoCents, jantarCents } = refeicaoCents(perfil, data.systemSettings);
-    return { workDays: periodDays(inclusion.scheduleStartDate, inclusion.scheduleEndDate), almocoCents, jantarCents };
+    // Local do evento entra no contexto: em SP a mobilidade é zero, e a prévia
+    // precisa dizer o mesmo que o Planejado.
+    return {
+      workDays: periodDays(inclusion.scheduleStartDate, inclusion.scheduleEndDate),
+      eventLocation: data.eventById.get(inclusion.eventId)?.location ?? null,
+      almocoCents, jantarCents,
+    };
   }, [inclusion, data.systemSettings, data.functionById]);
 
   if (!inclusion) {

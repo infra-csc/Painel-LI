@@ -154,6 +154,34 @@ export function isEventoEmSP(location: string | null | undefined): boolean {
   return l.includes("sao paulo") || l.includes("grande sp") || l.includes("grande sao paulo");
 }
 
+/**
+ * Mobilidade de UM trecho, já com a regra do LOCAL por cima (decisão do dono,
+ * 26/08: "evento em SP nunca paga mobilidade").
+ *
+ * Antes o local só era consultado para quem NÃO voava: bastava a vaga estar
+ * marcada como "precisa de passagem" para o evento em São Paulo pagar R$29 por
+ * trecho. Agora o local decide primeiro — em SP/Grande SP o trecho é zero,
+ * voando ou não —, e só fora de SP entram as regras de horário/terrestre.
+ */
+export function mobilidadeTrechoComLocalCents(
+  eventLocation: string | null | undefined,
+  opts: {
+    /** A vaga tem passagem (voa/viaja)? */
+    voa: boolean;
+    partida?: string | null;
+    chegada?: string | null;
+    trecho?: "ida" | "volta";
+    terrestre?: boolean;
+  },
+): number {
+  if (isEventoEmSP(eventLocation)) return 0;
+  if (!opts.voa) return MOBILIDADE_TRECHO_PADRAO_CENTS;
+  return mobilidadeTrechoCents(opts.partida ?? null, opts.chegada ?? null, {
+    trecho: opts.trecho,
+    terrestre: opts.terrestre,
+  });
+}
+
 /** Mobilidade (ida + volta, centavos) de quem NÃO voa, pelo local do evento. */
 export function mobilidadeSemVooCents(eventLocation: string | null | undefined): { ida: number; volta: number } {
   if (isEventoEmSP(eventLocation)) return { ida: 0, volta: 0 };

@@ -1,6 +1,6 @@
 // Uma linha da tabela de Passagens.
 import { memo } from "react";
-import { Eye, Plane, ArrowLeftRight } from "lucide-react";
+import { Eye, Plane, ArrowLeftRight, Lock, Stamp } from "lucide-react";
 import type { TeamInclusion, Ticket } from "@shared/schema";
 import { extractTravelSuggestion, formatSuggestionDate, hasSuggestionValue } from "@/lib/ticket-form";
 import { formatDate, formatBrl, isOneWayTicket, toTitleCase } from "./use-tickets-data";
@@ -21,6 +21,9 @@ export interface TicketRowProps {
   locked?: boolean;
   onToggleSelect: (inclusionId: string) => void;
   onOpen: (inclusion: TeamInclusion) => void;
+  /** Marca/desmarca "passagem emitida" — trava o pedido de ajuste da área. */
+  onToggleEmitida?: (inclusion: TeamInclusion, emitida: boolean) => void;
+  emitindo?: boolean;
 }
 
 const transportLabel = (t: Ticket) => (t.transportType === "van" ? "Van" : t.transportType === "rodoviario" ? "Rodoviário" : "Aéreo");
@@ -35,7 +38,7 @@ export function ticketSummaryLine(t: Ticket): string {
 }
 
 function TicketRow({
-  inclusion, ticket, rowIdx, eventName, functionName, collaboratorName, eventLocation,
+  inclusion, ticket, rowIdx, eventName, functionName, collaboratorName, eventLocation, onToggleEmitida, emitindo,
   hasPendingSwap, hasApprovedSwap, selected, canEdit, locked, onToggleSelect, onOpen,
 }: TicketRowProps) {
   const cancelado = inclusion.status === "cancelado";
@@ -229,6 +232,15 @@ function TicketRow({
           <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-400 text-[10px] font-bold tracking-wide rounded-md">Cancelado</span>
         ) : ticket ? (
           <div className="flex flex-col items-center gap-1" title={summary}>
+            {ticket.emittedAt && (
+              <span
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold tracking-wide rounded-md bg-violet-50 text-violet-700"
+                title="Passagem emitida — a área não pede mais ajuste nesta vaga"
+                data-testid={`ticket-emitida-${inclusion.id}`}
+              >
+                <Lock className="w-3 h-3" aria-hidden="true" />Emitida
+              </span>
+            )}
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold tracking-wide rounded-md" style={{ background: "#DCFCE7", color: "#15803D" }}>
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />Comprada
             </span>
@@ -243,6 +255,24 @@ function TicketRow({
 
       {/* Ações */}
       <td className="py-3 text-center whitespace-nowrap w-[72px]">
+        {/* Emitida: o carimbo de quem compra. Marcar não exige a passagem
+            preenchida — é aviso de que o bilhete saiu e de que a área não
+            pede mais ajuste. Clicar de novo desfaz (erro de clique acontece). */}
+        {!cancelado && onToggleEmitida && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggleEmitida(inclusion, !ticket?.emittedAt); }}
+            disabled={!canEdit || locked || emitindo}
+            title={ticket?.emittedAt
+              ? "Passagem emitida — clique para desfazer e reabrir o pedido de ajuste"
+              : "Marcar como emitida — trava o pedido de ajuste desta vaga"}
+            aria-label={ticket?.emittedAt ? "Desfazer emissão da passagem" : "Marcar passagem como emitida"}
+            data-testid={`toggle-emitida-${inclusion.id}`}
+            className={`mb-1 w-8 h-8 rounded-full flex items-center justify-center mx-auto transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${ticket?.emittedAt ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-400 hover:bg-violet-50 hover:text-violet-600"}`}
+          >
+            <Stamp className="w-4 h-4" aria-hidden="true" />
+          </button>
+        )}
         {!cancelado && (
           ticket ? (
             <button

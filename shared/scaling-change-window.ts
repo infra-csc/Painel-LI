@@ -40,7 +40,7 @@ export type ChangeWindowBlock =
 
 export const CHANGE_WINDOW_BLOCK_MSG: Record<ChangeWindowBlock, string> = {
   passagem_comprada:
-    "A passagem já foi comprada — mudanças agora passam pela logística. Fale com a logística ou com o administrador.",
+    "A passagem já foi EMITIDA — mudança de data agora tem custo e passa pela logística. Fale com a logística ou com o administrador.",
   vaga_cancelada: "Vaga cancelada — não há o que ajustar.",
   vaga_excluida: "Vaga excluída da escala — não há o que ajustar.",
 };
@@ -54,6 +54,8 @@ export interface InclusionForChangeWindow {
 
 /** O mínimo que a regra precisa saber da passagem. */
 export interface TicketForChangeWindow {
+  /** Carimbo de "emitida" — o ato explícito de quem compra. Manda em tudo. */
+  emittedAt?: Date | string | null;
   ticketStatus?: string | null;
   purchaseDate?: Date | string | null;
   purchaseOrderNumber?: string | null;
@@ -73,6 +75,9 @@ export interface TicketForChangeWindow {
  */
 export function isTicketPurchased(ticket: TicketForChangeWindow | null | undefined): boolean {
   if (!ticket) return false;
+  // O carimbo de EMITIDA vem antes de qualquer inferência: é alguém dizendo
+  // "o bilhete saiu", não um palpite a partir de campo preenchido.
+  if (ticket.emittedAt) return true;
   const status = (ticket.ticketStatus ?? "").trim().toLowerCase();
   if ((PURCHASED_TICKET_STATUSES as readonly string[]).includes(status)) return true;
   if (status === "cancelada") return false; // compra desfeita: volta a liberar

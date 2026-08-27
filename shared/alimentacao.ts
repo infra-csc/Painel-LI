@@ -220,7 +220,8 @@ export const ALIMENTACAO_ALMOCO_CASA_UTIL_CENO_DEFAULT_CENTS = 300;
  * - `casa` (CLT) em dia ÚTIL: almoço = `alimentacao_almoco_casa_util`
  *   (default R$ 5,00); cenotécnica de casa: `alimentacao_almoco_casa_util_ceno`
  *   (default R$ 3,00). Jantar inalterado (40 / 35 ceno).
- * - `casa` em fim de semana, `local`, freela e cenotécnica: iguais a
+ * - `freela`: NÃO recebe alimentação (26/08) — o cachê já cobre a refeição.
+ * - `casa` em fim de semana, `local` e cenotécnica: iguais a
  *   `refeicaoCents` (a regra do voo continua decidindo QUAIS refeições existem).
  * - perfil "gestao" (Key Account / Gerente, 18/08): casa em dia útil usa o
  *   MESMO almoço reduzido de "demais" (R$ 5,00); o jantar é o de gestão (R$ 44).
@@ -234,6 +235,11 @@ export function refeicaoCentsDia(
   const p = toPerfil(perfil);
   const cenotecnica = p === "ceno";
   const base = refeicaoCents(p, settings);
+  // FREELA NÃO RECEBE ALIMENTAÇÃO (decisão do dono, 26/08). O freela é
+  // contratado por cachê fechado — a refeição já está dentro dele, e pagar por
+  // fora dobrava o custo no Planejado. Vale em qualquer evento, útil ou fim de
+  // semana. Antes o freela recebia o mesmo que "casa" em fim de semana.
+  if (ctx.tipoColaborador === "freela") return { almocoCents: 0, jantarCents: 0 };
   if (ctx.tipoColaborador === "casa" && !ctx.isWeekend) {
     const key = cenotecnica ? ALIMENTACAO_ALMOCO_CASA_UTIL_CENO_KEY : ALIMENTACAO_ALMOCO_CASA_UTIL_KEY;
     const def = cenotecnica ? ALIMENTACAO_ALMOCO_CASA_UTIL_CENO_DEFAULT_CENTS : ALIMENTACAO_ALMOCO_CASA_UTIL_DEFAULT_CENTS;

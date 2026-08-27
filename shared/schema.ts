@@ -195,6 +195,11 @@ export const tickets = pgTable("tickets", {
   ticketObservations: text("ticket_observations"), // observações sobre a passagem
   ticketCompany: text("ticket_company"), // companhia aérea/empresa da passagem
   ticketStatus: text("ticket_status"), // pendente, comprada, confirmada, cancelada
+  // EMITIDA — ato explícito de quem compra (regra do dono, 26/08). Marcar não
+  // exige ter preenchido a passagem: serve de aviso de que o bilhete saiu e,
+  // a partir daí, a área não pede mais ajuste. O preenchimento continua livre.
+  emittedAt: timestamp("emitted_at"),
+  emittedBy: varchar("emitted_by").references(() => users.id),
   locator: text("locator"), // localizador (LOC) — separado do reservationNumber
   checkIn3: text("check_in_3"), // conferência da passagem (espelho operacional)
   baggageTotalCents: integer("baggage_total_cents"), // valor total bagagem em centavos

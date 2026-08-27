@@ -184,10 +184,8 @@ describe("refeicaoCentsDia — perfil gestao", () => {
     expect(refeicaoCentsDia("gestao", {}, { tipoColaborador: "casa", isWeekend: false }))
       .toEqual({ almocoCents: 500, jantarCents: 4400 });
   });
-  it("casa em fim de semana e freela: 44 / 44", () => {
+  it("casa em fim de semana: 44 / 44 (freela não recebe — ver bloco próprio)", () => {
     expect(refeicaoCentsDia("gestao", {}, { tipoColaborador: "casa", isWeekend: true }))
-      .toEqual({ almocoCents: 4400, jantarCents: 4400 });
-    expect(refeicaoCentsDia("gestao", {}, { tipoColaborador: "freela", isWeekend: false }))
       .toEqual({ almocoCents: 4400, jantarCents: 4400 });
   });
   it("chaves dos Valores Padrão vencem o default (casa útil usa alimentacao_almoco_casa_util)", () => {
@@ -205,9 +203,7 @@ describe("refeicaoCentsDia — almoço de casa (CLT) em dia útil", () => {
     expect(refeicaoCentsDia(false, {}, { tipoColaborador: "casa", isWeekend: true }))
       .toEqual({ almocoCents: 4000, jantarCents: 4000 });
   });
-  it("freela e local em dia útil: inalterado (R$ 40 / R$ 40)", () => {
-    expect(refeicaoCentsDia(false, {}, { tipoColaborador: "freela", isWeekend: false }))
-      .toEqual({ almocoCents: 4000, jantarCents: 4000 });
+  it("local em dia útil: inalterado (R$ 40 / R$ 40)", () => {
     expect(refeicaoCentsDia(false, {}, { tipoColaborador: "local", isWeekend: false }))
       .toEqual({ almocoCents: 4000, jantarCents: 4000 });
   });
@@ -237,9 +233,9 @@ describe("refeicaoCentsDia — cenotécnica de casa (regra 17/08)", () => {
     expect(refeicaoCentsDia(true, {}, { tipoColaborador: "casa", isWeekend: true }))
       .toEqual({ almocoCents: 3500, jantarCents: 3500 });
   });
-  it("cenotécnica freela em dia útil: inalterada (R$ 35 / R$ 35)", () => {
+  it("cenotécnica freela: zero, como todo freela (26/08)", () => {
     expect(refeicaoCentsDia(true, {}, { tipoColaborador: "freela", isWeekend: false }))
-      .toEqual({ almocoCents: 3500, jantarCents: 3500 });
+      .toEqual({ almocoCents: 0, jantarCents: 0 });
   });
   it("exemplo do usuário (Erick): 2 úteis + 2 fds, almoço+jantar → R$ 216,00", () => {
     const u = refeicaoCentsDia(true, {}, { tipoColaborador: "casa", isWeekend: false });
@@ -262,5 +258,26 @@ describe("toHoraHHMM — pré-preenchimento dos campos de hora do Realizado", ()
     expect(toHoraHHMM(undefined)).toBeNull();
     expect(toHoraHHMM("")).toBeNull();
     expect(toHoraHHMM("a definir")).toBeNull();
+  });
+});
+
+describe("freela não recebe alimentação (decisão do dono, 26/08)", () => {
+  it("zera almoço e jantar em qualquer perfil e qualquer dia", () => {
+    for (const perfil of [false, true, "gestao"] as const) {
+      for (const isWeekend of [false, true]) {
+        expect(refeicaoCentsDia(perfil, {}, { tipoColaborador: "freela", isWeekend }))
+          .toEqual({ almocoCents: 0, jantarCents: 0 });
+      }
+    }
+  });
+
+  it("valor configurado nos Valores Padrão não ressuscita a refeição do freela", () => {
+    expect(refeicaoCentsDia(false, { alimentacao_almoco: 9900, alimentacao_jantar: 9900 }, { tipoColaborador: "freela", isWeekend: true }))
+      .toEqual({ almocoCents: 0, jantarCents: 0 });
+  });
+
+  it("casa e local seguem recebendo — a regra é só do freela", () => {
+    expect(refeicaoCentsDia(false, {}, { tipoColaborador: "casa", isWeekend: true }).almocoCents).toBe(4000);
+    expect(refeicaoCentsDia(false, {}, { tipoColaborador: "local", isWeekend: false }).almocoCents).toBe(4000);
   });
 });

@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { EventSearchSelect } from "@/components/event-select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetNote } from "@shared/schema";
-import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents, mobilidadeSemVooCents, isTransporteTerrestre, ATENDIMENTO_TIPOS, type AtendimentoTipo } from "@shared/atendimento";
+import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents, mobilidadeTrechoComLocalCents, mobilidadeSemVooCents, isTransporteTerrestre, ATENDIMENTO_TIPOS, type AtendimentoTipo } from "@shared/atendimento";
 import { calcDeflatedDailies, deflationFactorsFromSettings, freelaDailyCents, casaDailyCents, diasComDiaria as calcDiasComDiaria, diasEmpreita, regraDiariaPorTipo, isPercursoFunction, percurseiroDiariaCents, diasPercurseiro, PERCURSEIRO_TIPOS, isFuncaoLocal, FUNCAO_LOCAL_RAZAO, type DeflationSegment, type RegraDiaria, type PercurseiroTipo, type PercurseiroDiaria } from "@shared/calculation-rules";
 import { calcAlimentacao, refeicaoCents, refeicaoCentsDia, refeicaoPerfil, isCenotecnicaFunction } from "@shared/alimentacao";
 import { cenoEmpreitaTotalCents, usaEmpreitaCenotecnica, CENO_FREELA_TIPO_LABELS, type CenoFreelaTipo, type CenoEmpreitaValor } from "@shared/cenotecnica-empreita";
@@ -1377,8 +1377,12 @@ export default function BudgetPlannedPage() {
       const terrestre =
         ticket?.transportType === 'rodoviario' || ticket?.transportType === 'van' ||
         (!ticket && (isTransporteTerrestre(vooPartidaIda) || isTransporteTerrestre(vooChegadaIda) || isTransporteTerrestre(vooPartidaVolta)));
-      const sysMobIda = (isPercurso || funcaoLocal) ? 0 : voa ? mobilidadeTrechoCents(vooPartidaIda, vooChegadaIda, { trecho: 'ida', terrestre }) : (semVoo?.ida ?? 0);
-      const sysMobVolta = (isPercurso || funcaoLocal) ? 0 : voa ? mobilidadeTrechoCents(vooPartidaVolta, null, { trecho: 'volta', terrestre }) : (semVoo?.volta ?? 0);
+      // Evento em SP nunca paga mobilidade (26/08) — a checagem do LOCAL vale
+      // para todo mundo, inclusive para quem tem passagem marcada. Antes ela só
+      // valia para quem não voava, e um evento na própria cidade pagava
+      // traslado por causa de um needsTicket marcado.
+      const sysMobIda = (isPercurso || funcaoLocal) ? 0 : mobilidadeTrechoComLocalCents(selectedEvent?.location, { voa, partida: vooPartidaIda, chegada: vooChegadaIda, trecho: 'ida', terrestre });
+      const sysMobVolta = (isPercurso || funcaoLocal) ? 0 : mobilidadeTrechoComLocalCents(selectedEvent?.location, { voa, partida: vooPartidaVolta, chegada: null, trecho: 'volta', terrestre });
       const sysMob = sysMobIda + sysMobVolta;
       const mobilidade = override?.mobilidade ?? sysMob;
       const mobilidadeIda = override?.mobilidadeIda ?? sysMobIda;

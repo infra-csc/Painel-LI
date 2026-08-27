@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   isAtendimentoFunction, atendimentoDailyCents, ATENDIMENTO_DEFAULTS_CENTS,
-  mobilidadeTrechoCents, parseHoraMin,
+  mobilidadeTrechoCents, mobilidadeTrechoComLocalCents, parseHoraMin,
   MOBILIDADE_TRECHO_PADRAO_CENTS, MOBILIDADE_TRECHO_MADRUGADA_CENTS,
   isEventoEmSP, mobilidadeSemVooCents, isTransporteTerrestre,
 } from "./atendimento";
@@ -139,5 +139,31 @@ describe("mobilidadeTrechoCents — tabela 'deslocamento aeroporto por trecho' (
     const ida = mobilidadeTrechoCents("van - 10h", null, { trecho: "ida" });
     const volta = mobilidadeTrechoCents("van - 20h+", null, { trecho: "volta" });
     expect(ida + volta).toBe(5800);
+  });
+});
+
+describe("mobilidadeTrechoComLocalCents — o LOCAL decide primeiro (26/08)", () => {
+  it("evento em SP: zero mesmo com passagem marcada (era o furo)", () => {
+    for (const loc of ["São Paulo", "São Paulo - SP", "Osasco - SP", "Grande SP"]) {
+      expect(mobilidadeTrechoComLocalCents(loc, { voa: true, partida: "23:45", trecho: "ida" })).toBe(0);
+      expect(mobilidadeTrechoComLocalCents(loc, { voa: false, trecho: "volta" })).toBe(0);
+    }
+  });
+
+  it("fora de SP com passagem: continua valendo a regra de horário", () => {
+    expect(mobilidadeTrechoComLocalCents("Recife", { voa: true, partida: "14:00", trecho: "ida" }))
+      .toBe(MOBILIDADE_TRECHO_PADRAO_CENTS);
+    expect(mobilidadeTrechoComLocalCents("Recife", { voa: true, partida: "23:45", trecho: "ida" }))
+      .toBe(MOBILIDADE_TRECHO_MADRUGADA_CENTS);
+  });
+
+  it("fora de SP sem passagem: R$ 29 por trecho", () => {
+    expect(mobilidadeTrechoComLocalCents("Curitiba", { voa: false, trecho: "ida" }))
+      .toBe(MOBILIDADE_TRECHO_PADRAO_CENTS);
+  });
+
+  it("terrestre fora de SP: R$ 29 fixo, sem a madrugada", () => {
+    expect(mobilidadeTrechoComLocalCents("Palmas", { voa: true, partida: "23:45", trecho: "ida", terrestre: true }))
+      .toBe(MOBILIDADE_TRECHO_PADRAO_CENTS);
   });
 });

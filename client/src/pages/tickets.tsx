@@ -275,6 +275,7 @@ export default function Tickets() {
   // do perfil "demais" (o lote mistura funções; o valor exato por pessoa aparece no modal individual).
   const batchImpactCtx = useMemo<PlannedImpactContext>(() => ({
     workDays: filteredEvent ? periodDays(filteredEvent.startDate, filteredEvent.endDate) : null,
+    eventLocation: filteredEvent?.location ?? null,
     ...refeicaoCents("demais", data.systemSettings),
   }), [filteredEvent, data.systemSettings]);
 

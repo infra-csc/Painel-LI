@@ -8,7 +8,7 @@
 // volta, o modal não exigia o horário de chegada, os asteriscos da UI não
 // batiam com o que era validado).
 import { parseBrNumber } from "@/lib/utils";
-import { mobilidadeTrechoCents, parseHoraMin, MOBILIDADE_TRECHO_MADRUGADA_CENTS } from "@shared/atendimento";
+import { mobilidadeTrechoCents, isEventoEmSP, parseHoraMin, MOBILIDADE_TRECHO_MADRUGADA_CENTS } from "@shared/atendimento";
 import { calcAlimentacao, type AlimentacaoDia } from "@shared/alimentacao";
 
 export type TransportType = "aereo" | "rodoviario" | "van";
@@ -421,6 +421,8 @@ export function suggestionDivergences(form: TicketFormValues | undefined, s: Tra
 export interface PlannedImpactContext {
   /** Dias do período de trabalho (YYYY-MM-DD). Se vazio, o resumo de alimentação sai só como "1º/último dia". */
   workDays?: string[] | null;
+  /** Local do evento — em SP a mobilidade é zero (regra do dono, 26/08). */
+  eventLocation?: string | null;
   almocoCents?: number;
   jantarCents?: number;
 }
@@ -473,8 +475,11 @@ export function buildPlannedImpact(form: TicketFormValues | undefined, ctx: Plan
   // Mesmas funções do Planejado. Rodoviário = terrestre → R$29 fixo por trecho
   // (a tabela de madrugada é "deslocamento AEROPORTO", só voo).
   const terrestre = normalizeTransportType(form.transportType) === "rodoviario";
+  // Evento em SP não paga mobilidade: a prévia tem de dizer o mesmo que o
+  // Planejado, senão a logística digita o horário e vê um custo que não existe.
+  const emSP = isEventoEmSP(ctx.eventLocation);
   const trecho = (partida: string | null, chegada: string | null, kind: "ida" | "volta") => {
-    const cents = mobilidadeTrechoCents(partida, chegada, { trecho: kind, terrestre });
+    const cents = emSP ? 0 : mobilidadeTrechoCents(partida, chegada, { trecho: kind, terrestre });
     return { cents, madrugada: cents === MOBILIDADE_TRECHO_MADRUGADA_CENTS };
   };
   const ida = depTime || arrTime ? trecho(depTime, arrTime, "ida") : null;
