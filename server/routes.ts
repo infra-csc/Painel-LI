@@ -2722,7 +2722,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
    * Tudo vai para a auditoria, com quem marcou e quando.
    */
   app.post("/api/tickets/emitidas", async (req, res) => {
-    const actor = await requireRoles(req, res, LOGISTICA_ROLES);
+    // Só ADMIN e COMPRAS carimbam a emissão (decisão do dono, 26/08) — quem
+    // preenche a passagem não decide quando a janela de ajuste fecha.
+    const actor = await requireRoles(req, res, ["admin", "purchasing"]);
     if (!actor) return;
     const ids: string[] = Array.isArray(req.body?.inclusionIds) ? req.body.inclusionIds.filter((x: unknown) => typeof x === "string") : [];
     const emitida = req.body?.emitida !== false;

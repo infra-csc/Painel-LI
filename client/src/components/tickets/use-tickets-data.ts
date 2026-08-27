@@ -210,6 +210,11 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
   // ── Inclusões que precisam de passagem + filtros simples ──
   const ticketInclusions = useMemo(() => teamInclusions?.filter(inclusion => {
     if (!inclusion.needsTicket) return false;
+    // Evento excluído (ou que sumiu) não aparece na lista — mesma regra da
+    // Escalação. Antes a linha ficava aqui com "⚠ Não encontrado" no lugar do
+    // nome, pedindo compra de passagem para um evento que não existe mais.
+    const eventoDaVaga = eventById.get(inclusion.eventId);
+    if (!eventoDaVaga || eventoDaVaga.status === "excluído" || eventoDaVaga.status === "excluido") return false;
     // Canceladas só somem no filtro "Inclusões ativas".
     if (inclusion.status === "cancelado" && filters.inclusionStatus === "active") return false;
     // Com colaborador aparece independente do status; sem colaborador só nos status previstos.
@@ -227,7 +232,7 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
     }
     if (filters.inclusionStatus === "cancelado" && inclusion.status !== "cancelado") return false;
     return true;
-  }) || [], [teamInclusions, collaboratorById, filters.eventId, filters.functionId, filters.collaboratorId, filters.searchId, filters.inclusionStatus]);
+  }) || [], [teamInclusions, collaboratorById, eventById, filters.eventId, filters.functionId, filters.collaboratorId, filters.searchId, filters.inclusionStatus]);
 
   // ── Dedupe por colaborador (documento normalizado) + evento + função ──
   const deduplicatedInclusions = useMemo(() => {

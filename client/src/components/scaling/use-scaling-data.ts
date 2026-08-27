@@ -276,7 +276,7 @@ export function useScalingData(opts: {
   // ── Recorte de permissão de visualização ─────────────────────────────────
   const filteredTeamInclusions = useMemo(() => (teamInclusions || []).filter(ti => {
     const linkedEvent = eventById.get(ti.eventId);
-    if (!linkedEvent || linkedEvent.status === "excluído") return false;
+    if (!linkedEvent || linkedEvent.status === "excluído" || linkedEvent.status === "excluido") return false;
     if (isAdminRole) return true;
     if (user?.role === "production") return true;
     if (user?.role === "function_area") return true;

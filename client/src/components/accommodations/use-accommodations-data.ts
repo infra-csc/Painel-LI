@@ -69,11 +69,14 @@ export function useAccommodationsData({ filters, sortConfig, showOnlyPendingSwap
     if (!teamInclusions) return [];
     return teamInclusions.filter((inclusion) => {
       if (inclusion.needsAccommodation !== true) return false;
+      // Evento excluído leva junto a escalação dele (regra do dono, 26/08).
+      const evento = events?.find((e) => e.id === inclusion.eventId);
+      if (!evento || evento.status === "excluído" || evento.status === "excluido") return false;
       // Com colaborador escalado, aparece independente do status (workflow flexível).
       if (inclusion.collaboratorId) return true;
       return VALID_STATUSES_WITHOUT_COLLABORATOR.includes(inclusion.status);
     });
-  }, [teamInclusions]);
+  }, [teamInclusions, events]);
 
   // Havendo mais de um registro para a mesma inclusão, o ÚLTIMO vence
   // (semântica original; representa a hospedagem mais recente).

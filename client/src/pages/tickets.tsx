@@ -2,12 +2,14 @@
 // upsert idempotente ficam aqui; dados/índices em use-tickets-data; a UI em
 // components/tickets/**. Regras do formulário: @/lib/ticket-form.
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
-import { Plane, AlertCircle } from "lucide-react";
+import { Plane, AlertCircle, Stamp } from "lucide-react";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { canView, canEdit as canEditScreen } from "@/lib/permissions";
+import { apiRequest } from "@/lib/queryClient";
 import { PastEventBanner } from "@/lib/event-lock";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -270,6 +272,37 @@ export default function Tickets() {
   const allSelectableSelected = selectableInclusionIds.size > 0 && Array.from(selectableInclusionIds).every(id => selectedTickets.includes(id));
   const toggleAllTickets = () => setSelectedTickets(allSelectableSelected ? [] : Array.from(selectableInclusionIds));
 
+  // ── Passagem EMITIDA (regra do dono, 26/08) ──
+  // Carimbo de quem compra: a partir dele a área não pede mais ajuste naquela
+  // vaga. Marcar NÃO exige passagem preenchida — quem preenche completa depois.
+  // Só ADMIN e COMPRAS veem a ação (o servidor recusa o resto).
+  const queryClient = useQueryClient();
+  const podeEmitir = isPurchasingRole;
+  const emitirMutation = useMutation({
+    mutationFn: async ({ inclusionIds, emitida }: { inclusionIds: string[]; emitida: boolean }) =>
+      (await apiRequest("POST", "/api/tickets/emitidas", { inclusionIds, emitida })).json() as Promise<{ ok: string[]; pulados: { id: string; motivo: string }[] }>,
+    onSuccess: (res, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+      const n = res.ok?.length ?? 0;
+      toast({
+        title: vars.emitida
+          ? `${n} passagem(ns) marcada(s) como emitida(s)`
+          : `${n} passagem(ns) voltaram para "não emitida"`,
+        description: vars.emitida
+          ? "A área não pode mais pedir ajuste nessas vagas. O preenchimento dos dados continua liberado."
+          : "A janela de pedido de ajuste foi reaberta nessas vagas.",
+      });
+    },
+    onError: () => toast({ title: "Não foi possível marcar as passagens", description: "Tente novamente.", variant: "destructive" }),
+  });
+  const toggleEmitida = useCallback((inclusion: TeamInclusion, emitida: boolean) => {
+    emitirMutation.mutate({ inclusionIds: [inclusion.id], emitida });
+  }, [emitirMutation]);
+  const marcarSelecionadasEmitidas = () => {
+    if (effectiveSelectedTickets.length === 0) return;
+    emitirMutation.mutate({ inclusionIds: effectiveSelectedTickets, emitida: true });
+  };
+
   const filteredEvent = filters.eventId !== "all" ? eventById.get(filters.eventId) : undefined;
   // Impacto do lote: sem período individual, usa as datas do evento filtrado (se houver) e valores padrão de refeição
   // do perfil "demais" (o lote mistura funções; o valor exato por pessoa aparece no modal individual).
@@ -376,6 +409,30 @@ export default function Tickets() {
         {isPurchasingRole && (
           <PendingSwapsBanner count={pendingTicketSwapsCount} active={showOnlyPendingSwaps} onToggle={() => setShowOnlyPendingSwaps(v => !v)} />
         )}
+        {/* Emitidas em lote: aparece assim que há linhas marcadas, acima do
+            painel de aplicar dados. É o aviso de "o bilhete saiu" para várias
+            pessoas de uma vez — não preenche nada, só fecha a janela de ajuste. */}
+        {podeEmitir && effectiveSelectedTickets.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3">
+            <Stamp className="w-4 h-4 text-violet-600 shrink-0" aria-hidden="true" />
+            <p className="text-[13px] text-violet-900 mr-auto">
+              <strong>{effectiveSelectedTickets.length}</strong>{" "}
+              {effectiveSelectedTickets.length === 1 ? "passagem selecionada" : "passagens selecionadas"} — marcar como emitida trava o pedido de ajuste da área.
+              <span className="block text-[11px] text-violet-700/80">Os dados da passagem continuam podendo ser preenchidos depois.</span>
+            </p>
+            <Button
+              type="button"
+              onClick={marcarSelecionadasEmitidas}
+              disabled={emitirMutation.isPending}
+              className="rounded-lg bg-violet-600 hover:bg-violet-700 text-white"
+              data-testid="marcar-emitidas-lote"
+            >
+              <Stamp className="w-4 h-4 mr-1.5" aria-hidden="true" />
+              {emitirMutation.isPending ? "Marcando…" : `Marcar como emitida (${effectiveSelectedTickets.length})`}
+            </Button>
+          </div>
+        )}
+
         <QuickBatchPanel
           expanded={batchExpanded}
           onToggle={() => setBatchExpanded(v => !v)}
@@ -413,6 +470,8 @@ export default function Tickets() {
             onToggleSelect={toggleTicketSelection}
             onOpen={openModal}
             canEdit={canEdit}
+            onToggleEmitida={podeEmitir ? toggleEmitida : undefined}
+            emitindo={emitirMutation.isPending}
           />
         </div>
       </div>

@@ -17,12 +17,15 @@ interface TicketsTableProps {
   onToggleSelect: (inclusionId: string) => void;
   onOpen: (inclusion: TeamInclusion) => void;
   canEdit: boolean;
+  /** Carimbo "passagem emitida" — só admin/compras recebem esta ação. */
+  onToggleEmitida?: (inclusion: TeamInclusion, emitida: boolean) => void;
+  emitindo?: boolean;
 }
 
 const TH = "px-4 py-3 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400";
 
 export default function TicketsTable({
-  data, filters, sortConfig, onSort, selectedTickets, allSelectableSelected, onToggleAll, onToggleSelect, onOpen, canEdit,
+  data, filters, sortConfig, onSort, selectedTickets, allSelectableSelected, onToggleAll, onToggleSelect, onOpen, canEdit, onToggleEmitida, emitindo,
 }: TicketsTableProps) {
   const rows = data.filteredTicketInclusions;
 
@@ -115,6 +118,8 @@ export default function TicketsTable({
               locked={data.isEventLocked(inclusion)}
               onToggleSelect={onToggleSelect}
               onOpen={onOpen}
+              onToggleEmitida={onToggleEmitida}
+              emitindo={emitindo}
             />
           ))}
         </tbody>
