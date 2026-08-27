@@ -170,3 +170,99 @@ export function exportScalingXlsx(input: ExportScalingInput): ExportScalingResul
   XLSX.writeFile(wb, fileName);
   return { fileName, rowCount: rows.length };
 }
+
+// ── Escolha de colunas + PDF (regra do dono, 27/08) ──────────────────────────
+// O exportar ganhou um modal onde o usuário marca QUAIS colunas saem. A lista
+// abaixo é a fonte única: os grupos organizam o modal, e a ordem aqui é a ordem
+// no arquivo. Chave = título da coluna em buildScalingExportRows.
+
+export interface ExportColumnGroup { label: string; keys: string[] }
+
+export const EXPORT_COLUMN_GROUPS: ExportColumnGroup[] = [
+  { label: "Evento", keys: ["ID", "Evento", "Local do Evento", "Início do Evento", "Fim do Evento", "Função", "Área"] },
+  { label: "Colaborador", keys: ["Colaborador", "Tipo", "CPF Colaborador", "Data Nascimento", "Telefone Colaborador", "Cidade Colaborador", "Sai de"] },
+  { label: "Período", keys: ["Período Agendado - Início", "Período Agendado - Fim", "Período Real - Início", "Período Real - Fim"] },
+  { label: "Passagem e viagem", keys: [
+    "Precisa Passagem", "Tipo de Transporte", "Passagem LOC", "Passagem Data Compra", "Passagem Valor (R$)",
+    "Ida - Cidade Origem", "Ida - Aeroporto Origem", "Ida - Cidade Destino", "Ida - Aeroporto Destino", "Ida - Data", "Ida - Horário", "Horário Sugerido Ida",
+    "Volta - Cidade Origem", "Volta - Aeroporto Origem", "Volta - Cidade Destino", "Volta - Aeroporto Destino", "Volta - Data", "Volta - Horário", "Horário Sugerido Volta",
+    "Precisa Hospedagem",
+  ] },
+  { label: "Valores", keys: ["Diárias Planejadas", "Diárias Reais", "Valor da Diária (R$)", "Valor Total (R$)"] },
+  { label: "Status e observações", keys: ["Status", "Fase Atual", "Registro Emergencial", "Observações", "Observações Reais", "Comentários"] },
+];
+
+export const ALL_EXPORT_COLUMNS: string[] = EXPORT_COLUMN_GROUPS.flatMap((g) => g.keys);
+
+/** Mantém só as colunas escolhidas, na ordem canônica. */
+function pickColumns(rows: Record<string, string | number>[], selected?: string[]): Record<string, string | number>[] {
+  if (!selected || selected.length === 0) return rows;
+  const ordem = ALL_EXPORT_COLUMNS.filter((k) => selected.includes(k));
+  return rows.map((row) => {
+    const out: Record<string, string | number> = {};
+    for (const k of ordem) if (k in row) out[k] = row[k];
+    return out;
+  });
+}
+
+/** Gera e baixa o Excel só com as colunas escolhidas. */
+export function exportScalingXlsxColunas(input: ExportScalingInput, selected?: string[]): ExportScalingResult {
+  const rows = pickColumns(buildScalingExportRows(input), selected);
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const keys = rows.length > 0 ? Object.keys(rows[0]) : [];
+  ws["!cols"] = keys.map(k => ({ wch: COLUMN_WIDTHS[k] ?? DEFAULT_WIDTH }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Escalações");
+  const today = new Date();
+  const dateStr = `${today.getDate().toString().padStart(2, "0")}${(today.getMonth() + 1).toString().padStart(2, "0")}${today.getFullYear()}`;
+  const fileName = `Escalacoes_${dateStr}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+  return { fileName, rowCount: rows.length };
+}
+
+const esc = (v: string | number) =>
+  String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/**
+ * PDF pela janela de impressão do navegador (Destino → "Salvar como PDF").
+ *
+ * Sem biblioteca de PDF no projeto, o caminho honesto é uma página de impressão
+ * bem tipografada: paisagem, cabeçalho repetido a cada página e a fonte
+ * encolhendo conforme a quantidade de colunas. Devolve false se o navegador
+ * bloquear o pop-up — a tela avisa o usuário.
+ */
+export function exportScalingPdf(input: ExportScalingInput, selected?: string[]): { rowCount: number; opened: boolean } {
+  const rows = pickColumns(buildScalingExportRows(input), selected);
+  const keys = rows.length > 0 ? Object.keys(rows[0]) : [];
+  const hoje = new Date().toLocaleDateString("pt-BR");
+  const fontePx = keys.length > 24 ? 6.5 : keys.length > 16 ? 7.5 : keys.length > 10 ? 9 : 10.5;
+
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<title>Escalações — ${hoje}</title>
+<style>
+  @page { size: A4 landscape; margin: 10mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; color: #10182B; margin: 0; }
+  h1 { font-size: 14px; margin: 0 0 2px; }
+  .sub { font-size: 9px; color: #64748B; margin: 0 0 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: ${fontePx}px; }
+  thead { display: table-header-group; }
+  th { background: #EEF2FF; color: #0033CC; text-align: left; padding: 3px 4px;
+       border: 0.5px solid #C7D2FE; font-weight: 600; }
+  td { padding: 2.5px 4px; border: 0.5px solid #E2E8F0; vertical-align: top; }
+  tbody tr:nth-child(even) td { background: #F8FAFC; }
+  tr { break-inside: avoid; }
+</style></head><body>
+<h1>Escalações</h1>
+<p class="sub">${rows.length} linha(s) · ${keys.length} coluna(s) · gerado em ${hoje} · Painel LI</p>
+<table><thead><tr>${keys.map(k => `<th>${esc(k)}</th>`).join("")}</tr></thead>
+<tbody>${rows.map(r => `<tr>${keys.map(k => `<td>${esc(r[k] ?? "")}</td>`).join("")}</tr>`).join("")}</tbody></table>
+<script>window.onload = () => { window.focus(); window.print(); };<\/script>
+</body></html>`;
+
+  const win = window.open("", "_blank");
+  if (!win) return { rowCount: rows.length, opened: false };
+  win.document.write(html);
+  win.document.close();
+  return { rowCount: rows.length, opened: true };
+}

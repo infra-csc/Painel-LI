@@ -28,7 +28,8 @@ import BulkConfirmBar from "@/components/scaling/bulk-confirm-bar";
 import { useScalingData, useInclusionDetails, DEFAULT_SCALING_FILTERS, type ScalingFilters } from "@/components/scaling/use-scaling-data";
 import { useScalingMutations, type InclusionSavePayload } from "@/components/scaling/use-scaling-mutations";
 import { useAttachments } from "@/components/scaling/use-attachments";
-import { exportScalingXlsx } from "@/components/scaling/export-scaling-xlsx";
+import { exportScalingPdf, exportScalingXlsxColunas } from "@/components/scaling/export-scaling-xlsx";
+import { ExportColumnsDialog } from "@/components/scaling/export-columns-dialog";
 import { getSaveBlockReason, getConfirmBlockReason, getBulkConfirmBlockReason } from "@/components/scaling/scaling-validation";
 import { describeLoadError, isEscalated, modalDataFromInclusion, type ModalData } from "@/components/scaling/scaling-utils";
 
@@ -261,7 +262,24 @@ export default function Scaling() {
   };
 
   // ── Exportar ────────────────────────────────────────────────────────────
-  const handleExportToExcel = async () => {
+  /** Modal de escolha de colunas (pedido do dono, 27/08) — Excel ou PDF. */
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  /** Abre o modal depois de checar permissão e se há o que exportar. */
+  const abrirExportar = () => {
+    if (!canExport) {
+      toast({ title: "Sem permissão", description: "Somente administradores, Compras e RH/Financeiro podem exportar.", variant: "destructive" });
+      return;
+    }
+    if (scalingInclusions.filter(i => i.status !== "cancelado" && !i.deletedAt).length === 0) {
+      toast({ title: "Nada para exportar", description: "Não há escalações ativas na lista atual.", variant: "destructive" });
+      return;
+    }
+    setExportOpen(true);
+  };
+
+  const handleExportToExcel = async (colunas?: string[], formato: "xlsx" | "pdf" = "xlsx") => {
     // A planilha inclui CPF/telefone/nascimento — a trava fica aqui também
     if (!canExport) {
       toast({ title: "Sem permissão", description: "Somente administradores, Compras e RH/Financeiro podem exportar a planilha.", variant: "destructive" });
@@ -287,7 +305,7 @@ export default function Scaling() {
         variant: "destructive",
       });
     }
-    const { fileName, rowCount } = exportScalingXlsx({
+    const entrada = {
       inclusions: activeInclusions,
       eventById: data.eventById,
       functionById: data.functionById,
@@ -296,7 +314,21 @@ export default function Scaling() {
       purchasedTicketByInclusion: data.purchasedTicketByInclusion,
       comments: freshComments || [],
       users: freshUsers || [],
-    });
+    };
+    if (formato === "pdf") {
+      const { rowCount, opened } = exportScalingPdf(entrada, colunas);
+      if (!opened) {
+        toast({
+          title: "O navegador bloqueou a janela",
+          description: "Libere pop-ups para este site e tente de novo — o PDF sai pela janela de impressão.",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({ title: "PDF pronto para salvar", description: `${rowCount} escalação(ões) na janela de impressão — escolha “Salvar como PDF”.` });
+      return;
+    }
+    const { fileName, rowCount } = exportScalingXlsxColunas(entrada, colunas);
     toast({ title: "Sucesso", description: `Arquivo ${fileName} exportado com ${rowCount} escalações ativas!` });
   };
 
@@ -393,11 +425,11 @@ export default function Scaling() {
         showAccommodationFilter={true}
         rightActions={canExport ? (
           <Button
-            onClick={handleExportToExcel}
+            onClick={abrirExportar}
             variant="outline"
             className="flex items-center gap-2 border border-green-200 text-green-600 bg-green-50 hover:bg-green-100 rounded-xl px-3 h-10 text-sm font-medium transition-colors whitespace-nowrap"
             data-testid="button-export-excel"
-            title="Exporta a planilha com dados pessoais dos colaboradores (CPF, telefone, nascimento)"
+            title="Escolha as colunas e o formato (Excel ou PDF). O arquivo pode conter dados pessoais dos colaboradores."
           >
             <FileSpreadsheet className="w-4 h-4" />
             Exportar
@@ -500,6 +532,16 @@ export default function Scaling() {
         onConfirm={handleConfirm}
       />
 
+      <ExportColumnsDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        exporting={exporting}
+        onExport={async (colunas, formato) => {
+          setExporting(true);
+          try { await handleExportToExcel(colunas, formato); setExportOpen(false); }
+          finally { setExporting(false); }
+        }}
+      />
       <ScalingSuccessDialog info={successInfo} onClose={() => setSuccessInfo(null)} />
       <SentToProductionDialog info={sentToProductionInfo} onClose={() => setSentToProductionInfo(null)} />
       <AttachmentLightbox item={lightbox} onClose={() => setLightbox(null)} />
