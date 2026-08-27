@@ -147,11 +147,46 @@ export function isTransporteTerrestre(texto: string | null | undefined): boolean
  * livre de events.location ("São Paulo - SP", "SP", "Grande SP", "Osasco/SP"…).
  * Vazio → false (não assume SP para evento; a regra do colaborador é outra).
  */
+/**
+ * Municípios da Região Metropolitana de São Paulo (os 39).
+ *
+ * O nome da cidade sozinho — "São Caetano do Sul", "Guarulhos", "Osasco" — é
+ * como a operação cadastra o evento, e antes só "São Paulo" era reconhecido:
+ * um evento em São Caetano pagava traslado como se fosse viagem. Lista fechada
+ * e escrita sem acento (a comparação normaliza os dois lados).
+ */
+const MUNICIPIOS_GRANDE_SP = [
+  "aruja", "barueri", "biritiba mirim", "biritiba-mirim", "caieiras", "cajamar", "carapicuiba",
+  "cotia", "diadema", "embu das artes", "embu-guacu", "embu guacu", "ferraz de vasconcelos",
+  "francisco morato", "franco da rocha", "guararema", "guarulhos", "itapecerica da serra",
+  "itapevi", "itaquaquecetuba", "jandira", "juquitiba", "mairipora", "maua", "mogi das cruzes",
+  "osasco", "pirapora do bom jesus", "poa", "ribeirao pires", "rio grande da serra",
+  "salesopolis", "santa isabel", "santana de parnaiba", "santo andre", "sao bernardo do campo",
+  "sao caetano do sul", "sao lourenco da serra", "sao paulo", "suzano", "taboao da serra",
+  "vargem grande paulista",
+] as const;
+
+/** Sufixo de UF no fim do texto: "Recife - PE", "Jarinu/SP", "Cotia (SP)". */
+const UF_NO_FIM = /[-–/(]\s*([a-z]{2})\s*\)?\s*$/;
+
+/**
+ * O evento é em São Paulo ou na Grande SP? (mobilidade urbana = zero)
+ *
+ * Ordem de decisão:
+ *  1. sufixo de OUTRO estado manda ("Santo André - PR" não é Grande SP);
+ *  2. sufixo "- SP" basta;
+ *  3. texto genérico ("São Paulo", "Grande SP");
+ *  4. nome de município da RMSP.
+ */
 export function isEventoEmSP(location: string | null | undefined): boolean {
   if (!location) return false;
   const l = location.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-  if (l === "sp" || l.endsWith(" sp") || l.endsWith("-sp") || l.endsWith("/sp") || l.endsWith("- sp") || l.endsWith("(sp)")) return true;
-  return l.includes("sao paulo") || l.includes("grande sp") || l.includes("grande sao paulo");
+  if (!l) return false;
+  const uf = l.match(UF_NO_FIM)?.[1];
+  if (uf && uf !== "sp") return false;
+  if (uf === "sp" || l === "sp" || l.endsWith(" sp")) return true;
+  if (l.includes("sao paulo") || l.includes("grande sp") || l.includes("grande sao paulo")) return true;
+  return MUNICIPIOS_GRANDE_SP.some((m) => l.includes(m));
 }
 
 /**

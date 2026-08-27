@@ -167,3 +167,40 @@ describe("mobilidadeTrechoComLocalCents — o LOCAL decide primeiro (26/08)", ()
       .toBe(MOBILIDADE_TRECHO_PADRAO_CENTS);
   });
 });
+
+describe("isEventoEmSP — Grande SP pelo nome da cidade (26/08)", () => {
+  it("municípios da região metropolitana contam como SP", () => {
+    for (const loc of [
+      "São Caetano do Sul", "Guarulhos", "Osasco", "Santo André", "São Bernardo do Campo",
+      "Barueri", "Cotia", "Diadema", "Mauá", "Taboão da Serra", "Mogi das Cruzes",
+    ]) {
+      expect(isEventoEmSP(loc)).toBe(true);
+    }
+  });
+
+  it("o evento que o dono pegou: Chevrolet Golden Run, em São Caetano do Sul", () => {
+    expect(isEventoEmSP("São Caetano do Sul")).toBe(true);
+    expect(mobilidadeTrechoComLocalCents("São Caetano do Sul", { voa: true, partida: "23:45", trecho: "ida" })).toBe(0);
+  });
+
+  it("sufixo de outro estado manda, mesmo com nome parecido", () => {
+    expect(isEventoEmSP("Santo André - PR")).toBe(false);
+    expect(isEventoEmSP("Recife - PE")).toBe(false);
+    expect(isEventoEmSP("Rio de Janeiro/RJ")).toBe(false);
+  });
+
+  it("continua reconhecendo o que já reconhecia", () => {
+    expect(isEventoEmSP("São Paulo")).toBe(true);
+    expect(isEventoEmSP("São Paulo - SP")).toBe(true);
+    expect(isEventoEmSP("Jarinu - SP")).toBe(true);
+    expect(isEventoEmSP("Cotia (SP)")).toBe(true);
+    expect(isEventoEmSP("Grande SP")).toBe(true);
+  });
+
+  it("cidade do interior sem sufixo continua fora", () => {
+    expect(isEventoEmSP("Campinas")).toBe(false);
+    expect(isEventoEmSP("Curitiba")).toBe(false);
+    expect(isEventoEmSP("")).toBe(false);
+    expect(isEventoEmSP(null)).toBe(false);
+  });
+});
