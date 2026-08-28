@@ -141,6 +141,16 @@ export default function Tickets() {
   };
 
   // ── Validação compartilhada: erros inline + toast (lista); avisos → "continuar mesmo assim" ──
+  // Reprovou? Além do toast (que some sozinho), a tela PULA para a aba Dados e
+  // rola até o primeiro campo em vermelho — sem isso, quem estava com o scroll
+  // no meio do formulário via "nada acontecer" (relato do dono, 28/08).
+  const revealFirstError = (scope: string) => {
+    if (scope === "quick") return; // painel de lote tem o próprio layout, sem abas
+    setModalActiveTab("dados");
+    setTimeout(() => {
+      document.querySelector('[role="alert"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 120);
+  };
   const validateTicketForm = (
     scope: string,
     form: TicketFormValues,
@@ -156,11 +166,13 @@ export default function Tickets() {
     const list = (items: string[]) => <ul className="list-disc pl-4 space-y-0.5">{items.map((i, k) => <li key={k}>{i}</li>)}</ul>;
     if (missing.length > 0) {
       toast({ title: "Campos obrigatórios", description: list(missing.map(f => f.label)), variant: "destructive" });
+      revealFirstError(scope);
       return;
     }
     const chronoMsgs = Object.values(chrono.errors);
     if (chronoMsgs.length > 0) {
       toast({ title: "Datas inconsistentes", description: list(chronoMsgs), variant: "destructive" });
+      revealFirstError(scope);
       return;
     }
     if (chrono.warnings.length > 0) { setPendingWarnings({ warnings: chrono.warnings, onConfirm: proceed }); return; }
