@@ -203,6 +203,9 @@ export const tickets = pgTable("tickets", {
   actualArrivalTime: text("actual_arrival_time"),
   actualReturnDate: date("actual_return_date"), // agora opcional
   actualReturnTime: text("actual_return_time"),
+  // Horário de CHEGADA da volta ("HH:MM") — faltava (dono, 27/08): a regra de
+  // mobilidade "voo chegando das 20h às 5h → R$58" nunca pegava na volta.
+  returnArrivalTime: text("return_arrival_time"),
   departureCityOrigin: text("departure_city_origin"), // cidade de origem da ida
   departureCityDestination: text("departure_city_destination"), // cidade de destino da ida
   returnCityOrigin: text("return_city_origin"), // cidade de origem da volta

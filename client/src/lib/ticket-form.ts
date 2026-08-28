@@ -37,6 +37,8 @@ export interface TicketFormValues {
   actualArrivalTime?: string;
   actualReturnDate?: string;
   actualReturnTime?: string;
+  /** Chegada da volta — decide a mobilidade da volta (R$58 chegando 20h–5h). */
+  returnArrivalTime?: string;
   cardLastFourDigits?: string;
   ticketObservations?: string;
   attachmentIds?: string[];
@@ -131,6 +133,7 @@ export function buildTicketPayload(
     actualArrivalTime: leg(form?.actualArrivalTime),
     actualReturnDate: ret(form?.actualReturnDate),
     actualReturnTime: ret(form?.actualReturnTime),
+    returnArrivalTime: ret(form?.returnArrivalTime),
     departureCityOrigin: leg(form?.departureCityOrigin),
     departureCityDestination: leg(form?.departureCityDestination),
     returnCityOrigin: ret(form?.returnCityOrigin),
@@ -471,6 +474,7 @@ export function buildPlannedImpact(form: TicketFormValues | undefined, ctx: Plan
   const depTime = timeOnly(form.actualDepartureTime);
   const arrTime = timeOnly(form.actualArrivalTime);
   const retTime = oneWay ? null : timeOnly(form.actualReturnTime);
+  const retArr = oneWay ? null : timeOnly(form.returnArrivalTime);
 
   // Mesmas funções do Planejado. Rodoviário = terrestre → R$29 fixo por trecho
   // (a tabela de madrugada é "deslocamento AEROPORTO", só voo).
@@ -483,7 +487,7 @@ export function buildPlannedImpact(form: TicketFormValues | undefined, ctx: Plan
     return { cents, madrugada: cents === MOBILIDADE_TRECHO_MADRUGADA_CENTS };
   };
   const ida = depTime || arrTime ? trecho(depTime, arrTime, "ida") : null;
-  const volta = retTime ? trecho(retTime, null, "volta") : null;
+  const volta = retTime || retArr ? trecho(retTime, retArr, "volta") : null;
 
   const almocoCents = ctx.almocoCents ?? 4000;
   const jantarCents = ctx.jantarCents ?? 4000;

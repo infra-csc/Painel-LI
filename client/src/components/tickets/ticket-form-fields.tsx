@@ -45,7 +45,7 @@ export function fieldTestIdSlug(name: string): string {
     returnCityOrigin: "return-city-origin", returnCityDestination: "return-city-destination",
     returnOriginAirport: "return-origin-airport", returnDestinationAirport: "return-destination-airport",
     actualDepartureDate: "departure-date", actualDepartureTime: "departure-time", actualArrivalTime: "arrival-time",
-    actualReturnDate: "return-date", actualReturnTime: "return-time",
+    actualReturnDate: "return-date", actualReturnTime: "return-time", returnArrivalTime: "return-arrival-time",
   };
   return map[name] ?? name;
 }
@@ -292,6 +292,7 @@ export default function TicketFormFields({
         <div className={`grid grid-cols-1 md:grid-cols-2 ${isBatch ? "gap-3" : "gap-2"}`}>
           {dateTime("actualReturnDate", "Data (volta)", "date")}
           {dateTime("actualReturnTime", "Horário (volta)", "time")}
+          {dateTime("returnArrivalTime", "Chegada (volta)", "time", undefined, isBatch ? undefined : "md:col-span-2", isBatch ? undefined : "md:max-w-[50%]", "Chegada das 20h às 5h muda a mobilidade da volta no Planejado.")}
         </div>
       </div>
     </section>

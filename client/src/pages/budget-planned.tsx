@@ -1358,6 +1358,9 @@ export default function BudgetPlannedPage() {
       const vooPartidaIda = ticket?.actualDepartureTime || inclusion.flightDepartureSuggestedTime || null;
       const vooChegadaIda = ticket?.actualArrivalTime || inclusion.flightArrivalSuggestedTime || null;
       const vooPartidaVolta = ticket?.actualReturnTime || inclusion.flightReturnSuggestedTime || null;
+      // Chegada da volta (campo novo, 27/08): "voo chegando 20h–5h → R$58"
+      // agora vale também na volta — antes só a partida era olhada.
+      const vooChegadaVolta = (ticket as any)?.returnArrivalTime || null;
       const fonteVoo: 'passagem' | 'sugerido' | 'nenhum' =
         (ticket?.actualArrivalTime || ticket?.actualReturnTime || ticket?.actualDepartureTime) ? 'passagem'
         : (vooPartidaIda || vooChegadaIda || vooPartidaVolta) ? 'sugerido' : 'nenhum';
@@ -1382,7 +1385,7 @@ export default function BudgetPlannedPage() {
       // valia para quem não voava, e um evento na própria cidade pagava
       // traslado por causa de um needsTicket marcado.
       const sysMobIda = (isPercurso || funcaoLocal) ? 0 : mobilidadeTrechoComLocalCents(selectedEvent?.location, { voa, partida: vooPartidaIda, chegada: vooChegadaIda, trecho: 'ida', terrestre });
-      const sysMobVolta = (isPercurso || funcaoLocal) ? 0 : mobilidadeTrechoComLocalCents(selectedEvent?.location, { voa, partida: vooPartidaVolta, chegada: null, trecho: 'volta', terrestre });
+      const sysMobVolta = (isPercurso || funcaoLocal) ? 0 : mobilidadeTrechoComLocalCents(selectedEvent?.location, { voa, partida: vooPartidaVolta, chegada: vooChegadaVolta, trecho: 'volta', terrestre });
       const sysMob = sysMobIda + sysMobVolta;
       const mobilidade = override?.mobilidade ?? sysMob;
       const mobilidadeIda = override?.mobilidadeIda ?? sysMobIda;
