@@ -2,6 +2,28 @@
 
 Este guia explica como transferir todos os dados do banco de desenvolvimento para o banco de produção.
 
+---
+
+## ✅ ANTES DE TUDO: conferir se o banco está alinhado com o código
+
+O ambiente de desenvolvimento e o publicado usam **bancos diferentes**. Uma
+migração rodada só no de desenvolvimento não chega ao ar, e o sintoma aparece
+para o usuário como um erro genérico — em 28/08, faltar `tickets.return_arrival_time`
+no banco publicado virou **"Dados inválidos"** na tela de Passagens, sem pista
+nenhuma da causa real.
+
+Rode isto apontando para o banco **publicado** sempre que criar uma migração
+(e depois de rodá-la). É só leitura:
+
+```bash
+DATABASE_URL="<connection string de PRODUÇÃO>" npx tsx scripts/check-schema-drift.ts
+```
+
+Ele compara todas as tabelas e colunas de `shared/schema.ts` com o banco e
+lista o que falta. Saída esperada: `OK — banco alinhado com o schema.`
+Se acusar algo, rode a migração correspondente de `scripts/migrations/` com a
+mesma `DATABASE_URL` e confira de novo.
+
 ## 📋 Passo a Passo
 
 ### **Passo 1: Exportar Dados do Desenvolvimento**
