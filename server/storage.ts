@@ -32,7 +32,7 @@ import {
   scalingChangeRequests,
   type ScalingChangeRequest,
 } from "@shared/schema";
-import { eq, and, or, sql, isNull, isNotNull, ne, exists, asc, desc, inArray } from "drizzle-orm";
+import { eq, and, or, sql, isNull, isNotNull, ne, exists, asc, desc, inArray, ilike, gte } from "drizzle-orm";
 import { VAGA_STATE_CHANGED_MSG } from "@shared/scaling-validation-rules";
 
 /** Papel de um responsável na Validação de Escala (function_managers.role). */
@@ -198,6 +198,7 @@ export interface IStorage {
   getTickets(): Promise<Ticket[]>;
   getTicket(id: string): Promise<Ticket | undefined>;
   getTicketsByInclusionId(teamInclusionId: string): Promise<Ticket[]>;
+  getAccommodationsByInclusionId(teamInclusionId: string): Promise<Accommodation[]>;
   createTicket(ticket: InsertTicket): Promise<Ticket>;
   updateTicket(id: string, ticket: Partial<InsertTicket>): Promise<Ticket>;
   
@@ -219,7 +220,7 @@ export interface IStorage {
   createComment(comment: InsertComment): Promise<Comment>;
   
   // System Logs
-  getSystemLogs(filters?: { entityType?: string; action?: string; days?: number; search?: string; userId?: string }): Promise<SystemLog[]>;
+  getSystemLogs(filters?: { entityType?: string; action?: string; days?: number; search?: string; userId?: string; limit?: number; offset?: number }): Promise<{ logs: SystemLog[]; total: number }>;
   createSystemLog(log: InsertSystemLog): Promise<SystemLog>;
   
   // Team Inclusion Logs
@@ -1129,6 +1130,10 @@ export class DatabaseStorage implements IStorage {
    * a pergunta "já compraram a passagem desta vaga?" não pode custar um
    * `getTickets()` da tabela inteira a cada abertura de modal.
    */
+  async getAccommodationsByInclusionId(teamInclusionId: string): Promise<Accommodation[]> {
+    return await db.select().from(accommodations).where(eq(accommodations.teamInclusionId, teamInclusionId));
+  }
+
   async getTicketsByInclusionId(teamInclusionId: string): Promise<Ticket[]> {
     return await db.select().from(tickets).where(eq(tickets.teamInclusionId, teamInclusionId));
   }
@@ -1216,42 +1221,38 @@ export class DatabaseStorage implements IStorage {
   }
   
   // System Logs
-  async getSystemLogs(filters?: { entityType?: string; action?: string; days?: number; search?: string; userId?: string }): Promise<SystemLog[]> {
-    const logs = await db.select().from(systemLogs);
-    
-    let filteredLogs = logs;
-    
-    if (filters) {
-      if (filters.entityType && filters.entityType !== "all") {
-        filteredLogs = filteredLogs.filter(log => log.entityType === filters.entityType);
-      }
-      if (filters.action && filters.action !== "all") {
-        filteredLogs = filteredLogs.filter(log => log.action === filters.action);
-      }
-      if (filters.days) {
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - filters.days);
-        filteredLogs = filteredLogs.filter(log => log.createdAt && new Date(log.createdAt) >= cutoffDate);
-      }
-      if (filters.userId) {
-        filteredLogs = filteredLogs.filter(log => log.userId === filters.userId);
-      }
-      if (filters.search) {
-        const term = filters.search.toLowerCase();
-        filteredLogs = filteredLogs.filter(log =>
-          (log.entityName || '').toLowerCase().includes(term) ||
-          (log.userName || '').toLowerCase().includes(term) ||
-          (log.details || '').toLowerCase().includes(term) ||
-          (log.action || '').toLowerCase().includes(term) ||
-          (log.entityType || '').toLowerCase().includes(term)
-        );
-      }
+  async getSystemLogs(filters?: { entityType?: string; action?: string; days?: number; search?: string; userId?: string; limit?: number; offset?: number }): Promise<{ logs: SystemLog[]; total: number }> {
+    // Auditoria 28/08: antes a tabela INTEIRA vinha para o Node e filtro/ordem/
+    // página aconteciam em JS — com o log só crescendo, cada visita ao
+    // Histórico ficava mais lenta. Agora WHERE/ORDER/LIMIT/COUNT são do banco.
+    const conds = [] as ReturnType<typeof eq>[];
+    if (filters?.entityType && filters.entityType !== "all") conds.push(eq(systemLogs.entityType, filters.entityType));
+    if (filters?.action && filters.action !== "all") conds.push(eq(systemLogs.action, filters.action));
+    if (filters?.userId) conds.push(eq(systemLogs.userId, filters.userId));
+    if (filters?.days) {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - filters.days);
+      conds.push(gte(systemLogs.createdAt, cutoffDate) as any);
     }
-    
-    return filteredLogs.sort((a, b) => {
-      if (!a.createdAt || !b.createdAt) return 0;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
+    if (filters?.search) {
+      const term = `%${filters.search}%`;
+      conds.push(or(
+        ilike(systemLogs.entityName, term),
+        ilike(systemLogs.userName, term),
+        ilike(systemLogs.details, term),
+        ilike(systemLogs.action, term),
+        ilike(systemLogs.entityType, term),
+      ) as any);
+    }
+    const where = conds.length > 0 ? and(...conds) : undefined;
+
+    let query = db.select().from(systemLogs).where(where).orderBy(desc(systemLogs.createdAt)).$dynamic();
+    if (filters?.limit !== undefined) query = query.limit(filters.limit).offset(filters.offset ?? 0);
+    const [logs, [{ count }]] = await Promise.all([
+      query,
+      db.select({ count: sql<number>`count(*)::int` }).from(systemLogs).where(where),
+    ]);
+    return { logs, total: count };
   }
 
   async createSystemLog(logData: InsertSystemLog): Promise<SystemLog> {

@@ -4,7 +4,7 @@ import multer from "multer";
 import { z } from "zod";
 import { storage, mapSwapRequestRow } from "./storage";
 import { db } from "./db";
-import { budgetNotes, eventComments as eventCommentsTable, users, functionManagers as functionManagersTable, budgetPlanned as budgetPlannedTable, events as eventsTable, swapRequests as swapRequestsTable, teamInclusions as teamInclusionsTable, collaborators as collaboratorsTable } from "@shared/schema";
+import { budgetNotes, eventComments as eventCommentsTable, users, functionManagers as functionManagersTable, budgetPlanned as budgetPlannedTable, events as eventsTable, swapRequests as swapRequestsTable, teamInclusions as teamInclusionsTable, collaborators as collaboratorsTable, tickets as ticketsTable } from "@shared/schema";
 import { eq, and, inArray, desc, sql as drizzleSql } from "drizzle-orm";
 import { 
   insertEventSchema,
@@ -28,7 +28,7 @@ import {
   insertBaggageRequestSchema
 } from "@shared/schema";
 import { isFinanceRole, normalizeRole, ROLE_GROUPS, type CanonicalRole } from "@shared/roles";
-import { assertEventEditable, assertInclusionEventEditable } from "./event-guard";
+import { assertEventEditable, assertInclusionEventEditable, newEventCache } from "./event-guard";
 import {
   isNfEligible, podeDecidirPrestacao, podeEnviarParaRevisao,
   prestacaoEstaTravada, podeAprovarNota, podeDevolverNota, podeFazerCheckin,
@@ -1797,6 +1797,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Set para controlar documentos já processados no lote atual
       const processedDocuments = new Set<string>();
 
+      // Duplicata contra o banco: UMA leitura antes do loop. Antes, CADA linha
+      // do CSV recarregava a tabela inteira de colaboradores (auditoria 28/08:
+      // CSV de 300 linhas = 300 SELECTs de ~900 linhas). Os criados neste lote
+      // entram no Set na hora, então a semântica é idêntica.
+      const documentosExistentes = new Set(
+        (await storage.getCollaborators()).map((c) => c.officialDocument),
+      );
+
       // bulkCreator já veio de requireRoles; papel do banco, não do corpo
       const bulkAutoApprove = normalizeRole(bulkCreator.role) === 'function_area';
 
@@ -1841,10 +1849,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
 
           // Check if collaborator with same document already exists
-          const existing = await storage.getCollaborators();
-          const duplicateDoc = existing.find(c => c.officialDocument === validatedData.officialDocument);
-          
-          if (duplicateDoc) {
+          if (documentosExistentes.has(validatedData.officialDocument)) {
             result.failed++;
             result.errors.push({
               row: i + 1,
@@ -1854,6 +1859,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             continue;
           }
 
+          documentosExistentes.add(validatedData.officialDocument);
           await storage.createCollaborator({
             ...validatedData,
             createdBy: bulkCreator?.id ?? null,
@@ -1973,12 +1979,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { eventId, includeDeleted, phase } = req.query;
       const phaseFilter = phase === 'sugestao' || phase === 'all' ? phase : undefined;
 
-      let inclusions = await storage.getTeamInclusions(includeDeleted === 'true', phaseFilter);
-      
-      // Filtrar por eventId se fornecido
-      if (eventId && eventId !== 'all') {
-        inclusions = inclusions.filter(inclusion => inclusion.eventId === eventId);
-      }
+      // eventId vai no WHERE (o storage já aceitava e a rota filtrava em JS
+      // depois de trazer a tabela inteira — auditoria de performance 28/08).
+      const inclusions = await storage.getTeamInclusions(
+        includeDeleted === 'true',
+        phaseFilter,
+        eventId && eventId !== 'all' ? { eventId: String(eventId) } : {},
+      );
       
       // Disable HTTP caching to prevent stale data
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
@@ -2158,8 +2165,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (bodyData.status === 'reaberto') {
         // Verificar se tem passagem comprada (se precisa de passagem)
         if (currentInclusion.needsTicket) {
-          const allTickets = await storage.getTickets();
-          const inclusionTickets = allTickets.filter(t => t.teamInclusionId === id);
+          // Consulta pontual — antes a tabela INTEIRA de passagens era lida
+          // para checar UMA vaga (auditoria 28/08).
+          const inclusionTickets = await storage.getTicketsByInclusionId(id);
           const hasTicketPurchased = inclusionTickets.some(ticket => ticket.purchaseDate !== null);
           
           if (hasTicketPurchased) {
@@ -2171,8 +2179,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Verificar se tem hospedagem comprada (se não precisa de passagem)
         if (!currentInclusion.needsTicket) {
-          const allAccommodations = await storage.getAccommodations();
-          const inclusionAccommodations = allAccommodations.filter(a => a.teamInclusionId === id);
+          const inclusionAccommodations = await storage.getAccommodationsByInclusionId(id);
           const hasAccommodationPurchased = inclusionAccommodations.some(acc => 
             acc.reservationNumber !== null && acc.reservationNumber !== ''
           );
@@ -2205,8 +2212,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         (bodyData.status === 'escalado' || bodyData.status === 'aprovacao');
       
       if (isConfirmingEscalation) {
-        const allFunctions = await storage.getFunctions();
-        const func = allFunctions.find(f => f.id === currentInclusion.functionId);
+        // `func` já foi carregado na checagem de permissão desta mesma rota —
+        // recarregar a tabela inteira de funções aqui era puro desperdício.
         const funcName = func?.name?.toLowerCase() || '';
         if (funcName.includes('cenotecnica') || funcName.includes('cenotécnica') || funcName.includes('sup ceno')) {
           console.log("🎭 [CENOTECNICA OVERRIDE] Forcing aguardando_producao for function:", func?.name);
@@ -2823,26 +2830,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const agora = new Date();
       const ok: string[] = [];
       const pulados: { id: string; motivo: string }[] = [];
+      // Leituras EM LOTE (auditoria 28/08): antes eram ~6 queries sequenciais
+      // POR VAGA (com a vaga lida duas vezes pelo guard) — 200 vagas estouravam
+      // o timeout. Agora: 1 SELECT de vagas + 1 de passagens + cache de evento.
+      const vagas = await storage.getTeamInclusionsByIds(ids);
+      const vagaPorId = new Map(vagas.map((v) => [v.id, v]));
+      const passagens = await db.select().from(ticketsTable).where(inArray(ticketsTable.teamInclusionId, ids));
+      const passagensPorVaga = new Map<string, typeof passagens>();
+      for (const t of passagens) {
+        const lista = passagensPorVaga.get(t.teamInclusionId) ?? [];
+        lista.push(t);
+        passagensPorVaga.set(t.teamInclusionId, lista);
+      }
+      const eventCache = newEventCache();
+      const patch = { emittedAt: emitida ? agora : null, emittedBy: emitida ? actor.id : null, updatedAt: agora, updatedBy: actor.id };
+      // O audit vai para o banco em UMA escrita no fim — cada carimbo continua
+      // registrado individualmente, só a viagem de rede é compartilhada.
+      const audits: { action: string; entityId: string; data: unknown; prev?: unknown }[] = [];
       for (const inclusionId of ids) {
-        const inclusion = await storage.getTeamInclusion(inclusionId);
+        const inclusion = vagaPorId.get(inclusionId);
         if (!inclusion || inclusion.deletedAt) { pulados.push({ id: inclusionId, motivo: "vaga não encontrada" }); continue; }
-        // Evento encerrado: mesma trava do resto da escalação.
-        if (!await assertInclusionEventEditable(inclusionId, actor, res)) return;
-        const doVaga = await storage.getTicketsByInclusionId(inclusionId);
-        const patch = { emittedAt: emitida ? agora : null, emittedBy: emitida ? actor.id : null, updatedAt: agora, updatedBy: actor.id };
+        // Evento encerrado: mesma trava do resto da escalação (evento em cache).
+        if (!await assertInclusionEventEditable(inclusionId, actor, res, inclusion, eventCache)) return;
+        const doVaga = passagensPorVaga.get(inclusionId) ?? [];
         if (doVaga.length === 0) {
           if (!emitida) { pulados.push({ id: inclusionId, motivo: "sem passagem para desmarcar" }); continue; }
           // Sem linha de passagem ainda: o carimbo cria a linha mínima, e quem
           // preenche completa depois.
           const criada = await storage.createTicket({ teamInclusionId: inclusionId, ...patch } as any);
-          await createAuditLog("emitir", "ticket", criada.id, criada, actor.id, actor.name, undefined, req);
+          audits.push({ action: "emitir", entityId: criada.id, data: criada });
         } else {
           for (const t of doVaga) {
             const atualizada = await storage.updateTicket(t.id, patch as any);
-            await createAuditLog(emitida ? "emitir" : "desfazer_emissao", "ticket", t.id, atualizada, actor.id, actor.name, t, req);
+            audits.push({ action: emitida ? "emitir" : "desfazer_emissao", entityId: t.id, data: atualizada, prev: t });
           }
         }
         ok.push(inclusionId);
+      }
+      for (const a of audits) {
+        await createAuditLog(a.action, "ticket", a.entityId, a.data, actor.id, actor.name, a.prev, req);
       }
       res.json({ ok, pulados, emitida });
     } catch (error) {
@@ -3474,24 +3500,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         filters.userId = filterUserId as string;
       }
 
-      // Get logs with filters
-      const allLogs = await storage.getSystemLogs(filters);
-      
-      // Apply pagination
+      // Página resolvida no banco (auditoria 28/08): a rota devolvia 50 linhas
+      // mas baixava o log inteiro do Neon a cada visita ao Histórico.
       const pageNum = parseInt(page as string, 10);
       const limitNum = parseInt(limit as string, 10);
-      const offset = (pageNum - 1) * limitNum;
-      
-      const paginatedLogs = allLogs.slice(offset, offset + limitNum);
-      
-      // Return paginated response
+      const { logs: paginatedLogs, total } = await storage.getSystemLogs({
+        ...filters,
+        limit: limitNum,
+        offset: (pageNum - 1) * limitNum,
+      });
+
       res.json({
         logs: paginatedLogs,
         pagination: {
           page: pageNum,
           limit: limitNum,
-          total: allLogs.length,
-          pages: Math.ceil(allLogs.length / limitNum)
+          total,
+          pages: Math.ceil(total / limitNum)
         }
       });
     } catch (error) {

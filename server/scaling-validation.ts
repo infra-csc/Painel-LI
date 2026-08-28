@@ -1948,7 +1948,12 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       if (!inclusion) return res.status(404).json({ message: "Vaga não encontrada" });
 
       const admin = isAdmin(actor);
-      const role = await roleFor(inclusion.functionId, actor.id);
+      // Papel e evento em paralelo (auditoria 28/08): a rota roda a cada modal
+      // aberto na Escalação e cada leitura sequencial soma um RTT do Neon.
+      const [role, event] = await Promise.all([
+        roleFor(inclusion.functionId, actor.id),
+        storage.getEvent(inclusion.eventId),
+      ]);
       const canRequest = canValidateInclusion(role, admin);
       res.set("Cache-Control", "no-store");
       // Sem papel para pedir: a tela não mostra nada. Devolve cedo para não
@@ -1959,7 +1964,6 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
 
       // Evento encerrado (20/08) trava antes da janela da passagem: a mensagem
       // que a área vê é a do evento, que é o bloqueio mais forte.
-      const event = await storage.getEvent(inclusion.eventId);
       if (event && isEventBlockedForActor(event, actor)) {
         return res.json({
           canRequest: true, allowed: false, message: PAST_EVENT_BLOCK_MSG,
@@ -1967,10 +1971,12 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         });
       }
 
-      const tickets = isSuggestionInclusion(inclusion) ? [] : await storage.getTicketsByInclusionId(inclusion.id);
+      const [tickets, requests] = await Promise.all([
+        isSuggestionInclusion(inclusion) ? Promise.resolve([]) : storage.getTicketsByInclusionId(inclusion.id),
+        storage.getScalingChangeRequestsByInclusion(inclusion.id),
+      ]);
       const window = changeRequestWindow(inclusion, { isAdmin: admin, tickets });
-      const pending = (await storage.getScalingChangeRequestsByInclusion(inclusion.id))
-        .find((r) => r.status === CHANGE_REQUEST_STATUS.PENDENTE) ?? null;
+      const pending = requests.find((r) => r.status === CHANGE_REQUEST_STATUS.PENDENTE) ?? null;
       // Passagem já em preparação (linha existe, compra ainda não): mudar data
       // agora significa a logística refazer a cotação — a tela avisa antes.
       const ticketInProgress = tickets.length > 0 && !window.adminOverride && window.allowed;
