@@ -38,6 +38,28 @@ import { VAGA_STATE_CHANGED_MSG } from "@shared/scaling-validation-rules";
 /** Papel de um responsável na Validação de Escala (function_managers.role). */
 export type FunctionManagerRole = "validador" | "aprovador";
 
+/**
+ * Compatibilidade de publicação: versões recentes usam a tabela separada
+ * `scaling_function_managers`, mas uma publicação pode subir antes de o schema
+ * de produção receber a nova relação. Só aceitamos o erro específico de tabela
+ * inexistente; qualquer outra falha de banco continua sendo propagada.
+ */
+function isMissingScalingManagersTable(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current && typeof current === "object"; depth++) {
+    const dbError = current as { code?: unknown; message?: unknown; cause?: unknown };
+    if (
+      dbError.code === "42P01"
+      && typeof dbError.message === "string"
+      && dbError.message.includes("scaling_function_managers")
+    ) {
+      return true;
+    }
+    current = dbError.cause;
+  }
+  return false;
+}
+
 /** Responsável embutido em GET /api/functions — só o que a lista precisa. */
 export interface FunctionManagerSummary {
   userId: string;
@@ -597,11 +619,22 @@ export class DatabaseStorage implements IStorage {
 
   // ── Responsáveis do MÓDULO DE ESCALA (tabela própria) ────────────────────
   async getScalingManagers(functionId: string): Promise<ScalingFunctionManager[]> {
-    return await db.select().from(scalingFunctionManagers).where(eq(scalingFunctionManagers.functionId, functionId));
+    try {
+      return await db.select().from(scalingFunctionManagers).where(eq(scalingFunctionManagers.functionId, functionId));
+    } catch (error) {
+      if (!isMissingScalingManagersTable(error)) throw error;
+      return await db.select().from(functionManagers)
+        .where(eq(functionManagers.functionId, functionId)) as ScalingFunctionManager[];
+    }
   }
 
   async getAllScalingManagers(): Promise<ScalingFunctionManager[]> {
-    return await db.select().from(scalingFunctionManagers);
+    try {
+      return await db.select().from(scalingFunctionManagers);
+    } catch (error) {
+      if (!isMissingScalingManagersTable(error)) throw error;
+      return await db.select().from(functionManagers) as ScalingFunctionManager[];
+    }
   }
 
   async addScalingManager(row: InsertScalingFunctionManager): Promise<ScalingFunctionManager> {
@@ -664,10 +697,19 @@ export class DatabaseStorage implements IStorage {
    * Aprovador vence validador quando a pessoa é as duas coisas na função.
    */
   async getUserFunctionRole(functionId: string, userId: string): Promise<FunctionManagerRole | null> {
-    const rows = await db
-      .select({ role: scalingFunctionManagers.role })
-      .from(scalingFunctionManagers)
-      .where(and(eq(scalingFunctionManagers.functionId, functionId), eq(scalingFunctionManagers.userId, userId)));
+    let rows: { role: string }[];
+    try {
+      rows = await db
+        .select({ role: scalingFunctionManagers.role })
+        .from(scalingFunctionManagers)
+        .where(and(eq(scalingFunctionManagers.functionId, functionId), eq(scalingFunctionManagers.userId, userId)));
+    } catch (error) {
+      if (!isMissingScalingManagersTable(error)) throw error;
+      rows = await db
+        .select({ role: functionManagers.role })
+        .from(functionManagers)
+        .where(and(eq(functionManagers.functionId, functionId), eq(functionManagers.userId, userId)));
+    }
     if (rows.length === 0) return null;
     return rows.some((r) => r.role === "aprovador") ? "aprovador" : "validador";
   }
@@ -678,10 +720,19 @@ export class DatabaseStorage implements IStorage {
 
   /** Funções em que o usuário é validador/aprovador NO MÓDULO DE ESCALA. */
   async getUserManagedFunctionIds(userId: string, role?: FunctionManagerRole): Promise<string[]> {
-    const rows = await db
-      .select({ functionId: scalingFunctionManagers.functionId, role: scalingFunctionManagers.role })
-      .from(scalingFunctionManagers)
-      .where(eq(scalingFunctionManagers.userId, userId));
+    let rows: { functionId: string; role: string }[];
+    try {
+      rows = await db
+        .select({ functionId: scalingFunctionManagers.functionId, role: scalingFunctionManagers.role })
+        .from(scalingFunctionManagers)
+        .where(eq(scalingFunctionManagers.userId, userId));
+    } catch (error) {
+      if (!isMissingScalingManagersTable(error)) throw error;
+      rows = await db
+        .select({ functionId: functionManagers.functionId, role: functionManagers.role })
+        .from(functionManagers)
+        .where(eq(functionManagers.userId, userId));
+    }
     return rows
       .filter((r) => !role || (r.role === "aprovador" ? "aprovador" : "validador") === role)
       .map((r) => r.functionId);
