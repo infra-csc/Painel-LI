@@ -4,7 +4,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
-import { Plane, AlertCircle, Stamp } from "lucide-react";
+import { Plane, AlertCircle, Stamp, FileUp } from "lucide-react";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +30,7 @@ import { filtersFromSearch, searchFromFilters } from "@/components/tickets/filte
 import { TicketsKpis, PendingSwapsBanner } from "@/components/tickets/tickets-kpis";
 import TicketsFilterBar from "@/components/tickets/tickets-filter-bar";
 import QuickBatchPanel from "@/components/tickets/quick-batch-panel";
+import VoucherLoteDialog from "@/components/tickets/voucher-lote-dialog";
 import TicketsTable from "@/components/tickets/tickets-table";
 import TicketModal from "@/components/tickets/ticket-modal";
 import {
@@ -84,6 +85,7 @@ export default function Tickets() {
   const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
   const [editingTicketId, setEditingTicketId] = useState<string | null>(null);
   const [batchExpanded, setBatchExpanded] = useState(false);
+  const [voucherLoteAberto, setVoucherLoteAberto] = useState(false);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [modalActiveTab, setModalActiveTab] = useState("resumo");
 
@@ -455,6 +457,20 @@ export default function Tickets() {
           </div>
         )}
 
+        {canEdit && (
+          <div className="mb-3 flex justify-end">
+            <Button
+              type="button" variant="outline"
+              onClick={() => setVoucherLoteAberto(true)}
+              className="rounded-lg border-slate-200 bg-white hover:bg-brand-soft hover:text-primary"
+              data-testid="abrir-voucher-lote"
+            >
+              <FileUp className="w-4 h-4 mr-1.5" aria-hidden="true" />
+              Registrar pelos vouchers (PDF)
+            </Button>
+          </div>
+        )}
+
         <QuickBatchPanel
           expanded={batchExpanded}
           onToggle={() => setBatchExpanded(v => !v)}
@@ -532,6 +548,15 @@ export default function Tickets() {
         onConfirm={() => { const fn = pendingWarnings?.onConfirm; setPendingWarnings(null); fn?.(); }}
       />
       <BatchConfirmDialog open={showBatchConfirm} quick={ticketData["quick"] || {}} names={batchNames} onCancel={() => setShowBatchConfirm(false)} onConfirm={runBatchApply} />
+      <VoucherLoteDialog
+        open={voucherLoteAberto}
+        onOpenChange={setVoucherLoteAberto}
+        inclusions={filteredTicketInclusions}
+        getCollaboratorName={getCollaboratorName}
+        getEventName={getEventName}
+        onRegistrar={async (inclusion, form) => { await upsertTicketForInclusion(inclusion, form); }}
+        registrando={isSubmitting}
+      />
       <BatchResultDialog result={batchResult} onClose={() => setBatchResult(null)} />
     </>
   );

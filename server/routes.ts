@@ -3200,6 +3200,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /**
+   * POST /api/vouchers/ler — o comprador manda um ou vários PDFs de voucher e
+   * recebe de volta os campos já interpretados (regra do dono, 28/08).
+   *
+   * SÓ LEITURA: não grava passagem, hospedagem nem anexo. A tela mostra o que
+   * foi lido para conferência e é o usuário quem manda salvar. Arquivo que não
+   * é de um formato conhecido volta como "desconhecido", com aviso — nunca
+   * derruba o lote inteiro.
+   */
+  app.post("/api/vouchers/ler", upload.array("files", 30), async (req, res) => {
+    const leitor = await requireRoles(req, res, LOGISTICA_ROLES);
+    if (!leitor) return;
+    try {
+      const arquivos = (req.files as Express.Multer.File[]) ?? [];
+      if (arquivos.length === 0) return res.status(400).json({ message: "Nenhum arquivo enviado." });
+
+      const { lerVoucherPdf, TAMANHO_MAXIMO_VOUCHER } = await import("./voucher-extract");
+      const leituras = await Promise.all(
+        arquivos.map(async (arquivo) => {
+          const base = { arquivo: arquivo.originalname };
+          if (arquivo.mimetype !== "application/pdf") {
+            return { ...base, tipo: "desconhecido", campos: {}, avisos: ["Só consigo ler vouchers em PDF."] };
+          }
+          if (arquivo.size > TAMANHO_MAXIMO_VOUCHER) {
+            return { ...base, tipo: "desconhecido", campos: {}, avisos: ["Arquivo grande demais para um voucher."] };
+          }
+          return { ...base, ...(await lerVoucherPdf(arquivo.buffer)) };
+        }),
+      );
+      res.set("Cache-Control", "no-store"); // voucher tem dado pessoal
+      res.json({ leituras });
+    } catch (error) {
+      console.error("erro ao ler voucher:", error);
+      res.status(500).json({ message: "Não foi possível ler os arquivos enviados." });
+    }
+  });
+
   // Simple file upload endpoint for FileUpload component
   app.post("/api/upload", upload.array('files', 10), async (req, res) => {
     try {
