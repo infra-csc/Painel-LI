@@ -835,3 +835,21 @@ describe("aprovador padrão do sistema (regra do dono, 26/08)", () => {
     expect(usesDefaultApprover({})).toBe(false);
   });
 });
+
+describe("parseProposedChanges — reajuste de volta ao original (27/08)", () => {
+  it("ajuste vazio é recusado na abertura (pedido da área)", () => {
+    expect(() => parseProposedChanges({ v: 1 }, "ajuste")).toThrow(/ao menos um campo/);
+  });
+
+  it("ajuste vazio é aceito na decisão do aprovador (allowEmptyAjuste)", () => {
+    expect(parseProposedChanges({ v: 1 }, "ajuste", { allowEmptyAjuste: true })).toEqual({ v: 1 });
+    // string JSON e null também
+    expect(parseProposedChanges("{\"v\":1}", "ajuste", { allowEmptyAjuste: true })).toEqual({ v: 1 });
+    expect(parseProposedChanges(null, "ajuste", { allowEmptyAjuste: true })).toEqual({ v: 1 });
+  });
+
+  it("as demais regras continuam valendo mesmo com allowEmptyAjuste", () => {
+    expect(() => parseProposedChanges({ v: 1, quantity: 2 }, "ajuste", { allowEmptyAjuste: true }))
+      .toThrow(/não aceita quantidade/);
+  });
+});

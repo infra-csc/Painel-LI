@@ -156,7 +156,7 @@ export interface NextSuggestionStateOptions {
  *
  *   APROVADOR (vaga já validada pela área)
  *   sugestao_validada --aprovar_vaga--> inclusao/planejado
- *   sugestao_validada --reprovar_vaga--> sugestao_negada        (fica registrada, não some)
+ *   sugestao_validada --reprovar_vaga--> sugestao_pendente      (volta para a área corrigir, 26/08)
  *   sugestao_validada --devolver_validacao--> sugestao_pendente (a área revisa de novo)
  *
  *   APROVADOR (decidindo um pedido)
@@ -385,7 +385,19 @@ export type ProposedField = keyof typeof PROPOSED_FIELD_LABELS;
  * - 'exclusao': não carrega mudanças (aceita vazio/nulo → { v: 1 }).
  * Lança Error com mensagem pt-BR quando inválido.
  */
-export function parseProposedChanges(raw: unknown, requestType: ChangeRequestType): ProposedChanges {
+export function parseProposedChanges(
+  raw: unknown,
+  requestType: ChangeRequestType,
+  opts: {
+    /**
+     * Aceita ajuste SEM campo alterado ({ v: 1 }). É o caso do APROVADOR
+     * reajustando o pedido de volta para como a vaga está (27/08): o pedido é
+     * resolvido e nenhum campo muda. Na ABERTURA do pedido pela área continua
+     * proibido — pedido vazio não diz nada ao aprovador.
+     */
+    allowEmptyAjuste?: boolean;
+  } = {},
+): ProposedChanges {
   let value: unknown = raw;
   if (value === undefined || value === null || value === "") value = { v: 1 };
   if (typeof value === "string") {
@@ -409,7 +421,7 @@ export function parseProposedChanges(raw: unknown, requestType: ChangeRequestTyp
     if (data.quantity !== undefined) {
       throw new Error("Pedido de ajuste não aceita quantidade (só pedidos de inclusão)");
     }
-    if (changedKeys.length === 0) {
+    if (changedKeys.length === 0 && !opts.allowEmptyAjuste) {
       throw new Error("Pedido de ajuste precisa informar ao menos um campo a alterar");
     }
   }

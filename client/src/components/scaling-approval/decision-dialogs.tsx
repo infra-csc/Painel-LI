@@ -228,9 +228,10 @@ function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFie
     if (canEditFields && editFields && !awaitingInclusion) {
       const errs = validateDraft(draft, type);
       if (errs.length) { setError(errs[0]); return; }
-      const p = draftToProposed(draft, type, inclusion);
-      if (!p) { setError("Nada foi alterado em relação à vaga atual. Desmarque “Editar campos” para reajustar sem mudar valores, ou altere algum campo."); return; }
-      editedChanges = p;
+      // Reajustar DE VOLTA para como a vaga está é decisão válida (27/08): o
+      // pedido é resolvido e nenhum campo muda — { v: 1 } diz isso ao servidor.
+      // (Só o ajuste tem esse caso; inclusão nunca devolve null aqui.)
+      editedChanges = draftToProposed(draft, type, inclusion) ?? { v: 1 };
     }
     setError(null);
     onSubmit({ comment: comment.trim(), then, ...(editedChanges ? { editedChanges } : {}) });
@@ -265,13 +266,32 @@ function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFie
               )}
               {editFields && !awaitingInclusion && (
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-4">
-                  <ProposedChangesForm type={type} value={draft} onChange={setDraft} event={event} disabled={pending} idPrefix="rev" />
-                  {type === "ajuste" && inclusion && (
-                    <div>
-                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1.5">Como fica o de/para</p>
-                      <DiffTable diff={diffInclusion(inclusion, fullFromDraft(draft))} />
+                  {type === "ajuste" && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] text-slate-500">Partir de:</span>
+                      <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg text-xs" disabled={pending}
+                        onClick={() => setDraft(draftFromProposed(request?.proposed ?? null, inclusion))}>
+                        Valores do pedido
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg text-xs" disabled={pending || !inclusion}
+                        title="Volta os campos para como a vaga está hoje — enviar assim resolve o pedido sem mudar nada"
+                        onClick={() => setDraft(draftFromProposed(null, inclusion))}>
+                        Valores atuais da vaga
+                      </Button>
                     </div>
                   )}
+                  <ProposedChangesForm type={type} value={draft} onChange={setDraft} event={event} disabled={pending} idPrefix="rev" />
+                  {type === "ajuste" && inclusion && (() => {
+                    const d = diffInclusion(inclusion, fullFromDraft(draft));
+                    return (
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1.5">Como fica o de/para</p>
+                        {d.length > 0
+                          ? <DiffTable diff={d} />
+                          : <p className="text-xs italic text-slate-500">Nenhum campo muda — a vaga segue exatamente como está e o pedido é resolvido.</p>}
+                      </div>
+                    );
+                  })()}
                   {preview && type === "inclusao" && (
                     <div>
                       <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1.5">Vaga(s) como ficará(ão)</p>
@@ -280,9 +300,11 @@ function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFie
                   )}
                 </div>
               )}
-              {!editFields && request && type === "ajuste" && (
+              {/* A base do pedido fica SEMPRE à vista (27/08): editando ou não,
+                  o aprovador precisa ver o que a área pediu para decidir em cima. */}
+              {request && type === "ajuste" && (
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1.5">Pedido como veio</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1.5">O que a área pediu</p>
                   <DiffTable diff={request.diff} />
                 </div>
               )}

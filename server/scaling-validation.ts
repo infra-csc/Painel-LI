@@ -1595,7 +1595,9 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       let editedJson: string | null = null;
       if (kind === "reajustar") {
         if (editedChanges !== undefined && editedChanges !== null) {
-          changesToApply = rule(() => parseProposedChanges(editedChanges, requestType));
+          // Reajustar de volta para como a vaga está é permitido: o pedido é
+          // resolvido e nenhum campo muda (allowEmptyAjuste).
+          changesToApply = rule(() => parseProposedChanges(editedChanges, requestType, { allowEmptyAjuste: true }));
           editedJson = JSON.stringify(changesToApply);
         } else {
           changesToApply = rule(() => parseProposedChanges(request.proposedChanges, requestType));
