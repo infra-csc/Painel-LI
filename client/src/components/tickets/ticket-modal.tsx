@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AttachmentUpload from "@/components/ui/attachment-upload";
+import VoucherFillButton from "./voucher-fill-button";
 import CommentsModal from "@/components/modals/comments-modal";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -323,6 +324,14 @@ export default function TicketModal({
                       <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center gap-2">
                         <FileText className="w-4 h-4 text-slate-400" />
                         <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Anexos</span>
+                        {/* Voucher em PDF preenche os campos desta passagem (28/08). */}
+                        <span className="ml-auto">
+                          <VoucherFillButton
+                            colaborador={inclusion.collaboratorId ? data.getCollaboratorName(inclusion.collaboratorId) : undefined}
+                            disabled={dis || isSubmitting}
+                            onPreencher={(campos) => handlers.onPatch(sid, campos)}
+                          />
+                        </span>
                       </div>
                       <div className="p-4">
                         <AttachmentUpload

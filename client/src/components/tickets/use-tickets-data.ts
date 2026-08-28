@@ -359,7 +359,9 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
     // getters
     getTicket, getEventName, getFunctionName, getCollaboratorName, getCollaborator, getEventLocation, getUserName,
     // listas derivadas
-    filteredTicketInclusions, pendingTicketSwapsCount, selectableInclusionIds, kpis,
+    // ticketInclusions = TODAS as vagas que precisam de passagem, sem os
+    // filtros da tela: o lote de vouchers procura a vaga em todas elas.
+    ticketInclusions, filteredTicketInclusions, pendingTicketSwapsCount, selectableInclusionIds, kpis,
   };
 }
 

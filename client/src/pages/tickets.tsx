@@ -93,7 +93,7 @@ export default function Tickets() {
   const {
     events, functions, collaborators, eventById, accommodationByInclusion,
     getTicket, getEventName, getFunctionName, getCollaboratorName, getCollaborator,
-    filteredTicketInclusions, pendingTicketSwapsCount, selectableInclusionIds, kpis, isPurchasingRole,
+    ticketInclusions, filteredTicketInclusions, pendingTicketSwapsCount, selectableInclusionIds, kpis, isPurchasingRole,
   } = data;
   const canEdit = canEditScreen(user, "tickets");
 
@@ -551,7 +551,7 @@ export default function Tickets() {
       <VoucherLoteDialog
         open={voucherLoteAberto}
         onOpenChange={setVoucherLoteAberto}
-        inclusions={filteredTicketInclusions}
+        inclusions={ticketInclusions}
         getCollaboratorName={getCollaboratorName}
         getEventName={getEventName}
         onRegistrar={async (inclusion, form) => { await upsertTicketForInclusion(inclusion, form); }}

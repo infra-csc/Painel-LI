@@ -15,12 +15,12 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { fixEncoding } from "@/lib/utils";
 import type { TicketFormValues } from "@/lib/ticket-form";
 import type { TeamInclusion } from "@shared/schema";
 import { casarVaga } from "./voucher-match";
+import VagaCombobox, { type VagaOpcao } from "./vaga-combobox";
 
 interface LeituraDoServidor {
   arquivo: string;
@@ -56,11 +56,13 @@ export default function VoucherLoteDialog({
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [gravando, setGravando] = useState(false);
 
-  const vagas = useMemo(
+  const vagas = useMemo<VagaOpcao[]>(
     () => inclusions.map((i) => ({
       id: i.id,
       nome: fixEncoding(getCollaboratorName(i.collaboratorId)) || "",
-      rotulo: `#${i.inclusionNumber ?? "—"} · ${fixEncoding(getCollaboratorName(i.collaboratorId))} · ${getEventName(i.eventId)}`,
+      numero: String(i.inclusionNumber ?? "—"),
+      evento: getEventName(i.eventId),
+      destino: i.city ?? undefined,
     })),
     [inclusions, getCollaboratorName, getEventName],
   );
@@ -94,6 +96,12 @@ export default function VoucherLoteDialog({
   };
 
   const prontas = linhas.filter((l) => l.tipo === "passagem" && l.inclusionId && l.resultado !== "ok");
+  // Duas linhas apontando para a mesma vaga quase sempre é engano: a segunda
+  // sobrescreveria a passagem da primeira. A lista marca, o operador decide.
+  const idsJaUsados = useMemo(
+    () => new Set(linhas.map((l) => l.inclusionId).filter((id): id is string => !!id)),
+    [linhas],
+  );
 
   const registrarTudo = async () => {
     setGravando(true);
@@ -194,22 +202,16 @@ export default function VoucherLoteDialog({
                             </p>
                             <div className="mt-2 flex items-center gap-2">
                               <span className="text-[11px] text-slate-500 shrink-0">Vaga:</span>
-                              <Select
-                                value={l.inclusionId ?? ""}
-                                onValueChange={(v) =>
-                                  setLinhas((atuais) => atuais.map((x, i) => (i === idx ? { ...x, inclusionId: v } : x)))
-                                }
+                              <VagaCombobox
+                                vagas={vagas}
+                                valor={l.inclusionId}
+                                passageiro={l.pessoa}
+                                idsJaUsados={idsJaUsados}
                                 disabled={l.resultado === "ok" || gravando}
-                              >
-                                <SelectTrigger className="h-8 max-w-[420px] text-[12px] rounded-lg">
-                                  <SelectValue placeholder="Escolha a vaga…" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-white max-h-[260px]">
-                                  {vagas.map((v) => (
-                                    <SelectItem key={v.id} value={v.id} className="text-[12px]">{v.rotulo}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                onChange={(id) =>
+                                  setLinhas((atuais) => atuais.map((x, i) => (i === idx ? { ...x, inclusionId: id } : x)))
+                                }
+                              />
                               {!l.inclusionId && (
                                 <span className="text-[11px] text-amber-700">não achei a vaga pelo nome — escolha</span>
                               )}

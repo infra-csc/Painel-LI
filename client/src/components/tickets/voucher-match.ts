@@ -16,6 +16,38 @@ const pontas = (s: string): string => {
   return p.length >= 2 ? `${p[0]} ${p[p.length - 1]}` : p[0] ?? "";
 };
 
+/** "da", "de", "dos"… não ajudam a identificar ninguém. */
+const PREPOSICOES = new Set(["da", "de", "do", "das", "dos", "e"]);
+
+export const tokensNome = (s: string): string[] =>
+  chaveNome(s).split(" ").filter((t) => t && !PREPOSICOES.has(t));
+
+/**
+ * Quanto dois nomes se parecem, de 0 a 1 (proporção de nomes em comum).
+ * Serve para ORDENAR a lista de vagas — não para escolher sozinho: quem casa
+ * automaticamente continua sendo `casarVaga`, que é bem mais rigoroso.
+ */
+export function pontuarSemelhanca(pessoa: string, nome: string): number {
+  const a = tokensNome(pessoa);
+  const b = new Set(tokensNome(nome));
+  if (a.length === 0 || b.size === 0) return 0;
+  const comuns = a.filter((t) => b.has(t)).length;
+  return comuns / Math.max(a.length, b.size);
+}
+
+export interface VagaOrdenada<T extends { nome: string }> { vaga: T; score: number }
+
+/** Vagas ordenadas da mais parecida para a menos parecida com o passageiro. */
+export function ordenarPorSemelhanca<T extends { nome: string }>(
+  pessoa: string | undefined,
+  vagas: T[],
+): VagaOrdenada<T>[] {
+  if (!pessoa) return vagas.map((vaga) => ({ vaga, score: 0 }));
+  return vagas
+    .map((vaga) => ({ vaga, score: pontuarSemelhanca(pessoa, vaga.nome) }))
+    .sort((x, y) => y.score - x.score);
+}
+
 export function casarVaga(
   pessoa: string | undefined,
   vagas: { id: string; nome: string }[],
