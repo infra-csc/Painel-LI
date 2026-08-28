@@ -283,6 +283,19 @@ export const financial = pgTable("financial", {
 });
 
 // Comments table
+/**
+ * Comentários GERAIS do evento (28/08) — mural aberto: qualquer usuário
+ * autenticado escreve, todas as telas da Escala leem. Diferente de
+ * `events.observations` (campo único da logística) e de `comments` (por vaga).
+ */
+export const eventComments = pgTable("event_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const comments = pgTable("comments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamInclusionId: varchar("team_inclusion_id").notNull().references(() => teamInclusions.id),
@@ -702,6 +715,7 @@ export type InsertSystemLog = z.infer<typeof insertSystemLogSchema>;
 export type FunctionUser = typeof functionUsers.$inferSelect;
 export type InsertFunctionUser = z.infer<typeof insertFunctionUserSchema>;
 
+export type EventComment = typeof eventComments.$inferSelect;
 export type FunctionManager = typeof functionManagers.$inferSelect;
 /** Responsável do módulo de Escala (tabela própria — ver scalingFunctionManagers). */
 export type ScalingFunctionManager = typeof scalingFunctionManagers.$inferSelect;

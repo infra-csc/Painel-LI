@@ -14,6 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import EventCombobox from "@/components/ui/event-combobox";
+import { SuggestionDetailDrawer } from "@/components/scaling-validation/suggestion-detail-drawer";
+import { EventCommentsButton } from "@/components/scaling-validation/event-comments-dialog";
 import { PageContainer } from "@/components/common/page-container";
 import { PageHeader } from "@/components/common/page-header";
 import { LoadingState } from "@/components/common/loading-state";
@@ -346,6 +348,18 @@ export default function ScalingEventViewPage() {
     return map;
   }, [rows]);
   const rowById = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
+  /**
+   * Detalhe COMPLETO de uma vaga sem sair do Histórico (28/08): os chips #id da
+   * linha do tempo e da Lista abrem o mesmo drawer da Validação, em leitura —
+   * é onde mora a história enriquecida (logs, de/para dos reajustes, motivos).
+   */
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const detailRow = detailId ? rowById.get(detailId) ?? null : null;
+  const idByNumber = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of rows) if (r.inclusionNumber != null) m.set(`#${r.inclusionNumber}`, r.id);
+    return m;
+  }, [rows]);
   /** Vagas vivas (sem soft-delete) — base dos KPIs e do quadro. */
   const liveRows = useMemo(() => rows.filter((r) => !isDeleted(r)), [rows]);
   const deletedCount = rows.length - liveRows.length;
@@ -751,7 +765,20 @@ export default function ScalingEventViewPage() {
                   {e.text && <p className="text-xs text-slate-600">{e.text}</p>}
                   {e.chips && e.chips.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
-                      {e.chips.map((ch, i) => <span key={`${e.id}-${i}`} className={cn(CHIP, "bg-slate-100 text-slate-600")}>{ch}</span>)}
+                      {e.chips.map((ch, i) => {
+                        const alvoId = idByNumber.get(ch);
+                        return alvoId ? (
+                          <button
+                            key={`${e.id}-${i}`} type="button" onClick={() => setDetailId(alvoId)}
+                            title="Ver o detalhe completo desta vaga"
+                            className={cn(CHIP, "bg-brand-soft font-semibold text-primary transition-colors hover:bg-primary hover:text-white")}
+                          >
+                            {ch}
+                          </button>
+                        ) : (
+                          <span key={`${e.id}-${i}`} className={cn(CHIP, "bg-slate-100 text-slate-600")}>{ch}</span>
+                        );
+                      })}
                     </div>
                   )}
                   {e.quote && <p className={cn("border-l-2 pl-2.5 text-xs text-slate-700 whitespace-pre-wrap break-words", c.quote)}>{e.quote}</p>}
@@ -783,6 +810,7 @@ export default function ScalingEventViewPage() {
         actions={
           <>
             <ScalingModuleNav current="history" eventId={eventId} />
+            {selectedEvent && <EventCommentsButton eventId={selectedEvent.id} eventName={selectedEvent.name} />}
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="inline-flex" tabIndex={exportEnabled ? -1 : 0}>
@@ -1113,7 +1141,8 @@ export default function ScalingEventViewPage() {
                               </td>
                               <td className="px-3 py-2 max-w-[280px]">
                                 <div className="flex items-center gap-2 min-w-0">
-                                  <span className="inline-flex rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-[11px] font-semibold text-primary tabular-nums">#{row.inclusionNumber}</span>
+                                  <button type="button" onClick={() => setDetailId(row.id)} title="Ver o detalhe completo desta vaga"
+                                    className="inline-flex rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-[11px] font-semibold text-primary tabular-nums transition-colors hover:bg-primary hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">#{row.inclusionNumber}</button>
                                   <div className="min-w-0">
                                     <span className={cn("block truncate text-[13px] font-semibold", dim ? "text-slate-400 line-through" : "text-slate-800")} title={fnName}>{fnName}</span>
                                     <span className="block truncate text-[11px] text-slate-400" title={row.observations ?? undefined}>
@@ -1341,6 +1370,14 @@ export default function ScalingEventViewPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Leitura pura: sem callbacks de ação, o rodapé de validar/ajustar não aparece. */}
+      <SuggestionDetailDrawer
+        open={!!detailRow}
+        onOpenChange={(o) => { if (!o) setDetailId(null); }}
+        row={detailRow}
+        functionName={detailRow ? functionNameById.get(detailRow.functionId) : undefined}
+        event={detailRow ? activeEvents.find((e) => e.id === detailRow.eventId) : undefined}
+      />
     </PageContainer>
   );
 }

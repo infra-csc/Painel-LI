@@ -303,15 +303,21 @@ export function useScalingData(opts: {
         if (filters.escalationStatus === "cancelado" && !isCanceled) return false;
       }
 
-      // "Comprada" = passagem com purchaseDate
+      // Passagem: "needs/no-need" cortam pela NECESSIDADE (needsTicket), o
+      // mesmo recorte dos cartões grandes; "purchased/not-purchased" seguem
+      // olhando o registro da compra (purchaseDate).
       if (filters.ticketStatus !== "all") {
         const purchased = purchasedTicketByInclusion.has(inclusion.id);
+        if (filters.ticketStatus === "needs" && !inclusion.needsTicket) return false;
+        if (filters.ticketStatus === "no-need" && inclusion.needsTicket) return false;
         if (filters.ticketStatus === "purchased" && !purchased) return false;
         if (filters.ticketStatus === "not-purchased" && purchased) return false;
       }
 
       if (filters.accommodationStatus !== "all") {
         const hasAccommodation = accommodationByInclusion.has(inclusion.id);
+        if (filters.accommodationStatus === "needs" && !inclusion.needsAccommodation) return false;
+        if (filters.accommodationStatus === "no-need" && inclusion.needsAccommodation) return false;
         if (filters.accommodationStatus === "reserved" && !hasAccommodation) return false;
         if (filters.accommodationStatus === "not-reserved" && hasAccommodation) return false;
       }

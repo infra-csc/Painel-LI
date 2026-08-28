@@ -37,6 +37,7 @@ import { AdjustRequestDialog, DeleteRequestDialog, IncludeRequestDialog } from "
 import { SuggestionDetailDrawer } from "@/components/scaling-validation/suggestion-detail-drawer";
 import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module-nav";
 import { DecidedPanel } from "@/components/scaling-validation/decided-panel";
+import { EventCommentsButton } from "@/components/scaling-validation/event-comments-dialog";
 import { useEscalaManagers } from "@/components/scaling-validation/use-escala-managers";
 import {
   SUGGESTIONS_QUERY_KEY, canActOn, canValidate, invalidateScalingQueries, workDaysOf,
@@ -568,9 +569,15 @@ export default function ScalingValidationPage() {
               </span>
             </>
           )}
+          {selectedEvent && (
+            <EventCommentsButton
+              eventId={selectedEvent.id} eventName={selectedEvent.name}
+              className={cn(CHIP_BTN, "ml-auto h-8 border-slate-200 bg-white text-slate-600 hover:border-primary/30 hover:text-primary")}
+            />
+          )}
           {selectedEvent?.observations && (
             <button
-              type="button" className={cn(CHIP_BTN, "ml-auto h-8 border-slate-200 bg-white text-slate-600 hover:border-primary/30 hover:text-primary")}
+              type="button" className={cn(CHIP_BTN, "h-8 border-slate-200 bg-white text-slate-600 hover:border-primary/30 hover:text-primary")}
               aria-expanded={showEventComments} aria-controls="val-event-obs"
               onClick={() => setShowEventComments((v) => !v)}
             >
@@ -679,6 +686,15 @@ export default function ScalingValidationPage() {
               </Link>
             </p>
           )}
+          {/* Fila vazia costuma significar TUDO APROVADO — e era justamente
+              quando as Decididas ficavam inalcançáveis (o vazio engolia as
+              abas). O histórico aparece aqui mesmo, sem aba. */}
+          <div className="pt-3">
+            <h3 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">
+              <ClipboardCheck className="h-3.5 w-3.5" aria-hidden="true" /> Decididas neste recorte
+            </h3>
+            <DecidedPanel eventId={eventId} functionNameById={functionNameById} />
+          </div>
         </div>
       ) : (
         <Tabs value={boardTab} onValueChange={(v) => setTab(v as "lista" | "escala")} className="space-y-3">

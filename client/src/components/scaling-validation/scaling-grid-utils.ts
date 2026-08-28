@@ -1210,7 +1210,11 @@ function parseLogisticaText(
     row.flightReturnDate = parseSheetDate(cell(cols, cols3.dataVolta), defaultYear);
     row.flightReturnSuggestedTime = parsePtBrTime(cell(cols, cols3.horaRetorno));
     row.observations = cell(cols, cols3.obs);
-    row.needsAccommodation = cols3.hotel >= 0 && parseYesNo(cell(cols, cols3.hotel));
+    // Sem coluna de hotel na planilha, vaga com VIAGEM entra com hotel marcado
+    // (regra do dono, 28/08). Com a coluna presente, ela manda.
+    row.needsAccommodation = cols3.hotel >= 0
+      ? parseYesNo(cell(cols, cols3.hotel))
+      : !!(row.needsTicket || row.transportModeIda || row.transportModeVolta || row.flightDepartureDate || row.flightReturnDate);
     // Quando a planilha não tem coluna de passagem, quem viaja (tem data de ida ou
     // de volta) precisa de passagem; as linhas "local" ficam sem nada. Hotel e os
     // modais de ida/volta continuam em branco, para preencher na grade.

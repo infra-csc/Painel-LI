@@ -294,7 +294,21 @@ export default function ScalingSuggestionPage() {
 
   // ── Edição da grade ──
   const changeRow = useCallback((rowId: string, patch: Partial<SuggestionGridRow>) => {
-    setRows((prev) => prev.map((r) => (r.rowId === rowId ? { ...r, ...patch } : r)));
+    setRows((prev) => prev.map((r) => {
+      if (r.rowId !== rowId) return r;
+      const next = { ...r, ...patch };
+      // Veio dado de VIAGEM? Hotel entra junto (regra do dono, 28/08: "se vier
+      // dados de logística já vem com hotel obrigatoriamente"). Só liga quando
+      // o dado chega — quem desmarcar depois não é re-marcado ao editar hora.
+      const trouxeViagem = (["transportModeIda", "transportModeVolta", "flightDepartureDate", "flightReturnDate", "flightArrivalSuggestedTime", "flightReturnSuggestedTime"] as const)
+        .some((k) => k in patch && patch[k]);
+      const tinhaViagem = !!(r.transportModeIda || r.transportModeVolta || r.flightDepartureDate || r.flightReturnDate || r.flightArrivalSuggestedTime || r.flightReturnSuggestedTime);
+      if (trouxeViagem && !tinhaViagem && !("needsAccommodation" in patch)) next.needsAccommodation = true;
+      // Passagem marcada → hotel junto (28/08: "todo mundo que tem passagem
+      // tem hospedagem"). Desmarcar continua livre.
+      if (patch.needsTicket === true && !("needsAccommodation" in patch)) next.needsAccommodation = true;
+      return next;
+    }));
   }, []);
   const changeQty = useCallback((rowId: string, date: string, value: number) => {
     setRows((prev) => prev.map((r) => (r.rowId === rowId ? { ...r, quantities: { ...r.quantities, [date]: value } } : r)));

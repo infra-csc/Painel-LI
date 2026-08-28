@@ -4,7 +4,7 @@ import multer from "multer";
 import { z } from "zod";
 import { storage, mapSwapRequestRow } from "./storage";
 import { db } from "./db";
-import { budgetNotes, functionManagers as functionManagersTable, budgetPlanned as budgetPlannedTable, events as eventsTable, swapRequests as swapRequestsTable, teamInclusions as teamInclusionsTable, collaborators as collaboratorsTable } from "@shared/schema";
+import { budgetNotes, eventComments as eventCommentsTable, users, functionManagers as functionManagersTable, budgetPlanned as budgetPlannedTable, events as eventsTable, swapRequests as swapRequestsTable, teamInclusions as teamInclusionsTable, collaborators as collaboratorsTable } from "@shared/schema";
 import { eq, and, inArray, desc, sql as drizzleSql } from "drizzle-orm";
 import { 
   insertEventSchema,
@@ -1512,6 +1512,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(all);
     } catch (error) {
       res.status(500).json({ message: "Erro ao buscar responsáveis" });
+    }
+  });
+
+  // ── Comentários gerais do evento (28/08) ──────────────────────────────────
+  // Mural aberto: qualquer usuário logado lê e escreve. O nome vai junto na
+  // resposta para a tela não precisar da lista de usuários.
+  app.get("/api/events/:id/comments", async (req, res) => {
+    try {
+      const rows = await db
+        .select({
+          id: eventCommentsTable.id,
+          eventId: eventCommentsTable.eventId,
+          userId: eventCommentsTable.userId,
+          userName: users.name,
+          content: eventCommentsTable.content,
+          createdAt: eventCommentsTable.createdAt,
+        })
+        .from(eventCommentsTable)
+        .leftJoin(users, eq(users.id, eventCommentsTable.userId))
+        .where(eq(eventCommentsTable.eventId, req.params.id))
+        .orderBy(desc(eventCommentsTable.createdAt));
+      res.set("Cache-Control", "no-store");
+      res.json(rows);
+    } catch {
+      res.status(500).json({ message: "Erro ao buscar comentários do evento" });
+    }
+  });
+
+  app.post("/api/events/:id/comments", async (req, res) => {
+    const userId = req.session?.userId;
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+    const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
+    if (!content) return res.status(400).json({ message: "Escreva o comentário." });
+    if (content.length > 2000) return res.status(400).json({ message: "Comentário pode ter no máximo 2000 caracteres." });
+    try {
+      const event = await storage.getEvent(req.params.id);
+      if (!event) return res.status(404).json({ message: "Evento não encontrado" });
+      const [row] = await db.insert(eventCommentsTable).values({ eventId: req.params.id, userId, content }).returning();
+      const actor = await storage.getUser(userId);
+      await createAuditLog("create", "event_comment", row.id, row, userId, actor?.name || "Usuário", undefined, req);
+      res.status(201).json({ ...row, userName: actor?.name ?? null });
+    } catch {
+      res.status(500).json({ message: "Erro ao gravar o comentário" });
     }
   });
 

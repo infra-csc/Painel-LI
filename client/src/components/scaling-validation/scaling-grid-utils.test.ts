@@ -586,7 +586,7 @@ describe("colagem no formato da logística", () => {
     expect(perc.flightArrivalSuggestedTime).toBe("11:00");
   });
 
-  it("passagem é inferida pela viagem; hotel e modais ficam em branco", () => {
+  it("passagem inferida pela viagem — e HOTEL vem junto dela (28/08)", () => {
     const res = parse();
     for (const name of ["Produção", "Cenotécnica", "Percurso", "Kit"]) {
       expect(byName(res, name).needsTicket, name).toBe(true);
@@ -599,7 +599,9 @@ describe("colagem no formato da logística", () => {
       expect(r.flightArrivalSuggestedTime, name).toBe("");
       expect(r.flightReturnSuggestedTime, name).toBe("");
     }
-    expect(res.rows.every((r) => !r.needsAccommodation)).toBe(true);
+    // Regra do dono (28/08): quem tem passagem tem hospedagem — a colagem sem
+    // coluna de hotel marca o hotel de quem viaja e deixa limpo quem é local.
+    for (const r of res.rows) expect(r.needsAccommodation, r.functionName).toBe(r.needsTicket);
     expect(res.rows.every((r) => r.transportModeIda === "" && r.transportModeVolta === "")).toBe(true);
     expect(res.rows.every((r) => r.observations === "")).toBe(true);
   });

@@ -218,6 +218,11 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
               </SelectTrigger>
               <SelectContent className="bg-white border border-slate-200 rounded-lg shadow-lg min-w-[220px]">
                 <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todas</SelectItem>
+                {/* "Precisa/Sem" filtram pela NECESSIDADE (needsTicket) — o mesmo corte
+                    dos cartões grandes da tela; Comprada/Não comprada seguem
+                    olhando o registro da compra. Pedido do dono, 28/08. */}
+                <SelectItem value="needs" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Precisa de passagem</SelectItem>
+                <SelectItem value="no-need" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Sem passagem</SelectItem>
                 <SelectItem value="purchased" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Comprada</SelectItem>
                 <SelectItem value="not-purchased" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Não comprada</SelectItem>
               </SelectContent>
@@ -239,6 +244,8 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
               </SelectTrigger>
               <SelectContent className="bg-white border border-slate-200 rounded-lg shadow-lg min-w-[220px]">
                 <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todas</SelectItem>
+                <SelectItem value="needs" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Precisa de hotel</SelectItem>
+                <SelectItem value="no-need" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Sem hotel</SelectItem>
                 <SelectItem value="reserved" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Reservada</SelectItem>
                 <SelectItem value="not-reserved" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Não reservada</SelectItem>
               </SelectContent>
