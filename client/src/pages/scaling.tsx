@@ -3,12 +3,11 @@
  * components/scaling/use-scaling-data, mutations em use-scaling-mutations,
  * modal em inclusion-details-dialog, ações em massa em bulk-confirm-bar.
  */
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { markSwapSeen, getSeenState } from "@/lib/seenSwaps";
-import { User, FileSpreadsheet, Plane, Users, AlertCircle } from "lucide-react";
+import { FileSpreadsheet, Plane, Users, AlertCircle } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -18,7 +17,6 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import type { TeamInclusion, Comment } from "@shared/schema";
 import ScalingTable from "@/components/scaling/scaling-table";
-import ScalingTabCards from "@/components/scaling/scaling-tab-cards";
 import { ProductionApprovalsBanner, PendingSwapsBanner } from "@/components/scaling/scaling-banners";
 import InclusionDetailsDialog, { type DetailsTab } from "@/components/scaling/inclusion-details-dialog";
 import ScalingSuccessDialog, { type ScalingSuccessInfo } from "@/components/scaling/scaling-success-dialog";
@@ -31,7 +29,7 @@ import { useAttachments } from "@/components/scaling/use-attachments";
 import { exportScalingPdf, exportScalingXlsxColunas } from "@/components/scaling/export-scaling-xlsx";
 import { ExportColumnsDialog, type ExportScope } from "@/components/scaling/export-columns-dialog";
 import { getSaveBlockReason, getConfirmBlockReason, getBulkConfirmBlockReason } from "@/components/scaling/scaling-validation";
-import { describeLoadError, isEscalated, modalDataFromInclusion, type ModalData } from "@/components/scaling/scaling-utils";
+import { describeLoadError, modalDataFromInclusion, type ModalData } from "@/components/scaling/scaling-utils";
 
 const EMPTY_MODAL: ModalData = { collaboratorId: "", observations: "", dailyValue: 0, city: "", departureFromSP: true, atendimentoTipo: "", percurseiroTipo: "" };
 
@@ -43,8 +41,6 @@ export default function Scaling() {
   const [filters, setFilters] = useState<ScalingFilters>(DEFAULT_SCALING_FILTERS);
   const [sortConfig, setSortConfig] = useState<SortConfig | null>({ field: "id", direction: "desc" });
   const [showOnlyPendingSwaps, setShowOnlyPendingSwaps] = useState(false);
-  const [scalingTab, setScalingTab] = useState<string>("without-ticket");
-  const tabInitialized = useRef(false);
 
   // Modal de detalhes
   const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
@@ -92,39 +88,19 @@ export default function Scaling() {
     enabled: false,
   });
 
-  // ── Linhas visíveis (aba + atalho de trocas) ────────────────────────────
-  const { withoutTicket, withTicket } = useMemo(() => {
-    const filterSwaps = (rows: TeamInclusion[]) => showOnlyPendingSwaps ? rows.filter(i => pendingSwapByInclusion.has(i.id)) : rows;
-    return {
-      withoutTicket: filterSwaps(scalingInclusions.filter(i => !i.needsTicket)),
-      withTicket: filterSwaps(scalingInclusions.filter(i => i.needsTicket)),
-    };
-  }, [scalingInclusions, showOnlyPendingSwaps, pendingSwapByInclusion]);
-  const visibleRows = scalingTab === "with-ticket" ? withTicket : withoutTicket;
-  const countPending = (rows: TeamInclusion[]) => rows.filter(i => !isEscalated(i) && i.status !== "cancelado").length;
-
-  // Aba inicial assim que os dados carregam (preserva o comportamento antigo)
-  useEffect(() => {
-    if (tabInitialized.current) return;
-    if (scalingInclusions.length > 0) {
-      setScalingTab(scalingInclusions.some(i => !i.needsTicket) ? "without-ticket" : "with-ticket");
-      tabInitialized.current = true;
-    }
-  }, [scalingInclusions]);
+  // ── Linhas visíveis (lista única + atalho de trocas) ────────────────────
+  // Os cartões-aba "Sem Passagem"/"Com Transporte" viraram opções do filtro
+  // "Passagem" na barra de cima (pedido do dono, 28/08): uma lista só, sem
+  // dividir a tela em duas abas.
+  const visibleRows = useMemo(
+    () => showOnlyPendingSwaps ? scalingInclusions.filter(i => pendingSwapByInclusion.has(i.id)) : scalingInclusions,
+    [scalingInclusions, showOnlyPendingSwaps, pendingSwapByInclusion],
+  );
 
   // Sai do filtro caso não haja mais trocas pendentes na visão atual
   useEffect(() => {
     if (showOnlyPendingSwaps && pendingSwapInclusionsInView.length === 0) setShowOnlyPendingSwaps(false);
   }, [showOnlyPendingSwaps, pendingSwapInclusionsInView.length]);
-
-  // Enquanto filtrando, mantém o usuário numa aba que contém a troca pendente
-  useEffect(() => {
-    if (!showOnlyPendingSwaps) return;
-    const hasWithout = pendingSwapInclusionsInView.some(i => !i.needsTicket);
-    const hasWith = pendingSwapInclusionsInView.some(i => i.needsTicket);
-    if (scalingTab === "without-ticket" && !hasWithout && hasWith) setScalingTab("with-ticket");
-    else if (scalingTab === "with-ticket" && !hasWith && hasWithout) setScalingTab("without-ticket");
-  }, [showOnlyPendingSwaps, scalingTab, pendingSwapInclusionsInView]);
 
   // Seleção: descarta IDs que saíram da lista ou deixaram de ser elegíveis
   useEffect(() => {
@@ -135,11 +111,7 @@ export default function Scaling() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamInclusions]);
 
-  const goToPendingSwaps = () => {
-    setShowOnlyPendingSwaps(true);
-    const match = pendingSwapInclusionsInView[0];
-    if (match) setScalingTab(match.needsTicket ? "with-ticket" : "without-ticket");
-  };
+  const goToPendingSwaps = () => setShowOnlyPendingSwaps(true);
 
   const handleSort = (field: SortField) => {
     setSortConfig(current => {
@@ -467,7 +439,7 @@ export default function Scaling() {
           <p className="text-[13px] text-slate-400">Não há registros de escalação para exibir com os filtros atuais.</p>
         </div>
       ) : (
-        <Tabs value={scalingTab} onValueChange={setScalingTab} className="w-full">
+        <div className="w-full">
           <PendingSwapsBanner
             all={pendingSwapInclusionsAll}
             inView={pendingSwapInclusionsInView}
@@ -476,38 +448,18 @@ export default function Scaling() {
             onShow={goToPendingSwaps}
             onClear={() => setShowOnlyPendingSwaps(false)}
           />
-          <ScalingTabCards
-            withoutCount={withoutTicket.length}
-            withoutPending={countPending(withoutTicket)}
-            withCount={withTicket.length}
-            withPending={countPending(withTicket)}
-          />
 
-          <TabsContent value="without-ticket" className="mt-0">
-            {withoutTicket.length === 0 ? (
-              <div className="p-12 text-center">
-                <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-foreground mb-2">Nenhuma escalação sem passagem</h3>
-                <p className="text-muted-foreground">Não há registros de escalações que não necessitam de passagens.</p>
+          {visibleRows.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-10 text-center mt-4">
+              <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                <Plane className="w-6 h-6 text-slate-300" />
               </div>
-            ) : (
-              <ScalingTable rows={withoutTicket} {...tableProps} />
-            )}
-          </TabsContent>
-
-          <TabsContent value="with-ticket" className="mt-0">
-            {withTicket.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-10 text-center mt-4">
-                <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center mx-auto mb-3">
-                  <Plane className="w-6 h-6 text-green-300" />
-                </div>
-                <h3 className="text-[14px] font-bold text-slate-500 mb-1">Nenhuma escalação com passagem</h3>
-                <p className="text-[12px] text-slate-400">Não há escalações que necessitam de passagens nos filtros atuais.</p>
-              </div>
-            ) : (
-              <ScalingTable rows={withTicket} {...tableProps} />
-            )}
-          </TabsContent>
+              <h3 className="text-[14px] font-bold text-slate-500 mb-1">Nenhuma escalação nesse recorte</h3>
+              <p className="text-[12px] text-slate-400">Ajuste os filtros de Passagem/Hospedagem acima para ver outras escalações.</p>
+            </div>
+          ) : (
+            <ScalingTable rows={visibleRows} {...tableProps} />
+          )}
 
           <BulkConfirmBar
             selected={selectedInclusions}
@@ -521,7 +473,7 @@ export default function Scaling() {
               queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
             }}
           />
-        </Tabs>
+        </div>
       )}
 
       <InclusionDetailsDialog
