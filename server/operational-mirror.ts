@@ -35,6 +35,7 @@ interface LogisticsConfig {
   allowTripleRoom: boolean;
   hotelGroupBySameDepartmentPriority: boolean;
   requireSameGenderForSharedRoom: boolean;
+  sameFunctionPriority: boolean;
 }
 
 async function getLogisticsConfig(): Promise<LogisticsConfig> {
@@ -46,6 +47,9 @@ async function getLogisticsConfig(): Promise<LogisticsConfig> {
     uberMaxPeoplePerCar: parseInt(map["uber_max_people_per_car"] || "4", 10),
     allowTripleRoom: (map["allow_triple_room"] || "false") === "true",
     hotelGroupBySameDepartmentPriority: (map["hotel_group_by_same_department_priority"] || "true") === "true",
+    // Juntar gente da MESMA FUNÇÃO no quarto (pedido do dono, 28/08). A chave
+    // antiga olhava ti.area, que está vazia em todas as escalações do banco.
+    sameFunctionPriority: (map["hotel_group_by_same_function_priority"] || "true") === "true",
     requireSameGenderForSharedRoom: (map["require_same_gender_for_shared_room"] || "true") === "true",
   };
 }
@@ -56,6 +60,8 @@ function timeToMinutes(t: string | null | undefined): number | null {
   if (!m) return null;
   return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
 }
+
+import { sugerirQuartos } from "@shared/room-pairing";
 
 // ---------- Buscar dados consolidados ----------
 export async function getOperationalMirror(eventId: string): Promise<MirrorResponse | null> {
@@ -153,7 +159,9 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
     if (acc && !acc.hotelOc) pendencies.push("Hospedagem sem OC");
     if (acc && (!acc.attachmentIds || acc.attachmentIds.length === 0)) pendencies.push("Hospedagem sem anexo");
     if (ti.needsAccommodation && (!collab?.gender || collab.gender === "unknown")) pendencies.push("Sem sexo/gênero cadastrado");
-    if (ti.needsAccommodation && acc && !roomGroup && (!collab?.gender || collab.gender === "unknown")) pendencies.push("Impossível sugerir quarto (falta dado)");
+    // Sem gênero ainda dá para sugerir (pareia por função, 28/08). Só é
+    // "impossível" quando faltam os dois dados de uma vez.
+    if (ti.needsAccommodation && acc && !roomGroup && (!collab?.gender || collab.gender === "unknown") && !ti.functionId) pendencies.push("Impossível sugerir quarto (falta dado)");
     if (ti.needsTicket && ticket && !uberGroup) pendencies.push("Uber sem grupo sugerido");
     if (uberExtra.total > 0 && !uberExtra.oc) pendencies.push("Custo Uber sem OC");
     if (carExtra.total > 0 && !carExtra.oc) pendencies.push("Custo locação sem OC");
@@ -475,54 +483,44 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
       checkOut: acc?.checkOutDate || ti.scheduleEndDate || null,
       gender: collab?.gender || "unknown",
       area: ti.area || null,
+      functionId: ti.functionId || null,
+      functionName: null as string | null,
     };
   });
 
-  // Emparelhar: mesma data + mesmo hotel + mesmo gênero
-  const used = new Set<string>();
-  const groupsToCreate: { roomType: string; genderRule: string; hotelName: string | null; checkIn: string | null; checkOut: string | null; members: string[] }[] = [];
-
-  for (let i = 0; i < roomCandidates.length; i++) {
-    const a = roomCandidates[i];
-    if (used.has(a.collab.id)) continue;
-    // gênero desconhecido -> quarto single (pendência tratada na tela)
-    if (config.requireSameGenderForSharedRoom && (a.gender === "unknown" || !a.gender)) {
-      used.add(a.collab.id);
-      groupsToCreate.push({ roomType: "single", genderRule: "none", hotelName: a.hotelName, checkIn: a.checkIn, checkOut: a.checkOut, members: [a.collab.id] });
-      continue;
-    }
-    // procurar parceiro compatível
-    const partners: typeof roomCandidates = [];
-    for (let j = i + 1; j < roomCandidates.length; j++) {
-      const b = roomCandidates[j];
-      if (used.has(b.collab.id)) continue;
-      const sameGender = !config.requireSameGenderForSharedRoom || a.gender === b.gender;
-      const sameHotel = (a.hotelName || "") === (b.hotelName || "");
-      const sameDates = a.checkIn === b.checkIn && a.checkOut === b.checkOut;
-      if (sameGender && sameHotel && sameDates && b.gender !== "unknown") {
-        partners.push(b);
-      }
-    }
-    // priorizar mesmo departamento
-    if (config.hotelGroupBySameDepartmentPriority) {
-      partners.sort((x, y) => {
-        const xs = x.area === a.area ? 0 : 1;
-        const ys = y.area === a.area ? 0 : 1;
-        return xs - ys;
-      });
-    }
-    const maxRoom = config.allowTripleRoom ? 3 : 2;
-    const members = [a.collab.id];
-    for (const p of partners) {
-      if (members.length >= maxRoom) break;
-      members.push(p.collab.id);
-      used.add(p.collab.id);
-    }
-    used.add(a.collab.id);
-    const roomType = members.length === 1 ? "single" : members.length === 2 ? "double" : "triple";
-    const genderRule = a.gender === "male" ? "male" : a.gender === "female" ? "female" : "none";
-    groupsToCreate.push({ roomType, genderRule, hotelName: a.hotelName, checkIn: a.checkIn, checkOut: a.checkOut, members });
-  }
+  // A regra de quem divide com quem mora em shared/room-pairing.ts, com
+  // testes sobre casos reais de evento: pareia por NOITES EM COMUM (e não por
+  // datas idênticas), respeita gênero quando ele existe e, quando não existe,
+  // só junta pessoas da mesma função.
+  const sugeridos = sugerirQuartos(
+    roomCandidates.map((c: any) => ({
+      collaboratorId: c.collab.id,
+      checkIn: c.checkIn,
+      checkOut: c.checkOut,
+      hotelName: c.hotelName,
+      gender: c.gender,
+      functionId: c.functionId,
+      functionName: c.functionName,
+    })),
+    {
+      allowTripleRoom: config.allowTripleRoom,
+      requireSameGenderForSharedRoom: config.requireSameGenderForSharedRoom,
+      sameFunctionPriority: config.sameFunctionPriority,
+    },
+  );
+  const groupsToCreate = sugeridos.map((q) => ({
+    roomType: q.roomType as string,
+    genderRule: q.genderRule as string,
+    hotelName: q.hotelName,
+    checkIn: q.checkIn,
+    checkOut: q.checkOut,
+    members: q.members,
+    // Quem divide quarto com períodos diferentes precisa ser conferido com o
+    // hotel (entrada/saída em dias distintos), então a sugestão já diz isso.
+    notes: q.partialOverlap
+      ? `Datas diferentes entre os ocupantes — ${q.sharedNights} noite(s) em comum. Confirme entrada/saída com o hotel.`
+      : null,
+  }));
 
   for (const g of groupsToCreate) {
     const [created] = await db.insert(hotelRoomGroups).values({
@@ -532,6 +530,7 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
       genderRule: g.genderRule,
       checkInDate: g.checkIn,
       checkOutDate: g.checkOut,
+      notes: g.notes,
       suggested: true,
       confirmed: false,
     }).returning();
