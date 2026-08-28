@@ -14,12 +14,20 @@ interface AttachmentUploadProps {
   onAttachmentsChange: (attachmentIds: string[]) => void;
   disabled?: boolean;
   title?: string;
+  /**
+   * Chamado com o arquivo original depois de anexado (28/08). Serve para quem
+   * quer APROVEITAR o conteúdo do anexo — na passagem, o mesmo PDF que vira
+   * comprovante também preenche os campos, para não existirem dois lugares
+   * de subir o mesmo arquivo.
+   */
+  onFileSelected?: (file: File) => void | Promise<void>;
 }
 
 export default function AttachmentUpload({
   attachmentIds = [],
   onAttachmentsChange,
   disabled = false,
+  onFileSelected,
 }: AttachmentUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [localMeta, setLocalMeta] = useState<AttachmentMeta[]>([]);
@@ -66,6 +74,9 @@ export default function AttachmentUpload({
       setLocalMeta(prev => [...prev, { id: attachmentId, name: file.name, size: file.size, type: file.type }]);
       onAttachmentsChange([...attachmentIds, attachmentId]);
       toast({ title: "Anexo carregado", description: `"${file.name}" anexado com sucesso` });
+      // Depois de guardado, quem chamou pode ler o conteúdo (ex.: voucher que
+      // preenche a passagem). Falha aqui não desfaz o anexo.
+      try { await onFileSelected?.(file); } catch { /* quem trata é o chamador */ }
     } catch (error) {
       toast({ title: "Erro no upload", description: error instanceof Error ? error.message : "Erro ao carregar", variant: "destructive" });
     } finally {

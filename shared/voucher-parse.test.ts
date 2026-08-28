@@ -55,10 +55,10 @@ describe("voucher de passagem (formato das agências)", () => {
     expect(r.tipo).toBe("passagem");
   });
 
-  it("lê localizador, emissão e SÓ a tarifa (decisão do dono)", () => {
+  it("lê localizador, emissão e o TOTAL — tarifa + taxas (decisão do dono)", () => {
     expect(r.campos.purchaseOrderNumber).toBe("IJQZNW");
     expect(r.campos.purchaseDate).toBe("2026-07-15");
-    expect(r.campos.value).toBe("564,44"); // não 675,39 (total) nem as taxas
+    expect(r.campos.value).toBe("675,39"); // 564,44 de tarifa + 110,95 de taxas
   });
 
   it("lê a ida com aeroportos, data deduzida e os DOIS horários", () => {

@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AttachmentUpload from "@/components/ui/attachment-upload";
-import VoucherFillButton from "./voucher-fill-button";
+import { useVoucherFill } from "./use-voucher-fill";
 import CommentsModal from "@/components/modals/comments-modal";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -167,6 +167,13 @@ export default function TicketModal({
     });
   };
 
+  // Um anexo só: o PDF do voucher vira comprovante E preenche os campos
+  // (pedido do dono, 28/08 — "não ter dois pra subir").
+  const voucher = useVoucherFill({
+    colaborador: inclusion.collaboratorId ? data.getCollaboratorName(inclusion.collaboratorId) : undefined,
+    onPreencher: (campos: Record<string, string>) => handlers.onPatch(sid, campos),
+  });
+
   const useSuggestion = () => {
     const patch = suggestionToFormPatch(suggestion, form);
     const keys = Object.keys(patch);
@@ -253,6 +260,34 @@ export default function TicketModal({
                   <TicketViewDetails ticket={ticket} inclusion={inclusion} />
                 ) : (
                   <div className="space-y-4">
+                    {/* Voucher/anexo em primeiro lugar (28/08): é por aqui que a
+                        passagem começa — o arquivo é o comprovante e a fonte
+                        dos dados ao mesmo tempo. */}
+                    <div className="border border-blue-200 bg-blue-50/40 rounded-2xl overflow-hidden">
+                      <div className="bg-blue-50 border-b border-blue-100 px-4 py-2.5 flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-primary" />
+                        <span className="text-[11px] font-black text-primary uppercase tracking-[0.12em]">
+                          Voucher e anexos
+                        </span>
+                        {voucher.lendo && (
+                          <span className="ml-auto text-[11px] font-semibold text-primary">Lendo o voucher…</span>
+                        )}
+                      </div>
+                      <div className="p-4">
+                        <p className="text-[12px] text-slate-600 mb-3">
+                          Anexe aqui o <strong>voucher em PDF</strong>: ele fica guardado como comprovante
+                          <strong> e preenche os campos da passagem automaticamente</strong>. Outros arquivos
+                          (imagem, comprovante extra) também podem ser anexados — esses só são guardados.
+                        </p>
+                        <AttachmentUpload
+                          attachmentIds={form.attachmentIds || []}
+                          onAttachmentsChange={(attachmentIds) => handlers.onFieldChange(sid, "attachmentIds", attachmentIds)}
+                          onFileSelected={dis ? undefined : voucher.lerArquivo}
+                          disabled={isSubmitting || roMode}
+                        />
+                      </div>
+                    </div>
+
                     {/* Configuração */}
                     <div className="bg-white border border-slate-200 rounded-2xl p-4">
                       <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 mb-3">Configuração</div>
@@ -320,27 +355,6 @@ export default function TicketModal({
                       />
                     </div>
 
-                    <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                      <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-slate-400" />
-                        <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Anexos</span>
-                        {/* Voucher em PDF preenche os campos desta passagem (28/08). */}
-                        <span className="ml-auto">
-                          <VoucherFillButton
-                            colaborador={inclusion.collaboratorId ? data.getCollaboratorName(inclusion.collaboratorId) : undefined}
-                            disabled={dis || isSubmitting}
-                            onPreencher={(campos) => handlers.onPatch(sid, campos)}
-                          />
-                        </span>
-                      </div>
-                      <div className="p-4">
-                        <AttachmentUpload
-                          attachmentIds={form.attachmentIds || []}
-                          onAttachmentsChange={(attachmentIds) => handlers.onFieldChange(sid, "attachmentIds", attachmentIds)}
-                          disabled={isSubmitting || roMode}
-                        />
-                      </div>
-                    </div>
                   </div>
                 )}
               </TabsContent>

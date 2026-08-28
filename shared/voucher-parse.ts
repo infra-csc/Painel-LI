@@ -7,7 +7,7 @@
  * o arquivo em texto é o servidor (server/voucher-extract.ts).
  *
  * Decisões do dono (28/08):
- * - Valor da passagem = **só a tarifa** (não somar taxas/repasse).
+ * - Valor da passagem = o **Total** do voucher (tarifa + taxas/repasse).
  * - Data sem ano no voucher: deduzir; se ficar ambíguo, devolver vazio e avisar.
  * - Sempre UM passageiro/hóspede por arquivo.
  *
@@ -140,11 +140,15 @@ export function lerVoucherPassagem(texto: string): VoucherLeitura | null {
   const emissao = emissaoLinha ? dataComAno(emissaoLinha[1]) : null;
   if (emissao) campos.purchaseDate = emissao;
 
-  // Decisão do dono: só a TARIFA. "Valor: BRL 564,44" — não o Total.
+  // Decisão do dono (28/08): o valor da passagem é o TOTAL do voucher, que
+  // já inclui taxas e repasse ("Total: BRL 675,39"). A tarifa isolada só
+  // serve de reserva para vouchers que não estampam o total.
+  const total = texto.match(/Total:\s*(BRL\s*[\d.]+,\d{2})/i);
   const tarifa = texto.match(/Valor:\s*(BRL\s*[\d.]+,\d{2})/i);
-  const valor = tarifa ? valorBr(tarifa[1]) : null;
+  const valor = total ? valorBr(total[1]) : tarifa ? valorBr(tarifa[1]) : null;
   if (valor) campos.value = valor;
-  else avisos.push("Não achei a tarifa no voucher — preencha o Valor da Passagem à mão.");
+  else avisos.push("Não achei o valor no voucher — preencha o Valor da Passagem à mão.");
+  if (!total && tarifa) avisos.push("O voucher não traz o total; usei a tarifa sem as taxas — confira.");
 
   const trechos = lerTrechos(linhas);
   if (trechos.length < 2) return null; // sem ao menos um par, não é este formato
