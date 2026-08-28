@@ -94,6 +94,13 @@ export interface MirrorTotals {
   grand: number;
   byFunction: MirrorSubtotal[];
   byDepartment: MirrorSubtotal[];
+  /**
+   * Rateio contábil (28/08): vários departamentos caem na MESMA conta —
+   * cenotécnica, kit, percurso e produção viram "LI" na planilha da equipe.
+   * É por esta visão que o financeiro fecha o evento; a de departamento
+   * responde "quem gastou", esta responde "em qual conta entra".
+   */
+  byAccount: MirrorSubtotal[];
 }
 
 export interface MirrorEvent {

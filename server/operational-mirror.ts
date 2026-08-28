@@ -247,6 +247,21 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
     byDepartment[key].total += t + h + r.baggage.totalCents + r.uber.totalCents + r.carRental.totalCents;
   }
 
+  // subtotais por CONTA (rateio contábil — functions.cost_center)
+  const byAccount: Record<string, MirrorSubtotal> = {};
+  for (const r of rows) {
+    const key = r.function.costCenter || "(sem conta)";
+    if (!byAccount[key]) byAccount[key] = { name: key, tickets: 0, hotel: 0, baggage: 0, uber: 0, carRental: 0, total: 0 };
+    const t = r.ticket?.value || 0;
+    const h = hotelTotalCents(r);
+    byAccount[key].tickets += t;
+    byAccount[key].hotel += h;
+    byAccount[key].baggage += r.baggage.totalCents;
+    byAccount[key].uber += r.uber.totalCents;
+    byAccount[key].carRental += r.carRental.totalCents;
+    byAccount[key].total += t + h + r.baggage.totalCents + r.uber.totalCents + r.carRental.totalCents;
+  }
+
   const pendingCount = rows.reduce((s, r) => s + r.pendencies.length, 0);
 
   return {
@@ -270,6 +285,8 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
       grand,
       byFunction: Object.values(byFunction),
       byDepartment: Object.values(byDepartment),
+      // Maior primeiro: no fechamento o que importa é onde o dinheiro pesa.
+      byAccount: Object.values(byAccount).sort((x, y) => y.total - x.total),
     },
     pendingCount,
     suggestedRoomCount: roomGroupRows.length,

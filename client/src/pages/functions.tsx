@@ -68,6 +68,10 @@ const CLOSE_BTN = "flex items-center justify-center w-8 h-8 rounded-full text-sl
 // ─── Schemas ───────────────────────────────────────────────────────────────
 const functionFormSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
+  // Conta contábil do rateio (28/08): é por ela que o Espelho Operacional
+  // fecha o custo do evento. Vários departamentos caem na mesma conta —
+  // cenotécnica, kit e percurso entram em "LI", por exemplo.
+  costCenter: z.string().trim().optional(),
 });
 type FunctionFormData = z.infer<typeof functionFormSchema>;
 
@@ -337,7 +341,7 @@ export default function Functions() {
 
   const form = useForm<FunctionFormData>({
     resolver: zodResolver(functionFormSchema),
-    defaultValues: { name: "" },
+    defaultValues: { name: "", costCenter: "" },
   });
 
   const { data: functions, isLoading, isError, error, refetch } = useQuery<FunctionWithManagers[]>({ queryKey: ["/api/functions"] });
@@ -367,7 +371,7 @@ export default function Functions() {
     onError: (err: any) => toast({ title: "Erro ao remover função", description: fnErrMsg(err, "Pode haver escalações vinculadas."), variant: "destructive" }),
   });
 
-  const handleOpenDialog = (fn?: Function) => { setEditingFunction(fn ?? null); form.reset({ name: fn?.name ?? "" }); setIsDialogOpen(true); };
+  const handleOpenDialog = (fn?: Function) => { setEditingFunction(fn ?? null); form.reset({ name: fn?.name ?? "", costCenter: fn?.costCenter ?? "" }); setIsDialogOpen(true); };
   const handleCloseDialog = () => { setIsDialogOpen(false); setEditingFunction(null); form.reset(); };
   const handleSubmit = (data: FunctionFormData) => {
     if (editingFunction) updateFunctionMutation.mutate({ id: editingFunction.id, data });
@@ -441,6 +445,23 @@ export default function Functions() {
                                 className={cn(SOFT_INPUT, "h-[42px] text-sm px-4")}
                                 {...field} />
                             </FormControl>
+                            <FormMessage className="text-[11px] mt-1" />
+                          </div>
+                        )} />
+
+                        <FormField control={form.control} name="costCenter" render={({ field }) => (
+                          <div>
+                            <label htmlFor="function-account" className={LABEL}>Conta (rateio)</label>
+                            <FormControl>
+                              <input id="function-account" placeholder="Ex: LI, Atendimento, Produção…"
+                                data-testid="input-function-account"
+                                className={cn(SOFT_INPUT, "h-[42px] text-sm px-4")}
+                                {...field} value={field.value ?? ""} />
+                            </FormControl>
+                            <p className="text-[11px] text-slate-400 mt-1">
+                              Em qual conta o custo desta função entra no fechamento do evento.
+                              Várias funções podem dividir a mesma conta.
+                            </p>
                             <FormMessage className="text-[11px] mt-1" />
                           </div>
                         )} />
