@@ -638,24 +638,54 @@ export class DatabaseStorage implements IStorage {
   }
 
   async addScalingManager(row: InsertScalingFunctionManager): Promise<ScalingFunctionManager> {
-    const [novo] = await db.insert(scalingFunctionManagers).values(row)
-      .onConflictDoNothing({ target: [scalingFunctionManagers.functionId, scalingFunctionManagers.userId, scalingFunctionManagers.role] })
-      .returning();
-    if (novo) return novo;
-    // Já existia: devolve a linha atual (o cadastro é idempotente).
-    const [atual] = await db.select().from(scalingFunctionManagers).where(and(
-      eq(scalingFunctionManagers.functionId, row.functionId),
-      eq(scalingFunctionManagers.userId, row.userId),
-      eq(scalingFunctionManagers.role, row.role ?? "validador"),
-    )).limit(1);
-    return atual;
+    try {
+      const [novo] = await db.insert(scalingFunctionManagers).values(row)
+        .onConflictDoNothing({ target: [scalingFunctionManagers.functionId, scalingFunctionManagers.userId, scalingFunctionManagers.role] })
+        .returning();
+      if (novo) return novo;
+      // Já existia: devolve a linha atual (o cadastro é idempotente).
+      const [atual] = await db.select().from(scalingFunctionManagers).where(and(
+        eq(scalingFunctionManagers.functionId, row.functionId),
+        eq(scalingFunctionManagers.userId, row.userId),
+        eq(scalingFunctionManagers.role, row.role ?? "validador"),
+      )).limit(1);
+      return atual;
+    } catch (error) {
+      if (!isMissingScalingManagersTable(error)) throw error;
+      // Ponte para uma publicação cujo schema ainda não recebeu a tabela nova.
+      // A tabela antiga tem unicidade por (função, usuário), então preservamos
+      // esse limite até a relação separada ser criada pelo Publish.
+      const role = row.role ?? "validador";
+      const [novo] = await db.insert(functionManagers).values({
+        functionId: row.functionId,
+        userId: row.userId,
+        role,
+      }).onConflictDoNothing({
+        target: [functionManagers.functionId, functionManagers.userId],
+      }).returning();
+      if (novo) return novo as unknown as ScalingFunctionManager;
+      const [atual] = await db.select().from(functionManagers).where(and(
+        eq(functionManagers.functionId, row.functionId),
+        eq(functionManagers.userId, row.userId),
+      )).limit(1);
+      if (!atual) throw error;
+      return atual as unknown as ScalingFunctionManager;
+    }
   }
 
   async removeScalingManager(functionId: string, userId: string, role?: FunctionManagerRole): Promise<void> {
-    const cond = role
-      ? and(eq(scalingFunctionManagers.functionId, functionId), eq(scalingFunctionManagers.userId, userId), eq(scalingFunctionManagers.role, role))
-      : and(eq(scalingFunctionManagers.functionId, functionId), eq(scalingFunctionManagers.userId, userId));
-    await db.delete(scalingFunctionManagers).where(cond);
+    try {
+      const cond = role
+        ? and(eq(scalingFunctionManagers.functionId, functionId), eq(scalingFunctionManagers.userId, userId), eq(scalingFunctionManagers.role, role))
+        : and(eq(scalingFunctionManagers.functionId, functionId), eq(scalingFunctionManagers.userId, userId));
+      await db.delete(scalingFunctionManagers).where(cond);
+    } catch (error) {
+      if (!isMissingScalingManagersTable(error)) throw error;
+      const cond = role
+        ? and(eq(functionManagers.functionId, functionId), eq(functionManagers.userId, userId), eq(functionManagers.role, role))
+        : and(eq(functionManagers.functionId, functionId), eq(functionManagers.userId, userId));
+      await db.delete(functionManagers).where(cond);
+    }
   }
 
   async removeUserFromAllFunctions(userId: string): Promise<void> {
