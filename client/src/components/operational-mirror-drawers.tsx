@@ -21,6 +21,10 @@ interface FieldDef {
   field: string;
   label: string;
   type: FieldType;
+  /** Seção do formulário — o painel deixou de ser uma grade solta de inputs. */
+  group?: string;
+  /** Texto de apoio abaixo do campo, quando o rótulo não basta. */
+  hint?: string;
   span?: 1 | 2;
   placeholder?: string;
   get?: (row: MirrorRow | null) => DrawerValue | undefined;
@@ -39,45 +43,45 @@ export const ROOM_TYPE_LABEL: Record<string, string> = Object.fromEntries(ROOM_T
 const SELECT_EMPTY = "__none__";
 
 const TICKET_FIELDS: FieldDef[] = [
-  { field: "ticket.value", label: "Valor da passagem (R$)", type: "money", span: 2 },
-  { field: "ticket.departureAirport", label: "Aeroporto ida", type: "text" },
-  { field: "ticket.actualDepartureTime", label: "Hora ida", type: "time" },
-  { field: "ticket.returnOriginAirport", label: "Aeroporto volta", type: "text" },
-  { field: "ticket.actualReturnTime", label: "Hora volta", type: "time" },
-  { field: "ticket.locator", label: "Localizador", type: "text" },
-  { field: "ticket.ticketCompany", label: "Empresa", type: "text" },
-  { field: "ticket.purchaseOrderNumber", label: "OC", type: "text" },
-  { field: "ticket.checkIn3", label: "Check-in 3", type: "text" },
+  { field: "ticket.value", label: "Valor da passagem", type: "money", span: 2, group: "Voo" },
+  { field: "ticket.departureAirport", label: "Aeroporto de ida", type: "text", group: "Voo", placeholder: "Ex: CGH" },
+  { field: "ticket.actualDepartureTime", label: "Horário de ida", type: "time", group: "Voo" },
+  { field: "ticket.returnOriginAirport", label: "Aeroporto de volta", type: "text", group: "Voo", placeholder: "Ex: GRU" },
+  { field: "ticket.actualReturnTime", label: "Horário de volta", type: "time", group: "Voo" },
+  { field: "ticket.locator", label: "Localizador", type: "text", group: "Compra", placeholder: "Ex: IJQZNW" },
+  { field: "ticket.ticketCompany", label: "Companhia", type: "text", group: "Compra", placeholder: "Ex: GOL" },
+  { field: "ticket.purchaseOrderNumber", label: "OC", type: "text", group: "Compra" },
+  { field: "ticket.checkIn3", label: "Conferência", type: "text", span: 2, group: "Compra", hint: "Quem conferiu esta passagem no fechamento." },
 ];
 
 const ACC_FIELDS: FieldDef[] = [
-  { field: "accommodation.hotelName", label: "Hotel", type: "text", span: 2 },
-  { field: "accommodation.reservationNumber", label: "Nº da reserva", type: "text", placeholder: "Ex: RES-123456" },
-  { field: "accommodation.roomType", label: "Tipo de quarto", type: "select", options: ROOM_TYPE_OPTIONS },
-  { field: "accommodation.checkInDate", label: "Check-in (data)", type: "date" },
-  { field: "accommodation.checkInTime", label: "Check-in (hora)", type: "time" },
-  { field: "accommodation.checkOutDate", label: "Check-out (data)", type: "date" },
-  { field: "accommodation.checkOutTime", label: "Check-out (hora)", type: "time" },
-  { field: "accommodation.nightsCount", label: "Diárias (noites)", type: "int" },
-  { field: "accommodation.dailyRate", label: "Valor diária (R$)", type: "money" },
-  { field: "accommodation.totalCents", label: "Hotel total (R$)", type: "money" },
-  { field: "accommodation.paymentCompany", label: "Empresa pagamento", type: "text" },
-  { field: "accommodation.hotelOc", label: "OC", type: "text" },
-  { field: "accommodation.checkIn4", label: "Check-in 4", type: "text" },
-  { field: "accommodation.lateCheckout", label: "Late check-out", type: "bool", span: 2 },
+  { field: "accommodation.hotelName", label: "Hotel", type: "text", span: 2, group: "Reserva" },
+  { field: "accommodation.reservationNumber", label: "Nº da reserva", type: "text", group: "Reserva", placeholder: "Ex: RES-123456" },
+  { field: "accommodation.roomType", label: "Tipo de quarto", type: "select", options: ROOM_TYPE_OPTIONS, group: "Reserva" },
+  { field: "accommodation.checkInDate", label: "Entrada", type: "date", group: "Período" },
+  { field: "accommodation.checkInTime", label: "Hora da entrada", type: "time", group: "Período" },
+  { field: "accommodation.checkOutDate", label: "Saída", type: "date", group: "Período" },
+  { field: "accommodation.checkOutTime", label: "Hora da saída", type: "time", group: "Período" },
+  { field: "accommodation.nightsCount", label: "Noites", type: "int", group: "Período" },
+  { field: "accommodation.lateCheckout", label: "Late check-out", type: "bool", group: "Período" },
+  { field: "accommodation.dailyRate", label: "Valor da diária", type: "money", group: "Valores" },
+  { field: "accommodation.totalCents", label: "Total do hotel", type: "money", group: "Valores", hint: "Em branco, o total é diária × noites." },
+  { field: "accommodation.paymentCompany", label: "Empresa de pagamento", type: "text", group: "Valores" },
+  { field: "accommodation.hotelOc", label: "OC", type: "text", group: "Valores" },
+  { field: "accommodation.checkIn4", label: "Conferência", type: "text", span: 2, group: "Valores", hint: "Quem conferiu esta hospedagem no fechamento." },
 ];
 
 const EXTRAS_FIELDS: FieldDef[] = [
-  { field: "baggage.amountCents", label: "Bagagem extra (R$)", type: "money", get: (r) => r?.baggage?.extraCents },
-  { field: "baggage.oc", label: "OC bagagem", type: "text", get: (r) => r?.baggage?.oc },
-  { field: "baggage.checkIn", label: "Check-in bagagem", type: "text", get: (r) => r?.baggage?.checkIn },
-  { field: "uber.amountCents", label: "Uber (R$)", type: "money", get: (r) => r?.uber?.totalCents },
-  { field: "uber.oc", label: "OC Uber", type: "text", get: (r) => r?.uber?.oc },
-  { field: "uber.checkIn", label: "Check-in Uber", type: "text", get: (r) => r?.uber?.checkIn },
-  { field: "carRental.company", label: "Empresa locação", type: "text", span: 2, get: (r) => r?.carRental?.company },
-  { field: "carRental.amountCents", label: "Locação (R$)", type: "money", get: (r) => r?.carRental?.totalCents },
-  { field: "carRental.oc", label: "OC locação", type: "text", get: (r) => r?.carRental?.oc },
-  { field: "carRental.checkIn", label: "Check-in locação", type: "text", get: (r) => r?.carRental?.checkIn },
+  { field: "baggage.amountCents", label: "Valor", type: "money", group: "Bagagem extra", get: (r) => r?.baggage?.extraCents },
+  { field: "baggage.oc", label: "OC", type: "text", group: "Bagagem extra", get: (r) => r?.baggage?.oc },
+  { field: "baggage.checkIn", label: "Conferência", type: "text", span: 2, group: "Bagagem extra", get: (r) => r?.baggage?.checkIn },
+  { field: "uber.amountCents", label: "Valor", type: "money", group: "Uber", get: (r) => r?.uber?.totalCents },
+  { field: "uber.oc", label: "OC", type: "text", group: "Uber", get: (r) => r?.uber?.oc },
+  { field: "uber.checkIn", label: "Conferência", type: "text", span: 2, group: "Uber", get: (r) => r?.uber?.checkIn },
+  { field: "carRental.company", label: "Empresa", type: "text", span: 2, group: "Locação de carro", get: (r) => r?.carRental?.company },
+  { field: "carRental.amountCents", label: "Valor", type: "money", group: "Locação de carro", get: (r) => r?.carRental?.totalCents },
+  { field: "carRental.oc", label: "OC", type: "text", group: "Locação de carro", get: (r) => r?.carRental?.oc },
+  { field: "carRental.checkIn", label: "Conferência", type: "text", span: 2, group: "Locação de carro", get: (r) => r?.carRental?.checkIn },
 ];
 
 function getValue(source: DrawerSource, field: string): DrawerValue | undefined {
@@ -179,64 +183,122 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
     }
   }
 
+  // Quais campos foram mexidos — o rodapé conta e cada campo alterado ganha
+  // um ponto, para o operador ver o que está prestes a gravar.
+  const alterados = new Set<string>();
+  for (const f of fields) {
+    const orig = readVal(f, source);
+    const next = f.type === "bool" ? !!draft[f.field] : parseInput(String(draft[f.field] ?? ""), f.type);
+    const a = f.type === "money" || f.type === "int" ? (orig ?? null) : f.type === "bool" ? !!orig : (orig ?? "");
+    if (String(a) !== String(next)) alterados.add(f.field);
+  }
+
+  const titulo = kind === "ticket" ? "Passagem" : kind === "accommodation" ? "Hospedagem" : "Bagagem, Uber e locação";
+  const Icone = kind === "ticket" ? Plane : kind === "accommodation" ? BedDouble : Luggage;
+  const tomIcone = kind === "ticket"
+    ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400"
+    : kind === "accommodation"
+      ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400"
+      : "bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400";
+
+  // Ordem das seções = ordem em que aparecem na lista de campos.
+  const secoes: { nome: string; campos: FieldDef[] }[] = [];
+  for (const f of fields) {
+    const nome = f.group ?? "";
+    let sec = secoes.find((x) => x.nome === nome);
+    if (!sec) { sec = { nome, campos: [] }; secoes.push(sec); }
+    sec.campos.push(f);
+  }
+
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!saving) onOpenChange(o); }}>
-      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            {kind === "ticket" ? <Plane className="h-5 w-5 text-indigo-500" /> : kind === "accommodation" ? <BedDouble className="h-5 w-5 text-emerald-500" /> : <Luggage className="h-5 w-5 text-amber-500" />}
-            {kind === "ticket" ? "Editar Passagem" : kind === "accommodation" ? "Editar Hospedagem" : "Editar Extras (Bagagem · Uber · Locação)"}
-          </SheetTitle>
-          <SheetDescription>{rowName || "Colaborador"}</SheetDescription>
+      <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col gap-0">
+        <SheetHeader className="px-6 pt-6 pb-4 border-b space-y-0 text-left">
+          <div className="flex items-start gap-3">
+            <span className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${tomIcone}`}>
+              <Icone className="h-[18px] w-[18px]" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <SheetTitle className="text-base leading-tight">{titulo}</SheetTitle>
+              <SheetDescription className="truncate">{rowName || "Colaborador"}</SheetDescription>
+            </div>
+          </div>
         </SheetHeader>
 
-        <div className="grid grid-cols-2 gap-3 py-5">
-          {fields.map((f) => {
-            const inputId = `drawer-${f.field.replace(/\./g, "-")}`;
-            return (
-              <div key={f.field} className={f.span === 2 ? "col-span-2" : "col-span-1"}>
-                <Label htmlFor={inputId} className="text-xs text-muted-foreground">{f.label}</Label>
-                {f.type === "bool" ? (
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <Switch
-                      id={inputId}
-                      checked={!!draft[f.field]}
-                      onCheckedChange={(v) => setDraft((d) => ({ ...d, [f.field]: v }))}
-                    />
-                    <span className="text-sm">{draft[f.field] ? "Sim" : "Não"}</span>
-                  </div>
-                ) : f.type === "select" ? (
-                  <Select
-                    value={draft[f.field] ? String(draft[f.field]) : SELECT_EMPTY}
-                    onValueChange={(v) => setDraft((d) => ({ ...d, [f.field]: v === SELECT_EMPTY ? "" : v }))}
-                  >
-                    <SelectTrigger id={inputId} className="mt-1" aria-label={f.label}><SelectValue placeholder="—" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={SELECT_EMPTY}>— Não informado —</SelectItem>
-                      {(f.options ?? []).map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
-                    id={inputId}
-                    className="mt-1"
-                    type={f.type === "time" ? "time" : f.type === "date" ? "date" : f.type === "money" || f.type === "int" ? "number" : "text"}
-                    step={f.type === "money" ? "0.01" : undefined}
-                    value={typeof draft[f.field] === "string" ? (draft[f.field] as string) : ""}
-                    placeholder={f.placeholder}
-                    onChange={(e) => setDraft((d) => ({ ...d, [f.field]: e.target.value }))}
-                  />
-                )}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+          {secoes.map((sec) => (
+            <section key={sec.nome || "geral"}>
+              {sec.nome && (
+                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
+                  {sec.nome}
+                </h3>
+              )}
+              <div className="grid grid-cols-2 gap-x-3 gap-y-3.5">
+                {sec.campos.map((f) => {
+                  const inputId = `drawer-${f.field.replace(/\./g, "-")}`;
+                  const mudou = alterados.has(f.field);
+                  return (
+                    <div key={f.field} className={f.span === 2 ? "col-span-2" : "col-span-1"}>
+                      <Label htmlFor={inputId} className="flex items-center gap-1.5 text-xs font-medium text-foreground/80">
+                        {f.label}
+                        {mudou && <span className="h-1.5 w-1.5 rounded-full bg-primary" title="Campo alterado" aria-label="Campo alterado" />}
+                      </Label>
+                      {f.type === "bool" ? (
+                        <div className="flex items-center gap-2 mt-2 h-9">
+                          <Switch
+                            id={inputId}
+                            checked={!!draft[f.field]}
+                            onCheckedChange={(v) => setDraft((d) => ({ ...d, [f.field]: v }))}
+                          />
+                          <span className="text-sm text-muted-foreground">{draft[f.field] ? "Sim" : "Não"}</span>
+                        </div>
+                      ) : f.type === "select" ? (
+                        <Select
+                          value={draft[f.field] ? String(draft[f.field]) : SELECT_EMPTY}
+                          onValueChange={(v) => setDraft((d) => ({ ...d, [f.field]: v === SELECT_EMPTY ? "" : v }))}
+                        >
+                          <SelectTrigger id={inputId} className="mt-1.5 h-9" aria-label={f.label}><SelectValue placeholder="—" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={SELECT_EMPTY}>— Não informado —</SelectItem>
+                            {(f.options ?? []).map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="relative mt-1.5">
+                          {f.type === "money" && (
+                            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                          )}
+                          <Input
+                            id={inputId}
+                            className={`h-9 ${f.type === "money" ? "pl-9" : ""} ${mudou ? "border-primary/50" : ""}`}
+                            type={f.type === "time" ? "time" : f.type === "date" ? "date" : f.type === "money" || f.type === "int" ? "number" : "text"}
+                            step={f.type === "money" ? "0.01" : undefined}
+                            inputMode={f.type === "money" ? "decimal" : f.type === "int" ? "numeric" : undefined}
+                            value={typeof draft[f.field] === "string" ? (draft[f.field] as string) : ""}
+                            placeholder={f.placeholder}
+                            onChange={(e) => setDraft((d) => ({ ...d, [f.field]: e.target.value }))}
+                          />
+                        </div>
+                      )}
+                      {f.hint && <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{f.hint}</p>}
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </section>
+          ))}
         </div>
 
-        <SheetFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={saving} data-testid="button-save-drawer">
-            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-            Salvar
+        <SheetFooter className="px-6 py-4 border-t bg-muted/30 flex-row items-center gap-3 sm:justify-between">
+          <span className="text-xs text-muted-foreground mr-auto" aria-live="polite">
+            {alterados.size === 0
+              ? "Nenhuma alteração"
+              : `${alterados.size} ${alterados.size === 1 ? "campo alterado" : "campos alterados"}`}
+          </span>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={saving || alterados.size === 0} data-testid="button-save-drawer">
+            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4 mr-2" aria-hidden="true" />}
+            {saving ? "Salvando…" : "Salvar"}
           </Button>
         </SheetFooter>
       </SheetContent>

@@ -557,214 +557,333 @@ export default function OperationalMirror() {
   return (
     <TooltipProvider delayDuration={200}>
       <div className="p-6 space-y-5 max-w-[1600px] mx-auto" data-testid="page-operational-mirror">
-        {/* ===== HEADER ===== */}
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary"><LayoutGrid className="h-5 w-5" /></span>
-              Espelho Operacional do Evento
-            </h1>
-            <p className="text-sm text-muted-foreground">Gestão logística completa — passagem, hospedagem, bagagem, Uber e locação por colaborador.</p>
+        {/* ===== CABEÇALHO ===== */}
+        {/* O breadcrumb já diz "Espelho Operacional": o título aqui é curto e
+            quem manda no contexto é o EVENTO escolhido. Os cinco cartões de
+            informação viraram uma linha de metadados — "Data" e "Período
+            geral" eram o mesmo dado em dois cartões, ambos truncados. */}
+        <header className="space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-[22px] font-semibold tracking-tight text-foreground">Espelho Operacional</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Passagem, hospedagem, bagagem, Uber e locação de cada colaborador do evento.
+              </p>
+            </div>
+            <div className="w-full sm:w-[380px] shrink-0">
+              <Label htmlFor="mirror-event" className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                Evento
+              </Label>
+              <div className="mt-1.5">
+                <EventCombobox events={events} value={eventId} onValueChange={setEventId} placeholder="Selecione um evento" showAllOption={false} />
+              </div>
+            </div>
           </div>
-          {/* Seletor de evento vem ANTES da toolbar: sem evento não há o que editar,
-              filtrar ou exportar, então a toolbar só aparece depois da escolha. */}
-          <div className="w-full sm:w-auto sm:min-w-[320px] md:min-w-[400px]">
-            <EventCombobox events={events} value={eventId} onValueChange={setEventId} placeholder="Selecione um evento" showAllOption={false} />
-          </div>
-        </div>
 
-        {eventId && (
-          <div className="flex flex-wrap items-center justify-end gap-2" data-testid="mirror-toolbar">
-            {canEditMirror ? (
-              <>
-                <div className="inline-flex items-center gap-2 h-9 px-3 rounded-md border bg-card">
-                  <Switch id="mirror-edit-mode" checked={editModeWanted} onCheckedChange={setEditModeWanted} data-testid="button-edit-mode" />
-                  <Label htmlFor="mirror-edit-mode" className="text-sm cursor-pointer flex items-center gap-1.5">
-                    <Pencil className="h-3.5 w-3.5" /> Modo edição
-                  </Label>
-                </div>
-                <Button variant="outline" size="sm" onClick={() => recalcMutation.mutate()} disabled={!eventId || recalcMutation.isPending} data-testid="button-recalc">
-                  {recalcMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                  Recalcular sugestões
-                </Button>
-              </>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border bg-muted/40 text-xs text-muted-foreground" title="Somente Admin, Compras e Produção editam o espelho." data-testid="mirror-readonly-notice">
-                <Lock className="h-3.5 w-3.5" /> Somente leitura
+          {ev && (
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm border-t pt-3">
+              <span className="font-medium text-foreground truncate max-w-[420px]" title={ev.name}>{ev.name}</span>
+              {ev.location && (
+                <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                  <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />{ev.location}
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                {fmtDate(ev.startDate)}{ev.endDate ? ` – ${fmtDate(ev.endDate)}` : ""}
               </span>
-            )}
-            {/* Filters */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" data-testid="button-filters">
-                  <SlidersHorizontal className="h-4 w-4 mr-2" /> Filtros
-                  {activeFilterCount > 0 && <Badge className="ml-2 h-5 px-1.5">{activeFilterCount}</Badge>}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-72" align="end">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold flex items-center gap-1.5"><Filter className="h-3.5 w-3.5" /> Filtros</span>
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={clearFilters}><Eraser className="h-3 w-3 mr-1" /> Limpar</Button>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Departamento</Label>
-                    <Select value={deptFilter} onValueChange={setDeptFilter}>
-                      <SelectTrigger className="mt-1 h-8" aria-label="Filtrar por departamento"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        {departments.map((d) => <SelectItem key={d} value={d} className="capitalize">{d}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {hotels.length > 0 && (
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Hotel</Label>
-                      <Select value={hotelFilter} onValueChange={setHotelFilter}>
-                        <SelectTrigger className="mt-1 h-8" aria-label="Filtrar por hotel"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todos</SelectItem>
-                          {hotels.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                  <Separator />
-                  {[
-                    ["comPendencia", "Com pendência"], ["semPassagem", "Sem passagem"], ["semHospedagem", "Sem hospedagem"],
-                    ["semLocalizador", "Sem localizador"], ["semOc", "Sem OC"], ["comBagagem", "Com bagagem"],
-                    ["comUber", "Com Uber"], ["comLocacao", "Com locação"], ["sugQuarto", "Tem sugestão de quarto"], ["sugUber", "Tem sugestão de Uber"],
-                  ].map(([k, label]) => (
-                    <label key={k} className="flex items-center gap-2 text-sm cursor-pointer">
-                      <Checkbox checked={!!flags[k]} onCheckedChange={(v) => setFlags((f) => ({ ...f, [k]: !!v }))} />
-                      {label}
-                    </label>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-            {/* Columns */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" data-testid="button-columns"><Columns3 className="h-4 w-4 mr-2" /> Colunas</Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-56" align="end">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold">Mostrar blocos</span>
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setHiddenBlocks(new Set())}>Padrão</Button>
-                  </div>
-                  {ALL_BLOCKS.map((b) => (
-                    <label key={b.key} className="flex items-center gap-2 text-sm cursor-pointer">
-                      <Checkbox checked={!hiddenBlocks.has(b.key)} onCheckedChange={(v) => setHiddenBlocks((s) => { const n = new Set(s); if (v) n.delete(b.key); else n.add(b.key); return n; })} />
-                      {b.label}
-                    </label>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-            <Button size="sm" onClick={handleExport} disabled={!eventId} data-testid="button-export">
-              <FileSpreadsheet className="h-4 w-4 mr-2" /> Exportar Excel
+              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                {rows.length} {rows.length === 1 ? "colaborador" : "colaboradores"}
+              </span>
+              {!canEditMirror && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground ml-auto" data-testid="mirror-readonly-notice"
+                  title="Somente Admin, Compras e Produção editam o espelho.">
+                  <Lock className="h-3.5 w-3.5" aria-hidden="true" /> Somente leitura
+                </span>
+              )}
+            </div>
+          )}
+        </header>
+
+        {!eventId && (
+          <div className="rounded-xl border border-dashed bg-muted/20 px-6 py-16 text-center" data-testid="mirror-empty-no-event">
+            <span className="mx-auto mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-background border">
+              <LayoutGrid className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+            </span>
+            <p className="font-medium">Escolha um evento para começar</p>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+              O espelho reúne, num lugar só, tudo o que a logística precisa acompanhar por colaborador —
+              custos, reservas, pendências e as sugestões de quarto e Uber.
+            </p>
+          </div>
+        )}
+
+        {eventId && isLoading && (
+          <div className="space-y-4" data-testid="mirror-loading" aria-busy="true" aria-live="polite">
+            <div className="h-[76px] rounded-xl border bg-muted/30 animate-pulse" />
+            <div className="h-9 w-full max-w-md rounded-lg bg-muted/40 animate-pulse" />
+            <div className="rounded-xl border overflow-hidden">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-12 border-b last:border-0 bg-muted/20 animate-pulse" style={{ animationDelay: `${i * 60}ms` }} />
+              ))}
+            </div>
+            <span className="sr-only">Carregando o espelho operacional…</span>
+          </div>
+        )}
+
+        {eventId && !isLoading && loadErrorMessage && (
+          <div className="rounded-xl border border-destructive/40 bg-destructive/5 px-6 py-12 text-center" role="alert" data-testid="mirror-error">
+            <span className="mx-auto mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+              <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <p className="font-medium">Não foi possível carregar o espelho operacional</p>
+            <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{loadErrorMessage}</p>
+            <Button variant="outline" size="sm" className="mt-4" onClick={() => queryClient.invalidateQueries({ queryKey: mirrorKey })}>
+              <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" /> Tentar de novo
             </Button>
           </div>
         )}
 
-        {!eventId && <Card><CardContent className="py-16 text-center text-muted-foreground">Selecione um evento para visualizar o espelho operacional.</CardContent></Card>}
-        {eventId && isLoading && <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin mr-2" /> Carregando...</div>}
-        {eventId && !isLoading && loadErrorMessage && (
-          <Card className="border-destructive/50" role="alert">
-            <CardContent className="py-12 flex flex-col items-center gap-3 text-center">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
-                <AlertTriangle className="h-5 w-5" />
-              </span>
-              <p className="font-medium">Não foi possível carregar o espelho operacional</p>
-              <p className="text-sm text-muted-foreground max-w-md">{loadErrorMessage}</p>
-            </CardContent>
-          </Card>
-        )}
-
         {eventId && !isLoading && !loadErrorMessage && data && ev && totals && (
           <>
-            {/* ===== EVENT INFO CARDS ===== */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-              <InfoCard icon={<MapPinned className="h-4 w-4" />} label="Evento / Projeto" value={ev.name} />
-              <InfoCard icon={<MapPin className="h-4 w-4" />} label="Endereço" value={ev.location || "—"} />
-              <InfoCard icon={<CalendarDays className="h-4 w-4" />} label="Data" value={`${fmtDate(ev.startDate)}${ev.endDate ? " → " + fmtDate(ev.endDate) : ""}`} />
-              <InfoCard icon={<Users className="h-4 w-4" />} label="Colaboradores" value={String(rows.length)} />
-              <InfoCard icon={<Clock className="h-4 w-4" />} label="Período geral" value={`${fmtDate(ev.startDate)} – ${fmtDate(ev.endDate)}`} />
-            </div>
-
-            {/* ===== INDICATOR CARDS ===== */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              <KpiCard icon={<Plane className="h-4 w-4" />} tone="indigo" label="Passagens" value={brl(totals.tickets)} hint="Total em voos" />
-              <KpiCard icon={<BedDouble className="h-4 w-4" />} tone="emerald" label="Hotelaria" value={brl(totals.hotel)}
-                derived={derivedHotelCount > 0}
-                hint={derivedHotelCount > 0 ? `${derivedHotelCount} valor(es) derivado(s) de diária × diárias` : "Diárias + hotel"} />
-              <KpiCard icon={<Luggage className="h-4 w-4" />} tone="amber" label="Bagagem" value={brl(totals.baggage)} hint="Bagagem extra" />
-              <KpiCard icon={<Car className="h-4 w-4" />} tone="fuchsia" label="Uber" value={brl(totals.uber)} hint="Transporte" />
-              <KpiCard icon={<Car className="h-4 w-4" />} tone="orange" label="Locação" value={brl(totals.carRental)} hint="Carros" />
-              <KpiCard icon={<CheckCircle2 className="h-4 w-4" />} tone="primary" label="Total Geral" value={brl(totals.grand)} hint="Soma de tudo" highlight />
-            </div>
-
-            {/* ===== PENDENCY BAR ===== */}
-            <Card className="border-amber-200 dark:border-amber-900/60">
-              <CardContent className="py-3 flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-2 mr-2">
-                  <span className={`inline-flex h-7 w-7 items-center justify-center rounded-md ${data.pendingCount > 0 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300" : "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"}`}>
-                    {data.pendingCount > 0 ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-                  </span>
-                  <span className="text-sm font-medium">{data.pendingCount > 0 ? `${data.pendingCount} pendência(s)` : "Sem pendências"}</span>
+            {/* ===== RESUMO FINANCEIRO ===== */}
+            {/* Eram seis cartões com borda, quatro deles zerados. Agora é uma
+                faixa só: o total manda, as categorias explicam, e o que está
+                zerado fica apagado em vez de gritar "R$ 0,00" seis vezes. */}
+            <section className="rounded-xl border bg-card overflow-hidden" aria-label="Resumo de custos do evento">
+              <div className="flex flex-col sm:flex-row">
+                <div className="px-5 py-4 sm:border-r bg-muted/30 sm:min-w-[230px]">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Custo total do evento</p>
+                  <p className="mt-1 text-[26px] font-semibold tracking-tight tabular-nums" data-testid="mirror-total-geral">{brl(totals.grand)}</p>
+                  {derivedHotelCount > 0 && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Inclui {derivedHotelCount} hotel calculado por diária × noites
+                    </p>
+                  )}
                 </div>
-                {/* Chips com contagem 0 ficam DESABILITADOS (não somem): a barra mantém
-                    a mesma forma entre eventos e o usuário vê que a categoria existe. */}
-                {PEND_CATS.map((c) => {
-                  const count = pendCounts[c.key] ?? 0;
-                  const active = pendCat === c.key;
-                  const empty = count === 0;
-                  return (
-                    <button key={c.key} type="button" onClick={() => setPendCat(active ? null : c.key)} data-testid={`chip-${c.key}`}
-                      aria-pressed={active}
-                      disabled={empty}
-                      title={empty ? `${c.label}: nenhum colaborador.` : `${c.label}: ${count} colaborador(es). Clique para filtrar.`}
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                        active ? "bg-amber-500 border-amber-500 text-white"
-                        : empty ? "border-border text-muted-foreground/60 cursor-not-allowed"
-                        : "border-amber-300 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40"}`}>
-                      {c.label} <span className="font-semibold">{count}</span>
-                    </button>
-                  );
-                })}
-                {pendCat && <Button variant="ghost" size="sm" className="h-7 px-2 text-xs ml-auto" onClick={() => setPendCat(null)}><X className="h-3 w-3 mr-1" /> Limpar filtro</Button>}
-              </CardContent>
-            </Card>
-
-            {/* ===== VIEW SWITCHER + DENSITY + SEARCH ===== */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="inline-flex rounded-lg border bg-card p-1">
-                {VIEWS.map((v) => {
-                  const Icon = v.icon;
-                  const count = v.key === "quartos" ? data.roomGroups.length : v.key === "uber" ? data.uberGroups.length : v.key === "departamentos" ? departments.length : undefined;
-                  return (
-                    <button key={v.key} onClick={() => setView(v.key)} data-testid={`view-${v.key}`}
-                      className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${view === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
-                      <Icon className="h-4 w-4" /> {v.label}
-                      {count !== undefined && <span className={`ml-1 rounded-full px-1.5 text-[10px] ${view === v.key ? "bg-primary-foreground/20" : "bg-muted-foreground/15"}`}>{count}</span>}
-                    </button>
-                  );
-                })}
+                <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x divide-y sm:divide-y-0">
+                  <CostItem icon={<Plane className="h-3.5 w-3.5" />} label="Passagens" value={totals.tickets} />
+                  <CostItem icon={<BedDouble className="h-3.5 w-3.5" />} label="Hotelaria" value={totals.hotel} />
+                  <CostItem icon={<Luggage className="h-3.5 w-3.5" />} label="Bagagem" value={totals.baggage} />
+                  <CostItem icon={<Car className="h-3.5 w-3.5" />} label="Uber" value={totals.uber} />
+                  <CostItem icon={<Car className="h-3.5 w-3.5" />} label="Locação" value={totals.carRental} />
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input value={searchText} onChange={(e) => setSearchText(e.target.value)} placeholder="Buscar colaborador..." aria-label="Buscar colaborador pelo nome" className="pl-8 h-9 w-52" data-testid="input-search" />
+            </section>
+
+            {/* ===== PENDÊNCIAS ===== */}
+            {/* Só aparecem as categorias que EXISTEM. Chips zerados só ocupavam
+                espaço e diluíam as que realmente pedem ação. */}
+            {(() => {
+              const comPendencia = PEND_CATS.filter((c) => (pendCounts[c.key] ?? 0) > 0);
+              if (data.pendingCount === 0) {
+                return (
+                  <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/50 px-4 py-2.5 text-sm dark:border-emerald-900/50 dark:bg-emerald-950/20" data-testid="mirror-no-pendencies">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden="true" />
+                    <span className="font-medium text-emerald-900 dark:text-emerald-200">Nada pendente neste evento.</span>
+                    <span className="text-emerald-700/80 dark:text-emerald-300/70">Passagens, hospedagens e documentos estão completos.</span>
+                  </div>
+                );
+              }
+              return (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/40 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/20">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-2 text-sm font-medium text-amber-900 dark:text-amber-200 mr-1">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" aria-hidden="true" />
+                      {data.pendingCount} {data.pendingCount === 1 ? "pendência" : "pendências"}
+                    </span>
+                    {comPendencia.map((c) => {
+                      const count = pendCounts[c.key] ?? 0;
+                      const active = pendCat === c.key;
+                      return (
+                        <button key={c.key} type="button" onClick={() => setPendCat(active ? null : c.key)} data-testid={`chip-${c.key}`}
+                          aria-pressed={active}
+                          title={`${c.label}: ${count} ${count === 1 ? "colaborador" : "colaboradores"}. Clique para filtrar.`}
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
+                            active
+                              ? "bg-amber-500 border-amber-500 text-white shadow-sm"
+                              : "border-amber-300/70 bg-background/60 text-amber-800 hover:border-amber-400 hover:bg-amber-100/60 dark:text-amber-300 dark:hover:bg-amber-950/40"}`}>
+                          {c.label}
+                          <span className={`tabular-nums ${active ? "opacity-90" : "opacity-70"}`}>{count}</span>
+                        </button>
+                      );
+                    })}
+                    {pendCat && (
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs ml-auto" onClick={() => setPendCat(null)}>
+                        <X className="h-3 w-3 mr-1" aria-hidden="true" /> Limpar
+                      </Button>
+                    )}
+                  </div>
                 </div>
+              );
+            })()}
+
+            {/* ===== BARRA DE TRABALHO (fixa no topo ao rolar) ===== */}
+            {/* Antes as abas e a busca sumiam ao rolar a grade e o conteúdo
+                passava POR CIMA do cabeçalho da página. Agora a barra
+                acompanha e tem camada própria. */}
+            <div className="sticky top-0 z-40 -mx-6 px-6 py-2.5 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex rounded-lg border bg-card p-0.5" role="tablist" aria-label="Visões do espelho">
+                  {VIEWS.map((v) => {
+                    const Icon = v.icon;
+                    const count = v.key === "quartos" ? data.roomGroups.length : v.key === "uber" ? data.uberGroups.length : v.key === "departamentos" ? departments.length : undefined;
+                    const activo = view === v.key;
+                    return (
+                      <button key={v.key} onClick={() => setView(v.key)} data-testid={`view-${v.key}`}
+                        role="tab" aria-selected={activo}
+                        className={`inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                          activo ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
+                        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span className="hidden md:inline">{v.label}</span>
+                        {count !== undefined && count > 0 && (
+                          <span className={`rounded-full px-1.5 text-[10px] tabular-nums ${activo ? "bg-primary-foreground/20" : "bg-muted-foreground/15"}`}>{count}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="relative ml-auto">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" aria-hidden="true" />
+                  <Input value={searchText} onChange={(e) => setSearchText(e.target.value)} placeholder="Buscar colaborador…"
+                    aria-label="Buscar colaborador pelo nome" className="pl-8 h-9 w-44 lg:w-56" data-testid="input-search" />
+                  {searchText && (
+                    <button type="button" onClick={() => setSearchText("")} aria-label="Limpar busca"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+
                 {view === "grade" && (
-                  <ToggleGroup type="single" value={density} onValueChange={(v) => (v === "comfortable" || v === "compact") && setDensity(v)} className="border rounded-md">
-                    <ToggleGroupItem value="comfortable" className="h-9 px-2.5" title="Confortável"><Rows3 className="h-4 w-4" /></ToggleGroupItem>
-                    <ToggleGroupItem value="compact" className="h-9 px-2.5" title="Compacta"><AlignJustify className="h-4 w-4" /></ToggleGroupItem>
+                  <ToggleGroup type="single" value={density} onValueChange={(v) => (v === "comfortable" || v === "compact") && setDensity(v)} className="border rounded-md" aria-label="Densidade da grade">
+                    <ToggleGroupItem value="comfortable" className="h-9 px-2.5" title="Confortável" aria-label="Densidade confortável"><Rows3 className="h-4 w-4" /></ToggleGroupItem>
+                    <ToggleGroupItem value="compact" className="h-9 px-2.5" title="Compacta" aria-label="Densidade compacta"><AlignJustify className="h-4 w-4" /></ToggleGroupItem>
                   </ToggleGroup>
                 )}
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9" data-testid="button-filters">
+                      <SlidersHorizontal className="h-4 w-4 sm:mr-2" aria-hidden="true" />
+                      <span className="hidden sm:inline">Filtros</span>
+                      {activeFilterCount > 0 && <Badge className="ml-2 h-5 px-1.5 tabular-nums">{activeFilterCount}</Badge>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72" align="end">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold flex items-center gap-1.5"><Filter className="h-3.5 w-3.5" aria-hidden="true" /> Filtros</span>
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={clearFilters}><Eraser className="h-3 w-3 mr-1" aria-hidden="true" /> Limpar</Button>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Departamento</Label>
+                        <Select value={deptFilter} onValueChange={setDeptFilter}>
+                          <SelectTrigger className="mt-1 h-8" aria-label="Filtrar por departamento"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todos</SelectItem>
+                            {departments.map((d) => <SelectItem key={d} value={d} className="capitalize">{d}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {hotels.length > 0 && (
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Hotel</Label>
+                          <Select value={hotelFilter} onValueChange={setHotelFilter}>
+                            <SelectTrigger className="mt-1 h-8" aria-label="Filtrar por hotel"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">Todos</SelectItem>
+                              {hotels.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      <Separator />
+                      <div className="space-y-1.5">
+                        {[
+                          ["comPendencia", "Com pendência"], ["semPassagem", "Sem passagem"], ["semHospedagem", "Sem hospedagem"],
+                          ["semLocalizador", "Sem localizador"], ["semOc", "Sem OC"], ["comBagagem", "Com bagagem"],
+                          ["comUber", "Com Uber"], ["comLocacao", "Com locação"], ["sugQuarto", "Tem sugestão de quarto"], ["sugUber", "Tem sugestão de Uber"],
+                        ].map(([k, label]) => (
+                          <label key={k} className="flex items-center gap-2 text-sm cursor-pointer rounded px-1 py-0.5 hover:bg-muted/60">
+                            <Checkbox checked={!!flags[k]} onCheckedChange={(v) => setFlags((f) => ({ ...f, [k]: !!v }))} />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                {view === "grade" && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9" data-testid="button-columns">
+                        <Columns3 className="h-4 w-4 sm:mr-2" aria-hidden="true" />
+                        <span className="hidden sm:inline">Colunas</span>
+                        {hiddenBlocks.size > 0 && <Badge variant="secondary" className="ml-2 h-5 px-1.5 tabular-nums">{ALL_BLOCKS.length - hiddenBlocks.size}</Badge>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-56" align="end">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold">Mostrar blocos</span>
+                          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setHiddenBlocks(new Set())}>Padrão</Button>
+                        </div>
+                        {ALL_BLOCKS.map((b) => (
+                          <label key={b.key} className="flex items-center gap-2 text-sm cursor-pointer rounded px-1 py-0.5 hover:bg-muted/60">
+                            <Checkbox checked={!hiddenBlocks.has(b.key)} onCheckedChange={(v) => setHiddenBlocks((s) => { const n = new Set(s); if (v) n.delete(b.key); else n.add(b.key); return n; })} />
+                            {b.label}
+                          </label>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
+
+                <Separator orientation="vertical" className="h-6 hidden lg:block" />
+
+                {canEditMirror && (
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="inline-flex items-center gap-2 h-9 px-3 rounded-md border bg-card">
+                          <Switch id="mirror-edit-mode" checked={editModeWanted} onCheckedChange={setEditModeWanted} data-testid="button-edit-mode" />
+                          <Label htmlFor="mirror-edit-mode" className="text-[13px] cursor-pointer flex items-center gap-1.5">
+                            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span className="hidden lg:inline">Edição</span>
+                          </Label>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>Liga a edição direto nas células da grade</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-9" onClick={() => recalcMutation.mutate()} disabled={!eventId || recalcMutation.isPending} data-testid="button-recalc">
+                          {recalcMutation.isPending ? <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4 sm:mr-2" aria-hidden="true" />}
+                          <span className="hidden sm:inline">{recalcMutation.isPending ? "Recalculando…" : "Sugestões"}</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Refaz as sugestões de quarto e Uber (grupos confirmados são preservados)</TooltipContent>
+                    </Tooltip>
+                  </>
+                )}
+                <Button size="sm" className="h-9" onClick={handleExport} disabled={!eventId} data-testid="button-export">
+                  <FileSpreadsheet className="h-4 w-4 sm:mr-2" aria-hidden="true" />
+                  <span className="hidden sm:inline">Exportar</span>
+                </Button>
               </div>
+
+              {activeFilterCount > 0 && (
+                <div className="flex items-center gap-2 pt-2 text-xs text-muted-foreground">
+                  <span>Mostrando <strong className="text-foreground tabular-nums">{filteredRows.length}</strong> de {rows.length} colaboradores</span>
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={clearFilters}>
+                    <Eraser className="h-3 w-3 mr-1" aria-hidden="true" /> Limpar filtros
+                  </Button>
+                </div>
+              )}
             </div>
 
             {!canEditMirror && (
@@ -819,40 +938,40 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
   const sortIcon = (key: string) => sort?.key === key ? (sort.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ChevronsUpDown className="h-3 w-3 opacity-40" />;
   return (
     <>
-      <Card className="overflow-hidden">
-        <CardContent className="p-0">
-          <div className="overflow-auto max-h-[70vh]">
+      <div className="rounded-xl border bg-card overflow-hidden">
+        <div>
+          <div className="overflow-auto max-h-[calc(100vh-300px)] min-h-[240px]">
             <table className="text-xs border-collapse w-full" data-testid="operational-grid">
               <thead>
                 <tr>
-                  <th colSpan={2} className="sticky left-0 top-0 z-40 bg-muted px-2 py-1.5 text-left font-semibold border-r border-b border-border">Colaborador</th>
-                  <th colSpan={4} className={`${G.schedule} border ${headPad} text-center font-bold sticky top-0 z-30`}>Período de Escala</th>
-                  {show("passagem") && <th colSpan={9} className={`${G.ticket} border ${headPad} text-center font-bold sticky top-0 z-30`}>Passagem</th>}
-                  {show("hospedagem") && <th colSpan={12} className={`${G.hotel} border ${headPad} text-center font-bold sticky top-0 z-30`}>Hospedagem</th>}
-                  {show("bagagem") && <th colSpan={3} className={`${G.baggage} border ${headPad} text-center font-bold sticky top-0 z-30`}>Bagagem Extra</th>}
-                  {show("uber") && <th colSpan={3} className={`${G.uber} border ${headPad} text-center font-bold sticky top-0 z-30`}>Uber</th>}
-                  {show("locacao") && <th colSpan={4} className={`${G.car} border ${headPad} text-center font-bold sticky top-0 z-30`}>Locação de Carro</th>}
-                  {show("pendencias") && <th colSpan={2} className={`${G.pend} border ${headPad} text-center font-bold sticky top-0 z-30`}>Pendências</th>}
+                  <th colSpan={2} className="sticky left-0 top-0 z-30 bg-muted px-2 py-1.5 text-left font-semibold border-r border-b border-border">Colaborador</th>
+                  <th colSpan={4} className={`${G.schedule} border ${headPad} text-center font-bold sticky top-0 z-20`}>Período de Escala</th>
+                  {show("passagem") && <th colSpan={9} className={`${G.ticket} border ${headPad} text-center font-bold sticky top-0 z-20`}>Passagem</th>}
+                  {show("hospedagem") && <th colSpan={12} className={`${G.hotel} border ${headPad} text-center font-bold sticky top-0 z-20`}>Hospedagem</th>}
+                  {show("bagagem") && <th colSpan={3} className={`${G.baggage} border ${headPad} text-center font-bold sticky top-0 z-20`}>Bagagem Extra</th>}
+                  {show("uber") && <th colSpan={3} className={`${G.uber} border ${headPad} text-center font-bold sticky top-0 z-20`}>Uber</th>}
+                  {show("locacao") && <th colSpan={4} className={`${G.car} border ${headPad} text-center font-bold sticky top-0 z-20`}>Locação de Carro</th>}
+                  {show("pendencias") && <th colSpan={2} className={`${G.pend} border ${headPad} text-center font-bold sticky top-0 z-20`}>Pendências</th>}
                 </tr>
                 <tr className="bg-muted/70">
-                  <th className={`sticky left-0 top-[33px] z-40 bg-muted ${headPad} text-left font-medium border-r border-b border-border min-w-[150px]`}>
+                  <th className={`sticky left-0 top-[33px] z-30 bg-muted ${headPad} text-left font-medium border-r border-b border-border min-w-[210px]`}>
                     <button type="button" onClick={() => onSort("nome")} aria-label="Ordenar por nome" className="flex items-center gap-1 hover:text-foreground">Nome {sortIcon("nome")}</button>
                   </th>
-                  <th className={`sticky left-[150px] top-[33px] z-40 bg-muted ${headPad} text-left font-medium border-r border-b border-border min-w-[120px]`}>
+                  <th className={`sticky left-[210px] top-[33px] z-30 bg-muted ${headPad} text-left font-medium border-r border-b border-border min-w-[120px]`}>
                     <button type="button" onClick={() => onSort("departamento")} aria-label="Ordenar por departamento" className="flex items-center gap-1 hover:text-foreground">Departamento {sortIcon("departamento")}</button>
                   </th>
                   {["Início", "Data Ida", "Término", "Data Volta"].map((h) => <ColHead key={h} pad={headPad}>{h}</ColHead>)}
                   {show("passagem") && <>
                     <ColHead pad={headPad}>Passagens R$</ColHead><ColHead pad={headPad}>Aero Ida</ColHead><ColHead pad={headPad}>HR Ida</ColHead><ColHead pad={headPad}>HR Volta</ColHead>
-                    <ColHead pad={headPad}>Aero Volta</ColHead><ColHead pad={headPad}>Localizador</ColHead><ColHead pad={headPad}>Empresa</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Check-in 3</ColHead>
+                    <ColHead pad={headPad}>Aero Volta</ColHead><ColHead pad={headPad}>Localizador</ColHead><ColHead pad={headPad}>Empresa</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Conferência</ColHead>
                   </>}
                   {show("hospedagem") && <>
                     <ColHead pad={headPad}>Hotel</ColHead><ColHead pad={headPad}>Reserva</ColHead><ColHead pad={headPad}>Check-in</ColHead><ColHead pad={headPad}>Check-out</ColHead>
                     <ColHead pad={headPad}>Diárias</ColHead><ColHead pad={headPad}>Quarto</ColHead><ColHead pad={headPad}>R$ Diária</ColHead><ColHead pad={headPad}>Late C/Out</ColHead>
-                    <ColHead pad={headPad}>Hotel R$</ColHead><ColHead pad={headPad}>Empresa Pgto</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Check-in 4</ColHead>
+                    <ColHead pad={headPad}>Hotel R$</ColHead><ColHead pad={headPad}>Empresa Pgto</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Conferência</ColHead>
                   </>}
-                  {show("bagagem") && <><ColHead pad={headPad}>Bagagem R$</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Check-in 1</ColHead></>}
-                  {show("uber") && <><ColHead pad={headPad}>Uber R$</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Check-in 2</ColHead></>}
+                  {show("bagagem") && <><ColHead pad={headPad}>Bagagem R$</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Conferência</ColHead></>}
+                  {show("uber") && <><ColHead pad={headPad}>Uber R$</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Conferência</ColHead></>}
                   {show("locacao") && <><ColHead pad={headPad}>Empresa</ColHead><ColHead pad={headPad}>R$</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Check-in</ColHead></>}
                   {show("pendencias") && <><ColHead pad={headPad}>Pendências</ColHead><ColHead pad={headPad}>Observações</ColHead></>}
                 </tr>
@@ -864,11 +983,18 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
                   const zebra = idx % 2 === 1 ? "bg-muted/20" : "";
                   return (
                     <tr key={r.teamInclusionId} className={`border-b hover:bg-primary/[0.04] group ${zebra}`} data-testid={`row-${r.teamInclusionId}`}>
-                      <td className={`sticky left-0 z-20 ${idx % 2 ? "bg-[hsl(var(--muted))]" : "bg-card"} group-hover:bg-muted px-2 py-1 font-medium border-r border-border/40 min-w-[150px]`}>
-                        <Tooltip><TooltipTrigger asChild><div className="truncate max-w-[140px]">{r.collaborator.fullName}</div></TooltipTrigger><TooltipContent>{r.collaborator.fullName}</TooltipContent></Tooltip>
-                        <div className="text-[10px] text-muted-foreground">{genderLabel[r.collaborator.gender || "unknown"]} · {r.collaborator.state || "—"}</div>
+                      <td className={`sticky left-0 z-10 ${idx % 2 ? "bg-[hsl(var(--muted))]" : "bg-card"} group-hover:bg-muted px-2 py-1 font-medium border-r border-border/40 min-w-[210px]`}>
+                        <Tooltip><TooltipTrigger asChild><div className="truncate max-w-[196px] leading-tight">{r.collaborator.fullName}</div></TooltipTrigger><TooltipContent>{r.collaborator.fullName}</TooltipContent></Tooltip>
+                        {/* A segunda linha só existe quando há o que dizer: antes
+                            todas as linhas exibiam "? · —" e isso virava ruído. */}
+                        {(() => {
+                          const g = r.collaborator.gender && r.collaborator.gender !== "unknown" ? genderLabel[r.collaborator.gender] : null;
+                          const uf = r.collaborator.state || null;
+                          if (!g && !uf) return null;
+                          return <div className="text-[10px] text-muted-foreground/70 leading-tight">{[g, uf].filter(Boolean).join(" · ")}</div>;
+                        })()}
                       </td>
-                      <td className={`sticky left-[150px] z-20 ${idx % 2 ? "bg-[hsl(var(--muted))]" : "bg-card"} group-hover:bg-muted px-2 py-1 border-r border-border/40 min-w-[120px] capitalize`}>{r.function.area || r.function.name || "—"}</td>
+                      <td className={`sticky left-[210px] z-10 ${idx % 2 ? "bg-[hsl(var(--muted))]" : "bg-card"} group-hover:bg-muted px-2 py-1 border-r border-border/40 min-w-[120px] capitalize`}>{r.function.area || r.function.name || "—"}</td>
                       <EditableCell rowId={r.teamInclusionId} field="schedule.startDate" value={r.schedule.startDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
                       <EditableCell rowId={r.teamInclusionId} field="schedule.departureDate" value={r.schedule.flightDepartureDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
                       <EditableCell rowId={r.teamInclusionId} field="schedule.endDate" value={r.schedule.endDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
@@ -927,8 +1053,8 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
               </tbody>
             </table>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
       <FooterTotals totals={totals} hotelDerived={hotelDerived} />
     </>
   );
@@ -942,7 +1068,7 @@ function ColHead({ children, pad }: { children: React.ReactNode; pad: string }) 
 interface ColaboradoresViewProps { rows: MirrorRow[]; openDrawer: OpenDrawer; canEdit: boolean; emptyMessage: string }
 function ColaboradoresView({ rows, openDrawer, canEdit, emptyMessage }: ColaboradoresViewProps) {
   const edit = (kind: DrawerKind, r: MirrorRow) => canEdit ? () => openDrawer(kind, r) : undefined;
-  if (rows.length === 0) return <Card><CardContent className="py-12 text-center text-muted-foreground">{emptyMessage}</CardContent></Card>;
+  if (rows.length === 0) return <div className="rounded-xl border border-dashed bg-muted/20 py-14 text-center text-sm text-muted-foreground">{emptyMessage}</div>;
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {rows.map((r) => {
@@ -1040,7 +1166,7 @@ function DepartamentosView({ rows, totals, hotelDerived, collapsed, setCollapsed
     (totals?.byDepartment || []).forEach((d) => { if (!m.has(d.name)) m.set(d.name, d); });
     return m;
   }, [totals]);
-  if (groups.length === 0) return <Card><CardContent className="py-12 text-center text-muted-foreground">{emptyMessage}</CardContent></Card>;
+  if (groups.length === 0) return <div className="rounded-xl border border-dashed bg-muted/20 py-14 text-center text-sm text-muted-foreground">{emptyMessage}</div>;
   return (
     <div className="space-y-3">
       {groups.map(([name, members]) => {
@@ -1318,38 +1444,25 @@ function FooterTotals({ totals, hotelDerived }: { totals: MirrorTotals; hotelDer
   );
 }
 
-function InfoCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+/**
+ * Uma categoria de custo dentro da faixa de resumo. Zerado fica apagado de
+ * propósito: num evento local, quatro das cinco categorias são R$ 0,00 e não
+ * podem ter o mesmo peso visual do que realmente foi gasto.
+ */
+function CostItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
+  const zerado = !value;
   return (
-    <div className="rounded-xl border bg-card px-4 py-3 hover:shadow-sm transition-shadow">
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">{icon} {label}</div>
-      <div className="font-semibold mt-1 truncate" title={value}>{value}</div>
+    <div className="px-4 py-3">
+      <p className={`flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider ${zerado ? "text-muted-foreground/50" : "text-muted-foreground"}`}>
+        <span aria-hidden="true">{icon}</span>{label}
+      </p>
+      <p className={`mt-1 text-[15px] font-semibold tabular-nums ${zerado ? "text-muted-foreground/40" : "text-foreground"}`}>
+        {brl(value)}
+      </p>
     </div>
   );
 }
 
-const TONES: Record<string, string> = {
-  indigo: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 dark:text-indigo-300",
-  emerald: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300",
-  amber: "text-amber-600 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300",
-  fuchsia: "text-fuchsia-600 bg-fuchsia-50 dark:bg-fuchsia-950/40 dark:text-fuchsia-300",
-  orange: "text-orange-600 bg-orange-50 dark:bg-orange-950/40 dark:text-orange-300",
-  primary: "text-primary bg-primary/10",
-};
-function KpiCard({ icon, label, value, hint, tone, highlight, derived }: { icon: React.ReactNode; label: string; value: string; hint: string; tone: string; highlight?: boolean; derived?: boolean }) {
-  return (
-    <Card className={`hover:shadow-md transition-all hover:-translate-y-0.5 ${highlight ? "border-primary/50 bg-primary/[0.03]" : ""}`}>
-      <CardContent className="p-3.5">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-muted-foreground">{label}</span>
-          <span className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${TONES[tone]}`}>{icon}</span>
-        </div>
-        {/* Itálico = inclui valores derivados (diária × diárias) e não só totais informados. */}
-        <div className={`text-lg font-bold mt-1.5 tabular-nums ${derived ? "italic" : ""}`}>{value}</div>
-        <div className="text-[11px] text-muted-foreground">{hint}</div>
-      </CardContent>
-    </Card>
-  );
-}
 function TotalLine({ label, value, bold, italic, title }: { label: string; value: string; bold?: boolean; italic?: boolean; title?: string }) {
   return <div className={`flex items-center justify-between ${bold ? "font-bold text-base" : ""}`}><span className={bold ? "" : "text-muted-foreground"}>{label}</span><span className={`tabular-nums ${italic ? "italic" : ""}`} title={title}>{value}</span></div>;
 }
