@@ -8,7 +8,7 @@
 import { Pool, neonConfig } from "@neondatabase/serverless";
 import ws from "ws";
 import { getTableConfig, type PgTable } from "drizzle-orm/pg-core";
-import * as schema from "../../shared/schema";
+import * as schema from "../shared/schema";
 neonConfig.webSocketConstructor = ws;
 
 async function main() {

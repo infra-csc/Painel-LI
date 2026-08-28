@@ -6,6 +6,7 @@ import rateLimit from "express-rate-limit";
 import { jwtVerify } from "jose";
 import { pool } from "./db";
 import { registerRoutes } from "./routes";
+import { garantirEstrutura } from "./ensure-schema";
 import { simulationReadOnlyGuard } from "./simulation";
 import { setupVite, serveStatic, log } from "./vite";
 
@@ -315,6 +316,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Antes de aceitar tráfego: repõe a estrutura que um db:push a partir de
+  // um checkout antigo já apagou do banco (ver server/ensure-schema.ts).
+  await garantirEstrutura();
+
   const server = await registerRoutes(app);
 
   app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
