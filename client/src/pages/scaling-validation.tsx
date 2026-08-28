@@ -36,6 +36,7 @@ import { ScheduleBoard } from "@/components/scaling-validation/schedule-board";
 import { AdjustRequestDialog, DeleteRequestDialog, IncludeRequestDialog } from "@/components/scaling-validation/change-request-dialogs";
 import { SuggestionDetailDrawer } from "@/components/scaling-validation/suggestion-detail-drawer";
 import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module-nav";
+import { DecidedPanel } from "@/components/scaling-validation/decided-panel";
 import { useEscalaManagers } from "@/components/scaling-validation/use-escala-managers";
 import {
   SUGGESTIONS_QUERY_KEY, canActOn, canValidate, invalidateScalingQueries, workDaysOf,
@@ -89,7 +90,7 @@ export default function ScalingValidationPage() {
   // A tela ABRE em "Todos os eventos" (regra do dono, 26/08): o combobox virou
   // FILTRO. Sem `?eventId=` na URL, nada é pré-selecionado.
   const { eventId, setEventId, sanitize } = useScalingEvent(BASE_PATH, { allEventsDefault: true });
-  const [tab, setTab] = useState<"lista" | "escala">("lista");
+  const [tab, setTab] = useState<"lista" | "escala" | "decididas">("lista");
   const [search, setSearch] = useState("");
   const [functionFilter, setFunctionFilter] = useState(ALL);
   const [areaFilter, setAreaFilter] = useState(ALL);
@@ -687,6 +688,7 @@ export default function ScalingValidationPage() {
               {/* O quadro é função × dia DE UM evento: sem evento escolhido ele
                   somaria dias de eventos diferentes na mesma coluna. */}
               {eventId && <TabsTrigger value="escala" className="rounded-lg">Escala</TabsTrigger>}
+              <TabsTrigger value="decididas" className="rounded-lg">Decididas</TabsTrigger>
             </TabsList>
             <p className="text-xs text-slate-500" aria-live="polite">
               {boardTab === "lista"
@@ -780,6 +782,12 @@ export default function ScalingValidationPage() {
           <TabsContent value="escala" className="mt-0 space-y-2">
             <ScheduleBoard rows={rows} functionNameById={functionNameById} rangeStart={selectedEvent?.startDate} rangeEnd={selectedEvent?.endDate} />
             <p className="text-[11px] text-slate-500">Quadro de todas as áreas, somente leitura — vagas negadas não entram na soma.</p>
+          </TabsContent>
+
+          {/* Histórico do que já foi decidido (28/08): a vaga aprovada sumia da
+              tela e a área não sabia se tinha dado certo. Leitura pura. */}
+          <TabsContent value="decididas" className="mt-0">
+            <DecidedPanel eventId={eventId} functionNameById={functionNameById} />
           </TabsContent>
         </Tabs>
       )}

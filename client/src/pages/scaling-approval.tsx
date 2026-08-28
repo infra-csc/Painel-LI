@@ -37,6 +37,7 @@ import { StalledSuggestions } from "@/components/scaling-approval/stalled-sugges
 import { AwaitingApproval, daysAwaiting } from "@/components/scaling-approval/awaiting-approval";
 import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module-nav";
 import { useEscalaManagers } from "@/components/scaling-validation/use-escala-managers";
+import { DecidedPanel } from "@/components/scaling-validation/decided-panel";
 import { useDecisionMutations } from "@/components/scaling-approval/use-decisions";
 
 const ALL = "all";
@@ -85,7 +86,7 @@ type QuickFilter = "pendentes" | "ajuste" | "inclusao" | "exclusao";
  * dono, 26/08); "aprovacao" (vagas validadas pela área) fica a um clique, na
  * própria aba e no tile "Aguardando aprovação".
  */
-type ApprovalTab = "aprovacao" | "fila" | "paradas";
+type ApprovalTab = "aprovacao" | "fila" | "paradas" | "decididas";
 
 const TAB_TRIGGER = "h-7 rounded-lg px-3.5 text-[13px] font-medium";
 
@@ -568,6 +569,7 @@ export default function ScalingApprovalPage() {
             )}
             <TabsTrigger value="fila" className={TAB_TRIGGER}>Fila de pedidos</TabsTrigger>
             {isApprover && <TabsTrigger value="paradas" className={TAB_TRIGGER}>Vagas paradas{stalledRows.length > 0 ? ` (${stalledRows.length})` : ""}</TabsTrigger>}
+            <TabsTrigger value="decididas" className={TAB_TRIGGER}>Decididas</TabsTrigger>
           </TabsList>
           <div className="flex flex-wrap items-center gap-3">
             {tab === "fila" && showMineFilter && (
@@ -716,6 +718,11 @@ export default function ScalingApprovalPage() {
             )}
           </TabsContent>
         )}
+
+        {/* Histórico do que o aprovador já decidiu (28/08) — leitura pura. */}
+        <TabsContent value="decididas" className="mt-0">
+          <DecidedPanel eventId={eventId} functionNameById={functionNameById} />
+        </TabsContent>
       </Tabs>
 
       {/* Nível 2 — detalhe */}
