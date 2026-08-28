@@ -4,7 +4,9 @@
  * arquivo gerado. As larguras (`!cols`) são geradas a partir das chaves da
  * primeira linha — não há mais um array paralelo de 47 posições para manter.
  */
-import * as XLSX from "xlsx";
+// xlsx só carrega quando alguém clica em exportar (auditoria 28/08): a
+// biblioteca sozinha pesava ~1/3 do chunk da Escalação no primeiro load.
+import { ALL_EXPORT_COLUMNS } from "./export-columns";
 import { fixEncoding } from "@/lib/utils";
 import type { TeamInclusion, Event, Function, Collaborator, Comment, Ticket } from "@shared/schema";
 import { formatDate, isEscalated } from "./scaling-utils";
@@ -155,7 +157,8 @@ export function buildScalingExportRows(input: ExportScalingInput): Record<string
 }
 
 /** Gera e baixa o arquivo Escalacoes_DDMMYYYY.xlsx. */
-export function exportScalingXlsx(input: ExportScalingInput): ExportScalingResult {
+export async function exportScalingXlsx(input: ExportScalingInput): Promise<ExportScalingResult> {
+  const XLSX = await import("xlsx");
   const rows = buildScalingExportRows(input);
   const ws = XLSX.utils.json_to_sheet(rows);
   const keys = rows.length > 0 ? Object.keys(rows[0]) : [];
@@ -176,23 +179,9 @@ export function exportScalingXlsx(input: ExportScalingInput): ExportScalingResul
 // abaixo é a fonte única: os grupos organizam o modal, e a ordem aqui é a ordem
 // no arquivo. Chave = título da coluna em buildScalingExportRows.
 
-export interface ExportColumnGroup { label: string; keys: string[] }
-
-export const EXPORT_COLUMN_GROUPS: ExportColumnGroup[] = [
-  { label: "Evento", keys: ["ID", "Evento", "Local do Evento", "Início do Evento", "Fim do Evento", "Função", "Área"] },
-  { label: "Colaborador", keys: ["Colaborador", "Tipo", "CPF Colaborador", "Data Nascimento", "Telefone Colaborador", "Cidade Colaborador", "Sai de"] },
-  { label: "Período", keys: ["Período Agendado - Início", "Período Agendado - Fim", "Período Real - Início", "Período Real - Fim"] },
-  { label: "Passagem e viagem", keys: [
-    "Precisa Passagem", "Tipo de Transporte", "Passagem LOC", "Passagem Data Compra", "Passagem Valor (R$)",
-    "Ida - Cidade Origem", "Ida - Aeroporto Origem", "Ida - Cidade Destino", "Ida - Aeroporto Destino", "Ida - Data", "Ida - Horário", "Horário Sugerido Ida",
-    "Volta - Cidade Origem", "Volta - Aeroporto Origem", "Volta - Cidade Destino", "Volta - Aeroporto Destino", "Volta - Data", "Volta - Horário", "Horário Sugerido Volta",
-    "Precisa Hospedagem",
-  ] },
-  { label: "Valores", keys: ["Diárias Planejadas", "Diárias Reais", "Valor da Diária (R$)", "Valor Total (R$)"] },
-  { label: "Status e observações", keys: ["Status", "Fase Atual", "Registro Emergencial", "Observações", "Observações Reais", "Comentários"] },
-];
-
-export const ALL_EXPORT_COLUMNS: string[] = EXPORT_COLUMN_GROUPS.flatMap((g) => g.keys);
+// Grupos/colunas moveram para ./export-columns (o modal importa de lá sem
+// carregar o xlsx). Reexportados aqui por compatibilidade.
+export { EXPORT_COLUMN_GROUPS, ALL_EXPORT_COLUMNS, type ExportColumnGroup } from "./export-columns";
 
 /** Mantém só as colunas escolhidas, na ordem canônica. */
 function pickColumns(rows: Record<string, string | number>[], selected?: string[]): Record<string, string | number>[] {
@@ -206,7 +195,8 @@ function pickColumns(rows: Record<string, string | number>[], selected?: string[
 }
 
 /** Gera e baixa o Excel só com as colunas escolhidas. */
-export function exportScalingXlsxColunas(input: ExportScalingInput, selected?: string[]): ExportScalingResult {
+export async function exportScalingXlsxColunas(input: ExportScalingInput, selected?: string[]): Promise<ExportScalingResult> {
+  const XLSX = await import("xlsx");
   const rows = pickColumns(buildScalingExportRows(input), selected);
   const ws = XLSX.utils.json_to_sheet(rows);
   const keys = rows.length > 0 ? Object.keys(rows[0]) : [];

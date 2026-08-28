@@ -33,12 +33,12 @@ export interface AccommodationCounts {
  */
 export function useAccommodationsData({ filters, sortConfig, showOnlyPendingSwaps, isPurchasingRole }: UseAccommodationsDataParams) {
   const { data: teamInclusions, isLoading: isLoadingInclusions, error: inclusionsError } = useQuery<TeamInclusion[]>({ queryKey: ["/api/team-inclusions"] });
-  const { data: events, isLoading: isLoadingEvents, error: eventsError } = useQuery<Event[]>({ queryKey: ["/api/events"] });
-  const { data: functions, isLoading: isLoadingFunctions, error: functionsError } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
-  const { data: collaborators, isLoading: isLoadingCollaborators, error: collaboratorsError } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
+  const { data: events, isLoading: isLoadingEvents, error: eventsError } = useQuery<Event[]>({ queryKey: ["/api/events"], staleTime: 300_000 });
+  const { data: functions, isLoading: isLoadingFunctions, error: functionsError } = useQuery<Function[]>({ queryKey: ["/api/functions"], staleTime: 300_000 });
+  const { data: collaborators, isLoading: isLoadingCollaborators, error: collaboratorsError } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"], staleTime: 300_000 });
   const { data: accommodations, isLoading: isLoadingAccommodations, error: accommodationsError } = useQuery<Accommodation[]>({ queryKey: ["/api/accommodations"] });
   const { data: tickets } = useQuery<TicketLite[]>({ queryKey: ["/api/tickets"] });
-  const { data: users } = useQuery<UserLite[]>({ queryKey: ["/api/users"] });
+  const { data: users } = useQuery<UserLite[]>({ queryKey: ["/api/users"], staleTime: 300_000 });
 
   // Lista global de trocas — alimenta o banner e o selo "Troca pendente" das linhas.
   const { data: allSwapRequests } = useQuery<NormalizedSwap[]>({

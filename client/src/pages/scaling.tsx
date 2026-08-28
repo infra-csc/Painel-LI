@@ -340,7 +340,7 @@ export default function Scaling() {
       toast({ title: "PDF pronto para salvar", description: `${rowCount} escalação(ões) na janela de impressão — escolha “Salvar como PDF”.` });
       return;
     }
-    const { fileName, rowCount } = exportScalingXlsxColunas(entrada, colunas);
+    const { fileName, rowCount } = await exportScalingXlsxColunas(entrada, colunas);
     toast({ title: "Sucesso", description: `Arquivo ${fileName} exportado com ${rowCount} escalações ativas!` });
   };
 

@@ -43,6 +43,10 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
   }, [filters.searchId]);
 
   useEffect(() => {
+    // Sem mudança real, sem callback (auditoria 28/08): este efeito disparava
+    // onFiltersChange no MONTAR da tela, e cada tela reagia refazendo memos e
+    // repintando a lista inteira antes mesmo do usuário digitar algo.
+    if (searchInput === (filters.searchId ?? "")) return;
     if (searchInput === "") {
       onFiltersChange({ ...filters, searchId: "" });
       return;

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { MessageSquare, CalendarDays, Clock, MapPin, Plane, Bus, ArrowLeftRight, BedDouble, Receipt, Headset, Bike, Hammer } from "lucide-react";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
@@ -199,6 +200,8 @@ function NeedIcon({ label, active, children }: { label: string; active: boolean;
   );
 }
 
+const PAGE_SIZE = 150;
+
 const CHECKBOX_CLS = "border-slate-300 data-[state=checked]:bg-[#2563EB] data-[state=checked]:border-[#2563EB]";
 
 export default function ScalingTable({
@@ -224,7 +227,14 @@ export default function ScalingTable({
   onToggleSelect,
   onToggleAllVisible,
 }: ScalingTableProps) {
-  const selectableIds = rows.filter(r => !getSelectBlockReason(r)).map(r => r.id);
+  // Corte de renderização (auditoria 28/08): sem filtro, a tela montava TODAS
+  // as linhas de uma vez (milhares de células e tooltips) e cada tecla na
+  // busca repintava tudo. O dado continua inteiro em memória — só o DOM é
+  // servido em blocos; exportações e contadores não passam por aqui.
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [rows.length]);
+  const visibleRows = rows.length > visibleCount ? rows.slice(0, visibleCount) : rows;
+  const selectableIds = visibleRows.filter(r => !getSelectBlockReason(r)).map(r => r.id);
   const selectedVisible = selectableIds.filter(id => selectedIds.has(id)).length;
   const allVisibleSelected = selectableIds.length > 0 && selectedVisible === selectableIds.length;
   const someVisibleSelected = selectedVisible > 0 && !allVisibleSelected;
@@ -278,7 +288,7 @@ export default function ScalingTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((inclusion, rowIdx) => {
+            {visibleRows.map((inclusion, rowIdx) => {
               const ticket = getTicket(inclusion.id);
               const accommodation = getAccommodation(inclusion.id);
               const hasAccommodationAttachments = !!(accommodation?.attachmentIds && accommodation.attachmentIds.length > 0);
@@ -505,6 +515,29 @@ export default function ScalingTable({
           </tbody>
         </table>
       </div>
+      {rows.length > visibleCount && (
+        <div className="flex items-center justify-center gap-3 border-t border-slate-100 bg-slate-50/60 px-4 py-3">
+          <span className="text-xs text-slate-500">
+            Mostrando {visibleRows.length} de {rows.length} escalações
+          </span>
+          <button
+            type="button"
+            onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-primary hover:bg-brand-soft"
+            data-testid="button-load-more-rows"
+          >
+            Mostrar mais {Math.min(PAGE_SIZE, rows.length - visibleCount)}
+          </button>
+          <button
+            type="button"
+            onClick={() => setVisibleCount(rows.length)}
+            className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-primary"
+            data-testid="button-load-all-rows"
+          >
+            Mostrar todas
+          </button>
+        </div>
+      )}
     </div>
   );
 }

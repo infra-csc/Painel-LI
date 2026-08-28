@@ -84,21 +84,24 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
   });
   const { data: events, isLoading: isLoadingEvents, error: eventsError } = useQuery<Event[]>({
     queryKey: ["/api/events"],
+    staleTime: 300_000,
   });
   const { data: functions, isLoading: isLoadingFunctions, error: functionsError } = useQuery<Function[]>({
     queryKey: ["/api/functions"],
+    staleTime: 300_000,
   });
   const { data: collaborators, isLoading: isLoadingCollaborators, error: collaboratorsError } = useQuery<Collaborator[]>({
     queryKey: ["/api/collaborators"],
+    staleTime: 300_000,
   });
   const { data: tickets, isLoading: isLoadingTickets, error: ticketsError } = useQuery<Ticket[]>({
     queryKey: ["/api/tickets"],
   });
   const { data: accommodations } = useQuery<Accommodation[]>({ queryKey: ["/api/accommodations"] });
   // Só para exibir o nome do autor dos comentários (a API de comentários não o traz).
-  const { data: users } = useQuery<UserName[]>({ queryKey: ["/api/users"] });
+  const { data: users } = useQuery<UserName[]>({ queryKey: ["/api/users"], staleTime: 300_000 });
   // Valores de refeição do Planejado — alimentam a linha "Impacto no Planejado".
-  const { data: systemSettings } = useQuery<Record<string, number | string>>({ queryKey: ["/api/system-settings"] });
+  const { data: systemSettings } = useQuery<Record<string, number | string>>({ queryKey: ["/api/system-settings"], staleTime: 300_000 });
 
   // Query global — para badges nas linhas da tabela (sem depender de inclusão selecionada)
   const { data: allSwapRequests } = useQuery<SwapRequestRow[]>({

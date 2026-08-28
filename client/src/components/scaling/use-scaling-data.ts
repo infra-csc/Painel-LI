@@ -70,7 +70,11 @@ export function useScalingData(opts: {
     isError: isErrorInclusions,
     error: inclusionsError,
   } = useQuery<TeamInclusion[]>({
-    queryKey: ["/api/team-inclusions", filters.showDeleted],
+    // Sem excluídas, a chave é a MESMA das outras telas (auditoria 28/08):
+    // antes `["/api/team-inclusions", false]` era um cache separado do
+    // `["/api/team-inclusions"]` do resto do app, e a lista inteira descia
+    // duas vezes do servidor para os mesmos dados.
+    queryKey: filters.showDeleted ? ["/api/team-inclusions", "com-excluidas"] : ["/api/team-inclusions"],
     queryFn: async () => {
       const suffix = filters.showDeleted ? "?includeDeleted=true" : "";
       const response = await apiRequest("GET", `/api/team-inclusions${suffix}`);
@@ -78,13 +82,14 @@ export function useScalingData(opts: {
     },
   });
 
-  const { data: events, isLoading: isLoadingEvents } = useQuery<Event[]>({ queryKey: ["/api/events"] });
-  const { data: functions, isLoading: isLoadingFunctions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
+  const { data: events, isLoading: isLoadingEvents } = useQuery<Event[]>({ queryKey: ["/api/events"], staleTime: 300_000 });
+  const { data: functions, isLoading: isLoadingFunctions } = useQuery<Function[]>({ queryKey: ["/api/functions"], staleTime: 300_000 });
   // Managers de todas as funções — uma única requisição
   const { data: allFunctionManagers, isLoading: isLoadingManagers } = useQuery<{ functionId: string; userId: string }[]>({
     queryKey: ["/api/function-managers/all"],
+    staleTime: 300_000,
   });
-  const { data: collaborators, isLoading: isLoadingCollaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
+  const { data: collaborators, isLoading: isLoadingCollaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"], staleTime: 300_000 });
   const { data: accommodations } = useQuery<Accommodation[]>({ queryKey: ["/api/accommodations"] });
   const { data: tickets } = useQuery<Ticket[]>({ queryKey: ["/api/tickets"] });
   // Swap requests globais — badges nas linhas da tabela
@@ -397,16 +402,27 @@ export function useScalingData(opts: {
     [scalingInclusions],
   );
 
-  // Conflitos de escalação de um colaborador (mesmo evento / datas sobrepostas)
+  // Conflitos de escalação de um colaborador (mesmo evento / datas sobrepostas).
+  // Índices memoizados (auditoria 28/08): a tela chama isto para CADA linha ao
+  // montar o mapa de bloqueios — varrer a lista inteira por chamada era O(n²).
+  const inclusionById = useMemo(
+    () => new Map((teamInclusions ?? []).map(ti => [ti.id, ti])),
+    [teamInclusions],
+  );
+  const activeInclusionsByCollaborator = useMemo(() => {
+    const idx = new Map<string, TeamInclusion[]>();
+    for (const ti of teamInclusions ?? []) {
+      if (!ti.collaboratorId || !ACTIVE_CONFLICT_STATUSES.includes(ti.status)) continue;
+      const lista = idx.get(ti.collaboratorId);
+      if (lista) lista.push(ti); else idx.set(ti.collaboratorId, [ti]);
+    }
+    return idx;
+  }, [teamInclusions]);
   const getCollaboratorConflicts = (collaboratorId: string, refInclusion: TeamInclusion | null | undefined) => {
     if (!collaboratorId || !teamInclusions) return { sameEvent: [] as TeamInclusion[], dateOverlap: [] as TeamInclusion[] };
     // Prefere a versão fresca da lista (como o find original), cai no objeto passado
-    const ref = (refInclusion?.id && teamInclusions.find(ti => ti.id === refInclusion.id)) || refInclusion;
-    const others = teamInclusions.filter(ti =>
-      ti.collaboratorId === collaboratorId &&
-      ti.id !== ref?.id &&
-      ACTIVE_CONFLICT_STATUSES.includes(ti.status),
-    );
+    const ref = (refInclusion?.id && inclusionById.get(refInclusion.id)) || refInclusion;
+    const others = (activeInclusionsByCollaborator.get(collaboratorId) ?? []).filter(ti => ti.id !== ref?.id);
     const sameEvent = others.filter(ti => ref && ti.eventId === ref.eventId);
     const dateOverlap = others.filter(ti => {
       if (!ref?.scheduleStartDate || !ref?.scheduleEndDate) return false;

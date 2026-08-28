@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { ALL_EXPORT_COLUMNS, EXPORT_COLUMN_GROUPS } from "./export-scaling-xlsx";
+import { ALL_EXPORT_COLUMNS, EXPORT_COLUMN_GROUPS } from "./export-columns";
 
 const STORAGE_KEY = "scaling-export-columns-v1";
 

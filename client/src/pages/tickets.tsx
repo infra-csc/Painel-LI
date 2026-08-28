@@ -168,13 +168,15 @@ export default function Tickets() {
   };
 
   // ── Modal ──
-  const openModal = (inclusion: TeamInclusion) => {
+  // useCallback (auditoria 28/08): TicketRow é memo() e recebe onOpen — sem
+  // referência estável, TODAS as linhas repintavam a cada tecla digitada.
+  const openModal = useCallback((inclusion: TeamInclusion) => {
     setSelectedInclusion(inclusion);
     setShowModal(true);
     setModalActiveTab("resumo");
     const eventLocation = eventById.get(inclusion.eventId)?.location;
     // Prefill de origem: "Sai de" da inclusão ou cidade do colaborador.
-    const originCity = inclusion.city || getCollaborator(inclusion.collaboratorId)?.city || "";
+    const originCity = inclusion.city || (inclusion.collaboratorId ? data.collaboratorById.get(inclusion.collaboratorId)?.city : undefined) || "";
     setTicketData(prev => ({
       ...prev,
       [inclusion.id]: {
@@ -189,7 +191,7 @@ export default function Tickets() {
         } : {}),
       },
     }));
-  };
+  }, [eventById, data.collaboratorById]);
 
   const closeModalDiscarding = () => {
     setDiscardTarget(null);
