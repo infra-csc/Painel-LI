@@ -62,6 +62,7 @@ function timeToMinutes(t: string | null | undefined): number | null {
 }
 
 import { sugerirQuartos } from "@shared/room-pairing";
+import { inferirGenero } from "@shared/gender-inference";
 
 // ---------- Buscar dados consolidados ----------
 export async function getOperationalMirror(eventId: string): Promise<MirrorResponse | null> {
@@ -481,7 +482,12 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
       hotelName: acc?.hotelName || null,
       checkIn: acc?.checkInDate || ti.scheduleStartDate || null,
       checkOut: acc?.checkOutDate || ti.scheduleEndDate || null,
-      gender: collab?.gender || "unknown",
+      // Sem gênero no cadastro, o primeiro nome dá o palpite (96% da base
+      // é reconhecida). O cadastro SEMPRE vence; nome ambíguo fica "unknown"
+      // e cai na regra de mesma função.
+      gender: (collab?.gender && collab.gender !== "unknown")
+        ? collab.gender
+        : (inferirGenero(collab?.fullName || "").genero || "unknown"),
       area: ti.area || null,
       functionId: ti.functionId || null,
       functionName: null as string | null,
