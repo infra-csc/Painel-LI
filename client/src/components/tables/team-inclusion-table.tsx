@@ -50,12 +50,14 @@ export default function TeamInclusionTable() {
   const [editEndDate, setEditEndDate] = useState("");
   const [editSelectedDays, setEditSelectedDays] = useState<Set<string>>(new Set());
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  // Seleção múltipla (28/08): listas; vazia = todos. Também conserta o filtro
+  // de Funções, que comparava string com a lista do multi-select e zerava a tela.
   const [filters, setFilters] = useState({
-    eventId: "all",
-    functionId: "all",
-    collaboratorId: "all",
-    status: "all",
-    escalationStatus: "all",
+    eventId: [] as string[],
+    functionId: [] as string[],
+    collaboratorId: [] as string[],
+    status: [] as string[],
+    escalationStatus: [] as string[],
     searchId: "",
   });
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
@@ -530,13 +532,21 @@ export default function TeamInclusionTable() {
   // Filter and sort inclusions based on current filters
   const filteredAndSortedInclusions = useMemo(() => {
     const filtered = teamInclusions?.filter(inclusion => {
-      if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
-      if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
-      if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
-      if (filters.status !== "all" && inclusion.status !== filters.status) return false;
-      if (filters.escalationStatus === "pending" && (inclusion.collaboratorId || inclusion.status === "cancelado")) return false;
-      if (filters.escalationStatus === "escalated" && (!inclusion.collaboratorId || inclusion.status === "cancelado")) return false;
-      if (filters.escalationStatus === "cancelado" && inclusion.status !== "cancelado") return false;
+      // Valores marcados no mesmo filtro somam (OU); entre filtros continua E.
+      if (filters.eventId.length > 0 && !filters.eventId.includes(inclusion.eventId)) return false;
+      if (filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;
+      if (filters.collaboratorId.length > 0 && (!inclusion.collaboratorId || !filters.collaboratorId.includes(inclusion.collaboratorId))) return false;
+      if (filters.status.length > 0 && !filters.status.includes(inclusion.status)) return false;
+      if (filters.escalationStatus.length > 0) {
+        const isCanceled = inclusion.status === "cancelado";
+        const matches = filters.escalationStatus.some((v) =>
+          v === "pending" ? (!inclusion.collaboratorId && !isCanceled)
+          : v === "escalated" ? (!!inclusion.collaboratorId && !isCanceled)
+          : v === "cancelado" ? isCanceled
+          : false,
+        );
+        if (!matches) return false;
+      }
       // Busca exata por ID (número de inclusão)
       if (filters.searchId) {
         const q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
@@ -605,9 +615,9 @@ export default function TeamInclusionTable() {
   // Ignores status AND escalationStatus so card counts never change when a card is clicked
   const totalsBase = useMemo(() => {
     return teamInclusions?.filter(inclusion => {
-      if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
-      if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
-      if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
+      if (filters.eventId.length > 0 && !filters.eventId.includes(inclusion.eventId)) return false;
+      if (filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;
+      if (filters.collaboratorId.length > 0 && (!inclusion.collaboratorId || !filters.collaboratorId.includes(inclusion.collaboratorId))) return false;
       if (filters.searchId) {
         const q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
         const n = String(inclusion.inclusionNumber ?? '').toLowerCase();
@@ -679,7 +689,7 @@ export default function TeamInclusionTable() {
       {/* Evento encerrado: banner discreto quando o filtro aponta para um evento
           já terminado e o usuário não é o administrador. */}
       <PastEventBanner
-        show={filters.eventId !== "all" && eventLock.isReadOnlyPastEvent(filters.eventId)}
+        show={filters.eventId.length === 1 && eventLock.isReadOnlyPastEvent(filters.eventId[0])}
         className="mb-4"
       />
 
@@ -696,20 +706,22 @@ export default function TeamInclusionTable() {
             { value: totals.hospedagem_comprada, label: "Hosp. Comprada", color: "text-indigo-600",  border: "border-t-indigo-400",  activeBg: "bg-indigo-50",  filterType: "status",     filterValue: "hospedagem_comprada", testId: "total-hospedagem-comprada" },
             { value: totals.cancelados,          label: "Cancelados",     color: "text-gray-400",    border: "border-t-gray-300",    activeBg: "bg-gray-50",    filterType: "escalation", filterValue: "cancelado",           testId: "total-cancelados" },
           ] as const).map(({ value, label, color, border, activeBg, filterType, filterValue, testId }) => {
+            // Cards continuam sendo atalho de UM recorte por vez; o multi fica
+            // por conta dos dropdowns da barra.
             const isActive =
               filterType === "all"
-                ? filters.status === "all" && filters.escalationStatus === "all"
+                ? filters.status.length === 0 && filters.escalationStatus.length === 0
                 : filterType === "status"
-                  ? filters.status === filterValue
-                  : filters.escalationStatus === filterValue;
+                  ? filters.status.length === 1 && filters.status[0] === filterValue
+                  : filters.escalationStatus.length === 1 && filters.escalationStatus[0] === filterValue;
 
             const handleClick = () => {
               if (filterType === "all") {
-                setFilters(f => ({ ...f, status: "all", escalationStatus: "all" }));
+                setFilters(f => ({ ...f, status: [], escalationStatus: [] }));
               } else if (filterType === "status") {
-                setFilters(f => ({ ...f, status: isActive ? "all" : filterValue, escalationStatus: "all" }));
+                setFilters(f => ({ ...f, status: isActive ? [] : [filterValue], escalationStatus: [] }));
               } else {
-                setFilters(f => ({ ...f, escalationStatus: isActive ? "all" : filterValue, status: "all" }));
+                setFilters(f => ({ ...f, escalationStatus: isActive ? [] : [filterValue], status: [] }));
               }
             };
 

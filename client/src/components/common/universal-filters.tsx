@@ -3,22 +3,24 @@ import { useState, useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { X, Search, CalendarDays, Layers, UserRound, Tag, ArrowUpDown, RotateCcw, Plane, BedDouble } from "lucide-react";
-import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
-import EventCombobox from "@/components/ui/event-combobox";
 import FunctionMultiSelect from "@/components/ui/function-multi-select";
+import MultiSelectFilter from "@/components/ui/multi-select-filter";
+import { fixEncoding } from "@/lib/utils";
 import type { Event, Function, Collaborator } from "@shared/schema";
 
 interface UniversalFiltersProps {
+  // Seleção múltipla (pedido do dono, 28/08): cada campo é uma LISTA de
+  // valores marcados; lista vazia significa "todos".
   filters: {
-    eventId: string;
+    eventId: string[];
     functionId: string | string[];
-    collaboratorId: string;
-    status?: string;
-    escalationStatus: string;
+    collaboratorId: string[];
+    status?: string[];
+    escalationStatus: string[];
     searchId: string;
     showDeleted?: boolean;
-    ticketStatus?: string;
-    accommodationStatus?: string;
+    ticketStatus?: string[];
+    accommodationStatus?: string[];
   };
   onFiltersChange: (filters: any) => void;
   hideStatusFilter?: boolean;
@@ -68,7 +70,6 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
   });
 
   const statusOptions = [
-    { value: "all", label: "Todos os Status" },
     { value: "planejado", label: "Aguardando Escalação" },
     { value: "escalacao", label: "Em Escalação" },
     { value: "passagem", label: "Aguardando Passagem" },
@@ -80,16 +81,16 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
 
   const clearFilters = () => {
     const baseFilters: any = {
-      eventId: "all",
+      eventId: [],
       functionId: [],
-      collaboratorId: "all",
-      escalationStatus: "all",
+      collaboratorId: [],
+      escalationStatus: [],
       searchId: "",
       showDeleted: false
     };
-    if (!hideStatusFilter) baseFilters.status = "all";
-    if (showTicketFilter) baseFilters.ticketStatus = "all";
-    if (showAccommodationFilter) baseFilters.accommodationStatus = "all";
+    if (!hideStatusFilter) baseFilters.status = [];
+    if (showTicketFilter) baseFilters.ticketStatus = [];
+    if (showAccommodationFilter) baseFilters.accommodationStatus = [];
     onFiltersChange(baseFilters);
   };
 
@@ -127,11 +128,16 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
         {/* Evento */}
         <div>
           <FilterLabel icon={CalendarDays} text="Evento" />
-          <EventCombobox
-            events={events?.filter(e => e.status !== 'excluido' && e.status !== 'excluído')}
-            value={filters.eventId}
-            onValueChange={(value) => onFiltersChange({ ...filters, eventId: value })}
-            placeholder="Selecionar evento"
+          <MultiSelectFilter
+            options={(events?.filter(e => e.status !== 'excluido' && e.status !== 'excluído') || [])
+              .slice()
+              .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }))
+              .map(e => ({ value: e.id, label: e.name }))}
+            selected={filters.eventId ?? []}
+            onChange={(value) => onFiltersChange({ ...filters, eventId: value })}
+            placeholder="Todos os Eventos"
+            searchable
+            searchPlaceholder="Buscar evento..."
             testId="filter-event"
           />
         </div>
@@ -151,11 +157,16 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
         {/* Colaborador */}
         <div>
           <FilterLabel icon={UserRound} text="Colaborador" />
-          <CollaboratorCombobox
-            collaborators={collaborators}
-            value={filters.collaboratorId}
-            onValueChange={(value) => onFiltersChange({ ...filters, collaboratorId: value })}
-            placeholder="Selecionar colaborador"
+          <MultiSelectFilter
+            options={(collaborators || [])
+              .slice()
+              .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || "", "pt-BR", { sensitivity: "base" }))
+              .map(c => ({ value: c.id, label: fixEncoding(c.fullName) || "Sem nome" }))}
+            selected={filters.collaboratorId ?? []}
+            onChange={(value) => onFiltersChange({ ...filters, collaboratorId: value })}
+            placeholder="Todos os Colaboradores"
+            searchable
+            searchPlaceholder="Buscar colaborador..."
             testId="filter-collaborator"
           />
         </div>
@@ -164,73 +175,49 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
         {!hideStatusFilter && (
           <div>
             <FilterLabel icon={Tag} text="Status" />
-            <Select
-              value={filters.status}
-              onValueChange={(value) => onFiltersChange({ ...filters, status: value })}
-              data-testid="filter-status"
-            >
-              <SelectTrigger className={selectTriggerClass}>
-                <SelectValue placeholder="Selecionar status" />
-              </SelectTrigger>
-              <SelectContent className="bg-white border border-slate-200 rounded-lg shadow-lg min-w-[220px]">
-                {statusOptions.map((option) => (
-                  <SelectItem
-                    key={option.value}
-                    value={option.value}
-                    className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium"
-                  >
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MultiSelectFilter
+              options={statusOptions}
+              selected={filters.status ?? []}
+              onChange={(value) => onFiltersChange({ ...filters, status: value })}
+              placeholder="Todos os Status"
+              testId="filter-status"
+            />
           </div>
         )}
 
         {/* Escalação */}
         <div>
           <FilterLabel icon={ArrowUpDown} text="Escalação" />
-          <Select
-            value={filters.escalationStatus}
-            onValueChange={(value) => onFiltersChange({ ...filters, escalationStatus: value })}
-            data-testid="filter-escalation"
-          >
-            <SelectTrigger className={selectTriggerClass}>
-              <SelectValue placeholder="Filtrar por escalação" />
-            </SelectTrigger>
-            <SelectContent className="bg-white border border-slate-200 rounded-lg shadow-lg min-w-[220px]">
-              <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos</SelectItem>
-              <SelectItem value="pending" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Pendentes de Escalação</SelectItem>
-              <SelectItem value="escalated" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Já Escalados</SelectItem>
-              <SelectItem value="aguardando_producao" className="hover:bg-red-50 hover:text-red-700 cursor-pointer focus:bg-red-50 focus:text-red-700 data-[state=checked]:bg-red-50 data-[state=checked]:text-red-700 data-[state=checked]:font-medium">Aguardando Gestor</SelectItem>
-              <SelectItem value="cancelado" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Cancelados</SelectItem>
-            </SelectContent>
-          </Select>
+          <MultiSelectFilter
+            options={[
+              { value: "pending", label: "Pendentes de Escalação" },
+              { value: "escalated", label: "Já Escalados" },
+              { value: "aguardando_producao", label: "Aguardando Gestor" },
+              { value: "cancelado", label: "Cancelados" },
+            ]}
+            selected={filters.escalationStatus ?? []}
+            onChange={(value) => onFiltersChange({ ...filters, escalationStatus: value })}
+            placeholder="Todos"
+            testId="filter-escalation"
+          />
         </div>
 
         {/* Passagem */}
         {showTicketFilter && (
           <div>
             <FilterLabel icon={Plane} text="Passagem" />
-            <Select
-              value={filters.ticketStatus ?? "all"}
-              onValueChange={(value) => onFiltersChange({ ...filters, ticketStatus: value })}
-              data-testid="filter-ticket-status"
-            >
-              <SelectTrigger className={selectTriggerClass}>
-                <SelectValue placeholder="Filtrar por passagem" />
-              </SelectTrigger>
-              <SelectContent className="bg-white border border-slate-200 rounded-lg shadow-lg min-w-[220px]">
-                <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todas</SelectItem>
-                {/* "Precisa/Sem" filtram pela NECESSIDADE (needsTicket) — o mesmo corte
-                    dos cartões grandes da tela; Comprada/Não comprada seguem
-                    olhando o registro da compra. Pedido do dono, 28/08. */}
-                <SelectItem value="needs" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Precisa de passagem</SelectItem>
-                <SelectItem value="no-need" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Sem passagem</SelectItem>
-                <SelectItem value="purchased" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Comprada</SelectItem>
-                <SelectItem value="not-purchased" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Não comprada</SelectItem>
-              </SelectContent>
-            </Select>
+            <MultiSelectFilter
+              options={[
+                { value: "needs", label: "Precisa de passagem" },
+                { value: "no-need", label: "Sem passagem" },
+                { value: "purchased", label: "Comprada" },
+                { value: "not-purchased", label: "Não comprada" },
+              ]}
+              selected={filters.ticketStatus ?? []}
+              onChange={(value) => onFiltersChange({ ...filters, ticketStatus: value })}
+              placeholder="Todas"
+              testId="filter-ticket-status"
+            />
           </div>
         )}
 
@@ -238,22 +225,18 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
         {showAccommodationFilter && (
           <div>
             <FilterLabel icon={BedDouble} text="Hospedagem" />
-            <Select
-              value={filters.accommodationStatus ?? "all"}
-              onValueChange={(value) => onFiltersChange({ ...filters, accommodationStatus: value })}
-              data-testid="filter-accommodation-status"
-            >
-              <SelectTrigger className={selectTriggerClass}>
-                <SelectValue placeholder="Filtrar por hospedagem" />
-              </SelectTrigger>
-              <SelectContent className="bg-white border border-slate-200 rounded-lg shadow-lg min-w-[220px]">
-                <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todas</SelectItem>
-                <SelectItem value="needs" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Precisa de hotel</SelectItem>
-                <SelectItem value="no-need" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Sem hotel</SelectItem>
-                <SelectItem value="reserved" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Reservada</SelectItem>
-                <SelectItem value="not-reserved" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Não reservada</SelectItem>
-              </SelectContent>
-            </Select>
+            <MultiSelectFilter
+              options={[
+                { value: "needs", label: "Precisa de hotel" },
+                { value: "no-need", label: "Sem hotel" },
+                { value: "reserved", label: "Reservada" },
+                { value: "not-reserved", label: "Não reservada" },
+              ]}
+              selected={filters.accommodationStatus ?? []}
+              onChange={(value) => onFiltersChange({ ...filters, accommodationStatus: value })}
+              placeholder="Todas"
+              testId="filter-accommodation-status"
+            />
           </div>
         )}
       </div>

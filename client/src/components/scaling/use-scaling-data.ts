@@ -21,24 +21,25 @@ import {
   normalizeSwap, type NormalizedSwap,
 } from "./scaling-utils";
 
+/** Filtros de seleção múltipla (28/08): lista vazia = "todos". */
 export interface ScalingFilters {
-  eventId: string;
+  eventId: string[];
   functionId: string[];
-  collaboratorId: string;
-  escalationStatus: string;
-  ticketStatus: string;
-  accommodationStatus: string;
+  collaboratorId: string[];
+  escalationStatus: string[];
+  ticketStatus: string[];
+  accommodationStatus: string[];
   searchId: string;
   showDeleted: boolean;
 }
 
 export const DEFAULT_SCALING_FILTERS: ScalingFilters = {
-  eventId: "all",
+  eventId: [],
   functionId: [],
-  collaboratorId: "all",
-  escalationStatus: "all",
-  ticketStatus: "all",
-  accommodationStatus: "all",
+  collaboratorId: [],
+  escalationStatus: [],
+  ticketStatus: [],
+  accommodationStatus: [],
   searchId: "",
   showDeleted: false,
 };
@@ -295,36 +296,49 @@ export function useScalingData(opts: {
     // Busca por ID, colaborador, função, evento ou cidade (normalizada uma vez)
     const q = filters.searchId.replace(/#/g, "").trim().toLowerCase();
     const filtered = filteredTeamInclusions.filter(inclusion => {
-      if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
+      // Seleção múltipla: dentro de um mesmo filtro os valores marcados somam
+      // (OU) — basta a linha casar com UM deles; entre filtros continua E.
+      if (filters.eventId.length > 0 && !filters.eventId.includes(inclusion.eventId)) return false;
       if (filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;
-      if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
+      if (filters.collaboratorId.length > 0 && (!inclusion.collaboratorId || !filters.collaboratorId.includes(inclusion.collaboratorId))) return false;
 
-      if (filters.escalationStatus !== "all") {
+      if (filters.escalationStatus.length > 0) {
         const escalated = isEscalated(inclusion);
         const isCanceled = inclusion.status === "cancelado";
-        if (filters.escalationStatus === "pending" && (escalated || isCanceled)) return false;
-        if (filters.escalationStatus === "escalated" && (!escalated || isCanceled || inclusion.status === "aguardando_producao")) return false;
-        if (filters.escalationStatus === "aguardando_producao" && inclusion.status !== "aguardando_producao") return false;
-        if (filters.escalationStatus === "cancelado" && !isCanceled) return false;
+        const matches = filters.escalationStatus.some((v) =>
+          v === "pending" ? (!escalated && !isCanceled)
+          : v === "escalated" ? (escalated && !isCanceled && inclusion.status !== "aguardando_producao")
+          : v === "aguardando_producao" ? inclusion.status === "aguardando_producao"
+          : v === "cancelado" ? isCanceled
+          : false,
+        );
+        if (!matches) return false;
       }
 
-      // Passagem: "needs/no-need" cortam pela NECESSIDADE (needsTicket), o
-      // mesmo recorte dos cartões grandes; "purchased/not-purchased" seguem
-      // olhando o registro da compra (purchaseDate).
-      if (filters.ticketStatus !== "all") {
+      // Passagem: "needs/no-need" cortam pela NECESSIDADE (needsTicket);
+      // "purchased/not-purchased" olham o registro da compra (purchaseDate).
+      if (filters.ticketStatus.length > 0) {
         const purchased = purchasedTicketByInclusion.has(inclusion.id);
-        if (filters.ticketStatus === "needs" && !inclusion.needsTicket) return false;
-        if (filters.ticketStatus === "no-need" && inclusion.needsTicket) return false;
-        if (filters.ticketStatus === "purchased" && !purchased) return false;
-        if (filters.ticketStatus === "not-purchased" && purchased) return false;
+        const matches = filters.ticketStatus.some((v) =>
+          v === "needs" ? inclusion.needsTicket
+          : v === "no-need" ? !inclusion.needsTicket
+          : v === "purchased" ? purchased
+          : v === "not-purchased" ? !purchased
+          : false,
+        );
+        if (!matches) return false;
       }
 
-      if (filters.accommodationStatus !== "all") {
+      if (filters.accommodationStatus.length > 0) {
         const hasAccommodation = accommodationByInclusion.has(inclusion.id);
-        if (filters.accommodationStatus === "needs" && !inclusion.needsAccommodation) return false;
-        if (filters.accommodationStatus === "no-need" && inclusion.needsAccommodation) return false;
-        if (filters.accommodationStatus === "reserved" && !hasAccommodation) return false;
-        if (filters.accommodationStatus === "not-reserved" && hasAccommodation) return false;
+        const matches = filters.accommodationStatus.some((v) =>
+          v === "needs" ? inclusion.needsAccommodation
+          : v === "no-need" ? !inclusion.needsAccommodation
+          : v === "reserved" ? hasAccommodation
+          : v === "not-reserved" ? !hasAccommodation
+          : false,
+        );
+        if (!matches) return false;
       }
 
       if (!q) return true;
@@ -437,12 +451,12 @@ export function useScalingData(opts: {
   const isLoading = isLoadingInclusions || isLoadingEvents || isLoadingFunctions || isLoadingManagers || isLoadingCollaborators;
 
   const hasActiveFilters =
-    filters.eventId !== "all" ||
+    filters.eventId.length > 0 ||
     filters.functionId.length > 0 ||
-    filters.collaboratorId !== "all" ||
-    filters.escalationStatus !== "all" ||
-    filters.ticketStatus !== "all" ||
-    filters.accommodationStatus !== "all" ||
+    filters.collaboratorId.length > 0 ||
+    filters.escalationStatus.length > 0 ||
+    filters.ticketStatus.length > 0 ||
+    filters.accommodationStatus.length > 0 ||
     filters.searchId.trim() !== "";
 
   return {

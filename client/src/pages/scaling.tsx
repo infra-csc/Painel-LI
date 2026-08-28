@@ -395,7 +395,7 @@ export default function Scaling() {
       {/* Evento encerrado: banner discreto quando o filtro aponta para um evento
           já terminado e o usuário não é o administrador (as ações da
           tela já vêm desabilitadas com o motivo no tooltip). */}
-      <PastEventBanner show={filters.eventId !== "all" && !data.podeAgirEmEventoPassado && data.isPastEvent(filters.eventId)} />
+      <PastEventBanner show={filters.eventId.length === 1 && !data.podeAgirEmEventoPassado && data.isPastEvent(filters.eventId[0])} />
 
       {canApproveProduction && (
         <ProductionApprovalsBanner pending={pendingProductionApprovals} inView={pendingProductionApprovalsInView} hasActiveFilters={hasActiveFilters} />
