@@ -107,6 +107,22 @@ export function getMissingRequiredFields(form: TicketFormData): RequiredField[] 
 }
 
 /**
+ * Campos PREENCHIDOS com conteúdo que não serve (28/08).
+ *
+ * Existe por um caso real: o Valor da Passagem foi preenchido com o código do
+ * LOC ("LJQZOF"). Como `parseBrNumber` devolve 0 para texto, a passagem seria
+ * gravada valendo R$ 0,00 sem ninguém perceber — pior que recusar na hora.
+ */
+export function getInvalidFields(form: TicketFormData): RequiredField[] {
+  const invalidos: RequiredField[] = [];
+  const valor = form?.value;
+  if (!isBlank(valor) && !/^\s*-?\d{1,3}(\.\d{3})*(,\d+)?\s*$|^\s*-?\d+([.,]\d+)?\s*$/.test(String(valor))) {
+    invalidos.push({ field: "value", label: "Valor da Passagem: informe um número (ex.: 1.250,00)" });
+  }
+  return invalidos;
+}
+
+/**
  * Payload único enviado ao servidor (POST e PATCH). Van zera todos os campos
  * de trecho; "apenas ida" zera os de volta. Os aeroportos/rodoviárias da
  * VOLTA sempre entram — o lote os descartava e o que o usuário digitava sumia.

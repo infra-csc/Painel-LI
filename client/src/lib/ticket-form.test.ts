@@ -3,6 +3,7 @@ import {
   buildTicketPayload,
   getRequiredFields,
   getMissingRequiredFields,
+  getInvalidFields,
   isFieldRequired,
   validateTicketChronology,
   hasUnsavedTicketInput,
@@ -443,5 +444,23 @@ describe("purchasedValueKpi", () => {
   it("soma e média ignorando nulos/zero", () => {
     expect(purchasedValueKpi([10000, null, 0, 20000, undefined])).toEqual({ count: 2, totalCents: 30000, avgCents: 15000 });
     expect(purchasedValueKpi([])).toEqual({ count: 0, totalCents: 0, avgCents: 0 });
+  });
+});
+
+describe("getInvalidFields — campo preenchido com conteúdo que não serve", () => {
+  it("recusa o Valor da Passagem preenchido com texto (caso real: o LOC)", () => {
+    const r = getInvalidFields({ value: "LJQZOF" });
+    expect(r.map(f => f.field)).toEqual(["value"]);
+  });
+
+  it("aceita os formatos que o comprador digita", () => {
+    for (const v of ["1250", "1250,00", "1.250,00", "1250.00", "0,00", " 980,5 "]) {
+      expect(getInvalidFields({ value: v })).toEqual([]);
+    }
+  });
+
+  it("valor vazio não é inválido (a obrigatoriedade é checada à parte)", () => {
+    expect(getInvalidFields({})).toEqual([]);
+    expect(getInvalidFields({ value: "" })).toEqual([]);
   });
 });

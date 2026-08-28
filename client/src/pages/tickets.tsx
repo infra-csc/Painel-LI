@@ -14,6 +14,7 @@ import { PastEventBanner } from "@/lib/event-lock";
 import { useAuth } from "@/hooks/use-auth";
 import {
   getMissingRequiredFields,
+  getInvalidFields,
   validateTicketChronology,
   hasUnsavedTicketInput,
   ticketToFormValues,
@@ -158,14 +159,21 @@ export default function Tickets() {
     proceed: () => void,
   ) => {
     const missing = getMissingRequiredFields(form || {});
+    const invalidos = getInvalidFields(form || {});
     const chrono = validateTicketChronology(form || {}, ctx);
     const errors: Record<string, string> = { ...chrono.errors };
     for (const m of missing) errors[m.field] = `${m.label} é obrigatório`;
+    for (const inv of invalidos) errors[inv.field] = inv.label;
     setFieldErrors(prev => ({ ...prev, [scope]: errors }));
 
     const list = (items: string[]) => <ul className="list-disc pl-4 space-y-0.5">{items.map((i, k) => <li key={k}>{i}</li>)}</ul>;
     if (missing.length > 0) {
       toast({ title: "Campos obrigatórios", description: list(missing.map(f => f.label)), variant: "destructive" });
+      revealFirstError(scope);
+      return;
+    }
+    if (invalidos.length > 0) {
+      toast({ title: "Confira o preenchimento", description: list(invalidos.map(f => f.label)), variant: "destructive" });
       revealFirstError(scope);
       return;
     }
