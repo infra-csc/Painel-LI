@@ -88,6 +88,7 @@ import {
   PROPOSED_FIELD_LABELS,
   type ProposedChanges,
   type ProposedField,
+  type InclusionForDiff,
   type SuggestionAction,
   type ChangeRequestType,
   type ChangeRequestStatus,
@@ -1471,10 +1472,33 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     return rows;
   }
 
-  async function logCreatedFromRequest(created: TeamInclusion[], request: ScalingChangeRequest, actor: User, target: "inclusao" | "sugestao") {
-    const detail = target === "inclusao"
-      ? `Vaga criada a partir de pedido de inclusão aprovado (${request.requestedByName})`
-      : `Vaga criada a partir de pedido de inclusão devolvido para validação da área (${request.requestedByName})`;
+  /** "Diárias: 3 → 4 · Data de volta: 18/10/2026 → 19/10/2026" para o histórico. */
+  function diffPhrase(base: InclusionForDiff, proposed: ProposedChanges): string {
+    const fmt = (field: ProposedField, v: unknown): string => {
+      if (v === null || v === undefined || v === "") return "—";
+      if (field === "workDays" && Array.isArray(v)) return v.map((d) => String(d).slice(5)).join(", ");
+      if (field === "needsTicket" || field === "needsAccommodation") return v ? "Sim" : "Não";
+      return String(v);
+    };
+    try {
+      return diffInclusion(base, proposed)
+        .map((d) => `${PROPOSED_FIELD_LABELS[d.field]}: ${fmt(d.field, d.from)} → ${fmt(d.field, d.to)}`)
+        .join(" · ");
+    } catch { return ""; }
+  }
+
+  async function logCreatedFromRequest(created: TeamInclusion[], request: ScalingChangeRequest, actor: User, target: "inclusao" | "sugestao", approverComment?: string | null) {
+    // O detalhe carrega a história inteira (27/08 — "quando volta para o
+    // validador tem que ter mais detalhes"): quem pediu e por quê, e o que o
+    // aprovador comentou. É o que o drawer da Validação mostra no Histórico.
+    const partes = [
+      target === "inclusao"
+        ? `Vaga criada a partir de pedido de inclusão APROVADO`
+        : `Vaga criada pelo aprovador e devolvida para validação da área`,
+      `Pedido de ${request.requestedByName ?? "área"}: "${(request.reason ?? "").trim() || "sem motivo informado"}"`,
+    ];
+    if (approverComment?.trim()) partes.push(`Comentário do aprovador: "${approverComment.trim()}"`);
+    const detail = partes.join(" — ");
     for (const c of created) {
       await inclusionLog(c.id, "created_from_change_request", detail, null, stateLabel(c), actor);
     }
@@ -1509,7 +1533,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         const result = await storage.resolveScalingChangeRequest(request.id, requestUpdates, { inclusionInserts: rows });
         updatedRequest = result.request;
         inclusionResult = result.createdInclusions;
-        await logCreatedFromRequest(result.createdInclusions, request, actor, "inclusao");
+        await logCreatedFromRequest(result.createdInclusions, request, actor, "inclusao", comment);
       } else {
         const inclusion = await storage.getTeamInclusion(request.teamInclusionId!);
         if (!inclusion) return res.status(404).json({ message: "Vaga do pedido não encontrada" });
@@ -1642,7 +1666,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         );
         updatedRequest = result.request;
         if (target && result.createdInclusions.length) {
-          await logCreatedFromRequest(result.createdInclusions, request, actor, target);
+          await logCreatedFromRequest(result.createdInclusions, request, actor, target, comment);
           inclusionResult = result.createdInclusions;
         }
       } else {
@@ -1691,13 +1715,21 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         });
         updatedRequest = result.request;
         const updated = result.updatedInclusion!;
-        const detail = postScaling
+        // O histórico diz O QUE o reajuste mudou (de/para) — sem isso a área
+        // recebia a vaga de volta sem saber o que o aprovador fez nela.
+        const mudancas = kind === "reajustar" && changesToApply && requestType === "ajuste"
+          ? diffPhrase(inclusion, changesToApply)
+          : "";
+        const sufixoMudancas = kind === "reajustar" && requestType === "ajuste"
+          ? (mudancas ? ` — mudanças: ${mudancas}` : " — nenhum campo alterado (vaga mantida como estava)")
+          : "";
+        const detail = (postScaling
           ? (kind === "reajustar"
               ? "Pedido reajustado e aplicado pelo aprovador — a vaga continua escalada"
               : "Pedido negado pelo aprovador — a vaga continua escalada como estava")
           : kind === "reajustar"
           ? (then === "reenviar_validacao" ? "Pedido reajustado pelo aprovador — vaga devolvida para validação da área" : "Pedido reajustado e aprovado direto pelo aprovador — vaga virou Inclusão")
-          : (then === "reenviar_validacao" ? "Pedido negado pelo aprovador — vaga devolvida para validação da área" : "Pedido negado e vaga aprovada direto como estava — virou Inclusão");
+          : (then === "reenviar_validacao" ? "Pedido negado pelo aprovador — vaga devolvida para validação da área" : "Pedido negado e vaga aprovada direto como estava — virou Inclusão")) + sufixoMudancas;
         await inclusionLog(inclusion.id, `change_request_${kind}`, detailsWithComment(detail, comment), stateLabel(inclusion), stateLabel(updated), actor);
         await createAuditLog(`change_request_${kind}`, "team_inclusion", inclusion.id, updated, actor.id, actor.name, inclusion, req);
         inclusionResult = updated;
