@@ -57,6 +57,14 @@ interface TravelFieldsProps {
   onChange: (patch: Partial<TravelDraft>) => void;
   disabled?: boolean;
   idPrefix: string;
+  /** Título do cartão — a inclusão o chama de "Logística sugerida". */
+  titulo?: string;
+  /**
+   * "linha" põe ida, volta e "precisa de" lado a lado, separados por régua:
+   * cabe no diálogo de largura cheia e mostra a viagem inteira de uma vez.
+   * "empilhado" (padrão) é o que cabe na coluna estreita do pedido de ajuste.
+   */
+  layout?: "linha" | "empilhado";
 }
 
 const GROUP_TITLE = "flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400";
@@ -103,10 +111,16 @@ function TimeField({ id, label, value, disabled, onChange }: { id: string; label
  * pedido: um cartão só, com IDA e VOLTA espelhadas (uma embaixo da outra, mesma
  * grade) e "Precisa de" em linha própria, largura total, no rodapé do cartão.
  */
-export function TravelFields({ value, onChange, disabled, idPrefix: p }: TravelFieldsProps) {
+export function TravelFields({ value, onChange, disabled, idPrefix: p, titulo, layout = "empilhado" }: TravelFieldsProps) {
+  const emLinha = layout === "linha";
+  // Régua de 1px entre os grupos: no layout em linha ela é o que separa ida de
+  // volta sem gastar altura com mais um título.
+  const regua = emLinha ? "sm:border-l sm:border-slate-100 sm:pl-5" : "";
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-3">
-      <fieldset className="space-y-1.5">
+      {titulo ? <p className={GROUP_TITLE}>{titulo}</p> : null}
+      <div className={emLinha ? "flex flex-wrap gap-5" : "space-y-3"}>
+      <fieldset className={cn("space-y-1.5", emLinha && "min-w-[260px] flex-1")}>
         <legend className={GROUP_TITLE}>
           <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /> Ida
         </legend>
@@ -131,7 +145,7 @@ export function TravelFields({ value, onChange, disabled, idPrefix: p }: TravelF
         </div>
       </fieldset>
 
-      <fieldset className="space-y-1.5">
+      <fieldset className={cn("space-y-1.5", emLinha && "min-w-[260px] flex-1", regua)}>
         <legend className={GROUP_TITLE}>
           <ArrowDownLeft className="h-3.5 w-3.5" aria-hidden="true" /> Volta
         </legend>
@@ -151,13 +165,7 @@ export function TravelFields({ value, onChange, disabled, idPrefix: p }: TravelF
         </div>
       </fieldset>
 
-      <p className="text-[11px] text-slate-500">
-        Horários são sugestões para a compra e podem ficar em branco (<span className="tabular-nums">--:--</span>).
-        O <span className="font-semibold text-slate-600">desembarque da ida</span> e o <span className="font-semibold text-slate-600">embarque da volta</span> são
-        os horários que a regra de alimentação usa (almoço/jantar do primeiro e do último dia).
-      </p>
-
-      <fieldset className="space-y-1.5 border-t border-slate-100 pt-3">
+      <fieldset className={cn("space-y-1.5", emLinha ? cn("min-w-[180px]", regua) : "border-t border-slate-100 pt-3")}>
         <legend className={GROUP_TITLE}>Precisa de</legend>
         <div className="flex flex-wrap items-center gap-2">
           <label className={cn(NEED_CHIP, value.needsAccommodation ? NEED_ON : NEED_OFF, disabled && "opacity-60 cursor-not-allowed")}>
@@ -170,6 +178,19 @@ export function TravelFields({ value, onChange, disabled, idPrefix: p }: TravelF
           </label>
         </div>
       </fieldset>
+      </div>
+
+      {/* A dica segue os toggles: sem passagem e sem hotel, data e horário não
+          viram compra nenhuma, e dizer isso evita o preenchimento por hábito. */}
+      <p className="text-[11px] text-slate-500">
+        {value.needsTicket || value.needsAccommodation
+          ? "Datas e horários são sugestão para Compras — quem compra confirma na tela de Passagens / Hospedagem."
+          : "Sem passagem e sem hotel, a vaga nasce direto para escalação — datas e horários ficam apenas como referência."}
+      </p>
+      <p className="text-[11px] text-slate-400">
+        Horários podem ficar em branco (<span className="tabular-nums">--:--</span>). O <span className="font-medium text-slate-500">desembarque da ida</span> e o{" "}
+        <span className="font-medium text-slate-500">embarque da volta</span> são os que a regra de alimentação usa (almoço e jantar do primeiro e do último dia).
+      </p>
     </div>
   );
 }
