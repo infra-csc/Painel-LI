@@ -93,7 +93,9 @@ function useCreateChangeRequest(onDone: () => void, onSent?: OnRequestSent) {
 }
 
 function fmtValue(field: ProposedField, v: unknown): string {
-  if (v === null || v === undefined || v === "") return "—";
+  // No de/para, campo vazio precisa se dizer: um travessão no lugar do "de"
+  // some no meio da frase e o aprovador não sabe se havia valor antes.
+  if (v === null || v === undefined || v === "") return "não definido";
   if (field === "workDays" && Array.isArray(v)) return v.map((d) => ymd(d as string).split("-").reverse().slice(0, 2).join("/")).join(", ");
   if (field === "needsTicket" || field === "needsAccommodation") return v ? "Sim" : "Não";
   if (field === "transportModeIda" || field === "transportModeVolta") return TRANSPORT_MODE_LABELS[v as TransportMode] ?? String(v);

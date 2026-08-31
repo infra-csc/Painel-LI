@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { CheckCircle2, PencilLine, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CHANGE_REQUEST_STATUS, daysPending, type ChangeRequestType } from "@shared/scaling-validation-rules";
 import type { ChangeRequestItem } from "./types";
 import { CanDecideBadge, RequestAgeBadge, RequestStatusBadge, RequestTypeBadge, formatDateTimeBr } from "./request-badges";
@@ -21,7 +21,13 @@ interface RequestDetailSheetProps {
 
 const SECTION = "text-[11px] font-bold uppercase tracking-wide text-slate-500";
 
-/** Nível 2 — detalhe do pedido (drawer lateral): de/para, motivo, conversa e ações. */
+/**
+ * Nível 2 — detalhe do pedido: de/para, motivo, conversa e ações.
+ *
+ * Modal central e não gaveta lateral (30/08): a gaveta tinha 576px, e o de/para
+ * de três colunas mais os chips de logística quebravam em duas linhas o tempo
+ * todo. Com 720px cabe na linha, e o que sobra é menos rolagem para decidir.
+ */
 export function RequestDetailSheet({ open, onOpenChange, request, onApprove, onReajustar, onNegar, busy }: RequestDetailSheetProps) {
   const r = request;
   const type = (r?.requestType ?? "ajuste") as ChangeRequestType;
@@ -32,10 +38,9 @@ export function RequestDetailSheet({ open, onOpenChange, request, onApprove, onR
   const titleRef = useRef<HTMLHeadingElement>(null);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="w-full sm:max-w-xl p-0 flex flex-col overflow-hidden"
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="!max-w-[720px] w-[95vw] max-h-[88vh] rounded-2xl !flex !flex-col p-0 gap-0 overflow-hidden"
         onOpenAutoFocus={(e) => {
           // Foco inicial: no botão principal quando há decisão a tomar; senão no título.
           const target = showActions ? approveRef.current : titleRef.current;
@@ -44,23 +49,23 @@ export function RequestDetailSheet({ open, onOpenChange, request, onApprove, onR
       >
         {r ? (
           <>
-            <SheetHeader className="px-5 pt-5 pb-3 pr-12 border-b border-slate-100 text-left space-y-2">
+            <DialogHeader className="shrink-0 px-5 pt-5 pb-3 pr-12 border-b border-slate-100 text-left space-y-2">
               <div className="flex flex-wrap items-center gap-1.5">
                 <RequestTypeBadge type={type} />
                 <RequestStatusBadge status={r.status} />
                 {isPending && <RequestAgeBadge days={days} />}
                 {isPending && r.canDecide && <CanDecideBadge />}
               </div>
-              <SheetTitle ref={titleRef} tabIndex={-1} className="text-base leading-tight outline-none">
+              <DialogTitle ref={titleRef} tabIndex={-1} className="text-base leading-tight outline-none">
                 {r.functionName ?? "Função"}
                 <span className="font-mono text-[13px] text-slate-400 font-normal"> · {targetLabel(r)}</span>
-              </SheetTitle>
-              <SheetDescription className="text-xs">
+              </DialogTitle>
+              <DialogDescription className="text-xs">
                 {r.eventName ?? "Evento"}{r.area ? ` · ${r.area}` : ""} · pedido por <span className="font-semibold text-slate-700">{r.requestedByName}</span> em {formatDateTimeBr(r.createdAt)}
-              </SheetDescription>
-            </SheetHeader>
+              </DialogDescription>
+            </DialogHeader>
 
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto">
               <div className="px-5 py-4 space-y-5">
                 <ReasonBlock reason={r.reason} by={r.requestedByName} />
 
@@ -103,7 +108,7 @@ export function RequestDetailSheet({ open, onOpenChange, request, onApprove, onR
             </div>
 
             {showActions && (
-              <div className="border-t border-slate-200 bg-white px-5 py-3 flex flex-wrap items-center justify-between gap-2" role="region" aria-label="Decisão do pedido">
+              <div className="shrink-0 border-t border-slate-200 bg-white px-5 py-3 flex flex-wrap items-center justify-between gap-2" role="region" aria-label="Decisão do pedido">
                 <Button type="button" size="sm" variant="outline" className="rounded-lg text-red-700 border-red-200 hover:bg-red-50" disabled={busy} onClick={() => onNegar(r)}>
                   <XCircle className="w-4 h-4 mr-1.5" aria-hidden="true" /> Negar
                 </Button>
@@ -118,14 +123,17 @@ export function RequestDetailSheet({ open, onOpenChange, request, onApprove, onR
               </div>
             )}
             {!!r && isPending && !r.canDecide && (
-              <p className="border-t border-slate-100 px-5 py-2.5 text-[11px] text-slate-500">Só o aprovador desta função (ou admin) pode decidir este pedido. Você pode acompanhar e conversar pelo chat.</p>
+              <p className="shrink-0 border-t border-slate-100 px-5 py-2.5 text-[11px] text-slate-500">Só o aprovador desta função (ou admin) pode decidir este pedido. Você pode acompanhar e conversar pelo chat.</p>
             )}
           </>
         ) : (
-          <div className="p-6 text-sm text-slate-400">Nenhum pedido selecionado.</div>
+          <div className="p-6">
+            <DialogTitle className="sr-only">Detalhe do pedido</DialogTitle>
+            <DialogDescription className="text-sm text-slate-400">Nenhum pedido selecionado.</DialogDescription>
+          </div>
         )}
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -44,7 +44,7 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
     for (const r of active) {
       let line = byFn.get(r.functionId);
       if (!line) {
-        line = { functionId: r.functionId, functionName: functionNameById.get(r.functionId) ?? "—", area: r.area ?? "", editable: r.canEdit, total: 0, perDay: {}, vagas: 0 };
+        line = { functionId: r.functionId, functionName: functionNameById.get(r.functionId) ?? "Sem função", area: r.area ?? "", editable: r.canEdit, total: 0, perDay: {}, vagas: 0 };
         byFn.set(r.functionId, line);
       }
       line.vagas += 1;
@@ -100,7 +100,7 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
                   <span className="block truncate" title={line.functionName}>{line.functionName}</span>
                   {!line.editable && <span className="block text-[10px] font-normal text-slate-500">somente leitura</span>}
                 </td>
-                <td className="px-2 py-1.5 text-xs border-r border-slate-100">{line.area || "—"}</td>
+                <td className="px-2 py-1.5 text-xs border-r border-slate-100">{line.area || "Sem área"}</td>
                 <td className="px-2 py-1.5 text-center text-xs font-semibold tabular-nums border-r border-slate-100">{line.vagas}</td>
                 {dates.map((d) => {
                   const n = line.perDay[d] || 0;

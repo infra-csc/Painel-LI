@@ -10,9 +10,9 @@ import {
 
 /** "dd/mm/aaaa hh:mm" (pt-BR) — único ponto de formatação de data+hora do módulo. */
 export function formatDateTimeBr(v: string | Date | null | undefined): string {
-  if (!v) return "—";
+  if (!v) return "Sem data";
   const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "Sem data";
   return `${formatDateBr(d)} ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
@@ -144,7 +144,9 @@ export function changeSummary(r: {
 }
 
 export function formatProposedValue(field: ProposedField, v: unknown): string {
-  if (v === null || v === undefined || v === "") return "—";
+  // No de/para, campo vazio precisa se dizer: um travessão some no meio da
+  // frase e o aprovador não sabe se havia valor antes.
+  if (v === null || v === undefined || v === "") return "não definido";
   switch (field) {
     case "workDays":
       return Array.isArray(v) ? v.map((d) => formatDayMonthBr(ymd(d))).join(", ") : String(v);

@@ -92,7 +92,10 @@ function TravelCell({ row }: { row: SuggestionRow }) {
     { on: !!row.needsAccommodation, label: "Hotel", title: "Precisa de hospedagem", cls: "bg-sky-50 text-sky-700" },
   ].filter((i) => i.on);
   if (items.length === 0) {
-    return <span className={cn(CHIP, "bg-slate-50 text-slate-400")} aria-label="Sem passagem e sem hotel">—</span>;
+    // Ausência não ganha chip: numa coluna de chips coloridos, o chip cinza
+    // pesa igual a uma necessidade real. Quem não precisa de nada se diz em
+    // palavra e em tom discreto.
+    return <span className="text-[11px] text-slate-400">Sem logística</span>;
   }
   return (
     <span className="inline-flex items-center justify-center gap-1.5">
@@ -273,7 +276,7 @@ export function AwaitingApproval({
                 const approvers = approverNamesFor?.(row) ?? [];
                 const lockReason = approvers.length ? `Aprovador: ${approvers.join(", ")}` : "Você não é aprovador desta função";
                 const days = workDaysOf(row);
-                const fnName = functionNameById.get(row.functionId) ?? "—";
+                const fnName = functionNameById.get(row.functionId) ?? "Sem função";
                 return (
                   <tr key={row.id} data-testid={`awaiting-row-${row.inclusionNumber}`}
                     className={cn("border-b border-slate-100", isSelected ? "bg-brand-soft/50" : i % 2 === 1 ? "bg-slate-50/50" : "bg-white")}>
@@ -300,7 +303,7 @@ export function AwaitingApproval({
                         <span className="block truncate text-[13px] font-semibold text-slate-700" title={row.eventName ?? undefined}>
                           {row.eventName ?? "Evento sem nome"}
                         </span>
-                        <span className="block font-mono text-[11px] text-slate-400">{eventPeriodLabel(row) || "—"}</span>
+                        <span className="block font-mono text-[11px] text-slate-400">{eventPeriodLabel(row) || "Sem período"}</span>
                       </td>
                     )}
                     <td className="px-2.5 py-2 align-middle whitespace-nowrap">
@@ -360,10 +363,10 @@ export function AwaitingApproval({
                   {(confirmRows ?? []).slice(0, MAX_LISTED).map((r) => (
                     <li key={r.id} className="flex items-center gap-2 px-3 py-1.5">
                       <span className="rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800">#{r.inclusionNumber}</span>
-                      <span className="truncate font-semibold">{functionNameById.get(r.functionId) ?? "—"}</span>
+                      <span className="truncate font-semibold">{functionNameById.get(r.functionId) ?? "Sem função"}</span>
                       {/* Lote de "todos os eventos" pode misturar eventos: o
                           aprovador precisa ver isso ANTES de confirmar. */}
-                      {showEvent && <span className="truncate text-slate-500">{r.eventName ?? "—"}</span>}
+                      {showEvent && <span className="truncate text-slate-500">{r.eventName ?? "Sem evento"}</span>}
                       <span className="ml-auto font-mono text-slate-500 whitespace-nowrap">{periodLabel(r)}</span>
                     </li>
                   ))}

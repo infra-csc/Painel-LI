@@ -93,9 +93,9 @@ export function DecidedPanel({ eventId, functionNameById }: {
               <tr key={row.id} className="border-b border-slate-100 last:border-0">
                 <td className="px-3 py-2">
                   <span className="mr-2 inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-blue-800">#{row.inclusionNumber}</span>
-                  <span className="font-medium text-slate-800">{functionNameById.get(row.functionId) ?? "—"}</span>
+                  <span className="font-medium text-slate-800">{functionNameById.get(row.functionId) ?? "Sem função"}</span>
                 </td>
-                <td className="max-w-[220px] truncate px-3 py-2 text-slate-600" title={row.eventName ?? undefined}>{row.eventName ?? "—"}</td>
+                <td className="max-w-[220px] truncate px-3 py-2 text-slate-600" title={row.eventName ?? undefined}>{row.eventName ?? "Sem evento"}</td>
                 <td className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums text-slate-700">{periodLabel(row)}</td>
                 <td className="px-3 py-2">
                   {decisao === "aprovada" ? (
@@ -108,7 +108,7 @@ export function DecidedPanel({ eventId, functionNameById }: {
                     </span>
                   )}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-500">{row.updatedAt ? formatDateBr(row.updatedAt) : "—"}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-500">{row.updatedAt ? formatDateBr(row.updatedAt) : "Sem data"}</td>
               </tr>
             ))}
           </tbody>

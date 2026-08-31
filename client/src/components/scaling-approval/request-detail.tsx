@@ -60,7 +60,7 @@ export function ReasonBlock({ reason, by, className }: { reason: string; by?: st
       <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-primary mb-1">
         <MessageSquareQuote className="w-3.5 h-3.5" aria-hidden="true" /> Motivo do solicitante{by ? ` · ${by}` : ""}
       </p>
-      <p className="text-sm text-slate-800 whitespace-pre-wrap break-words">{reason || "—"}</p>
+      <p className="text-sm text-slate-800 whitespace-pre-wrap break-words">{reason || "Sem motivo informado"}</p>
     </blockquote>
   );
 }

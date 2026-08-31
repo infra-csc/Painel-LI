@@ -127,17 +127,19 @@ function legLabel(mode: string | null | undefined, date: string | Date | null | 
   if (mode) parts.push(TRANSPORT_MODE_LABELS[mode as TransportMode] ?? mode);
   if (date) parts.push(formatDayMonthBr(ymd(date)));
   if (time) parts.push(time);
-  return parts.length ? parts.join(" ") : "—";
+  // Perna sem modal, data nem hora ainda não foi decidida: dizer isso é mais
+  // útil do que um travessão, que o leitor confunde com "não tem".
+  return parts.length ? parts.join(" ") : "A definir";
 }
 const hhmm = (d: Date) => d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 function fmtDateTime(v: string | Date | null | undefined): string {
   const d = toDate(v);
-  return d ? `${formatDateBr(d)} ${hhmm(d)}` : "—";
+  return d ? `${formatDateBr(d)} ${hhmm(d)}` : "Sem data";
 }
 /** "dd/mm hh:mm" — usado nas colunas compactas (Último movimento, hora da linha do tempo). */
 function fmtShort(v: string | Date | null | undefined): string {
   const d = toDate(v);
-  return d ? `${formatDayMonthBr(d)} ${hhmm(d)}` : "—";
+  return d ? `${formatDayMonthBr(d)} ${hhmm(d)}` : "Sem data";
 }
 const DAY_MS = 86_400_000;
 function daysSince(v: unknown): number {
@@ -231,7 +233,7 @@ function batchByMinute<T>(items: T[], at: (x: T) => unknown, bucket?: (x: T) => 
 }
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 function namesOf(rows: EventViewRow[], nameById: Map<string, string>, max = 4): string {
-  const uniq = Array.from(new Set(rows.map((r) => nameById.get(r.functionId) ?? "—")));
+  const uniq = Array.from(new Set(rows.map((r) => nameById.get(r.functionId) ?? "Sem função")));
   return uniq.length <= max ? uniq.join(", ") : `${uniq.slice(0, max).join(", ")} e mais ${uniq.length - max}`;
 }
 const idChips = (rows: EventViewRow[], max = 8) =>
@@ -445,7 +447,7 @@ export default function ScalingEventViewPage() {
   const timeline = useMemo<TlEntry[]>(() => {
     if (rows.length === 0 && requests.length === 0) return [];
     const out: TlEntry[] = [];
-    const fnName = (id: string) => functionNameById.get(id) ?? "—";
+    const fnName = (id: string) => functionNameById.get(id) ?? "Sem função";
 
     // `eventOf` separa os lotes por evento (ver `batchByMinute`) e carimba a
     // entrada, para a linha do tempo poder agrupar por evento.
@@ -492,7 +494,7 @@ export default function ScalingEventViewPage() {
     }
     for (const r of requests) {
       const tipo = CHANGE_REQUEST_TYPE_LABELS[r.requestType as ChangeRequestType] ?? r.requestType;
-      const alvo = r.teamInclusionId ? `vaga #${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "—"}` : "vaga nova";
+      const alvo = r.teamInclusionId ? `vaga #${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "?"}` : "vaga nova";
       const where = `${fnName(r.functionId)} · ${alvo}${r.area ? ` · ${r.area}` : ""}`;
       // O link leva ao evento DO PEDIDO (no modo "todos", `eventId` é vazio).
       const href = canOpenApproval ? scalingHref("/scaling-approval", eventId || r.eventId, { request: r.id }) : undefined;
@@ -620,7 +622,7 @@ export default function ScalingEventViewPage() {
     if (!isSuggestionInclusion(row)) push("Aprovada — virou Inclusão de Equipe", row.updatedAt);
     else if (row.status === SUGESTAO_STATUS.NEGADA) push("Vaga negada", row.updatedAt);
     push("Vaga excluída", row.deletedAt);
-    if (!c.length) return { label: "—", at: null };
+    if (!c.length) return { label: "Sem movimento", at: null };
     return c.reduce((best, x) => (x.at && best.at && x.at.getTime() >= best.at.getTime() ? x : best));
   }, []);
 
@@ -640,7 +642,7 @@ export default function ScalingEventViewPage() {
     if (effectiveTab === "timeline") {
       const header = [...(eventId ? [] : ["Evento"]), "Data", "Hora", "Tipo", "Movimento", "Descrição", "Quem", "Vagas", "Comentário"];
       const lines = filteredTimeline.map((e) => [
-        ...(eventId ? [] : [e.eventId ? eventNameOf({ eventId: e.eventId }) : "—"]),
+        ...(eventId ? [] : [e.eventId ? eventNameOf({ eventId: e.eventId }) : ""]),
         formatDateBr(e.at), hhmm(e.at), TL[e.cat].label, e.title, e.text,
         e.author ?? "", (e.chips ?? []).join(", "), e.quote ?? "",
       ]);
@@ -688,7 +690,7 @@ export default function ScalingEventViewPage() {
       const byFn = new Map<string, { name: string; area: string; vagas: number; perDay: Record<string, number>; total: number }>();
       for (const r of boardRows) {
         let l = byFn.get(r.functionId);
-        if (!l) { l = { name: functionNameById.get(r.functionId) ?? "—", area: r.area ?? "", vagas: 0, perDay: {}, total: 0 }; byFn.set(r.functionId, l); }
+        if (!l) { l = { name: functionNameById.get(r.functionId) ?? "Sem função", area: r.area ?? "", vagas: 0, perDay: {}, total: 0 }; byFn.set(r.functionId, l); }
         l.vagas += 1;
         for (const d of workDaysOf(r)) { l.perDay[d] = (l.perDay[d] || 0) + 1; l.total += 1; }
       }
@@ -707,7 +709,7 @@ export default function ScalingEventViewPage() {
       ...(eventId ? [] : [eventNameOf(r)]),
       CHANGE_REQUEST_TYPE_LABELS[r.requestType as ChangeRequestType] ?? r.requestType,
       functionNameById.get(r.functionId) ?? "",
-      r.teamInclusionId ? `#${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "—"}` : "vaga nova",
+      r.teamInclusionId ? `#${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "?"}` : "vaga nova",
       r.area ?? "", r.requestedByName ?? "", fmtDateTime(r.createdAt), r.reason ?? "",
       CHANGE_REQUEST_STATUS_LABELS[r.status as ChangeRequestStatus] ?? r.status,
       r.reviewedByName ?? "", r.reviewedAt ? fmtDateTime(r.reviewedAt) : "", r.reviewComment ?? "",
@@ -727,7 +729,7 @@ export default function ScalingEventViewPage() {
   /** Nome do evento de uma linha (lista/CSV no modo "todos os eventos"). */
   const eventNameOf = useCallback(
     (row: { eventId: string; eventName?: string | null }) =>
-      row.eventName ?? eventById.get(row.eventId)?.name ?? eventNameByRowId.get(row.eventId) ?? "—",
+      row.eventName ?? eventById.get(row.eventId)?.name ?? eventNameByRowId.get(row.eventId) ?? "Sem evento",
     [eventById, eventNameByRowId],
   );
   const countText =
@@ -1123,11 +1125,10 @@ export default function ScalingEventViewPage() {
                           const days = workDaysOf(row);
                           const dim = isDeleted(row) || (isSuggestionInclusion(row) && row.status === SUGESTAO_STATUS.NEGADA);
                           const last = lastMoveOf(row);
-                          const fnName = functionNameById.get(row.functionId) ?? "—";
+                          const fnName = functionNameById.get(row.functionId) ?? "Sem função";
                           const chips: { text: string; cls: string }[] = [];
                           if (row.needsTicket) chips.push({ text: "Passagem", cls: "bg-violet-50 text-violet-700" });
                           if (row.needsAccommodation) chips.push({ text: "Hotel", cls: "bg-sky-50 text-sky-700" });
-                          if (!chips.length) chips.push({ text: "—", cls: "bg-slate-50 text-slate-400" });
                           // Ida/volta só existem no tooltip: sem `tabIndex` no gatilho, teclado e
                           // leitor de tela nunca chegariam neles. O aria-label repete o conteúdo
                           // inteiro para não depender do tooltip abrir.
@@ -1155,7 +1156,7 @@ export default function ScalingEventViewPage() {
                                 <td className="px-3 py-2 max-w-[220px]">
                                   <span className="block truncate text-[13px] font-semibold text-slate-700" title={eventNameOf(row)}>{eventNameOf(row)}</span>
                                   <span className="block font-mono text-[11px] text-slate-400">
-                                    {row.eventStartDate ? formatDateRange(ymd(row.eventStartDate), ymd(row.eventEndDate) || ymd(row.eventStartDate), { withYear: true }) : "—"}
+                                    {row.eventStartDate ? formatDateRange(ymd(row.eventStartDate), ymd(row.eventEndDate) || ymd(row.eventStartDate), { withYear: true }) : "Sem datas"}
                                   </span>
                                 </td>
                               )}
@@ -1171,7 +1172,9 @@ export default function ScalingEventViewPage() {
                                       aria-label={logisticaLabel}
                                       className="inline-flex gap-1.5 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                     >
-                                      {chips.map((c) => <span key={c.text} className={cn(CHIP, c.cls)} aria-hidden="true">{c.text}</span>)}
+                                      {chips.length
+                                        ? chips.map((c) => <span key={c.text} className={cn(CHIP, c.cls)} aria-hidden="true">{c.text}</span>)
+                                        : <span className="text-[11px] text-slate-400" aria-hidden="true">Sem logística</span>}
                                     </span>
                                   </TooltipTrigger>
                                   <TooltipContent>
@@ -1188,7 +1191,7 @@ export default function ScalingEventViewPage() {
                               </td>
                               <td className="px-3 py-2">
                                 <span className="block text-xs text-slate-600">{last.label}</span>
-                                <span className="block font-mono text-[11px] text-slate-400">{last.at ? fmtShort(last.at) : "—"}</span>
+                                <span className="block font-mono text-[11px] text-slate-400">{fmtShort(last.at)}</span>
                               </td>
                             </tr>
                           );
@@ -1206,7 +1209,7 @@ export default function ScalingEventViewPage() {
                       <li key={row.id} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
                         <p className="text-sm font-semibold text-slate-800 truncate">
                           <span className="mr-1.5 font-mono text-xs text-slate-500">#{row.inclusionNumber}</span>
-                          {functionNameById.get(row.functionId) ?? "—"}
+                          {functionNameById.get(row.functionId) ?? "Sem função"}
                         </p>
                         <p className={LABEL}>{row.area ?? "Sem área"}</p>
                         {!eventId && <p className={cn(LABEL, "truncate font-semibold text-slate-600")}>{eventNameOf(row)}</p>}
@@ -1214,7 +1217,7 @@ export default function ScalingEventViewPage() {
                           <dt className="text-slate-500">Período</dt><dd className="font-mono text-slate-700">{periodLabel(row)} · {formatDiarias(days.length || row.dailyRates || 0)}</dd>
                           <dt className="text-slate-500">Ida</dt><dd className="text-slate-700">{legLabel(row.transportModeIda, row.flightDepartureDate, row.flightArrivalSuggestedTime)}</dd>
                           <dt className="text-slate-500">Volta</dt><dd className="text-slate-700">{legLabel(row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime)}</dd>
-                          <dt className="text-slate-500">Passagem / hotel</dt><dd className="text-slate-700">{row.needsTicket ? "Passagem" : "—"} / {row.needsAccommodation ? "Hotel" : "—"}</dd>
+                          <dt className="text-slate-500">Passagem / hotel</dt><dd className="text-slate-700">{[row.needsTicket ? "Passagem" : null, row.needsAccommodation ? "Hotel" : null].filter(Boolean).join(" · ") || "Sem logística"}</dd>
                           <dt className="text-slate-500">Último movimento</dt><dd className="text-slate-700">{last.label}{last.at ? ` · ${fmtShort(last.at)}` : ""}</dd>
                         </dl>
                         {row.observations && <p className="text-xs text-slate-500 italic">{row.observations}</p>}
@@ -1289,11 +1292,11 @@ export default function ScalingEventViewPage() {
                           <tr key={r.id} className={cn("border-b border-slate-100 align-top", i % 2 === 1 ? "bg-slate-50/40" : "bg-white")}>
                             <td className="px-3 py-2.5 align-top"><RequestTypeBadge type={r.requestType} /></td>
                             <td className="px-3 py-2.5 align-top max-w-[280px]">
-                              <span className="block text-[13px] font-semibold text-slate-800 truncate">{functionNameById.get(r.functionId) ?? "—"}</span>
+                              <span className="block text-[13px] font-semibold text-slate-800 truncate">{functionNameById.get(r.functionId) ?? "Sem função"}</span>
                               {/* Sem filtro de evento, o pedido precisa dizer de qual ele é. */}
                               {!eventId && <span className="block truncate text-[11px] font-semibold text-slate-500" title={eventNameOf(r)}>{eventNameOf(r)}</span>}
                               <span className="block font-mono text-[11px] text-slate-400">
-                                {r.teamInclusionId ? `vaga #${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "—"}` : "vaga nova"}{r.area ? ` · ${r.area}` : ""}
+                                {r.teamInclusionId ? `vaga #${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "?"}` : "vaga nova"}{r.area ? ` · ${r.area}` : ""}
                               </span>
                               {r.reason && <span className="mt-0.5 block text-xs text-slate-600 line-clamp-2" title={r.reason}>{r.reason}</span>}
                             </td>
@@ -1326,8 +1329,8 @@ export default function ScalingEventViewPage() {
                         <RequestStatusBadge status={r.status} />
                       </div>
                       <p className="text-sm font-semibold text-slate-800">
-                        {functionNameById.get(r.functionId) ?? "—"}
-                        <span className="ml-1.5 font-mono text-xs font-normal text-slate-500">{r.teamInclusionId ? `vaga #${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "—"}` : "vaga nova"}</span>
+                        {functionNameById.get(r.functionId) ?? "Sem função"}
+                        <span className="ml-1.5 font-mono text-xs font-normal text-slate-500">{r.teamInclusionId ? `vaga #${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "?"}` : "vaga nova"}</span>
                       </p>
                       <p className={LABEL}>por {r.requestedByName} · {fmtDateTime(r.createdAt)}</p>
                       {r.reason && <p className="text-xs text-slate-600">{r.reason}</p>}

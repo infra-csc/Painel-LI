@@ -204,7 +204,7 @@ export function periodLabel(row: SuggestionRow): string {
   const days = workDaysOf(row);
   if (days.length === 0) {
     const s = ymd(row.scheduleStartDate); const e = ymd(row.scheduleEndDate);
-    if (!s) return "—";
+    if (!s) return "Sem período";
     return s === e || !e ? formatDayMonthBr(s) : `${formatDayMonthBr(s)} – ${formatDayMonthBr(e)}`;
   }
   const first = days[0]; const last = days[days.length - 1];
@@ -215,7 +215,8 @@ export function legLabel(mode: string | null | undefined, date: unknown, time: s
   if (mode) parts.push(TRANSPORT_MODE_LABELS[mode as TransportMode] ?? mode);
   if (date) parts.push(formatDayMonthBr(ymd(date as string)));
   if (time) parts.push(time);
-  return parts.length ? parts.join(" ") : "—";
+  // Ver legLabel do Histórico: perna ainda não decidida se diz em palavra.
+  return parts.length ? parts.join(" ") : "A definir";
 }
 
 /** Pontas do período: dias de trabalho quando existem, senão o intervalo da escala. */
@@ -509,7 +510,7 @@ export function SuggestionsList({
   /** Ações por linha só quando a tela permite agir (fora do modo leitura). */
   const rowActions: SuggestionRowActions = showSelection ? { onValidate, onAdjust, onDelete } : {};
 
-  const nameOf = (row: SuggestionRow) => functionNameById.get(row.functionId) ?? "—";
+  const nameOf = (row: SuggestionRow) => functionNameById.get(row.functionId) ?? "Sem função";
   const rowTone = (row: SuggestionRow) => (row.canEdit ? "text-slate-800" : "text-slate-600");
   const pulse = (row: SuggestionRow) => highlightId === row.id && "animate-pulse ring-2 ring-inset ring-primary/40";
 

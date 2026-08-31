@@ -875,7 +875,7 @@ export default function ScalingValidationPage() {
                   {validateRows.slice(0, 5).map((r) => (
                     <li key={r.id} className="flex items-center gap-2 px-3 py-1.5">
                       <span className="rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800">#{r.inclusionNumber}</span>
-                      <span className="truncate font-semibold">{functionNameById.get(r.functionId) ?? "—"}</span>
+                      <span className="truncate font-semibold">{functionNameById.get(r.functionId) ?? "Sem função"}</span>
                       <span className="ml-auto font-mono text-slate-500 whitespace-nowrap">{periodLabel(r)}</span>
                     </li>
                   ))}

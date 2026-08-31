@@ -106,12 +106,12 @@ export function RequestQueue({ items, onOpen, showEvent = true, onApprove, onRea
                         className="block max-w-full truncate text-left font-semibold text-slate-800 rounded-sm hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         title={r.functionName ?? undefined}
                       >
-                        {r.functionName ?? "—"}
+                        {r.functionName ?? "Sem função"}
                       </button>
                       <span className="block text-[11px] text-slate-400 font-mono">{targetLabel(r)}{r.area ? ` · ${r.area}` : ""}</span>
                       <span className="block text-[11px] text-slate-400 truncate" title={r.requestedByName ?? undefined}>por {r.requestedByName}</span>
                     </td>
-                    {showEvent && <td className="px-2.5 py-2 align-middle text-xs text-slate-600 max-w-[180px]"><span className="block truncate" title={r.eventName ?? undefined}>{r.eventName ?? "—"}</span></td>}
+                    {showEvent && <td className="px-2.5 py-2 align-middle text-xs text-slate-600 max-w-[180px]"><span className="block truncate" title={r.eventName ?? undefined}>{r.eventName ?? "Sem evento"}</span></td>}
                     <td className="px-2.5 py-2 align-middle min-w-[240px] max-w-[340px]">
                       {r.reason
                         ? <span className="block text-xs text-slate-600 truncate" title={r.reason}>{r.reason}</span>
@@ -199,7 +199,7 @@ export function RequestQueue({ items, onOpen, showEvent = true, onApprove, onRea
                 </Button>
               </div>
               <p className="text-sm font-semibold text-slate-800 leading-tight">
-                {r.functionName ?? "—"} <span className="font-mono text-xs text-slate-400 font-normal">· {targetLabel(r)}</span>
+                {r.functionName ?? "Sem função"} <span className="font-mono text-xs text-slate-400 font-normal">· {targetLabel(r)}</span>
               </p>
               <p className="text-[11px] text-slate-500">{showEvent && r.eventName ? `${r.eventName} · ` : ""}por {r.requestedByName}{!pending && r.createdAt ? ` · ${formatDateBr(new Date(r.createdAt))}` : ""}</p>
               {r.reason && <p className="text-xs text-slate-600 line-clamp-2" title={r.reason}>{r.reason}</p>}

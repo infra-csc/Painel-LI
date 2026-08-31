@@ -92,7 +92,7 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                 const canAct = canActOn(row);
                 const approvers = approverNamesFor?.(row) ?? [];
                 const lockReason = approvers.length ? `Aprovador: ${approvers.join(", ")}` : "Você não é aprovador desta função";
-                const fnName = functionNameById.get(row.functionId) ?? "—";
+                const fnName = functionNameById.get(row.functionId) ?? "Sem função";
                 return (
                   <tr key={row.id} className={cn("border-b border-slate-100", i % 2 === 1 ? "bg-slate-50/50" : "bg-white")}>
                     <td className="px-2.5 py-2 align-middle max-w-[260px]">
@@ -100,7 +100,7 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                         <span className="inline-flex shrink-0 rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800 tabular-nums">#{row.inclusionNumber}</span>
                         <div className="min-w-0">
                           <span className="block font-semibold text-slate-800 truncate" title={fnName}>{fnName}</span>
-                          <span className="block text-[11px] text-slate-400 truncate" title={row.observations ?? undefined}>{row.observations || "—"}</span>
+                          <span className="block text-[11px] text-slate-400 truncate" title={row.observations ?? undefined}>{row.observations || "Sem observações"}</span>
                         </div>
                       </div>
                     </td>
@@ -109,10 +109,10 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                         <span className="block truncate text-[13px] font-semibold text-slate-700" title={row.eventName ?? undefined}>
                           {row.eventName ?? "Evento sem nome"}
                         </span>
-                        <span className="block font-mono text-[11px] text-slate-400">{eventPeriodLabel(row) || "—"}</span>
+                        <span className="block font-mono text-[11px] text-slate-400">{eventPeriodLabel(row) || "Sem período"}</span>
                       </td>
                     )}
-                    <td className="px-2.5 py-2 align-middle text-xs text-slate-600">{row.area ?? "—"}</td>
+                    <td className="px-2.5 py-2 align-middle text-xs text-slate-600">{row.area ?? "Sem área"}</td>
                     <td className="px-2.5 py-2 align-middle whitespace-nowrap">
                       <span className="font-mono tabular-nums text-xs text-slate-700">{periodLabel(row)}</span>
                       <span className="ml-1.5 text-[11px] text-slate-400">· {formatDiarias(days.length || row.dailyRates || 0)}</span>

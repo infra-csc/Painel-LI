@@ -15,14 +15,14 @@ export interface ModeSelectProps {
   /** id do gatilho, para associar um <Label htmlFor> (formulários). */
   id?: string;
   /**
-   * Texto da opção "sem modal". Padrão "—" (grade densa, onde a coluna já
+   * Texto da opção "sem modal". Padrão "Sem modal" (a grade é estreita, mas
    * explica o campo); nos formulários vale a palavra inteira: "Não informado".
    */
   emptyLabel?: string;
 }
 
 /** Select de modal de transporte (aéreo/ônibus/van/carro/transfer) com opção vazia. */
-export const ModeSelect = memo(function ModeSelect({ value, onChange, label, disabled, className, id, emptyLabel = "—" }: ModeSelectProps) {
+export const ModeSelect = memo(function ModeSelect({ value, onChange, label, disabled, className, id, emptyLabel = "Sem modal" }: ModeSelectProps) {
   return (
     <Select value={value || NONE} onValueChange={(v) => onChange(v === NONE ? "" : (v as TransportMode))} disabled={disabled}>
       <SelectTrigger id={id} aria-label={label} className={cn("h-8 w-[104px] text-xs rounded-lg", value ? "bg-brand-soft/60 border-primary/30" : "bg-white border-slate-200", className)}>

@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { apiRequest } from "@/lib/queryClient";
@@ -172,9 +172,9 @@ const CARD = "rounded-2xl border border-slate-200 bg-white p-3.5 space-y-2";
 
 /** "Qua 20/08 14:32" — dia da semana como no resto do módulo. */
 function fmtDateTime(v: string | Date | null | undefined): string {
-  if (!v) return "—";
+  if (!v) return "Sem data";
   const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "Sem data";
   const weekday = dayText(d).split(" ")[0];
   const time = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   return `${weekday ? `${weekday} ` : ""}${formatDateBr(d)} ${time}`;
@@ -301,17 +301,20 @@ export function SuggestionDetailDrawer({
   }, [open, canNavigate, prevRow, nextRow, onNavigate]);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right" className="w-full sm:max-w-xl p-0 flex flex-col overflow-hidden"
-        // Sem preventDefault: o foco volta para quem abriu o drawer, e só
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {/* Modal central e não gaveta lateral (30/08): a gaveta tinha 576px e os
+          chips de logística e os dias de trabalho quebravam em duas linhas.
+          Com 720px cabem numa linha só, e sobra menos rolagem para conferir. */}
+      <DialogContent
+        className="!max-w-[720px] w-[95vw] max-h-[88vh] rounded-2xl !flex !flex-col p-0 gap-0 overflow-hidden"
+        // Sem preventDefault: o foco volta para quem abriu o detalhe, e só
         // depois disso a tela abre o diálogo que estava esperando.
         onCloseAutoFocus={() => onClosed?.()}
       >
         {row ? (
           <>
-            <SheetHeader className="shrink-0 border-b border-slate-100 bg-white px-5 pb-3 pt-5 text-left space-y-2">
-              <SheetTitle className="flex items-center gap-2 text-base leading-tight">
+            <DialogHeader className="shrink-0 border-b border-slate-100 bg-white px-5 pb-3 pt-5 text-left space-y-2">
+              <DialogTitle className="flex items-center gap-2 text-base leading-tight">
                 <span className="inline-flex items-center rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-primary">#{row.inclusionNumber}</span>
                 <span className="truncate font-semibold text-slate-900">{functionName ?? "Função"}</span>
                 {/* Fila de 14 vagas não pode obrigar a fechar e reabrir. O ‹ ›
@@ -335,15 +338,15 @@ export function SuggestionDetailDrawer({
                     </button>
                   </span>
                 )}
-              </SheetTitle>
-              <SheetDescription className="text-xs text-slate-500">
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-500">
                 {event?.name ?? "Evento"}{row.area ? ` · ${row.area}` : ""}
                 {row.canEdit ? " · você valida esta função" : " · somente leitura"}
-              </SheetDescription>
+              </DialogDescription>
               <StatusCell row={row} approverNames={approverNames} />
-            </SheetHeader>
+            </DialogHeader>
 
-            <div className="flex-1 overflow-y-auto bg-slate-50/60">
+            <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50/60">
               <div className="space-y-3 px-4 py-4">
                 {/* Decisão do aprovador (a vaga voltou) */}
                 {row.lastDecision && decision && (
@@ -542,10 +545,10 @@ export function SuggestionDetailDrawer({
             )}
           </>
         ) : (
-          <div className="p-5"><SheetTitle className="sr-only">Detalhe da vaga</SheetTitle><SheetDescription className="text-sm text-slate-500">Nenhuma vaga selecionada.</SheetDescription></div>
+          <div className="p-5"><DialogTitle className="sr-only">Detalhe da vaga</DialogTitle><DialogDescription className="text-sm text-slate-500">Nenhuma vaga selecionada.</DialogDescription></div>
         )}
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
 
