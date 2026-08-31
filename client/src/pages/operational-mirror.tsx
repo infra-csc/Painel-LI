@@ -451,6 +451,38 @@ function EditableCell({
   );
 }
 
+/**
+ * Identidade das etapas (31/08).
+ *
+ * A tela gastava SETE famílias de cor em fundos de cabeçalho — decoração de
+ * agrupamento. Sobrava nada para sinalizar estado, e havia colisão semântica:
+ * emerald queria dizer "hospedagem", "conferido" e "sem pendência" ao mesmo
+ * tempo. Agora a etapa se identifica pelo RÓTULO (sempre visível, porque é
+ * sticky) mais um ponto de 6px; a cor de fundo fica reservada para o que a
+ * célula está dizendo — âmbar falta, verde salvo, vermelho erro.
+ */
+const PONTO_ETAPA = {
+  schedule: "bg-sky-500",
+  ticket: "bg-indigo-500",
+  hotel: "bg-emerald-500",
+  baggage: "bg-amber-500",
+  uber: "bg-fuchsia-500",
+  car: "bg-orange-500",
+  pend: "bg-rose-500",
+};
+
+/** Cabeçalho de grupo: fundo neutro, ponto colorido, rótulo legível. */
+function GrupoHead({ ponto, children, ...resto }: { ponto: string; children: React.ReactNode } & React.ThHTMLAttributes<HTMLTableCellElement>) {
+  return (
+    <th {...resto} className="sticky top-0 z-30 h-8 border-b border-r-2 border-r-slate-300 border-border bg-muted px-2 py-0 text-center align-middle leading-none dark:border-r-slate-600">
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ponto}`} aria-hidden="true" />
+        {children}
+      </span>
+    </th>
+  );
+}
+
 const G = {
   schedule: "bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-900",
   ticket: "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-200 border-indigo-200 dark:border-indigo-900",
@@ -483,8 +515,9 @@ const ALL_BLOCKS: { key: Block; label: string; colunas: number; ponto: string }[
 ];
 
 const VIEWS = [
-  { key: "grade", label: "Grade Operacional", icon: Table2 },
-  { key: "colaboradores", label: "Colaboradores", icon: UserRound },
+  { key: "grade", label: "Grade", icon: Table2 },
+  // "Pessoas", não "Colaboradores": é mais curto e é como a equipe fala.
+  { key: "colaboradores", label: "Pessoas", icon: UserRound },
   { key: "departamentos", label: "Departamentos", icon: Building2 },
   { key: "quartos", label: "Quartos", icon: BedDouble },
   { key: "uber", label: "Uber", icon: Car },
@@ -1485,13 +1518,13 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
               <thead>
                 <tr>
                   <th colSpan={2} className="sticky left-0 top-0 z-40 h-8 py-0 leading-none bg-muted px-2 text-left font-semibold border-r border-b border-border">Colaborador</th>
-                  <th colSpan={4} className={`${G.schedule} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}>Período de Escala</th>
-                  {show("passagem") && <th data-bloco="passagem" colSpan={9} className={`${G.ticket} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Passagem" feito={feito.passagem} total={rows.length} /></th>}
-                  {show("hospedagem") && <th data-bloco="hospedagem" colSpan={12} className={`${G.hotel} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Hospedagem" feito={feito.hospedagem} total={rows.length} /></th>}
-                  {show("bagagem") && <th data-bloco="bagagem" colSpan={3} className={`${G.baggage} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Bagagem" feito={feito.bagagem} total={rows.length} /></th>}
-                  {show("uber") && <th data-bloco="uber" colSpan={3} className={`${G.uber} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Uber" feito={feito.uber} total={rows.length} /></th>}
-                  {show("locacao") && <th data-bloco="locacao" colSpan={4} className={`${G.car} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Locação" feito={feito.locacao} total={rows.length} /></th>}
-                  {show("pendencias") && <th data-bloco="pendencias" colSpan={2} className={`${G.pend} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}>Pendências</th>}
+                  <GrupoHead colSpan={4} ponto={PONTO_ETAPA.schedule}>Período</GrupoHead>
+                  {show("passagem") && <GrupoHead data-bloco="passagem" colSpan={9} ponto={PONTO_ETAPA.ticket}><Progresso rotulo="Passagem" feito={feito.passagem} total={rows.length} /></GrupoHead>}
+                  {show("hospedagem") && <GrupoHead data-bloco="hospedagem" colSpan={12} ponto={PONTO_ETAPA.hotel}><Progresso rotulo="Hospedagem" feito={feito.hospedagem} total={rows.length} /></GrupoHead>}
+                  {show("bagagem") && <GrupoHead data-bloco="bagagem" colSpan={3} ponto={PONTO_ETAPA.baggage}><Progresso rotulo="Bagagem" feito={feito.bagagem} total={rows.length} /></GrupoHead>}
+                  {show("uber") && <GrupoHead data-bloco="uber" colSpan={3} ponto={PONTO_ETAPA.uber}><Progresso rotulo="Uber" feito={feito.uber} total={rows.length} /></GrupoHead>}
+                  {show("locacao") && <GrupoHead data-bloco="locacao" colSpan={4} ponto={PONTO_ETAPA.car}><Progresso rotulo="Locação" feito={feito.locacao} total={rows.length} /></GrupoHead>}
+                  {show("pendencias") && <GrupoHead data-bloco="pendencias" colSpan={2} ponto={PONTO_ETAPA.pend}>Situação</GrupoHead>}
                 </tr>
                 <tr className="bg-muted/70">
                   <th className={`sticky left-0 top-8 z-40 bg-muted ${headPad} text-left font-medium border-r border-b border-border min-w-[210px]`}>
@@ -1502,18 +1535,18 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
                   </th>
                   {["Início", "Data Ida", "Término", "Data Volta"].map((h) => <ColHead key={h} pad={headPad}>{h}</ColHead>)}
                   {show("passagem") && <>
-                    <ColHead pad={headPad}>Passagens R$</ColHead><ColHead pad={headPad}>Aero Ida</ColHead><ColHead pad={headPad}>HR Ida</ColHead><ColHead pad={headPad}>HR Volta</ColHead>
-                    <ColHead pad={headPad}>Aero Volta</ColHead><ColHead pad={headPad}>Localizador</ColHead><ColHead pad={headPad}>Empresa</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Conferência</ColHead>
+                    <ColHead pad={headPad}>Valor</ColHead><ColHead pad={headPad}>Aero ida</ColHead><ColHead pad={headPad}>HR Ida</ColHead><ColHead pad={headPad}>HR Volta</ColHead>
+                    <ColHead pad={headPad}>Aero volta</ColHead><ColHead pad={headPad}>Localizador</ColHead><ColHead pad={headPad}>Cia</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Conferido</ColHead>
                   </>}
                   {show("hospedagem") && <>
                     <ColHead pad={headPad}>Hotel</ColHead><ColHead pad={headPad}>Reserva</ColHead><ColHead pad={headPad}>Check-in</ColHead><ColHead pad={headPad}>Check-out</ColHead>
-                    <ColHead pad={headPad}>Diárias</ColHead><ColHead pad={headPad}>Quarto</ColHead><ColHead pad={headPad}>R$ Diária</ColHead><ColHead pad={headPad}>Late C/Out</ColHead>
-                    <ColHead pad={headPad}>Hotel R$</ColHead><ColHead pad={headPad}>Empresa Pgto</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Conferência</ColHead>
+                    <ColHead pad={headPad}>Noites</ColHead><ColHead pad={headPad}>Quarto</ColHead><ColHead pad={headPad}>Diária</ColHead><ColHead pad={headPad}>Late C/Out</ColHead>
+                    <ColHead pad={headPad}>Total</ColHead><ColHead pad={headPad}>Pagador</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Conferido</ColHead>
                   </>}
-                  {show("bagagem") && <><ColHead pad={headPad}>Bagagem R$</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Conferência</ColHead></>}
-                  {show("uber") && <><ColHead pad={headPad}>Uber R$</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Conferência</ColHead></>}
-                  {show("locacao") && <><ColHead pad={headPad}>Empresa</ColHead><ColHead pad={headPad}>R$</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Conferência</ColHead></>}
-                  {show("pendencias") && <><ColHead pad={headPad}>Pendências</ColHead><ColHead pad={headPad}>Observações</ColHead></>}
+                  {show("bagagem") && <><ColHead pad={headPad}>Valor</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Conferido</ColHead></>}
+                  {show("uber") && <><ColHead pad={headPad}>Valor</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Conferido</ColHead></>}
+                  {show("locacao") && <><ColHead pad={headPad}>Empresa</ColHead><ColHead pad={headPad}>R$</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Conferido</ColHead></>}
+                  {show("pendencias") && <><ColHead pad={headPad}>Situação</ColHead><ColHead pad={headPad}>Observações</ColHead></>}
                 </tr>
               </thead>
               <tbody>
@@ -2364,6 +2397,287 @@ function HorarioDoCarro({ grupo, canEdit, onPatch }: {
   );
 }
 
+
+/**
+ * Cores dos carros. Aqui a cor É O DADO — quem anda junto —, e é a única
+ * exceção à regra "cor = estado" desta tela. É a mesma leitura das faixas
+ * coloridas da planilha da equipe, sem o banho de pastel: um filete de 3px.
+ */
+const COR_DO_CARRO = ["sky", "violet", "amber", "teal", "pink", "lime"] as const;
+const FILETE: Record<string, string> = {
+  sky: "border-l-sky-500", violet: "border-l-violet-500", amber: "border-l-amber-500",
+  teal: "border-l-teal-500", pink: "border-l-pink-500", lime: "border-l-lime-500",
+};
+const TEXTO_CARRO: Record<string, string> = {
+  sky: "text-sky-600", violet: "text-violet-600", amber: "text-amber-600",
+  teal: "text-teal-600", pink: "text-pink-600", lime: "text-lime-600",
+};
+const corDoCarro = (n: number) => COR_DO_CARRO[(n - 1) % COR_DO_CARRO.length];
+
+interface IndiceDeCarros {
+  numero: Map<string, number>;
+  porPessoa: Map<string, UberGroup>;
+}
+interface LinhaDaRoteirizacao {
+  row: MirrorRow;
+  ida?: UberGroup;
+  volta?: UberGroup;
+}
+
+/** Cabeçalho de uma coluna da roteirização. */
+function ColRot({ children, className = "" }: { children?: React.ReactNode; className?: string }) {
+  return <th className={`h-7 whitespace-nowrap px-2 text-left align-middle font-medium text-muted-foreground ${className}`}>{children}</th>;
+}
+
+/**
+ * Roteirização de Uber — uma linha por pessoa, com os dois trechos lado a lado.
+ *
+ * Cada bloco (ida e volta) carrega a régua do próprio cálculo no cabeçalho: o
+ * horário do carro não é um palpite, e dizer de onde ele sai evita a pergunta
+ * "por que 02:45?" toda vez.
+ */
+function Roteirizacao({
+  linhas, naIda, naVolta, totalIda, totalVolta, collabById, canEdit,
+  onConfirm, onPatch, onMover, pendingId, onSkipUber, gruposIda, gruposVolta,
+}: {
+  linhas: LinhaDaRoteirizacao[];
+  naIda: IndiceDeCarros;
+  naVolta: IndiceDeCarros;
+  totalIda: number;
+  totalVolta: number;
+  collabById: Map<string, MirrorCollaborator>;
+  canEdit: boolean;
+  onConfirm: (id: string) => void;
+  onPatch: (id: string, campos: Record<string, unknown>) => void;
+  onMover: (collaboratorId: string, deGrupoId: string, paraGrupoId: string | null) => void;
+  pendingId: string | null | undefined;
+  onSkipUber?: (rowId: string, skip: boolean) => void;
+  gruposIda: UberGroup[];
+  gruposVolta: UberGroup[];
+}) {
+  /** Um carro se descreve por quem já está nele — é assim que se decide mover. */
+  const descreve = (g: UberGroup) => {
+    const nomes = (g.members || []).map((m) => memberInfo(m, collabById).name.split(" ")[0]);
+    return nomes.length ? `Com ${nomes.join(", ")}` : "Carro vazio";
+  };
+  /** Primeira linha de cada carro: é onde o titular e o botão aparecem. */
+  const primeiraDoCarro = { ida: new Set<string>(), volta: new Set<string>() };
+  for (const l of linhas) {
+    if (l.ida && !primeiraDoCarro.ida.has(l.ida.id)) primeiraDoCarro.ida.add(l.ida.id);
+    if (l.volta && !primeiraDoCarro.volta.has(l.volta.id)) primeiraDoCarro.volta.add(l.volta.id);
+  }
+  const jaVisto = { ida: new Set<string>(), volta: new Set<string>() };
+
+  const bloco = (l: LinhaDaRoteirizacao, dir: "ida" | "volta") => {
+    const g = dir === "ida" ? l.ida : l.volta;
+    const indice = dir === "ida" ? naIda : naVolta;
+    const t = l.row.ticket;
+    if (!g) {
+      return {
+        g: null, n: 0, cor: "sky", primeira: false,
+        dia: null as string | null, data: null as string | null, aero: "", voo: "", pouso: "",
+      };
+    }
+    const n = indice.numero.get(g.id) ?? 0;
+    const primeira = !jaVisto[dir].has(g.id);
+    if (primeira) jaVisto[dir].add(g.id);
+    return {
+      g, n, cor: corDoCarro(n), primeira,
+      dia: g.date,
+      data: g.date,
+      aero: g.date ? (dir === "ida" ? t?.departureAirport : t?.returnDestinationAirport) ?? "" : "",
+      voo: (dir === "ida" ? t?.actualDepartureTime : t?.actualReturnTime) ?? "",
+      pouso: dir === "volta" ? (t?.returnArrivalTime ?? "") : "",
+    };
+  };
+
+  return (
+    <section className="rounded-lg border bg-card overflow-hidden" data-testid="uber-roteirizacao">
+      <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b px-4 py-2.5">
+        <h3 className="text-sm font-semibold">Roteirização de Uber</h3>
+        <p className="text-xs text-muted-foreground">
+          Quem coincide em data, aeroporto e voo divide o carro. O titular chama a corrida.
+        </p>
+        <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+          {totalIda} {totalIda === 1 ? "carro" : "carros"} na ida · {totalVolta} na volta
+        </span>
+      </header>
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[1560px] text-xs">
+          <thead>
+            <tr className="border-b bg-muted/60">
+              <th colSpan={2} className="h-8 border-r-2 border-r-slate-300 px-3 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground dark:border-r-slate-600">
+                Pessoa
+              </th>
+              <th colSpan={6} className="h-8 border-r-2 border-r-slate-300 px-3 text-left dark:border-r-slate-600">
+                <span className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                    <Plane className="h-3.5 w-3.5" aria-hidden="true" /> Base × Aeroporto
+                  </span>
+                  <span className="text-[11px] font-normal normal-case tracking-normal text-muted-foreground">
+                    mesmo dia e aeroporto, voos em até 90 min → mesmo carro · sai 3h antes do voo mais cedo
+                  </span>
+                </span>
+              </th>
+              <th colSpan={7} className="h-8 px-3 text-left">
+                <span className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                    <Plane className="h-3.5 w-3.5 rotate-180" aria-hidden="true" /> Aeroporto × Base
+                  </span>
+                  <span className="text-[11px] font-normal normal-case tracking-normal text-muted-foreground">
+                    busca 15 min depois do último pouso do grupo
+                  </span>
+                </span>
+              </th>
+            </tr>
+            <tr className="border-b bg-muted/30">
+              <ColRot className="min-w-[210px]">Nome</ColRot>
+              <ColRot className="min-w-[120px] border-r-2 border-r-slate-300 dark:border-r-slate-600">Departamento</ColRot>
+              <ColRot>Dia</ColRot><ColRot>Data ida</ColRot><ColRot>Aero</ColRot><ColRot>Voo</ColRot>
+              <ColRot>Sair às</ColRot>
+              <ColRot className="min-w-[170px] border-r-2 border-r-slate-300 dark:border-r-slate-600">Titular / situação</ColRot>
+              <ColRot>Dia</ColRot><ColRot>Data volta</ColRot><ColRot>Aero</ColRot><ColRot>Voo</ColRot><ColRot>Pouso</ColRot>
+              <ColRot>Buscar às</ColRot>
+              <ColRot className="min-w-[170px]">Titular / situação</ColRot>
+            </tr>
+          </thead>
+          <tbody>
+            {linhas.map((l) => {
+              const i = bloco(l, "ida");
+              const v = bloco(l, "volta");
+              return (
+                <tr key={l.row.teamInclusionId} className="border-b border-border/40 hover:bg-primary/[0.03]" data-testid={`rot-${l.row.teamInclusionId}`}>
+                  <td className="px-2 py-1.5 font-medium">
+                    <span className="flex items-center gap-1.5">
+                      <span className="truncate">{l.row.collaborator.fullName}</span>
+                      {canEdit && onSkipUber && (
+                        <button type="button" onClick={() => onSkipUber(l.row.teamInclusionId, true)}
+                          title="Tirar da roteirização — não entra em carro nenhum e não gera custo"
+                          aria-label={`Tirar ${l.row.collaborator.fullName} da roteirização`}
+                          className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-amber-700"
+                          data-testid={`skip-uber-${l.row.teamInclusionId}`}>
+                          <X className="h-3 w-3" aria-hidden="true" />
+                        </button>
+                      )}
+                    </span>
+                  </td>
+                  <td className="border-r-2 border-r-slate-300 px-2 py-1.5 capitalize text-muted-foreground dark:border-r-slate-600">
+                    {l.row.function.area || l.row.function.name || "—"}
+                  </td>
+
+                  {/* Ida */}
+                  <CelulasDoTrecho
+                    dados={i} dir="ida" pessoa={l.row.collaborator.fullName} collabId={l.row.collaborator.id}
+                    grupos={gruposIda} descreve={descreve} canEdit={canEdit}
+                    onConfirm={onConfirm} onPatch={onPatch} onMover={onMover} pendingId={pendingId}
+                    collabById={collabById}
+                  />
+                  {/* Volta */}
+                  <CelulasDoTrecho
+                    dados={v} dir="volta" pessoa={l.row.collaborator.fullName} collabId={l.row.collaborator.id}
+                    grupos={gruposVolta} descreve={descreve} canEdit={canEdit}
+                    onConfirm={onConfirm} onPatch={onPatch} onMover={onMover} pendingId={pendingId}
+                    collabById={collabById}
+                  />
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+/** As colunas de um trecho (ida ou volta) de uma pessoa. */
+function CelulasDoTrecho({
+  dados, dir, pessoa, collabId, grupos, descreve, canEdit, onConfirm, onPatch, onMover, pendingId, collabById,
+}: {
+  dados: { g: UberGroup | null; n: number; cor: string; primeira: boolean; dia: string | null; data: string | null; aero: string; voo: string; pouso: string };
+  dir: "ida" | "volta";
+  pessoa: string;
+  collabId: string | null;
+  grupos: UberGroup[];
+  descreve: (g: UberGroup) => string;
+  canEdit: boolean;
+  onConfirm: (id: string) => void;
+  onPatch: (id: string, campos: Record<string, unknown>) => void;
+  onMover: (collaboratorId: string, deGrupoId: string, paraGrupoId: string | null) => void;
+  pendingId: string | null | undefined;
+  collabById: Map<string, MirrorCollaborator>;
+}) {
+  const fim = dir === "ida" ? "border-r-2 border-r-slate-300 dark:border-r-slate-600" : "";
+  if (!dados.g) {
+    // Sem trecho nesta direção: dizer isso é melhor do que seis células vazias.
+    return (
+      <>
+        <td colSpan={dir === "ida" ? 5 : 6} className="px-2 py-1.5 text-muted-foreground">sem {dir}</td>
+        <td className={`px-2 py-1.5 ${fim}`} />
+      </>
+    );
+  }
+  const g = dados.g;
+  const membros = (g.members || []).map((m) => memberInfo(m, collabById));
+  return (
+    <>
+      <td className={`border-l-[3px] px-2 py-1.5 text-muted-foreground ${FILETE[dados.cor]}`}>{diaSemana(dados.data)}</td>
+      <td className="px-2 py-1.5 tabular-nums">{fmtDate(dados.data)}</td>
+      <td className="px-2 py-1.5 font-mono text-[11px] uppercase">{dados.aero || <span className="text-muted-foreground">·</span>}</td>
+      <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{dados.voo || "·"}</td>
+      {dir === "volta" && <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{dados.pouso || "·"}</td>}
+      <td className="px-2 py-1.5">
+        <HorarioDoCarro grupo={g} canEdit={canEdit} onPatch={onPatch} />
+      </td>
+      <td className={`px-2 py-1.5 ${fim}`}>
+        <span className="flex flex-wrap items-center gap-1.5">
+          {/* "Carro N" em TODA linha: os carros da volta não ficam contíguos,
+              porque a tabela é ordenada pela ida. */}
+          <span className={`text-[10px] font-semibold uppercase tracking-wide ${TEXTO_CARRO[dados.cor]}`}>Carro {dados.n}</span>
+          {dados.primeira ? (
+            <>
+              {canEdit ? (
+                <select
+                  value={g.titularCollaboratorId ?? ""}
+                  onChange={(e) => onPatch(g.id, { titularCollaboratorId: e.target.value || null })}
+                  aria-label={`Titular do carro ${dados.n} da ${dir}`}
+                  className="h-6 min-w-[110px] max-w-[130px] rounded border bg-background px-1 text-[11px]"
+                  data-testid={`uber-titular-${g.id}`}>
+                  <option value="">Titular…</option>
+                  {membros.map((op, k) => <option key={op.id ?? k} value={op.id ?? ""}>{op.name}</option>)}
+                </select>
+              ) : (
+                <span className="text-[11px]">{membros.find((op) => op.id === g.titularCollaboratorId)?.name ?? "sem titular"}</span>
+              )}
+              {g.confirmed ? (
+                canEdit ? (
+                  <button type="button" onClick={() => onPatch(g.id, { __reabrir: true })}
+                    title="Reabrir — carro confirmado fica de fora do recálculo"
+                    className="inline-flex h-6 items-center gap-1 rounded border border-emerald-300 bg-emerald-50 px-1.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+                    <CheckCheck className="h-3 w-3" aria-hidden="true" /> ok
+                  </button>
+                ) : <Badge className="h-5 bg-emerald-600 px-1.5 text-[10px] hover:bg-emerald-600">ok</Badge>
+              ) : canEdit ? (
+                <button type="button" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id}
+                  title="Confirmar o carro — trava o agrupamento e o horário"
+                  className="inline-flex h-6 items-center gap-1 rounded border border-amber-300 bg-amber-50 px-1.5 text-[11px] font-medium text-amber-800 disabled:opacity-60 dark:bg-amber-950/40 dark:text-amber-200"
+                  data-testid={`confirm-uber-${g.id}`}>
+                  {pendingId === g.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCheck className="h-3 w-3" aria-hidden="true" />} confirmar
+                </button>
+              ) : <span className="text-[11px] text-muted-foreground">sugestão</span>}
+            </>
+          ) : null}
+          {canEdit && collabId && (
+            <MoverPara pessoa={pessoa} grupoAtual={g.id} rotuloNovo="Carro só para ela"
+              destinos={grupos.filter((o) => o.id !== g.id).map((o) => ({ id: o.id, descricao: descreve(o) }))}
+              onMover={(para) => onMover(collabId, g.id, para)} />
+          )}
+        </span>
+      </td>
+    </>
+  );
+}
+
 function UberView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onMover, pendingId, onSkipUber }: GroupViewProps<UberGroup> & { onSkipUber?: (rowId: string, skip: boolean) => void }) {
   const emptyHint = canEdit ? ' Clique em "Refazer sugestões".' : "";
   /**
@@ -2417,18 +2731,49 @@ function UberView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onMov
   const voltas = groups.filter((g) => g.direction === "volta");
   const internos = groups.filter((g) => g.direction !== "ida" && g.direction !== "volta");
 
+  /**
+   * UMA LINHA POR PESSOA, com ida e volta lado a lado — é o formato da planilha
+   * que a equipe usa. Duas tabelas empilhadas obrigavam a procurar a mesma
+   * pessoa duas vezes para saber a viagem dela inteira.
+   *
+   * Os agrupamentos das duas direções são INDEPENDENTES: dá para ser titular na
+   * ida e passageiro na volta. Por isso "Carro N" aparece em toda linha — a
+   * tabela é ordenada pela ida, e os carros da volta não ficam contíguos.
+   */
+  const indexar = (lista: UberGroup[]) => {
+    const numero = new Map<string, number>();
+    const porPessoa = new Map<string, UberGroup>();
+    lista.forEach((g, i) => {
+      numero.set(g.id, i + 1);
+      for (const m of g.members || []) if (m.collaboratorId) porPessoa.set(m.collaboratorId, g);
+    });
+    return { numero, porPessoa };
+  };
+  const naIda = indexar(idas);
+  const naVolta = indexar(voltas);
+
+  const linhas = rows
+    .filter((r) => r.collaborator.id && (naIda.porPessoa.has(r.collaborator.id) || naVolta.porPessoa.has(r.collaborator.id)))
+    .map((r) => ({
+      row: r,
+      ida: naIda.porPessoa.get(r.collaborator.id as string),
+      volta: naVolta.porPessoa.get(r.collaborator.id as string),
+    }))
+    // Ordenada pela ida — quem sai antes aparece antes.
+    .sort((a, b) => `${a.ida?.date ?? "9"}${a.ida?.time ?? "9"}`.localeCompare(`${b.ida?.date ?? "9"}${b.ida?.time ?? "9"}`));
+
   return (
     <div className="space-y-6">
       {blocoFora}
-      {idas.length > 0 && (
-        <TabelaUber titulo="Ida — saída para o aeroporto" subtitulo="Quem coincide em data, aeroporto e horário divide o carro. Sai 3h antes do voo mais cedo do grupo."
-          tom="bg-sky-50/60 dark:bg-sky-950/20" grupos={idas} rowByCollab={rowByCollab} collabById={collabById}
-          canEdit={canEdit} onConfirm={onConfirm} onPatch={onPatch} onMover={onMover} pendingId={pendingId} onSkipUber={onSkipUber} />
-      )}
-      {voltas.length > 0 && (
-        <TabelaUber titulo="Volta — busca no aeroporto" subtitulo="Quem coincide em data, aeroporto e horário divide o carro. Busca 15min depois do último pouso do grupo."
-          tom="bg-orange-50/60 dark:bg-orange-950/20" grupos={voltas} rowByCollab={rowByCollab} collabById={collabById}
-          canEdit={canEdit} onConfirm={onConfirm} onPatch={onPatch} onMover={onMover} pendingId={pendingId} onSkipUber={onSkipUber} />
+      {linhas.length > 0 && (
+        <Roteirizacao
+          linhas={linhas} naIda={naIda} naVolta={naVolta}
+          totalIda={idas.length} totalVolta={voltas.length}
+          collabById={collabById} canEdit={canEdit}
+          onConfirm={onConfirm} onPatch={onPatch} onMover={onMover}
+          pendingId={pendingId} onSkipUber={onSkipUber}
+          gruposIda={idas} gruposVolta={voltas}
+        />
       )}
 
       {internos.length > 0 && (
