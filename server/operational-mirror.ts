@@ -17,6 +17,7 @@ import {
   systemSettings,
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { teamInclusionSelectCompat } from "./team-inclusion-compat";
 import {
   hotelTotalCents,
   type MirrorRow,
@@ -82,7 +83,7 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
   // team inclusions do evento (não excluídas)
   // Sugestões de escala (phase 'sugestao') ainda não são vagas oficiais — ficam
   // fora do Espelho até a Validação de Escala aprová-las (filtro central).
-  const inclusions = (await db.select().from(teamInclusions).where(eq(teamInclusions.eventId, eventId)))
+  const inclusions = (await db.select(teamInclusionSelectCompat).from(teamInclusions).where(eq(teamInclusions.eventId, eventId)))
     .filter((ti: any) => !ti.deletedAt && ti.phase !== 'sugestao');
 
   const collabRows = await db.select().from(collaborators);
@@ -392,7 +393,7 @@ export async function patchOperationalMirrorCell(eventId: string, rowId: string,
   if (!target) throw new Error(`Campo não permitido: ${field}`);
 
   // valida que a inclusão pertence ao evento
-  const [inclusion] = await db.select().from(teamInclusions).where(eq(teamInclusions.id, rowId));
+  const [inclusion] = await db.select(teamInclusionSelectCompat).from(teamInclusions).where(eq(teamInclusions.id, rowId));
   if (!inclusion || inclusion.eventId !== eventId) throw new Error("Inclusão não encontrada para o evento");
 
   const value = coerce(rawValue, target.type);
@@ -453,7 +454,7 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
 
   // Sugestões de escala (phase 'sugestao') ainda não são vagas oficiais — ficam
   // fora do Espelho até a Validação de Escala aprová-las (filtro central).
-  const inclusions = (await db.select().from(teamInclusions).where(eq(teamInclusions.eventId, eventId)))
+  const inclusions = (await db.select(teamInclusionSelectCompat).from(teamInclusions).where(eq(teamInclusions.eventId, eventId)))
     .filter((ti: any) => !ti.deletedAt && ti.phase !== 'sugestao');
   const collabRows = await db.select().from(collaborators);
   const collabMap = new Map(collabRows.map((c: any) => [c.id, c]));

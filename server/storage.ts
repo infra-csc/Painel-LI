@@ -34,6 +34,7 @@ import {
 } from "@shared/schema";
 import { eq, and, or, sql, isNull, isNotNull, ne, exists, asc, desc, inArray, ilike, gte } from "drizzle-orm";
 import { VAGA_STATE_CHANGED_MSG } from "@shared/scaling-validation-rules";
+import { teamInclusionSelectCompat } from "./team-inclusion-compat";
 
 /** Papel de um responsável na Validação de Escala (function_managers.role). */
 export type FunctionManagerRole = "validador" | "aprovador";
@@ -836,7 +837,7 @@ export class DatabaseStorage implements IStorage {
         observations: teamInclusions.observations,
         actualObservations: teamInclusions.actualObservations,
         emergencyRecord: teamInclusions.emergencyRecord,
-        skipUber: teamInclusions.skipUber,
+        skipUber: teamInclusionSelectCompat.skipUber,
         city: teamInclusions.city,
         status: teamInclusions.status,
         previousStatus: teamInclusions.previousStatus,
@@ -903,18 +904,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTeamInclusion(id: string): Promise<TeamInclusion | undefined> {
-    const [inclusion] = await db.select().from(teamInclusions).where(eq(teamInclusions.id, id));
+    const [inclusion] = await db.select(teamInclusionSelectCompat).from(teamInclusions).where(eq(teamInclusions.id, id));
     return inclusion;
   }
 
   async getTeamInclusionsByIds(ids: string[]): Promise<TeamInclusion[]> {
     const unique = Array.from(new Set(ids.filter(Boolean)));
     if (unique.length === 0) return [];
-    return await db.select().from(teamInclusions).where(inArray(teamInclusions.id, unique));
+    return await db.select(teamInclusionSelectCompat).from(teamInclusions).where(inArray(teamInclusions.id, unique));
   }
 
   async createTeamInclusion(inclusionData: InsertTeamInclusion): Promise<TeamInclusion> {
-    const [inclusion] = await db.insert(teamInclusions).values(inclusionData).returning();
+    const [inclusion] = await db.insert(teamInclusions).values(inclusionData).returning(teamInclusionSelectCompat);
     return inclusion;
   }
 
@@ -925,7 +926,7 @@ export class DatabaseStorage implements IStorage {
     return await db.transaction(async (tx) => {
       const created: TeamInclusion[] = [];
       for (const r of rows) {
-        const [row] = await tx.insert(teamInclusions).values(r).returning();
+        const [row] = await tx.insert(teamInclusions).values(r).returning(teamInclusionSelectCompat);
         created.push(row);
       }
       return created;
@@ -934,11 +935,11 @@ export class DatabaseStorage implements IStorage {
 
   async updateTeamInclusion(id: string, inclusionData: Partial<InsertTeamInclusion>): Promise<TeamInclusion> {
     // Buscar dados antes da atualização para comparação
-    const [oldInclusion] = await db.select().from(teamInclusions).where(eq(teamInclusions.id, id));
+    const [oldInclusion] = await db.select(teamInclusionSelectCompat).from(teamInclusions).where(eq(teamInclusions.id, id));
     if (!oldInclusion) throw new Error("Team inclusion not found");
     
     // Atualizar a inclusão
-    const [inclusion] = await db.update(teamInclusions).set(inclusionData).where(eq(teamInclusions.id, id)).returning();
+    const [inclusion] = await db.update(teamInclusions).set(inclusionData).where(eq(teamInclusions.id, id)).returning(teamInclusionSelectCompat);
     
     // Buscar nome do usuário se disponível
     let userName = "Sistema";
@@ -1156,7 +1157,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTeamInclusion(id: string, userId?: string): Promise<void> {
     // Buscar dados da inclusão antes de excluir para registrar no log
-    const [inclusion] = await db.select().from(teamInclusions).where(eq(teamInclusions.id, id));
+    const [inclusion] = await db.select(teamInclusionSelectCompat).from(teamInclusions).where(eq(teamInclusions.id, id));
     if (!inclusion) {
       throw new Error("Team inclusion not found");
     }
