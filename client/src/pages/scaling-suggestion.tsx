@@ -735,12 +735,17 @@ export default function ScalingSuggestionPage() {
             : readOnly ? "leitura"
               : null;
 
+  // O rótulo diz por que NÃO dá para enviar (30/08). Antes o botão anunciava
+  // "Enviar 0 vagas" com a grade vazia e continuava clicável com o período
+  // inválido — duas promessas que a tela não cumpria.
   const sendLabel = readOnly ? "Somente leitura"
     : sendMutation.isPending ? "Enviando…"
       : sentCheckLoading ? "Verificando envios…"
-        : pendencias.errors.length > 0 ? "Revise para enviar"
-          : records.length > 0 ? `Enviar ${vagasLabel}` : "Enviar vagas";
-  const sendDisabled = readOnly || records.length === 0 || busy || pendencias.errors.length > 0 || sendBlocked;
+        : periodError ? "Corrija o período"
+          : pendencias.errors.length > 0 ? "Revise para enviar"
+            : records.length === 0 ? "Nada para enviar"
+              : `Enviar ${vagasLabel}`;
+  const sendDisabled = readOnly || records.length === 0 || busy || pendencias.errors.length > 0 || sendBlocked || !!periodError;
 
   // ── Render ──
   if (!canAccess) {

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
-import { CalendarDays, CheckCircle2, CheckSquare, Clock, EyeOff, Search, ShieldCheck, Square } from "lucide-react";
+import { CalendarDays, CheckCircle2, CheckSquare, Clock, EyeOff, Inbox, Search, ShieldCheck, Square } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -449,15 +450,40 @@ export default function ScalingApprovalPage() {
   /** "Posso decidir" (contador + filtro) só faz sentido para quem decide alguma coisa. */
   const showMineFilter = !isAdmin && !readOnlyMode;
 
-  const tiles: { key: string; label: string; n: number; cls: string; active: boolean; onClick: () => void; hint: string; loading?: boolean }[] = [
+  /**
+   * Em falha de carregamento nenhum contador pode mostrar 0: seria a mesma
+   * mentira que o 0 durante o carregamento, só que sem nem a chance de virar
+   * número. O cartão diz que falhou e leva para a aba, que traz o "tentar de
+   * novo"; a faixa de recortes some — não há fila para recortar.
+   */
+  const erroVagas = !!suggestionsQuery.error;
+  const erroFila = !!loadError;
+
+  /**
+   * Sete cartões de peso igual não criam hierarquia: o aprovador batia o olho e
+   * não sabia por onde começar (30/08). Ficam DOIS primários — as duas filas que
+   * dependem dele — e os recortes viram chips, que é o que eles são: filtros.
+   */
+  const primarios: {
+    key: string; titulo: string; n: number; contexto: ReactNode; Icon: LucideIcon;
+    tom: string; active: boolean; onClick: () => void; hint: string; loading?: boolean;
+  }[] = [
     ...(isApprover ? [{
       key: "aguardando",
-      label: "Aguardando aprovação",
+      titulo: awaitingRowsAll.length === 1 ? "vaga aguardando sua aprovação" : "vagas aguardando sua aprovação",
       n: awaitingRowsAll.length,
+      Icon: ShieldCheck,
       // Vaga validada parada acende igual à pendente parada (mesma severidade).
-      cls: stalledAwaiting.count
+      tom: stalledAwaiting.count
         ? (stalledAwaiting.severity === "danger" ? "text-red-600" : "text-amber-700")
-        : awaitingRowsAll.length ? "text-sky-700" : "",
+        : awaitingRowsAll.length ? "text-sky-700" : "text-slate-800",
+      contexto: stalledAwaiting.count ? (
+        <span className={stalledAwaiting.severity === "danger" ? "text-red-600" : "text-amber-700"}>
+          {stalledAwaiting.count} {stalledAwaiting.count === 1 ? "parada" : "paradas"} há {stalledAwaiting.worst} {stalledAwaiting.worst === 1 ? "dia" : "dias"} ou mais
+        </span>
+      ) : (
+        <span>{eventId ? "validadas pela área, esperando você" : "de todos os eventos, esperando você"}</span>
+      ),
       active: tab === "aprovacao",
       onClick: () => switchTab("aprovacao"),
       hint: stalledAwaiting.count
@@ -465,15 +491,36 @@ export default function ScalingApprovalPage() {
         : eventId
           ? "Vagas validadas pela área que dependem da sua decisão"
           : "Vagas validadas pela área, de todos os eventos, que dependem da sua decisão",
-      // Nunca 0 enquanto carrega: o tile mostra "…" (o 0 falso foi o achado do dono).
+      // Nunca 0 enquanto carrega: o cartão mostra "…" (o 0 falso foi o achado do dono).
       loading: loadingAwaiting,
     }] : []),
-    { key: "pendentes", label: "Pendentes", n: counts.pendentes, cls: "", active: activeQuick === "pendentes" && !lateOnly && !mineOnly && tab === "fila", onClick: () => { setLateOnly(false); setMineOnly(false); applyQuick("pendentes"); }, hint: "Ver todos os pendentes" },
-    { key: "ajuste", label: "Ajustes", n: counts.ajuste, cls: "text-amber-700", active: activeQuick === "ajuste", onClick: () => applyQuick("ajuste"), hint: "Filtrar por ajustes pendentes" },
-    { key: "inclusao", label: "Inclusões", n: counts.inclusao, cls: "text-emerald-700", active: activeQuick === "inclusao", onClick: () => applyQuick("inclusao"), hint: "Filtrar por inclusões pendentes" },
-    { key: "exclusao", label: "Exclusões", n: counts.exclusao, cls: "text-red-700", active: activeQuick === "exclusao", onClick: () => applyQuick("exclusao"), hint: "Filtrar por exclusões pendentes" },
-    { key: "late", label: `Atrasados (≥${STALLED_DAYS}d)`, n: counts.atrasados, cls: counts.atrasados ? "text-red-600" : "", active: lateOnly, onClick: toggleLate, hint: `Só pedidos aguardando há ${STALLED_DAYS} dias ou mais` },
-    ...(showMineFilter ? [{ key: "mine", label: "Posso decidir", n: counts.meus, cls: "text-primary", active: mineOnly, onClick: toggleMine, hint: "Só os pedidos em que você é o aprovador" }] : []),
+    {
+      key: "pendentes",
+      titulo: counts.pendentes === 1 ? "pedido na fila" : "pedidos na fila",
+      n: counts.pendentes,
+      Icon: Inbox,
+      tom: "text-slate-800",
+      contexto: (
+        <span>
+          {showMineFilter ? <><span className="font-semibold text-primary tabular-nums">{counts.meus}</span> você decide · </> : null}
+          <span className={counts.atrasados ? "font-semibold text-red-600" : ""}>
+            <span className="tabular-nums">{counts.atrasados}</span> {counts.atrasados === 1 ? "atrasado" : "atrasados"}
+          </span>
+        </span>
+      ),
+      active: activeQuick === "pendentes" && !lateOnly && !mineOnly && tab === "fila",
+      onClick: () => { setLateOnly(false); setMineOnly(false); applyQuick("pendentes"); },
+      hint: "Ver todos os pendentes",
+    },
+  ];
+
+  /** Recortes da fila: chips de filtro, não indicadores. */
+  const recortes: { key: string; label: string; n: number; ponto: string; active: boolean; onClick: () => void; hint: string }[] = [
+    { key: "ajuste", label: "Ajustes", n: counts.ajuste, ponto: "bg-amber-500", active: activeQuick === "ajuste", onClick: () => applyQuick("ajuste"), hint: "Filtrar por ajustes pendentes" },
+    { key: "inclusao", label: "Inclusões", n: counts.inclusao, ponto: "bg-emerald-500", active: activeQuick === "inclusao", onClick: () => applyQuick("inclusao"), hint: "Filtrar por inclusões pendentes" },
+    { key: "exclusao", label: "Exclusões", n: counts.exclusao, ponto: "bg-red-500", active: activeQuick === "exclusao", onClick: () => applyQuick("exclusao"), hint: "Filtrar por exclusões pendentes" },
+    { key: "late", label: `Atrasados ≥${STALLED_DAYS}d`, n: counts.atrasados, ponto: "bg-red-600", active: lateOnly, onClick: toggleLate, hint: `Só pedidos aguardando há ${STALLED_DAYS} dias ou mais` },
+    ...(showMineFilter ? [{ key: "mine", label: "Posso decidir", n: counts.meus, ponto: "bg-primary", active: mineOnly, onClick: toggleMine, hint: "Só os pedidos em que você é o aprovador" }] : []),
   ];
 
   return (
@@ -528,27 +575,68 @@ export default function ScalingApprovalPage() {
           </p>
         )}
 
-        {/* Contadores = filtros rápidos (clicar de novo limpa) */}
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Resumo da fila (filtros rápidos)">
-          {tiles.map((t) => (
+        {/* As duas filas que dependem do aprovador, em primeiro plano. */}
+        <div className="flex flex-wrap gap-2.5" role="group" aria-label="Filas que dependem de você">
+          {primarios.map((c) => (
             <button
-              key={t.key}
+              key={c.key}
               type="button"
-              onClick={t.onClick}
-              aria-pressed={t.active}
-              title={t.hint}
+              onClick={c.onClick}
+              aria-pressed={c.active}
+              title={c.hint}
               className={cn(
-                "flex-1 min-w-[132px] rounded-xl border px-2.5 py-2 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                t.active ? "border-primary bg-brand-soft/60 shadow-sm" : "border-slate-100 bg-slate-50/60 hover:border-slate-300 hover:bg-white",
+                "flex flex-1 min-w-[240px] items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                c.active ? "border-primary bg-brand-soft/60 shadow-sm" : "border-slate-200 bg-white hover:border-slate-300",
               )}
             >
-              <span className={cn("block text-[10px] font-semibold uppercase tracking-[0.05em]", t.active ? "text-primary" : "text-slate-500")}>{t.label}</span>
-              <span className={cn("mt-0.5 block text-lg font-bold tabular-nums text-slate-800", t.cls)}>
-                {(t.loading ?? pendingQuery.isLoading) ? "…" : t.n}
+              <span className={cn("flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg", c.active ? "bg-primary/10" : "bg-slate-100")}>
+                <c.Icon className={cn("h-4 w-4", c.active ? "text-primary" : "text-slate-500")} aria-hidden="true" />
+              </span>
+              <span className="min-w-0">
+                {(c.key === "aguardando" ? erroVagas : erroFila) ? (
+                  <>
+                    <span className="block text-[13px] font-medium text-red-700">Não foi possível carregar</span>
+                    <span className="mt-0.5 block text-[11px] text-slate-500">Abra a aba para tentar de novo</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex items-baseline gap-1.5">
+                      <span className={cn("text-xl font-bold tabular-nums leading-none", c.tom)}>
+                        {(c.loading ?? pendingQuery.isLoading) ? "…" : c.n}
+                      </span>
+                      <span className="truncate text-[13px] font-medium text-slate-600">{c.titulo}</span>
+                    </span>
+                    <span className="mt-0.5 block truncate text-[11px] text-slate-500">{c.contexto}</span>
+                  </>
+                )}
               </span>
             </button>
           ))}
         </div>
+
+        {/* Recortes: filtros da fila, em chips — peso de filtro, não de indicador. */}
+        {!erroFila && (
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Recortes da fila">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Recortes</span>
+          {recortes.map((r) => (
+            <button
+              key={r.key}
+              type="button"
+              onClick={r.onClick}
+              aria-pressed={r.active}
+              title={r.hint}
+              className={cn(
+                "inline-flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                r.active ? "border-primary bg-brand-soft text-primary" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+              )}
+            >
+              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", r.ponto)} aria-hidden="true" />
+              {r.label}
+              <span className="font-bold tabular-nums">{pendingQuery.isLoading ? "…" : r.n}</span>
+            </button>
+          ))}
+        </div>
+        )}
       </section>
 
       {readOnlyMode && !forbidden && (
