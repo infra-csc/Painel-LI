@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { hasRoleIn, ROLE_GROUPS } from "@shared/roles";
@@ -24,6 +25,7 @@ import {
   hotelTotalCents, isHotelTotalDerived,
   type MirrorRow, type MirrorTotals, type MirrorResponse, type MirrorSubtotal, type RoomGroup, type UberGroup, type MirrorCollaborator,
 } from "@shared/operational-mirror-types";
+import { estadoDaCelula, type ContextoDaLinha, type EstadoCelula } from "@shared/mirror-cell-state";
 import { EditDrawer, ROOM_TYPE_OPTIONS, ROOM_TYPE_LABEL, type DrawerKind, type DrawerSource } from "@/components/operational-mirror-drawers";
 import {
   RefreshCw, FileSpreadsheet, AlertTriangle, Plane, BedDouble, Luggage, Car,
@@ -59,7 +61,15 @@ function uberDirectionLabel(direction: string | null | undefined): string {
 type CellType = "text" | "money" | "date" | "time" | "int" | "bool" | "select";
 /** Valor de uma célula editável, como vem do servidor e como vai no PATCH. */
 type CellValue = string | number | boolean | null | undefined;
-type SaveCell = (rowId: string, field: string, value: CellValue) => Promise<void>;
+type SaveCell = (rowId: string, field: string, value: CellValue, anterior?: CellValue) => Promise<void>;
+
+/** Valor de célula em texto curto, para o toast dizer o de/para do que gravou. */
+function textoDoValor(v: CellValue): string {
+  if (v === null || v === undefined || v === "") return "vazio";
+  if (typeof v === "boolean") return v ? "marcado" : "desmarcado";
+  if (typeof v === "number") return brl(v);
+  return String(v);
+}
 type OpenDrawer = (kind: DrawerKind, r: MirrorRow) => void;
 type SortState = { key: "nome" | "departamento" | null; dir: "asc" | "desc" };
 
@@ -161,12 +171,18 @@ function rotuloCampo(field: string): string {
   return grupo ? `${grupo} — ${nome}` : nome;
 }
 function EditableCell({
-  rowId, field, value, type, onSave, align = "left", compact, onEdit, editMode = true, variant, options, etapa,
+  rowId, field, value, type, onSave, align = "left", compact, onEdit, editMode = true, variant, options, etapa, estado = "preenchido",
 }: {
   rowId: string; field: string; value: CellValue; type: CellType;
-  onSave: (rowId: string, field: string, value: CellValue) => Promise<void>;
+  onSave: (rowId: string, field: string, value: CellValue, anterior?: CellValue) => Promise<void>;
   align?: "left" | "right" | "center"; compact?: boolean; onEdit?: () => void;
   editMode?: boolean; variant?: CellVariant;
+  /**
+   * O que a célula está dizendo (regra em shared/mirror-cell-state.ts): vazio
+   * dispensável cala, vazio que Compras precisa fica âmbar, sugestão não
+   * confirmada fica violeta.
+   */
+  estado?: EstadoCelula;
   /** Primeira coluna de um bloco: ganha a barra colorida que separa as etapas. */
   etapa?: string;
   /** type === "select": opções permitidas */
@@ -191,15 +207,26 @@ function EditableCell({
     return String(value);
   }
   function display(): React.ReactNode {
-    if (type === "bool") return value ? <Check className="h-3.5 w-3.5 text-green-600 mx-auto" /> : <span className="text-muted-foreground/40">—</span>;
-    if (value === null || value === undefined || value === "") return <span className="text-muted-foreground/30">—</span>;
+    // Sugestão que ninguém confirmou não é dado: dizer isso evita que o valor
+    // calculado seja lido como decisão tomada.
+    if (estado === "a_confirmar") return <span className="text-violet-700 dark:text-violet-300">a confirmar</span>;
+    if (estado === "nao_usa") return <span className="text-muted-foreground">não usa</span>;
+    if (type === "bool") return value ? <Check className="h-3.5 w-3.5 text-emerald-700 mx-auto" /> : <span className="text-muted-foreground/50">·</span>;
+    if (value === null || value === undefined || value === "") {
+      // "falta preencher" e "não se aplica" tinham o mesmo travessão cinza: a
+      // grade não respondia o que ainda precisa ser comprado.
+      return estado === "falta"
+        ? <span className="font-medium text-amber-800 dark:text-amber-200">preencher</span>
+        : <span className="text-muted-foreground/50">·</span>;
+    }
     if (type === "money") return brl(value as number);
     if (type === "date") return fmtDate(value as string);
     const s = type === "select" ? (options?.find((o) => o.value === String(value))?.label ?? String(value)) : String(value);
-    if (variant === "mono") return <span className="font-mono text-[11px] tracking-tight">{s}</span>;
-    if (variant === "oc") return <Badge variant="outline" className="font-mono text-[9px] px-1 py-0 font-normal">{s}</Badge>;
-    if (variant === "room") return <Badge variant="secondary" className="text-[9px] uppercase px-1 py-0">{s}</Badge>;
-    if (variant === "checkin") return <Badge variant="outline" className="text-[9px] px-1 py-0 font-normal border-emerald-300 text-emerald-700 dark:text-emerald-300">{s}</Badge>;
+    // As pílulas saíram (31/08): eram 112 numa tela de 14 linhas — OC e
+    // conferência em cada linha —, e pílula é destaque. Nada aqui é destaque.
+    if (variant === "mono" || variant === "oc") return <span className="font-mono text-[11px] tracking-tight">{s}</span>;
+    if (variant === "checkin") return <span className="text-[11px] text-emerald-700 dark:text-emerald-300">{s}</span>;
+    if (variant === "room") return <span className="text-[11px]">{s}</span>;
     return s;
   }
   function parseDraft(raw: string): CellValue {
@@ -289,13 +316,13 @@ function EditableCell({
     setState("saving");
     // O toast de erro vem de saveCell (uma instância de useToast para a tela inteira);
     // aqui só marcamos a célula em vermelho.
-    try { await onSave(rowId, field, next); setState("saved"); setTimeout(() => setState((s) => s === "saved" ? "idle" : s), 1200); }
+    try { await onSave(rowId, field, next, prev as CellValue); setState("saved"); setTimeout(() => setState((s) => s === "saved" ? "idle" : s), 1200); }
     catch { setState("error"); setTimeout(() => setState((s) => s === "error" ? "idle" : s), 2000); }
   }
   async function toggleBool() {
     if (state === "saving") return; // evita duplo clique enquanto a gravação está em voo
     setState("saving");
-    try { await onSave(rowId, field, !value); setState("saved"); setTimeout(() => setState((s) => s === "saved" ? "idle" : s), 1200); }
+    try { await onSave(rowId, field, !value, value); setState("saved"); setTimeout(() => setState((s) => s === "saved" ? "idle" : s), 1200); }
     catch { setState("error"); setTimeout(() => setState((s) => s === "error" ? "idle" : s), 2000); }
   }
   const pad = compact ? "px-2 py-1" : "px-2 py-1.5";
@@ -306,7 +333,11 @@ function EditableCell({
   const alignCls = align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left";
   const ring = state === "saving" ? "bg-blue-50/60 dark:bg-blue-950/30"
     : state === "saved" ? "bg-green-50/60 dark:bg-green-950/30"
-    : state === "error" ? "ring-1 ring-inset ring-red-400 bg-red-50/60 dark:bg-red-950/30" : "";
+    : state === "error" ? "ring-1 ring-inset ring-red-400 bg-red-50/60 dark:bg-red-950/30"
+    // O âmbar é o que faz a grade responder "o que falta comprar" de longe.
+    // Só aparece quando o campo é obrigatório PARA ESTA PESSOA — pintar todo
+    // vazio deixaria a tela amarela e a cor viraria ruído.
+    : estado === "falta" ? "bg-amber-100/70 dark:bg-amber-950/40" : "";
 
   if (!editMode) {
     return (
@@ -488,7 +519,14 @@ export default function OperationalMirror() {
     return e?.body?.message || fallback;
   }
 
-  async function saveCell(rowId: string, field: string, value: CellValue) {
+  /**
+   * Grava uma célula.
+   *
+   * `anterior` é o valor que estava lá: com ele o toast oferece Desfazer. Sem
+   * isso, o único retorno de uma gravação era um fundo verde que some em 1,2s —
+   * quem digitou no campo errado descobria depois, sem caminho de volta.
+   */
+  async function saveCell(rowId: string, field: string, value: CellValue, anterior?: CellValue) {
     try {
       await apiRequest("PATCH", `/api/events/${eventId}/operational-mirror/rows/${rowId}`, { field, value });
     } catch (err) {
@@ -501,6 +539,17 @@ export default function OperationalMirror() {
       throw err; // mantém o destaque de erro na célula
     }
     await queryClient.invalidateQueries({ queryKey: mirrorKey });
+    if (anterior !== undefined) {
+      toast({
+        title: `${rotuloCampo(field)} salvo`,
+        description: `${textoDoValor(anterior)} → ${textoDoValor(value)}`,
+        action: (
+          <ToastAction altText="Desfazer a alteração" onClick={() => { void saveCell(rowId, field, anterior); }}>
+            Desfazer
+          </ToastAction>
+        ),
+      });
+    }
   }
 
   async function saveMany(rowId: string, changes: Record<string, CellValue>) {
@@ -686,6 +735,20 @@ export default function OperationalMirror() {
   }, [rows]);
   // Linhas cujo total de hotel é DERIVADO (diária × diárias, sem totalCents informado).
   const derivedHotelCount = useMemo(() => rows.filter(isHotelTotalDerived).length, [rows]);
+  /**
+   * Grupos já confirmados por alguém. É o que separa SUGESTAO de DADO na grade:
+   * o valor do Uber e o tipo de quarto vinham calculados pelo sistema e eram
+   * lidos como decisão tomada. Agora dizem "a confirmar" até alguém confirmar
+   * na visão correspondente.
+   */
+  const uberConfirmados = useMemo(
+    () => new Set((data?.uberGroups ?? []).filter((g) => g.confirmed).map((g) => g.id)),
+    [data?.uberGroups],
+  );
+  const quartosConfirmados = useMemo(
+    () => new Set((data?.roomGroups ?? []).filter((g) => g.confirmed).map((g) => g.id)),
+    [data?.roomGroups],
+  );
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -1029,15 +1092,8 @@ export default function OperationalMirror() {
               </p>
             )}
 
-            {activeFilterCount > 0 && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>Mostrando {filteredRows.length} de {rows.length} colaboradores</span>
-                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={clearFilters}><Eraser className="h-3 w-3 mr-1" /> Limpar filtros</Button>
-              </div>
-            )}
-
             {/* ===== VIEWS ===== */}
-            {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
+            {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} uberConfirmados={uberConfirmados} quartosConfirmados={quartosConfirmados} />}
             {view === "colaboradores" && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
             {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
             {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} rows={rows} onMover={(c, de, para) => moverMutation.mutate({ tipo: "quarto", corpo: { collaboratorId: c, deGrupoId: de, paraGrupoId: para } })} onSeparar={(id) => separarQuartoMutation.mutate(id)} canEdit={canEditMirror} onPatch={(id, campos) => patchRoomMutation.mutate({ id, campos })} onConfirm={(id: string) => confirmRoomMutation.mutate(id)} pendingId={confirmRoomMutation.isPending ? confirmRoomMutation.variables : null} />}
@@ -1065,9 +1121,25 @@ interface GradeViewProps {
   editMode: boolean;
   canEdit: boolean;
   emptyMessage: string;
+  /** Ids de grupos já confirmados — separam sugestão de dado na grade. */
+  uberConfirmados: Set<string>;
+  quartosConfirmados: Set<string>;
 }
-function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, onSort, editMode, canEdit, emptyMessage }: GradeViewProps) {
+function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, onSort, editMode, canEdit, emptyMessage, uberConfirmados, quartosConfirmados }: GradeViewProps) {
   const show = (b: Block) => !hiddenBlocks.has(b);
+  /**
+   * O que cada linha tem — é daqui que sai a obrigatoriedade condicional de
+   * cada célula (shared/mirror-cell-state.ts).
+   */
+  const ctxDaLinha = (r: MirrorRow): ContextoDaLinha => ({
+    temPassagem: !!r.ticket,
+    temHotel: !!r.accommodation?.hotelName,
+    bagagemCents: r.baggage.extraCents,
+    uberCents: r.uber.totalCents,
+    locacaoCents: r.carRental.totalCents,
+    uberConfirmado: !!r.uber.suggestedGroupId && uberConfirmados.has(r.uber.suggestedGroupId),
+    quartoConfirmado: !!r.suggestedRoomGroupId && quartosConfirmados.has(r.suggestedRoomGroupId),
+  });
   // "Bater o olho e entender" (pedido do dono): cada etapa diz quantas pessoas
   // já têm aquilo resolvido. Sem isso, saber o que falta exigia percorrer ~36
   // colunas linha a linha.
@@ -1126,6 +1198,8 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
                 {rows.map((r, idx) => {
                   const t: Partial<NonNullable<MirrorRow["ticket"]>> = r.ticket || {};
                   const a: Partial<NonNullable<MirrorRow["accommodation"]>> = r.accommodation || {};
+                  const ctx = ctxDaLinha(r);
+                  const est = (campo: string, valor: unknown) => estadoDaCelula(campo, valor, ctx);
                   const zebra = idx % 2 === 1 ? "bg-muted/20" : "";
                   return (
                     <tr key={r.teamInclusionId} className={`border-b hover:bg-primary/[0.04] group ${zebra}`} data-testid={`row-${r.teamInclusionId}`}>
@@ -1141,56 +1215,56 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
                         })()}
                       </td>
                       <td className={`sticky left-[210px] z-20 ${idx % 2 ? "bg-[hsl(var(--muted))]" : "bg-card"} group-hover:bg-muted px-2 py-1 border-r border-border/40 min-w-[120px] capitalize`}>{r.function.area || r.function.name || "—"}</td>
-                      <EditableCell rowId={r.teamInclusionId} field="schedule.startDate" value={r.schedule.startDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} etapa={BARRA.schedule} />
-                      <EditableCell rowId={r.teamInclusionId} field="schedule.departureDate" value={r.schedule.flightDepartureDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
-                      <EditableCell rowId={r.teamInclusionId} field="schedule.endDate" value={r.schedule.endDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
-                      <EditableCell rowId={r.teamInclusionId} field="schedule.returnDate" value={r.schedule.flightReturnDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
+                      <EditableCell rowId={r.teamInclusionId} field="schedule.startDate" value={r.schedule.startDate} estado={est("schedule.startDate", r.schedule.startDate)} type="date" onSave={saveCell} compact={compact} editMode={editMode} etapa={BARRA.schedule} />
+                      <EditableCell rowId={r.teamInclusionId} field="schedule.departureDate" value={r.schedule.flightDepartureDate} estado={est("schedule.departureDate", r.schedule.flightDepartureDate)} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
+                      <EditableCell rowId={r.teamInclusionId} field="schedule.endDate" value={r.schedule.endDate} estado={est("schedule.endDate", r.schedule.endDate)} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
+                      <EditableCell rowId={r.teamInclusionId} field="schedule.returnDate" value={r.schedule.flightReturnDate} estado={est("schedule.returnDate", r.schedule.flightReturnDate)} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
                       {show("passagem") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.value" value={t.value} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" onEdit={edit("ticket", r)} etapa={BARRA.ticket} />
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.departureAirport" value={t.departureAirport} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.actualDepartureTime" value={t.actualDepartureTime} type="time" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.actualReturnTime" value={t.actualReturnTime} type="time" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.returnOriginAirport" value={t.returnOriginAirport} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.locator" value={t.locator} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="mono" />
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.ticketCompany" value={t.ticketCompany} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.purchaseOrderNumber" value={t.purchaseOrderNumber} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.checkIn3" value={t.checkIn3} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.value" value={t.value} estado={est("ticket.value", t.value)} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" onEdit={edit("ticket", r)} etapa={BARRA.ticket} />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.departureAirport" value={t.departureAirport} estado={est("ticket.departureAirport", t.departureAirport)} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.actualDepartureTime" value={t.actualDepartureTime} estado={est("ticket.actualDepartureTime", t.actualDepartureTime)} type="time" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.actualReturnTime" value={t.actualReturnTime} estado={est("ticket.actualReturnTime", t.actualReturnTime)} type="time" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.returnOriginAirport" value={t.returnOriginAirport} estado={est("ticket.returnOriginAirport", t.returnOriginAirport)} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.locator" value={t.locator} estado={est("ticket.locator", t.locator)} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="mono" />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.ticketCompany" value={t.ticketCompany} estado={est("ticket.ticketCompany", t.ticketCompany)} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.purchaseOrderNumber" value={t.purchaseOrderNumber} estado={est("ticket.purchaseOrderNumber", t.purchaseOrderNumber)} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.checkIn3" value={t.checkIn3} estado={est("ticket.checkIn3", t.checkIn3)} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("hospedagem") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.hotelName" value={a.hotelName} type="text" onSave={saveCell} compact={compact} editMode={editMode} onEdit={edit("accommodation", r)} etapa={BARRA.hotel} />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.reservationNumber" value={a.reservationNumber} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="mono" />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.checkInDate" value={a.checkInDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.checkOutDate" value={a.checkOutDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.nightsCount" value={a.nightsCount} type="int" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.roomType" value={a.roomType} type="select" options={ROOM_TYPE_OPTIONS} onSave={saveCell} compact={compact} editMode={editMode} variant="room" />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.dailyRate" value={a.dailyRate} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.lateCheckout" value={a.lateCheckout} type="bool" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.totalCents" value={a.totalCents} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.paymentCompany" value={a.paymentCompany} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.hotelOc" value={a.hotelOc} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.checkIn4" value={a.checkIn4} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.hotelName" value={a.hotelName} estado={est("accommodation.hotelName", a.hotelName)} type="text" onSave={saveCell} compact={compact} editMode={editMode} onEdit={edit("accommodation", r)} etapa={BARRA.hotel} />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.reservationNumber" value={a.reservationNumber} estado={est("accommodation.reservationNumber", a.reservationNumber)} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="mono" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.checkInDate" value={a.checkInDate} estado={est("accommodation.checkInDate", a.checkInDate)} type="date" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.checkOutDate" value={a.checkOutDate} estado={est("accommodation.checkOutDate", a.checkOutDate)} type="date" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.nightsCount" value={a.nightsCount} estado={est("accommodation.nightsCount", a.nightsCount)} type="int" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.roomType" value={a.roomType} estado={est("accommodation.roomType", a.roomType)} type="select" options={ROOM_TYPE_OPTIONS} onSave={saveCell} compact={compact} editMode={editMode} variant="room" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.dailyRate" value={a.dailyRate} estado={est("accommodation.dailyRate", a.dailyRate)} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.lateCheckout" value={a.lateCheckout} estado={est("accommodation.lateCheckout", a.lateCheckout)} type="bool" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.totalCents" value={a.totalCents} estado={est("accommodation.totalCents", a.totalCents)} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.paymentCompany" value={a.paymentCompany} estado={est("accommodation.paymentCompany", a.paymentCompany)} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.hotelOc" value={a.hotelOc} estado={est("accommodation.hotelOc", a.hotelOc)} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.checkIn4" value={a.checkIn4} estado={est("accommodation.checkIn4", a.checkIn4)} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("bagagem") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="baggage.amountCents" value={r.baggage.extraCents} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" etapa={BARRA.baggage} />
-                        <EditableCell rowId={r.teamInclusionId} field="baggage.oc" value={r.baggage.oc} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
-                        <EditableCell rowId={r.teamInclusionId} field="baggage.checkIn" value={r.baggage.checkIn} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
+                        <EditableCell rowId={r.teamInclusionId} field="baggage.amountCents" value={r.baggage.extraCents} estado={est("baggage.amountCents", r.baggage.extraCents)} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" etapa={BARRA.baggage} />
+                        <EditableCell rowId={r.teamInclusionId} field="baggage.oc" value={r.baggage.oc} estado={est("baggage.oc", r.baggage.oc)} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
+                        <EditableCell rowId={r.teamInclusionId} field="baggage.checkIn" value={r.baggage.checkIn} estado={est("baggage.checkIn", r.baggage.checkIn)} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("uber") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="uber.amountCents" value={r.uber.totalCents} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" etapa={BARRA.uber} />
-                        <EditableCell rowId={r.teamInclusionId} field="uber.oc" value={r.uber.oc} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
-                        <EditableCell rowId={r.teamInclusionId} field="uber.checkIn" value={r.uber.checkIn} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
+                        <EditableCell rowId={r.teamInclusionId} field="uber.amountCents" value={r.uber.totalCents} estado={est("uber.amountCents", r.uber.totalCents)} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" etapa={BARRA.uber} />
+                        <EditableCell rowId={r.teamInclusionId} field="uber.oc" value={r.uber.oc} estado={est("uber.oc", r.uber.oc)} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
+                        <EditableCell rowId={r.teamInclusionId} field="uber.checkIn" value={r.uber.checkIn} estado={est("uber.checkIn", r.uber.checkIn)} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("locacao") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="carRental.company" value={r.carRental.company} type="text" onSave={saveCell} compact={compact} editMode={editMode} onEdit={edit("extras", r)} etapa={BARRA.car} />
-                        <EditableCell rowId={r.teamInclusionId} field="carRental.amountCents" value={r.carRental.totalCents} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
-                        <EditableCell rowId={r.teamInclusionId} field="carRental.oc" value={r.carRental.oc} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
-                        <EditableCell rowId={r.teamInclusionId} field="carRental.checkIn" value={r.carRental.checkIn} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
+                        <EditableCell rowId={r.teamInclusionId} field="carRental.company" value={r.carRental.company} estado={est("carRental.company", r.carRental.company)} type="text" onSave={saveCell} compact={compact} editMode={editMode} onEdit={edit("extras", r)} etapa={BARRA.car} />
+                        <EditableCell rowId={r.teamInclusionId} field="carRental.amountCents" value={r.carRental.totalCents} estado={est("carRental.amountCents", r.carRental.totalCents)} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
+                        <EditableCell rowId={r.teamInclusionId} field="carRental.oc" value={r.carRental.oc} estado={est("carRental.oc", r.carRental.oc)} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
+                        <EditableCell rowId={r.teamInclusionId} field="carRental.checkIn" value={r.carRental.checkIn} estado={est("carRental.checkIn", r.carRental.checkIn)} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("pendencias") && <>
                         <td className="px-2 py-1 border-r border-border/30 text-center">
                           <PendencyCountBadge pendencies={r.pendencies} testId={`pend-${r.teamInclusionId}`} />
                         </td>
-                        <EditableCell rowId={r.teamInclusionId} field="observations" value={r.observations} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
+                        <EditableCell rowId={r.teamInclusionId} field="observations" value={r.observations} estado={est("observations", r.observations)} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
                       </>}
                     </tr>
                   );
