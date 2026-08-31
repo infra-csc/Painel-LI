@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { horarioDoCarro, ANTECEDENCIA_MIN, ESPERA_POUSO_MIN } from "@shared/uber-routing";
 import {
   events,
   teamInclusions,
@@ -32,6 +33,9 @@ export type { MirrorRow, MirrorResponse } from "@shared/operational-mirror-types
 interface LogisticsConfig {
   uberTimeWindowMinutes: number;
   uberMaxPeoplePerCar: number;
+  /** Antecedência do carro na ida e espera pelo pouso na volta, em minutos. */
+  uberAdvanceMinutes: number;
+  uberPickupWaitMinutes: number;
   allowTripleRoom: boolean;
   hotelGroupBySameDepartmentPriority: boolean;
   requireSameGenderForSharedRoom: boolean;
@@ -45,6 +49,10 @@ async function getLogisticsConfig(): Promise<LogisticsConfig> {
   return {
     uberTimeWindowMinutes: parseInt(map["uber_group_time_window_minutes"] || "90", 10),
     uberMaxPeoplePerCar: parseInt(map["uber_max_people_per_car"] || "4", 10),
+    // Ajustáveis por evento/cidade: 3h de antecedência é a régua de São Paulo,
+    // não uma lei da física.
+    uberAdvanceMinutes: parseInt(map["uber_advance_minutes"] || String(ANTECEDENCIA_MIN), 10),
+    uberPickupWaitMinutes: parseInt(map["uber_pickup_wait_minutes"] || String(ESPERA_POUSO_MIN), 10),
     allowTripleRoom: (map["allow_triple_room"] || "false") === "true",
     hotelGroupBySameDepartmentPriority: (map["hotel_group_by_same_department_priority"] || "true") === "true",
     // Juntar gente da MESMA FUNÇÃO no quarto (pedido do dono, 28/08). A chave
@@ -562,6 +570,15 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
 
   // Construir candidatos de ida e volta a partir das passagens
   // hotel = ponto comum no destino/local do evento (separa quem vai para lugares diferentes)
+  /**
+   * O carro é na cidade de ORIGEM (31/08): a equipe sai da base para embarcar e
+   * é buscada quando pousa de volta. Antes o agrupamento usava o aeroporto de
+   * DESTINO na ida, como se o Uber fosse no destino da viagem.
+   *
+   * Ida: hora do VOO (é dela que sai a antecedência).
+   * Volta: hora do POUSO (é dela que sai a espera) — a hora da decolagem
+   * deixava quem lia fazendo a conta de cabeça.
+   */
   type UberCand = { collabId: string; date: string; airport: string; hotel: string; minutes: number | null };
   const idaCands: UberCand[] = [];
   const voltaCands: UberCand[] = [];
@@ -571,22 +588,23 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
     if (!ticket) continue;
     const acc = accByInclusion.get(ti.id);
     const hotel = acc?.hotelName || "Hotel/Local do evento";
-    if (ticket.actualDepartureDate && (ticket.destinationAirport || ticket.departureCityDestination)) {
+    if (ticket.actualDepartureDate && (ticket.departureAirport || ticket.departureCityOrigin)) {
       idaCands.push({
         collabId: ti.collaboratorId,
         date: ticket.actualDepartureDate,
-        airport: ticket.destinationAirport || ticket.departureCityDestination || "",
+        airport: ticket.departureAirport || ticket.departureCityOrigin || "",
         hotel,
         minutes: timeToMinutes(ticket.actualDepartureTime),
       });
     }
-    if (ticket.actualReturnDate && (ticket.returnOriginAirport || ticket.returnCityOrigin || ticket.destinationAirport)) {
+    if (ticket.actualReturnDate && (ticket.returnDestinationAirport || ticket.returnCityDestination || ticket.departureAirport)) {
       voltaCands.push({
         collabId: ti.collaboratorId,
         date: ticket.actualReturnDate,
-        airport: ticket.returnOriginAirport || ticket.destinationAirport || "",
+        airport: ticket.returnDestinationAirport || ticket.returnCityDestination || ticket.departureAirport || "",
         hotel,
-        minutes: timeToMinutes(ticket.actualReturnTime),
+        // Pouso da volta; sem ele, a decolagem — que é o melhor palpite que sobra.
+        minutes: timeToMinutes(ticket.returnArrivalTime) ?? timeToMinutes(ticket.actualReturnTime),
       });
     }
   }
@@ -609,11 +627,17 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
         if (current.length === 0) return;
         const [date, airport, hotel] = key.split("|");
         // ida: aeroporto -> hotel | volta: hotel -> aeroporto
-        const origin = direction === "ida" ? airport : hotel;
-        const destination = direction === "ida" ? hotel : airport;
-        const times = current.map((c) => c.minutes).filter((m): m is number => m != null);
-        const avg = times.length ? Math.round(times.reduce((s, m) => s + m, 0) / times.length) : null;
-        const timeStr = avg != null ? `${String(Math.floor(avg / 60)).padStart(2, "0")}:${String(avg % 60).padStart(2, "0")}` : null;
+        // Ida: base → aeroporto (embarcar). Volta: aeroporto → base (buscar).
+        const origin = direction === "ida" ? hotel : airport;
+        const destination = direction === "ida" ? airport : hotel;
+        // Ninguém sai na média: quem voa 04:55 e quem voa 05:50 saíam juntos num
+        // horário que servia mal para os dois. O carro é pensado pelo extremo que
+        // não pode falhar — ver shared/uber-routing.ts.
+        const timeStr = horarioDoCarro(
+          current.map((c) => ({ id: c.collabId, data: c.date, aeroporto: c.airport, minutos: c.minutes })),
+          direction,
+          { antecedenciaMin: config.uberAdvanceMinutes, esperaPousoMin: config.uberPickupWaitMinutes },
+        );
         const [g] = await db.insert(uberGroups).values({
           eventId,
           groupName: `${direction === "ida" ? "Ida" : "Volta"} ${airport} ${date}`,
@@ -636,7 +660,9 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
           anchor = c.minutes;
           continue;
         }
-        const within = anchor == null || c.minutes == null || Math.abs((c.minutes ?? 0) - (anchor ?? 0)) <= config.uberTimeWindowMinutes;
+        // Quem não tem horário não entra em carro alheio: seria decidir por um
+        // dado que não existe.
+        const within = anchor != null && c.minutes != null && c.minutes - anchor <= config.uberTimeWindowMinutes;
         if (within && current.length < config.uberMaxPeoplePerCar) {
           current.push(c);
         } else {
