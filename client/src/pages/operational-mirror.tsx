@@ -25,7 +25,7 @@ import {
   hotelTotalCents, isHotelTotalDerived,
   type MirrorRow, type MirrorTotals, type MirrorResponse, type MirrorSubtotal, type RoomGroup, type UberGroup, type MirrorCollaborator,
 } from "@shared/operational-mirror-types";
-import { estadoDaCelula, type ContextoDaLinha, type EstadoCelula } from "@shared/mirror-cell-state";
+import { estadoDaCelula, etapaCompleta, type ContextoDaLinha, type EstadoCelula } from "@shared/mirror-cell-state";
 import { EditDrawer, ROOM_TYPE_OPTIONS, ROOM_TYPE_LABEL, type DrawerKind, type DrawerSource } from "@/components/operational-mirror-drawers";
 import {
   RefreshCw, FileSpreadsheet, AlertTriangle, Plane, BedDouble, Luggage, Car,
@@ -743,6 +743,29 @@ export default function OperationalMirror() {
    * lidos como decisão tomada. Agora dizem "a confirmar" até alguém confirmar
    * na visão correspondente.
    */
+  /**
+   * Le um campo da linha pelo caminho usado na grade ("ticket.value"). E o que
+   * permite a regra de obrigatoriedade rodar sobre a linha inteira sem
+   * reescrever a lista de campos em dois lugares.
+   */
+  const lerCampo = (r: MirrorRow, campo: string): unknown => {
+    const [grupo, chave] = campo.split(".");
+    if (!chave) return (r as unknown as Record<string, unknown>)[grupo];
+    if (grupo === "schedule") {
+      const sc = r.schedule as unknown as Record<string, unknown>;
+      // A grade chama de "departureDate"/"returnDate" o que o schedule guarda
+      // com o prefixo do voo.
+      if (chave === "departureDate") return sc.flightDepartureDate;
+      if (chave === "returnDate") return sc.flightReturnDate;
+      return sc[chave];
+    }
+    if (grupo === "baggage" && chave === "amountCents") return r.baggage.extraCents;
+    if (grupo === "uber" && chave === "amountCents") return r.uber.totalCents;
+    if (grupo === "carRental" && chave === "amountCents") return r.carRental.totalCents;
+    const bloco = (r as unknown as Record<string, unknown>)[grupo] as Record<string, unknown> | null;
+    return bloco ? bloco[chave] : null;
+  };
+
   const uberConfirmados = useMemo(
     () => new Set((data?.uberGroups ?? []).filter((g) => g.confirmed).map((g) => g.id)),
     [data?.uberGroups],
@@ -751,6 +774,37 @@ export default function OperationalMirror() {
     () => new Set((data?.roomGroups ?? []).filter((g) => g.confirmed).map((g) => g.id)),
     [data?.roomGroups],
   );
+
+  /**
+   * As cinco etapas do fechamento. "Prontas" é quantas pessoas têm TODOS os
+   * campos obrigatórios daquela etapa preenchidos — não quantas têm o registro
+   * criado. É o número que responde "quanto falta para eu comprar".
+   */
+  const etapasFechamento = useMemo(() => {
+    const defs = [
+      { chave: "passagem" as const, rotulo: "Passagem", ponto: "bg-indigo-500", valor: totals?.tickets ?? 0 },
+      { chave: "hospedagem" as const, rotulo: "Hospedagem", ponto: "bg-emerald-500", valor: totals?.hotel ?? 0 },
+      { chave: "bagagem" as const, rotulo: "Bagagem", ponto: "bg-amber-500", valor: totals?.baggage ?? 0 },
+      { chave: "uber" as const, rotulo: "Uber", ponto: "bg-fuchsia-500", valor: totals?.uber ?? 0 },
+      { chave: "locacao" as const, rotulo: "Locação", ponto: "bg-orange-500", valor: totals?.carRental ?? 0 },
+    ];
+    return defs.map((d) => {
+      let prontas = 0;
+      for (const r of rows) {
+        const ctx: ContextoDaLinha = {
+          temPassagem: !!r.ticket,
+          temHotel: !!r.accommodation?.hotelName,
+          bagagemCents: r.baggage.extraCents,
+          uberCents: r.uber.totalCents,
+          locacaoCents: r.carRental.totalCents,
+          uberConfirmado: !!r.uber.suggestedGroupId && uberConfirmados.has(r.uber.suggestedGroupId),
+          quartoConfirmado: !!r.suggestedRoomGroupId && quartosConfirmados.has(r.suggestedRoomGroupId),
+        };
+        if (etapaCompleta(d.chave, (campo) => lerCampo(r, campo), ctx)) prontas += 1;
+      }
+      return { ...d, prontas, faltam: rows.length - prontas };
+    });
+  }, [rows, totals, uberConfirmados, quartosConfirmados]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -761,26 +815,16 @@ export default function OperationalMirror() {
             informação viraram uma linha de metadados — "Data" e "Período
             geral" eram o mesmo dado em dois cartões, ambos truncados. */}
         <header className="space-y-4">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="min-w-0">
-              <h1 className="text-[22px] font-semibold tracking-tight text-foreground">Espelho Operacional</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                Passagem, hospedagem, bagagem, Uber e locação de cada colaborador do evento.
-              </p>
-            </div>
+          {/* Um andar, não três (31/08): eram ~180px antes do primeiro dado —
+              o <h1> repetia o breadcrumb, a tagline explicava o que a própria
+              grade mostra, e o nome do evento aparecia duas vezes (no seletor e
+              na linha de metadados). Ficou o seletor + o que o evento é. */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
             <div className="w-full sm:w-[380px] shrink-0">
-              <Label htmlFor="mirror-event" className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Evento
-              </Label>
-              <div className="mt-1.5">
-                <EventCombobox events={events} value={eventId} onValueChange={setEventId} placeholder="Selecione um evento" showAllOption={false} />
-              </div>
+              <EventCombobox events={events} value={eventId} onValueChange={setEventId} placeholder="Selecione um evento" showAllOption={false} />
             </div>
-          </div>
-
-          {ev && (
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm border-t pt-3">
-              <span className="font-medium text-foreground truncate max-w-[420px]" title={ev.name}>{ev.name}</span>
+            {ev && (
+              <>
               {ev.location && (
                 <span className="inline-flex items-center gap-1.5 text-muted-foreground">
                   <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />{ev.location}
@@ -800,7 +844,9 @@ export default function OperationalMirror() {
                   <Lock className="h-3.5 w-3.5" aria-hidden="true" /> Somente leitura
                 </span>
               )}
-              <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
+              </>
+            )}
+            <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
               {canEditMirror && (
                 <>
                   <Tooltip>
@@ -826,11 +872,10 @@ export default function OperationalMirror() {
                 </>
               )}
               <Button size="sm" className="h-9" onClick={handleExport} data-testid="button-export">
-                <FileSpreadsheet className="h-4 w-4 mr-2" aria-hidden="true" /> Exportar
+                <FileSpreadsheet className="h-4 w-4 mr-2" aria-hidden="true" /> Exportar planilha
               </Button>
-              </div>
             </div>
-          )}
+          </div>
         </header>
 
         {!eventId && (
@@ -878,23 +923,54 @@ export default function OperationalMirror() {
             {/* Eram seis cartões com borda, quatro deles zerados. Agora é uma
                 faixa só: o total manda, as categorias explicam, e o que está
                 zerado fica apagado em vez de gritar "R$ 0,00" seis vezes. */}
-            <section className="rounded-lg border bg-card overflow-hidden" aria-label="Resumo de custos do evento">
-              <div className="flex flex-col sm:flex-row">
-                <div className="px-5 py-4 sm:border-r bg-muted/30 sm:min-w-[230px]">
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Custo total do evento</p>
-                  <p className="mt-1 text-[26px] font-semibold tracking-tight tabular-nums" data-testid="mirror-total-geral">{brl(totals.grand)}</p>
+            {/* Faixa de fechamento (31/08): eram três blocos empilhados — custo,
+                progresso e pendências. O que Compras precisa saber é UMA coisa:
+                quanto falta para fechar cada etapa. O contador é quantas pessoas
+                estão PRONTAS (todo campo obrigatório preenchido), não quantas
+                têm o registro criado — a diferença entre "13 têm hotel" e "9 dá
+                para comprar". */}
+            <section className="rounded-lg border bg-card overflow-hidden" aria-label="Fechamento do evento">
+              <div className="flex flex-col lg:flex-row">
+                <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x divide-y sm:divide-y-0">
+                  {etapasFechamento.map((e) => (
+                    <button
+                      key={e.chave}
+                      type="button"
+                      onClick={() => setView("grade")}
+                      title={`${e.rotulo}: ${e.prontas} de ${rows.length} ${rows.length === 1 ? "pessoa pronta" : "pessoas prontas"}`}
+                      className="px-3.5 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                    >
+                      <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${e.ponto}`} aria-hidden="true" />
+                        {e.rotulo}
+                      </span>
+                      <span className="mt-1 flex items-baseline gap-1">
+                        <span className="text-[19px] font-semibold tabular-nums leading-none tracking-tight">{e.prontas}</span>
+                        <span className="text-xs text-muted-foreground">de {rows.length}</span>
+                      </span>
+                      <span className="mt-1.5 block h-[3px] w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                        <span
+                          className={`block h-full rounded-full ${e.faltam ? "bg-amber-500" : "bg-emerald-500"}`}
+                          style={{ width: `${rows.length ? Math.round((e.prontas / rows.length) * 100) : 0}%` }}
+                        />
+                      </span>
+                      <span className="mt-1 block text-xs tabular-nums text-muted-foreground">{brl(e.valor)}</span>
+                      <span className={`block text-[11px] font-semibold ${e.faltam ? "text-amber-700 dark:text-amber-300" : "text-emerald-700 dark:text-emerald-300"}`}>
+                        {e.faltam ? `${e.faltam} a preencher` : "completo"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div className="px-4 py-3 bg-muted/30 lg:border-l lg:w-[210px] shrink-0">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Custo do evento</p>
+                  {/* De 26px para 22px e para o fim da faixa: é o maior número
+                      da tela e o que Compras menos usa para decidir. */}
+                  <p className="mt-1 text-[22px] font-semibold tracking-tight tabular-nums" data-testid="mirror-total-geral">{brl(totals.grand)}</p>
                   {derivedHotelCount > 0 && (
                     <p className="mt-1 text-[11px] text-muted-foreground">
                       Inclui {derivedHotelCount} hotel calculado por diária × noites
                     </p>
                   )}
-                </div>
-                <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x divide-y sm:divide-y-0">
-                  <CostItem icon={<Plane className="h-3.5 w-3.5" />} label="Passagens" value={totals.tickets} />
-                  <CostItem icon={<BedDouble className="h-3.5 w-3.5" />} label="Hotelaria" value={totals.hotel} />
-                  <CostItem icon={<Luggage className="h-3.5 w-3.5" />} label="Bagagem" value={totals.baggage} />
-                  <CostItem icon={<Car className="h-3.5 w-3.5" />} label="Uber" value={totals.uber} />
-                  <CostItem icon={<Car className="h-3.5 w-3.5" />} label="Locação" value={totals.carRental} />
                 </div>
               </div>
             </section>

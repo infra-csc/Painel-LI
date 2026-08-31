@@ -152,3 +152,41 @@ export function faltamNaLinha(
 ): number {
   return campos.filter(({ campo, valor }) => estadoDaCelula(campo, valor, ctx) === "falta").length;
 }
+
+/**
+ * Campos que compõem cada etapa da grade. É o que permite responder "quantas
+ * pessoas estão PRONTAS para comprar" em vez de "quantas têm o registro
+ * criado" — a diferença entre "13 têm hotel" e "9 dá para fechar".
+ */
+export const CAMPOS_POR_ETAPA = {
+  passagem: [
+    "ticket.value", "ticket.departureAirport", "ticket.returnOriginAirport",
+    "ticket.actualDepartureTime", "ticket.actualReturnTime", "ticket.locator",
+    "ticket.ticketCompany", "ticket.purchaseOrderNumber", "ticket.checkIn3",
+    "schedule.departureDate", "schedule.returnDate",
+  ],
+  hospedagem: [
+    "accommodation.hotelName", "accommodation.reservationNumber", "accommodation.checkInDate",
+    "accommodation.checkOutDate", "accommodation.nightsCount", "accommodation.dailyRate",
+    "accommodation.totalCents", "accommodation.paymentCompany", "accommodation.hotelOc",
+    "accommodation.checkIn4",
+  ],
+  bagagem: ["baggage.oc", "baggage.checkIn"],
+  uber: ["uber.oc", "uber.checkIn"],
+  locacao: ["carRental.company", "carRental.oc", "carRental.checkIn"],
+} as const;
+
+export type EtapaDaGrade = keyof typeof CAMPOS_POR_ETAPA;
+
+/**
+ * A etapa desta pessoa está fechada? (nenhum campo obrigatório dela em aberto)
+ * Célula em "a confirmar" não conta como pendência — quem decide ali é a visão
+ * de Uber ou de Quartos, não o preenchimento.
+ */
+export function etapaCompleta(
+  etapa: EtapaDaGrade,
+  ler: (campo: string) => unknown,
+  ctx: ContextoDaLinha,
+): boolean {
+  return CAMPOS_POR_ETAPA[etapa].every((campo) => estadoDaCelula(campo, ler(campo), ctx) !== "falta");
+}

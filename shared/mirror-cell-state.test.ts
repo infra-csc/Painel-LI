@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { campoObrigatorio, estadoDaCelula, faltamNaLinha, temValor, type ContextoDaLinha } from "./mirror-cell-state";
+import { campoObrigatorio, estadoDaCelula, etapaCompleta, faltamNaLinha, temValor, type ContextoDaLinha } from "./mirror-cell-state";
 
 const VAZIA: ContextoDaLinha = {
   temPassagem: false, temHotel: false,
@@ -94,5 +94,40 @@ describe("estado da célula", () => {
       { campo: "observations", valor: null },      // silêncio
     ];
     expect(faltamNaLinha(campos, ctx)).toBe(1);
+  });
+});
+
+describe("etapa completa", () => {
+  const ler = (mapa: Record<string, unknown>) => (campo: string) => mapa[campo];
+
+  it("passagem sem bilhete só cobra o valor", () => {
+    // Sem passagem lançada, o único campo cobrado é o valor: preenchido ele,
+    // a etapa fecha — é isso que "pronto para comprar" quer dizer aqui.
+    expect(etapaCompleta("passagem", ler({ "ticket.value": 45000 }), VAZIA)).toBe(true);
+    expect(etapaCompleta("passagem", ler({}), VAZIA)).toBe(false);
+  });
+
+  it("com bilhete lançado, a passagem só fecha com os documentos", () => {
+    const ctx = { ...VAZIA, temPassagem: true };
+    const quase = ler({ "ticket.value": 45000, "ticket.locator": "ABC123" });
+    expect(etapaCompleta("passagem", quase, ctx)).toBe(false);
+  });
+
+  it("hospedagem sem hotel não fecha; com hotel, cobra o resto", () => {
+    expect(etapaCompleta("hospedagem", ler({}), VAZIA)).toBe(false);
+    expect(etapaCompleta("hospedagem", ler({ "accommodation.hotelName": "Ibis" }), VAZIA)).toBe(true);
+    const comHotel = { ...VAZIA, temHotel: true };
+    expect(etapaCompleta("hospedagem", ler({ "accommodation.hotelName": "Ibis" }), comHotel)).toBe(false);
+  });
+
+  it("extra sem valor já nasce fechado — não houve gasto a documentar", () => {
+    expect(etapaCompleta("bagagem", ler({}), VAZIA)).toBe(true);
+    expect(etapaCompleta("bagagem", ler({}), { ...VAZIA, bagagemCents: 4000 })).toBe(false);
+  });
+
+  it("Uber não confirmado não cobra documento de ninguém", () => {
+    const ctx = { ...VAZIA, uberCents: 5800 };
+    expect(etapaCompleta("uber", ler({}), ctx)).toBe(true);
+    expect(etapaCompleta("uber", ler({}), { ...ctx, uberConfirmado: true })).toBe(false);
   });
 });
