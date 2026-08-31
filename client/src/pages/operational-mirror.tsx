@@ -74,6 +74,39 @@ type OpenDrawer = (kind: DrawerKind, r: MirrorRow) => void;
 type SortState = { key: "nome" | "departamento" | null; dir: "asc" | "desc" };
 
 // ---- pendency categories -> matcher ----
+/**
+ * Os nove filtros booleanos, agrupados pelo que respondem (31/08). Eram dez
+ * caixas soltas numa coluna: quem procurava "quem está sem OC" lia a lista
+ * inteira. Cada um carrega o próprio predicado — é ele que a lista usa para
+ * filtrar E para contar quantas pessoas o filtro devolveria.
+ */
+const GRUPOS_DE_FILTRO: { titulo: string; itens: { key: string; label: string; match: (r: MirrorRow) => boolean }[] }[] = [
+  {
+    titulo: "Situação",
+    itens: [
+      { key: "comPendencia", label: "Com pendência", match: (r) => r.pendencies.length > 0 },
+      { key: "semPassagem", label: "Sem passagem", match: (r) => !r.ticket },
+      { key: "semHospedagem", label: "Sem hospedagem", match: (r) => !r.accommodation },
+    ],
+  },
+  {
+    titulo: "Documento",
+    itens: [
+      { key: "semLocalizador", label: "Sem localizador", match: (r) => !r.ticket?.locator },
+      { key: "semOc", label: "Sem OC", match: (r) => !r.ticket?.purchaseOrderNumber },
+      { key: "semConferencia", label: "Sem conferência", match: (r) => !(r.ticket?.checkIn3 && r.accommodation?.checkIn4) },
+    ],
+  },
+  {
+    titulo: "Extras",
+    itens: [
+      { key: "comBagagem", label: "Com bagagem", match: (r) => r.baggage.extraCents > 0 },
+      { key: "comUber", label: "Com Uber", match: (r) => r.uber.totalCents > 0 },
+      { key: "comLocacao", label: "Com locação", match: (r) => r.carRental.totalCents > 0 },
+    ],
+  },
+];
+
 const PEND_CATS: { key: string; label: string; match: (p: string) => boolean }[] = [
   { key: "passagem", label: "Sem passagem", match: (p) => p === "Sem passagem" },
   { key: "hospedagem", label: "Sem hospedagem", match: (p) => p === "Sem hospedagem" },
@@ -171,7 +204,7 @@ function rotuloCampo(field: string): string {
   return grupo ? `${grupo} — ${nome}` : nome;
 }
 function EditableCell({
-  rowId, field, value, type, onSave, align = "left", compact, onEdit, editMode = true, variant, options, etapa, estado = "preenchido",
+  rowId, field, value, type, onSave, align = "left", compact, onEdit, editMode = true, variant, options, etapa, estado = "preenchido", aoConfirmar,
 }: {
   rowId: string; field: string; value: CellValue; type: CellType;
   onSave: (rowId: string, field: string, value: CellValue, anterior?: CellValue) => Promise<void>;
@@ -183,6 +216,8 @@ function EditableCell({
    * confirmada fica violeta.
    */
   estado?: EstadoCelula;
+  /** Célula em "a confirmar": clicar leva para a visão que confirma o grupo. */
+  aoConfirmar?: () => void;
   /** Primeira coluna de um bloco: ganha a barra colorida que separa as etapas. */
   etapa?: string;
   /** type === "select": opções permitidas */
@@ -390,7 +425,13 @@ function EditableCell({
     <td ref={tdRef} className={`p-0 border-r border-border/30 ${div} relative z-0 group/cell ${ring}`}>
       {/* Sem aria-label aqui de propósito: o nome acessível do botão é o próprio
           valor da célula, que é o que interessa ouvir. */}
-      <button type="button" onClick={() => startEdit()} onKeyDown={teclasNaCelula} data-cell-focus tabIndex={-1} title={`Editar ${rotuloCampo(field)}`}
+      <button
+        type="button"
+        // Editar aqui seria digitar por cima de uma sugestão que ninguém
+        // aprovou: o clique leva para a visão onde ela se confirma.
+        onClick={estado === "a_confirmar" && aoConfirmar ? aoConfirmar : () => startEdit()}
+        onKeyDown={teclasNaCelula} data-cell-focus tabIndex={-1}
+        title={estado === "a_confirmar" && aoConfirmar ? "Sugestão ainda não confirmada — abrir para confirmar" : `Editar ${rotuloCampo(field)}`}
         className={`w-full h-full ${pad} ${onEdit ? "pr-6" : ""} text-xs hover:bg-muted/50 transition-colors whitespace-nowrap ${align !== "left" ? "tabular-nums" : ""} flex items-center gap-1 ${align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start"}`}>
         {state === "saving" && <Loader2 className="h-3 w-3 animate-spin text-blue-500 shrink-0" />}
         {state === "saved" && <Check className="h-3 w-3 text-green-600 shrink-0" />}
@@ -428,13 +469,13 @@ const BARRA = {
 };
 
 type Block = "passagem" | "hospedagem" | "bagagem" | "uber" | "locacao" | "pendencias";
-const ALL_BLOCKS: { key: Block; label: string }[] = [
-  { key: "passagem", label: "Passagem" },
-  { key: "hospedagem", label: "Hospedagem" },
-  { key: "bagagem", label: "Bagagem Extra" },
-  { key: "uber", label: "Uber" },
-  { key: "locacao", label: "Locação de Carro" },
-  { key: "pendencias", label: "Pendências" },
+const ALL_BLOCKS: { key: Block; label: string; colunas: number; ponto: string }[] = [
+  { key: "passagem", label: "Passagem", colunas: 9, ponto: "bg-indigo-500" },
+  { key: "hospedagem", label: "Hospedagem", colunas: 12, ponto: "bg-emerald-500" },
+  { key: "bagagem", label: "Bagagem Extra", colunas: 3, ponto: "bg-amber-500" },
+  { key: "uber", label: "Uber", colunas: 3, ponto: "bg-fuchsia-500" },
+  { key: "locacao", label: "Locação de Carro", colunas: 4, ponto: "bg-orange-500" },
+  { key: "pendencias", label: "Pendências", colunas: 2, ponto: "bg-rose-500" },
 ];
 
 const VIEWS = [
@@ -662,6 +703,8 @@ export default function OperationalMirror() {
   // Conta COLABORADORES, não ocorrências: o chip filtra linhas, e quem tinha
   // "Passagem sem OC" + "Hospedagem sem OC" era contado duas vezes — o número do
   // chip nunca batia com a quantidade de linhas exibidas ao clicar nele.
+  /** Pessoas com ao menos uma pendência — "30 pendências em 12 pessoas". */
+  const pessoasComPendencia = useMemo(() => rows.filter((r) => r.pendencies.length > 0).length, [rows]);
   const pendCounts = useMemo(() => {
     const c: Record<string, number> = {};
     PEND_CATS.forEach((cat) => { c[cat.key] = 0; });
@@ -689,11 +732,10 @@ export default function OperationalMirror() {
       if (flags.semHospedagem && r.accommodation) return false;
       if (flags.semLocalizador && r.ticket?.locator) return false;
       if (flags.semOc && r.ticket?.purchaseOrderNumber) return false;
+      if (flags.semConferencia && r.ticket?.checkIn3 && r.accommodation?.checkIn4) return false;
       if (flags.comBagagem && !(r.baggage.extraCents > 0)) return false;
       if (flags.comUber && !(r.uber.totalCents > 0)) return false;
       if (flags.comLocacao && !(r.carRental.totalCents > 0)) return false;
-      if (flags.sugQuarto && !r.suggestedRoomGroupId) return false;
-      if (flags.sugUber && !r.uber.suggestedGroupId) return false;
       return true;
     });
     if (sort.key) {
@@ -919,10 +961,6 @@ export default function OperationalMirror() {
 
         {eventId && !isLoading && !loadErrorMessage && data && ev && totals && (
           <>
-            {/* ===== RESUMO FINANCEIRO ===== */}
-            {/* Eram seis cartões com borda, quatro deles zerados. Agora é uma
-                faixa só: o total manda, as categorias explicam, e o que está
-                zerado fica apagado em vez de gritar "R$ 0,00" seis vezes. */}
             {/* Faixa de fechamento (31/08): eram três blocos empilhados — custo,
                 progresso e pendências. O que Compras precisa saber é UMA coisa:
                 quanto falta para fechar cada etapa. O contador é quantas pessoas
@@ -973,16 +1011,15 @@ export default function OperationalMirror() {
                   )}
                 </div>
               </div>
-            </section>
 
-            {/* ===== PENDÊNCIAS ===== */}
-            {/* Só aparecem as categorias que EXISTEM. Chips zerados só ocupavam
-                espaço e diluíam as que realmente pedem ação. */}
-            {(() => {
+              {/* Linha de baixo da MESMA faixa (31/08): eram três blocos
+                  empilhados — custo, progresso e pendências. Fechar o evento é
+                  uma leitura só: o que já está pronto e o que trava. */}
+              {(() => {
               const comPendencia = PEND_CATS.filter((c) => (pendCounts[c.key] ?? 0) > 0);
               if (data.pendingCount === 0) {
                 return (
-                  <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 px-4 py-2.5 text-sm dark:border-emerald-900/50 dark:bg-emerald-950/20" data-testid="mirror-no-pendencies">
+                  <div className="flex items-center gap-2 border-t border-emerald-200 bg-emerald-50/50 px-4 py-2.5 text-sm dark:border-emerald-900/50 dark:bg-emerald-950/20" data-testid="mirror-no-pendencies">
                     <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden="true" />
                     <span className="font-medium text-emerald-900 dark:text-emerald-200">Nada pendente neste evento.</span>
                     <span className="text-emerald-700/80 dark:text-emerald-300/70">Passagens, hospedagens e documentos estão completos.</span>
@@ -990,11 +1027,11 @@ export default function OperationalMirror() {
                 );
               }
               return (
-                <div className="rounded-lg border border-amber-200 bg-amber-50/40 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/20">
+                <div className="border-t border-amber-200 bg-amber-50/60 px-4 py-2.5 dark:border-amber-900/50 dark:bg-amber-950/20">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-2 text-sm font-medium text-amber-900 dark:text-amber-200 mr-1">
-                      <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" aria-hidden="true" />
-                      {data.pendingCount} {data.pendingCount === 1 ? "pendência" : "pendências"}
+                    <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-900 dark:text-amber-200 mr-1">
+                      <AlertTriangle className="h-[15px] w-[15px] text-amber-600 dark:text-amber-400 shrink-0" aria-hidden="true" />
+                      {data.pendingCount} {data.pendingCount === 1 ? "pendência" : "pendências"} em {pessoasComPendencia} {pessoasComPendencia === 1 ? "pessoa" : "pessoas"}
                     </span>
                     {comPendencia.map((c) => {
                       const count = pendCounts[c.key] ?? 0;
@@ -1003,24 +1040,25 @@ export default function OperationalMirror() {
                         <button key={c.key} type="button" onClick={() => setPendCat(active ? null : c.key)} data-testid={`chip-${c.key}`}
                           aria-pressed={active}
                           title={`${c.label}: ${count} ${count === 1 ? "colaborador" : "colaboradores"}. Clique para filtrar.`}
-                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
+                          className={`inline-flex h-6 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
                             active
-                              ? "bg-amber-500 border-amber-500 text-white shadow-sm"
-                              : "border-amber-300/70 bg-background/60 text-amber-800 hover:border-amber-400 hover:bg-amber-100/60 dark:text-amber-300 dark:hover:bg-amber-950/40"}`}>
+                              ? "border-amber-600 bg-amber-200 text-amber-900 dark:bg-amber-900/60 dark:text-amber-100"
+                              : "border-amber-300 bg-background text-amber-800 hover:bg-amber-100/60 dark:text-amber-300 dark:hover:bg-amber-950/40"}`}>
                           {c.label}
-                          <span className={`tabular-nums ${active ? "opacity-90" : "opacity-70"}`}>{count}</span>
+                          <span className="font-semibold tabular-nums opacity-75">{count}</span>
                         </button>
                       );
                     })}
                     {pendCat && (
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs ml-auto" onClick={() => setPendCat(null)}>
-                        <X className="h-3 w-3 mr-1" aria-hidden="true" /> Limpar
+                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs ml-auto" onClick={() => setPendCat(null)}>
+                        <X className="h-3 w-3 mr-1" aria-hidden="true" /> Limpar filtro
                       </Button>
                     )}
                   </div>
                 </div>
               );
-            })()}
+              })()}
+            </section>
 
             {/* ===== BARRA DE TRABALHO (fixa no topo ao rolar) ===== */}
             {/* Antes as abas e a busca sumiam ao rolar a grade e o conteúdo
@@ -1068,7 +1106,7 @@ export default function OperationalMirror() {
                       {activeFilterCount > 0 && <Badge className="ml-2 h-5 px-1.5 tabular-nums">{activeFilterCount}</Badge>}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-72" align="end">
+                  <PopoverContent className="w-[560px] max-w-[92vw]" align="end">
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-semibold flex items-center gap-1.5"><Filter className="h-3.5 w-3.5" aria-hidden="true" /> Filtros</span>
@@ -1097,16 +1135,26 @@ export default function OperationalMirror() {
                         </div>
                       )}
                       <Separator />
-                      <div className="space-y-1.5">
-                        {[
-                          ["comPendencia", "Com pendência"], ["semPassagem", "Sem passagem"], ["semHospedagem", "Sem hospedagem"],
-                          ["semLocalizador", "Sem localizador"], ["semOc", "Sem OC"], ["comBagagem", "Com bagagem"],
-                          ["comUber", "Com Uber"], ["comLocacao", "Com locação"], ["sugQuarto", "Tem sugestão de quarto"], ["sugUber", "Tem sugestão de Uber"],
-                        ].map(([k, label]) => (
-                          <label key={k} className="flex items-center gap-2 text-sm cursor-pointer rounded px-1 py-0.5 hover:bg-muted/60">
-                            <Checkbox checked={!!flags[k]} onCheckedChange={(v) => setFlags((f) => ({ ...f, [k]: !!v }))} />
-                            {label}
-                          </label>
+                      {/* Cada filtro diz quantas pessoas ele devolveria ANTES do
+                          clique: sem isso, filtrar era às cegas — marcar, ver a
+                          lista vazia, desmarcar. */}
+                      <div className="grid gap-x-4 gap-y-3 sm:grid-cols-3">
+                        {GRUPOS_DE_FILTRO.map((g) => (
+                          <div key={g.titulo} className="space-y-1">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{g.titulo}</p>
+                            {g.itens.map((item) => {
+                              const quantas = rows.filter(item.match).length;
+                              return (
+                                <label key={item.key}
+                                  className={`flex h-7 items-center gap-2 rounded px-1 text-[13px] ${quantas === 0 && !flags[item.key] ? "cursor-not-allowed opacity-45" : "cursor-pointer hover:bg-muted/60"}`}>
+                                  <Checkbox checked={!!flags[item.key]} disabled={quantas === 0 && !flags[item.key]}
+                                    onCheckedChange={(v) => setFlags((f) => ({ ...f, [item.key]: !!v }))} />
+                                  <span className="truncate">{item.label}</span>
+                                  <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">{quantas}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -1119,7 +1167,11 @@ export default function OperationalMirror() {
                       <Button variant="outline" size="sm" className="h-9" data-testid="button-columns">
                         <Columns3 className="h-4 w-4 sm:mr-2" aria-hidden="true" />
                         <span className="hidden lg:inline">Exibição</span>
-                        {hiddenBlocks.size > 0 && <Badge variant="secondary" className="ml-2 h-5 px-1.5 tabular-nums">{ALL_BLOCKS.length - hiddenBlocks.size}</Badge>}
+                        {hiddenBlocks.size > 0 && (
+                          <Badge variant="secondary" className="ml-2 h-5 px-1.5 tabular-nums">
+                            {ALL_BLOCKS.length - hiddenBlocks.size} de {ALL_BLOCKS.length}
+                          </Badge>
+                        )}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-60" align="end">
@@ -1139,12 +1191,17 @@ export default function OperationalMirror() {
                         <Separator />
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-semibold">Blocos da grade</span>
-                          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setHiddenBlocks(new Set())}>Padrão</Button>
+                          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setHiddenBlocks(new Set())}>Mostrar tudo</Button>
                         </div>
+                        {/* O ponto é a identidade da etapa (a mesma da faixa de
+                            fechamento e do cabeçalho da grade) e "N colunas" diz
+                            o que se ganha de espaço ao esconder o bloco. */}
                         {ALL_BLOCKS.map((b) => (
-                          <label key={b.key} className="flex items-center gap-2 text-sm cursor-pointer rounded px-1 py-0.5 hover:bg-muted/60">
+                          <label key={b.key} className="flex h-8 items-center gap-2 text-sm cursor-pointer rounded px-1 hover:bg-muted/60">
                             <Checkbox checked={!hiddenBlocks.has(b.key)} onCheckedChange={(v) => setHiddenBlocks((s) => { const n = new Set(s); if (v) n.delete(b.key); else n.add(b.key); return n; })} />
-                            {b.label}
+                            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${b.ponto}`} aria-hidden="true" />
+                            <span className="truncate">{b.label}</span>
+                            <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">{b.colunas} colunas</span>
                           </label>
                         ))}
                       </div>
@@ -1171,7 +1228,7 @@ export default function OperationalMirror() {
             )}
 
             {/* ===== VIEWS ===== */}
-            {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} uberConfirmados={uberConfirmados} quartosConfirmados={quartosConfirmados} />}
+            {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} uberConfirmados={uberConfirmados} quartosConfirmados={quartosConfirmados} irParaVisao={setView} />}
             {view === "colaboradores" && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
             {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
             {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} rows={rows} onMover={(c, de, para) => moverMutation.mutate({ tipo: "quarto", corpo: { collaboratorId: c, deGrupoId: de, paraGrupoId: para } })} onSeparar={(id) => separarQuartoMutation.mutate(id)} canEdit={canEditMirror} onPatch={(id, campos) => patchRoomMutation.mutate({ id, campos })} onConfirm={(id: string) => confirmRoomMutation.mutate(id)} pendingId={confirmRoomMutation.isPending ? confirmRoomMutation.variables : null} />}
@@ -1202,8 +1259,10 @@ interface GradeViewProps {
   /** Ids de grupos já confirmados — separam sugestão de dado na grade. */
   uberConfirmados: Set<string>;
   quartosConfirmados: Set<string>;
+  /** Leva para a visao que confirma o grupo (celula em "a confirmar"). */
+  irParaVisao: (v: "uber" | "quartos") => void;
 }
-function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, onSort, editMode, canEdit, emptyMessage, uberConfirmados, quartosConfirmados }: GradeViewProps) {
+function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, onSort, editMode, canEdit, emptyMessage, uberConfirmados, quartosConfirmados, irParaVisao }: GradeViewProps) {
   const show = (b: Block) => !hiddenBlocks.has(b);
   /**
    * O que cada linha tem — é daqui que sai a obrigatoriedade condicional de
@@ -1247,6 +1306,23 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
     [hiddenBlocks], // eslint-disable-line react-hooks/exhaustive-deps
   );
   /**
+   * Rola a grade até o começo de um bloco. A conta desconta as duas colunas
+   * congeladas (nome e departamento): sem isso o bloco pararia embaixo delas.
+   */
+  const rolagemRef = useRef<HTMLDivElement | null>(null);
+  const irParaBloco = (bloco: Block) => {
+    const caixa = rolagemRef.current;
+    const alvo = caixa?.querySelector<HTMLElement>(`[data-bloco="${bloco}"]`);
+    if (!caixa || !alvo) return;
+    const congeladas = caixa.querySelector<HTMLElement>("thead th")?.offsetWidth ?? 330;
+    // Salto, sem animação: visto ao vivo, há navegador que ignora rolagem
+    // suave — tanto scrollTo({behavior:"smooth"}) quanto scroll-behavior no CSS
+    // — e aí o destino simplesmente nunca chegava. Chegar importa mais do que
+    // chegar deslizando.
+    caixa.scrollLeft = Math.max(0, alvo.offsetLeft - congeladas);
+  };
+
+  /**
    * A porta de entrada da grade.
    *
    * Atravessar a grade custava ~540 paradas de Tab (39 colunas × as linhas):
@@ -1268,20 +1344,37 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
   const sortIcon = (key: string) => sort?.key === key ? (sort.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ChevronsUpDown className="h-3 w-3 opacity-40" />;
   return (
     <>
+      {/* "Ir para": 39 colunas não cabem na tela, e rolar às cegas até achar
+          "Locação" é o custo diário de quem preenche. Cada botão leva o bloco
+          para a esquerda da área visível — sem esconder coluna nenhuma. */}
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Ir para</span>
+        {ALL_BLOCKS.filter((b) => show(b.key)).map((b) => (
+          <button
+            key={b.key}
+            type="button"
+            onClick={() => irParaBloco(b.key)}
+            className="inline-flex h-[26px] items-center gap-1.5 rounded-md border px-2.5 text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${b.ponto}`} aria-hidden="true" />
+            {b.label}
+          </button>
+        ))}
+      </div>
       <div className="rounded-lg border bg-card overflow-hidden">
         <div>
-          <div className="overflow-auto max-h-[calc(100vh-250px)] min-h-[280px]">
+          <div ref={rolagemRef} className="overflow-auto max-h-[calc(100vh-250px)] min-h-[280px]">
             <table ref={tabelaRef} className="text-xs border-collapse w-full" data-testid="operational-grid">
               <thead>
                 <tr>
                   <th colSpan={2} className="sticky left-0 top-0 z-40 h-8 py-0 leading-none bg-muted px-2 text-left font-semibold border-r border-b border-border">Colaborador</th>
                   <th colSpan={4} className={`${G.schedule} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}>Período de Escala</th>
-                  {show("passagem") && <th colSpan={9} className={`${G.ticket} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Passagem" feito={feito.passagem} total={rows.length} /></th>}
-                  {show("hospedagem") && <th colSpan={12} className={`${G.hotel} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Hospedagem" feito={feito.hospedagem} total={rows.length} /></th>}
-                  {show("bagagem") && <th colSpan={3} className={`${G.baggage} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Bagagem" feito={feito.bagagem} total={rows.length} /></th>}
-                  {show("uber") && <th colSpan={3} className={`${G.uber} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Uber" feito={feito.uber} total={rows.length} /></th>}
-                  {show("locacao") && <th colSpan={4} className={`${G.car} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Locação" feito={feito.locacao} total={rows.length} /></th>}
-                  {show("pendencias") && <th colSpan={2} className={`${G.pend} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}>Pendências</th>}
+                  {show("passagem") && <th data-bloco="passagem" colSpan={9} className={`${G.ticket} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Passagem" feito={feito.passagem} total={rows.length} /></th>}
+                  {show("hospedagem") && <th data-bloco="hospedagem" colSpan={12} className={`${G.hotel} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Hospedagem" feito={feito.hospedagem} total={rows.length} /></th>}
+                  {show("bagagem") && <th data-bloco="bagagem" colSpan={3} className={`${G.baggage} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Bagagem" feito={feito.bagagem} total={rows.length} /></th>}
+                  {show("uber") && <th data-bloco="uber" colSpan={3} className={`${G.uber} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Uber" feito={feito.uber} total={rows.length} /></th>}
+                  {show("locacao") && <th data-bloco="locacao" colSpan={4} className={`${G.car} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Locação" feito={feito.locacao} total={rows.length} /></th>}
+                  {show("pendencias") && <th data-bloco="pendencias" colSpan={2} className={`${G.pend} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}>Pendências</th>}
                 </tr>
                 <tr className="bg-muted/70">
                   <th className={`sticky left-0 top-8 z-40 bg-muted ${headPad} text-left font-medium border-r border-b border-border min-w-[210px]`}>
@@ -1312,10 +1405,9 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
                   const a: Partial<NonNullable<MirrorRow["accommodation"]>> = r.accommodation || {};
                   const ctx = ctxDaLinha(r);
                   const est = (campo: string, valor: unknown) => estadoDaCelula(campo, valor, ctx);
-                  const zebra = idx % 2 === 1 ? "bg-muted/20" : "";
                   return (
-                    <tr key={r.teamInclusionId} className={`border-b hover:bg-primary/[0.04] group ${zebra}`} data-testid={`row-${r.teamInclusionId}`}>
-                      <td className={`sticky left-0 z-20 ${idx % 2 ? "bg-[hsl(var(--muted))]" : "bg-card"} group-hover:bg-muted px-2 py-1 font-medium border-r border-border/40 min-w-[210px]`}>
+                    <tr key={r.teamInclusionId} className="border-b hover:bg-primary/[0.04] group" data-testid={`row-${r.teamInclusionId}`}>
+                      <td className={`sticky left-0 z-20 bg-card group-hover:bg-muted px-2 py-1 font-medium border-r border-border/40 min-w-[210px]`}>
                         <Tooltip><TooltipTrigger asChild><div className="truncate max-w-[196px] leading-tight">{r.collaborator.fullName}</div></TooltipTrigger><TooltipContent>{r.collaborator.fullName}</TooltipContent></Tooltip>
                         {/* A segunda linha só existe quando há o que dizer: antes
                             todas as linhas exibiam "? · —" e isso virava ruído. */}
@@ -1326,7 +1418,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
                           return <div className="text-[10px] text-muted-foreground/70 leading-tight">{[g, uf].filter(Boolean).join(" · ")}</div>;
                         })()}
                       </td>
-                      <td className={`sticky left-[210px] z-20 ${idx % 2 ? "bg-[hsl(var(--muted))]" : "bg-card"} group-hover:bg-muted px-2 py-1 border-r border-border/40 min-w-[120px] capitalize`}>{r.function.area || r.function.name || "—"}</td>
+                      <td className={`sticky left-[210px] z-20 bg-card group-hover:bg-muted px-2 py-1 border-r border-border/40 min-w-[120px] capitalize`}>{r.function.area || r.function.name || "—"}</td>
                       <EditableCell rowId={r.teamInclusionId} field="schedule.startDate" value={r.schedule.startDate} estado={est("schedule.startDate", r.schedule.startDate)} type="date" onSave={saveCell} compact={compact} editMode={editMode} etapa={BARRA.schedule} />
                       <EditableCell rowId={r.teamInclusionId} field="schedule.departureDate" value={r.schedule.flightDepartureDate} estado={est("schedule.departureDate", r.schedule.flightDepartureDate)} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
                       <EditableCell rowId={r.teamInclusionId} field="schedule.endDate" value={r.schedule.endDate} estado={est("schedule.endDate", r.schedule.endDate)} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
@@ -1348,7 +1440,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
                         <EditableCell rowId={r.teamInclusionId} field="accommodation.checkInDate" value={a.checkInDate} estado={est("accommodation.checkInDate", a.checkInDate)} type="date" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
                         <EditableCell rowId={r.teamInclusionId} field="accommodation.checkOutDate" value={a.checkOutDate} estado={est("accommodation.checkOutDate", a.checkOutDate)} type="date" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
                         <EditableCell rowId={r.teamInclusionId} field="accommodation.nightsCount" value={a.nightsCount} estado={est("accommodation.nightsCount", a.nightsCount)} type="int" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.roomType" value={a.roomType} estado={est("accommodation.roomType", a.roomType)} type="select" options={ROOM_TYPE_OPTIONS} onSave={saveCell} compact={compact} editMode={editMode} variant="room" />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.roomType" value={a.roomType} estado={est("accommodation.roomType", a.roomType)} aoConfirmar={() => irParaVisao("quartos")} type="select" options={ROOM_TYPE_OPTIONS} onSave={saveCell} compact={compact} editMode={editMode} variant="room" />
                         <EditableCell rowId={r.teamInclusionId} field="accommodation.dailyRate" value={a.dailyRate} estado={est("accommodation.dailyRate", a.dailyRate)} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
                         <EditableCell rowId={r.teamInclusionId} field="accommodation.lateCheckout" value={a.lateCheckout} estado={est("accommodation.lateCheckout", a.lateCheckout)} type="bool" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
                         <EditableCell rowId={r.teamInclusionId} field="accommodation.totalCents" value={a.totalCents} estado={est("accommodation.totalCents", a.totalCents)} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
@@ -1362,9 +1454,9 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
                         <EditableCell rowId={r.teamInclusionId} field="baggage.checkIn" value={r.baggage.checkIn} estado={est("baggage.checkIn", r.baggage.checkIn)} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("uber") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="uber.amountCents" value={r.uber.totalCents} estado={est("uber.amountCents", r.uber.totalCents)} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" etapa={BARRA.uber} />
-                        <EditableCell rowId={r.teamInclusionId} field="uber.oc" value={r.uber.oc} estado={est("uber.oc", r.uber.oc)} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
-                        <EditableCell rowId={r.teamInclusionId} field="uber.checkIn" value={r.uber.checkIn} estado={est("uber.checkIn", r.uber.checkIn)} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
+                        <EditableCell rowId={r.teamInclusionId} field="uber.amountCents" value={r.uber.totalCents} estado={est("uber.amountCents", r.uber.totalCents)} aoConfirmar={() => irParaVisao("uber")} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" etapa={BARRA.uber} />
+                        <EditableCell rowId={r.teamInclusionId} field="uber.oc" value={r.uber.oc} estado={est("uber.oc", r.uber.oc)} aoConfirmar={() => irParaVisao("uber")} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
+                        <EditableCell rowId={r.teamInclusionId} field="uber.checkIn" value={r.uber.checkIn} estado={est("uber.checkIn", r.uber.checkIn)} aoConfirmar={() => irParaVisao("uber")} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("locacao") && <>
                         <EditableCell rowId={r.teamInclusionId} field="carRental.company" value={r.carRental.company} estado={est("carRental.company", r.carRental.company)} type="text" onSave={saveCell} compact={compact} editMode={editMode} onEdit={edit("extras", r)} etapa={BARRA.car} />
