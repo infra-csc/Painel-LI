@@ -609,6 +609,7 @@ export interface StoredTicketLike {
   actualDepartureTime?: string | null;
   actualArrivalTime?: string | null;
   actualReturnTime?: string | null;
+  returnArrivalTime?: string | null;
   cardLastFourDigits?: string | null;
   ticketObservations?: string | null;
   attachmentIds?: string[] | null;
@@ -655,6 +656,10 @@ export function ticketToFormValues(t: StoredTicketLike): TicketFormValues {
     actualDepartureTime: s(t.actualDepartureTime),
     actualArrivalTime: s(t.actualArrivalTime),
     actualReturnTime: s(t.actualReturnTime),
+    // Faltava (30/08): o campo é gravado, mas não voltava para o formulário.
+    // Reabrir a passagem mostrava a chegada da volta vazia e o salvamento
+    // seguinte apagava o horário no banco.
+    returnArrivalTime: s(t.returnArrivalTime),
     cardLastFourDigits: s(t.cardLastFourDigits),
     ticketObservations: s(t.ticketObservations),
     attachmentIds: t.attachmentIds || [],

@@ -32,7 +32,7 @@ export function ScalingModuleNav({ current, eventId, className }: ScalingModuleN
   const visible = SCREENS.filter((s) => hasPermission(user, s.permission));
   if (visible.length <= 1) return null;
   return (
-    <nav aria-label="Telas do módulo de Escala" className={cn("flex flex-wrap items-center gap-1", className)}>
+    <nav aria-label="Telas do módulo de Escala" className={cn("flex flex-nowrap shrink-0 items-center gap-1", className)}>
       {visible.map((s) => {
         const active = s.key === current;
         const Icon = s.icon;

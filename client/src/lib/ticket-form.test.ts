@@ -9,6 +9,7 @@ import {
   getInvalidFields,
   isFieldRequired,
   hasUnsavedTicketInput,
+  ticketToFormValues,
   toCents,
 } from "./ticket-form";
 
@@ -525,5 +526,39 @@ describe("bilhete só de volta (ida e volta por agências diferentes)", () => {
     expect(trechoDaViagem({})).toBe("ida_volta");
     expect(trechoDaViagem({ isOneWay: true })).toBe("so_ida");
     expect(trechoDaViagem({ isReturnOnly: true })).toBe("so_volta");
+  });
+});
+
+describe("ida e volta entre o banco e o formulário", () => {
+  it("devolve a chegada da volta ao reabrir a passagem", () => {
+    // Regressão (30/08): o campo era gravado mas não era lido de volta, então
+    // reabrir mostrava vazio e o salvamento seguinte apagava o horário.
+    const form = ticketToFormValues({
+      transportType: "aereo",
+      actualDepartureDate: "2026-09-03",
+      actualDepartureTime: "08:20",
+      actualArrivalTime: "09:35",
+      actualReturnDate: "2026-09-07",
+      actualReturnTime: "05:45",
+      returnArrivalTime: "07:05",
+    });
+    expect(form.returnArrivalTime).toBe("07:05");
+    expect(form.actualArrivalTime).toBe("09:35");
+  });
+
+  it("não perde nenhum horário na ida e volta ao banco", () => {
+    const original = {
+      transportType: "aereo",
+      actualDepartureDate: "2026-09-03",
+      actualDepartureTime: "08:20",
+      actualArrivalTime: "09:35",
+      actualReturnDate: "2026-09-07",
+      actualReturnTime: "05:45",
+      returnArrivalTime: "07:05",
+    };
+    const payload = buildTicketPayload(ticketToFormValues(original)) as Record<string, unknown>;
+    expect(payload.actualArrivalTime).toBe("09:35");
+    expect(payload.returnArrivalTime).toBe("07:05");
+    expect(payload.actualReturnTime).toBe("05:45");
   });
 });
