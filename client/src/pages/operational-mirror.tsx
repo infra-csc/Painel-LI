@@ -176,6 +176,7 @@ function EditableCell({
   const [draft, setDraft] = useState("");
   const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const tdRef = useRef<HTMLTableCellElement | null>(null);
   // Fonte da verdade síncrona de "ainda estou editando". Enter chama commit() e a
   // remoção do input pode disparar o blur em seguida — sem esta trava a célula era
   // gravada duas vezes. Também substitui o antigo cancelledRef, que ficava preso em
@@ -208,7 +209,63 @@ function EditableCell({
     if (type === "int") { const n = parseInt(t, 10); return Number.isFinite(n) ? n : null; }
     return t;
   }
-  function startEdit() { setDraft(toDraft()); editingRef.current = true; setEditing(true); }
+  /**
+   * Navegação estilo planilha (28/08). A posição vem do próprio DOM
+   * (cellIndex/sectionRowIndex): não há índice para manter em sincronia quando
+   * blocos de coluna são escondidos pelo menu "Exibição".
+   * Andando na horizontal, pula o que não aceita foco — assim Tab passa reto
+   * pelas colunas fixas de nome/departamento e pelo lápis do detalhe.
+   */
+  function irPara(dLinha: number, dColuna: number) {
+    const td = tdRef.current;
+    const tr = td?.parentElement as HTMLTableRowElement | null;
+    const tbody = tr?.parentElement as HTMLTableSectionElement | null;
+    if (!td || !tr || !tbody) return;
+    const linha = tbody.rows[tr.sectionRowIndex + dLinha];
+    if (!linha) return;
+    const passo = dColuna === 0 ? 0 : dColuna > 0 ? 1 : -1;
+    let col = td.cellIndex + dColuna;
+    while (col >= 0 && col < linha.cells.length) {
+      const alvo = linha.cells[col]?.querySelector<HTMLElement>("[data-cell-focus]");
+      if (alvo) { alvo.focus(); return; }
+      if (passo === 0) return;
+      col += passo;
+    }
+  }
+  /** Move depois que o React trocou input por botão (ou vice-versa). */
+  function irDepois(dLinha: number, dColuna: number) {
+    requestAnimationFrame(() => irPara(dLinha, dColuna));
+  }
+  function focarPropria() {
+    requestAnimationFrame(() => tdRef.current?.querySelector<HTMLElement>("[data-cell-focus]")?.focus());
+  }
+
+  /** `inicial` vem de quem começou a digitar direto na célula, como no Excel. */
+  function startEdit(inicial?: string) { setDraft(inicial ?? toDraft()); editingRef.current = true; setEditing(true); }
+
+  /** Teclas com a célula selecionada (sem estar editando). */
+  function teclasNaCelula(e: React.KeyboardEvent) {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    switch (e.key) {
+      case "ArrowRight": e.preventDefault(); irPara(0, 1); return;
+      case "ArrowLeft": e.preventDefault(); irPara(0, -1); return;
+      case "ArrowDown": e.preventDefault(); irPara(1, 0); return;
+      case "ArrowUp": e.preventDefault(); irPara(-1, 0); return;
+      case "Tab": e.preventDefault(); irPara(0, e.shiftKey ? -1 : 1); return;
+      case "Enter":
+      case "F2": e.preventDefault(); if (type !== "bool") startEdit(); return;
+      default:
+        // Digitar direto substitui o valor, como numa planilha.
+        if (type !== "bool" && e.key.length === 1) { e.preventDefault(); startEdit(e.key); }
+    }
+  }
+
+  /** Teclas com o campo aberto: confirma e já anda para a próxima célula. */
+  function teclasNoCampo(e: React.KeyboardEvent) {
+    if (e.key === "Enter") { e.preventDefault(); commit(); irDepois(e.shiftKey ? -1 : 1, 0); return; }
+    if (e.key === "Tab") { e.preventDefault(); commit(); irDepois(0, e.shiftKey ? -1 : 1); return; }
+    if (e.key === "Escape") { e.preventDefault(); cancelEdit(); focarPropria(); }
+  }
   function cancelEdit() { editingRef.current = false; setEditing(false); }
   async function commit() {
     if (!editingRef.current) return; // já comitado (Enter) ou cancelado (Esc)
@@ -241,15 +298,16 @@ function EditableCell({
 
   if (!editMode) {
     return (
-      <td className={`relative z-0 border-r border-border/30 ${div} ${pad} text-xs whitespace-nowrap ${alignCls} ${align !== "left" ? "tabular-nums" : ""}`}>
+      <td ref={tdRef} className={`relative z-0 border-r border-border/30 ${div} ${pad} text-xs whitespace-nowrap ${alignCls} ${align !== "left" ? "tabular-nums" : ""}`}>
         <span className="truncate inline-block max-w-[180px] align-middle">{display()}</span>
       </td>
     );
   }
   if (type === "bool") {
     return (
-      <td className={`relative z-0 p-0 border-r border-border/30 ${div} ${ring}`}>
+      <td ref={tdRef} className={`relative z-0 p-0 border-r border-border/30 ${div} ${ring}`}>
         <button type="button" onClick={toggleBool} disabled={state === "saving"}
+          data-cell-focus onKeyDown={teclasNaCelula}
           role="switch" aria-checked={!!value} aria-label={rotuloCampo(field)}
           className={`w-full h-full ${pad} hover:bg-muted/50 transition-colors flex items-center justify-center disabled:cursor-wait`}>
           {state === "saving" ? <Loader2 className="h-3 w-3 animate-spin" /> : display()}
@@ -260,11 +318,11 @@ function EditableCell({
   if (editing && type === "select") {
     // <select> nativo: cabe na célula e fecha no blur/Esc como o input de texto.
     return (
-      <td className={`relative z-0 p-0 border-r border-border/30 ${div} ${ring}`}>
+      <td ref={tdRef} className={`relative z-0 p-0 border-r border-border/30 ${div} ${ring}`}>
         <select autoFocus defaultValue={draft} aria-label={rotuloCampo(field)}
           onChange={(e) => { setDraft(e.target.value); }}
           onBlur={commit}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } if (e.key === "Escape") { e.preventDefault(); cancelEdit(); } }}
+          onKeyDown={teclasNoCampo}
           className={`w-full min-w-[80px] ${pad} text-xs bg-background outline-none ring-1 ring-inset ring-primary rounded-sm`}>
           <option value="">—</option>
           {(options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -275,19 +333,19 @@ function EditableCell({
   if (editing) {
     const inputType = type === "date" ? "date" : type === "money" || type === "int" ? "number" : type === "time" ? "time" : "text";
     return (
-      <td className={`relative z-0 p-0 border-r border-border/30 ${div} ${ring}`}>
+      <td ref={tdRef} className={`relative z-0 p-0 border-r border-border/30 ${div} ${ring}`}>
         <input ref={inputRef} type={inputType} step={type === "money" ? "0.01" : undefined} defaultValue={draft} aria-label={rotuloCampo(field)}
           onChange={(e) => setDraft(e.target.value)} onBlur={commit}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } if (e.key === "Escape") { e.preventDefault(); cancelEdit(); } }}
+          onKeyDown={teclasNoCampo}
           className={`w-full min-w-[68px] ${pad} text-xs bg-background outline-none ring-1 ring-inset ring-primary rounded-sm ${alignCls}`} />
       </td>
     );
   }
   return (
-    <td className={`p-0 border-r border-border/30 ${div} relative z-0 group/cell ${ring}`}>
+    <td ref={tdRef} className={`p-0 border-r border-border/30 ${div} relative z-0 group/cell ${ring}`}>
       {/* Sem aria-label aqui de propósito: o nome acessível do botão é o próprio
           valor da célula, que é o que interessa ouvir. */}
-      <button type="button" onClick={startEdit} title={`Editar ${rotuloCampo(field)}`}
+      <button type="button" onClick={() => startEdit()} onKeyDown={teclasNaCelula} data-cell-focus title={`Editar ${rotuloCampo(field)}`}
         className={`w-full h-full ${pad} ${onEdit ? "pr-6" : ""} text-xs hover:bg-muted/50 transition-colors whitespace-nowrap ${align !== "left" ? "tabular-nums" : ""} flex items-center gap-1 ${align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start"}`}>
         {state === "saving" && <Loader2 className="h-3 w-3 animate-spin text-blue-500 shrink-0" />}
         {state === "saved" && <Check className="h-3 w-3 text-green-600 shrink-0" />}
@@ -925,8 +983,8 @@ export default function OperationalMirror() {
             {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
             {view === "colaboradores" && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
             {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
-            {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} canEdit={canEditMirror} onConfirm={(id: string) => confirmRoomMutation.mutate(id)} pendingId={confirmRoomMutation.isPending ? confirmRoomMutation.variables : null} />}
-            {view === "uber" && <UberView groups={data.uberGroups} collabById={collabById} canEdit={canEditMirror} onConfirm={(id: string) => confirmUberMutation.mutate(id)} pendingId={confirmUberMutation.isPending ? confirmUberMutation.variables : null} />}
+            {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} rows={rows} canEdit={canEditMirror} onConfirm={(id: string) => confirmRoomMutation.mutate(id)} pendingId={confirmRoomMutation.isPending ? confirmRoomMutation.variables : null} />}
+            {view === "uber" && <UberView groups={data.uberGroups} collabById={collabById} rows={rows} canEdit={canEditMirror} onConfirm={(id: string) => confirmUberMutation.mutate(id)} pendingId={confirmUberMutation.isPending ? confirmUberMutation.variables : null} />}
             {view === "rateio" && <FooterTotals totals={totals} hotelDerived={derivedHotelCount > 0} />}
           </>
         )}
@@ -1334,6 +1392,29 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, 
 // vir denormalizados no próprio membro em respostas mais antigas.
 type GroupMemberLike = string | { collaboratorId?: string | null; id?: string; fullName?: string | null; name?: string | null; gender?: string | null };
 interface MemberInfo { id: string | undefined; name: string; gender: string | null; noGender: boolean }
+/** "qui", "dom" — as planilhas da equipe abrem cada linha pelo dia da semana. */
+function diaSemana(d: string | null | undefined): string {
+  if (!d) return "—";
+  const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return "—";
+  const data = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][data.getDay()] ?? "—";
+}
+
+/**
+ * Faixas de cor para separar um grupo do outro, como as linhas coloridas da
+ * planilha: o que importa é enxergar de relance quem viaja junto / divide
+ * quarto, não a cor em si.
+ */
+const FAIXA = [
+  "bg-sky-50/70 dark:bg-sky-950/25",
+  "bg-emerald-50/70 dark:bg-emerald-950/25",
+  "bg-amber-50/70 dark:bg-amber-950/25",
+  "bg-fuchsia-50/70 dark:bg-fuchsia-950/25",
+  "bg-orange-50/70 dark:bg-orange-950/25",
+  "bg-violet-50/70 dark:bg-violet-950/25",
+];
+
 function memberInfo(m: GroupMemberLike, collabById: Map<string, MirrorCollaborator>): MemberInfo {
   const obj = typeof m === "string" ? null : m;
   const id = typeof m === "string" ? m : (obj?.collaboratorId || obj?.id || undefined);
@@ -1346,99 +1427,206 @@ function memberInfo(m: GroupMemberLike, collabById: Map<string, MirrorCollaborat
 interface GroupViewProps<G> {
   groups: G[];
   collabById: Map<string, MirrorCollaborator>;
+  /** Linhas do espelho: é delas que vêm departamento, datas e voos. */
+  rows: MirrorRow[];
   canEdit: boolean;
   onConfirm: (id: string) => void;
   pendingId: string | null | undefined;
 }
 
-function QuartosView({ groups, collabById, canEdit, onConfirm, pendingId }: GroupViewProps<RoomGroup>) {
-  const emptyHint = canEdit ? ' Clique em "Recalcular sugestões".' : "";
+function QuartosView({ groups, collabById, rows, canEdit, onConfirm, pendingId }: GroupViewProps<RoomGroup>) {
+  const emptyHint = canEdit ? ' Clique em "Sugestões".' : "";
   if (groups.length === 0) return <div className="rounded-lg border border-dashed bg-muted/20 py-12 text-center text-sm text-muted-foreground">Nenhuma sugestão de quarto ainda.{emptyHint}</div>;
+  const rowByCollab = new Map(rows.filter((r) => r.collaborator.id).map((r) => [r.collaborator.id as string, r]));
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-      {groups.map((g) => {
-        const members = (g.members || []).map((m) => memberInfo(m, collabById));
-        const missingGender = members.filter((m) => m.noGender);
-        const genderRule = g.genderRule ? (GENDER_RULE_LABEL[g.genderRule] ?? g.genderRule) : null;
-        return (
-          <Card key={g.id} className={g.confirmed ? "border-green-400" : "border-dashed"} data-testid={`room-${g.id}`}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center justify-between">
-                <span className="flex items-center gap-2"><BedDouble className="h-4 w-4 text-emerald-500" /> {(g.roomType && ROOM_TYPE_LABEL[g.roomType]) ?? g.roomType ?? "Quarto"}</span>
-                {g.confirmed ? <Badge className="bg-green-600">Confirmado</Badge> : <Badge variant="outline">Sugestão</Badge>}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-xs">
-              <div className="text-muted-foreground">{g.hotelName || "Hotel a definir"}</div>
-              <div className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" aria-hidden="true" /> {fmtDate(g.checkInDate)} – {fmtDate(g.checkOutDate)}</div>
-              {g.notes && (
-                <p className="flex items-start gap-1.5 rounded-md bg-muted/50 px-2 py-1.5 text-[11px] leading-snug text-muted-foreground" role="note">
-                  <Clock className="h-3 w-3 shrink-0 mt-px" aria-hidden="true" />{g.notes}
-                </p>
-              )}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="flex items-center gap-1"><Users className="h-3 w-3" aria-hidden="true" /> {members.length} {members.length === 1 ? "hóspede" : "hóspedes"}</span>
-                {genderRule && <Badge variant="outline" className="text-[9px] px-1 py-0 font-normal" title="Regra de gênero do quarto">{genderRule}</Badge>}
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {members.map((m, i) => (
-                  <Badge key={m.id ?? i} variant="secondary" className={`text-[10px] ${m.noGender ? "border border-amber-400" : ""}`}>
-                    {m.name}{m.gender && m.gender !== "unknown" ? ` · ${genderLabel[m.gender] ?? m.gender}` : ""}
-                  </Badge>
-                ))}
-              </div>
-              {missingGender.length > 0 && (
-                genderRule && g.genderRule !== "none" ? (
-                  <div className="flex items-start gap-1.5 rounded-md bg-muted/60 px-2 py-1.5 text-muted-foreground" role="note">
-                    <Info className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden="true" />
-                    <span>Gênero deduzido pelo primeiro nome — o cadastro do colaborador está em branco. Confira antes de fechar com o hotel.</span>
-                  </div>
-                ) : (
-                  <div className="flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-2 py-1.5 text-amber-800 dark:text-amber-300" role="note">
-                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden="true" />
-                    <span>{missingGender.length === 1 ? "1 hóspede sem gênero" : `${missingGender.length} hóspedes sem gênero`} — não deu para deduzir pelo nome, então o quarto foi montado pela função.</span>
-                  </div>
-                )
-              )}
-              {!g.confirmed && canEdit && <Button size="sm" className="w-full mt-2" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id} data-testid={`confirm-room-${g.id}`}>
-                {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />} Confirmar
-              </Button>}
-            </CardContent>
-          </Card>
-        );
-      })}
+    <div className="rounded-lg border bg-card overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="bg-muted/60 border-b">
+            <tr className="text-left">
+              <th className="px-3 py-2 font-semibold">Nome</th>
+              <th className="px-3 py-2 font-semibold">Departamento</th>
+              <th className="px-3 py-2 font-semibold">Início</th>
+              <th className="px-3 py-2 font-semibold">Data ida</th>
+              <th className="px-3 py-2 font-semibold">Término</th>
+              <th className="px-3 py-2 font-semibold">Data volta</th>
+              <th className="px-3 py-2 font-semibold">Quarto</th>
+              <th className="px-3 py-2 font-semibold text-right">Situação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map((g, gi) => {
+              const membros = (g.members || []).map((m) => memberInfo(m, collabById));
+              const faixa = FAIXA[gi % FAIXA.length];
+              return membros.map((m, mi) => {
+                const r = m.id ? rowByCollab.get(m.id) : undefined;
+                const ini = r?.accommodation?.checkInDate || r?.schedule.startDate || g.checkInDate;
+                const fim = r?.accommodation?.checkOutDate || r?.schedule.endDate || g.checkOutDate;
+                return (
+                  <tr key={`${g.id}-${m.id ?? mi}`}
+                    className={`${faixa} ${mi === membros.length - 1 ? "border-b-2 border-border" : "border-b border-border/40"}`}
+                    data-testid={`room-row-${g.id}-${mi}`}>
+                    <td className="px-3 py-2 font-medium">{m.name}</td>
+                    <td className="px-3 py-2 capitalize text-muted-foreground">{r?.function.area || r?.function.name || "—"}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{diaSemana(ini)}</td>
+                    <td className="px-3 py-2 tabular-nums">{fmtDate(ini)}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{diaSemana(fim)}</td>
+                    <td className="px-3 py-2 tabular-nums">{fmtDate(fim)}</td>
+                    {/* Como na planilha, o tipo do quarto aparece uma vez por grupo. */}
+                    {mi === 0 ? (
+                      <td className="px-3 py-2 font-semibold uppercase text-center align-middle" rowSpan={membros.length}>
+                        {(g.roomType && ROOM_TYPE_LABEL[g.roomType]) ?? g.roomType ?? "—"}
+                        {g.notes && (
+                          <span className="block mt-1 text-[10px] font-normal normal-case text-muted-foreground leading-snug max-w-[190px] mx-auto">{g.notes}</span>
+                        )}
+                      </td>
+                    ) : null}
+                    {mi === 0 ? (
+                      <td className="px-3 py-2 text-right align-middle" rowSpan={membros.length}>
+                        {g.confirmed ? (
+                          <Badge className="bg-emerald-600 hover:bg-emerald-600">Confirmado</Badge>
+                        ) : canEdit ? (
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id} data-testid={`confirm-room-${g.id}`}>
+                            {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />} Confirmar
+                          </Button>
+                        ) : <Badge variant="outline">Sugestão</Badge>}
+                      </td>
+                    ) : null}
+                  </tr>
+                );
+              });
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
 // ============ UBER VIEW ============
-function UberView({ groups, collabById, canEdit, onConfirm, pendingId }: GroupViewProps<UberGroup>) {
-  const emptyHint = canEdit ? ' Clique em "Recalcular sugestões".' : "";
-  if (groups.length === 0) return <div className="rounded-lg border border-dashed bg-muted/20 py-12 text-center text-sm text-muted-foreground">Nenhuma sugestão de Uber.{emptyHint}</div>;
+function UberView({ groups, collabById, rows, canEdit, onConfirm, pendingId }: GroupViewProps<UberGroup>) {
+  const emptyHint = canEdit ? ' Clique em "Sugestões".' : "";
+  if (groups.length === 0) return <div className="rounded-lg border border-dashed bg-muted/20 py-12 text-center text-sm text-muted-foreground">Nenhuma sugestão de Uber ainda.{emptyHint}</div>;
+  const rowByCollab = new Map(rows.filter((r) => r.collaborator.id).map((r) => [r.collaborator.id as string, r]));
+  // A planilha separa a roteirização do aeroporto (ida e volta) do Uber que
+  // roda dentro do evento — são duas leituras diferentes no dia a dia.
+  const aeroporto = groups.filter((g) => g.direction === "ida" || g.direction === "volta");
+  const internos = groups.filter((g) => g.direction !== "ida" && g.direction !== "volta");
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-      {groups.map((g) => {
-        const members = (g.members || []).map((m) => memberInfo(m, collabById));
-        return (
-          <Card key={g.id} className={g.confirmed ? "border-green-400" : "border-dashed"} data-testid={`uber-${g.id}`}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center justify-between">
-                <span className="flex items-center gap-2"><Car className="h-4 w-4 text-fuchsia-500" /> {uberDirectionLabel(g.direction)}</span>
-                {g.confirmed ? <Badge className="bg-green-600">Confirmado</Badge> : <Badge variant="outline">Sugestão</Badge>}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-xs">
-              <div className="flex items-center gap-1 text-muted-foreground"><MapPin className="h-3 w-3" /> {g.origin || "?"} → {g.destination || "?"}</div>
-              <div className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" /> {fmtDate(g.date)} {g.time || ""}</div>
-              <div className="flex items-center gap-1"><Users className="h-3 w-3" /> {members.length} passageiro(s)</div>
-              <div className="flex flex-wrap gap-1">{members.map((m, i) => <Badge key={m.id ?? i} variant="secondary" className="text-[10px]">{m.name}</Badge>)}</div>
-              {!g.confirmed && canEdit && <Button size="sm" className="w-full mt-2" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id} data-testid={`confirm-uber-${g.id}`}>
-                {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />} Confirmar
-              </Button>}
-            </CardContent>
-          </Card>
-        );
-      })}
+    <div className="space-y-5">
+      {aeroporto.length > 0 && (
+        <section className="rounded-lg border bg-card overflow-hidden">
+          <header className="px-4 py-2.5 border-b bg-muted/40">
+            <h3 className="text-[13px] font-semibold">Roteirização de Uber — aeroporto</h3>
+            <p className="text-[11px] text-muted-foreground">Cada faixa de cor é um carro. Confirme para fechar o grupo.</p>
+          </header>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/60 border-b">
+                <tr className="text-left">
+                  <th className="px-3 py-2 font-semibold">Nome</th>
+                  <th className="px-3 py-2 font-semibold">Departamento</th>
+                  <th className="px-3 py-2 font-semibold border-l">Trajeto</th>
+                  <th className="px-3 py-2 font-semibold">Dia</th>
+                  <th className="px-3 py-2 font-semibold">Data</th>
+                  <th className="px-3 py-2 font-semibold">Aeroporto</th>
+                  <th className="px-3 py-2 font-semibold">Horário</th>
+                  <th className="px-3 py-2 font-semibold text-right">Situação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {aeroporto.map((g, gi) => {
+                  const membros = (g.members || []).map((m) => memberInfo(m, collabById));
+                  const faixa = FAIXA[gi % FAIXA.length];
+                  const ida = g.direction === "ida";
+                  return membros.map((m, mi) => {
+                    const r = m.id ? rowByCollab.get(m.id) : undefined;
+                    const t = r?.ticket;
+                    const data = g.date || (ida ? t?.actualDepartureDate : t?.actualReturnDate);
+                    const aero = ida ? (t?.destinationAirport || g.origin) : (t?.returnOriginAirport || g.destination);
+                    const hora = g.time || (ida ? t?.actualArrivalTime : t?.actualReturnTime);
+                    return (
+                      <tr key={`${g.id}-${m.id ?? mi}`}
+                        className={`${faixa} ${mi === membros.length - 1 ? "border-b-2 border-border" : "border-b border-border/40"}`}
+                        data-testid={`uber-row-${g.id}-${mi}`}>
+                        <td className="px-3 py-2 font-medium">{m.name}</td>
+                        <td className="px-3 py-2 capitalize text-muted-foreground">{r?.function.area || r?.function.name || "—"}</td>
+                        <td className="px-3 py-2 border-l whitespace-nowrap">{uberDirectionLabel(g.direction)}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{diaSemana(data)}</td>
+                        <td className="px-3 py-2 tabular-nums">{fmtDate(data)}</td>
+                        <td className="px-3 py-2 uppercase">{aero || "—"}</td>
+                        <td className="px-3 py-2 tabular-nums">{hora || "—"}</td>
+                        {mi === 0 ? (
+                          <td className="px-3 py-2 text-right align-middle" rowSpan={membros.length}>
+                            {g.confirmed ? (
+                              <Badge className="bg-emerald-600 hover:bg-emerald-600">Confirmado</Badge>
+                            ) : canEdit ? (
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id} data-testid={`confirm-uber-${g.id}`}>
+                                {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />} Confirmar
+                              </Button>
+                            ) : <Badge variant="outline">Sugestão</Badge>}
+                          </td>
+                        ) : null}
+                      </tr>
+                    );
+                  });
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {internos.length > 0 && (
+        <section className="rounded-lg border bg-card overflow-hidden">
+          <header className="px-4 py-2.5 border-b bg-muted/40">
+            <h3 className="text-[13px] font-semibold">Uber no evento</h3>
+            <p className="text-[11px] text-muted-foreground">Deslocamentos que não são do aeroporto.</p>
+          </header>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/60 border-b">
+                <tr className="text-left">
+                  <th className="px-3 py-2 font-semibold">Nome</th>
+                  <th className="px-3 py-2 font-semibold">Departamento</th>
+                  <th className="px-3 py-2 font-semibold">Trajeto</th>
+                  <th className="px-3 py-2 font-semibold">Data</th>
+                  <th className="px-3 py-2 font-semibold text-right">Situação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {internos.map((g, gi) => {
+                  const membros = (g.members || []).map((m) => memberInfo(m, collabById));
+                  const faixa = FAIXA[gi % FAIXA.length];
+                  return membros.map((m, mi) => {
+                    const r = m.id ? rowByCollab.get(m.id) : undefined;
+                    return (
+                      <tr key={`${g.id}-${m.id ?? mi}`}
+                        className={`${faixa} ${mi === membros.length - 1 ? "border-b-2 border-border" : "border-b border-border/40"}`}>
+                        <td className="px-3 py-2 font-medium">{m.name}</td>
+                        <td className="px-3 py-2 capitalize text-muted-foreground">{r?.function.area || r?.function.name || "—"}</td>
+                        <td className="px-3 py-2">{[g.origin, g.destination].filter(Boolean).join(" → ") || uberDirectionLabel(g.direction)}</td>
+                        <td className="px-3 py-2 tabular-nums">{fmtDate(g.date)}</td>
+                        {mi === 0 ? (
+                          <td className="px-3 py-2 text-right align-middle" rowSpan={membros.length}>
+                            {g.confirmed ? <Badge className="bg-emerald-600 hover:bg-emerald-600">Confirmado</Badge>
+                              : canEdit ? (
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id}>
+                                  {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />} Confirmar
+                                </Button>
+                              ) : <Badge variant="outline">Sugestão</Badge>}
+                          </td>
+                        ) : null}
+                      </tr>
+                    );
+                  });
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
