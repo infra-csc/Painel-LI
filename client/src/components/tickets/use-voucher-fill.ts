@@ -21,6 +21,7 @@ interface Leitura {
   tipo: "passagem" | "hospedagem" | "desconhecido";
   campos: Record<string, string>;
   pessoa?: string;
+  pessoas?: string[];
   trechoUnico?: boolean;
   avisos: string[];
 }
@@ -75,10 +76,15 @@ export function useVoucherFill({ colaborador, trecho, onPreencher }: {
         });
         return;
       }
-      if (colaborador && leitura.pessoa && pontuarSemelhanca(leitura.pessoa, colaborador) < LIMIAR_MESMA_PESSOA) {
+      // Voucher de grupo traz vários passageiros no mesmo arquivo: basta que
+      // UM deles seja o desta vaga para o preenchimento valer.
+      const nomes = leitura.pessoas?.length ? leitura.pessoas : leitura.pessoa ? [leitura.pessoa] : [];
+      if (colaborador && nomes.length && !nomes.some((n) => pontuarSemelhanca(n, colaborador) >= LIMIAR_MESMA_PESSOA)) {
         toast({
           title: "Este voucher é de outra pessoa",
-          description: `O PDF está no nome de ${leitura.pessoa}, e esta vaga é de ${colaborador}. Anexei o arquivo, mas não preenchi nada.`,
+          description: nomes.length > 1
+            ? `O PDF é de ${nomes.length} passageiros (${nomes.slice(0, 3).join(", ")}${nomes.length > 3 ? "…" : ""}) e nenhum é ${colaborador}. Anexei o arquivo, mas não preenchi nada.`
+            : `O PDF está no nome de ${nomes[0]}, e esta vaga é de ${colaborador}. Anexei o arquivo, mas não preenchi nada.`,
           variant: "destructive",
         });
         return;

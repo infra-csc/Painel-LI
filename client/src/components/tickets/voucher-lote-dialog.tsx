@@ -28,6 +28,8 @@ interface LeituraDoServidor {
   formato?: string;
   campos: Record<string, string>;
   pessoa?: string;
+  /** Voucher de grupo: o mesmo arquivo é o bilhete de várias pessoas. */
+  pessoas?: string[];
   avisos: string[];
 }
 
@@ -79,10 +81,17 @@ export default function VoucherLoteDialog({
     onSuccess: ({ leituras }) => {
       setLinhas((atuais) => [
         ...atuais,
-        ...leituras.map((l) => ({
-          ...l,
-          inclusionId: l.tipo === "passagem" ? casarVaga(l.pessoa, vagas) : null,
-        })),
+        // Um voucher de grupo é o bilhete de várias pessoas: vira uma linha por
+        // passageiro, com os mesmos dados de voo e cada uma na sua vaga. Sem
+        // isso, só o primeiro nome do arquivo seria registrado.
+        ...leituras.flatMap((l): Linha[] => {
+          if (l.tipo !== "passagem") return [{ ...l, inclusionId: null }];
+          const nomes = l.pessoas?.length ? l.pessoas : l.pessoa ? [l.pessoa] : [];
+          if (nomes.length <= 1) {
+            return [{ ...l, inclusionId: casarVaga(l.pessoa, vagas) }];
+          }
+          return nomes.map((n) => ({ ...l, pessoa: n, inclusionId: casarVaga(n, vagas) }));
+        }),
       ]);
     },
     onError: (e: Error) =>

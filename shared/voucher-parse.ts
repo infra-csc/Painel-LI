@@ -26,6 +26,11 @@ export interface VoucherLeitura {
   /** Passageiro/hóspede lido, para conferir se o voucher é da vaga certa. */
   pessoa?: string;
   /**
+   * Vouchers de grupo (Onfly) trazem o bilhete de várias pessoas no mesmo
+   * arquivo. A tela confere a vaga contra a LISTA, não contra o primeiro nome.
+   */
+  pessoas?: string[];
+  /**
    * O voucher trouxe UM trecho só. Não diz qual: quem sabe é a tela, pelo
    * recorte escolhido no formulário (ida e volta / só ida / só volta).
    */
@@ -119,14 +124,16 @@ function lerTrechos(linhas: string[]): Trecho[] {
 
 /**
  * "SÃO PAULO - JOINVILLE - SÃO PAULO" no topo do voucher: é ele que diz as
- * CIDADES (o trecho só nomeia o aeroporto — "Congonhas" não é cidade). Só
- * vale para o caso ida-e-volta simples; com conexões, o nome do aeroporto
- * limpo continua sendo a melhor informação disponível.
+ * CIDADES (o trecho só nomeia o aeroporto — "Congonhas" não é cidade).
+ * Bilhete de um trecho só escreve o roteiro com dois nomes ("SÃO PAULO - RIO
+ * DE JANEIRO"), e vale igual. Com conexões, o nome do aeroporto limpo
+ * continua sendo a melhor informação disponível.
  */
 function cidadesDoRoteiro(texto: string): [string, string] | null {
   const cabecalho = texto.split(/\r?\n/)[0] ?? "";
   const rota = cabecalho.split(/\s+LOCALIZADOR/i)[0];
   const partes = rota.split(/\s+-\s+/).map((p) => p.trim()).filter(Boolean);
+  if (partes.length === 2) return [capitalizar(partes[0]), capitalizar(partes[1])];
   if (partes.length !== 3 || partes[0].toLowerCase() !== partes[2].toLowerCase()) return null;
   return [capitalizar(partes[0]), capitalizar(partes[1])];
 }
@@ -215,6 +222,173 @@ export function lerVoucherPassagem(texto: string): VoucherLeitura | null {
   };
 }
 
+// ─── Passagem aérea — voucher da Onfly ──────────────────────────────────────
+//
+// Layout bem diferente do da agência: o texto desce em coluna, as seções vêm
+// nomeadas ("Ida" / "Volta"), o aeroporto ocupa uma linha só e a data sai em
+// inglês ("30 Sep, 2026 • 15:55").
+//
+// Importante (30/08): quando a volta é emitida à parte, ela chega num arquivo
+// que TAMBÉM se intitula "Ida" — o rótulo é do voucher, não da viagem. Por
+// isso aqui só marcamos que veio um trecho só; quem diz se é ida ou volta é o
+// recorte escolhido na tela.
+
+const MESES_EN: Record<string, string> = {
+  jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
+  jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
+};
+
+/** "30 Sep, 2026" → "2026-09-30". Aceita o mês em inglês ou em português. */
+export function dataOnfly(texto: string): string | null {
+  const m = texto.match(/(\d{1,2})\s+([A-Za-zç]{3})[a-zç]*,?\s*(\d{4})/);
+  if (!m) return null;
+  const chave = m[2].toLowerCase();
+  const mes = MESES_EN[chave] ?? MESES[chave];
+  if (!mes) return null;
+  return `${m[3]}-${mes}-${m[1].padStart(2, "0")}`;
+}
+
+interface TrechoOnfly {
+  cidadeOrigem?: string;
+  cidadeDestino?: string;
+  aeroportoOrigem?: string;
+  aeroportoDestino?: string;
+  data?: string;
+  horaSaida?: string;
+  horaChegada?: string;
+  voo?: string;
+  cia?: string;
+}
+
+/**
+ * Um bloco de trecho vai do rótulo ("Ida"/"Volta") até a tabela de passageiros.
+ * Cortar ali evita confundir siglas do rodapé com código de aeroporto.
+ */
+function blocoDoTrecho(linhas: string[], inicio: number, limite: number): string[] {
+  const bloco: string[] = [];
+  for (let i = inicio; i < limite && i < linhas.length; i++) {
+    const l = linhas[i].trim();
+    if (/^(Passageiros|\*Consulte|Suporte ao Cliente|Centro de custo|Orienta[çc][õo]es)/i.test(l)) break;
+    bloco.push(l);
+  }
+  return bloco;
+}
+
+function lerTrechoOnfly(bloco: string[]): TrechoOnfly {
+  const t: TrechoOnfly = {};
+
+  for (const l of bloco) {
+    // "São Paulo para Fortaleza" — é daqui que saem as CIDADES.
+    const rota = !t.cidadeOrigem && l.match(/^([A-Za-zÀ-ú'.\s]{3,})\s+para\s+([A-Za-zÀ-ú'.\s]{3,})$/);
+    if (rota) { t.cidadeOrigem = rota[1].trim(); t.cidadeDestino = rota[2].trim(); continue; }
+
+    // "LA3506 - Latam"
+    const voo = !t.voo && l.match(/^([A-Z]{2}\s?\d{2,4})\s*[-–]\s*(.+)$/);
+    if (voo) { t.voo = voo[1].replace(/\s/g, ""); t.cia = voo[2].trim(); continue; }
+
+    // Aeroporto em linha própria: "GRU", "FOR".
+    if (/^[A-Z]{3}$/.test(l)) {
+      if (!t.aeroportoOrigem) t.aeroportoOrigem = l;
+      else if (!t.aeroportoDestino && l !== t.aeroportoOrigem) t.aeroportoDestino = l;
+      continue;
+    }
+
+    // "30 Sep, 2026 • 15:55" — a primeira é a saída, a segunda a chegada.
+    const quando = l.match(/(\d{1,2}\s+[A-Za-z]{3},?\s*\d{4})\D{0,4}(\d{1,2}:\d{2})/);
+    if (quando) {
+      if (!t.horaSaida) { t.data = dataOnfly(quando[1]) ?? undefined; t.horaSaida = quando[2]; }
+      else if (!t.horaChegada) t.horaChegada = quando[2];
+    }
+  }
+  return t;
+}
+
+export function lerVoucherAereoOnfly(texto: string): VoucherLeitura | null {
+  if (!/Voucher\s+A[ée]reo/i.test(texto)) return null;
+
+  const linhas = texto.split(/\r?\n/);
+  const avisos: string[] = [];
+  const campos: Record<string, string> = { transportType: "aereo" };
+
+  const iIda = linhas.findIndex((l) => /^Ida$/i.test(l.trim()));
+  const iVolta = linhas.findIndex((l) => /^Volta$/i.test(l.trim()));
+  if (iIda < 0 && iVolta < 0) return null; // sem trecho nenhum, não dá para aproveitar
+
+  const loc = texto.match(/Localizador\s+([A-Z0-9]{5,8})/);
+  if (loc) campos.purchaseOrderNumber = loc[1].toUpperCase();
+
+  // "Emitido em: 27/08/2026, 22:58"
+  const emitido = texto.match(/Emitido em:\s*(\d{2})\/(\d{2})\/(\d{4})/i);
+  if (emitido) campos.purchaseDate = `${emitido[3]}-${emitido[2]}-${emitido[1]}`;
+
+  const ida = iIda >= 0 ? lerTrechoOnfly(blocoDoTrecho(linhas, iIda + 1, iVolta > iIda ? iVolta : linhas.length)) : null;
+  const volta = iVolta >= 0 ? lerTrechoOnfly(blocoDoTrecho(linhas, iVolta + 1, linhas.length)) : null;
+
+  if (ida) {
+    if (ida.aeroportoOrigem) campos.departureAirport = ida.aeroportoOrigem;
+    if (ida.aeroportoDestino) campos.destinationAirport = ida.aeroportoDestino;
+    if (ida.cidadeOrigem) campos.departureCityOrigin = ida.cidadeOrigem;
+    if (ida.cidadeDestino) campos.departureCityDestination = ida.cidadeDestino;
+    if (ida.data) campos.actualDepartureDate = ida.data;
+    if (ida.horaSaida) campos.actualDepartureTime = ida.horaSaida;
+    if (ida.horaChegada) campos.actualArrivalTime = ida.horaChegada;
+    if (!ida.data) avisos.push("Não consegui ler a data da ida — confira.");
+  }
+  if (volta) {
+    if (volta.aeroportoOrigem) campos.returnOriginAirport = volta.aeroportoOrigem;
+    if (volta.aeroportoDestino) campos.returnDestinationAirport = volta.aeroportoDestino;
+    if (volta.cidadeOrigem) campos.returnCityOrigin = volta.cidadeOrigem;
+    if (volta.cidadeDestino) campos.returnCityDestination = volta.cidadeDestino;
+    if (volta.data) campos.actualReturnDate = volta.data;
+    if (volta.horaSaida) campos.actualReturnTime = volta.horaSaida;
+    if (volta.horaChegada) campos.returnArrivalTime = volta.horaChegada;
+    if (!volta.data) avisos.push("Não consegui ler a data da volta — confira.");
+  }
+
+  const cia = ida?.cia ?? volta?.cia;
+  if (cia) campos.ticketCompany = cia.toUpperCase();
+  if (ida?.cia && volta?.cia && ida.cia !== volta.cia) {
+    avisos.push(`Ida pela ${ida.cia} e volta pela ${volta.cia} — deixei a companhia da ida.`);
+  }
+
+  // Não existe campo de número de voo no cadastro: vai no aviso para quem
+  // estiver conferindo não precisar reabrir o PDF.
+  const voos = [ida?.voo && `ida ${ida.voo}`, volta?.voo && `volta ${volta.voo}`].filter(Boolean);
+  if (voos.length) avisos.push(`Voo ${voos.join(" · ")}.`);
+
+  // Este voucher não estampa preço nenhum — nem tarifa, nem total.
+  avisos.push("Este voucher não traz o valor — preencha o Valor da Passagem à mão.");
+
+  // Passageiros: o nome vem na linha logo acima do CPF. Voucher de grupo traz
+  // vários, e o mesmo nome se repete na ida e na volta.
+  const pessoas: string[] = [];
+  for (let i = 1; i < linhas.length; i++) {
+    if (!/^\s*\d{3}\.\d{3}\.\d{3}-\d{2}\s*$/.test(linhas[i])) continue;
+    const nome = linhas[i - 1].trim();
+    if (!/^[A-Za-zÀ-ú][A-Za-zÀ-ú\s.'-]{5,}$/.test(nome)) continue;
+    const arrumado = capitalizar(nome);
+    if (!pessoas.includes(arrumado)) pessoas.push(arrumado);
+  }
+  if (pessoas.length > 1) {
+    avisos.push(`Voucher de grupo, com ${pessoas.length} passageiros no mesmo arquivo.`);
+  }
+
+  const umTrechoSo = !(ida && volta);
+  if (umTrechoSo) {
+    avisos.push("Este voucher traz um trecho só. Confira se é a ida ou a volta antes de registrar.");
+  }
+
+  return {
+    tipo: "passagem",
+    formato: "Voucher aéreo (Onfly)",
+    campos,
+    pessoa: pessoas[0],
+    pessoas,
+    trechoUnico: umTrechoSo,
+    avisos,
+  };
+}
+
 // ─── Hospedagem — voucher da Onfly ──────────────────────────────────────────
 export function lerVoucherHospedagem(texto: string): VoucherLeitura | null {
   if (!/Voucher\s+Hotel/i.test(texto) && !/Check-?In/i.test(texto)) return null;
@@ -278,6 +452,7 @@ export function lerVoucherHospedagem(texto: string): VoucherLeitura | null {
 export function lerVoucher(texto: string): VoucherLeitura {
   return (
     lerVoucherPassagem(texto) ??
+    lerVoucherAereoOnfly(texto) ??
     lerVoucherHospedagem(texto) ?? {
       tipo: "desconhecido",
       campos: {},

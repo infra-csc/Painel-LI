@@ -149,3 +149,172 @@ describe("arquivo que não é voucher conhecido", () => {
     expect(r.avisos.length).toBe(1);
   });
 });
+
+// ─── Voucher aéreo da Onfly (30/08) ─────────────────────────────────────────
+// Texto real dos PDFs, com nomes e CPFs trocados por fictícios.
+
+const ONFLY_IDA_E_VOLTA = `Voucher Aéreo
+Emitido em: 27/08/2026, 22:58 • Protocolo: #04K5YN
+Ida
+São Paulo para Fortaleza
+LA3506 - Latam
+GRU
+Aeroporto Internacional de
+Guarulhos (GRU)
+30 Sep, 2026 • 15:55
+Vôo direto
+03h25m
+FOR
+Aeroporto Internacional de
+Fortaleza - Pinto Martins (FOR)…
+( )30 Sep, 2026 • 19:20
+Tarifa LIGHT Localizador EINDWE
+Passageiros Bagagem Serviço adicional Assento e-ticket
+FULANO MIGUEL MARQUES
+334.545.608-70
+1x Mala 10 kg
+1x Mochila - 9572203230835
+Ciclano Da Silva Cordeiro
+349.206.068-42
+1x Mala 10 kg
+1x Mochila - 9572203230837
+Volta
+Fortaleza para São Paulo
+LA3253 - Latam
+FOR
+Aeroporto Internacional de
+Fortaleza - Pinto Martins (FOR)…
+( )05 Oct, 2026 • 06:05
+Vôo direto
+03h35m
+GRU
+Aeroporto Internacional de
+Guarulhos (GRU)
+05 Oct, 2026 • 09:40
+Tarifa LIGHT Localizador EINDWE
+Passageiros Bagagem Serviço adicional Assento e-ticket
+FULANO MIGUEL MARQUES
+334.545.608-70
+1x Mala 10 kg
+Ciclano Da Silva Cordeiro
+349.206.068-42
+1x Mala 10 kg
+Centro de custo
+Ceno - Evento
+Motivo
+Circuitinho - Fortaleza`;
+
+const ONFLY_UM_TRECHO = `Voucher Aéreo
+Emitido em: 27/08/2026, 22:28 • Protocolo: #04K625
+Ida
+Fortaleza para São Paulo
+LA3253 - Latam
+FOR
+Aeroporto Internacional de
+Fortaleza - Pinto Martins (FOR)…
+( )04 Oct, 2026 • 06:05
+Vôo direto
+03h35m
+GRU
+Aeroporto Internacional de
+Guarulhos (GRU)
+04 Oct, 2026 • 09:40
+Tarifa LIGHT Localizador EGXMOA
+Passageiros Bagagem Serviço adicional Assento e-ticket
+Beltrano Carlos Ferreira Alves
+226.321.328-78
+1x Mala 10 kg
+Centro de custo
+PRODUÇÃO - Evento
+Motivo
+Circuitinho - Fortaleza`;
+
+// Bilhete de um trecho no formato da agência: o roteiro do topo tem duas
+// pontas em vez de três.
+const AGENCIA_SO_UM_TRECHO = `SÃO PAULO - RIO DE JANEIRO LOCALIZADOR: SOAEFM BILHETE: 1272307464781 08/jul/2026
+Cia Voo Classe Assento Origem / Destino Partida / Chegada
+G3 1446 E Congonhas (CGH) 15/jul 11:10
+GOL Escalas 0 Galeão (GIG) 15/jul 12:20
+Term. Embarque: A Classe
+Reserva:
+Econômica
+Pagamento: FATURADO
+Data Emissão: 08/jul/2026 Valor: BRL 1.374,73 Taxas + Repasse: BRL 62,14 + BRL 0,00 Total: BRL 1.436,87
+FULANO CHADDAD BARREIRO DA CUNHA O.S. 1803
+Agência:LCA VIAGENS Solicitante: Leandro Duarte Vieira`;
+
+describe("voucher aéreo da Onfly", () => {
+  const r = lerVoucher(ONFLY_IDA_E_VOLTA);
+
+  it("não é confundido com voucher de hotel", () => {
+    expect(r.tipo).toBe("passagem");
+    expect(r.formato).toBe("Voucher aéreo (Onfly)");
+  });
+
+  it("lê localizador, emissão e companhia", () => {
+    expect(r.campos.purchaseOrderNumber).toBe("EINDWE");
+    expect(r.campos.purchaseDate).toBe("2026-08-27");
+    expect(r.campos.ticketCompany).toBe("LATAM");
+  });
+
+  it("lê a ida com data em inglês, aeroportos e as duas horas", () => {
+    expect(r.campos.departureAirport).toBe("GRU");
+    expect(r.campos.destinationAirport).toBe("FOR");
+    expect(r.campos.departureCityOrigin).toBe("São Paulo");
+    expect(r.campos.departureCityDestination).toBe("Fortaleza");
+    expect(r.campos.actualDepartureDate).toBe("2026-09-30");
+    expect(r.campos.actualDepartureTime).toBe("15:55");
+    expect(r.campos.actualArrivalTime).toBe("19:20");
+  });
+
+  it("lê a volta do mesmo arquivo", () => {
+    expect(r.campos.returnOriginAirport).toBe("FOR");
+    expect(r.campos.returnDestinationAirport).toBe("GRU");
+    expect(r.campos.actualReturnDate).toBe("2026-10-05");
+    expect(r.campos.actualReturnTime).toBe("06:05");
+    expect(r.campos.returnArrivalTime).toBe("09:40");
+    expect(r.trechoUnico).toBe(false);
+  });
+
+  it("junta os passageiros do grupo sem repetir os da volta", () => {
+    expect(r.pessoas).toEqual(["Fulano Miguel Marques", "Ciclano da Silva Cordeiro"]);
+  });
+
+  it("avisa que o voucher não traz valor nenhum", () => {
+    expect(r.campos.value).toBeUndefined();
+    expect(r.avisos.join(" ")).toMatch(/não traz o valor/i);
+  });
+});
+
+describe("voucher aéreo da Onfly com um trecho só", () => {
+  const r = lerVoucher(ONFLY_UM_TRECHO);
+
+  it("marca trecho único em vez de decidir que é apenas ida", () => {
+    // O arquivo se intitula "Ida", mas pode ser a volta emitida à parte: quem
+    // decide é o recorte escolhido na tela.
+    expect(r.trechoUnico).toBe(true);
+    expect(r.campos.isOneWay).toBeUndefined();
+    expect(r.campos.actualReturnDate).toBeUndefined();
+  });
+
+  it("lê o trecho que veio", () => {
+    expect(r.campos.departureAirport).toBe("FOR");
+    expect(r.campos.destinationAirport).toBe("GRU");
+    expect(r.campos.actualDepartureDate).toBe("2026-10-04");
+    expect(r.pessoas).toEqual(["Beltrano Carlos Ferreira Alves"]);
+  });
+});
+
+describe("voucher da agência com um trecho só", () => {
+  const r = lerVoucher(AGENCIA_SO_UM_TRECHO);
+
+  it("usa as duas pontas do roteiro como cidades, não o nome do aeroporto", () => {
+    expect(r.campos.departureCityOrigin).toBe("São Paulo");
+    expect(r.campos.departureCityDestination).toBe("Rio de Janeiro");
+  });
+
+  it("continua marcando trecho único e lendo o total", () => {
+    expect(r.trechoUnico).toBe(true);
+    expect(r.campos.value).toBe("1.436,87");
+  });
+});
