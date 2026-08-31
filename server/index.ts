@@ -347,10 +347,13 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
+  // reusePort só existe no Linux (onde a aplicação roda): no Windows o Node
+  // aborta com ENOTSUP e o servidor nem sobe, impedindo rodar o projeto
+  // localmente para conferir uma tela.
   server.listen({
     port,
     host: "0.0.0.0",
-    reusePort: true,
+    ...(process.platform === "linux" ? { reusePort: true } : {}),
   }, () => {
     log(`serving on port ${port}`);
   });

@@ -524,7 +524,7 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
     // Quem divide quarto com períodos diferentes precisa ser conferido com o
     // hotel (entrada/saída em dias distintos), então a sugestão já diz isso.
     notes: q.partialOverlap
-      ? `Datas diferentes entre os ocupantes — ${q.sharedNights} noite(s) em comum. Confirme entrada/saída com o hotel.`
+      ? `Datas diferentes entre os ocupantes — ${q.sharedNights} ${q.sharedNights === 1 ? "noite" : "noites"} em comum. Confirme entrada/saída com o hotel.`
       : null,
   }));
 

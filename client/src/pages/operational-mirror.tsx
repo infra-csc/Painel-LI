@@ -27,10 +27,10 @@ import {
 import { EditDrawer, ROOM_TYPE_OPTIONS, ROOM_TYPE_LABEL, type DrawerKind, type DrawerSource } from "@/components/operational-mirror-drawers";
 import {
   RefreshCw, FileSpreadsheet, AlertTriangle, Plane, BedDouble, Luggage, Car,
-  CheckCircle2, Users, Loader2, CheckCheck, MapPin, Clock, Check, MapPinned, CalendarDays,
+  CheckCircle2, Users, Loader2, CheckCheck, MapPin, Clock, Check, CalendarDays,
   SlidersHorizontal, Columns3, Pencil, ChevronDown, ChevronRight, Search, X, LayoutGrid,
   Table2, Building2, Rows3, AlignJustify, Filter, Eraser, UserRound, ChevronUp, ChevronsUpDown,
-  Lock, ExternalLink, Landmark,
+  Lock, ExternalLink, Landmark, Info,
 } from "lucide-react";
 
 function brl(cents: number | null | undefined): string {
@@ -581,7 +581,7 @@ export default function OperationalMirror() {
           </div>
 
           {ev && (
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm border-t pt-3">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm border-t pt-3">
               <span className="font-medium text-foreground truncate max-w-[420px]" title={ev.name}>{ev.name}</span>
               {ev.location && (
                 <span className="inline-flex items-center gap-1.5 text-muted-foreground">
@@ -597,17 +597,46 @@ export default function OperationalMirror() {
                 {rows.length} {rows.length === 1 ? "colaborador" : "colaboradores"}
               </span>
               {!canEditMirror && (
-                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground ml-auto" data-testid="mirror-readonly-notice"
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="mirror-readonly-notice"
                   title="Somente Admin, Compras e Produção editam o espelho.">
                   <Lock className="h-3.5 w-3.5" aria-hidden="true" /> Somente leitura
                 </span>
               )}
+              <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
+              {canEditMirror && (
+                <>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="inline-flex items-center gap-2 h-9 px-3 rounded-md border bg-card">
+                        <Switch id="mirror-edit-mode" checked={editModeWanted} onCheckedChange={setEditModeWanted} data-testid="button-edit-mode" />
+                        <Label htmlFor="mirror-edit-mode" className="text-[13px] cursor-pointer flex items-center gap-1.5">
+                          <Pencil className="h-3.5 w-3.5" aria-hidden="true" /> Edição
+                        </Label>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>Liga a edição direto nas células da grade</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9" onClick={() => recalcMutation.mutate()} disabled={recalcMutation.isPending} data-testid="button-recalc">
+                        {recalcMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" />}
+                        {recalcMutation.isPending ? "Recalculando…" : "Sugestões"}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Refaz as sugestões de quarto e Uber (grupos confirmados são preservados)</TooltipContent>
+                  </Tooltip>
+                </>
+              )}
+              <Button size="sm" className="h-9" onClick={handleExport} data-testid="button-export">
+                <FileSpreadsheet className="h-4 w-4 mr-2" aria-hidden="true" /> Exportar
+              </Button>
+              </div>
             </div>
           )}
         </header>
 
         {!eventId && (
-          <div className="rounded-xl border border-dashed bg-muted/20 px-6 py-16 text-center" data-testid="mirror-empty-no-event">
+          <div className="rounded-lg border border-dashed bg-muted/20 px-6 py-16 text-center" data-testid="mirror-empty-no-event">
             <span className="mx-auto mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-background border">
               <LayoutGrid className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
             </span>
@@ -623,7 +652,7 @@ export default function OperationalMirror() {
           <div className="space-y-4" data-testid="mirror-loading" aria-busy="true" aria-live="polite">
             <div className="h-[76px] rounded-xl border bg-muted/30 animate-pulse" />
             <div className="h-9 w-full max-w-md rounded-lg bg-muted/40 animate-pulse" />
-            <div className="rounded-xl border overflow-hidden">
+            <div className="rounded-lg border overflow-hidden">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="h-12 border-b last:border-0 bg-muted/20 animate-pulse" style={{ animationDelay: `${i * 60}ms` }} />
               ))}
@@ -633,7 +662,7 @@ export default function OperationalMirror() {
         )}
 
         {eventId && !isLoading && loadErrorMessage && (
-          <div className="rounded-xl border border-destructive/40 bg-destructive/5 px-6 py-12 text-center" role="alert" data-testid="mirror-error">
+          <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-6 py-12 text-center" role="alert" data-testid="mirror-error">
             <span className="mx-auto mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
               <AlertTriangle className="h-5 w-5" aria-hidden="true" />
             </span>
@@ -651,7 +680,7 @@ export default function OperationalMirror() {
             {/* Eram seis cartões com borda, quatro deles zerados. Agora é uma
                 faixa só: o total manda, as categorias explicam, e o que está
                 zerado fica apagado em vez de gritar "R$ 0,00" seis vezes. */}
-            <section className="rounded-xl border bg-card overflow-hidden" aria-label="Resumo de custos do evento">
+            <section className="rounded-lg border bg-card overflow-hidden" aria-label="Resumo de custos do evento">
               <div className="flex flex-col sm:flex-row">
                 <div className="px-5 py-4 sm:border-r bg-muted/30 sm:min-w-[230px]">
                   <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Custo total do evento</p>
@@ -679,7 +708,7 @@ export default function OperationalMirror() {
               const comPendencia = PEND_CATS.filter((c) => (pendCounts[c.key] ?? 0) > 0);
               if (data.pendingCount === 0) {
                 return (
-                  <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/50 px-4 py-2.5 text-sm dark:border-emerald-900/50 dark:bg-emerald-950/20" data-testid="mirror-no-pendencies">
+                  <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 px-4 py-2.5 text-sm dark:border-emerald-900/50 dark:bg-emerald-950/20" data-testid="mirror-no-pendencies">
                     <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden="true" />
                     <span className="font-medium text-emerald-900 dark:text-emerald-200">Nada pendente neste evento.</span>
                     <span className="text-emerald-700/80 dark:text-emerald-300/70">Passagens, hospedagens e documentos estão completos.</span>
@@ -687,7 +716,7 @@ export default function OperationalMirror() {
                 );
               }
               return (
-                <div className="rounded-xl border border-amber-200 bg-amber-50/40 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/20">
+                <div className="rounded-lg border border-amber-200 bg-amber-50/40 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/20">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="inline-flex items-center gap-2 text-sm font-medium text-amber-900 dark:text-amber-200 mr-1">
                       <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" aria-hidden="true" />
@@ -745,10 +774,10 @@ export default function OperationalMirror() {
                   })}
                 </div>
 
-                <div className="relative ml-auto">
+                <div className="relative w-full sm:w-auto sm:ml-auto order-last sm:order-none">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" aria-hidden="true" />
                   <Input value={searchText} onChange={(e) => setSearchText(e.target.value)} placeholder="Buscar colaborador…"
-                    aria-label="Buscar colaborador pelo nome" className="pl-8 h-9 w-44 lg:w-56" data-testid="input-search" />
+                    aria-label="Buscar colaborador pelo nome" className="pl-8 h-9 w-40 lg:w-52" data-testid="input-search" />
                   {searchText && (
                     <button type="button" onClick={() => setSearchText("")} aria-label="Limpar busca"
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
@@ -756,13 +785,6 @@ export default function OperationalMirror() {
                     </button>
                   )}
                 </div>
-
-                {view === "grade" && (
-                  <ToggleGroup type="single" value={density} onValueChange={(v) => (v === "comfortable" || v === "compact") && setDensity(v)} className="border rounded-md" aria-label="Densidade da grade">
-                    <ToggleGroupItem value="comfortable" className="h-9 px-2.5" title="Confortável" aria-label="Densidade confortável"><Rows3 className="h-4 w-4" /></ToggleGroupItem>
-                    <ToggleGroupItem value="compact" className="h-9 px-2.5" title="Compacta" aria-label="Densidade compacta"><AlignJustify className="h-4 w-4" /></ToggleGroupItem>
-                  </ToggleGroup>
-                )}
 
                 <Popover>
                   <PopoverTrigger asChild>
@@ -822,14 +844,27 @@ export default function OperationalMirror() {
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="sm" className="h-9" data-testid="button-columns">
                         <Columns3 className="h-4 w-4 sm:mr-2" aria-hidden="true" />
-                        <span className="hidden sm:inline">Colunas</span>
+                        <span className="hidden lg:inline">Exibição</span>
                         {hiddenBlocks.size > 0 && <Badge variant="secondary" className="ml-2 h-5 px-1.5 tabular-nums">{ALL_BLOCKS.length - hiddenBlocks.size}</Badge>}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-56" align="end">
-                      <div className="space-y-2">
+                    <PopoverContent className="w-60" align="end">
+                      <div className="space-y-3">
+                        <div>
+                          <span className="text-sm font-semibold">Densidade</span>
+                          <ToggleGroup type="single" value={density} onValueChange={(v) => (v === "comfortable" || v === "compact") && setDensity(v)}
+                            className="mt-1.5 grid grid-cols-2 gap-1" aria-label="Densidade da grade">
+                            <ToggleGroupItem value="comfortable" className="h-8 text-xs gap-1.5" aria-label="Densidade confortável">
+                              <Rows3 className="h-3.5 w-3.5" aria-hidden="true" /> Confortável
+                            </ToggleGroupItem>
+                            <ToggleGroupItem value="compact" className="h-8 text-xs gap-1.5" aria-label="Densidade compacta">
+                              <AlignJustify className="h-3.5 w-3.5" aria-hidden="true" /> Compacta
+                            </ToggleGroupItem>
+                          </ToggleGroup>
+                        </div>
+                        <Separator />
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-semibold">Mostrar blocos</span>
+                          <span className="text-sm font-semibold">Blocos da grade</span>
                           <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setHiddenBlocks(new Set())}>Padrão</Button>
                         </div>
                         {ALL_BLOCKS.map((b) => (
@@ -843,37 +878,6 @@ export default function OperationalMirror() {
                   </Popover>
                 )}
 
-                <Separator orientation="vertical" className="h-6 hidden lg:block" />
-
-                {canEditMirror && (
-                  <>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="inline-flex items-center gap-2 h-9 px-3 rounded-md border bg-card">
-                          <Switch id="mirror-edit-mode" checked={editModeWanted} onCheckedChange={setEditModeWanted} data-testid="button-edit-mode" />
-                          <Label htmlFor="mirror-edit-mode" className="text-[13px] cursor-pointer flex items-center gap-1.5">
-                            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                            <span className="hidden lg:inline">Edição</span>
-                          </Label>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>Liga a edição direto nas células da grade</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-9" onClick={() => recalcMutation.mutate()} disabled={!eventId || recalcMutation.isPending} data-testid="button-recalc">
-                          {recalcMutation.isPending ? <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4 sm:mr-2" aria-hidden="true" />}
-                          <span className="hidden sm:inline">{recalcMutation.isPending ? "Recalculando…" : "Sugestões"}</span>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Refaz as sugestões de quarto e Uber (grupos confirmados são preservados)</TooltipContent>
-                    </Tooltip>
-                  </>
-                )}
-                <Button size="sm" className="h-9" onClick={handleExport} disabled={!eventId} data-testid="button-export">
-                  <FileSpreadsheet className="h-4 w-4 sm:mr-2" aria-hidden="true" />
-                  <span className="hidden sm:inline">Exportar</span>
-                </Button>
               </div>
 
               {activeFilterCount > 0 && (
@@ -938,7 +942,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
   const sortIcon = (key: string) => sort?.key === key ? (sort.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ChevronsUpDown className="h-3 w-3 opacity-40" />;
   return (
     <>
-      <div className="rounded-xl border bg-card overflow-hidden">
+      <div className="rounded-lg border bg-card overflow-hidden">
         <div>
           <div className="overflow-auto max-h-[calc(100vh-300px)] min-h-[240px]">
             <table className="text-xs border-collapse w-full" data-testid="operational-grid">
@@ -972,7 +976,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
                   </>}
                   {show("bagagem") && <><ColHead pad={headPad}>Bagagem R$</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Conferência</ColHead></>}
                   {show("uber") && <><ColHead pad={headPad}>Uber R$</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Conferência</ColHead></>}
-                  {show("locacao") && <><ColHead pad={headPad}>Empresa</ColHead><ColHead pad={headPad}>R$</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Check-in</ColHead></>}
+                  {show("locacao") && <><ColHead pad={headPad}>Empresa</ColHead><ColHead pad={headPad}>R$</ColHead><ColHead pad={headPad}>OC</ColHead><ColHead pad={headPad}>Conferência</ColHead></>}
                   {show("pendencias") && <><ColHead pad={headPad}>Pendências</ColHead><ColHead pad={headPad}>Observações</ColHead></>}
                 </tr>
               </thead>
@@ -1068,79 +1072,126 @@ function ColHead({ children, pad }: { children: React.ReactNode; pad: string }) 
 interface ColaboradoresViewProps { rows: MirrorRow[]; openDrawer: OpenDrawer; canEdit: boolean; emptyMessage: string }
 function ColaboradoresView({ rows, openDrawer, canEdit, emptyMessage }: ColaboradoresViewProps) {
   const edit = (kind: DrawerKind, r: MirrorRow) => canEdit ? () => openDrawer(kind, r) : undefined;
-  if (rows.length === 0) return <div className="rounded-xl border border-dashed bg-muted/20 py-14 text-center text-sm text-muted-foreground">{emptyMessage}</div>;
+  if (rows.length === 0) return <div className="rounded-lg border border-dashed bg-muted/20 py-14 text-center text-sm text-muted-foreground">{emptyMessage}</div>;
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
       {rows.map((r) => {
         const t = r.ticket; const a = r.accommodation;
         const hotelTotal = hotelTotalCents(r);
         const hotelDerived = isHotelTotalDerived(r);
         const indivTotal = (t?.value || 0) + hotelTotal + (r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0);
+        // Extras zerados viravam três blocos vazios do mesmo tamanho dos que
+        // têm dado. Agora só entram na lista quando existem de fato.
+        const extras = [
+          r.baggage.extraCents > 0 && { icon: <Luggage className="h-3.5 w-3.5" />, titulo: "Bagagem", valor: r.baggage.extraCents, detalhe: r.baggage.oc ? `OC ${r.baggage.oc}` : null, kind: "extras" as DrawerKind },
+          r.uber.totalCents > 0 && { icon: <Car className="h-3.5 w-3.5" />, titulo: "Uber", valor: r.uber.totalCents, detalhe: r.uber.groupName || (r.uber.oc ? `OC ${r.uber.oc}` : null), kind: "extras" as DrawerKind },
+          r.carRental.totalCents > 0 && { icon: <Car className="h-3.5 w-3.5" />, titulo: "Locação", valor: r.carRental.totalCents, detalhe: r.carRental.company || (r.carRental.oc ? `OC ${r.carRental.oc}` : null), kind: "extras" as DrawerKind },
+        ].filter(Boolean) as { icon: React.ReactNode; titulo: string; valor: number; detalhe: string | null; kind: DrawerKind }[];
+
         return (
-          <Card key={r.teamInclusionId} className="overflow-hidden hover:shadow-md transition-shadow" data-testid={`collab-card-${r.teamInclusionId}`}>
-            <CardHeader className="pb-3 bg-muted/30">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">{r.collaborator.fullName.slice(0, 2).toUpperCase()}</span>
-                    {r.collaborator.fullName}
-                  </CardTitle>
-                  <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                    <Badge variant="secondary" className="capitalize">{r.function.area || r.function.name || "—"}</Badge>
-                    <span>{fmtDate(r.schedule.startDate)} → {fmtDate(r.schedule.endDate)}</span>
-                  </div>
+          <article key={r.teamInclusionId} className="rounded-lg border bg-card overflow-hidden transition-shadow hover:shadow-sm" data-testid={`collab-card-${r.teamInclusionId}`}>
+            <header className="flex items-start justify-between gap-3 px-4 py-3 border-b">
+              <div className="flex items-start gap-3 min-w-0">
+                <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-[11px] font-semibold">
+                  {r.collaborator.fullName.slice(0, 2).toUpperCase()}
+                </span>
+                <div className="min-w-0">
+                  <p className="font-medium leading-tight truncate" title={r.collaborator.fullName}>{r.collaborator.fullName}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                    <span className="capitalize">{r.function.area || r.function.name || "Sem função"}</span>
+                    {" · "}{fmtDate(r.schedule.startDate)} – {fmtDate(r.schedule.endDate)}
+                  </p>
                 </div>
-                {r.pendencies.length > 0 ? <Badge variant="outline" className="border-amber-400 text-amber-700 dark:text-amber-400">{r.pendencies.length} pend.</Badge> : <Badge className="bg-green-600">OK</Badge>}
               </div>
-            </CardHeader>
-            <CardContent className="p-4 grid grid-cols-2 gap-3 text-sm">
-              <SummaryBlock icon={<Plane className="h-3.5 w-3.5 text-indigo-500" />} title="Passagem" value={brl(t?.value)} onEdit={edit("ticket", r)}
-                lines={[t?.locator && `Loc: ${t.locator}`, (t?.departureAirport || t?.returnOriginAirport) && `${t?.departureAirport || "?"} → ${t?.returnOriginAirport || "?"}`, t?.purchaseOrderNumber && `OC: ${t.purchaseOrderNumber}`]} />
-              <SummaryBlock icon={<BedDouble className="h-3.5 w-3.5 text-emerald-500" />} title="Hospedagem" value={brl(hotelTotal)} derived={hotelDerived} onEdit={edit("accommodation", r)}
-                lines={[a?.hotelName, a?.reservationNumber && `Reserva: ${a.reservationNumber}`, (a?.checkInDate || a?.checkOutDate) && `${fmtDate(a?.checkInDate)} → ${fmtDate(a?.checkOutDate)}`, a?.nightsCount && `${a.nightsCount} diária(s)${a.roomType ? " · " + (ROOM_TYPE_LABEL[a.roomType] ?? a.roomType) : ""}`, a?.hotelOc && `OC: ${a.hotelOc}`]} />
-              <SummaryBlock icon={<Luggage className="h-3.5 w-3.5 text-amber-500" />} title="Bagagem" value={brl(r.baggage.extraCents)} onEdit={edit("extras", r)} lines={[r.baggage.oc && `OC: ${r.baggage.oc}`, r.baggage.checkIn && `Check-in: ${r.baggage.checkIn}`]} />
-              <SummaryBlock icon={<Car className="h-3.5 w-3.5 text-fuchsia-500" />} title="Uber" value={brl(r.uber.totalCents)} onEdit={edit("extras", r)} lines={[r.uber.groupName, r.uber.oc && `OC: ${r.uber.oc}`]} />
-              <SummaryBlock icon={<Car className="h-3.5 w-3.5 text-orange-500" />} title="Locação" value={brl(r.carRental.totalCents)} onEdit={edit("extras", r)} lines={[r.carRental.company, r.carRental.oc && `OC: ${r.carRental.oc}`]} />
-              <div className="rounded-lg border bg-muted/20 p-2.5">
-                <div className="text-xs text-muted-foreground mb-1">Pendências</div>
-                {r.pendencies.length === 0 ? <div className="flex items-center gap-1 text-green-600 text-xs"><CheckCircle2 className="h-3.5 w-3.5" /> Tudo certo</div> :
-                  <div className="flex flex-wrap gap-1">{r.pendencies.map((p, i) => <PendencyBadge key={i} p={p} />)}</div>}
+              <div className="text-right shrink-0">
+                <p className="text-[11px] text-muted-foreground">Total</p>
+                <p className="font-semibold tabular-nums leading-tight">{brl(indivTotal)}</p>
               </div>
-              <div className="col-span-2 flex items-center justify-between border-t pt-3 mt-1">
-                <div>
-                  <span className="text-xs text-muted-foreground">Total individual</span>
-                  <div className="text-lg font-bold tabular-nums">{brl(indivTotal)}</div>
+            </header>
+
+            <div className="divide-y">
+              <LinhaCusto icon={<Plane className="h-3.5 w-3.5" />} titulo="Passagem" valor={t?.value ?? 0}
+                detalhes={[t?.locator && `Loc ${t.locator}`, [t?.departureAirport, t?.returnOriginAirport].filter(Boolean).join(" → ") || null, t?.purchaseOrderNumber && `OC ${t.purchaseOrderNumber}`]}
+                vazio="Sem passagem registrada" onEdit={edit("ticket", r)} />
+              <LinhaCusto icon={<BedDouble className="h-3.5 w-3.5" />} titulo="Hospedagem" valor={hotelTotal} derivado={hotelDerived}
+                detalhes={[a?.hotelName, a?.reservationNumber && `Reserva ${a.reservationNumber}`, (a?.checkInDate || a?.checkOutDate) && `${fmtDate(a?.checkInDate)} – ${fmtDate(a?.checkOutDate)}`, a?.nightsCount ? `${a.nightsCount} ${a.nightsCount === 1 ? "noite" : "noites"}${a.roomType ? " · " + (ROOM_TYPE_LABEL[a.roomType] ?? a.roomType) : ""}` : null]}
+                vazio="Sem hospedagem registrada" onEdit={edit("accommodation", r)} />
+              {extras.map((e) => (
+                <LinhaCusto key={e.titulo} icon={e.icon} titulo={e.titulo} valor={e.valor} detalhes={[e.detalhe]} vazio="" onEdit={edit(e.kind, r)} />
+              ))}
+              {extras.length === 0 && canEdit && (
+                <button type="button" onClick={() => openDrawer("extras", r)}
+                  className="w-full px-4 py-2.5 text-left text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:bg-muted/40">
+                  Sem bagagem, Uber ou locação — <span className="underline underline-offset-2">adicionar</span>
+                </button>
+              )}
+            </div>
+
+            <footer className="px-4 py-2.5 bg-muted/20 border-t">
+              {r.pendencies.length === 0 ? (
+                <p className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> Sem pendências
+                </p>
+              ) : (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {r.pendencies.map((pd, i) => <PendencyBadge key={i} p={pd} />)}
                 </div>
-                {canEdit && (
-                  <div className="flex items-center gap-1.5">
-                    <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => openDrawer("ticket", r)}><Plane className="h-3 w-3 mr-1" /> Passagem</Button>
-                    <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => openDrawer("accommodation", r)}><BedDouble className="h-3 w-3 mr-1" /> Hotel</Button>
-                    <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => openDrawer("extras", r)}><Luggage className="h-3 w-3 mr-1" /> Extras</Button>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+              )}
+            </footer>
+          </article>
         );
       })}
     </div>
   );
 }
 
-type SummaryLine = string | number | false | null | undefined;
-function SummaryBlock({ icon, title, value, lines = [], onEdit, derived }: { icon: React.ReactNode; title: string; value: string; lines?: SummaryLine[]; onEdit?: () => void; derived?: boolean }) {
+/**
+ * Uma linha de custo do colaborador. Substituiu os sub-cartões: dentro de um
+ * cartão, mais bordas só criam ruído — o que separa aqui é o divisor e o
+ * alinhamento do valor à direita.
+ */
+function LinhaCusto({ icon, titulo, valor, detalhes = [], vazio, onEdit, derivado }: {
+  icon: React.ReactNode;
+  titulo: string;
+  valor: number;
+  detalhes?: SummaryLine[];
+  vazio: string;
+  onEdit?: () => void;
+  derivado?: boolean;
+}) {
+  const linhas = detalhes.filter(Boolean) as (string | number)[];
+  const semNada = !valor && linhas.length === 0;
+  const conteudo = (
+    <>
+      <span className="flex items-start gap-2.5 min-w-0">
+        <span className="mt-0.5 text-muted-foreground shrink-0" aria-hidden="true">{icon}</span>
+        <span className="min-w-0">
+          <span className="block text-[13px] font-medium leading-tight">{titulo}</span>
+          {semNada ? (
+            <span className="block text-[11px] text-muted-foreground/70 leading-tight mt-0.5">{vazio}</span>
+          ) : (
+            <span className="block text-[11px] text-muted-foreground leading-snug mt-0.5 truncate">{linhas.join(" · ")}</span>
+          )}
+        </span>
+      </span>
+      <span className={`shrink-0 text-[13px] font-semibold tabular-nums ${semNada ? "text-muted-foreground/40" : ""} ${derivado ? "italic" : ""}`}
+        title={derivado ? "Valor derivado: diária × noites (total não informado)" : undefined}>
+        {brl(valor)}
+      </span>
+    </>
+  );
+  if (!onEdit) {
+    return <div className="flex items-start justify-between gap-3 px-4 py-2.5">{conteudo}</div>;
+  }
   return (
-    <div className="rounded-lg border bg-muted/20 p-2.5 group/sb relative">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">{icon} {title}</div>
-        {onEdit && <button type="button" onClick={onEdit} title={`Editar ${title}`} aria-label={`Editar ${title}`} className="opacity-0 group-hover/sb:opacity-100 focus-visible:opacity-100 transition-opacity h-5 w-5 inline-flex items-center justify-center rounded hover:bg-muted"><Pencil className="h-3 w-3" /></button>}
-      </div>
-      {/* Itálico = valor derivado (diária × diárias), não informado explicitamente. */}
-      <div className={`font-semibold mt-0.5 ${derived ? "italic" : ""}`} title={derived ? "Valor derivado: diária × diárias (total não informado)" : undefined}>{value}</div>
-      {lines.filter(Boolean).map((l, i) => <div key={i} className="text-[11px] text-muted-foreground truncate">{l}</div>)}
-    </div>
+    <button type="button" onClick={onEdit} aria-label={`Editar ${titulo}`}
+      className="w-full flex items-start justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:bg-muted/40">
+      {conteudo}
+    </button>
   );
 }
+
+type SummaryLine = string | number | false | null | undefined;
 
 // ============ DEPARTAMENTOS VIEW ============
 interface DepartamentosViewProps {
@@ -1166,7 +1217,7 @@ function DepartamentosView({ rows, totals, hotelDerived, collapsed, setCollapsed
     (totals?.byDepartment || []).forEach((d) => { if (!m.has(d.name)) m.set(d.name, d); });
     return m;
   }, [totals]);
-  if (groups.length === 0) return <div className="rounded-xl border border-dashed bg-muted/20 py-14 text-center text-sm text-muted-foreground">{emptyMessage}</div>;
+  if (groups.length === 0) return <div className="rounded-lg border border-dashed bg-muted/20 py-14 text-center text-sm text-muted-foreground">{emptyMessage}</div>;
   return (
     <div className="space-y-3">
       {groups.map(([name, members]) => {
@@ -1257,7 +1308,7 @@ interface GroupViewProps<G> {
 
 function QuartosView({ groups, collabById, canEdit, onConfirm, pendingId }: GroupViewProps<RoomGroup>) {
   const emptyHint = canEdit ? ' Clique em "Recalcular sugestões".' : "";
-  if (groups.length === 0) return <Card><CardContent className="py-10 text-center text-muted-foreground">Nenhuma sugestão de quarto.{emptyHint}</CardContent></Card>;
+  if (groups.length === 0) return <div className="rounded-lg border border-dashed bg-muted/20 py-12 text-center text-sm text-muted-foreground">Nenhuma sugestão de quarto ainda.{emptyHint}</div>;
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
       {groups.map((g) => {
@@ -1274,9 +1325,14 @@ function QuartosView({ groups, collabById, canEdit, onConfirm, pendingId }: Grou
             </CardHeader>
             <CardContent className="space-y-2 text-xs">
               <div className="text-muted-foreground">{g.hotelName || "Hotel a definir"}</div>
-              <div className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" /> {fmtDate(g.checkInDate)} → {fmtDate(g.checkOutDate)}</div>
+              <div className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" aria-hidden="true" /> {fmtDate(g.checkInDate)} – {fmtDate(g.checkOutDate)}</div>
+              {g.notes && (
+                <p className="flex items-start gap-1.5 rounded-md bg-muted/50 px-2 py-1.5 text-[11px] leading-snug text-muted-foreground" role="note">
+                  <Clock className="h-3 w-3 shrink-0 mt-px" aria-hidden="true" />{g.notes}
+                </p>
+              )}
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {members.length} hóspede(s)</span>
+                <span className="flex items-center gap-1"><Users className="h-3 w-3" aria-hidden="true" /> {members.length} {members.length === 1 ? "hóspede" : "hóspedes"}</span>
                 {genderRule && <Badge variant="outline" className="text-[9px] px-1 py-0 font-normal" title="Regra de gênero do quarto">{genderRule}</Badge>}
               </div>
               <div className="flex flex-wrap gap-1">
@@ -1287,10 +1343,17 @@ function QuartosView({ groups, collabById, canEdit, onConfirm, pendingId }: Grou
                 ))}
               </div>
               {missingGender.length > 0 && (
-                <div className="flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-2 py-1.5 text-amber-800 dark:text-amber-300" role="note">
-                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" />
-                  <span>{missingGender.length === 1 ? "1 hóspede sem gênero cadastrado" : `${missingGender.length} hóspedes sem gênero cadastrado`} — a regra de compartilhamento não pode ser verificada.</span>
-                </div>
+                genderRule && g.genderRule !== "none" ? (
+                  <div className="flex items-start gap-1.5 rounded-md bg-muted/60 px-2 py-1.5 text-muted-foreground" role="note">
+                    <Info className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden="true" />
+                    <span>Gênero deduzido pelo primeiro nome — o cadastro do colaborador está em branco. Confira antes de fechar com o hotel.</span>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-2 py-1.5 text-amber-800 dark:text-amber-300" role="note">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden="true" />
+                    <span>{missingGender.length === 1 ? "1 hóspede sem gênero" : `${missingGender.length} hóspedes sem gênero`} — não deu para deduzir pelo nome, então o quarto foi montado pela função.</span>
+                  </div>
+                )
               )}
               {!g.confirmed && canEdit && <Button size="sm" className="w-full mt-2" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id} data-testid={`confirm-room-${g.id}`}>
                 {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />} Confirmar
@@ -1306,7 +1369,7 @@ function QuartosView({ groups, collabById, canEdit, onConfirm, pendingId }: Grou
 // ============ UBER VIEW ============
 function UberView({ groups, collabById, canEdit, onConfirm, pendingId }: GroupViewProps<UberGroup>) {
   const emptyHint = canEdit ? ' Clique em "Recalcular sugestões".' : "";
-  if (groups.length === 0) return <Card><CardContent className="py-10 text-center text-muted-foreground">Nenhuma sugestão de Uber.{emptyHint}</CardContent></Card>;
+  if (groups.length === 0) return <div className="rounded-lg border border-dashed bg-muted/20 py-12 text-center text-sm text-muted-foreground">Nenhuma sugestão de Uber.{emptyHint}</div>;
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
       {groups.map((g) => {
@@ -1343,6 +1406,11 @@ function UberView({ groups, collabById, canEdit, onConfirm, pendingId }: GroupVi
  * Antes as duas tabelas daqui mostravam a mesma coisa, porque department caía
  * no nome da função quando a área não estava preenchida.
  */
+/** Célula de valor: zero fica apagado para o que foi gasto saltar aos olhos. */
+function Valor({ v }: { v: number }) {
+  return <td className={`p-2 text-right tabular-nums ${v ? "" : "text-muted-foreground/40"}`}>{brl(v)}</td>;
+}
+
 function RateioTabela({ titulo, icone, linhas, vazio }: {
   titulo: string;
   icone: React.ReactNode;
@@ -1371,11 +1439,10 @@ function RateioTabela({ titulo, icone, linhas, vazio }: {
               </thead>
               <tbody>
                 {linhas.map((d) => (
-                  <tr key={d.name} className="border-b last:border-0">
+                  <tr key={d.name} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="p-2 capitalize">{d.name}</td>
-                    <td className="p-2 text-right tabular-nums">{brl(d.tickets)}</td><td className="p-2 text-right tabular-nums">{brl(d.hotel)}</td>
-                    <td className="p-2 text-right tabular-nums">{brl(d.baggage)}</td><td className="p-2 text-right tabular-nums">{brl(d.uber)}</td>
-                    <td className="p-2 text-right tabular-nums">{brl(d.carRental)}</td><td className="p-2 text-right tabular-nums font-semibold">{brl(d.total)}</td>
+                    <Valor v={d.tickets} /><Valor v={d.hotel} /><Valor v={d.baggage} /><Valor v={d.uber} /><Valor v={d.carRental} />
+                    <td className="p-2 text-right tabular-nums font-semibold">{brl(d.total)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1402,7 +1469,7 @@ function FooterTotals({ totals, hotelDerived }: { totals: MirrorTotals; hotelDer
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <RateioTabela
           titulo="Rateio por Conta"
           icone={<Landmark className="h-4 w-4" />}
@@ -1429,17 +1496,6 @@ function FooterTotals({ totals, hotelDerived }: { totals: MirrorTotals; hotelDer
         </div>
       )}
 
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">Totais Gerais</CardTitle></CardHeader>
-        <CardContent className="space-y-1.5 text-sm">
-          <TotalLine label="Total Hotelaria" value={brl(totals.hotel)} italic={hotelDerived} title={hotelDerived ? "Inclui valores derivados de diária × diárias" : undefined} />
-          <TotalLine label="Total Passagens" value={brl(totals.tickets)} />
-          <TotalLine label="Total Bagagem Extra" value={brl(totals.baggage)} />
-          <TotalLine label="Total Uber" value={brl(totals.uber)} />
-          <TotalLine label="Total Locação" value={brl(totals.carRental)} />
-          <div className="border-t pt-1.5 mt-1.5"><TotalLine label="Total Geral" value={brl(totals.grand)} bold /></div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
@@ -1463,6 +1519,11 @@ function CostItem({ icon, label, value }: { icon: React.ReactNode; label: string
   );
 }
 
-function TotalLine({ label, value, bold, italic, title }: { label: string; value: string; bold?: boolean; italic?: boolean; title?: string }) {
-  return <div className={`flex items-center justify-between ${bold ? "font-bold text-base" : ""}`}><span className={bold ? "" : "text-muted-foreground"}>{label}</span><span className={`tabular-nums ${italic ? "italic" : ""}`} title={title}>{value}</span></div>;
+function TotalLine({ label, value, bold, italic, title, muted }: { label: string; value: string; bold?: boolean; italic?: boolean; title?: string; muted?: boolean }) {
+  return (
+    <div className={`flex items-center justify-between ${bold ? "text-[15px] font-semibold" : ""}`}>
+      <span className={bold ? "" : "text-muted-foreground"}>{label}</span>
+      <span className={`tabular-nums ${italic ? "italic" : ""} ${muted && !bold ? "text-muted-foreground/40" : ""}`} title={title}>{value}</span>
+    </div>
+  );
 }
