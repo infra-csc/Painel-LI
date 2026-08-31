@@ -52,6 +52,10 @@ const PASSOS: Passo[] = [
     sql: `ALTER TABLE uber_groups ADD COLUMN IF NOT EXISTS manual_time text`,
   },
   {
+    descricao: "uber_groups.titular_collaborator_id (responsável pelo carro)",
+    sql: `ALTER TABLE uber_groups ADD COLUMN IF NOT EXISTS titular_collaborator_id varchar REFERENCES collaborators(id)`,
+  },
+  {
     descricao: "team_inclusions.skip_uber (dispensado da roteirização)",
     sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS skip_uber boolean NOT NULL DEFAULT false`,
   },
