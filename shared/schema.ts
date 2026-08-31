@@ -960,6 +960,10 @@ export const uberGroups = pgTable("uber_groups", {
   time: text("time"),
   estimatedTotalCents: integer("estimated_total_cents").default(0),
   notes: text("notes"),
+  // TITULAR do carro (28/08): quem chama e responde pela corrida. Existe nas
+  // planilhas da equipe e é escolhido À MÃO entre os passageiros do grupo —
+  // decisão do dono; o sistema não adivinha.
+  titularCollaboratorId: varchar("titular_collaborator_id").references(() => collaborators.id),
   status: text("status").notNull().default("sugerido"), // sugerido, confirmado
   suggested: boolean("suggested").notNull().default(true),
   confirmed: boolean("confirmed").notNull().default(false),

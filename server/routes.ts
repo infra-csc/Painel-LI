@@ -3076,7 +3076,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
     try {
       const allowed: any = {};
-      for (const k of ["groupName", "direction", "origin", "destination", "date", "time", "estimatedTotalCents", "notes", "status", "confirmed"]) {
+      for (const k of ["groupName", "direction", "origin", "destination", "date", "time", "estimatedTotalCents", "notes", "status", "confirmed", "titularCollaboratorId"]) {
         if (k in req.body) allowed[k] = req.body[k];
       }
       const [g] = await db.update(uberGroupsTable)
