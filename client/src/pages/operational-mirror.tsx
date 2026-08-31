@@ -26,6 +26,10 @@ import {
   type MirrorRow, type MirrorTotals, type MirrorResponse, type MirrorSubtotal, type RoomGroup, type UberGroup, type MirrorCollaborator,
 } from "@shared/operational-mirror-types";
 import { estadoDaCelula, etapaCompleta, type ContextoDaLinha, type EstadoCelula } from "@shared/mirror-cell-state";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { EditDrawer, ROOM_TYPE_OPTIONS, ROOM_TYPE_LABEL, type DrawerKind, type DrawerSource } from "@/components/operational-mirror-drawers";
 import {
   RefreshCw, FileSpreadsheet, AlertTriangle, Plane, BedDouble, Luggage, Car,
@@ -246,13 +250,13 @@ function EditableCell({
     // calculado seja lido como decisão tomada.
     if (estado === "a_confirmar") return <span className="text-violet-700 dark:text-violet-300">a confirmar</span>;
     if (estado === "nao_usa") return <span className="text-muted-foreground">não usa</span>;
-    if (type === "bool") return value ? <Check className="h-3.5 w-3.5 text-emerald-700 mx-auto" /> : <span className="text-muted-foreground/50">·</span>;
+    if (type === "bool") return value ? <Check className="h-3.5 w-3.5 text-emerald-700 mx-auto" /> : <span className="text-muted-foreground">·</span>;
     if (value === null || value === undefined || value === "") {
       // "falta preencher" e "não se aplica" tinham o mesmo travessão cinza: a
       // grade não respondia o que ainda precisa ser comprado.
       return estado === "falta"
         ? <span className="font-medium text-amber-800 dark:text-amber-200">preencher</span>
-        : <span className="text-muted-foreground/50">·</span>;
+        : <span className="text-muted-foreground">·</span>;
     }
     if (type === "money") return brl(value as number);
     if (type === "date") return fmtDate(value as string);
@@ -777,6 +781,15 @@ export default function OperationalMirror() {
     return nomes;
   }, [searchText, deptFilter, hotelFilter, pendCat, flags]);
 
+  /**
+   * Confirmação para o que não tem volta (31/08). Duas ações sobrescreviam
+   * trabalho sem perguntar: "Sugestões" refaz agrupamentos e horários por cima
+   * de ajustes feitos à mão, e "Separar" muda o custo de hotelaria do evento.
+   * O texto diz a CONSEQUÊNCIA — repetir a pergunta no corpo não ajuda a
+   * decidir.
+   */
+  const [confirmar, setConfirmar] = useState<{ titulo: string; texto: string; rotulo: string; destrutivo?: boolean; acao: () => void } | null>(null);
+
   const emptyMessage = activeFilterCount > 0
     ? "Nenhum colaborador corresponde aos filtros aplicados."
     : "Nenhum colaborador escalado neste evento.";
@@ -921,9 +934,14 @@ export default function OperationalMirror() {
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-9" onClick={() => recalcMutation.mutate()} disabled={recalcMutation.isPending} data-testid="button-recalc">
+                      <Button variant="outline" size="sm" className="h-9" onClick={() => setConfirmar({
+                          titulo: "Refazer as sugestões deste evento?",
+                          texto: "Os agrupamentos e horários voltam a ser calculados a partir dos voos. Quartos e carros já confirmados são preservados — o resto é sobrescrito, inclusive ajustes feitos à mão.",
+                          rotulo: "Refazer sugestões",
+                          acao: () => recalcMutation.mutate(),
+                        })} disabled={recalcMutation.isPending} data-testid="button-recalc">
                         {recalcMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" />}
-                        {recalcMutation.isPending ? "Recalculando…" : "Sugestões"}
+                        {recalcMutation.isPending ? "Recalculando…" : "Refazer sugestões"}
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Refaz as sugestões de quarto e Uber (grupos confirmados são preservados)</TooltipContent>
@@ -1267,13 +1285,36 @@ export default function OperationalMirror() {
             {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} uberConfirmados={uberConfirmados} quartosConfirmados={quartosConfirmados} irParaVisao={setView} />}
             {view === "colaboradores" && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
             {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
-            {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} rows={rows} onMover={(c, de, para) => moverMutation.mutate({ tipo: "quarto", corpo: { collaboratorId: c, deGrupoId: de, paraGrupoId: para } })} onSeparar={(id) => separarQuartoMutation.mutate(id)} canEdit={canEditMirror} onPatch={(id, campos) => patchRoomMutation.mutate({ id, campos })} onConfirm={(id: string) => confirmRoomMutation.mutate(id)} pendingId={confirmRoomMutation.isPending ? confirmRoomMutation.variables : null} />}
+            {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} rows={rows} onMover={(c, de, para) => moverMutation.mutate({ tipo: "quarto", corpo: { collaboratorId: c, deGrupoId: de, paraGrupoId: para } })} onSeparar={(id) => setConfirmar({
+              titulo: "Separar em quartos individuais?",
+              texto: "Cada ocupante passa a ter um quarto próprio. O custo de hotelaria do evento sobe — a diária individual é maior que a compartilhada.",
+              rotulo: "Separar",
+              acao: () => separarQuartoMutation.mutate(id),
+            })} canEdit={canEditMirror} onPatch={(id, campos) => patchRoomMutation.mutate({ id, campos })} onConfirm={(id: string) => confirmRoomMutation.mutate(id)} pendingId={confirmRoomMutation.isPending ? confirmRoomMutation.variables : null} />}
             {view === "uber" && <UberView groups={data.uberGroups} collabById={collabById} rows={rows} onMover={(c, de, para) => moverMutation.mutate({ tipo: "uber", corpo: { collaboratorId: c, deGrupoId: de, paraGrupoId: para } })} canEdit={canEditMirror} onPatch={(id, campos) => patchUberMutation.mutate({ id, campos })} onConfirm={(id: string) => confirmUberMutation.mutate(id)} pendingId={confirmUberMutation.isPending ? confirmUberMutation.variables : null} />}
             {view === "rateio" && <FooterTotals totals={totals} hotelDerived={derivedHotelCount > 0} />}
             </>
             )}
           </>
         )}
+
+        <AlertDialog open={!!confirmar} onOpenChange={(o) => { if (!o) setConfirmar(null); }}>
+          <AlertDialogContent className="max-w-[460px]">
+            <AlertDialogHeader>
+              <AlertDialogTitle>{confirmar?.titulo}</AlertDialogTitle>
+              <AlertDialogDescription>{confirmar?.texto}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className={confirmar?.destrutivo ? "bg-red-600 hover:bg-red-700" : undefined}
+                onClick={(e) => { e.preventDefault(); confirmar?.acao(); setConfirmar(null); }}
+              >
+                {confirmar?.rotulo}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <EditDrawer open={!!drawer.kind} onOpenChange={(o) => !o && setDrawer({ kind: null, rowId: null, source: null })}
           kind={drawer.kind} rowId={drawer.rowId} rowName={drawer.name} source={drawer.source} onSaveMany={saveMany} />
@@ -1708,7 +1749,7 @@ function LinhaCusto({ icon, titulo, valor, detalhes = [], vazio, onEdit, derivad
           )}
         </span>
       </span>
-      <span className={`shrink-0 text-[13px] font-semibold tabular-nums ${semNada ? "text-muted-foreground/40" : ""} ${derivado ? "italic" : ""}`}
+      <span className={`shrink-0 text-[13px] font-semibold tabular-nums ${semNada ? "text-muted-foreground" : ""} ${derivado ? "italic" : ""}`}
         title={derivado ? "Valor derivado: diária × noites (total não informado)" : undefined}>
         {brl(valor)}
       </span>
@@ -1992,7 +2033,7 @@ function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, on
                             aoSalvar={(v) => onPatch(g.id, { hotelName: v || null })}
                             rotulo="Hotel do quarto"
                           />
-                        ) : (g.hotelName || <span className="text-muted-foreground/50">—</span>)}
+                        ) : (g.hotelName || <span className="text-muted-foreground">—</span>)}
                       </td>
                     ) : null}
                     {mi === 0 ? (
@@ -2134,7 +2175,7 @@ function TabelaUber({ titulo, subtitulo, tom, grupos, rowByCollab, collabById, c
                         ) : (
                           <span className="font-medium">
                             {membros.find((op) => op.id === g.titularCollaboratorId)?.name
-                              ?? <span className="text-muted-foreground/50">—</span>}
+                              ?? <span className="text-muted-foreground">—</span>}
                           </span>
                         )}
                       </td>
@@ -2245,7 +2286,7 @@ function UberView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onMov
  */
 /** Célula de valor: zero fica apagado para o que foi gasto saltar aos olhos. */
 function Valor({ v }: { v: number }) {
-  return <td className={`p-2 text-right tabular-nums ${v ? "" : "text-muted-foreground/40"}`}>{brl(v)}</td>;
+  return <td className={`p-2 text-right tabular-nums ${v ? "" : "text-muted-foreground"}`}>{brl(v)}</td>;
 }
 
 function RateioTabela({ titulo, icone, linhas, vazio }: {
@@ -2346,10 +2387,10 @@ function CostItem({ icon, label, value }: { icon: React.ReactNode; label: string
   const zerado = !value;
   return (
     <div className="px-4 py-3">
-      <p className={`flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider ${zerado ? "text-muted-foreground/50" : "text-muted-foreground"}`}>
+      <p className={`flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider ${zerado ? "text-muted-foreground" : "text-muted-foreground"}`}>
         <span aria-hidden="true">{icon}</span>{label}
       </p>
-      <p className={`mt-1 text-[15px] font-semibold tabular-nums ${zerado ? "text-muted-foreground/40" : "text-foreground"}`}>
+      <p className={`mt-1 text-[15px] font-semibold tabular-nums ${zerado ? "text-muted-foreground" : "text-foreground"}`}>
         {brl(value)}
       </p>
     </div>
@@ -2360,7 +2401,7 @@ function TotalLine({ label, value, bold, italic, title, muted }: { label: string
   return (
     <div className={`flex items-center justify-between ${bold ? "text-[15px] font-semibold" : ""}`}>
       <span className={bold ? "" : "text-muted-foreground"}>{label}</span>
-      <span className={`tabular-nums ${italic ? "italic" : ""} ${muted && !bold ? "text-muted-foreground/40" : ""}`} title={title}>{value}</span>
+      <span className={`tabular-nums ${italic ? "italic" : ""} ${muted && !bold ? "text-muted-foreground" : ""}`} title={title}>{value}</span>
     </div>
   );
 }
