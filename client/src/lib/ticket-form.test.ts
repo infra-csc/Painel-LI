@@ -3,9 +3,11 @@ import {
   buildTicketPayload,
   getRequiredFields,
   getMissingRequiredFields,
+  isStoredTicketReturnOnly,
+  trechoDaViagem,
+  validateTicketChronology,
   getInvalidFields,
   isFieldRequired,
-  validateTicketChronology,
   hasUnsavedTicketInput,
   toCents,
 } from "./ticket-form";
@@ -462,5 +464,66 @@ describe("getInvalidFields — campo preenchido com conteúdo que não serve", (
   it("valor vazio não é inválido (a obrigatoriedade é checada à parte)", () => {
     expect(getInvalidFields({})).toEqual([]);
     expect(getInvalidFields({ value: "" })).toEqual([]);
+  });
+});
+
+describe("bilhete só de volta (ida e volta por agências diferentes)", () => {
+  const soVolta = { transportType: "aereo", isReturnOnly: true } as const;
+
+  it("cobra os campos da VOLTA e não os da ida", () => {
+    const campos = getRequiredFields("aereo", false, true).map(f => f.field);
+    expect(campos).toContain("actualReturnDate");
+    expect(campos).toContain("returnOriginAirport");
+    expect(campos).not.toContain("actualDepartureDate");
+    expect(campos).not.toContain("departureAirport");
+  });
+
+  it("continua cobrando LOC e valor, que são do bilhete todo", () => {
+    const campos = getRequiredFields("aereo", false, true).map(f => f.field);
+    expect(campos).toContain("purchaseOrderNumber");
+    expect(campos).toContain("value");
+  });
+
+  it("grava só o trecho de volta — a ida fica nula", () => {
+    const payload = buildTicketPayload({
+      ...soVolta,
+      departureAirport: "GRU", actualDepartureDate: "2026-09-30", actualDepartureTime: "10:00",
+      returnOriginAirport: "FOR", actualReturnDate: "2026-10-05", actualReturnTime: "06:05",
+    });
+    expect(payload.actualReturnDate).toBe("2026-10-05");
+    expect(payload.returnOriginAirport).toBe("FOR");
+    expect(payload.actualDepartureDate).toBeNull();
+    expect(payload.departureAirport).toBeNull();
+  });
+
+  it("só ida continua zerando a volta", () => {
+    const payload = buildTicketPayload({
+      transportType: "aereo", isOneWay: true,
+      departureAirport: "GRU", actualDepartureDate: "2026-09-30",
+      returnOriginAirport: "FOR", actualReturnDate: "2026-10-05",
+    });
+    expect(payload.actualDepartureDate).toBe("2026-09-30");
+    expect(payload.actualReturnDate).toBeNull();
+    expect(payload.returnOriginAirport).toBeNull();
+  });
+
+  it("não exige a ida para validar as datas de um bilhete de volta", () => {
+    const r = validateTicketChronology({ ...soVolta, actualReturnDate: "2026-10-05", actualReturnTime: "06:05" });
+    expect(Object.keys(r.errors)).toEqual([]);
+  });
+
+  it("reconhece pela passagem gravada que o bilhete é só de volta", () => {
+    expect(isStoredTicketReturnOnly({
+      actualReturnDate: "2026-10-05", returnCityOrigin: "Fortaleza",
+    } as never)).toBe(true);
+    expect(isStoredTicketReturnOnly({
+      actualDepartureDate: "2026-09-30", actualReturnDate: "2026-10-05",
+    } as never)).toBe(false);
+  });
+
+  it("trechoDaViagem traduz o recorte escolhido", () => {
+    expect(trechoDaViagem({})).toBe("ida_volta");
+    expect(trechoDaViagem({ isOneWay: true })).toBe("so_ida");
+    expect(trechoDaViagem({ isReturnOnly: true })).toBe("so_volta");
   });
 });

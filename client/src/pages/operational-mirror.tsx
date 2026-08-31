@@ -232,12 +232,16 @@ function EditableCell({
       col += passo;
     }
   }
-  /** Move depois que o React trocou input por botão (ou vice-versa). */
+  /**
+   * Move depois que o React trocou input por botão (ou vice-versa).
+   * setTimeout em vez de requestAnimationFrame: o rAF não roda com a aba em
+   * segundo plano, e aí o foco ficaria perdido ao voltar para a tela.
+   */
   function irDepois(dLinha: number, dColuna: number) {
-    requestAnimationFrame(() => irPara(dLinha, dColuna));
+    setTimeout(() => irPara(dLinha, dColuna), 0);
   }
   function focarPropria() {
-    requestAnimationFrame(() => tdRef.current?.querySelector<HTMLElement>("[data-cell-focus]")?.focus());
+    setTimeout(() => tdRef.current?.querySelector<HTMLElement>("[data-cell-focus]")?.focus(), 0);
   }
 
   /** `inicial` vem de quem começou a digitar direto na célula, como no Excel. */
@@ -254,9 +258,17 @@ function EditableCell({
       case "Tab": e.preventDefault(); irPara(0, e.shiftKey ? -1 : 1); return;
       case "Enter":
       case "F2": e.preventDefault(); if (type !== "bool") startEdit(); return;
-      default:
+      default: {
         // Digitar direto substitui o valor, como numa planilha.
-        if (type !== "bool" && e.key.length === 1) { e.preventDefault(); startEdit(e.key); }
+        if (type === "bool" || e.key.length !== 1) return;
+        // Numa célula de número, uma letra digitada por engano abriria o campo
+        // vazio (o input de number recusa o caractere) e o Enter seguinte
+        // apagaria o valor que já estava lá. Letra não abre a edição.
+        const numerica = type === "money" || type === "int";
+        if (numerica && !/[0-9,.-]/.test(e.key)) return;
+        e.preventDefault();
+        startEdit(e.key);
+      }
     }
   }
 

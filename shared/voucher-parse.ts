@@ -25,6 +25,11 @@ export interface VoucherLeitura {
   campos: Record<string, string>;
   /** Passageiro/hóspede lido, para conferir se o voucher é da vaga certa. */
   pessoa?: string;
+  /**
+   * O voucher trouxe UM trecho só. Não diz qual: quem sabe é a tela, pelo
+   * recorte escolhido no formulário (ida e volta / só ida / só volta).
+   */
+  trechoUnico?: boolean;
   /** O que o operador precisa checar com o olho. */
   avisos: string[];
 }
@@ -153,6 +158,7 @@ export function lerVoucherPassagem(texto: string): VoucherLeitura | null {
   const trechos = lerTrechos(linhas);
   if (trechos.length < 2) return null; // sem ao menos um par, não é este formato
   const roteiro = cidadesDoRoteiro(texto);
+  let umTrechoSo = false;
 
   const aplicarTrecho = (saida: Trecho, chegada: Trecho, volta: boolean) => {
     const dataSaida = dataSemAno(saida.diaMes, emissao);
@@ -184,8 +190,12 @@ export function lerVoucherPassagem(texto: string): VoucherLeitura | null {
   if (trechos.length >= 4) {
     aplicarTrecho(trechos[2], trechos[3], true);
   } else {
-    campos.isOneWay = "true";
-    avisos.push("Só encontrei o trecho de ida — confira se a passagem é somente ida.");
+    // Um trecho só NÃO quer dizer "viagem de ida apenas" (28/08): a volta pode
+    // ter sido emitida por outra agência, em voucher separado. Marcar
+    // "apenas ida" aqui apagaria a volta já registrada, então o leitor só
+    // avisa e quem decide é a tela.
+    umTrechoSo = true;
+    avisos.push("Este voucher traz um trecho só. Confira se é a ida ou a volta antes de registrar.");
   }
 
   const cia = texto.match(/^\s*(GOL|LATAM|AZUL|TAM|AVIANCA)\b/im);
@@ -200,6 +210,7 @@ export function lerVoucherPassagem(texto: string): VoucherLeitura | null {
     formato: "Voucher de passagem (agência)",
     campos,
     pessoa: pass ? pass[1].trim() : undefined,
+    trechoUnico: umTrechoSo,
     avisos,
   };
 }

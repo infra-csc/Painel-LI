@@ -20,7 +20,13 @@ export type TransportType = "aereo" | "rodoviario" | "van";
  */
 export interface TicketFormValues {
   transportType?: TransportType | string;
+  /** Só o trecho de ida (a volta não foi emitida ou não existe). */
   isOneWay?: boolean;
+  /**
+   * Só o trecho de volta (28/08). Acontece quando a ida saiu por uma agência
+   * e a volta por outra: cada voucher vira um registro com o seu trecho.
+   */
+  isReturnOnly?: boolean;
   value?: string;
   purchaseDate?: string;
   purchaseOrderNumber?: string;
@@ -53,6 +59,15 @@ export interface RequiredField {
   label: string;
 }
 
+/** Qual recorte da viagem este formulário representa. */
+export type TrechoDaViagem = "ida_volta" | "so_ida" | "so_volta";
+
+export function trechoDaViagem(form: TicketFormData | null | undefined): TrechoDaViagem {
+  if (form?.isReturnOnly) return "so_volta";
+  if (form?.isOneWay) return "so_ida";
+  return "ida_volta";
+}
+
 /** Valor monetário em centavos. Aceita "1.500,00" e "1500.00"; vazio vira null. */
 export function toCents(raw: any): number | null {
   if (raw === undefined || raw === null || String(raw).trim() === "") return null;
@@ -71,31 +86,42 @@ export function normalizeTransportType(value: any): TransportType {
  * não sabe se o colaborador tem direito a almoço/jantar no dia da chegada nem
  * se a mobilidade cai na janela de madrugada. Van não tem horário de chegada.
  */
-export function getRequiredFields(transportType: any, isOneWay: boolean): RequiredField[] {
+export function getRequiredFields(transportType: any, isOneWay: boolean, isReturnOnly = false): RequiredField[] {
   const type = normalizeTransportType(transportType);
   if (type === "van") {
     return [{ field: "purchaseOrderNumber", label: "Nome da Empresa" }];
   }
   const isRodo = type === "rodoviario";
-  const base: RequiredField[] = [
+  const compra: RequiredField[] = [
     { field: "purchaseOrderNumber", label: isRodo ? "Bilhete" : "LOC" },
     ...(isRodo ? [] : [{ field: "value", label: "Valor da Passagem" }]),
+  ];
+  const ida: RequiredField[] = [
     { field: "departureAirport", label: isRodo ? "Rodoviária Origem" : "Aeroporto Origem" },
     { field: "destinationAirport", label: isRodo ? "Rodoviária Destino" : "Aeroporto Destino" },
     { field: "actualDepartureDate", label: "Data (ida)" },
     { field: "actualDepartureTime", label: "Horário (ida)" },
     { field: "actualArrivalTime", label: "Chegada (ida)" },
   ];
-  if (isOneWay) return base;
+  const volta: RequiredField[] = [
+    { field: "returnOriginAirport", label: isRodo ? "Rodoviária Origem (volta)" : "Aeroporto Origem (volta)" },
+    { field: "returnDestinationAirport", label: isRodo ? "Rodoviária Destino (volta)" : "Aeroporto Destino (volta)" },
+    { field: "actualReturnDate", label: "Data (volta)" },
+    { field: "actualReturnTime", label: "Horário (volta)" },
+  ];
+  // Só volta: a ida não é deste bilhete, então cobrar os campos dela seria
+  // impedir o registro de uma passagem que existe.
+  if (isReturnOnly) return [...compra, ...volta];
+  if (isOneWay) return [...compra, ...ida];
   return [
-    ...base,
+    ...compra, ...ida,
     { field: "actualReturnDate", label: "Data (volta)" },
     { field: "actualReturnTime", label: "Horário (volta)" },
   ];
 }
 
-export function isFieldRequired(transportType: any, isOneWay: boolean, field: string): boolean {
-  return getRequiredFields(transportType, isOneWay).some(f => f.field === field);
+export function isFieldRequired(transportType: any, isOneWay: boolean, field: string, isReturnOnly = false): boolean {
+  return getRequiredFields(transportType, isOneWay, isReturnOnly).some(f => f.field === field);
 }
 
 const isBlank = (v: any) => v === undefined || v === null || String(v).trim() === "";
@@ -103,7 +129,7 @@ const isBlank = (v: any) => v === undefined || v === null || String(v).trim() ==
 /** Devolve os campos obrigatórios não preenchidos (com rótulo). */
 export function getMissingRequiredFields(form: TicketFormData): RequiredField[] {
   const type = normalizeTransportType(form?.transportType);
-  return getRequiredFields(type, !!form?.isOneWay).filter(({ field }) => isBlank(form?.[field]));
+  return getRequiredFields(type, !!form?.isOneWay, !!form?.isReturnOnly).filter(({ field }) => isBlank(form?.[field]));
 }
 
 /**
@@ -133,10 +159,12 @@ export function buildTicketPayload(
 ): Record<string, any> {
   const type = normalizeTransportType(form?.transportType);
   const isVan = type === "van";
-  const oneWay = !!form?.isOneWay;
+  const trecho = trechoDaViagem(form);
   const orNull = (v: any) => (isBlank(v) ? null : v);
-  const leg = (v: any) => (isVan ? null : orNull(v));
-  const ret = (v: any) => (isVan || oneWay ? null : orNull(v));
+  // leg = campos da IDA; ret = campos da VOLTA. Cada recorte apaga o trecho
+  // que não lhe pertence, para o registro não afirmar o que não aconteceu.
+  const leg = (v: any) => (isVan || trecho === "so_volta" ? null : orNull(v));
+  const ret = (v: any) => (isVan || trecho === "so_ida" ? null : orNull(v));
   const today = opts.today ?? new Date().toISOString().split("T")[0];
 
   return {
@@ -228,12 +256,13 @@ export function validateTicketChronology(form: TicketFormData, ctx: ChronologyCo
 
   if (type === "van") return { errors, warnings };
 
-  const dep = dateOnly(form?.actualDepartureDate);
-  const depTime = timeOnly(form?.actualDepartureTime);
-  const arrTime = timeOnly(form?.actualArrivalTime);
-  const oneWay = !!form?.isOneWay;
-  const ret = oneWay ? null : dateOnly(form?.actualReturnDate);
-  const retTime = oneWay ? null : timeOnly(form?.actualReturnTime);
+  const trecho = trechoDaViagem(form);
+  const temIda = trecho !== "so_volta";
+  const dep = temIda ? dateOnly(form?.actualDepartureDate) : null;
+  const depTime = temIda ? timeOnly(form?.actualDepartureTime) : null;
+  const arrTime = temIda ? timeOnly(form?.actualArrivalTime) : null;
+  const ret = trecho === "so_ida" ? null : dateOnly(form?.actualReturnDate);
+  const retTime = trecho === "so_ida" ? null : timeOnly(form?.actualReturnTime);
 
   if (dep && ret) {
     if (ret < dep) {
@@ -593,12 +622,23 @@ export function isStoredTicketOneWay(t: StoredTicketLike): boolean {
   return !t.actualReturnDate && !t.actualReturnTime && !t.returnCityOrigin && !t.returnCityDestination;
 }
 
+/**
+ * "Só volta" também não existe como campo: é a passagem que tem trecho de
+ * volta e nenhum de ida — o caso da volta emitida por outra agência.
+ */
+export function isStoredTicketReturnOnly(t: StoredTicketLike): boolean {
+  const temVolta = !!(t.actualReturnDate || t.actualReturnTime || t.returnCityOrigin || t.returnCityDestination);
+  const temIda = !!(t.actualDepartureDate || t.actualDepartureTime || t.departureCityOrigin || t.departureCityDestination);
+  return temVolta && !temIda;
+}
+
 /** Prefill do formulário a partir da passagem gravada (valor em centavos → texto). */
 export function ticketToFormValues(t: StoredTicketLike): TicketFormValues {
   const s = (v: string | null | undefined) => v || "";
   return {
     transportType: t.transportType || "aereo",
     isOneWay: isStoredTicketOneWay(t),
+    isReturnOnly: isStoredTicketReturnOnly(t),
     value: ((t.value || 0) / 100).toString(),
     purchaseDate: s(t.purchaseDate),
     departureAirport: s(t.departureAirport),

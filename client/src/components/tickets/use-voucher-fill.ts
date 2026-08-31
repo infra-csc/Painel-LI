@@ -21,12 +21,27 @@ interface Leitura {
   tipo: "passagem" | "hospedagem" | "desconhecido";
   campos: Record<string, string>;
   pessoa?: string;
+  trechoUnico?: boolean;
   avisos: string[];
 }
 
-export function useVoucherFill({ colaborador, onPreencher }: {
+/** Campos de cada trecho — usados para redirecionar um voucher só de volta. */
+const CAMPOS_IDA = ["departureAirport", "destinationAirport", "departureCityOrigin", "departureCityDestination", "actualDepartureDate", "actualDepartureTime", "actualArrivalTime"] as const;
+const PARA_VOLTA: Record<string, string> = {
+  departureAirport: "returnOriginAirport",
+  destinationAirport: "returnDestinationAirport",
+  departureCityOrigin: "returnCityOrigin",
+  departureCityDestination: "returnCityDestination",
+  actualDepartureDate: "actualReturnDate",
+  actualDepartureTime: "actualReturnTime",
+  actualArrivalTime: "returnArrivalTime",
+};
+
+export function useVoucherFill({ colaborador, trecho, onPreencher }: {
   /** Nome de quem está escalado nesta vaga — confere com o voucher. */
   colaborador?: string;
+  /** Recorte escolhido no formulário: decide onde um voucher de um trecho entra. */
+  trecho?: "ida_volta" | "so_ida" | "so_volta";
   onPreencher: (campos: Record<string, string>) => void;
 }) {
   const { toast } = useToast();
@@ -69,16 +84,35 @@ export function useVoucherFill({ colaborador, onPreencher }: {
         return;
       }
 
-      const quantos = Object.keys(leitura.campos).length;
+      let campos = leitura.campos;
+      const avisos = [...leitura.avisos];
+
+      // Voucher com um trecho só + formulário em "só volta": o que o leitor
+      // chamou de ida é, na verdade, a volta deste bilhete. É o caso da ida
+      // emitida por uma agência e a volta por outra.
+      if (leitura.trechoUnico && trecho === "so_volta") {
+        const redirecionado: Record<string, string> = {};
+        for (const [k, valor] of Object.entries(campos)) {
+          if ((CAMPOS_IDA as readonly string[]).includes(k)) {
+            redirecionado[PARA_VOLTA[k]] = valor;
+          } else {
+            redirecionado[k] = valor;
+          }
+        }
+        campos = redirecionado;
+        avisos.push("Preenchi como VOLTA, seguindo o recorte escolhido neste bilhete.");
+      }
+
+      const quantos = Object.keys(campos).length;
       if (quantos === 0) {
         toast({ title: "Anexado", description: "Não consegui extrair campos deste arquivo." });
         return;
       }
-      onPreencher(leitura.campos);
+      onPreencher(campos);
       toast({
         title: "Anexado e preenchido pelo voucher",
-        description: leitura.avisos.length
-          ? `${leitura.avisos.join(" ")} Confira antes de registrar.`
+        description: avisos.length
+          ? `${avisos.join(" ")} Confira antes de registrar.`
           : "Confira os dados antes de registrar.",
       });
     } catch (e) {

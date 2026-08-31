@@ -171,6 +171,7 @@ export default function TicketModal({
   // (pedido do dono, 28/08 — "não ter dois pra subir").
   const voucher = useVoucherFill({
     colaborador: inclusion.collaboratorId ? data.getCollaboratorName(inclusion.collaboratorId) : undefined,
+    trecho: form.isReturnOnly ? "so_volta" : form.isOneWay ? "so_ida" : "ida_volta",
     onPreencher: (campos: Record<string, string>) => handlers.onPatch(sid, campos),
   });
 
@@ -304,18 +305,41 @@ export default function TicketModal({
                           </Select>
                         </div>
                         {form.transportType !== "van" && (
-                          <div className="flex items-center gap-2.5 pb-1">
-                            <button
-                              type="button" role="switch"
-                              aria-checked={!!form.isOneWay}
-                              aria-label="Apenas ida"
-                              disabled={dis}
-                              onClick={() => !dis && handlers.onFieldChange(sid, "isOneWay", !form.isOneWay)}
-                              style={{ width: 40, height: 22, borderRadius: 11, border: "none", cursor: roMode ? "not-allowed" : "pointer", background: form.isOneWay ? "#2563EB" : "#CBD5E1", position: "relative", transition: "background 0.2s", flexShrink: 0, padding: 0 }}
-                            >
-                              <span style={{ position: "absolute", top: 2, left: form.isOneWay ? 20 : 2, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
-                            </button>
-                            <label className="text-[13px] font-medium text-slate-600 cursor-pointer select-none" onClick={() => !dis && handlers.onFieldChange(sid, "isOneWay", !form.isOneWay)}>Apenas ida</label>
+                          <div className="pb-1">
+                            <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Trechos deste bilhete</Label>
+                            {/* Três recortes (28/08): a volta pode ter sido emitida por OUTRA
+                                agência, virando um bilhete só de volta. */}
+                            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5" role="radiogroup" aria-label="Trechos deste bilhete">
+                              {([
+                                { chave: "ida_volta", rotulo: "Ida e volta" },
+                                { chave: "so_ida", rotulo: "Só ida" },
+                                { chave: "so_volta", rotulo: "Só volta" },
+                              ] as const).map((op) => {
+                                const atual = form.isReturnOnly ? "so_volta" : form.isOneWay ? "so_ida" : "ida_volta";
+                                const ativo = atual === op.chave;
+                                return (
+                                  <button
+                                    key={op.chave}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={ativo}
+                                    disabled={dis}
+                                    onClick={() => {
+                                      if (dis) return;
+                                      handlers.onPatch(sid, {
+                                        isOneWay: op.chave === "so_ida",
+                                        isReturnOnly: op.chave === "so_volta",
+                                      });
+                                    }}
+                                    className={`rounded-[6px] px-3 py-1.5 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                                      ativo ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                                    data-testid={`trecho-${op.chave}-${sid}`}
+                                  >
+                                    {op.rotulo}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>

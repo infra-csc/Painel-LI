@@ -103,12 +103,14 @@ export default function TicketFormFields({
 }: TicketFormFieldsProps) {
   const type = form.transportType || "aereo";
   const oneWay = !!form.isOneWay;
+  // Bilhete só de volta: os campos da ida não são deste registro.
+  const returnOnly = !!form.isReturnOnly;
   const isRodo = type === "rodoviario";
   const isVan = type === "van";
   const isBatch = variant === "batch";
 
   const set = (field: string, value: unknown) => handlers.onFieldChange(scope, field, value);
-  const R = (field: string) => (isFieldRequired(type, oneWay, field) ? <span className="text-red-400"> *</span> : null);
+  const R = (field: string) => (isFieldRequired(type, oneWay, field, returnOnly) ? <span className="text-red-400"> *</span> : null);
   const E = (field: string) => helpers.errCls(scope, field);
   const M = (field: string) => helpers.fieldErrorMsg(scope, field);
   const val = (field: keyof TicketFormValues & string) => (form[field] as string | undefined) || "";
@@ -298,11 +300,21 @@ export default function TicketFormFields({
     </section>
   );
 
-  const voltaPlaceholder = (
+  /** Trecho que não pertence a este bilhete (só ida ou só volta). */
+  const trechoAusente = (qual: "IDA" | "VOLTA") => (
     <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-4 flex items-center justify-center">
       <div className="text-center">
-        <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400 mb-1">{isRodo ? "🚌" : "🛬"} VOLTA</div>
-        <div className="text-xs text-slate-300">Apenas ida selecionada</div>
+        <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400 mb-1">
+          {isRodo ? "🚌" : qual === "IDA" ? "🛫" : "🛬"} {qual}
+        </div>
+        <div className="text-xs text-slate-400">
+          {qual === "VOLTA" ? "Bilhete só de ida" : "Bilhete só de volta"}
+        </div>
+        <div className="mt-1 text-[11px] text-slate-300 max-w-[200px] mx-auto leading-snug">
+          {qual === "IDA"
+            ? "A ida foi emitida em outro bilhete — registre-a separadamente."
+            : "A volta será registrada à parte, se houver."}
+        </div>
       </div>
     </div>
   );
@@ -361,7 +373,7 @@ export default function TicketFormFields({
 
       {/* Ida | Volta */}
       <div className={`grid grid-cols-1 ${isBatch ? "md:grid-cols-2 gap-5" : "lg:grid-cols-2 gap-4"}`}>
-        {idaSection}
+        {returnOnly ? trechoAusente("IDA") : idaSection}
         {isBatch ? (
           <div style={{
             overflow: "hidden", transition: "all 0.3s ease",
@@ -369,7 +381,7 @@ export default function TicketFormFields({
           }}>
             {voltaSection}
           </div>
-        ) : (oneWay ? voltaPlaceholder : voltaSection)}
+        ) : (oneWay ? trechoAusente("VOLTA") : voltaSection)}
       </div>
 
       {/* Impacto ao vivo + divergência da sugestão — informativos */}
