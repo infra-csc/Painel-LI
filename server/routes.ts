@@ -3245,12 +3245,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /**
+   * Reabrir o carro (31/08) — o par de confirmar. Sem isto, confirmar por
+   * engano travava o grupo para sempre: "Refazer sugestões" preserva o que
+   * está confirmado, então nem recalcular desfazia.
+   */
+  app.post("/api/uber-groups/:id/reabrir", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
+    try {
+      const [g] = await db.update(uberGroupsTable)
+        .set({ confirmed: false, suggested: true, status: "sugerido", updatedAt: new Date() })
+        .where(eq(uberGroupsTable.id, req.params.id)).returning();
+      res.json(g);
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao reabrir grupo de uber" });
+    }
+  });
+
   app.patch("/api/uber-groups/:id", async (req, res) => {
     if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
     try {
       const allowed: any = {};
-      for (const k of ["groupName", "direction", "origin", "destination", "date", "time", "estimatedTotalCents", "notes", "status", "confirmed", "titularCollaboratorId"]) {
+      for (const k of ["groupName", "direction", "origin", "destination", "date", "time", "estimatedTotalCents", "notes", "status", "confirmed", "titularCollaboratorId", "manualTime"]) {
         if (k in req.body) allowed[k] = req.body[k];
+      }
+      // Ajustar o horário à mão grava nos DOIS campos: `manualTime` registra que
+      // houve decisão humana (e o cálculo original fica em `suggestedTime`, para
+      // a tela poder dizer o que o sistema sugeria); `time` continua sendo o que
+      // vale. Limpar o campo devolve o carro ao horário calculado.
+      if ("manualTime" in allowed) {
+        const manual = allowed.manualTime ? String(allowed.manualTime).trim() : null;
+        allowed.manualTime = manual;
+        if (manual) {
+          allowed.time = manual;
+        } else {
+          const [atual] = await db.select().from(uberGroupsTable).where(eq(uberGroupsTable.id, req.params.id));
+          allowed.time = atual?.suggestedTime ?? atual?.time ?? null;
+        }
       }
       const [g] = await db.update(uberGroupsTable)
         .set({ ...allowed, updatedAt: new Date() })
@@ -3258,6 +3289,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(g);
     } catch (error) {
       res.status(400).json({ message: "Erro ao atualizar grupo de uber" });
+    }
+  });
+
+  /**
+   * Dispensar (ou trazer de volta) alguém da roteirização de Uber. É por vaga,
+   * não por pessoa: quem vai de carro próprio num evento pode precisar de Uber
+   * no seguinte.
+   */
+  app.patch("/api/team-inclusions/:id/skip-uber", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
+    try {
+      const skip = req.body?.skipUber === true;
+      const [ti] = await db.update(teamInclusionsTable)
+        .set({ skipUber: skip, updatedAt: new Date() })
+        .where(eq(teamInclusionsTable.id, req.params.id)).returning();
+      if (!ti) return res.status(404).json({ message: "Vaga não encontrada" });
+      res.json({ id: ti.id, skipUber: ti.skipUber });
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao atualizar a roteirização desta pessoa" });
+    }
+  });
+
+  /**
+   * Estadia de UMA pessoa dentro do quarto. O período era do grupo, e quem
+   * chega antes (montagem) ou sai depois (desmontagem) ficava com a data errada.
+   * Vazio devolve a pessoa ao período do grupo.
+   */
+  app.patch("/api/hotel-room-group-members/:id", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
+    try {
+      const allowed: any = {};
+      for (const k of ["checkInDate", "checkOutDate", "notes", "confirmed"]) {
+        if (k in req.body) allowed[k] = req.body[k] === "" ? null : req.body[k];
+      }
+      if (allowed.checkInDate && allowed.checkOutDate && allowed.checkOutDate < allowed.checkInDate) {
+        return res.status(400).json({ message: "A saída não pode ser antes da entrada." });
+      }
+      const [m] = await db.update(hotelRoomGroupMembersTable)
+        .set(allowed)
+        .where(eq(hotelRoomGroupMembersTable.id, req.params.id)).returning();
+      if (!m) return res.status(404).json({ message: "Ocupante não encontrado" });
+      res.json(m);
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao atualizar a estadia desta pessoa" });
     }
   });
 

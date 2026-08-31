@@ -755,6 +755,7 @@ export class DatabaseStorage implements IStorage {
         observations: teamInclusions.observations,
         actualObservations: teamInclusions.actualObservations,
         emergencyRecord: teamInclusions.emergencyRecord,
+        skipUber: teamInclusions.skipUber,
         city: teamInclusions.city,
         status: teamInclusions.status,
         previousStatus: teamInclusions.previousStatus,

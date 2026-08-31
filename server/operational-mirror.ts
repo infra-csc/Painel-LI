@@ -217,6 +217,7 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
         groupName: uberGroup?.groupName || null,
       },
       carRental: { company: carExtra.company, totalCents: carExtra.total, oc: carExtra.oc, notes: carExtra.notes, checkIn: carExtra.checkIn },
+      skipUber: !!ti.skipUber,
       suggestedRoomGroupId: roomGroup?.id || null,
       roomGroupLabel: roomGroup ? `${roomGroup.roomType || ""} ${roomGroup.confirmed ? "(Confirmado)" : "(Sugestão)"}`.trim() : null,
       pendencies,
@@ -584,6 +585,10 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
   const voltaCands: UberCand[] = [];
   for (const ti of inclusions) {
     if (!ti.collaboratorId || lockedCollabUber.has(ti.collaboratorId)) continue;
+    // Dispensado da roteirização: não entra em carro, não gera custo e não
+    // puxa o horário de ninguém. Antes essas pessoas apareciam num carro que
+    // ninguém ia usar.
+    if (ti.skipUber) continue;
     const ticket = ticketByInclusion.get(ti.id);
     if (!ticket) continue;
     const acc = accByInclusion.get(ti.id);
@@ -645,7 +650,10 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
           origin,
           destination,
           date,
+          // O cálculo fica registrado à parte do que vale: é o que permite
+          // dizer "isto foi ajustado à mão" e mostrar o que o sistema sugeria.
           time: timeStr,
+          suggestedTime: timeStr,
           suggested: true,
           confirmed: false,
           status: "sugerido",

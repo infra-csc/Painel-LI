@@ -171,6 +171,13 @@ export const teamInclusions = pgTable("team_inclusions", {
   observations: text("observations"),
   actualObservations: text("actual_observations"), // observações do que realmente aconteceu
   emergencyRecord: boolean("emergency_record").default(false), // registro emergencial
+  /**
+   * Dispensado da roteirizacao de Uber (31/08). Quem vai de carro proprio, quem
+   * ja esta na cidade ou quem a producao decidiu levar de outro jeito nao entra
+   * em carro nenhum, nao gera custo e some das sugestoes. Antes essas pessoas
+   * simplesmente apareciam num carro que ninguem ia usar.
+   */
+  skipUber: boolean("skip_uber").notNull().default(false),
   city: text("city"), // cidade do colaborador no contexto deste evento (pode ser editada antes da confirmação)
   // planejado, confirmado, reaberto, escalacao, passagem, passagem_comprada, hospedagem, hospedagem_comprada,
   // hospedagem_passagem_comprada, aprovado, cancelado
@@ -957,7 +964,18 @@ export const uberGroups = pgTable("uber_groups", {
   origin: text("origin"),
   destination: text("destination"),
   date: date("date"),
+  /**
+   * Horário que vale para o carro. Continua sendo o campo que a tela lê.
+   */
   time: text("time"),
+  /**
+   * Separados de propósito (31/08): sem saber o que foi CALCULADO e o que foi
+   * ajustado À MÃO, "Refazer sugestões" não tinha como preservar o ajuste —
+   * recalculava tudo e o trabalho de quem corrigiu o horário se perdia.
+   * suggestedTime é o que o cálculo diz; manualTime, o que alguém decidiu.
+   */
+  suggestedTime: text("suggested_time"),
+  manualTime: text("manual_time"),
   estimatedTotalCents: integer("estimated_total_cents").default(0),
   notes: text("notes"),
   // TITULAR do carro (28/08): quem chama e responde pela corrida. Existe nas
@@ -1000,6 +1018,13 @@ export const hotelRoomGroupMembers = pgTable("hotel_room_group_members", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   hotelRoomGroupId: varchar("hotel_room_group_id").notNull().references(() => hotelRoomGroups.id, { onDelete: 'cascade' }),
   collaboratorId: varchar("collaborator_id").notNull().references(() => collaborators.id),
+  /**
+   * Estadia DESTA pessoa no quarto (31/08). O período era do grupo inteiro, e
+   * quem chega um dia antes ou sai um dia depois — montagem, desmontagem —
+   * ficava com a data errada ou fora do quarto. Vazio = segue o grupo.
+   */
+  checkInDate: date("check_in_date"),
+  checkOutDate: date("check_out_date"),
   confirmed: boolean("confirmed").notNull().default(false),
   notes: text("notes"),
 });

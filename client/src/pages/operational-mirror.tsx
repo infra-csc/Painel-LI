@@ -613,6 +613,37 @@ export default function OperationalMirror() {
     }
   }
 
+  /** Reabrir o carro: confirmar por engano deixava o grupo travado para sempre. */
+  const reabrirUberMutation = useMutation({
+    mutationFn: async (id: string) => apiRequest("POST", `/api/uber-groups/${id}/reabrir`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: mirrorKey }),
+    onError: (err: unknown) => toast({ title: "Não foi possível reabrir", description: saveErrorMessage(err, "Tente novamente."), variant: "destructive" }),
+  });
+
+  /** Dispensar (ou trazer de volta) alguém da roteirização de Uber. */
+  const skipUberMutation = useMutation({
+    mutationFn: async ({ id, skip }: { id: string; skip: boolean }) =>
+      apiRequest("PATCH", `/api/team-inclusions/${id}/skip-uber`, { skipUber: skip }),
+    onSuccess: (_r, v) => {
+      queryClient.invalidateQueries({ queryKey: mirrorKey });
+      toast({
+        title: v.skip ? "Fora da roteirização" : "De volta à roteirização",
+        description: v.skip
+          ? "A pessoa não entra em carro nenhum e não gera custo de Uber. Refaça as sugestões para recalcular os horários dos outros carros."
+          : "A pessoa volta a entrar nas sugestões de carro na próxima vez que você refizer as sugestões.",
+      });
+    },
+    onError: (err: unknown) => toast({ title: "Não foi possível alterar", description: saveErrorMessage(err, "Tente novamente."), variant: "destructive" }),
+  });
+
+  /** Estadia de UMA pessoa dentro do quarto (pode diferir do grupo). */
+  const patchMembroQuartoMutation = useMutation({
+    mutationFn: async ({ id, campos }: { id: string; campos: Record<string, unknown> }) =>
+      apiRequest("PATCH", `/api/hotel-room-group-members/${id}`, campos),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: mirrorKey }),
+    onError: (err: unknown) => toast({ title: "Não foi possível salvar a estadia", description: saveErrorMessage(err, "Tente novamente."), variant: "destructive" }),
+  });
+
   const recalcMutation = useMutation({
     mutationFn: async () => (await apiRequest("POST", `/api/events/${eventId}/recalculate-logistics-suggestions`)).json(),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: mirrorKey }); toast({ title: "Sugestões recalculadas", description: "Grupos confirmados foram preservados." }); },
@@ -869,7 +900,8 @@ export default function OperationalMirror() {
           bagagemCents: r.baggage.extraCents,
           uberCents: r.uber.totalCents,
           locacaoCents: r.carRental.totalCents,
-          uberConfirmado: !!r.uber.suggestedGroupId && uberConfirmados.has(r.uber.suggestedGroupId),
+          semUber: r.skipUber,
+    uberConfirmado: !!r.uber.suggestedGroupId && uberConfirmados.has(r.uber.suggestedGroupId),
           quartoConfirmado: !!r.suggestedRoomGroupId && quartosConfirmados.has(r.suggestedRoomGroupId),
         };
         if (etapaCompleta(d.chave, (campo) => lerCampo(r, campo), ctx)) prontas += 1;
@@ -1290,8 +1322,13 @@ export default function OperationalMirror() {
               texto: "Cada ocupante passa a ter um quarto próprio. O custo de hotelaria do evento sobe — a diária individual é maior que a compartilhada.",
               rotulo: "Separar",
               acao: () => separarQuartoMutation.mutate(id),
-            })} canEdit={canEditMirror} onPatch={(id, campos) => patchRoomMutation.mutate({ id, campos })} onConfirm={(id: string) => confirmRoomMutation.mutate(id)} pendingId={confirmRoomMutation.isPending ? confirmRoomMutation.variables : null} />}
-            {view === "uber" && <UberView groups={data.uberGroups} collabById={collabById} rows={rows} onMover={(c, de, para) => moverMutation.mutate({ tipo: "uber", corpo: { collaboratorId: c, deGrupoId: de, paraGrupoId: para } })} canEdit={canEditMirror} onPatch={(id, campos) => patchUberMutation.mutate({ id, campos })} onConfirm={(id: string) => confirmUberMutation.mutate(id)} pendingId={confirmUberMutation.isPending ? confirmUberMutation.variables : null} />}
+            })} canEdit={canEditMirror} onPatch={(id, campos) => patchRoomMutation.mutate({ id, campos })} onPatchMembro={(membroId, campos) => patchMembroQuartoMutation.mutate({ id: membroId, campos })} onConfirm={(id: string) => confirmRoomMutation.mutate(id)} pendingId={confirmRoomMutation.isPending ? confirmRoomMutation.variables : null} />}
+            {view === "uber" && <UberView groups={data.uberGroups} collabById={collabById} rows={rows} onMover={(c, de, para) => moverMutation.mutate({ tipo: "uber", corpo: { collaboratorId: c, deGrupoId: de, paraGrupoId: para } })} onSkipUber={(rowId, skip) => skipUberMutation.mutate({ id: rowId, skip })} canEdit={canEditMirror} onPatch={(id, campos) => {
+              // "__reabrir" não é campo do grupo: é o pedido de destravar, que
+              // tem endpoint próprio (confirmar e reabrir não são um PATCH).
+              if (campos.__reabrir) { reabrirUberMutation.mutate(id); return; }
+              patchUberMutation.mutate({ id, campos });
+            }} onConfirm={(id: string) => confirmUberMutation.mutate(id)} pendingId={confirmUberMutation.isPending ? confirmUberMutation.variables : null} />}
             {view === "rateio" && <FooterTotals totals={totals} hotelDerived={derivedHotelCount > 0} />}
             </>
             )}
@@ -1353,6 +1390,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
     bagagemCents: r.baggage.extraCents,
     uberCents: r.uber.totalCents,
     locacaoCents: r.carRental.totalCents,
+    semUber: r.skipUber,
     uberConfirmado: !!r.uber.suggestedGroupId && uberConfirmados.has(r.uber.suggestedGroupId),
     quartoConfirmado: !!r.suggestedRoomGroupId && quartosConfirmados.has(r.suggestedRoomGroupId),
   });
@@ -1969,7 +2007,40 @@ interface GroupViewProps<G> {
   pendingId: string | null | undefined;
 }
 
-function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onSeparar, onMover, pendingId }: GroupViewProps<RoomGroup>) {
+/**
+ * Data de entrada/saída de um ocupante. Só aparece como campo no hover e no
+ * foco: numa tabela de leitura, seis inputs por linha viram ruído. Quando a
+ * pessoa tem data própria (chegou antes, saiu depois), o valor fica destacado —
+ * é o sinal de que ela NÃO segue o período do quarto.
+ */
+function DataDoOcupante({ valor, propria, canEdit, rotulo, aoSalvar }: {
+  valor: string | null | undefined;
+  propria: boolean;
+  canEdit: boolean;
+  rotulo: string;
+  aoSalvar: (v: string) => void;
+}) {
+  const iso = valor ? String(valor).slice(0, 10) : "";
+  if (!canEdit) {
+    return <span className={`tabular-nums ${propria ? "font-semibold text-violet-700 dark:text-violet-300" : ""}`}>{fmtDate(valor)}</span>;
+  }
+  return (
+    <input
+      type="date"
+      defaultValue={iso}
+      aria-label={rotulo}
+      title={propria ? "Estadia própria — diferente do período do quarto" : "Segue o período do quarto"}
+      onBlur={(e) => { if (e.target.value !== iso) aoSalvar(e.target.value); }}
+      className={`h-7 w-[126px] rounded-md border border-transparent bg-transparent px-1 text-xs tabular-nums hover:border-input focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+        propria ? "font-semibold text-violet-700 dark:text-violet-300" : ""}`}
+    />
+  );
+}
+
+function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onSeparar, onMover, pendingId, onPatchMembro }: GroupViewProps<RoomGroup> & {
+  /** Estadia de UMA pessoa dentro do quarto — pode diferir do grupo. */
+  onPatchMembro?: (membroId: string, campos: Record<string, unknown>) => void;
+}) {
   const emptyHint = canEdit ? ' Clique em "Sugestões".' : "";
   if (groups.length === 0) return <div className="rounded-lg border border-dashed bg-muted/20 py-12 text-center text-sm text-muted-foreground">Nenhuma sugestão de quarto ainda.{emptyHint}</div>;
   const rowByCollab = new Map(rows.filter((r) => r.collaborator.id).map((r) => [r.collaborator.id as string, r]));
@@ -2001,8 +2072,12 @@ function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, on
               const faixa = FAIXA[gi % FAIXA.length];
               return membros.map((m, mi) => {
                 const r = m.id ? rowByCollab.get(m.id) : undefined;
-                const ini = r?.accommodation?.checkInDate || r?.schedule.startDate || g.checkInDate;
-                const fim = r?.accommodation?.checkOutDate || r?.schedule.endDate || g.checkOutDate;
+                // Estadia DESTA pessoa, quando ela difere do grupo (montagem,
+                // desmontagem). Vazio = segue o quarto.
+                const bruto = (g.members || [])[mi] as { id?: string; checkInDate?: string | null; checkOutDate?: string | null } | undefined;
+                const ini = bruto?.checkInDate || r?.accommodation?.checkInDate || r?.schedule.startDate || g.checkInDate;
+                const fim = bruto?.checkOutDate || r?.accommodation?.checkOutDate || r?.schedule.endDate || g.checkOutDate;
+                const proprio = !!(bruto?.checkInDate || bruto?.checkOutDate);
                 return (
                   <tr key={`${g.id}-${m.id ?? mi}`}
                     className={`group/linha ${faixa} ${mi === membros.length - 1 ? "border-b-2 border-border" : "border-b border-border/40"}`}
@@ -2019,9 +2094,15 @@ function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, on
                     </td>
                     <td className="px-3 py-2 capitalize text-muted-foreground">{r?.function.area || r?.function.name || "—"}</td>
                     <td className="px-3 py-2 text-muted-foreground">{diaSemana(ini)}</td>
-                    <td className="px-3 py-2 tabular-nums">{fmtDate(ini)}</td>
+                    <td className="px-3 py-2">
+                      <DataDoOcupante valor={ini} propria={!!bruto?.checkInDate} canEdit={canEdit && !!bruto?.id} rotulo={`Entrada de ${m.name}`}
+                        aoSalvar={(v) => onPatchMembro?.(bruto!.id as string, { checkInDate: v })} />
+                    </td>
                     <td className="px-3 py-2 text-muted-foreground">{diaSemana(fim)}</td>
-                    <td className="px-3 py-2 tabular-nums">{fmtDate(fim)}</td>
+                    <td className="px-3 py-2">
+                      <DataDoOcupante valor={fim} propria={!!bruto?.checkOutDate} canEdit={canEdit && !!bruto?.id} rotulo={`Saída de ${m.name}`}
+                        aoSalvar={(v) => onPatchMembro?.(bruto!.id as string, { checkOutDate: v })} />
+                    </td>
                     {/* Hotel e tipo aparecem uma vez por grupo, como na planilha —
                         e são editáveis aqui mesmo, sem abrir outra tela. */}
                     {mi === 0 ? (
@@ -2059,7 +2140,13 @@ function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, on
                     {mi === 0 ? (
                       <td className="px-3 py-2 text-right align-middle" rowSpan={membros.length}>
                         {g.confirmed ? (
-                          <Badge className="bg-emerald-600 hover:bg-emerald-600">Confirmado</Badge>
+                          canEdit ? (
+                            <Button size="sm" variant="outline" className="h-7 border-emerald-300 bg-emerald-50 text-xs text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-200"
+                              onClick={() => onPatch(g.id, { __reabrir: true })} data-testid={`reabrir-uber-${g.id}`}
+                              title="Reabrir o carro para voltar a ser sugestão — confirmado, ele fica de fora do recálculo">
+                              <CheckCheck className="h-3 w-3 mr-1" aria-hidden="true" /> Confirmado
+                            </Button>
+                          ) : <Badge className="bg-emerald-600 hover:bg-emerald-600">Confirmado</Badge>
                         ) : canEdit ? (
                           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id} data-testid={`confirm-room-${g.id}`}>
                             {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />} Confirmar
@@ -2084,7 +2171,7 @@ function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, on
  * "Norte × Aeroporto" de "Aeroporto × Norte" em blocos distintos — misturar os
  * dois numa lista só obrigava a ler a coluna "Trajeto" linha a linha.
  */
-function TabelaUber({ titulo, subtitulo, tom, grupos, rowByCollab, collabById, canEdit, onConfirm, onPatch, onMover, pendingId }: {
+function TabelaUber({ titulo, subtitulo, tom, grupos, rowByCollab, collabById, canEdit, onConfirm, onPatch, onMover, pendingId, onSkipUber }: {
   titulo: string;
   subtitulo: string;
   tom: string;
@@ -2096,6 +2183,8 @@ function TabelaUber({ titulo, subtitulo, tom, grupos, rowByCollab, collabById, c
   onPatch: (id: string, campos: Record<string, unknown>) => void;
   onMover: (collaboratorId: string, deGrupoId: string, paraGrupoId: string | null) => void;
   pendingId: string | null | undefined;
+  /** Tira a pessoa da roteirização (ou traz de volta). */
+  onSkipUber?: (rowId: string, skip: boolean) => void;
 }) {
   const ida = titulo.toLowerCase().startsWith("ida");
   /** Cada carro se descreve por quem já está nele — é assim que se decide. */
@@ -2122,7 +2211,7 @@ function TabelaUber({ titulo, subtitulo, tom, grupos, rowByCollab, collabById, c
               <th className="px-3 py-2 font-semibold border-l">Dia</th>
               <th className="px-3 py-2 font-semibold">Data</th>
               <th className="px-3 py-2 font-semibold">Aeroporto</th>
-              <th className="px-3 py-2 font-semibold">Horário</th>
+              <th className="px-3 py-2 font-semibold">{ida ? "Sair às" : "Buscar às"}</th>
               <th className="px-3 py-2 font-semibold border-l">Titular</th>
               <th className="px-3 py-2 font-semibold text-right">Situação</th>
             </tr>
@@ -2149,13 +2238,32 @@ function TabelaUber({ titulo, subtitulo, tom, grupos, rowByCollab, collabById, c
                             destinos={grupos.filter((o) => o.id !== g.id).map((o) => ({ id: o.id, descricao: descreve(o) }))}
                             onMover={(para) => onMover(m.id as string, g.id, para)} />
                         )}
+                        {/* Nem todo mundo vai de Uber: carro próprio, quem já
+                            está na cidade, quem a produção leva de outro jeito. */}
+                        {canEdit && r && onSkipUber && (
+                          <button type="button"
+                            onClick={() => onSkipUber(r.teamInclusionId, true)}
+                            title="Tirar da roteirização — não entra em carro nenhum e não gera custo"
+                            aria-label={`Tirar ${m.name} da roteirização de Uber`}
+                            className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            data-testid={`skip-uber-${r.teamInclusionId}`}>
+                            <X className="h-3 w-3" aria-hidden="true" />
+                          </button>
+                        )}
                       </span>
                     </td>
                     <td className="px-3 py-2 capitalize text-muted-foreground">{r?.function.area || r?.function.name || "—"}</td>
                     <td className="px-3 py-2 border-l text-muted-foreground">{diaSemana(data)}</td>
                     <td className="px-3 py-2 tabular-nums">{fmtDate(data)}</td>
                     <td className="px-3 py-2 uppercase">{aero || "—"}</td>
-                    <td className="px-3 py-2 tabular-nums">{hora || "—"}</td>
+                    {/* O horário é do CARRO, não da pessoa: aparece uma vez e
+                        pode ser corrigido. A cor diz de onde ele veio —
+                        calculado, ajustado à mão ou travado por confirmação. */}
+                    {mi === 0 ? (
+                      <td className="px-3 py-2 align-middle" rowSpan={membros.length}>
+                        <HorarioDoCarro grupo={g} canEdit={canEdit} onPatch={onPatch} />
+                      </td>
+                    ) : null}
                     {/* TITULAR: quem chama o carro. Escolhido à mão entre os
                         passageiros do grupo — o sistema não sugere. */}
                     {mi === 0 ? (
@@ -2202,9 +2310,108 @@ function TabelaUber({ titulo, subtitulo, tom, grupos, rowByCollab, collabById, c
   );
 }
 
-function UberView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onMover, pendingId }: GroupViewProps<UberGroup>) {
-  const emptyHint = canEdit ? ' Clique em "Sugestões".' : "";
-  if (groups.length === 0) return <div className="rounded-lg border border-dashed bg-muted/20 py-12 text-center text-sm text-muted-foreground">Nenhuma sugestão de Uber ainda.{emptyHint}</div>;
+/**
+ * O horário do carro — e de onde ele veio.
+ *
+ * A cor é a informação: azul quando é o cálculo do sistema, violeta quando
+ * alguém corrigiu à mão (com o `title` dizendo o que o cálculo sugeria) e
+ * verde quando o carro está confirmado, e então o campo trava. Sem essa
+ * distinção, "Refazer sugestões" apagava a correção sem ninguém perceber.
+ */
+function HorarioDoCarro({ grupo, canEdit, onPatch }: {
+  grupo: UberGroup;
+  canEdit: boolean;
+  onPatch: (id: string, campos: Record<string, unknown>) => void;
+}) {
+  const manual = !!grupo.manualTime;
+  const sugerido = grupo.suggestedTime || null;
+  const valor = grupo.time || "";
+  const tom = grupo.confirmed
+    ? "text-emerald-700 dark:text-emerald-300"
+    : manual ? "text-violet-700 dark:text-violet-300" : "text-primary";
+  const dica = grupo.confirmed
+    ? "Carro confirmado — reabra para ajustar o horário"
+    : manual
+      ? `Ajustado à mão${sugerido ? ` · o cálculo sugeria ${sugerido}` : ""}`
+      : "Calculado a partir dos voos do carro";
+
+  if (!canEdit || grupo.confirmed) {
+    return <span className={`font-semibold tabular-nums ${tom}`} title={dica}>{valor || <span className="font-normal text-muted-foreground">a definir</span>}</span>;
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <input
+        type="time"
+        defaultValue={valor}
+        title={dica}
+        aria-label="Horário do carro"
+        onBlur={(e) => {
+          const novo = e.target.value;
+          if (novo === valor) return;
+          onPatch(grupo.id, { manualTime: novo || null });
+        }}
+        className={`h-7 w-[92px] rounded-md border border-transparent bg-transparent px-1.5 text-xs font-semibold tabular-nums hover:border-input focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tom}`}
+        data-testid={`uber-hora-${grupo.id}`}
+      />
+      {manual && sugerido && (
+        <button type="button" title={`Voltar ao horário calculado (${sugerido})`} aria-label="Voltar ao horário calculado"
+          onClick={() => onPatch(grupo.id, { manualTime: null })}
+          className="text-muted-foreground transition-colors hover:text-primary">
+          <RefreshCw className="h-3 w-3" aria-hidden="true" />
+        </button>
+      )}
+    </span>
+  );
+}
+
+function UberView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onMover, pendingId, onSkipUber }: GroupViewProps<UberGroup> & { onSkipUber?: (rowId: string, skip: boolean) => void }) {
+  const emptyHint = canEdit ? ' Clique em "Refazer sugestões".' : "";
+  /**
+   * Quem não está em carro nenhum (31/08): dispensado da roteirização ou sem
+   * voo lançado. Antes essas pessoas simplesmente não apareciam em lugar
+   * nenhum desta visão — e ninguém sabia que faltavam.
+   */
+  const emCarro = new Set<string>();
+  for (const g of groups) for (const m of g.members || []) if (m.collaboratorId) emCarro.add(m.collaboratorId);
+  const foraDaRoteirizacao = rows.filter((r) => r.skipUber || (r.collaborator.id && !emCarro.has(r.collaborator.id)));
+
+  const blocoFora = foraDaRoteirizacao.length > 0 ? (
+    <section className="rounded-lg border border-amber-300 bg-amber-50/50 overflow-hidden dark:border-amber-900/60 dark:bg-amber-950/20" data-testid="uber-fora">
+      <header className="px-4 py-2.5 border-b border-amber-200 dark:border-amber-900/60">
+        <h3 className="text-[13px] font-semibold text-amber-900 dark:text-amber-200">Fora da roteirização</h3>
+        <p className="mt-0.5 text-[11px] text-amber-800/80 dark:text-amber-300/80">
+          Quem foi dispensado do Uber e quem ainda não tem voo lançado. Não entram em carro e não geram custo.
+        </p>
+      </header>
+      <ul className="divide-y divide-amber-200/70 dark:divide-amber-900/50">
+        {foraDaRoteirizacao.map((r) => (
+          <li key={r.teamInclusionId} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-xs">
+            <span className="font-medium">{r.collaborator.fullName}</span>
+            <span className="capitalize text-muted-foreground">{r.function.area || r.function.name || "Sem área"}</span>
+            <span className="text-amber-800 dark:text-amber-300">
+              {r.skipUber ? "não vai de Uber" : "sem voo lançado"}
+            </span>
+            {canEdit && r.skipUber && onSkipUber && (
+              <Button size="sm" variant="outline" className="ml-auto h-7 bg-background text-xs"
+                onClick={() => onSkipUber(r.teamInclusionId, false)}
+                data-testid={`voltar-uber-${r.teamInclusionId}`}>
+                Voltar para a roteirização
+              </Button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  ) : null;
+
+  if (groups.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-lg border border-dashed bg-muted/20 py-12 text-center text-sm text-muted-foreground">Nenhuma sugestão de Uber ainda.{emptyHint}</div>
+        {blocoFora}
+      </div>
+    );
+  }
   const rowByCollab = new Map(rows.filter((r) => r.collaborator.id).map((r) => [r.collaborator.id as string, r]));
   const idas = groups.filter((g) => g.direction === "ida");
   const voltas = groups.filter((g) => g.direction === "volta");
@@ -2212,15 +2419,16 @@ function UberView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onMov
 
   return (
     <div className="space-y-6">
+      {blocoFora}
       {idas.length > 0 && (
-        <TabelaUber titulo="Ida — chegada no aeroporto" subtitulo="Cada faixa de cor é um carro. O titular é quem chama a corrida."
+        <TabelaUber titulo="Ida — saída para o aeroporto" subtitulo="Quem coincide em data, aeroporto e horário divide o carro. Sai 3h antes do voo mais cedo do grupo."
           tom="bg-sky-50/60 dark:bg-sky-950/20" grupos={idas} rowByCollab={rowByCollab} collabById={collabById}
-          canEdit={canEdit} onConfirm={onConfirm} onPatch={onPatch} onMover={onMover} pendingId={pendingId} />
+          canEdit={canEdit} onConfirm={onConfirm} onPatch={onPatch} onMover={onMover} pendingId={pendingId} onSkipUber={onSkipUber} />
       )}
       {voltas.length > 0 && (
-        <TabelaUber titulo="Volta — saída para o aeroporto" subtitulo="Cada faixa de cor é um carro. O titular é quem chama a corrida."
+        <TabelaUber titulo="Volta — busca no aeroporto" subtitulo="Quem coincide em data, aeroporto e horário divide o carro. Busca 15min depois do último pouso do grupo."
           tom="bg-orange-50/60 dark:bg-orange-950/20" grupos={voltas} rowByCollab={rowByCollab} collabById={collabById}
-          canEdit={canEdit} onConfirm={onConfirm} onPatch={onPatch} onMover={onMover} pendingId={pendingId} />
+          canEdit={canEdit} onConfirm={onConfirm} onPatch={onPatch} onMover={onMover} pendingId={pendingId} onSkipUber={onSkipUber} />
       )}
 
       {internos.length > 0 && (

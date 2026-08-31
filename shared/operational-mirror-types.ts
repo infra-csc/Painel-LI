@@ -70,6 +70,11 @@ export interface MirrorRow {
   baggage: MirrorBaggage;
   uber: MirrorUber;
   carRental: MirrorCarRental;
+  /**
+   * Dispensada da roteirizacao de Uber: a grade mostra "nao usa" e a pessoa
+   * fica fora dos carros, num bloco proprio na visao de Uber.
+   */
+  skipUber: boolean;
   suggestedRoomGroupId: string | null;
   roomGroupLabel: string | null;
   pendencies: string[];
