@@ -161,12 +161,14 @@ function rotuloCampo(field: string): string {
   return grupo ? `${grupo} — ${nome}` : nome;
 }
 function EditableCell({
-  rowId, field, value, type, onSave, align = "left", compact, onEdit, editMode = true, variant, options,
+  rowId, field, value, type, onSave, align = "left", compact, onEdit, editMode = true, variant, options, etapa,
 }: {
   rowId: string; field: string; value: CellValue; type: CellType;
   onSave: (rowId: string, field: string, value: CellValue) => Promise<void>;
   align?: "left" | "right" | "center"; compact?: boolean; onEdit?: () => void;
   editMode?: boolean; variant?: CellVariant;
+  /** Primeira coluna de um bloco: ganha a barra colorida que separa as etapas. */
+  etapa?: string;
   /** type === "select": opções permitidas */
   options?: { value: string; label: string }[];
 }) {
@@ -228,6 +230,10 @@ function EditableCell({
     catch { setState("error"); setTimeout(() => setState((s) => s === "error" ? "idle" : s), 2000); }
   }
   const pad = compact ? "px-2 py-1" : "px-2 py-1.5";
+  // Barra vertical colorida no começo de cada etapa: é o que faz a pessoa
+  // enxergar onde termina "Passagem" e começa "Hospedagem" numa grade de ~36
+  // colunas, em vez de um mar de células iguais.
+  const div = etapa ? `border-l-[3px] ${etapa}` : "";
   const alignCls = align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left";
   const ring = state === "saving" ? "bg-blue-50/60 dark:bg-blue-950/30"
     : state === "saved" ? "bg-green-50/60 dark:bg-green-950/30"
@@ -235,14 +241,14 @@ function EditableCell({
 
   if (!editMode) {
     return (
-      <td className={`border-r border-border/30 ${pad} text-xs whitespace-nowrap ${alignCls} ${align !== "left" ? "tabular-nums" : ""}`}>
+      <td className={`relative z-0 border-r border-border/30 ${div} ${pad} text-xs whitespace-nowrap ${alignCls} ${align !== "left" ? "tabular-nums" : ""}`}>
         <span className="truncate inline-block max-w-[180px] align-middle">{display()}</span>
       </td>
     );
   }
   if (type === "bool") {
     return (
-      <td className={`p-0 border-r border-border/30 ${ring}`}>
+      <td className={`relative z-0 p-0 border-r border-border/30 ${div} ${ring}`}>
         <button type="button" onClick={toggleBool} disabled={state === "saving"}
           role="switch" aria-checked={!!value} aria-label={rotuloCampo(field)}
           className={`w-full h-full ${pad} hover:bg-muted/50 transition-colors flex items-center justify-center disabled:cursor-wait`}>
@@ -254,7 +260,7 @@ function EditableCell({
   if (editing && type === "select") {
     // <select> nativo: cabe na célula e fecha no blur/Esc como o input de texto.
     return (
-      <td className={`p-0 border-r border-border/30 ${ring}`}>
+      <td className={`relative z-0 p-0 border-r border-border/30 ${div} ${ring}`}>
         <select autoFocus defaultValue={draft} aria-label={rotuloCampo(field)}
           onChange={(e) => { setDraft(e.target.value); }}
           onBlur={commit}
@@ -269,7 +275,7 @@ function EditableCell({
   if (editing) {
     const inputType = type === "date" ? "date" : type === "money" || type === "int" ? "number" : type === "time" ? "time" : "text";
     return (
-      <td className={`p-0 border-r border-border/30 ${ring}`}>
+      <td className={`relative z-0 p-0 border-r border-border/30 ${div} ${ring}`}>
         <input ref={inputRef} type={inputType} step={type === "money" ? "0.01" : undefined} defaultValue={draft} aria-label={rotuloCampo(field)}
           onChange={(e) => setDraft(e.target.value)} onBlur={commit}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } if (e.key === "Escape") { e.preventDefault(); cancelEdit(); } }}
@@ -278,7 +284,7 @@ function EditableCell({
     );
   }
   return (
-    <td className={`p-0 border-r border-border/30 relative group/cell ${ring}`}>
+    <td className={`p-0 border-r border-border/30 ${div} relative z-0 group/cell ${ring}`}>
       {/* Sem aria-label aqui de propósito: o nome acessível do botão é o próprio
           valor da célula, que é o que interessa ouvir. */}
       <button type="button" onClick={startEdit} title={`Editar ${rotuloCampo(field)}`}
@@ -307,6 +313,17 @@ const G = {
   pend: "bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-900",
 };
 
+/** Barra que abre cada etapa — mesma família de cor do cabeçalho do bloco. */
+const BARRA = {
+  schedule: "border-l-sky-300 dark:border-l-sky-800",
+  ticket: "border-l-indigo-300 dark:border-l-indigo-800",
+  hotel: "border-l-emerald-300 dark:border-l-emerald-800",
+  baggage: "border-l-amber-300 dark:border-l-amber-800",
+  uber: "border-l-fuchsia-300 dark:border-l-fuchsia-800",
+  car: "border-l-orange-300 dark:border-l-orange-800",
+  pend: "border-l-rose-300 dark:border-l-rose-800",
+};
+
 type Block = "passagem" | "hospedagem" | "bagagem" | "uber" | "locacao" | "pendencias";
 const ALL_BLOCKS: { key: Block; label: string }[] = [
   { key: "passagem", label: "Passagem" },
@@ -323,6 +340,7 @@ const VIEWS = [
   { key: "departamentos", label: "Departamentos", icon: Building2 },
   { key: "quartos", label: "Quartos", icon: BedDouble },
   { key: "uber", label: "Uber", icon: Car },
+  { key: "rateio", label: "Rateio", icon: Landmark },
 ] as const;
 type ViewKey = typeof VIEWS[number]["key"];
 
@@ -752,7 +770,7 @@ export default function OperationalMirror() {
             {/* Antes as abas e a busca sumiam ao rolar a grade e o conteúdo
                 passava POR CIMA do cabeçalho da página. Agora a barra
                 acompanha e tem camada própria. */}
-            <div className="sticky top-0 z-40 -mx-6 px-6 py-2.5 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b">
+            <div className="sticky top-0 z-50 -mx-6 px-6 py-2.5 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="inline-flex rounded-lg border bg-card p-0.5" role="tablist" aria-label="Visões do espelho">
                   {VIEWS.map((v) => {
@@ -904,11 +922,12 @@ export default function OperationalMirror() {
             )}
 
             {/* ===== VIEWS ===== */}
-            {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} totals={totals} hotelDerived={derivedHotelCount > 0} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
+            {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
             {view === "colaboradores" && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
-            {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} hotelDerived={derivedHotelCount > 0} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
+            {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
             {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} canEdit={canEditMirror} onConfirm={(id: string) => confirmRoomMutation.mutate(id)} pendingId={confirmRoomMutation.isPending ? confirmRoomMutation.variables : null} />}
             {view === "uber" && <UberView groups={data.uberGroups} collabById={collabById} canEdit={canEditMirror} onConfirm={(id: string) => confirmUberMutation.mutate(id)} pendingId={confirmUberMutation.isPending ? confirmUberMutation.variables : null} />}
+            {view === "rateio" && <FooterTotals totals={totals} hotelDerived={derivedHotelCount > 0} />}
           </>
         )}
 
@@ -926,16 +945,24 @@ interface GradeViewProps {
   compact: boolean;
   saveCell: SaveCell;
   openDrawer: OpenDrawer;
-  totals: MirrorTotals;
-  hotelDerived?: boolean;
   sort: SortState;
   onSort: (key: "nome" | "departamento") => void;
   editMode: boolean;
   canEdit: boolean;
   emptyMessage: string;
 }
-function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, hotelDerived, sort, onSort, editMode, canEdit, emptyMessage }: GradeViewProps) {
+function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, onSort, editMode, canEdit, emptyMessage }: GradeViewProps) {
   const show = (b: Block) => !hiddenBlocks.has(b);
+  // "Bater o olho e entender" (pedido do dono): cada etapa diz quantas pessoas
+  // já têm aquilo resolvido. Sem isso, saber o que falta exigia percorrer ~36
+  // colunas linha a linha.
+  const feito = useMemo(() => ({
+    passagem: rows.filter((r) => !!r.ticket).length,
+    hospedagem: rows.filter((r) => !!r.accommodation).length,
+    bagagem: rows.filter((r) => r.baggage.extraCents > 0).length,
+    uber: rows.filter((r) => r.uber.totalCents > 0).length,
+    locacao: rows.filter((r) => r.carRental.totalCents > 0).length,
+  }), [rows]);
   // Lápis "editar em detalhe" só para quem pode abrir o drawer
   const edit = (kind: DrawerKind, r: MirrorRow) => canEdit ? () => openDrawer(kind, r) : undefined;
   const headPad = compact ? "px-2 py-1" : "px-2 py-1.5";
@@ -944,24 +971,24 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
     <>
       <div className="rounded-lg border bg-card overflow-hidden">
         <div>
-          <div className="overflow-auto max-h-[calc(100vh-300px)] min-h-[240px]">
+          <div className="overflow-auto max-h-[calc(100vh-250px)] min-h-[280px]">
             <table className="text-xs border-collapse w-full" data-testid="operational-grid">
               <thead>
                 <tr>
-                  <th colSpan={2} className="sticky left-0 top-0 z-30 bg-muted px-2 py-1.5 text-left font-semibold border-r border-b border-border">Colaborador</th>
-                  <th colSpan={4} className={`${G.schedule} border ${headPad} text-center font-bold sticky top-0 z-20`}>Período de Escala</th>
-                  {show("passagem") && <th colSpan={9} className={`${G.ticket} border ${headPad} text-center font-bold sticky top-0 z-20`}>Passagem</th>}
-                  {show("hospedagem") && <th colSpan={12} className={`${G.hotel} border ${headPad} text-center font-bold sticky top-0 z-20`}>Hospedagem</th>}
-                  {show("bagagem") && <th colSpan={3} className={`${G.baggage} border ${headPad} text-center font-bold sticky top-0 z-20`}>Bagagem Extra</th>}
-                  {show("uber") && <th colSpan={3} className={`${G.uber} border ${headPad} text-center font-bold sticky top-0 z-20`}>Uber</th>}
-                  {show("locacao") && <th colSpan={4} className={`${G.car} border ${headPad} text-center font-bold sticky top-0 z-20`}>Locação de Carro</th>}
-                  {show("pendencias") && <th colSpan={2} className={`${G.pend} border ${headPad} text-center font-bold sticky top-0 z-20`}>Pendências</th>}
+                  <th colSpan={2} className="sticky left-0 top-0 z-40 h-8 py-0 leading-none bg-muted px-2 text-left font-semibold border-r border-b border-border">Colaborador</th>
+                  <th colSpan={4} className={`${G.schedule} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}>Período de Escala</th>
+                  {show("passagem") && <th colSpan={9} className={`${G.ticket} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Passagem" feito={feito.passagem} total={rows.length} /></th>}
+                  {show("hospedagem") && <th colSpan={12} className={`${G.hotel} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Hospedagem" feito={feito.hospedagem} total={rows.length} /></th>}
+                  {show("bagagem") && <th colSpan={3} className={`${G.baggage} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Bagagem" feito={feito.bagagem} total={rows.length} /></th>}
+                  {show("uber") && <th colSpan={3} className={`${G.uber} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Uber" feito={feito.uber} total={rows.length} /></th>}
+                  {show("locacao") && <th colSpan={4} className={`${G.car} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}><Progresso rotulo="Locação" feito={feito.locacao} total={rows.length} /></th>}
+                  {show("pendencias") && <th colSpan={2} className={`${G.pend} border px-2 py-0 h-8 leading-none text-center font-bold sticky top-0 z-30`}>Pendências</th>}
                 </tr>
                 <tr className="bg-muted/70">
-                  <th className={`sticky left-0 top-[33px] z-30 bg-muted ${headPad} text-left font-medium border-r border-b border-border min-w-[210px]`}>
+                  <th className={`sticky left-0 top-8 z-40 bg-muted ${headPad} text-left font-medium border-r border-b border-border min-w-[210px]`}>
                     <button type="button" onClick={() => onSort("nome")} aria-label="Ordenar por nome" className="flex items-center gap-1 hover:text-foreground">Nome {sortIcon("nome")}</button>
                   </th>
-                  <th className={`sticky left-[210px] top-[33px] z-30 bg-muted ${headPad} text-left font-medium border-r border-b border-border min-w-[120px]`}>
+                  <th className={`sticky left-[210px] top-8 z-40 bg-muted ${headPad} text-left font-medium border-r border-b border-border min-w-[120px]`}>
                     <button type="button" onClick={() => onSort("departamento")} aria-label="Ordenar por departamento" className="flex items-center gap-1 hover:text-foreground">Departamento {sortIcon("departamento")}</button>
                   </th>
                   {["Início", "Data Ida", "Término", "Data Volta"].map((h) => <ColHead key={h} pad={headPad}>{h}</ColHead>)}
@@ -987,7 +1014,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
                   const zebra = idx % 2 === 1 ? "bg-muted/20" : "";
                   return (
                     <tr key={r.teamInclusionId} className={`border-b hover:bg-primary/[0.04] group ${zebra}`} data-testid={`row-${r.teamInclusionId}`}>
-                      <td className={`sticky left-0 z-10 ${idx % 2 ? "bg-[hsl(var(--muted))]" : "bg-card"} group-hover:bg-muted px-2 py-1 font-medium border-r border-border/40 min-w-[210px]`}>
+                      <td className={`sticky left-0 z-20 ${idx % 2 ? "bg-[hsl(var(--muted))]" : "bg-card"} group-hover:bg-muted px-2 py-1 font-medium border-r border-border/40 min-w-[210px]`}>
                         <Tooltip><TooltipTrigger asChild><div className="truncate max-w-[196px] leading-tight">{r.collaborator.fullName}</div></TooltipTrigger><TooltipContent>{r.collaborator.fullName}</TooltipContent></Tooltip>
                         {/* A segunda linha só existe quando há o que dizer: antes
                             todas as linhas exibiam "? · —" e isso virava ruído. */}
@@ -998,13 +1025,13 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
                           return <div className="text-[10px] text-muted-foreground/70 leading-tight">{[g, uf].filter(Boolean).join(" · ")}</div>;
                         })()}
                       </td>
-                      <td className={`sticky left-[210px] z-10 ${idx % 2 ? "bg-[hsl(var(--muted))]" : "bg-card"} group-hover:bg-muted px-2 py-1 border-r border-border/40 min-w-[120px] capitalize`}>{r.function.area || r.function.name || "—"}</td>
-                      <EditableCell rowId={r.teamInclusionId} field="schedule.startDate" value={r.schedule.startDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
+                      <td className={`sticky left-[210px] z-20 ${idx % 2 ? "bg-[hsl(var(--muted))]" : "bg-card"} group-hover:bg-muted px-2 py-1 border-r border-border/40 min-w-[120px] capitalize`}>{r.function.area || r.function.name || "—"}</td>
+                      <EditableCell rowId={r.teamInclusionId} field="schedule.startDate" value={r.schedule.startDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} etapa={BARRA.schedule} />
                       <EditableCell rowId={r.teamInclusionId} field="schedule.departureDate" value={r.schedule.flightDepartureDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
                       <EditableCell rowId={r.teamInclusionId} field="schedule.endDate" value={r.schedule.endDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
                       <EditableCell rowId={r.teamInclusionId} field="schedule.returnDate" value={r.schedule.flightReturnDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
                       {show("passagem") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="ticket.value" value={t.value} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" onEdit={edit("ticket", r)} />
+                        <EditableCell rowId={r.teamInclusionId} field="ticket.value" value={t.value} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" onEdit={edit("ticket", r)} etapa={BARRA.ticket} />
                         <EditableCell rowId={r.teamInclusionId} field="ticket.departureAirport" value={t.departureAirport} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
                         <EditableCell rowId={r.teamInclusionId} field="ticket.actualDepartureTime" value={t.actualDepartureTime} type="time" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
                         <EditableCell rowId={r.teamInclusionId} field="ticket.actualReturnTime" value={t.actualReturnTime} type="time" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
@@ -1015,7 +1042,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
                         <EditableCell rowId={r.teamInclusionId} field="ticket.checkIn3" value={t.checkIn3} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("hospedagem") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="accommodation.hotelName" value={a.hotelName} type="text" onSave={saveCell} compact={compact} editMode={editMode} onEdit={edit("accommodation", r)} />
+                        <EditableCell rowId={r.teamInclusionId} field="accommodation.hotelName" value={a.hotelName} type="text" onSave={saveCell} compact={compact} editMode={editMode} onEdit={edit("accommodation", r)} etapa={BARRA.hotel} />
                         <EditableCell rowId={r.teamInclusionId} field="accommodation.reservationNumber" value={a.reservationNumber} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="mono" />
                         <EditableCell rowId={r.teamInclusionId} field="accommodation.checkInDate" value={a.checkInDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
                         <EditableCell rowId={r.teamInclusionId} field="accommodation.checkOutDate" value={a.checkOutDate} type="date" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
@@ -1029,17 +1056,17 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
                         <EditableCell rowId={r.teamInclusionId} field="accommodation.checkIn4" value={a.checkIn4} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("bagagem") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="baggage.amountCents" value={r.baggage.extraCents} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
+                        <EditableCell rowId={r.teamInclusionId} field="baggage.amountCents" value={r.baggage.extraCents} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" etapa={BARRA.baggage} />
                         <EditableCell rowId={r.teamInclusionId} field="baggage.oc" value={r.baggage.oc} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
                         <EditableCell rowId={r.teamInclusionId} field="baggage.checkIn" value={r.baggage.checkIn} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("uber") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="uber.amountCents" value={r.uber.totalCents} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
+                        <EditableCell rowId={r.teamInclusionId} field="uber.amountCents" value={r.uber.totalCents} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" etapa={BARRA.uber} />
                         <EditableCell rowId={r.teamInclusionId} field="uber.oc" value={r.uber.oc} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
                         <EditableCell rowId={r.teamInclusionId} field="uber.checkIn" value={r.uber.checkIn} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("locacao") && <>
-                        <EditableCell rowId={r.teamInclusionId} field="carRental.company" value={r.carRental.company} type="text" onSave={saveCell} compact={compact} editMode={editMode} onEdit={edit("extras", r)} />
+                        <EditableCell rowId={r.teamInclusionId} field="carRental.company" value={r.carRental.company} type="text" onSave={saveCell} compact={compact} editMode={editMode} onEdit={edit("extras", r)} etapa={BARRA.car} />
                         <EditableCell rowId={r.teamInclusionId} field="carRental.amountCents" value={r.carRental.totalCents} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
                         <EditableCell rowId={r.teamInclusionId} field="carRental.oc" value={r.carRental.oc} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
                         <EditableCell rowId={r.teamInclusionId} field="carRental.checkIn" value={r.carRental.checkIn} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
@@ -1059,13 +1086,33 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, totals, 
           </div>
         </div>
       </div>
-      <FooterTotals totals={totals} hotelDerived={hotelDerived} />
     </>
   );
 }
 
+/**
+ * Rótulo da etapa com quantas pessoas já estão resolvidas nela. Some quando
+ * ninguém tem aquilo (bagagem/Uber/locação costumam ser zero num evento
+ * local) para não anunciar "0 de 15" em três blocos seguidos.
+ */
+function Progresso({ rotulo, feito, total }: { rotulo: string; feito: number; total: number }) {
+  const completo = total > 0 && feito === total;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {rotulo}
+      {feito > 0 && (
+        <span className={`rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums ${
+          completo ? "bg-emerald-600/15 text-emerald-700 dark:text-emerald-300" : "bg-background/70"}`}
+          title={`${feito} de ${total} ${total === 1 ? "colaborador" : "colaboradores"} com este item preenchido`}>
+          {completo ? `${total} ✓` : `${feito}/${total}`}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function ColHead({ children, pad }: { children: React.ReactNode; pad: string }) {
-  return <th className={`${pad} text-left font-medium border-r border-b border-border whitespace-nowrap text-muted-foreground sticky top-[33px] z-20 bg-muted`}>{children}</th>;
+  return <th className={`${pad} text-left font-medium border-r border-b border-border whitespace-nowrap text-muted-foreground sticky top-8 z-30 bg-muted`}>{children}</th>;
 }
 
 // ============ COLABORADORES VIEW ============
@@ -1197,14 +1244,13 @@ type SummaryLine = string | number | false | null | undefined;
 interface DepartamentosViewProps {
   rows: MirrorRow[];
   totals: MirrorTotals;
-  hotelDerived?: boolean;
   collapsed: Set<string>;
   setCollapsed: React.Dispatch<React.SetStateAction<Set<string>>>;
   openDrawer: OpenDrawer;
   canEdit: boolean;
   emptyMessage: string;
 }
-function DepartamentosView({ rows, totals, hotelDerived, collapsed, setCollapsed, openDrawer, canEdit, emptyMessage }: DepartamentosViewProps) {
+function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, canEdit, emptyMessage }: DepartamentosViewProps) {
   const groups = useMemo(() => {
     const m = new Map<string, MirrorRow[]>();
     rows.forEach((r) => { const k = r.function.area || r.function.name || "(sem departamento)"; if (!m.has(k)) m.set(k, []); m.get(k)!.push(r); });
@@ -1277,7 +1323,6 @@ function DepartamentosView({ rows, totals, hotelDerived, collapsed, setCollapsed
           </Card>
         );
       })}
-      <FooterTotals totals={totals} hotelDerived={hotelDerived} />
     </div>
   );
 }
