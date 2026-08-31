@@ -124,9 +124,23 @@ export interface EditDrawerProps {
   onSaveMany: (rowId: string, changes: Record<string, DrawerValue>) => Promise<void>;
 }
 
+/** As três abas do drawer, na ordem em que a compra acontece. */
+const ABAS: { chave: DrawerKind; rotulo: string; Icone: typeof Plane; tom: string }[] = [
+  { chave: "ticket", rotulo: "Passagem", Icone: Plane, tom: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400" },
+  { chave: "accommodation", rotulo: "Hospedagem", Icone: BedDouble, tom: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400" },
+  { chave: "extras", rotulo: "Extras", Icone: Luggage, tom: "bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400" },
+];
+
 export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, onSaveMany }: EditDrawerProps) {
   const { toast } = useToast();
-  const fields = kind === "ticket" ? TICKET_FIELDS : kind === "accommodation" ? ACC_FIELDS : EXTRAS_FIELDS;
+  /**
+   * Abas de verdade (31/08): o drawer abria UM bloco — o da coluna clicada — e
+   * ver a hospedagem da mesma pessoa exigia fechar, achar a coluna certa na
+   * grade de 39 colunas e abrir de novo. `kind` virou a aba INICIAL.
+   */
+  const [aba, setAba] = useState<DrawerKind>(kind ?? "ticket");
+  useEffect(() => { if (open && kind) setAba(kind); }, [open, kind]);
+  const fields = aba === "ticket" ? TICKET_FIELDS : aba === "accommodation" ? ACC_FIELDS : EXTRAS_FIELDS;
   // O rascunho guarda o TEXTO digitado (e boolean para switches). Antes ele guardava
   // centavos e o input relia toInput(): digitar "10," / "10." era desfeito a cada tecla,
   // impossibilitando informar centavos. A conversão acontece só no salvamento.
@@ -134,14 +148,14 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!open || !kind) return;
+    if (!open) return;
     const init: Record<string, string | boolean> = {};
     for (const f of fields) {
       const v = readVal(f, source);
       init[f.field] = f.type === "bool" ? !!v : toInput(v, f.type);
     }
     setDraft(init);
-  }, [open, kind, rowId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, aba, rowId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSave() {
     if (!rowId || saving) return;
@@ -154,7 +168,9 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
     }
     if (Object.keys(changes).length === 0) { onOpenChange(false); return; }
     // Check-out não pode ser antes do check-in (compara YYYY-MM-DD como texto).
-    if (kind === "accommodation") {
+    // Pela ABA aberta, não pela coluna que abriu o drawer: com as abas, a
+    // hospedagem pode estar sendo editada mesmo tendo entrado pela passagem.
+    if (aba === "accommodation") {
       const ci = String(draft["accommodation.checkInDate"] ?? "").trim();
       const co = String(draft["accommodation.checkOutDate"] ?? "").trim();
       if (ci && co && co < ci) {
@@ -193,13 +209,9 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
     if (String(a) !== String(next)) alterados.add(f.field);
   }
 
-  const titulo = kind === "ticket" ? "Passagem" : kind === "accommodation" ? "Hospedagem" : "Bagagem, Uber e locação";
-  const Icone = kind === "ticket" ? Plane : kind === "accommodation" ? BedDouble : Luggage;
-  const tomIcone = kind === "ticket"
-    ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400"
-    : kind === "accommodation"
-      ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400"
-      : "bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400";
+  const abaAtual = ABAS.find((a) => a.chave === aba) ?? ABAS[0];
+  const Icone = abaAtual.Icone;
+  const tomIcone = abaAtual.tom;
 
   // Ordem das seções = ordem em que aparecem na lista de campos.
   const secoes: { nome: string; campos: FieldDef[] }[] = [];
@@ -219,9 +231,26 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
               <Icone className="h-[18px] w-[18px]" aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <SheetTitle className="text-base leading-tight">{titulo}</SheetTitle>
-              <SheetDescription className="truncate">{rowName || "Colaborador"}</SheetDescription>
+              {/* O nome manda: é a pessoa que se edita, e as abas dizem o quê. */}
+              <SheetTitle className="text-base leading-tight truncate">{rowName || "Colaborador"}</SheetTitle>
+              <SheetDescription>{abaAtual.rotulo}</SheetDescription>
             </div>
+          </div>
+          <div className="mt-3 -mb-4 flex gap-1" role="tablist" aria-label="Blocos da pessoa">
+            {ABAS.map((a) => (
+              <button
+                key={a.chave}
+                type="button"
+                role="tab"
+                aria-selected={aba === a.chave}
+                disabled={saving}
+                onClick={() => setAba(a.chave)}
+                className={`h-[34px] border-b-2 px-3 text-[13px] transition-colors disabled:opacity-60 ${
+                  aba === a.chave ? "border-primary font-semibold text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+              >
+                {a.rotulo}
+              </button>
+            ))}
           </div>
         </SheetHeader>
 
