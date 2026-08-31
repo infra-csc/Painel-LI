@@ -536,7 +536,10 @@ export default function ScalingValidationPage() {
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft text-primary shrink-0" aria-hidden="true">
             <CalendarDays className="w-4 h-4" />
           </span>
-          <div className="w-[260px] max-w-full shrink-0">
+          {/* Cresce até 420px quando há espaço (31/08): em 260px fixos, nome
+              de evento longo era cortado e o usuário não tinha como ler o
+              resto — nem sabia em qual evento estava. */}
+          <div className="w-[260px] max-w-full shrink-0 lg:w-auto lg:min-w-[260px] lg:max-w-[420px] lg:flex-1">
             {loadingEvents ? (
               <div className="h-8 rounded-lg bg-slate-100 animate-pulse" aria-hidden="true" />
             ) : (

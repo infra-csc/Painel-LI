@@ -73,6 +73,10 @@ export default function EventCombobox({
           <button
             data-testid={testId}
             type="button"
+            // O nome do evento é longo e o gatilho é estreito: sem o `title`,
+            // "CIRCUITO DAS ESTAÇÕES - Outono - BRASÍLIA - 2026" virava
+            // "CIRCUITO DAS ESTAÇÕES - Outo…" e não havia como ler o resto.
+            title={displayValue}
             className={cn("w-full h-9 flex items-center justify-between pl-3 pr-9 border border-slate-200 rounded-lg bg-white text-sm text-slate-700 cursor-pointer hover:border-blue-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-200", className)}
           >
             <span className="flex-1 text-left truncate text-slate-700">

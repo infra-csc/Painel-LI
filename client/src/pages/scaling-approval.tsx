@@ -457,7 +457,12 @@ export default function ScalingApprovalPage() {
    * novo"; a faixa de recortes some — não há fila para recortar.
    */
   const erroVagas = !!suggestionsQuery.error;
-  const erroFila = !!loadError;
+  /**
+   * 403 não é falha: é "esta fila não é sua". Tratá-lo como erro fazia a tela
+   * dizer "Não foi possível carregar" para quem só queria acompanhar um pedido
+   * — e o texto sugeria problema de conexão onde não havia problema nenhum.
+   */
+  const erroFila = !!loadError && !forbidden;
 
   /**
    * Sete cartões de peso igual não criam hierarquia: o aprovador batia o olho e
@@ -541,7 +546,8 @@ export default function ScalingApprovalPage() {
             {loadingEvents ? (
               <div className="h-8 w-[280px] max-w-full rounded-lg bg-slate-100 animate-pulse" aria-hidden="true" />
             ) : (
-              <div className="w-[280px] max-w-full">
+              // Mesma régua da Validação: cresce com o espaço disponível.
+              <div className="w-[280px] max-w-full lg:w-auto lg:min-w-[280px] lg:max-w-[440px] lg:flex-1">
                 <EventCombobox events={activeEvents} value={eventId || ALL} onValueChange={(v) => setEventId(v === ALL ? "" : v)} placeholder="Todos os eventos" showAllOption testId="scaling-approval-event" className="h-8 rounded-lg font-semibold" />
               </div>
             )}
@@ -597,6 +603,11 @@ export default function ScalingApprovalPage() {
                   <>
                     <span className="block text-[13px] font-medium text-red-700">Não foi possível carregar</span>
                     <span className="mt-0.5 block text-[11px] text-slate-500">Abra a aba para tentar de novo</span>
+                  </>
+                ) : c.key === "pendentes" && forbidden ? (
+                  <>
+                    <span className="block text-[13px] font-medium text-slate-600">Nenhum pedido seu por aqui</span>
+                    <span className="mt-0.5 block text-[11px] text-slate-500">Você vê os pedidos que abrir e os das funções que aprova</span>
                   </>
                 ) : (
                   <>

@@ -1316,7 +1316,8 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
 
   // GET /api/scaling-change-requests?status=&eventId= — papéis de
   // `canViewRequestsByRole` veem a fila inteira; qualquer outro papel vê os
-  // pedidos das funções em que é aprovador. Sem nenhuma das duas coisas → 403.
+  // pedidos das funções em que é aprovador MAIS os que ele mesmo abriu — quem
+  // pediu tem direito de acompanhar, mesmo sem poder decidir.
   // `canDecide` sai SEMPRE do cadastro (aprovador da função ou admin) — o papel
   // global nunca força view-only: quem está cadastrado decide.
   app.get("/api/scaling-change-requests", async (req, res) => {
@@ -1333,9 +1334,13 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       const defaultApprover = await isDefaultApprover(actor);
       // Papel autorizado vê a fila inteira; quem não é papel autorizado ainda vê
       // a fila FILTRADA às funções em que é aprovador; o resto leva 403.
+      // Quem abriu o pedido acompanha o próprio pedido (31/08). Antes, quem não
+      // era aprovador de NENHUMA função levava 403 ao abrir a Aprovação — e é
+      // justamente quem mais precisa saber se o pedido dela já foi decidido.
+      let orRequestedBy: string | undefined;
       if (!canViewRequestsByRole(actor) && !defaultApprover) {
         functionIds = await storage.getUserManagedFunctionIds(actor.id, "aprovador");
-        if (functionIds.length === 0) return res.status(403).json({ message: "Sem permissão para ver pedidos de ajuste" });
+        orRequestedBy = actor.id;
       }
       const approverIds = new Set(
         admin || defaultApprover ? [] : (functionIds ?? await storage.getUserManagedFunctionIds(actor.id, "aprovador")),
@@ -1343,7 +1348,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
 
       // Só o que os pedidos listados precisam: vagas (inArray de
       // teamInclusionIds), funções e eventos referenciados — nunca a tabela toda.
-      const requests = await storage.getScalingChangeRequests({ status, eventId, functionIds });
+      const requests = await storage.getScalingChangeRequests({ status, eventId, functionIds, orRequestedBy });
       const [functions, events, inclusions] = await Promise.all([
         storage.getFunctionsByIds(requests.map((r) => r.functionId)),
         storage.getEventsByIds(requests.map((r) => r.eventId)),

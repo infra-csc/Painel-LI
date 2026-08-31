@@ -1682,7 +1682,15 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(events).where(inArray(events.id, unique));
   }
 
-  async getScalingChangeRequests(filters?: { status?: string; eventId?: string; eventIds?: string[]; functionIds?: string[] }): Promise<ScalingChangeRequest[]> {
+  async getScalingChangeRequests(filters?: {
+    status?: string; eventId?: string; eventIds?: string[]; functionIds?: string[];
+    /**
+     * Quem abriu o pedido também o vê, mesmo sem ser aprovador da função. Sem
+     * isto, quem pediu um ajuste não tinha como acompanhar a própria fila —
+     * perguntava por fora "e aí, saiu?".
+     */
+    orRequestedBy?: string;
+  }): Promise<ScalingChangeRequest[]> {
     const conditions = [];
     if (filters?.status && filters.status !== "all") conditions.push(eq(scalingChangeRequests.status, filters.status));
     if (filters?.eventId && filters.eventId !== "all") conditions.push(eq(scalingChangeRequests.eventId, filters.eventId));
@@ -1693,8 +1701,16 @@ export class DatabaseStorage implements IStorage {
       conditions.push(inArray(scalingChangeRequests.eventId, filters.eventIds));
     }
     if (filters?.functionIds) {
-      if (filters.functionIds.length === 0) return [];
-      conditions.push(inArray(scalingChangeRequests.functionId, filters.functionIds));
+      const porFuncao = filters.functionIds.length > 0
+        ? inArray(scalingChangeRequests.functionId, filters.functionIds)
+        : null;
+      const meus = filters.orRequestedBy ? eq(scalingChangeRequests.requestedBy, filters.orRequestedBy) : null;
+      // Aprovador de algumas funções E autor de pedidos em outras: vê os dois
+      // conjuntos, não a interseção.
+      if (porFuncao && meus) conditions.push(or(porFuncao, meus)!);
+      else if (porFuncao) conditions.push(porFuncao);
+      else if (meus) conditions.push(meus);
+      else return [];
     }
     const query = db.select().from(scalingChangeRequests).orderBy(desc(scalingChangeRequests.createdAt));
     if (conditions.length === 0) return await query;
