@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCircle2, Timer, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Timer, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,7 +10,8 @@ import {
 import { EmptyState } from "@/components/common/empty-state";
 import { cn, formatDiarias } from "@/lib/utils";
 import { PendingDaysBadge, eventPeriodLabel, periodLabel, workDaysOf } from "@/components/scaling-validation/suggestions-list";
-import { STALLED_DAYS } from "@shared/scaling-validation-rules";
+import { VagaCard, pessoasDiaDaVaga } from "@/components/scaling-validation/vaga-card";
+import { DANGER_DAYS, STALLED_DAYS } from "@shared/scaling-validation-rules";
 import type { StalledRow as SuggestionRow } from "./types";
 
 interface StalledSuggestionsProps {
@@ -141,18 +142,69 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
       </div>
 
       <AlertDialog open={!!confirm} onOpenChange={(o) => { if (!o) setConfirm(null); }}>
-        <AlertDialogContent>
+        <AlertDialogContent className="!max-w-[560px] max-h-[88vh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>
               {confirm?.kind === "approve" ? "Aprovar vaga direto, sem validação da área?" : "Reprovar vaga sem validação da área?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Vaga #{confirm?.row.inclusionNumber} · {confirm ? functionNameById.get(confirm.row.functionId) ?? "Função" : ""}.{" "}
               {confirm?.kind === "approve"
                 ? "Ela vira Inclusão de Equipe (aguardando escalação) imediatamente."
                 : "Ela sai da escala e fica registrada como negada."}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {/* Passar por cima da área é a decisão mais pesada da tela: a vaga
+              precisa estar à vista, com quanto tempo está parada. */}
+          {confirm && (
+            <>
+              <VagaCard
+                row={confirm.row}
+                functionName={functionNameById.get(confirm.row.functionId)}
+                badge={
+                  <span className={cn(
+                    "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap",
+                    confirm.row.daysPending >= DANGER_DAYS ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200",
+                  )}>
+                    <Clock className="w-3 h-3" aria-hidden="true" /> parada há {confirm.row.daysPending} {confirm.row.daysPending === 1 ? "dia" : "dias"}
+                  </span>
+                }
+                nota="A área nunca validou esta vaga."
+              />
+              <section
+                className={cn("rounded-2xl border p-3 space-y-1.5", confirm.kind === "approve" ? "border-emerald-200 bg-emerald-50/60" : "border-red-200 bg-red-50/60")}
+                aria-labelledby="bypass-depois"
+              >
+                <p id="bypass-depois" className={cn("text-[11px] font-bold uppercase tracking-wide", confirm.kind === "approve" ? "text-emerald-700" : "text-red-700")}>
+                  O que acontece depois
+                </p>
+                <ul className="list-disc space-y-1 pl-4 text-xs text-slate-700">
+                  {confirm.kind === "approve" ? (
+                    <>
+                      <li>A vaga vira Inclusão de Equipe e já pode ser escalada.</li>
+                      <li>A área perde a chance de validar esta vaga — o pulo fica registrado com o seu nome.</li>
+                      <li>
+                        Entram <span className="font-semibold tabular-nums">{pessoasDiaDaVaga(confirm.row)}</span>{" "}
+                        {pessoasDiaDaVaga(confirm.row) === 1 ? "pessoa-dia" : "pessoas-dia"} no total do evento.
+                      </li>
+                      <li>
+                        {confirm.row.needsTicket || confirm.row.needsAccommodation
+                          ? <>Compras passa a ter {[confirm.row.needsTicket ? "passagem" : null, confirm.row.needsAccommodation ? "hospedagem" : null].filter(Boolean).join(" e ")} para comprar.</>
+                          : <>Nenhuma compra é gerada — a vaga não pede passagem nem hospedagem.</>}
+                      </li>
+                    </>
+                  ) : (
+                    <>
+                      <li>A vaga sai da escala e fica registrada como negada.</li>
+                      <li>A área nunca chegou a validar: a recusa fica registrada com o seu nome.</li>
+                      <li>Nenhuma compra é gerada para esta vaga.</li>
+                      <li>As outras vagas da mesma função não são afetadas.</li>
+                    </>
+                  )}
+                  <li>Seu comentário fica no histórico da vaga e é o que a área lê.</li>
+                </ul>
+              </section>
+            </>
+          )}
           <div className="space-y-1">
             <Label htmlFor="bypass-comment" className="text-xs text-slate-600">Comentário (opcional)</Label>
             <Textarea id="bypass-comment" rows={2} maxLength={500} value={comment} onChange={(e) => setComment(e.target.value)} className="rounded-lg text-sm bg-white" placeholder="Fica registrado no histórico da vaga." />

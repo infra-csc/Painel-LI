@@ -149,7 +149,7 @@ export function ReviewRequestDialog({ open, onOpenChange, kind, request, inclusi
 
   return (
     <Dialog open={open} onOpenChange={(o) => !pending && onOpenChange(o)}>
-      <DialogContent className={cn("p-0 gap-0 flex flex-col max-h-[92vh] overflow-hidden", canEditFields ? "max-w-3xl" : "max-w-lg")}>
+      <DialogContent className={cn("p-0 gap-0 flex flex-col max-h-[88vh] overflow-hidden rounded-2xl", canEditFields ? "max-w-3xl" : "max-w-lg")}>
         <DialogHeader className="px-6 pt-6 pb-3 border-b border-slate-100 pr-12">
           <DialogTitle className="flex items-center gap-2">
             {title} <RequestTypeBadge type={type} />
@@ -206,6 +206,12 @@ function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFie
   const [draft, setDraft] = useState<ProposedDraft>(() => draftFromProposed(request?.proposed ?? null, inclusion));
   const [error, setError] = useState<string | null>(null);
 
+  /** Dias que a área pediu — referência dentro do seletor de dias. */
+  const diasPedidos = useMemo(
+    () => (request?.proposed?.workDays ?? []).map((d) => String(d).slice(0, 10)).filter(Boolean).sort(),
+    [request?.proposed],
+  );
+
   // Reajuste de AJUSTE sem a vaga carregada: o formulário partiria só do pedido e o
   // envio mandaria os demais campos vazios — apagando voo/observações da vaga real.
   // Enquanto a inclusão não chega, editar campos fica bloqueado.
@@ -242,7 +248,31 @@ function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFie
 
   return (
     <>
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      {/* O pedido da área fica FORA da área que rola (30/08): ao marcar "editar
+          os campos propostos", o formulário empurrava o de/para para longe e o
+          aprovador decidia sem ver o que tinha sido pedido. `position: sticky`
+          dentro do scroller não segurou de forma confiável — este bloco é
+          irmão do corpo, não filho. */}
+      {request && (
+        <section className="shrink-0 max-h-[26vh] overflow-y-auto border-b border-slate-100 bg-slate-50/70 px-6 py-3 space-y-2" aria-labelledby="rev-pedido">
+          <p id="rev-pedido" className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+            O que a área pediu
+            {request.requestedByName ? <span className="ml-1.5 font-normal normal-case tracking-normal text-slate-400">· por {request.requestedByName}</span> : null}
+          </p>
+          {request.reason ? (
+            <blockquote className="border-l-2 border-primary/35 pl-2.5 text-xs text-slate-700 whitespace-pre-wrap break-words">{request.reason}</blockquote>
+          ) : null}
+          {type === "ajuste" && <DiffTable diff={request.diff} tom="pedido" />}
+          {type === "inclusao" && <ProposedList proposed={request.proposed} />}
+          {type === "exclusao" && (
+            <p className="rounded-xl border border-dashed border-red-200 bg-red-50/40 px-3 py-2 text-xs text-red-800">
+              Pedido para <span className="font-semibold">remover a vaga</span> da escala.
+            </p>
+          )}
+        </section>
+      )}
+
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
         <div className="space-y-5">
           {/* 1) Comentário */}
           <div className="space-y-1">
@@ -280,12 +310,12 @@ function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFie
                       </Button>
                     </div>
                   )}
-                  <ProposedChangesForm type={type} value={draft} onChange={setDraft} event={event} disabled={pending} idPrefix="rev" />
+                  <ProposedChangesForm type={type} value={draft} onChange={setDraft} event={event} disabled={pending} idPrefix="rev" diasPedidos={diasPedidos} />
                   {type === "ajuste" && inclusion && (() => {
                     const d = diffInclusion(inclusion, fullFromDraft(draft));
                     return (
                       <div>
-                        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1.5">Como fica o de/para</p>
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1.5">Como fica depois do seu ajuste</p>
                         {d.length > 0
                           ? <DiffTable diff={d} />
                           : <p className="text-xs italic text-slate-500">Nenhum campo muda — a vaga segue exatamente como está e o pedido é resolvido.</p>}
@@ -298,14 +328,6 @@ function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFie
                       <ProposedList proposed={preview} />
                     </div>
                   )}
-                </div>
-              )}
-              {/* A base do pedido fica SEMPRE à vista (27/08): editando ou não,
-                  o aprovador precisa ver o que a área pediu para decidir em cima. */}
-              {request && type === "ajuste" && (
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1.5">O que a área pediu</p>
-                  <DiffTable diff={request.diff} />
                 </div>
               )}
             </div>

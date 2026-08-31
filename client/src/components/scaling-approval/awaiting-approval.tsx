@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { cn, formatDiarias } from "@/lib/utils";
 import { formatDateBr } from "@/lib/dates";
 import { eventPeriodLabel, periodLabel, workDaysOf } from "@/components/scaling-validation/suggestions-list";
+import { VagaCard, pessoasDiaDaVaga } from "@/components/scaling-validation/vaga-card";
 import { DANGER_DAYS, STALLED_DAYS, daysAwaitingApproval, pendingSeverity } from "@shared/scaling-validation-rules";
 import { isStaleDecisionError } from "./use-decisions";
 import type { StalledRow as SuggestionRow, VagaDecisionKind } from "./types";
@@ -206,6 +207,16 @@ export function AwaitingApproval({
 
   const copy = decision ? DECISION_COPY[decision.kind] : null;
   const nConfirm = confirmRows?.length ?? 0;
+  /** O lote somado: o que o aprovador leva para Compras e para a produção. */
+  const resumoLote = useMemo(() => {
+    const linhas = confirmRows ?? [];
+    return {
+      pessoasDia: linhas.reduce((soma, r) => soma + pessoasDiaDaVaga(r), 0),
+      comPassagem: linhas.filter((r) => r.needsTicket).length,
+      comHotel: linhas.filter((r) => r.needsAccommodation).length,
+      esperaMaisLonga: linhas.reduce((maior, r) => Math.max(maior, daysAwaiting(r)), 0),
+    };
+  }, [confirmRows]);
 
   return (
     <>
@@ -353,29 +364,69 @@ export function AwaitingApproval({
 
       {/* Aprovar (lote ou uma vaga) */}
       <AlertDialog open={confirmRows !== null} onOpenChange={(o) => { if (!o) setConfirmRows(null); }}>
-        <AlertDialogContent>
+        <AlertDialogContent className="!max-w-[600px] max-h-[88vh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>Aprovar {nConfirm} {nConfirm === 1 ? "vaga" : "vagas"}?</AlertDialogTitle>
             <AlertDialogDescription asChild>
-              <div className="space-y-2 text-sm text-muted-foreground">
+              <div className="space-y-3 text-sm text-muted-foreground">
                 <p>{nConfirm === 1 ? "A vaga vira" : "As vagas viram"} Inclusão de Equipe (aguardando escalação) e {nConfirm === 1 ? "sai" : "saem"} desta lista.</p>
+                {/* Uma linha por vaga, com o que a decisão precisa: aprovar em
+                    lote não pode ser aprovar às cegas. */}
                 <ul className="rounded-lg border border-slate-200 bg-white divide-y divide-slate-100 text-xs text-slate-700">
-                  {(confirmRows ?? []).slice(0, MAX_LISTED).map((r) => (
-                    <li key={r.id} className="flex items-center gap-2 px-3 py-1.5">
-                      <span className="rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800">#{r.inclusionNumber}</span>
-                      <span className="truncate font-semibold">{functionNameById.get(r.functionId) ?? "Sem função"}</span>
-                      {/* Lote de "todos os eventos" pode misturar eventos: o
-                          aprovador precisa ver isso ANTES de confirmar. */}
-                      {showEvent && <span className="truncate text-slate-500">{r.eventName ?? "Sem evento"}</span>}
-                      <span className="ml-auto font-mono text-slate-500 whitespace-nowrap">{periodLabel(r)}</span>
-                    </li>
-                  ))}
+                  {(confirmRows ?? []).slice(0, MAX_LISTED).map((r) => {
+                    const quemValidou = r.validatedBy ? userNameById?.get(r.validatedBy) : undefined;
+                    return (
+                      <li key={r.id} className="space-y-1 px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800">#{r.inclusionNumber}</span>
+                          <span className="truncate font-semibold">{functionNameById.get(r.functionId) ?? "Sem função"}</span>
+                          <span className="truncate text-slate-500">{r.area || "Sem área"}</span>
+                          {/* Lote de "todos os eventos" pode misturar eventos: o
+                              aprovador precisa ver isso ANTES de confirmar. */}
+                          {showEvent && <span className="truncate text-slate-500">{r.eventName ?? "Sem evento"}</span>}
+                          <span className="ml-auto shrink-0"><AwaitingBadge days={daysAwaiting(r)} /></span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
+                          <span className="font-mono tabular-nums text-slate-600">{periodLabel(r)}</span>
+                          <span>· {formatDiarias(workDaysOf(r).length || r.dailyRates || 0)}</span>
+                          <span>· validada por {quemValidou ?? "área responsável"}{r.validatedAt ? ` · ${formatDateBr(new Date(r.validatedAt))}` : ""}</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {r.needsTicket || r.needsAccommodation ? (
+                            <>
+                              {r.needsTicket && <span className={cn(CHIP, "bg-violet-50 text-violet-700")}>Passagem</span>}
+                              {r.needsAccommodation && <span className={cn(CHIP, "bg-sky-50 text-sky-700")}>Hotel</span>}
+                            </>
+                          ) : <span className="text-[11px] text-slate-400">Sem logística</span>}
+                        </div>
+                        {r.observations && <p className="truncate text-[11px] italic text-slate-400" title={r.observations}>{r.observations}</p>}
+                      </li>
+                    );
+                  })}
                   {nConfirm > MAX_LISTED && (
                     <li className="px-3 py-1.5 text-slate-500">
                       … e mais {nConfirm - MAX_LISTED} {nConfirm - MAX_LISTED === 1 ? "vaga" : "vagas"}
                     </li>
                   )}
                 </ul>
+                {/* O que o lote significa somado — é o número que o aprovador
+                    leva para a conversa com Compras e com a produção. */}
+                <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {[
+                    { rotulo: "Pessoas-dia", valor: String(resumoLote.pessoasDia) },
+                    { rotulo: "Com passagem", valor: `${resumoLote.comPassagem} de ${nConfirm}` },
+                    { rotulo: "Com hotel", valor: `${resumoLote.comHotel} de ${nConfirm}` },
+                    { rotulo: "Espera mais longa", valor: resumoLote.esperaMaisLonga <= 0 ? "hoje" : `${resumoLote.esperaMaisLonga} ${resumoLote.esperaMaisLonga === 1 ? "dia" : "dias"}` },
+                  ].map((c) => (
+                    <div key={c.rotulo} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5">
+                      <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{c.rotulo}</dt>
+                      <dd className="text-sm font-bold tabular-nums text-slate-800">{c.valor}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <p className="text-[11px] text-slate-500">
+                  Depois de aprovar, a alteração só é possível na Escalação — voltar exige pedido de ajuste da área.
+                </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -394,13 +445,58 @@ export function AwaitingApproval({
 
       {/* Reprovar / devolver — comentário obrigatório */}
       <AlertDialog open={decision !== null} onOpenChange={(o) => { if (!o) setDecision(null); }}>
-        <AlertDialogContent>
+        <AlertDialogContent className="!max-w-[560px] max-h-[88vh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>{copy?.title}</AlertDialogTitle>
-            <AlertDialogDescription>
-              Vaga #{decision?.row.inclusionNumber} · {decision ? functionNameById.get(decision.row.functionId) ?? "Função" : ""}. {copy?.help}
-            </AlertDialogDescription>
+            <AlertDialogDescription>{copy?.help}</AlertDialogDescription>
           </AlertDialogHeader>
+          {/* A vaga se apresenta antes do botão: decidir por "#128" sem ver
+              período, logística e quem validou é decidir no escuro. */}
+          {decision && (
+            <>
+              <VagaCard
+                row={decision.row}
+                functionName={functionNameById.get(decision.row.functionId)}
+                badge={<AwaitingBadge days={daysAwaiting(decision.row)} />}
+                nota={decision.row.validatedAt
+                  ? `Validada por ${(decision.row.validatedBy && userNameById?.get(decision.row.validatedBy)) ?? "área responsável"} · ${formatDateBr(new Date(decision.row.validatedAt))}`
+                  : "A área nunca validou esta vaga."}
+              />
+              <section
+                className={cn("rounded-2xl border p-3 space-y-1.5", decision.kind === "reprovar" ? "border-red-200 bg-red-50/60" : "border-amber-200 bg-amber-50/60")}
+                aria-labelledby="vaga-depois"
+              >
+                <p id="vaga-depois" className={cn("text-[11px] font-bold uppercase tracking-wide", decision.kind === "reprovar" ? "text-red-700" : "text-amber-700")}>
+                  O que acontece depois
+                </p>
+                <ul className="list-disc space-y-1 pl-4 text-xs text-slate-700">
+                  {decision.kind === "reprovar" ? (
+                    <>
+                      <li>A vaga sai da escala e fica registrada como negada.</li>
+                      <li>
+                        Saem <span className="font-semibold tabular-nums">{pessoasDiaDaVaga(decision.row)}</span>{" "}
+                        {pessoasDiaDaVaga(decision.row) === 1 ? "pessoa-dia" : "pessoas-dia"} do total do evento.
+                      </li>
+                      <li>
+                        {decision.row.needsTicket || decision.row.needsAccommodation
+                          ? <>Compras deixa de comprar {[decision.row.needsTicket ? "passagem" : null, decision.row.needsAccommodation ? "hospedagem" : null].filter(Boolean).join(" e ")}.</>
+                          : <>Nenhuma compra é afetada.</>}
+                      </li>
+                      <li>A validação da área é desfeita — para a vaga voltar, a área precisa sugerir de novo.</li>
+                    </>
+                  ) : (
+                    <>
+                      <li>A vaga volta para “aguardando validação da área”, com os dados como estão.</li>
+                      <li>O contador de atraso recomeça do zero.</li>
+                      <li>A validação já feita é desfeita: a área precisa validar de novo depois de rever.</li>
+                      <li>Nada é apagado — nenhum dado da vaga se perde ao devolver.</li>
+                    </>
+                  )}
+                  <li>Seu comentário fica no histórico da vaga e é o que a área lê.</li>
+                </ul>
+              </section>
+            </>
+          )}
           <div className="space-y-1">
             <Label htmlFor="vaga-decision-comment" className="text-xs text-slate-600">Comentário para a área (obrigatório)</Label>
             <Textarea

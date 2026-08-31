@@ -12,13 +12,19 @@ interface WorkDaysPickerProps {
   /** Dias extras antes/depois do período para permitir montagem/desmontagem. */
   padDays?: number;
   id?: string;
+  /**
+   * Dias que fazem parte do pedido da área (Aprovação). Marcados com um ponto,
+   * eles são a referência de quem reajusta: sem isso, mudar um dia aqui apagava
+   * da vista o que estava sendo pedido.
+   */
+  pedidos?: string[];
 }
 
 /**
  * "Calendário de dias": um chip por dia do período; clique alterna o dia.
  * Sempre devolve os dias ordenados.
  */
-export function WorkDaysPicker({ rangeStart, rangeEnd, value, onChange, disabled, padDays = 2, id }: WorkDaysPickerProps) {
+export function WorkDaysPicker({ rangeStart, rangeEnd, value, onChange, disabled, padDays = 2, id, pedidos }: WorkDaysPickerProps) {
   const days = useMemo(() => {
     const sel = [...value].sort();
     let start = rangeStart ? addDaysYmd(rangeStart, -padDays) : sel[0];
@@ -32,6 +38,7 @@ export function WorkDaysPicker({ rangeStart, rangeEnd, value, onChange, disabled
   }, [rangeStart, rangeEnd, value, padDays]);
 
   const selected = useMemo(() => new Set(value), [value]);
+  const pedidosSet = useMemo(() => new Set(pedidos ?? []), [pedidos]);
   // Último dia clicado — âncora do shift+clique (seleciona o intervalo inteiro).
   const anchorRef = useRef<string | null>(null);
   const toggle = (d: string, shift: boolean) => {
@@ -59,6 +66,10 @@ export function WorkDaysPicker({ rangeStart, rangeEnd, value, onChange, disabled
         const { date, dayName, isWeekend } = formatDateHeader(d);
         const inEvent = (!rangeStart || d >= rangeStart) && (!rangeEnd || d <= rangeEnd);
         const on = selected.has(d);
+        const pedido = pedidosSet.has(d);
+        const titulo = pedido
+          ? `A área pediu este dia · ${on ? "marcado" : "desmarcado por você"}`
+          : inEvent ? undefined : "Fora do período do evento";
         return (
           <button
             key={d}
@@ -66,9 +77,9 @@ export function WorkDaysPicker({ rangeStart, rangeEnd, value, onChange, disabled
             disabled={disabled}
             aria-pressed={on}
             onClick={(e) => toggle(d, e.shiftKey)}
-            title={inEvent ? undefined : "Fora do período do evento"}
+            title={titulo}
             className={cn(
-              "flex flex-col items-center min-w-[52px] px-2 py-1 rounded-lg border text-[11px] leading-tight transition-colors",
+              "relative flex flex-col items-center min-w-[52px] px-2 py-1 rounded-lg border text-[11px] leading-tight transition-colors",
               "focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60 disabled:cursor-not-allowed",
               // FUNDO só significa "marcado" (regra do dono, 26/08): o fim de
               // semana pintado parecia dia selecionado. Aqui ele aparece só no
@@ -77,13 +88,26 @@ export function WorkDaysPicker({ rangeStart, rangeEnd, value, onChange, disabled
               !inEvent && !on && "border-dashed text-slate-400",
             )}
           >
+            {pedido && (
+              <span
+                aria-hidden="true"
+                className={cn("absolute right-1 top-1 h-1.5 w-1.5 rounded-full", on ? "bg-white/90" : "bg-primary")}
+              />
+            )}
             <span className="font-semibold tabular-nums">{date}</span>
             <span className={cn("text-[10px]", on ? "text-white/80" : isWeekend ? "text-orange-700" : "text-slate-500")}>{dayName}</span>
           </button>
         );
       })}
     </div>
-    <p className="text-[11px] text-slate-500">Clique para marcar um dia; <kbd className="rounded border border-slate-200 bg-slate-50 px-1 font-mono text-[10px]">Shift</kbd> + clique marca o intervalo.</p>
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
+      <span>Clique para marcar um dia; <kbd className="rounded border border-slate-200 bg-slate-50 px-1 font-mono text-[10px]">Shift</kbd> + clique marca o intervalo.</span>
+      {pedidosSet.size > 0 && (
+        <span className="inline-flex items-center gap-1 text-slate-500">
+          <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-primary" /> pedido da área
+        </span>
+      )}
+    </p>
     </div>
   );
 }

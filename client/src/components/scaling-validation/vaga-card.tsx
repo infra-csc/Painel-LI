@@ -10,6 +10,7 @@
  * Só apresentação: nada aqui lê ou grava.
  */
 import type { ReactNode } from "react";
+import { Label } from "@/components/ui/label";
 import { formatDayMonthBr } from "@/lib/dates";
 import { cn, formatDiarias } from "@/lib/utils";
 import { LegChip, NeedChips } from "./logistics-chips";
@@ -99,3 +100,21 @@ export function VagaCard({ row, functionName, rotuloLogistica = "Logística", ba
 }
 
 export default VagaCard;
+
+/**
+ * Diárias não se digita (30/08): é 1 por dia de trabalho. Enquanto foi campo
+ * livre, dava para marcar 5 dias e pedir 3 diárias sem perceber, e quem
+ * recebia o pedido lia um número que não fecha com o próprio calendário.
+ */
+export function DiariasDerivadas({ dias, id }: { dias: number; id: string }) {
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id} className="text-xs text-slate-600">Diárias</Label>
+      <output id={id} className="flex h-9 items-baseline gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3" aria-live="polite">
+        <span className="text-[15px] font-bold tabular-nums text-slate-800">{dias}</span>
+        <span className="text-xs text-slate-500">{dias === 1 ? "diária" : "diárias"}</span>
+      </output>
+      <p className="text-[11px] text-slate-400">1 por dia de trabalho — muda ao marcar os dias acima.</p>
+    </div>
+  );
+}

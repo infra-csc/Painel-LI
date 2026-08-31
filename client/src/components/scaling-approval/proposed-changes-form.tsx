@@ -1,7 +1,9 @@
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { formatDiarias } from "@/lib/utils";
+import { formatDayMonthBr } from "@/lib/dates";
+import { DiariasDerivadas } from "@/components/scaling-validation/vaga-card";
 import type { Event, TeamInclusion } from "@shared/schema";
 import { diffInclusion, type ChangeRequestType, type ProposedChanges } from "@shared/scaling-validation-rules";
 import { TravelFields, EMPTY_TRAVEL, travelFromInclusion, validateTravel, type TravelDraft } from "@/components/scaling-validation/travel-fields";
@@ -76,10 +78,7 @@ export function validateDraft(d: ProposedDraft, type: ChangeRequestType): string
     if (!Number.isInteger(q) || q < 1) out.push("Quantidade deve ser um inteiro maior ou igual a 1.");
   }
   if (type !== "exclusao" && d.workDays.length === 0) out.push("Informe ao menos um dia de trabalho.");
-  if (d.dailyRates.trim() !== "") {
-    const n = Number(d.dailyRates);
-    if (!Number.isInteger(n) || n < 0) out.push("Diárias devem ser um número inteiro (0 ou mais).");
-  }
+  // Diárias não entram mais na validação: são 1 por dia de trabalho, derivadas.
   out.push(...validateTravel(d.travel));
   return out;
 }
@@ -128,19 +127,38 @@ interface ProposedChangesFormProps {
   event?: Event | null;
   disabled?: boolean;
   idPrefix?: string;
+  /**
+   * Dias que a área pediu. Servem de referência dentro do próprio campo: o
+   * aprovador vê o que foi pedido enquanto mexe, e consegue voltar a ele.
+   */
+  diasPedidos?: string[];
+}
+
+const ddmm = (d: string) => formatDayMonthBr(d);
+
+/** "incluiu 13/09 · tirou 09/09" — vazio quando a seleção é a mesma do pedido. */
+function divergenciaDeDias(escolhidos: string[], pedidos: string[]): string {
+  const set = new Set(pedidos);
+  const meus = new Set(escolhidos);
+  const incluiu = escolhidos.filter((d) => !set.has(d));
+  const tirou = pedidos.filter((d) => !meus.has(d));
+  if (!incluiu.length && !tirou.length) return "";
+  return [
+    incluiu.length ? `incluiu ${incluiu.map(ddmm).join(", ")}` : "",
+    tirou.length ? `tirou ${tirou.map(ddmm).join(", ")}` : "",
+  ].filter(Boolean).join(" · ");
 }
 
 /**
  * Formulário dos campos propostos (mesmo conjunto do pedido de ajuste/inclusão
  * da área), reaproveitando WorkDaysPicker + TravelFields da Validação de Escala.
  */
-export function ProposedChangesForm({ type, value, onChange, event, disabled, idPrefix = "rev" }: ProposedChangesFormProps) {
+export function ProposedChangesForm({ type, value, onChange, event, disabled, idPrefix = "rev", diasPedidos }: ProposedChangesFormProps) {
   const set = (patch: Partial<ProposedDraft>) => onChange({ ...value, ...patch });
-  const onDays = (days: string[]) => {
-    // Diárias seguem os dias enquanto estiverem iguais ao total anterior (padrão 1/dia).
-    const follows = value.dailyRates.trim() === "" || Number(value.dailyRates) === value.workDays.length;
-    set({ workDays: days, dailyRates: follows && days.length > 0 ? String(days.length) : value.dailyRates });
-  };
+  // Diárias são 1 por dia de trabalho — acompanham os dias, sempre.
+  const onDays = (days: string[]) => set({ workDays: days, dailyRates: String(days.length) });
+  const pedidos = diasPedidos ?? [];
+  const divergencia = pedidos.length ? divergenciaDeDias(value.workDays, pedidos) : "";
   return (
     <div className="space-y-4">
       {type === "inclusao" && (
@@ -150,15 +168,27 @@ export function ProposedChangesForm({ type, value, onChange, event, disabled, id
         </div>
       )}
       <div className="space-y-2">
-        <Label className="text-xs text-slate-600">Dias de trabalho <span className="text-red-400">*</span></Label>
-        <WorkDaysPicker rangeStart={event?.startDate ?? ""} rangeEnd={event?.endDate ?? ""} value={value.workDays} onChange={onDays} disabled={disabled} />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Label className="text-xs text-slate-600">Dias de trabalho <span className="text-red-400">*</span></Label>
+          {pedidos.length > 0 && (
+            <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg text-xs" disabled={disabled || !divergencia}
+              title="Devolve a seleção para exatamente os dias que a área pediu"
+              onClick={() => onDays([...pedidos].sort())}>
+              Voltar ao pedido
+            </Button>
+          )}
+        </div>
+        <WorkDaysPicker rangeStart={event?.startDate ?? ""} rangeEnd={event?.endDate ?? ""} value={value.workDays} onChange={onDays} disabled={disabled} pedidos={pedidos} />
+        {/* Divergência ao vivo: sem ela, o aprovador mexe nos dias e perde a
+            conta do que já mudou em relação ao que foi pedido. */}
+        {pedidos.length > 0 && (
+          <p className={divergencia ? "text-[11px] text-amber-700" : "text-[11px] text-slate-500"} aria-live="polite">
+            {divergencia ? `Você alterou o pedido: ${divergencia}.` : "Igual ao que a área pediu — nenhum dia alterado por você."}
+          </p>
+        )}
       </div>
       <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
-        <div className="space-y-1">
-          <Label htmlFor={`${idPrefix}-daily`} className="text-xs text-slate-600">Diárias</Label>
-          <Input id={`${idPrefix}-daily`} type="number" min={0} step={1} value={value.dailyRates} disabled={disabled} onChange={(e) => set({ dailyRates: e.target.value })} className="h-9 rounded-lg" />
-          <p className="text-[11px] text-slate-400">Padrão: {formatDiarias(value.workDays.length)} (1 por dia).</p>
-        </div>
+        <DiariasDerivadas id={`${idPrefix}-daily`} dias={value.workDays.length} />
         <div className="space-y-1">
           <Label htmlFor={`${idPrefix}-obs`} className="text-xs text-slate-600">Observações da vaga</Label>
           <Textarea id={`${idPrefix}-obs`} rows={2} maxLength={500} value={value.observations} disabled={disabled} onChange={(e) => set({ observations: e.target.value })} className="rounded-lg text-sm" />

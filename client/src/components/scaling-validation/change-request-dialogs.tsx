@@ -16,7 +16,7 @@ import {
 } from "@shared/scaling-validation-rules";
 import { TravelFields, EMPTY_TRAVEL, travelFromInclusion, validateTravel, type TravelDraft } from "./travel-fields";
 import { WorkDaysPicker } from "./work-days-picker";
-import { VagaCard, pessoasDiaDaVaga } from "./vaga-card";
+import { DiariasDerivadas, VagaCard, pessoasDiaDaVaga } from "./vaga-card";
 import { CHANGE_REQUEST_TYPE_LABELS, SUGESTAO_STATUS, type LastDecisionInfo } from "@shared/scaling-validation-rules";
 import { formatDateBr } from "@/lib/dates";
 import { describeLastDecision, invalidateScalingQueries, workDaysOf, ymd, type ApiError, type SuggestionRow } from "./types";
@@ -46,28 +46,6 @@ const DIALOG_BODY = "flex-1 overflow-y-auto px-6 py-4 space-y-4";
 const DIALOG_STICKY = "shrink-0 border-t border-slate-200 bg-slate-50/60 px-6 py-3 space-y-2";
 
 /** Motivo do pedido — obrigatório nos três diálogos, sempre no rodapé fixo. */
-/**
- * Diárias não se digita (30/08): é 1 por dia de trabalho. Enquanto foi campo
- * livre, dava para pedir 3 diárias com 5 dias marcados sem perceber, e o
- * aprovador recebia um pedido que não fecha com o próprio calendário.
- */
-function DiariasDerivadas({ dias, id }: { dias: number; id: string }) {
-  return (
-    <div className="space-y-1">
-      <Label htmlFor={id} className="text-xs text-slate-600">Diárias</Label>
-      <output
-        id={id}
-        className="flex h-9 items-baseline gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3"
-        aria-live="polite"
-      >
-        <span className="text-[15px] font-bold tabular-nums text-slate-800">{dias}</span>
-        <span className="text-xs text-slate-500">{dias === 1 ? "diária" : "diárias"}</span>
-      </output>
-      <p className="text-[11px] text-slate-400">1 por dia de trabalho — muda ao marcar os dias acima.</p>
-    </div>
-  );
-}
-
 function ReasonField({ id, value, onChange, disabled, placeholder, label = "Motivo do pedido" }: {
   id: string; value: string; onChange: (v: string) => void; disabled?: boolean; placeholder: string; label?: string;
 }) {

@@ -4,7 +4,7 @@ import { PROPOSED_FIELD_LABELS, type InclusionDiffEntry, type ProposedChanges, t
 import { formatProposedValue } from "./request-badges";
 
 /** Tabela "de → para" (pedido de AJUSTE) a partir do `diff` que o servidor devolve. */
-export function DiffTable({ diff, className }: { diff: InclusionDiffEntry[]; className?: string }) {
+export function DiffTable({ diff, className, tom = "resultado" }: { diff: InclusionDiffEntry[]; className?: string; tom?: "resultado" | "pedido" }) {
   if (diff.length === 0) {
     return <p className={cn("text-xs text-slate-400 rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center", className)}>Nenhuma diferença em relação à vaga atual.</p>;
   }
@@ -24,7 +24,7 @@ export function DiffTable({ diff, className }: { diff: InclusionDiffEntry[]; cla
             <tr key={d.field} className="border-b border-slate-100 last:border-b-0 align-top">
               <td className="px-3 py-2 font-semibold text-slate-700 whitespace-nowrap">{d.label || PROPOSED_FIELD_LABELS[d.field] || d.field}</td>
               <td className="px-3 py-2 text-slate-400 line-through break-words">{formatProposedValue(d.field, d.from)}</td>
-              <td className="px-3 py-2 font-medium text-emerald-800 break-words">{formatProposedValue(d.field, d.to)}</td>
+              <td className={cn("px-3 py-2 font-medium break-words", tom === "pedido" ? "text-primary" : "text-emerald-800")}>{formatProposedValue(d.field, d.to)}</td>
             </tr>
           ))}
         </tbody>
