@@ -512,7 +512,7 @@ export default function ScalingValidationPage() {
     { label: "Atrasadas", n: counts.atrasadas, cls: counts.atrasadas ? "text-red-600" : "text-slate-800" },
     { label: "Minhas pendentes", n: counts.minhas, cls: "text-primary" },
   ];
-  const KPI_BOX = "flex-1 min-w-[150px] rounded-xl border px-3 py-2 text-left";
+  const KPI_BOX = "rounded-xl border px-3 py-2 text-left";
 
   return (
     <PageContainer fluid className="pb-24">
@@ -605,7 +605,10 @@ export default function ScalingValidationPage() {
       {rows.length > 0 && (
         // <dl>/<dt>/<dd>: cada KPI é um par rótulo/valor de verdade para o
         // leitor de tela (um <div aria-label> sem role seria ignorado).
-        <dl className="flex flex-wrap items-stretch gap-2" aria-label="Resumo do evento">
+        // Uma linha só, colunas de mesma largura (30/08): com quebra, o
+        // último indicador caía sozinho e esticado, parecendo outra coisa.
+        // Faltando espaço, a faixa rola em vez de quebrar.
+        <dl className="grid auto-cols-[minmax(150px,1fr)] grid-flow-col items-stretch gap-2 overflow-x-auto pb-1" aria-label="Resumo do evento">
           {KPIS.map(({ label, n, cls }) => {
             const tip = KPI_TOOLTIPS[label];
             // "Minhas pendentes" filtra a lista; os demais são leitura.

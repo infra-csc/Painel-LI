@@ -41,7 +41,9 @@ const DIALOG_SHELL = "p-0 gap-0 flex flex-col max-h-[88vh] overflow-hidden round
 const DIALOG_SHELL_WIDE = `${DIALOG_SHELL} max-w-5xl`;
 /** Duas colunas a partir de lg: dias/diárias/observações | ida e volta. */
 const DIALOG_TWO_COLS = "grid gap-4 lg:grid-cols-2 lg:items-start";
-const DIALOG_HEADER = "px-6 pt-6 pb-3 border-b border-slate-100 pr-12";
+// shrink-0: sem isto o cabeçalho é comprimido pelo corpo num diálogo alto e
+// o título e a descrição se sobrepõem (visto ao vivo em 1568×688).
+const DIALOG_HEADER = "shrink-0 px-6 pt-6 pb-3 border-b border-slate-100 pr-12";
 const DIALOG_BODY = "flex-1 overflow-y-auto px-6 py-4 space-y-4";
 const DIALOG_STICKY = "shrink-0 border-t border-slate-200 bg-slate-50/60 px-6 py-3 space-y-2";
 
