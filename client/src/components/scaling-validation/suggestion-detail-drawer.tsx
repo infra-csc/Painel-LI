@@ -1,8 +1,9 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import {
   ArrowRight, CalendarDays, CheckCheck, ChevronLeft, ChevronRight, History,
-  Luggage, MessageSquareWarning, PencilLine, StickyNote, Trash2, Undo2,
+  ExternalLink, Luggage, MessageSquareWarning, PencilLine, StickyNote, Trash2, Undo2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,10 +12,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { apiRequest } from "@/lib/queryClient";
 import { formatDateBr } from "@/lib/dates";
+import { scalingHref } from "@/lib/use-scaling-event";
 import { cn, formatDiarias } from "@/lib/utils";
 import type { Event } from "@shared/schema";
 import {
-  CHANGE_REQUEST_TYPE_LABELS, SUGESTAO_STATUS_LABELS, TRANSPORT_MODES, TRANSPORT_MODE_LABELS,
+  CHANGE_REQUEST_TYPE_LABELS, SUGESTAO_STATUS, SUGESTAO_STATUS_LABELS, TRANSPORT_MODES, TRANSPORT_MODE_LABELS,
+  isSuggestionInclusion,
   type ChangeRequestType, type SugestaoStatus, type TransportMode,
 } from "@shared/scaling-validation-rules";
 import { StatusCell } from "./suggestions-list";
@@ -50,6 +53,11 @@ interface SuggestionDetailDrawerProps {
   onValidateAndNext?: (row: SuggestionRow) => void;
   /** Existe próxima pendente depois desta? (decide o rótulo do botão) */
   hasNextValidatable?: boolean;
+  /**
+   * Mostra no rodapé o link para a tela onde a vaga está agora. Ligado pelo
+   * Histórico: nas outras telas o link apontaria para a própria tela.
+   */
+  mostrarOndeEsta?: boolean;
   /**
    * Chamado quando o drawer TERMINOU de fechar (fim da animação, foco já
    * devolvido). A tela usa isto para só então abrir um diálogo: dois overlays
@@ -255,11 +263,32 @@ function hasAnyLeg(row: SuggestionRow): boolean {
   ].some((v) => legValue(v) !== null);
 }
 
-/** Drawer lateral com o detalhe completo de uma vaga sugerida (leitura). */
+/**
+ * Em que tela a vaga se encontra AGORA. É o que responde "e daí, onde ela
+ * está?" depois de ler a trilha — sem isso a ficha termina no passado.
+ */
+function ondeEstaAVaga(row: SuggestionRow): { href: string; label: string } | null {
+  if (row.deletedAt) return null; // vaga excluída não está em fila nenhuma
+  if (!isSuggestionInclusion(row)) return { href: scalingHref("/scaling", row.eventId), label: "Abrir na Escalação" };
+  switch (row.status) {
+    case SUGESTAO_STATUS.PENDENTE:
+      return { href: scalingHref("/scaling-validation", row.eventId), label: "Abrir na Validação" };
+    case SUGESTAO_STATUS.VALIDADA:
+    case SUGESTAO_STATUS.AJUSTE:
+      return { href: scalingHref("/scaling-approval", row.eventId), label: "Abrir na Aprovação" };
+    case SUGESTAO_STATUS.APROVADA:
+      return { href: scalingHref("/scaling", row.eventId), label: "Abrir na Escalação" };
+    default:
+      return null; // negada: fica só no Histórico, que é onde a ficha já está
+  }
+}
+
+/** Modal com o detalhe completo de uma vaga sugerida (leitura). */
 export function SuggestionDetailDrawer({
   open, onOpenChange, row, functionName, event, approverNames,
   onValidate, onAdjust, onDelete, onClosed,
   list, onNavigate, onValidateAndNext, hasNextValidatable,
+  mostrarOndeEsta,
 }: SuggestionDetailDrawerProps) {
   const logsQuery = useQuery<InclusionLog[]>({
     queryKey: [TEAM_INCLUSIONS_QUERY_KEY, row?.id, "logs"],
@@ -274,7 +303,8 @@ export function SuggestionDetailDrawer({
   const pending = row?.pendingRequest ?? null;
   const mayValidate = !!row && !!onValidate && canValidate(row);
   const mayRequest = !!row && canRequestChange(row);
-  const showFooter = mayValidate || (mayRequest && (!!onAdjust || !!onDelete));
+  const ondeEsta = mostrarOndeEsta && row ? ondeEstaAVaga(row) : null;
+  const showFooter = mayValidate || (mayRequest && (!!onAdjust || !!onDelete)) || !!ondeEsta;
   const start = days[0] ?? "";
   const end = days.length ? days[days.length - 1] : "";
   const hasLeg = !!row && hasAnyLeg(row);
@@ -465,14 +495,20 @@ export function SuggestionDetailDrawer({
                     </ol>
                   ) : (
                     <ol className="relative ml-1.5 space-y-3 border-l border-slate-200">
-                      {logsQuery.data.map((log) => {
+                      {logsQuery.data.map((log, i) => {
                         const before = valueText(log.previousValue);
                         const after = valueText(log.newValue);
                         const phrase = log.details?.trim() || LOG_ACTION_LABELS[log.action] || "Atualização da vaga";
+                        // A última entrada é onde a vaga está: marcá-la evita
+                        // ler a trilha inteira para descobrir o presente.
+                        const agora = i === logsQuery.data!.length - 1;
                         return (
                           <li key={log.id} className="ml-4">
-                            <span className="absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full border border-white bg-slate-300" aria-hidden="true" />
-                            <p className="text-sm text-slate-800">{phrase}</p>
+                            <span className={cn("absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full border border-white", agora ? "bg-primary" : "bg-slate-300")} aria-hidden="true" />
+                            <p className="flex flex-wrap items-center gap-1.5 text-sm text-slate-800">
+                              {phrase}
+                              {agora && <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">agora</span>}
+                            </p>
                             {/* Basta um dos dois lados: campo esvaziado tem "de"
                                 sem "para", e guardar tudo pelo "para" fazia o
                                 registro sumir inteiro. */}
@@ -500,7 +536,12 @@ export function SuggestionDetailDrawer({
             </div>
 
             {showFooter && (
-              <div className="shrink-0 flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-white px-5 py-3">
+              <div className="shrink-0 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-white px-5 py-3">
+                {ondeEsta && (
+                  <Link href={ondeEsta.href} className="mr-auto inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-sm font-medium text-primary transition-colors hover:border-primary/30 hover:bg-brand-soft">
+                    <ExternalLink className="h-4 w-4" aria-hidden="true" /> {ondeEsta.label}
+                  </Link>
+                )}
                 {mayRequest && onDelete && (
                   <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg border-red-200 text-red-700 hover:bg-red-50" onClick={() => onDelete(row)}>
                     <Trash2 className="w-4 h-4 mr-1.5" aria-hidden="true" /> Pedir exclusão

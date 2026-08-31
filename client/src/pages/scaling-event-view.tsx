@@ -816,13 +816,17 @@ export default function ScalingEventViewPage() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="inline-flex" tabIndex={exportEnabled ? -1 : 0}>
-                  <Button type="button" size="sm" variant="outline" className="rounded-lg" disabled={!exportEnabled} onClick={() => setExportOpen(true)}>
-                    <Download className="w-4 h-4 mr-1.5" aria-hidden="true" /> Exportar CSV · {TAB_LABEL[effectiveTab]}
+                  {/* O sufixo da aba saiu de dentro do botão: colado ao rótulo
+                      ele quebrava "Exportar CSV" em duas linhas quando a
+                      navegação do módulo disputava a mesma faixa. */}
+                  <Button type="button" size="sm" variant="outline" className="rounded-lg whitespace-nowrap" disabled={!exportEnabled} onClick={() => setExportOpen(true)}>
+                    <Download className="w-4 h-4 mr-1.5" aria-hidden="true" /> Exportar CSV
                   </Button>
                 </span>
               </TooltipTrigger>
               <TooltipContent>{exportEnabled ? `Exporta a aba ${TAB_LABEL[effectiveTab]}` : "Nada para exportar nesta aba"}</TooltipContent>
             </Tooltip>
+            <span className="whitespace-nowrap text-[11px] text-slate-400">aba {TAB_LABEL[effectiveTab]}</span>
           </>
         }
       />
@@ -878,7 +882,14 @@ export default function ScalingEventViewPage() {
                 ))}
               </div>
             )}
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2" role="group" aria-label="Resumo das vagas (clique para filtrar a Lista)">
+            {/* Uma linha só, colunas de mesma largura (30/08): com quebra, o
+                último indicador caía sozinho e esticado, parecendo outra coisa.
+                Faltando espaço, a faixa rola em vez de quebrar. */}
+            <div
+              className="grid auto-cols-[minmax(106px,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1"
+              role="group"
+              aria-label="Resumo das vagas (clique para filtrar a Lista)"
+            >
               {KPIS.map((k) => {
                 const active = k.key === ALL ? originFilter === ALL : originFilter === k.key;
                 const on = active && k.key !== ALL;
@@ -1145,7 +1156,12 @@ export default function ScalingEventViewPage() {
                                   <button type="button" onClick={() => setDetailId(row.id)} title="Ver o detalhe completo desta vaga"
                                     className="inline-flex rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-[11px] font-semibold text-primary tabular-nums transition-colors hover:bg-primary hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">#{row.inclusionNumber}</button>
                                   <div className="min-w-0">
-                                    <span className={cn("block truncate text-[13px] font-semibold", dim ? "text-slate-400 line-through" : "text-slate-800")} title={fnName}>{fnName}</span>
+                                    {/* O nome também abre a ficha: o #ID é um
+                                        alvo pequeno demais para ser o único. */}
+                                    <button
+                                      type="button" onClick={() => setDetailId(row.id)} title={`Ver o detalhe completo de ${fnName}`}
+                                      className={cn("block max-w-full truncate text-left text-[13px] font-semibold transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded", dim ? "text-slate-400 line-through" : "text-slate-800")}
+                                    >{fnName}</button>
                                     <span className="block truncate text-[11px] text-slate-400" title={row.observations ?? undefined}>
                                       {row.area ?? "Sem área"}{row.observations ? ` · ${row.observations}` : ""}
                                     </span>
@@ -1380,6 +1396,9 @@ export default function ScalingEventViewPage() {
         row={detailRow}
         functionName={detailRow ? functionNameById.get(detailRow.functionId) : undefined}
         event={detailRow ? activeEvents.find((e) => e.id === detailRow.eventId) : undefined}
+        // Só o Histórico oferece o "abrir onde ela está": nas outras telas o
+        // link apontaria para a própria tela.
+        mostrarOndeEsta
       />
     </PageContainer>
   );
