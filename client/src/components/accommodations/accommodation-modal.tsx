@@ -5,6 +5,7 @@ import {
   ArrowDown, ArrowUp, RefreshCw, UserRound, CalendarDays, Pencil, Sparkles, CheckCircle2, Unlock, type LucideIcon,
 } from "lucide-react";
 import AttachmentUpload from "@/components/ui/attachment-upload";
+import { useVoucherFill } from "@/components/tickets/use-voucher-fill";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CommentsModal from "@/components/modals/comments-modal";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { fixEncoding } from "@/lib/utils";
 import { ROOM_TYPE_LABEL } from "@/components/operational-mirror-drawers";
 import type { TeamInclusion, Event, Function, Collaborator, Accommodation, Comment, TeamInclusionLog } from "@shared/schema";
+import { EMPTY_DRAFT } from "./types";
 import type { AccommodationDraft, NormalizedSwap, UserLite } from "./types";
 import { brl, draftFrom, fetchSwaps, formatDate, isCheckOutAfterCheckIn } from "./utils";
 import SwapReviewPanel from "./swap-review-panel";
@@ -76,6 +78,15 @@ function Field({ label, children, mono }: { label: string; children: React.React
 }
 
 /** Modal de Hospedagem — Resumo / Dados / Complementos e Histórico. */
+/** O que o voucher traz e esta tela não guarda — dito por extenso no aviso. */
+const ROTULO_FORA: Record<string, string> = {
+  roomType: "o tipo de quarto",
+  nightsCount: "o número de diárias",
+  dailyRate: "o valor da diária",
+  totalCents: "o total da hospedagem",
+  paymentCompany: "a empresa pagadora",
+};
+
 export default function AccommodationModal(props: AccommodationModalProps) {
   const { open, onClose, inclusion, modal = true } = props;
   return (
@@ -99,6 +110,36 @@ function AccommodationModalContent({
 
   const set = <K extends keyof AccommodationDraft>(field: K, value: AccommodationDraft[K]) =>
     setDraft((prev) => ({ ...prev, [field]: value }));
+
+  /**
+   * O mesmo anexo que vira comprovante preenche a reserva (31/08) — como já
+   * acontece na passagem. Serve para o voucher do hotel e para o relatório de
+   * reservas que o hotel manda com o evento inteiro: nesse caso o hook procura
+   * a reserva DESTA pessoa, e não a primeira do arquivo.
+   */
+  const voucher = useVoucherFill({
+    para: "hospedagem",
+    colaborador: collaborator?.fullName,
+    onPreencher: (campos) => {
+      // O voucher traz mais do que esta tela guarda: diária, total, tipo de
+      // quarto e empresa pagadora moram no Espelho Operacional. Aplicar só o
+      // que este formulário conhece — e dizer o que ficou de fora, para o
+      // número não se perder no caminho.
+      const meus: Partial<AccommodationDraft> = {};
+      const foraDaqui: string[] = [];
+      for (const [k, v] of Object.entries(campos)) {
+        if (k in EMPTY_DRAFT && k !== "attachmentIds") (meus as Record<string, string>)[k] = v;
+        else foraDaqui.push(ROTULO_FORA[k] ?? k);
+      }
+      setDraft((d) => ({ ...d, ...meus }));
+      if (foraDaqui.length) {
+        toast({
+          title: "Nem tudo cabe nesta tela",
+          description: `O voucher também traz ${foraDaqui.join(", ")} — esses campos ficam no Espelho Operacional.`,
+        });
+      }
+    },
+  });
 
   const { data: comments } = useQuery<Comment[]>({ queryKey: ["/api/comments", inclusion.id] });
   const { data: logs } = useQuery<TeamInclusionLog[]>({ queryKey: ["/api/team-inclusions", inclusion.id, "logs"] });
@@ -373,9 +414,16 @@ function AccommodationModalContent({
                 <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center gap-2">
                   <FileText className="w-4 h-4 text-slate-400" />
                   <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Anexos</span>
+                  {voucher.lendo && <span className="ml-auto text-[11px] font-semibold text-primary">Lendo o voucher…</span>}
                 </div>
-                <div className="p-4">
-                  <AttachmentUpload attachmentIds={draft.attachmentIds} onAttachmentsChange={(ids) => set("attachmentIds", ids)} disabled={roMode} />
+                <div className="p-4 space-y-2">
+                  <p className="text-[11px] leading-snug text-slate-500">
+                    Anexe o <strong>voucher em PDF</strong>: ele fica guardado como comprovante
+                    e preenche hotel, período e valores. Serve também para o relatório de
+                    reservas do hotel — nele buscamos a reserva desta pessoa.
+                  </p>
+                  <AttachmentUpload attachmentIds={draft.attachmentIds} onAttachmentsChange={(ids) => set("attachmentIds", ids)} disabled={roMode}
+                    onFileSelected={roMode ? undefined : voucher.lerArquivo} />
                 </div>
               </div>
             </div>

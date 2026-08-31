@@ -318,3 +318,133 @@ describe("voucher da agência com um trecho só", () => {
     expect(r.campos.value).toBe("1.436,87");
   });
 });
+
+// ─── Hospedagem: os dois formatos novos (31/08) ─────────────────────────────
+// Texto real dos PDFs, com nomes trocados por fictícios.
+
+const HOTEL_AGENCIA = `AVENIDA PALACE HOTEL VOUCHER: 012292
+Data limite do cancelamento: Tarifa não reembolsável
+Endereço Telefone Emissão Café da
+Manhã:
+sim
+Acompanhante / Tipo Apto Check-In / Check-Out
+AV KALED COSAC. QD 25 -
+CENTRO
+31/ago/2026 FULANO QUERINO 07/set/2026 14:00
+Cristalina - GO Duplo 23/set/2026 12:00
+Observações: Com café da manhã e camas de solteiro.
+Pagamento: FATURADO Diária: BRL 280,00 Outros: BRL 0,00 BRL 0,00 Total: BRL 4.480,00
+BELTRANO VINICIUS SOUSA DE ANDRADE O.S. 2356
+Agência:LCA VIAGENS Solicitante: Sabrina Silva Portes
+Empresa:Norte Marketing Esportivo Emissor: PRISCILA GONCALVES`;
+
+const RELATORIO_HOTEL = `Emissão: 31/08/2026 13:44:04
+Confirmação de Reserva Nº 34.298
+RUA DEPUTADO MOREIRA DA ROCHA, 504 MEIRELES, FORTALEZA
+60160060 FORTALEZA CE
+D8 HOTEL
+RESERVAS NORTE MARKETING
+Empresa: 00.000.000/0000-00 PARTICULAR
+Apartamentos
+Entrada Saída Apto Tipo Pax Pensão Diária TotalAdiant.
+30/09/26 05/10/26 (1) DBL 1 CM 290,00 1.450,0014:00 12:00 0,00R$
+Hóspede: FULANA TOUSSAINT NASCIMENTO ADULTO PAGANTE
+28/09/26 04/10/26 (1) DBL 2 CM 290,00 1.740,0014:00 12:00 0,00R$
+Hóspede: BELTRANO CARLOS FERREIRA ADULTO PAGANTE
+Hóspede: CICRANO WILLIAN MEIRELES (30/09/26 14:00 à 03/10/26 12:00) ADULTO PAGANTE
+30/09/26 05/10/26 (1) TPL 3 CM 455,00 2.275,0014:00 12:00 0,00R$
+Hóspede: JAMERSON RODRIGUES ADULTO PAGANTE
+Hóspede: LUAN MIGUEL MARQUES ADULTO PAGANTE
+Hóspede: BRUNO SILVA CORDEIRO ADULTO PAGANTE
+Aptos Pax Total da ReservaTOTAIS Adiantamentos Extras Total a pagarUso Créd.
+R$ 6.625,00 R$ 6.625,005 9 0,00`;
+
+describe("voucher de hotel da agência", () => {
+  const r = lerVoucher(HOTEL_AGENCIA);
+
+  it("não é confundido com o voucher de passagem da mesma agência", () => {
+    expect(r.tipo).toBe("hospedagem");
+    expect(r.formato).toBe("Voucher de hotel (agência)");
+  });
+
+  it("lê hotel, voucher, período e valores", () => {
+    expect(r.campos.hotelName).toBe("Avenida Palace Hotel");
+    expect(r.campos.reservationNumber).toBe("012292");
+    expect(r.campos.checkInDate).toBe("2026-09-07");
+    expect(r.campos.checkOutDate).toBe("2026-09-23");
+    expect(r.campos.dailyRate).toBe("280,00");
+    expect(r.campos.totalCents).toBe("4.480,00");
+    expect(r.campos.roomType).toBe("Duplo");
+  });
+
+  it("conta as noites em vez de deixar o campo para a mão", () => {
+    // 07/09 a 23/09 são 16 noites — a conta que quem preenche faria de cabeça.
+    expect(r.campos.nightsCount).toBe("16");
+  });
+
+  it("a data de emissão não vira check-in", () => {
+    // A emissão (31/ago) aparece na MESMA linha do check-in; só as datas com
+    // hora ao lado são do período.
+    expect(r.campos.checkInDate).not.toBe("2026-08-31");
+  });
+
+  it("avisa que a diária é do quarto quando há acompanhante", () => {
+    expect(r.avisos.join(" ")).toMatch(/dividido com Fulano Querino/i);
+    expect(r.avisos.join(" ")).toMatch(/do quarto, não de cada pessoa/i);
+  });
+
+  it("lê o hóspede titular", () => {
+    expect(r.pessoa).toBe("Beltrano Vinicius Sousa de Andrade");
+  });
+});
+
+describe("relatório de reservas do hotel", () => {
+  const r = lerVoucher(RELATORIO_HOTEL);
+
+  it("reconhece o formato e devolve UMA hospedagem por hóspede", () => {
+    expect(r.formato).toBe("Relatório de reservas (hotel)");
+    expect(r.hospedagens).toHaveLength(6);
+  });
+
+  it("pega o nome do hotel, não a linha do CEP", () => {
+    // "60160060 FORTALEZA CE" também é uma linha em caixa alta.
+    expect(r.campos.hotelName).toBe("D8 Hotel");
+  });
+
+  it("cada hóspede leva o período do seu quarto", () => {
+    const h = r.hospedagens!.find((x) => x.pessoa.startsWith("Fulana"))!;
+    expect(h.campos.checkInDate).toBe("2026-09-30");
+    expect(h.campos.checkOutDate).toBe("2026-10-05");
+    expect(h.campos.nightsCount).toBe("5");
+  });
+
+  it("hóspede com período próprio não herda o do quarto", () => {
+    // O quarto vai de 28/09 a 04/10; esta pessoa fica de 30/09 a 03/10.
+    const h = r.hospedagens!.find((x) => x.pessoa.startsWith("Cicrano"))!;
+    expect(h.campos.checkInDate).toBe("2026-09-30");
+    expect(h.campos.checkOutDate).toBe("2026-10-03");
+    expect(h.avisos.join(" ")).toMatch(/período próprio/i);
+  });
+
+  it("quarto individual leva a diária e o total; compartilhado, nenhum dos dois", () => {
+    // Preencher a diária do quarto em cada ocupante multiplicaria o custo do
+    // evento pelo número de pessoas.
+    const sozinha = r.hospedagens!.find((x) => x.pax === 1)!;
+    expect(sozinha.campos.dailyRate).toBe("290,00");
+    expect(sozinha.campos.totalCents).toBe("1.450,00");
+
+    const triplo = r.hospedagens!.find((x) => x.pax === 3)!;
+    expect(triplo.campos.dailyRate).toBeUndefined();
+    expect(triplo.campos.totalCents).toBeUndefined();
+    expect(triplo.avisos.join(" ")).toMatch(/dividido por 3 pessoas/i);
+  });
+
+  it("traduz a sigla do tipo de quarto", () => {
+    expect(r.hospedagens!.find((x) => x.pax === 3)!.campos.roomType).toBe("Triplo");
+    expect(r.hospedagens!.find((x) => x.pax === 1)!.campos.roomType).toBe("Duplo");
+  });
+
+  it("diz quantas pessoas vieram no arquivo", () => {
+    expect(r.avisos.join(" ")).toMatch(/6 hóspedes/);
+  });
+});

@@ -16,6 +16,13 @@ import { pontuarSemelhanca } from "./voucher-match";
 /** Abaixo disto, tratamos como pessoa diferente e não preenchemos nada. */
 const LIMIAR_MESMA_PESSOA = 0.34;
 
+interface HospedagemLida {
+  pessoa: string;
+  campos: Record<string, string>;
+  pax: number;
+  avisos: string[];
+}
+
 interface Leitura {
   arquivo: string;
   tipo: "passagem" | "hospedagem" | "desconhecido";
@@ -23,6 +30,8 @@ interface Leitura {
   pessoa?: string;
   pessoas?: string[];
   trechoUnico?: boolean;
+  /** Relatório do hotel: um arquivo com várias reservas. */
+  hospedagens?: HospedagemLida[];
   avisos: string[];
 }
 
@@ -38,11 +47,16 @@ const PARA_VOLTA: Record<string, string> = {
   actualArrivalTime: "returnArrivalTime",
 };
 
-export function useVoucherFill({ colaborador, trecho, onPreencher }: {
+export function useVoucherFill({ colaborador, trecho, para = "passagem", onPreencher }: {
   /** Nome de quem está escalado nesta vaga — confere com o voucher. */
   colaborador?: string;
   /** Recorte escolhido no formulário: decide onde um voucher de um trecho entra. */
   trecho?: "ida_volta" | "so_ida" | "so_volta";
+  /**
+   * O que este formulário registra. O mesmo hook serve às duas telas: o que
+   * muda é qual tipo de voucher preenche e qual apenas fica anexado.
+   */
+  para?: "passagem" | "hospedagem";
   onPreencher: (campos: Record<string, string>) => void;
 }) {
   const { toast } = useToast();
@@ -62,14 +76,14 @@ export function useVoucherFill({ colaborador, trecho, onPreencher }: {
       const leitura = leituras?.[0];
       if (!leitura) throw new Error("Não veio nada do arquivo.");
 
-      if (leitura.tipo === "hospedagem") {
+      if (leitura.tipo !== para && (leitura.tipo === "passagem" || leitura.tipo === "hospedagem")) {
         toast({
-          title: "Anexado, mas é voucher de hotel",
-          description: "O arquivo ficou anexado; os campos de passagem não foram preenchidos.",
+          title: para === "passagem" ? "Anexado, mas é voucher de hotel" : "Anexado, mas é voucher de passagem",
+          description: `O arquivo ficou anexado; os campos de ${para === "passagem" ? "passagem" : "hospedagem"} não foram preenchidos.`,
         });
         return;
       }
-      if (leitura.tipo !== "passagem") {
+      if (leitura.tipo !== "passagem" && leitura.tipo !== "hospedagem") {
         toast({
           title: "Anexado, mas não reconheci o voucher",
           description: leitura.avisos[0] ?? "Preencha os campos normalmente.",
@@ -92,6 +106,28 @@ export function useVoucherFill({ colaborador, trecho, onPreencher }: {
 
       let campos = leitura.campos;
       const avisos = [...leitura.avisos];
+
+      /**
+       * Relatório do hotel: o arquivo traz o evento inteiro. Aqui estamos numa
+       * vaga só, então vale a reserva DESTA pessoa — pegar a primeira do
+       * relatório preencheria o quarto de outra gente.
+       */
+      if (leitura.hospedagens?.length) {
+        const minha = colaborador
+          ? leitura.hospedagens.find((h) => pontuarSemelhanca(h.pessoa, colaborador) >= LIMIAR_MESMA_PESSOA)
+          : undefined;
+        if (!minha) {
+          toast({
+            title: "Anexado, mas não achei esta pessoa no relatório",
+            description: `O arquivo tem ${leitura.hospedagens.length} hóspedes e nenhum parece ser ${colaborador ?? "o desta vaga"}. Os campos não foram preenchidos.`,
+            variant: "destructive",
+          });
+          return;
+        }
+        campos = minha.campos;
+        avisos.length = 0;
+        avisos.push(...minha.avisos);
+      }
 
       // Voucher com um trecho só + formulário em "só volta": o que o leitor
       // chamou de ida é, na verdade, a volta deste bilhete. É o caso da ida

@@ -40,6 +40,29 @@ const PASSOS: Passo[] = [
     descricao: "índice de comentários por evento",
     sql: `CREATE INDEX IF NOT EXISTS event_comments_event_idx ON event_comments (event_id, created_at DESC)`,
   },
+  // 31/08 — as cinco colunas da roteirização editável. Foram criadas por
+  // migração e sumiram no mesmo dia, pelo mesmo motivo descrito no topo deste
+  // arquivo: um db:push de checkout antigo. Aqui elas voltam a cada boot.
+  {
+    descricao: "uber_groups.suggested_time (horário calculado, separado do ajuste à mão)",
+    sql: `ALTER TABLE uber_groups ADD COLUMN IF NOT EXISTS suggested_time text`,
+  },
+  {
+    descricao: "uber_groups.manual_time (horário ajustado à mão — o que o recálculo preserva)",
+    sql: `ALTER TABLE uber_groups ADD COLUMN IF NOT EXISTS manual_time text`,
+  },
+  {
+    descricao: "team_inclusions.skip_uber (dispensado da roteirização)",
+    sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS skip_uber boolean NOT NULL DEFAULT false`,
+  },
+  {
+    descricao: "hotel_room_group_members.check_in_date (estadia por pessoa)",
+    sql: `ALTER TABLE hotel_room_group_members ADD COLUMN IF NOT EXISTS check_in_date date`,
+  },
+  {
+    descricao: "hotel_room_group_members.check_out_date (estadia por pessoa)",
+    sql: `ALTER TABLE hotel_room_group_members ADD COLUMN IF NOT EXISTS check_out_date date`,
+  },
 ];
 
 /**

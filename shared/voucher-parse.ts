@@ -31,11 +31,28 @@ export interface VoucherLeitura {
    */
   pessoas?: string[];
   /**
+   * Relatório de reservas do hotel (31/08): um arquivo com VÁRIOS quartos e
+   * vários hóspedes, cada um com suas datas e seu valor. Uma leitura só não dá
+   * conta — cada item vira uma hospedagem a registrar.
+   */
+  hospedagens?: HospedagemLida[];
+  /**
    * O voucher trouxe UM trecho só. Não diz qual: quem sabe é a tela, pelo
    * recorte escolhido no formulário (ida e volta / só ida / só volta).
    */
   trechoUnico?: boolean;
   /** O que o operador precisa checar com o olho. */
+  avisos: string[];
+}
+
+/** Uma hospedagem lida — de um voucher individual ou de uma linha do relatório. */
+export interface HospedagemLida {
+  /** Hóspede desta reserva. */
+  pessoa: string;
+  /** Campos no mesmo nome usado pelo formulário de hospedagem. */
+  campos: Record<string, string>;
+  /** Quantas pessoas dividem este quarto (1 = quarto individual). */
+  pax: number;
   avisos: string[];
 }
 
@@ -389,6 +406,199 @@ export function lerVoucherAereoOnfly(texto: string): VoucherLeitura | null {
   };
 }
 
+// ─── Hospedagem — voucher da agência (LCA e semelhantes) ────────────────────
+//
+// Mesmo emissor do voucher de passagem, layout próprio: o nome do hotel abre a
+// primeira linha junto do número do voucher, e as datas de entrada e saída
+// aparecem espalhadas em duas linhas, cada uma seguida da hora.
+
+/** "Duplo", "Single"… o tipo vem solto no meio da linha do endereço. */
+const TIPOS_DE_QUARTO = ["Individual", "Single", "Duplo", "Twin", "Triplo", "Quádruplo", "Casal", "Standard", "Luxo", "Superior"];
+
+export function lerVoucherHotelAgencia(texto: string): VoucherLeitura | null {
+  const m = texto.match(/^(.+?)\s+VOUCHER:\s*(\S+)/m);
+  if (!m) return null;
+  // "Check-In / Check-Out" é o cabeçalho da tabela deste layout; sem ele, o
+  // arquivo é o voucher de PASSAGEM da mesma agência.
+  if (!/Check-?In\s*\/\s*Check-?Out/i.test(texto)) return null;
+
+  const avisos: string[] = [];
+  const campos: Record<string, string> = {};
+  campos.hotelName = capitalizar(m[1].trim());
+  campos.reservationNumber = m[2];
+
+  // As duas únicas datas com HORA ao lado são entrada e saída — a emissão
+  // aparece sozinha na mesma linha e não pode ser confundida com elas.
+  const comHora: RegExpExecArray[] = [];
+  const reComHora = /(\d{1,2}\/[a-zç]{3}\/\d{4})\s+(\d{1,2}:\d{2})/gi;
+  for (let achado = reComHora.exec(texto); achado; achado = reComHora.exec(texto)) comHora.push(achado);
+  if (comHora.length >= 2) {
+    const entrada = dataComAno(comHora[0][1]);
+    const saida = dataComAno(comHora[1][1]);
+    if (entrada) campos.checkInDate = entrada;
+    if (saida) campos.checkOutDate = saida;
+    campos.checkInTime = comHora[0][2];
+    campos.checkOutTime = comHora[1][2];
+    if (entrada && saida) {
+      const noites = Math.round((Date.parse(saida) - Date.parse(entrada)) / 86400000);
+      if (noites > 0) campos.nightsCount = String(noites);
+    }
+  } else {
+    avisos.push("Não consegui ler as datas de check-in/check-out — preencha à mão.");
+  }
+
+  const tipo = TIPOS_DE_QUARTO.find((t) => new RegExp(`\\b${t}\\b`, "i").test(texto));
+  if (tipo) campos.roomType = tipo;
+
+  const diaria = texto.match(/Di[áa]ria:\s*(BRL\s*[\d.]+,\d{2})/i);
+  if (diaria) campos.dailyRate = valorBr(diaria[1]) ?? "";
+  const total = texto.match(/Total:\s*(BRL\s*[\d.]+,\d{2})/i);
+  if (total) campos.totalCents = valorBr(total[1]) ?? "";
+
+  const pagamento = texto.match(/Pagamento:\s*([A-ZÀ-Ú]+)/);
+  if (pagamento) campos.paymentCompany = capitalizar(pagamento[1]);
+
+  // Hóspede: mesma posição do passageiro no voucher de passagem da agência.
+  const hospede = texto.match(/^([A-ZÀ-Ú][A-ZÀ-Ú\s.'-]{6,})\s+O\.S\./m);
+
+  // O acompanhante divide o quarto: quem registra precisa saber que a diária
+  // lida é do quarto, não da pessoa.
+  const acompanhante = texto.match(/^\d{1,2}\/[a-zç]{3}\/\d{4}\s+([A-ZÀ-Ú][A-ZÀ-Ú\s.'-]{4,}?)\s+\d{1,2}\/[a-zç]{3}\/\d{4}/im);
+  if (acompanhante) {
+    avisos.push(`O quarto é dividido com ${capitalizar(acompanhante[1].trim())} — a diária lida é do quarto, não de cada pessoa.`);
+  }
+
+  const cafe = /Café da\s*Manhã:\s*sim/i.test(texto) || /Caf[ée] da\s*Manh[ãa]:\s*\n?\s*sim/i.test(texto);
+  if (cafe) avisos.push("Com café da manhã.");
+
+  return {
+    tipo: "hospedagem",
+    formato: "Voucher de hotel (agência)",
+    campos,
+    pessoa: hospede ? capitalizar(hospede[1].trim()) : undefined,
+    avisos,
+  };
+}
+
+// ─── Hospedagem — relatório de reservas do hotel ────────────────────────────
+//
+// Não é voucher de uma pessoa: é a confirmação que o HOTEL manda com todas as
+// reservas da empresa — vários quartos, vários hóspedes, cada um com seu
+// período. Um arquivo destes preenche o evento inteiro.
+
+const SIGLA_DE_QUARTO: Record<string, string> = {
+  SGL: "Single", DBL: "Duplo", TWN: "Twin", TPL: "Triplo", QUA: "Quádruplo",
+};
+
+/** "30/09/26" → "2026-09-30". Ano de dois dígitos é sempre 20xx aqui. */
+function dataCurta(d: string): string | null {
+  const m = d.match(/^(\d{2})\/(\d{2})\/(\d{2})$/);
+  return m ? `20${m[3]}-${m[2]}-${m[1]}` : null;
+}
+
+export function lerRelatorioDeReservas(texto: string): VoucherLeitura | null {
+  if (!/Confirma[çc][ãa]o de Reserva/i.test(texto) || !/H[óo]spede:/i.test(texto)) return null;
+
+  const linhas = texto.split(/\r?\n/);
+  const avisos: string[] = [];
+  const hospedagens: HospedagemLida[] = [];
+
+  /**
+   * O hotel se identifica pela própria palavra: a primeira linha em caixa alta
+   * que diga HOTEL, POUSADA, RESORT… Pegar "a primeira linha maiúscula" trazia
+   * a linha do CEP ("60160060 FORTALEZA CE"), que também é toda maiúscula.
+   */
+  const NOME_DE_HOTEL = /^([A-ZÀ-Ú0-9][A-ZÀ-Ú0-9 .'-]*(?:HOTEL|POUSADA|RESORT|INN|FLAT|SUITES?)[A-ZÀ-Ú0-9 .'-]*)$/i;
+  const hotel = texto.split(/\r?\n/).map((l) => l.trim()).map((l) => l.match(NOME_DE_HOTEL)).find(Boolean);
+  const nomeDoHotel = hotel ? capitalizar(hotel[1].trim()) : "";
+  const reserva = texto.match(/Confirma[çc][ãa]o de Reserva\s*N[ºo°]?\s*([\d.]+)/i);
+
+  /**
+   * Linha de apartamento. O total e a hora de entrada saem COLADOS do PDF
+   * ("1.450,0014:00"), o que quebra qualquer leitura por espaços.
+   */
+  const LINHA_APTO = /^(\d{2}\/\d{2}\/\d{2})\s+(\d{2}\/\d{2}\/\d{2})\s+\((\d+)\)\s+(\w+)\s+(\d+)\s+(\w+)\s+([\d.]+,\d{2})\s*([\d.]+,\d{2})(\d{2}:\d{2})\s+(\d{2}:\d{2})/;
+
+  let atual: { entrada: string; saida: string; tipo: string; pax: number; diaria: string; total: string; horaIn: string; horaOut: string } | null = null;
+  for (const bruta of linhas) {
+    const linha = bruta.trim();
+    const apto = linha.match(LINHA_APTO);
+    if (apto) {
+      atual = {
+        entrada: dataCurta(apto[1]) ?? "",
+        saida: dataCurta(apto[2]) ?? "",
+        tipo: SIGLA_DE_QUARTO[apto[4].toUpperCase()] ?? apto[4],
+        pax: Number(apto[5]) || 1,
+        diaria: apto[7],
+        total: apto[8],
+        horaIn: apto[9],
+        horaOut: apto[10],
+      };
+      continue;
+    }
+    const h = linha.match(/^H[óo]spede:\s*(.+?)\s+ADULTO/i);
+    if (!h || !atual) continue;
+
+    let nome = h[1].trim();
+    const campos: Record<string, string> = {};
+    const meus: string[] = [];
+
+    // Hóspede com período PRÓPRIO dentro do quarto — quem chega depois ou sai
+    // antes do resto do grupo vem entre parênteses no nome.
+    const proprio = nome.match(/^(.+?)\s*\((\d{2}\/\d{2}\/\d{2})\s+(\d{2}:\d{2})\s+à\s+(\d{2}\/\d{2}\/\d{2})\s+(\d{2}:\d{2})\)$/);
+    if (proprio) {
+      nome = proprio[1].trim();
+      campos.checkInDate = dataCurta(proprio[2]) ?? "";
+      campos.checkOutDate = dataCurta(proprio[4]) ?? "";
+      campos.checkInTime = proprio[3];
+      campos.checkOutTime = proprio[5];
+      meus.push("Esta pessoa tem período próprio, diferente do resto do quarto.");
+    } else {
+      campos.checkInDate = atual.entrada;
+      campos.checkOutDate = atual.saida;
+      campos.checkInTime = atual.horaIn;
+      campos.checkOutTime = atual.horaOut;
+    }
+
+    if (nomeDoHotel) campos.hotelName = nomeDoHotel;
+    if (reserva) campos.reservationNumber = reserva[1];
+    campos.roomType = atual.tipo;
+    const noites = campos.checkInDate && campos.checkOutDate
+      ? Math.round((Date.parse(campos.checkOutDate) - Date.parse(campos.checkInDate)) / 86400000)
+      : 0;
+    if (noites > 0) campos.nightsCount = String(noites);
+
+    // A diária é do QUARTO. Preenchê-la em cada ocupante multiplicaria o custo
+    // do evento pelo número de pessoas — por isso ela só entra quando o quarto
+    // é de uma pessoa só; dividindo, quem registra decide como ratear.
+    if (atual.pax === 1) {
+      campos.dailyRate = atual.diaria;
+      campos.totalCents = atual.total;
+    } else {
+      meus.push(`Quarto dividido por ${atual.pax} pessoas — a diária de R$ ${atual.diaria} é do quarto inteiro; decida como rateá-la antes de registrar.`);
+    }
+
+    hospedagens.push({ pessoa: capitalizar(nome), campos, pax: atual.pax, avisos: meus });
+  }
+
+  if (hospedagens.length === 0) return null;
+
+  const totalGeral = texto.match(/R\$\s*([\d.]+,\d{2})\s+R\$\s*([\d.]+,\d{2})/);
+  avisos.push(`Relatório com ${hospedagens.length} ${hospedagens.length === 1 ? "hóspede" : "hóspedes"}${totalGeral ? ` · total da reserva R$ ${totalGeral[1]}` : ""}.`);
+
+  return {
+    tipo: "hospedagem",
+    formato: "Relatório de reservas (hotel)",
+    // A primeira hospedagem vai nos campos para quem abrir o arquivo numa vaga
+    // só; a lista inteira fica em `hospedagens`.
+    campos: hospedagens[0].campos,
+    pessoa: hospedagens[0].pessoa,
+    pessoas: hospedagens.map((h) => h.pessoa),
+    hospedagens,
+    avisos,
+  };
+}
+
 // ─── Hospedagem — voucher da Onfly ──────────────────────────────────────────
 export function lerVoucherHospedagem(texto: string): VoucherLeitura | null {
   if (!/Voucher\s+Hotel/i.test(texto) && !/Check-?In/i.test(texto)) return null;
@@ -453,6 +663,10 @@ export function lerVoucher(texto: string): VoucherLeitura {
   return (
     lerVoucherPassagem(texto) ??
     lerVoucherAereoOnfly(texto) ??
+    // Os dois de hotel antes do da Onfly: o detector dele é genérico
+    // ("Check-In") e engoliria qualquer arquivo com essa palavra.
+    lerRelatorioDeReservas(texto) ??
+    lerVoucherHotelAgencia(texto) ??
     lerVoucherHospedagem(texto) ?? {
       tipo: "desconhecido",
       campos: {},
