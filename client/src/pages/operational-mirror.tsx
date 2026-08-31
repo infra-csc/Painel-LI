@@ -350,7 +350,9 @@ function EditableCell({
     return (
       <td ref={tdRef} className={`relative z-0 p-0 border-r border-border/30 ${div} ${ring}`}>
         <button type="button" onClick={toggleBool} disabled={state === "saving"}
-          data-cell-focus onKeyDown={teclasNaCelula}
+          /* Fora da ordem de tabulação: quem anda dentro da grade são as setas.
+             Ver a "porta de entrada" em GradeView. */
+          data-cell-focus tabIndex={-1} onKeyDown={teclasNaCelula}
           role="switch" aria-checked={!!value} aria-label={rotuloCampo(field)}
           className={`w-full h-full ${pad} hover:bg-muted/50 transition-colors flex items-center justify-center disabled:cursor-wait`}>
           {state === "saving" ? <Loader2 className="h-3 w-3 animate-spin" /> : display()}
@@ -388,7 +390,7 @@ function EditableCell({
     <td ref={tdRef} className={`p-0 border-r border-border/30 ${div} relative z-0 group/cell ${ring}`}>
       {/* Sem aria-label aqui de propósito: o nome acessível do botão é o próprio
           valor da célula, que é o que interessa ouvir. */}
-      <button type="button" onClick={() => startEdit()} onKeyDown={teclasNaCelula} data-cell-focus title={`Editar ${rotuloCampo(field)}`}
+      <button type="button" onClick={() => startEdit()} onKeyDown={teclasNaCelula} data-cell-focus tabIndex={-1} title={`Editar ${rotuloCampo(field)}`}
         className={`w-full h-full ${pad} ${onEdit ? "pr-6" : ""} text-xs hover:bg-muted/50 transition-colors whitespace-nowrap ${align !== "left" ? "tabular-nums" : ""} flex items-center gap-1 ${align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start"}`}>
         {state === "saving" && <Loader2 className="h-3 w-3 animate-spin text-blue-500 shrink-0" />}
         {state === "saved" && <Check className="h-3 w-3 text-green-600 shrink-0" />}
@@ -1150,6 +1152,40 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
     uber: rows.filter((r) => r.uber.totalCents > 0).length,
     locacao: rows.filter((r) => r.carRental.totalCents > 0).length,
   }), [rows]);
+  /** Somas por coluna de dinheiro — o que o rodapé da grade mostra. */
+  const soma = useMemo(() => {
+    const s = { passagem: 0, hotel: 0, bagagem: 0, uber: 0, locacao: 0 };
+    for (const r of rows) {
+      s.passagem += r.ticket?.value || 0;
+      s.hotel += hotelTotalCents(r);
+      s.bagagem += r.baggage.extraCents || 0;
+      s.uber += r.uber.totalCents || 0;
+      s.locacao += r.carRental.totalCents || 0;
+    }
+    return s;
+  }, [rows]);
+  /** Quantas colunas estão à vista — a barra de status diz o tamanho da grade. */
+  const colunasVisiveis = useMemo(
+    () => 6 + (show("passagem") ? 9 : 0) + (show("hospedagem") ? 12 : 0) + (show("bagagem") ? 3 : 0)
+      + (show("uber") ? 3 : 0) + (show("locacao") ? 4 : 0) + (show("pendencias") ? 2 : 0),
+    [hiddenBlocks], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  /**
+   * A porta de entrada da grade.
+   *
+   * Atravessar a grade custava ~540 paradas de Tab (39 colunas × as linhas):
+   * ninguém tabula por isso — e quem usa teclado ficava preso. Agora a grade é
+   * UMA parada, sempre a primeira célula; dentro dela quem anda são as setas,
+   * que já existiam e ninguém via (a barra de status passou a dizer isso).
+   */
+  const tabelaRef = useRef<HTMLTableElement | null>(null);
+  useEffect(() => {
+    const tabela = tabelaRef.current;
+    if (!tabela) return;
+    if (tabela.querySelector('[data-cell-focus][tabindex="0"]')) return;
+    const primeira = tabela.querySelector<HTMLElement>("[data-cell-focus]");
+    if (primeira) primeira.tabIndex = 0;
+  });
   // Lápis "editar em detalhe" só para quem pode abrir o drawer
   const edit = (kind: DrawerKind, r: MirrorRow) => canEdit ? () => openDrawer(kind, r) : undefined;
   const headPad = compact ? "px-2 py-1" : "px-2 py-1.5";
@@ -1159,7 +1195,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
       <div className="rounded-lg border bg-card overflow-hidden">
         <div>
           <div className="overflow-auto max-h-[calc(100vh-250px)] min-h-[280px]">
-            <table className="text-xs border-collapse w-full" data-testid="operational-grid">
+            <table ref={tabelaRef} className="text-xs border-collapse w-full" data-testid="operational-grid">
               <thead>
                 <tr>
                   <th colSpan={2} className="sticky left-0 top-0 z-40 h-8 py-0 leading-none bg-muted px-2 text-left font-semibold border-r border-b border-border">Colaborador</th>
@@ -1271,12 +1307,68 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
                 })}
                 {rows.length === 0 && <tr><td colSpan={39} className="p-8 text-center text-muted-foreground">{emptyMessage}</td></tr>}
               </tbody>
+              {/* Somar a coluna é o que qualquer planilha faz e o que esta
+                  grade não fazia: para saber o gasto de passagens era preciso
+                  sair da tela. Só colunas de dinheiro somam. */}
+              {rows.length > 0 && (
+                <tfoot className="sticky bottom-0 z-20">
+                  <tr className="bg-muted/95 backdrop-blur-sm">
+                    <th colSpan={2} className="sticky left-0 z-30 bg-muted px-2 py-1.5 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-r border-t border-border">
+                      Total do evento
+                    </th>
+                    <TotalVazio n={4} />
+                    {show("passagem") && <><TotalCol valor={soma.passagem} /><TotalVazio n={8} /></>}
+                    {/* Hotel, Reserva, Check-in, Check-out, Diarias, Quarto | R$ Diaria (nao soma: e preco unitario) | Late C/Out | Hotel R$ | Empresa Pgto, OC, Conferencia */}
+                    {show("hospedagem") && <><TotalVazio n={8} /><TotalCol valor={soma.hotel} /><TotalVazio n={3} /></>}
+                    {show("bagagem") && <><TotalCol valor={soma.bagagem} /><TotalVazio n={2} /></>}
+                    {show("uber") && <><TotalCol valor={soma.uber} /><TotalVazio n={2} /></>}
+                    {show("locacao") && <><TotalVazio n={1} /><TotalCol valor={soma.locacao} /><TotalVazio n={2} /></>}
+                    {show("pendencias") && <TotalVazio n={2} />}
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
+        </div>
+        {/* Fora da área de rolagem: a legenda do âmbar e os atalhos da grade.
+            A navegação por setas existe no código desde sempre e era invisível
+            — dizer que ela existe é metade do ganho. */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t bg-card px-3.5 py-2 text-[11px] text-muted-foreground">
+          <span className="tabular-nums">
+            {rows.length} {rows.length === 1 ? "pessoa" : "pessoas"} · {colunasVisiveis} colunas
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-amber-100 ring-1 ring-inset ring-amber-300 dark:bg-amber-950/50" aria-hidden="true" />
+            falta preencher
+          </span>
+          {editMode && (
+            <span className="ml-auto inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span><Tecla>Enter</Tecla> edita</span>
+              <span><Tecla>Tab</Tecla> avança</span>
+              <span><Tecla>↑↓←→</Tecla> navega</span>
+            </span>
+          )}
         </div>
       </div>
     </>
   );
+}
+
+/** Célula de total: só as colunas de dinheiro somam. */
+function TotalCol({ valor }: { valor: number }) {
+  return (
+    <td className="border-r border-t border-border px-2 py-1.5 text-right text-[11px] font-semibold tabular-nums text-foreground whitespace-nowrap">
+      {valor > 0 ? brl(valor) : null}
+    </td>
+  );
+}
+/** Colunas que não somam nada — vazias de propósito. */
+function TotalVazio({ n }: { n: number }) {
+  return <>{Array.from({ length: n }, (_, i) => <td key={i} className="border-r border-t border-border" />)}</>;
+}
+/** Tecla de atalho na barra de status. */
+function Tecla({ children }: { children: React.ReactNode }) {
+  return <kbd className="rounded border border-border bg-muted px-1 font-mono text-[10px] leading-4">{children}</kbd>;
 }
 
 /**
