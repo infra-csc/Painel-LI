@@ -32,7 +32,7 @@ import {
   CheckCircle2, Users, Loader2, CheckCheck, MapPin, Clock, Check, CalendarDays,
   SlidersHorizontal, Columns3, Pencil, ChevronDown, ChevronRight, Search, X, LayoutGrid,
   Table2, Building2, Rows3, AlignJustify, Filter, Eraser, UserRound, ChevronUp, ChevronsUpDown,
-  Lock, ExternalLink, Landmark, Info,
+  Lock, ExternalLink, Landmark, Info, FilterX,
 } from "lucide-react";
 
 function brl(cents: number | null | undefined): string {
@@ -760,6 +760,23 @@ export default function OperationalMirror() {
     return err?.body?.message || "Não foi possível carregar o espelho operacional. Verifique sua conexão e tente novamente.";
   })();
 
+  /**
+   * Os filtros ativos, escritos. É o que faz "nenhum resultado" deixar de ser
+   * um beco sem saída: sem dizer o que está filtrando, quem chega numa lista
+   * vazia não sabe o que desfazer.
+   */
+  const filtrosAtivos = useMemo(() => {
+    const nomes: string[] = [];
+    if (searchText) nomes.push(`busca "${searchText}"`);
+    if (deptFilter !== "all") nomes.push(`departamento ${deptFilter}`);
+    if (hotelFilter !== "all") nomes.push(`hotel ${hotelFilter}`);
+    if (pendCat) nomes.push(PEND_CATS.find((c) => c.key === pendCat)?.label.toLowerCase() ?? "pendência");
+    for (const g of GRUPOS_DE_FILTRO) {
+      for (const item of g.itens) if (flags[item.key]) nomes.push(item.label.toLowerCase());
+    }
+    return nomes;
+  }, [searchText, deptFilter, hotelFilter, pendCat, flags]);
+
   const emptyMessage = activeFilterCount > 0
     ? "Nenhum colaborador corresponde aos filtros aplicados."
     : "Nenhum colaborador escalado neste evento.";
@@ -1228,12 +1245,33 @@ export default function OperationalMirror() {
             )}
 
             {/* ===== VIEWS ===== */}
+            {/* Lista vazia POR FILTRO é outra coisa de lista vazia por não
+                haver ninguém escalado — e é a mais frequente das duas. Dizer o
+                que está filtrando é o que dá o caminho de volta. */}
+            {filteredRows.length === 0 && rows.length > 0 ? (
+              <div className="rounded-lg border border-dashed bg-muted/10 px-6 py-14 text-center" data-testid="mirror-sem-resultados">
+                <span className="mx-auto mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl border bg-background">
+                  <FilterX className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+                </span>
+                <p className="font-medium">Nenhuma pessoa com esses filtros</p>
+                <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+                  {rows.length} {rows.length === 1 ? "pessoa está escalada" : "pessoas estão escaladas"} neste evento, mas nenhuma passa por{" "}
+                  {filtrosAtivos.length ? <span className="text-foreground">{filtrosAtivos.join(" · ")}</span> : "os filtros atuais"}.
+                </p>
+                <Button variant="outline" size="sm" className="mt-4" onClick={clearFilters}>
+                  <Eraser className="h-4 w-4 mr-2" aria-hidden="true" /> Limpar filtros
+                </Button>
+              </div>
+            ) : (
+            <>
             {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} uberConfirmados={uberConfirmados} quartosConfirmados={quartosConfirmados} irParaVisao={setView} />}
             {view === "colaboradores" && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
             {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
             {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} rows={rows} onMover={(c, de, para) => moverMutation.mutate({ tipo: "quarto", corpo: { collaboratorId: c, deGrupoId: de, paraGrupoId: para } })} onSeparar={(id) => separarQuartoMutation.mutate(id)} canEdit={canEditMirror} onPatch={(id, campos) => patchRoomMutation.mutate({ id, campos })} onConfirm={(id: string) => confirmRoomMutation.mutate(id)} pendingId={confirmRoomMutation.isPending ? confirmRoomMutation.variables : null} />}
             {view === "uber" && <UberView groups={data.uberGroups} collabById={collabById} rows={rows} onMover={(c, de, para) => moverMutation.mutate({ tipo: "uber", corpo: { collaboratorId: c, deGrupoId: de, paraGrupoId: para } })} canEdit={canEditMirror} onPatch={(id, campos) => patchUberMutation.mutate({ id, campos })} onConfirm={(id: string) => confirmUberMutation.mutate(id)} pendingId={confirmUberMutation.isPending ? confirmUberMutation.variables : null} />}
             {view === "rateio" && <FooterTotals totals={totals} hotelDerived={derivedHotelCount > 0} />}
+            </>
+            )}
           </>
         )}
 
