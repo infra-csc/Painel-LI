@@ -61,6 +61,8 @@ import { effectiveUserId, registerSimulationRoutes } from "./simulation";
 import {
   uberGroups as uberGroupsTable,
   hotelRoomGroups as hotelRoomGroupsTable,
+  hotelRoomGroupMembers as hotelRoomGroupMembersTable,
+  uberGroupMembers as uberGroupMembersTable,
   logisticsExtraCosts as logisticsExtraCostsTable,
   insertLogisticsExtraCostSchema,
 } from "@shared/schema";
@@ -3041,6 +3043,177 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(g);
     } catch (error) {
       res.status(400).json({ message: "Erro ao confirmar grupo de quarto" });
+    }
+  });
+
+  /**
+   * POST /api/hotel-room-groups/:id/separar — desfaz o quarto compartilhado.
+   *
+   * Existe porque marcar "single" num quarto de duas pessoas só trocava o
+   * rótulo: o quarto seguia com as duas (relato do dono, 28/08). Separar é o
+   * que "single" significa de fato — cada ocupante passa a ter o seu.
+   *
+   * O grupo original fica com o primeiro ocupante; os demais ganham um grupo
+   * próprio, herdando hotel e datas. Nada é apagado.
+   */
+  app.post("/api/hotel-room-groups/:id/separar", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
+    try {
+      const { id } = req.params;
+      const [grupo] = await db.select().from(hotelRoomGroupsTable).where(eq(hotelRoomGroupsTable.id, id));
+      if (!grupo) return res.status(404).json({ message: "Quarto não encontrado" });
+
+      const membros = await db.select().from(hotelRoomGroupMembersTable)
+        .where(eq(hotelRoomGroupMembersTable.hotelRoomGroupId, id));
+      if (membros.length <= 1) {
+        return res.status(400).json({ message: "Este quarto já é individual." });
+      }
+
+      // O primeiro fica; cada um dos outros ganha o seu.
+      for (const m of membros.slice(1)) {
+        const [novo] = await db.insert(hotelRoomGroupsTable).values({
+          eventId: grupo.eventId,
+          hotelName: grupo.hotelName,
+          roomType: "single",
+          genderRule: grupo.genderRule,
+          checkInDate: grupo.checkInDate,
+          checkOutDate: grupo.checkOutDate,
+          suggested: grupo.suggested,
+          confirmed: false,
+        }).returning();
+        await db.update(hotelRoomGroupMembersTable)
+          .set({ hotelRoomGroupId: novo.id })
+          .where(eq(hotelRoomGroupMembersTable.id, m.id));
+      }
+
+      // O que sobrou é um quarto individual — e a observação de datas
+      // diferentes perde o sentido quando não há com quem dividir.
+      const [restante] = await db.update(hotelRoomGroupsTable)
+        .set({ roomType: "single", notes: null, confirmed: false, updatedAt: new Date() })
+        .where(eq(hotelRoomGroupsTable.id, id)).returning();
+
+      res.json({ ok: true, criados: membros.length - 1, grupo: restante });
+    } catch (error) {
+      console.error("erro ao separar quarto:", error);
+      res.status(400).json({ message: "Não foi possível separar o quarto." });
+    }
+  });
+
+  /**
+   * POST /api/hotel-room-groups/mover — tira alguém de um quarto e põe em
+   * outro (pedido do dono, 28/08: "puxar uma pessoa para outro").
+   *
+   * `paraGrupoId` nulo significa "quarto novo, só para essa pessoa". Se o
+   * quarto de origem ficar vazio, ele deixa de existir — quarto sem ninguém
+   * não é reserva, é lixo na tela.
+   */
+  app.post("/api/hotel-room-groups/mover", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
+    try {
+      const { collaboratorId, deGrupoId, paraGrupoId } = req.body ?? {};
+      if (!collaboratorId || !deGrupoId) return res.status(400).json({ message: "Informe a pessoa e o quarto de origem." });
+
+      const [origem] = await db.select().from(hotelRoomGroupsTable).where(eq(hotelRoomGroupsTable.id, deGrupoId));
+      if (!origem) return res.status(404).json({ message: "Quarto de origem não encontrado." });
+
+      const membrosOrigem = await db.select().from(hotelRoomGroupMembersTable)
+        .where(eq(hotelRoomGroupMembersTable.hotelRoomGroupId, deGrupoId));
+      const membro = membrosOrigem.find((m: any) => m.collaboratorId === collaboratorId);
+      if (!membro) return res.status(404).json({ message: "Esta pessoa não está neste quarto." });
+
+      let destinoId: string = paraGrupoId ?? "";
+      if (!destinoId) {
+        const [novo] = await db.insert(hotelRoomGroupsTable).values({
+          eventId: origem.eventId,
+          hotelName: origem.hotelName,
+          roomType: "single",
+          genderRule: origem.genderRule,
+          checkInDate: origem.checkInDate,
+          checkOutDate: origem.checkOutDate,
+          suggested: origem.suggested,
+          confirmed: false,
+        }).returning();
+        destinoId = novo.id;
+      }
+
+      await db.update(hotelRoomGroupMembersTable)
+        .set({ hotelRoomGroupId: destinoId, confirmed: false })
+        .where(eq(hotelRoomGroupMembersTable.id, membro.id));
+
+      // Origem sem ninguém deixa de existir; com gente, a observação de datas
+      // pode ter deixado de valer, então sai junto.
+      if (membrosOrigem.length <= 1) {
+        await db.delete(hotelRoomGroupsTable).where(eq(hotelRoomGroupsTable.id, deGrupoId));
+      } else {
+        await db.update(hotelRoomGroupsTable)
+          .set({ notes: null, confirmed: false, updatedAt: new Date() })
+          .where(eq(hotelRoomGroupsTable.id, deGrupoId));
+      }
+      await db.update(hotelRoomGroupsTable)
+        .set({ notes: null, confirmed: false, updatedAt: new Date() })
+        .where(eq(hotelRoomGroupsTable.id, destinoId));
+
+      res.json({ ok: true, destinoId });
+    } catch (error) {
+      console.error("erro ao mover pessoa de quarto:", error);
+      res.status(400).json({ message: "Não foi possível mover a pessoa." });
+    }
+  });
+
+  /** Mesma ideia para os carros do Uber. */
+  app.post("/api/uber-groups/mover", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
+    try {
+      const { collaboratorId, deGrupoId, paraGrupoId } = req.body ?? {};
+      if (!collaboratorId || !deGrupoId) return res.status(400).json({ message: "Informe a pessoa e o carro de origem." });
+
+      const [origem] = await db.select().from(uberGroupsTable).where(eq(uberGroupsTable.id, deGrupoId));
+      if (!origem) return res.status(404).json({ message: "Carro de origem não encontrado." });
+
+      const membrosOrigem = await db.select().from(uberGroupMembersTable)
+        .where(eq(uberGroupMembersTable.uberGroupId, deGrupoId));
+      const membro = membrosOrigem.find((m: any) => m.collaboratorId === collaboratorId);
+      if (!membro) return res.status(404).json({ message: "Esta pessoa não está neste carro." });
+
+      let destinoId: string = paraGrupoId ?? "";
+      if (!destinoId) {
+        const [novo] = await db.insert(uberGroupsTable).values({
+          eventId: origem.eventId,
+          groupName: origem.groupName,
+          direction: origem.direction,
+          origin: origem.origin,
+          destination: origem.destination,
+          date: origem.date,
+          time: origem.time,
+          suggested: origem.suggested,
+          confirmed: false,
+          status: "sugerido",
+        }).returning();
+        destinoId = novo.id;
+      }
+
+      await db.update(uberGroupMembersTable)
+        .set({ uberGroupId: destinoId, confirmed: false })
+        .where(eq(uberGroupMembersTable.id, membro.id));
+
+      if (membrosOrigem.length <= 1) {
+        await db.delete(uberGroupsTable).where(eq(uberGroupsTable.id, deGrupoId));
+      } else {
+        // Quem saiu podia ser o titular: o carro fica sem titular até alguém
+        // escolher de novo, em vez de apontar quem não está mais nele.
+        const limpaTitular = origem.titularCollaboratorId === collaboratorId ? { titularCollaboratorId: null } : {};
+        await db.update(uberGroupsTable)
+          .set({ ...limpaTitular, confirmed: false, updatedAt: new Date() })
+          .where(eq(uberGroupsTable.id, deGrupoId));
+      }
+      await db.update(uberGroupsTable)
+        .set({ confirmed: false, updatedAt: new Date() })
+        .where(eq(uberGroupsTable.id, destinoId));
+
+      res.json({ ok: true, destinoId });
+    } catch (error) {
+      console.error("erro ao mover pessoa de carro:", error);
+      res.status(400).json({ message: "Não foi possível mover a pessoa." });
     }
   });
 

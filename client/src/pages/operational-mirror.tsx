@@ -533,6 +533,31 @@ export default function OperationalMirror() {
       variant: "destructive",
     }),
   });
+  const moverMutation = useMutation({
+    mutationFn: async ({ tipo, corpo }: { tipo: "quarto" | "uber"; corpo: Record<string, unknown> }) =>
+      apiRequest("POST", tipo === "quarto" ? "/api/hotel-room-groups/mover" : "/api/uber-groups/mover", corpo),
+    onSuccess: (_d, v) => {
+      queryClient.invalidateQueries({ queryKey: mirrorKey });
+      toast({ title: v.tipo === "quarto" ? "Pessoa movida de quarto" : "Pessoa movida de carro" });
+    },
+    onError: (err: unknown) => toast({
+      title: "Não foi possível mover",
+      description: saveErrorMessage(err, "Tente novamente em instantes."),
+      variant: "destructive",
+    }),
+  });
+  const separarQuartoMutation = useMutation({
+    mutationFn: async (id: string) => apiRequest("POST", `/api/hotel-room-groups/${id}/separar`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: mirrorKey });
+      toast({ title: "Quarto separado", description: "Cada ocupante ficou com um quarto individual." });
+    },
+    onError: (err: unknown) => toast({
+      title: "Não foi possível separar",
+      description: saveErrorMessage(err, "Tente novamente em instantes."),
+      variant: "destructive",
+    }),
+  });
   const patchUberMutation = useMutation({
     mutationFn: async ({ id, campos }: { id: string; campos: Record<string, unknown> }) =>
       apiRequest("PATCH", `/api/uber-groups/${id}`, campos),
@@ -1003,8 +1028,8 @@ export default function OperationalMirror() {
             {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
             {view === "colaboradores" && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
             {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
-            {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} rows={rows} canEdit={canEditMirror} onPatch={(id, campos) => patchRoomMutation.mutate({ id, campos })} onConfirm={(id: string) => confirmRoomMutation.mutate(id)} pendingId={confirmRoomMutation.isPending ? confirmRoomMutation.variables : null} />}
-            {view === "uber" && <UberView groups={data.uberGroups} collabById={collabById} rows={rows} canEdit={canEditMirror} onPatch={(id, campos) => patchUberMutation.mutate({ id, campos })} onConfirm={(id: string) => confirmUberMutation.mutate(id)} pendingId={confirmUberMutation.isPending ? confirmUberMutation.variables : null} />}
+            {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} rows={rows} onMover={(c, de, para) => moverMutation.mutate({ tipo: "quarto", corpo: { collaboratorId: c, deGrupoId: de, paraGrupoId: para } })} onSeparar={(id) => separarQuartoMutation.mutate(id)} canEdit={canEditMirror} onPatch={(id, campos) => patchRoomMutation.mutate({ id, campos })} onConfirm={(id: string) => confirmRoomMutation.mutate(id)} pendingId={confirmRoomMutation.isPending ? confirmRoomMutation.variables : null} />}
+            {view === "uber" && <UberView groups={data.uberGroups} collabById={collabById} rows={rows} onMover={(c, de, para) => moverMutation.mutate({ tipo: "uber", corpo: { collaboratorId: c, deGrupoId: de, paraGrupoId: para } })} canEdit={canEditMirror} onPatch={(id, campos) => patchUberMutation.mutate({ id, campos })} onConfirm={(id: string) => confirmUberMutation.mutate(id)} pendingId={confirmUberMutation.isPending ? confirmUberMutation.variables : null} />}
             {view === "rateio" && <FooterTotals totals={totals} hotelDerived={derivedHotelCount > 0} />}
           </>
         )}
@@ -1435,8 +1460,39 @@ function TextoEditavel({ valor, placeholder, aoSalvar, rotulo }: {
         if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
         if (e.key === "Escape") { e.preventDefault(); setTexto(valor ?? ""); (e.target as HTMLInputElement).blur(); }
       }}
-      className="h-7 w-full min-w-[130px] rounded-md border border-transparent bg-transparent px-2 text-xs hover:border-border focus:border-input focus:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground/50"
+      className="h-8 w-full min-w-[150px] rounded-md border border-input/60 bg-background/60 px-2.5 text-xs transition-colors hover:border-input hover:bg-background focus:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground/60"
     />
+  );
+}
+
+/**
+ * "Puxar uma pessoa para outro" (pedido do dono, 28/08): em cada linha, para
+ * onde essa pessoa vai. Os destinos são descritos por quem já está lá — é
+ * assim que se decide, não por identificador de grupo.
+ */
+function MoverPara({ pessoa, grupoAtual, destinos, rotuloNovo, onMover }: {
+  pessoa: string;
+  grupoAtual: string;
+  destinos: { id: string; descricao: string }[];
+  rotuloNovo: string;
+  onMover: (paraGrupoId: string | null) => void;
+}) {
+  return (
+    <select
+      value=""
+      aria-label={`Mover ${pessoa} para outro grupo`}
+      onChange={(e) => {
+        const v = e.target.value;
+        if (!v) return;
+        onMover(v === "__novo__" ? null : v);
+        e.target.value = "";
+      }}
+      className="h-7 max-w-[160px] rounded-md border border-input/50 bg-background/50 px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity focus:opacity-100 group-hover/linha:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      data-testid={`mover-${grupoAtual}`}>
+      <option value="">Mover para…</option>
+      <option value="__novo__">{rotuloNovo}</option>
+      {destinos.map((d) => <option key={d.id} value={d.id}>{d.descricao}</option>)}
+    </select>
   );
 }
 
@@ -1477,17 +1533,26 @@ interface GroupViewProps<G> {
   collabById: Map<string, MirrorCollaborator>;
   /** Linhas do espelho: é delas que vêm departamento, datas e voos. */
   rows: MirrorRow[];
-  /** Salva campos do grupo (tipo de quarto, hotel, titular do carro). */
+  /** Salva campos do grupo (hotel, titular do carro). */
   onPatch: (id: string, campos: Record<string, unknown>) => void;
+  /** Só na tela de quartos: desfaz o compartilhamento. */
+  onSeparar?: (id: string) => void;
+  /** Tira a pessoa deste grupo e põe em outro (ou num novo, se destino nulo). */
+  onMover: (collaboratorId: string, deGrupoId: string, paraGrupoId: string | null) => void;
   canEdit: boolean;
   onConfirm: (id: string) => void;
   pendingId: string | null | undefined;
 }
 
-function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, pendingId }: GroupViewProps<RoomGroup>) {
+function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onSeparar, onMover, pendingId }: GroupViewProps<RoomGroup>) {
   const emptyHint = canEdit ? ' Clique em "Sugestões".' : "";
   if (groups.length === 0) return <div className="rounded-lg border border-dashed bg-muted/20 py-12 text-center text-sm text-muted-foreground">Nenhuma sugestão de quarto ainda.{emptyHint}</div>;
   const rowByCollab = new Map(rows.filter((r) => r.collaborator.id).map((r) => [r.collaborator.id as string, r]));
+  /** Como cada quarto se descreve na lista de destinos: por quem está nele. */
+  const descreve = (g: RoomGroup) => {
+    const nomes = (g.members || []).map((m) => memberInfo(m, collabById).name.split(" ")[0]);
+    return nomes.length ? `Com ${nomes.join(", ")}` : "Quarto vazio";
+  };
   return (
     <div className="rounded-lg border bg-card overflow-hidden">
       <div className="overflow-x-auto">
@@ -1515,9 +1580,18 @@ function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, pe
                 const fim = r?.accommodation?.checkOutDate || r?.schedule.endDate || g.checkOutDate;
                 return (
                   <tr key={`${g.id}-${m.id ?? mi}`}
-                    className={`${faixa} ${mi === membros.length - 1 ? "border-b-2 border-border" : "border-b border-border/40"}`}
+                    className={`group/linha ${faixa} ${mi === membros.length - 1 ? "border-b-2 border-border" : "border-b border-border/40"}`}
                     data-testid={`room-row-${g.id}-${mi}`}>
-                    <td className="px-3 py-2 font-medium">{m.name}</td>
+                    <td className="px-3 py-2 font-medium">
+                      <span className="flex items-center gap-2">
+                        <span className="truncate">{m.name}</span>
+                        {canEdit && m.id && (
+                          <MoverPara pessoa={m.name} grupoAtual={g.id} rotuloNovo="Quarto individual"
+                            destinos={groups.filter((o) => o.id !== g.id).map((o) => ({ id: o.id, descricao: descreve(o) }))}
+                            onMover={(para) => onMover(m.id as string, g.id, para)} />
+                        )}
+                      </span>
+                    </td>
                     <td className="px-3 py-2 capitalize text-muted-foreground">{r?.function.area || r?.function.name || "—"}</td>
                     <td className="px-3 py-2 text-muted-foreground">{diaSemana(ini)}</td>
                     <td className="px-3 py-2 tabular-nums">{fmtDate(ini)}</td>
@@ -1530,7 +1604,7 @@ function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, pe
                         {canEdit ? (
                           <TextoEditavel
                             valor={g.hotelName}
-                            placeholder="Definir hotel"
+                            placeholder="Definir hotel…"
                             aoSalvar={(v) => onPatch(g.id, { hotelName: v || null })}
                             rotulo="Hotel do quarto"
                           />
@@ -1539,18 +1613,18 @@ function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, pe
                     ) : null}
                     {mi === 0 ? (
                       <td className="px-3 py-2 text-center align-middle" rowSpan={membros.length}>
-                        {canEdit ? (
-                          <select
-                            value={g.roomType ?? ""}
-                            onChange={(e) => onPatch(g.id, { roomType: e.target.value || null })}
-                            aria-label="Tipo do quarto"
-                            className="h-7 rounded-md border bg-background px-2 text-xs font-semibold uppercase focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            data-testid={`room-type-${g.id}`}>
-                            <option value="">—</option>
-                            {ROOM_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                          </select>
-                        ) : (
-                          <span className="font-semibold uppercase">{(g.roomType && ROOM_TYPE_LABEL[g.roomType]) ?? g.roomType ?? "—"}</span>
+                        <span className="inline-flex items-center gap-1.5 font-semibold uppercase">
+                          {membros.length === 1 ? "Single" : membros.length === 2 ? "Duplo" : membros.length === 3 ? "Triplo" : `${membros.length} pessoas`}
+                          <span className="rounded-full bg-background/70 px-1.5 text-[10px] font-normal normal-case tabular-nums text-muted-foreground">
+                            {membros.length} {membros.length === 1 ? "pessoa" : "pessoas"}
+                          </span>
+                        </span>
+                        {canEdit && membros.length > 1 && onSeparar && (
+                          <button type="button" onClick={() => onSeparar(g.id)}
+                            className="mt-1 block mx-auto text-[11px] text-primary underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                            data-testid={`separar-${g.id}`}>
+                            Separar em individuais
+                          </button>
                         )}
                         {g.notes && (
                           <span className="block mt-1 text-[10px] font-normal normal-case text-muted-foreground leading-snug max-w-[190px] mx-auto">{g.notes}</span>
@@ -1585,7 +1659,7 @@ function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, pe
  * "Norte × Aeroporto" de "Aeroporto × Norte" em blocos distintos — misturar os
  * dois numa lista só obrigava a ler a coluna "Trajeto" linha a linha.
  */
-function TabelaUber({ titulo, subtitulo, tom, grupos, rowByCollab, collabById, canEdit, onConfirm, onPatch, pendingId }: {
+function TabelaUber({ titulo, subtitulo, tom, grupos, rowByCollab, collabById, canEdit, onConfirm, onPatch, onMover, pendingId }: {
   titulo: string;
   subtitulo: string;
   tom: string;
@@ -1595,9 +1669,15 @@ function TabelaUber({ titulo, subtitulo, tom, grupos, rowByCollab, collabById, c
   canEdit: boolean;
   onConfirm: (id: string) => void;
   onPatch: (id: string, campos: Record<string, unknown>) => void;
+  onMover: (collaboratorId: string, deGrupoId: string, paraGrupoId: string | null) => void;
   pendingId: string | null | undefined;
 }) {
   const ida = titulo.toLowerCase().startsWith("ida");
+  /** Cada carro se descreve por quem já está nele — é assim que se decide. */
+  const descreve = (g: UberGroup) => {
+    const nomes = (g.members || []).map((m) => memberInfo(m, collabById).name.split(" ")[0]);
+    return nomes.length ? `Com ${nomes.join(", ")}` : "Carro vazio";
+  };
   return (
     <section className="rounded-lg border bg-card overflow-hidden">
       <header className={`px-4 py-2.5 border-b ${tom}`}>
@@ -1634,9 +1714,18 @@ function TabelaUber({ titulo, subtitulo, tom, grupos, rowByCollab, collabById, c
                 const hora = g.time || (ida ? t?.actualArrivalTime : t?.actualReturnTime);
                 return (
                   <tr key={`${g.id}-${m.id ?? mi}`}
-                    className={`${faixa} ${mi === membros.length - 1 ? "border-b-2 border-border" : "border-b border-border/40"}`}
+                    className={`group/linha ${faixa} ${mi === membros.length - 1 ? "border-b-2 border-border" : "border-b border-border/40"}`}
                     data-testid={`uber-row-${g.id}-${mi}`}>
-                    <td className="px-3 py-2 font-medium">{m.name}</td>
+                    <td className="px-3 py-2 font-medium">
+                      <span className="flex items-center gap-2">
+                        <span className="truncate">{m.name}</span>
+                        {canEdit && m.id && (
+                          <MoverPara pessoa={m.name} grupoAtual={g.id} rotuloNovo="Carro só para ela"
+                            destinos={grupos.filter((o) => o.id !== g.id).map((o) => ({ id: o.id, descricao: descreve(o) }))}
+                            onMover={(para) => onMover(m.id as string, g.id, para)} />
+                        )}
+                      </span>
+                    </td>
                     <td className="px-3 py-2 capitalize text-muted-foreground">{r?.function.area || r?.function.name || "—"}</td>
                     <td className="px-3 py-2 border-l text-muted-foreground">{diaSemana(data)}</td>
                     <td className="px-3 py-2 tabular-nums">{fmtDate(data)}</td>
@@ -1688,7 +1777,7 @@ function TabelaUber({ titulo, subtitulo, tom, grupos, rowByCollab, collabById, c
   );
 }
 
-function UberView({ groups, collabById, rows, canEdit, onConfirm, onPatch, pendingId }: GroupViewProps<UberGroup>) {
+function UberView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onMover, pendingId }: GroupViewProps<UberGroup>) {
   const emptyHint = canEdit ? ' Clique em "Sugestões".' : "";
   if (groups.length === 0) return <div className="rounded-lg border border-dashed bg-muted/20 py-12 text-center text-sm text-muted-foreground">Nenhuma sugestão de Uber ainda.{emptyHint}</div>;
   const rowByCollab = new Map(rows.filter((r) => r.collaborator.id).map((r) => [r.collaborator.id as string, r]));
@@ -1701,12 +1790,12 @@ function UberView({ groups, collabById, rows, canEdit, onConfirm, onPatch, pendi
       {idas.length > 0 && (
         <TabelaUber titulo="Ida — chegada no aeroporto" subtitulo="Cada faixa de cor é um carro. O titular é quem chama a corrida."
           tom="bg-sky-50/60 dark:bg-sky-950/20" grupos={idas} rowByCollab={rowByCollab} collabById={collabById}
-          canEdit={canEdit} onConfirm={onConfirm} onPatch={onPatch} pendingId={pendingId} />
+          canEdit={canEdit} onConfirm={onConfirm} onPatch={onPatch} onMover={onMover} pendingId={pendingId} />
       )}
       {voltas.length > 0 && (
         <TabelaUber titulo="Volta — saída para o aeroporto" subtitulo="Cada faixa de cor é um carro. O titular é quem chama a corrida."
           tom="bg-orange-50/60 dark:bg-orange-950/20" grupos={voltas} rowByCollab={rowByCollab} collabById={collabById}
-          canEdit={canEdit} onConfirm={onConfirm} onPatch={onPatch} pendingId={pendingId} />
+          canEdit={canEdit} onConfirm={onConfirm} onPatch={onPatch} onMover={onMover} pendingId={pendingId} />
       )}
 
       {internos.length > 0 && (
