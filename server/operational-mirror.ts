@@ -19,6 +19,10 @@ import {
 import { eq } from "drizzle-orm";
 import { teamInclusionSelectCompat } from "./team-inclusion-compat";
 import {
+  hotelRoomGroupMemberSelectCompat,
+  uberGroupSelectCompat,
+} from "./operational-schema-compat";
+import {
   hotelTotalCents,
   type MirrorRow,
   type MirrorResponse,
@@ -102,10 +106,10 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
   const extras = await db.select().from(logisticsExtraCosts).where(eq(logisticsExtraCosts.eventId, eventId));
 
   // grupos de uber e quarto com membros
-  const uberGroupRows = await db.select().from(uberGroups).where(eq(uberGroups.eventId, eventId));
+  const uberGroupRows = await db.select(uberGroupSelectCompat).from(uberGroups).where(eq(uberGroups.eventId, eventId));
   const uberMemberRows = await db.select().from(uberGroupMembers);
   const roomGroupRows = await db.select().from(hotelRoomGroups).where(eq(hotelRoomGroups.eventId, eventId));
-  const roomMemberRows = await db.select().from(hotelRoomGroupMembers);
+  const roomMemberRows = await db.select(hotelRoomGroupMemberSelectCompat).from(hotelRoomGroupMembers);
 
   const uberGroupIds = new Set(uberGroupRows.map((g: any) => g.id));
   const roomGroupIds = new Set(roomGroupRows.map((g: any) => g.id));
@@ -468,7 +472,7 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
   // ===== QUARTOS =====
   // Coletar IDs de colaboradores já em grupos confirmados
   const existingRoomGroups = await db.select().from(hotelRoomGroups).where(eq(hotelRoomGroups.eventId, eventId));
-  const allRoomMembers = await db.select().from(hotelRoomGroupMembers);
+  const allRoomMembers = await db.select(hotelRoomGroupMemberSelectCompat).from(hotelRoomGroupMembers);
   const confirmedRoomGroupIds = new Set(existingRoomGroups.filter((g: any) => g.confirmed).map((g: any) => g.id));
   const lockedCollabRoom = new Set<string>();
   for (const m of allRoomMembers) {
@@ -562,7 +566,7 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
   }
 
   // ===== UBER =====
-  const existingUberGroups = await db.select().from(uberGroups).where(eq(uberGroups.eventId, eventId));
+  const existingUberGroups = await db.select(uberGroupSelectCompat).from(uberGroups).where(eq(uberGroups.eventId, eventId));
   const allUberMembers = await db.select().from(uberGroupMembers);
   const confirmedUberGroupIds = new Set(existingUberGroups.filter((g: any) => g.confirmed).map((g: any) => g.id));
   const lockedCollabUber = new Set<string>();
