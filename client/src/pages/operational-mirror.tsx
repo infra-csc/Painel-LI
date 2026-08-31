@@ -31,12 +31,15 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { EditDrawer, ROOM_TYPE_OPTIONS, ROOM_TYPE_LABEL, type DrawerKind, type DrawerSource } from "@/components/operational-mirror-drawers";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SeletorDeEvento } from "@/components/operational-mirror-context-bar";
+import { ProvedorDeAvisos, useAvisos } from "@/components/operational-mirror-avisos";
 import {
   RefreshCw, FileSpreadsheet, AlertTriangle, Plane, BedDouble, Luggage, Car,
   CheckCircle2, Users, Loader2, CheckCheck, MapPin, Clock, Check, CalendarDays,
   SlidersHorizontal, Columns3, Pencil, ChevronDown, ChevronRight, Search, X, LayoutGrid,
   Table2, Building2, Rows3, AlignJustify, Filter, Eraser, UserRound, ChevronUp, ChevronsUpDown,
-  Lock, ExternalLink, Landmark, Info, FilterX,
+  Lock, ExternalLink, Landmark, Info, FilterX, ArrowLeftRight,
 } from "lucide-react";
 
 function brl(cents: number | null | undefined): string {
@@ -538,7 +541,17 @@ function isNarrowViewport(): boolean {
 }
 
 export default function OperationalMirror() {
+  // O provedor precisa envolver a tela para que qualquer parte dela avise.
+  return (
+    <ProvedorDeAvisos>
+      <EspelhoOperacional />
+    </ProvedorDeAvisos>
+  );
+}
+
+function EspelhoOperacional() {
   const { toast } = useToast();
+  const { avisar } = useAvisos();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const search = useSearch();
@@ -610,24 +623,22 @@ export default function OperationalMirror() {
     try {
       await apiRequest("PATCH", `/api/events/${eventId}/operational-mirror/rows/${rowId}`, { field, value });
     } catch (err) {
-      // A célula só piscava em vermelho por 2s e o erro morria aqui.
-      toast({
-        title: "Não foi possível salvar",
-        description: saveErrorMessage(err, "A alteração não foi gravada. Verifique sua conexão e tente novamente."),
-        variant: "destructive",
+      // A célula só piscava em vermelho por 2s e o erro morria aqui. Este aviso
+      // não fecha sozinho: gravação recusada precisa ser lida.
+      avisar({
+        tom: "erro",
+        titulo: "Não foi possível salvar",
+        texto: saveErrorMessage(err, "A alteração não foi gravada. Verifique sua conexão e tente novamente."),
       });
       throw err; // mantém o destaque de erro na célula
     }
     await queryClient.invalidateQueries({ queryKey: mirrorKey });
     if (anterior !== undefined) {
-      toast({
-        title: `${rotuloCampo(field)} salvo`,
-        description: `${textoDoValor(anterior)} → ${textoDoValor(value)}`,
-        action: (
-          <ToastAction altText="Desfazer a alteração" onClick={() => { void saveCell(rowId, field, anterior); }}>
-            Desfazer
-          </ToastAction>
-        ),
+      avisar({
+        tom: "ok",
+        titulo: `${rotuloCampo(field)} salvo`,
+        texto: `${textoDoValor(anterior)} → ${textoDoValor(value)}`,
+        desfazer: { acao: () => { void saveCell(rowId, field, anterior); } },
       });
     }
   }
@@ -946,34 +957,35 @@ export default function OperationalMirror() {
   return (
     <TooltipProvider delayDuration={200}>
       <div className="p-6 space-y-5 max-w-[1600px] mx-auto" data-testid="page-operational-mirror">
-        {/* ===== CABEÇALHO ===== */}
-        {/* O breadcrumb já diz "Espelho Operacional": o título aqui é curto e
-            quem manda no contexto é o EVENTO escolhido. Os cinco cartões de
-            informação viraram uma linha de metadados — "Data" e "Período
-            geral" eram o mesmo dado em dois cartões, ambos truncados. */}
-        <header className="space-y-4">
-          {/* Um andar, não três (31/08): eram ~180px antes do primeiro dado —
-              o <h1> repetia o breadcrumb, a tagline explicava o que a própria
-              grade mostra, e o nome do evento aparecia duas vezes (no seletor e
-              na linha de metadados). Ficou o seletor + o que o evento é. */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-            <div className="w-full sm:w-[380px] shrink-0">
-              <EventCombobox events={events} value={eventId} onValueChange={setEventId} placeholder="Selecione um evento" showAllOption={false} />
-            </div>
+        {/* ===== BARRA DE CONTEXTO ===== */}
+        {/* Eram três andares (~180px) antes do primeiro dado: o <h1> repetia o
+            breadcrumb, a tagline explicava o que a grade mostra e o nome do
+            evento aparecia duas vezes. Virou UMA faixa, que acompanha a
+            rolagem — quem está no fim de 39 colunas continua vendo de que
+            evento aquilo é e continua alcançando as ações. */}
+        <header className="sticky top-0 z-50 -mx-6 -mt-6 mb-0 border-b bg-card/95 px-6 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+          <div className="flex min-h-14 flex-wrap items-center gap-x-4 gap-y-2 py-2 text-sm">
+            <SeletorDeEvento
+              eventos={(events ?? []).map((e) => ({ id: e.id, name: e.name, startDate: e.startDate, endDate: e.endDate }))}
+              valor={eventId}
+              aoEscolher={setEventId}
+              formatarPeriodo={(e) => (e.startDate ? `${fmtDate(e.startDate)}${e.endDate ? ` – ${fmtDate(e.endDate)}` : ""}` : "sem datas")}
+            />
+            {ev && <span className="hidden h-5 w-px shrink-0 bg-border sm:block" aria-hidden="true" />}
             {ev && (
               <>
               {ev.location && (
-                <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                   <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />{ev.location}
                 </span>
               )}
-              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5 text-xs tabular-nums text-muted-foreground">
                 <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 {fmtDate(ev.startDate)}{ev.endDate ? ` – ${fmtDate(ev.endDate)}` : ""}
               </span>
-              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                {rows.length} {rows.length === 1 ? "colaborador" : "colaboradores"}
+                {rows.length} {rows.length === 1 ? "pessoa" : "pessoas"}
               </span>
               {!canEditMirror && (
                 <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="mirror-readonly-notice"
@@ -988,7 +1000,7 @@ export default function OperationalMirror() {
                 <>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className="inline-flex items-center gap-2 h-9 px-3 rounded-md border bg-card">
+                      <div className="inline-flex items-center gap-2 h-[34px] px-3 rounded-lg border bg-card">
                         <Switch id="mirror-edit-mode" checked={editModeWanted} onCheckedChange={setEditModeWanted} data-testid="button-edit-mode" />
                         <Label htmlFor="mirror-edit-mode" className="text-[13px] cursor-pointer flex items-center gap-1.5">
                           <Pencil className="h-3.5 w-3.5" aria-hidden="true" /> Edição
@@ -999,7 +1011,7 @@ export default function OperationalMirror() {
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-9" onClick={() => setConfirmar({
+                      <Button variant="outline" size="sm" className="h-[34px]" onClick={() => setConfirmar({
                           titulo: "Refazer as sugestões deste evento?",
                           texto: "Os agrupamentos e horários voltam a ser calculados a partir dos voos. Quartos e carros já confirmados são preservados — o resto é sobrescrito, inclusive ajustes feitos à mão.",
                           rotulo: "Refazer sugestões",
@@ -1013,7 +1025,7 @@ export default function OperationalMirror() {
                   </Tooltip>
                 </>
               )}
-              <Button size="sm" className="h-9" onClick={handleExport} data-testid="button-export">
+              <Button size="sm" className="h-[34px]" onClick={handleExport} data-testid="button-export">
                 <FileSpreadsheet className="h-4 w-4 mr-2" aria-hidden="true" /> Exportar planilha
               </Button>
             </div>
@@ -1164,7 +1176,7 @@ export default function OperationalMirror() {
             {/* Antes as abas e a busca sumiam ao rolar a grade e o conteúdo
                 passava POR CIMA do cabeçalho da página. Agora a barra
                 acompanha e tem camada própria. */}
-            <div className="sticky top-0 z-50 -mx-6 px-6 py-2.5 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b">
+            <div className="sticky top-14 z-30 -mx-6 px-6 py-2.5 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="inline-flex rounded-lg border bg-card p-0.5" role="tablist" aria-label="Visões do espelho">
                   {VIEWS.map((v) => {
@@ -1966,29 +1978,76 @@ function TextoEditavel({ valor, placeholder, aoSalvar, rotulo }: {
  * onde essa pessoa vai. Os destinos são descritos por quem já está lá — é
  * assim que se decide, não por identificador de grupo.
  */
-function MoverPara({ pessoa, grupoAtual, destinos, rotuloNovo, onMover }: {
+/**
+ * Mover alguém de grupo.
+ *
+ * Era um <select> solto: escolher no menu já executava, sem dizer o que a
+ * escolha provoca. Virou um diálogo de ESCOLHAS — cada destino descrito por
+ * quem já está nele —, com a consequência dita antes: tirar alguém de um carro
+ * muda o horário dos dois carros, porque ele é calculado a partir dos voos de
+ * quem sobra em cada um.
+ */
+function MoverPara({ pessoa, grupoAtual, destinos, rotuloNovo, onMover, consequencia }: {
   pessoa: string;
   grupoAtual: string;
   destinos: { id: string; descricao: string }[];
   rotuloNovo: string;
   onMover: (paraGrupoId: string | null) => void;
+  /** O que muda ao mover — dito no diálogo, antes da escolha. */
+  consequencia?: string;
 }) {
+  const [aberto, setAberto] = useState(false);
+  const escolher = (destino: string | null) => { onMover(destino); setAberto(false); };
   return (
-    <select
-      value=""
-      aria-label={`Mover ${pessoa} para outro grupo`}
-      onChange={(e) => {
-        const v = e.target.value;
-        if (!v) return;
-        onMover(v === "__novo__" ? null : v);
-        e.target.value = "";
-      }}
-      className="h-7 max-w-[160px] rounded-md border border-input/50 bg-background/50 px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity focus:opacity-100 group-hover/linha:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      data-testid={`mover-${grupoAtual}`}>
-      <option value="">Mover para…</option>
-      <option value="__novo__">{rotuloNovo}</option>
-      {destinos.map((d) => <option key={d.id} value={d.id}>{d.descricao}</option>)}
-    </select>
+    <>
+      <button
+        type="button"
+        onClick={() => setAberto(true)}
+        aria-label={`Mover ${pessoa} para outro grupo`}
+        title={`Mover ${pessoa} para outro grupo`}
+        className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-input/60 bg-background/60 px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus:opacity-100 group-hover/linha:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        data-testid={`mover-${grupoAtual}`}
+      >
+        <ArrowLeftRight className="h-3 w-3" aria-hidden="true" /> Mover
+      </button>
+      <Dialog open={aberto} onOpenChange={setAberto}>
+        <DialogContent className="max-w-[460px] p-0 gap-0 overflow-hidden rounded-[14px]">
+          <DialogHeader className="px-5 pt-5 pb-3">
+            <DialogTitle className="text-base">Mover {pessoa} para onde?</DialogTitle>
+            {consequencia && <DialogDescription className="text-[13px] leading-normal">{consequencia}</DialogDescription>}
+          </DialogHeader>
+          <div className="max-h-[46vh] overflow-y-auto border-t">
+            {destinos.map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => escolher(d.id)}
+                className="flex w-full items-center gap-2 border-b px-5 py-[11px] text-left transition-colors last:border-b-0 hover:bg-muted/60"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-medium">{d.descricao}</span>
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => escolher(null)}
+              className="flex w-full items-center gap-2 px-5 py-[11px] text-left transition-colors hover:bg-muted/60"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-medium">{rotuloNovo}</span>
+                <span className="block text-xs text-muted-foreground">Cria um grupo só para esta pessoa.</span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            </button>
+          </div>
+          <DialogFooter className="border-t bg-muted/40 px-5 py-3">
+            <Button type="button" variant="outline" size="sm" onClick={() => setAberto(false)}>Cancelar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -2120,6 +2179,7 @@ function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, on
                         <span className="truncate">{m.name}</span>
                         {canEdit && m.id && (
                           <MoverPara pessoa={m.name} grupoAtual={g.id} rotuloNovo="Quarto individual"
+                            consequencia="O tipo de cada quarto passa a seguir quantas pessoas sobram nele — e a hotelaria do evento muda junto."
                             destinos={groups.filter((o) => o.id !== g.id).map((o) => ({ id: o.id, descricao: descreve(o) }))}
                             onMover={(para) => onMover(m.id as string, g.id, para)} />
                         )}
@@ -2668,7 +2728,8 @@ function CelulasDoTrecho({
             </>
           ) : null}
           {canEdit && collabId && (
-            <MoverPara pessoa={pessoa} grupoAtual={g.id} rotuloNovo="Carro só para ela"
+            <MoverPara pessoa={pessoa} grupoAtual={g.id} rotuloNovo="Carro só para esta pessoa"
+              consequencia="O horário do carro de origem e do destino é recalculado a partir dos voos de quem sobrar em cada um."
               destinos={grupos.filter((o) => o.id !== g.id).map((o) => ({ id: o.id, descricao: descreve(o) }))}
               onMover={(para) => onMover(collabId, g.id, para)} />
           )}
