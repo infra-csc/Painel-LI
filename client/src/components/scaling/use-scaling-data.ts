@@ -3,7 +3,7 @@
  * Extraído de pages/scaling.tsx — regra de negócio preservada.
  */
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { SortConfig } from "@/components/common/sortable-header";
 import { apiRequest } from "@/lib/queryClient";
 import { fixEncoding } from "@/lib/utils";
@@ -78,19 +78,32 @@ export function useScalingData(opts: {
   const {
     data: teamInclusions,
     isLoading: isLoadingInclusions,
+    isFetching: isFetchingInclusions,
     isError: isErrorInclusions,
     error: inclusionsError,
   } = useQuery<TeamInclusion[]>({
-    // Sem excluídas, a chave é a MESMA das outras telas (auditoria 28/08):
-    // antes `["/api/team-inclusions", false]` era um cache separado do
-    // `["/api/team-inclusions"]` do resto do app, e a lista inteira descia
-    // duas vezes do servidor para os mesmos dados.
+    /**
+     * Sem excluídas, a chave é a MESMA das outras telas (auditoria 28/08):
+     * duas chaves para os mesmos dados faziam a lista descer duas vezes.
+     *
+     * Ligar "Excluídas" usa uma chave PRÓPRIA — e tem de ser assim. Hospedagem,
+     * Inclusão de Equipe e a casca leem `["/api/team-inclusions"]`; encher esse
+     * cache com registros excluídos faria eles aparecerem nas três telas.
+     *
+     * A troca de chave custa uma segunda busca da lista inteira, que nesta base
+     * leva dezenas de segundos (o driver do Neon cobra por coluna trafegada, e
+     * a tabela passa de cinquenta). Por isso o `placeholderData`: a lista
+     * anterior fica na tela enquanto a nova chega. Sem ele, a tela virava
+     * esqueleto e levava junto a barra de filtros — com o próprio toggle
+     * dentro dela, o que impedia até de desfazer.
+     */
     queryKey: filters.showDeleted ? ["/api/team-inclusions", "com-excluidas"] : ["/api/team-inclusions"],
     queryFn: async () => {
       const suffix = filters.showDeleted ? "?includeDeleted=true" : "";
       const response = await apiRequest("GET", `/api/team-inclusions${suffix}`);
       return response.json();
     },
+    placeholderData: keepPreviousData,
   });
 
   const { data: events, isLoading: isLoadingEvents } = useQuery<Event[]>({ queryKey: ["/api/events"], staleTime: 300_000 });
@@ -331,6 +344,10 @@ export function useScalingData(opts: {
 
   // ── Recorte de permissão de visualização ─────────────────────────────────
   const filteredTeamInclusions = useMemo(() => (teamInclusions || []).filter(ti => {
+    // Cinto e suspensório: o servidor já não manda excluídas quando o toggle
+    // está desligado, mas o cache pode conter as da consulta anterior enquanto
+    // a nova não chega (é o `placeholderData` que segura a lista na tela).
+    if (!filters.showDeleted && ti.deletedAt) return false;
     const linkedEvent = eventById.get(ti.eventId);
     if (!linkedEvent || linkedEvent.status === "excluído" || linkedEvent.status === "excluido") return false;
     if (isAdminRole) return true;
@@ -339,7 +356,7 @@ export function useScalingData(opts: {
     if (user?.role === "purchasing") return true;
     if (user?.role === "financial") return true;
     return userFunctionIds.has(ti.functionId);
-  }), [teamInclusions, eventById, isAdminRole, user?.role, userFunctionIds]);
+  }), [teamInclusions, eventById, isAdminRole, user?.role, userFunctionIds, filters.showDeleted]);
 
   // ── Filtros + ordenação ─────────────────────────────────────────────────
   const scalingInclusions = useMemo(() => {
@@ -554,7 +571,7 @@ export function useScalingData(opts: {
   return {
     // dados crus
     teamInclusions, events, functions, collaborators, tickets, accommodations,
-    isLoading, isErrorInclusions, inclusionsError,
+    isLoading, isFetchingInclusions, isErrorInclusions, inclusionsError,
     // índices
     eventById, functionById, collaboratorById, ticketByInclusion, purchasedTicketByInclusion,
     accommodationByInclusion, pendingChangeByInclusion, pendingSwapByInclusion, approvedSwapInclusionIds, firstSwapByInclusion,

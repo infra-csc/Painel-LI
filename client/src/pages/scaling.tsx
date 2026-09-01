@@ -143,7 +143,7 @@ export default function Scaling() {
   // fila — que não dependem da ordem — e a tela congelava ~1,8s por clique.
   const data = useScalingData({ filters: hookFilters, sortConfig: null, user });
   const {
-    teamInclusions, isLoading, isErrorInclusions, inclusionsError,
+    teamInclusions, isLoading, isFetchingInclusions, isErrorInclusions, inclusionsError,
     scalingInclusions, pendingSwapByInclusion, canApproveProduction, canExport, isAdminOrPurchasing,
     getEventName, getFunctionName, getCollaboratorName, getCollaboratorCity,
     getTicket, getAccommodation, getPurchasedTicket, firstSwapByInclusion,
@@ -629,7 +629,10 @@ export default function Scaling() {
               titulo="Não foi possível carregar as escalações"
               texto={`${describeLoadError(inclusionsError)} Nada do que você escalou foi perdido.`}
             />
-          ) : isLoading ? (
+          ) : isLoading && !teamInclusions ? (
+            /* Esqueleto só na PRIMEIRA carga. Depois disso a lista anterior
+               fica na tela enquanto a nova chega — trocar um filtro não pode
+               apagar os controles que a pessoa está usando. */
             <div className="flex flex-col gap-4" aria-busy="true" aria-label="Carregando escalações">
               <div className="h-[84px] rounded-xl border border-border bg-card animate-pulse" />
               <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -656,6 +659,20 @@ export default function Scaling() {
           ) : (
             <>
               <ScalingWorkQueue contagens={contagensDaFila} ativa={fila} onEscolher={setFila} />
+
+              {/* A faixa de recarga fica ACIMA dos filtros e não os
+                  substitui: o toggle que disparou a busca precisa continuar
+                  clicável para poder ser desfeito. */}
+              {isFetchingInclusions && (
+                <p
+                  role="status"
+                  className="flex items-center gap-2 rounded-lg border border-border bg-brand-soft px-3 py-1.5 text-[12px] text-primary"
+                  data-testid="aviso-recarregando"
+                >
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden="true" />
+                  Atualizando a lista…
+                </p>
+              )}
 
               <ScalingFilterBar
                 busca={busca} onBusca={setBusca}
