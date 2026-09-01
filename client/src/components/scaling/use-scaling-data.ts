@@ -304,6 +304,21 @@ export function useScalingData(opts: {
 
   const canConfirmEscalation = (inclusion: TeamInclusion): boolean => canManageFunction(inclusion.functionId);
 
+  /**
+   * Quem vê o botão "Escalar alguém" na linha (regra do dono, 01/09):
+   * SÓ o administrador e o responsável por AQUELA função.
+   *
+   * É mais estrito que `canManageFunction`, que também libera Compras. Compras
+   * continua podendo trocar colaborador pelo registro — o que muda é o atalho
+   * da lista, que deixa de convidar quem não responde pela função a preencher
+   * a vaga de outra pessoa.
+   */
+  const canScaleFunction = (functionId: string): boolean => {
+    if (!user) return false;
+    if (isAdminRole) return true;
+    return userFunctionIds.has(functionId);
+  };
+
   // Evento encerrado (regra do usuário, 20/08): a partir do dia seguinte ao
   // término, só o administrador age. Espelha a trava do servidor
   // (403 PAST_EVENT_BLOCK_MSG) — nenhum estado novo, só endDate + papel.
@@ -583,7 +598,7 @@ export function useScalingData(opts: {
     hasActiveFilters,
     // permissões
     isAdminRole, isAdminOrPurchasing, canApproveProduction, canExport, userFunctionIds,
-    canManageFunction, canConfirmEscalation, canEditCollaborator,
+    canManageFunction, canConfirmEscalation, canEditCollaborator, canScaleFunction,
     podeAgirEmEventoPassado, isPastEvent, isEventLocked,
     // helpers
     getEventName, getFunctionName, getCollaboratorName, getCollaboratorCity,

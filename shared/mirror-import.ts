@@ -20,6 +20,8 @@
  */
 
 /** Cabeçalho que o próprio export escreve (a linha 5 do arquivo). */
+import { chaveDaColuna, ehColunaDeNumeroSolto, mapearColunas } from "./mirror-columns";
+
 export const COLUNAS_DA_PLANILHA = [
   "NOME", "DEPARTAMENTO",
   "INÍCIO", "DATA IDA", "TÉRMINO", "DATA VOLTA",
@@ -115,6 +117,13 @@ export function paraData(valor: unknown): string | null {
 /** "8:30", "08:30:00", 0.354 (fração do dia no Excel) → "08:30". */
 export function paraHora(valor: unknown): string | null {
   if (valor === null || valor === undefined || valor === "") return null;
+  /**
+   * Date de 30/12/1899 é hora que o Excel converteu com o fuso local embutido:
+   * a célula que mostra 15:55 vira "1899-12-30T19:01:28Z", e nenhuma leitura
+   * dessa Date devolve 15:55. Recusamos em vez de gravar uma hora errada — o
+   * leitor da planilha usa `cellDates: false` justamente para receber o número.
+   */
+  if (valor instanceof Date) return null;
   if (typeof valor === "number") {
     const min = Math.round((valor % 1) * 24 * 60);
     return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
@@ -194,9 +203,13 @@ function igual(a: unknown, b: unknown): boolean {
 export function lerPlanilhaDoEspelho(matriz: unknown[][], pessoas: PessoaDoEvento[]): ResultadoDaLeitura {
   const avisos: string[] = [];
 
-  const iCabecalho = matriz.findIndex((linha) =>
-    Array.isArray(linha) && String(linha[0] ?? "").trim().toUpperCase() === "NOME" && String(linha[1] ?? "").trim().toUpperCase() === "DEPARTAMENTO",
-  );
+  // O cabeçalho não está necessariamente nas duas primeiras colunas: a
+  // planilha da equipe tem CPF, DN e outras entre NOME e DEPARTAMENTO.
+  const iCabecalho = matriz.findIndex((linha) => {
+    if (!Array.isArray(linha)) return false;
+    const chaves = linha.map(chaveDaColuna);
+    return chaves.includes("NOME") && chaves.includes("DEPARTAMENTO");
+  });
   if (iCabecalho < 0) {
     return {
       linhas: [],
@@ -204,6 +217,32 @@ export function lerPlanilhaDoEspelho(matriz: unknown[][], pessoas: PessoaDoEvent
       formatoInvalido: true,
     };
   }
+
+  const colunas = mapearColunas(matriz[iCabecalho] as unknown[]);
+  const iNome = colunas.find((c) => c.titulo === "NOME")!.indice;
+
+  // Coluna que o arquivo tem e o espelho não conhece. Vale avisar: é assim que
+  // se descobre que a planilha mudou, em vez de o dado sumir calado.
+  const desconhecidas = colunas
+    .filter((c) => c.campo === undefined && c.titulo && !ehColunaDeNumeroSolto(c.titulo))
+    .map((c) => c.titulo);
+
+  /**
+   * Duas colunas apontando para o MESMO campo. Só a primeira grava.
+   *
+   * Sem esta trava, a segunda sobrescrevia a primeira em silêncio — foi o que
+   * aconteceu com "EMPRESA" e "PAGAMENTO" do bloco de hotel, e o valor que ia
+   * para o banco era o da coluna errada. Preferimos gravar a primeira e dizer
+   * qual coluna ficou de fora.
+   */
+  const vistos = new Set<string>();
+  const duplicadas: string[] = [];
+  const colunasParaGravar = colunas.filter((c) => {
+    if (!c.campo) return false;
+    if (vistos.has(c.campo)) { duplicadas.push(c.titulo); return false; }
+    vistos.add(c.campo);
+    return true;
+  });
 
   // Nome → pessoa. Nome repetido no evento não vira chave: preferimos deixar a
   // linha de fora a escrever na pessoa errada.
@@ -218,7 +257,7 @@ export function lerPlanilhaDoEspelho(matriz: unknown[][], pessoas: PessoaDoEvent
   for (let i = iCabecalho + 1; i < matriz.length; i++) {
     const linha = matriz[i];
     if (!Array.isArray(linha)) continue;
-    const nome = String(linha[0] ?? "").trim();
+    const nome = String(linha[iNome] ?? "").trim();
     if (!nome) continue;
     // O export escreve blocos de subtotais depois das pessoas.
     if (/^(SUBTOTAIS|TOTAL|TOTAIS)\b/i.test(nome)) break;
@@ -235,10 +274,9 @@ export function lerPlanilhaDoEspelho(matriz: unknown[][], pessoas: PessoaDoEvent
     const pessoa = candidatos[0];
 
     const alteracoes: AlteracaoImportada[] = [];
-    for (let c = 0; c < CAMPO_DA_COLUNA.length; c++) {
-      const campo = CAMPO_DA_COLUNA[c];
-      if (!campo) continue;
-      const bruto = linha[c];
+    for (const coluna of colunasParaGravar) {
+      const campo = coluna.campo!;
+      const bruto = linha[coluna.indice];
       // Vazio NÃO apaga: planilha preenchida pela metade é o caso normal.
       if (bruto === null || bruto === undefined || String(bruto).trim() === "") continue;
       const novo = converter(campo, bruto);
@@ -248,6 +286,19 @@ export function lerPlanilhaDoEspelho(matriz: unknown[][], pessoas: PessoaDoEvent
       alteracoes.push({ campo, de: (atual ?? null) as ValorImportado, para: novo });
     }
     linhas.push({ nome, teamInclusionId: pessoa.teamInclusionId, alteracoes });
+  }
+
+  if (duplicadas.length > 0) {
+    avisos.push(
+      `${duplicadas.length === 1 ? "Uma coluna repetida ficou" : `${duplicadas.length} colunas repetidas ficaram`} de fora (${duplicadas.join(", ")}): outra coluna já preenche o mesmo campo.`,
+    );
+  }
+
+  if (desconhecidas.length > 0) {
+    const lista = desconhecidas.slice(0, 6).join(", ");
+    avisos.push(
+      `${desconhecidas.length} ${desconhecidas.length === 1 ? "coluna não foi reconhecida e ficou de fora" : "colunas não foram reconhecidas e ficaram de fora"}: ${lista}${desconhecidas.length > 6 ? "…" : ""}.`,
+    );
   }
 
   const semVaga = linhas.filter((l) => l.problema).length;

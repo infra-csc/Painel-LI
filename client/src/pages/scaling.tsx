@@ -562,7 +562,9 @@ export default function Scaling() {
     seenSwapIds,
     currentUserId: user?.id,
     isAdminOrPurchasing,
-    canManageFunction: data.canManageFunction,
+    // A tabela recebe a regra ESTRITA (admin ou responsável pela função): o
+    // botão "Escalar alguém" não deve convidar quem não responde pela vaga.
+    canManageFunction: data.canScaleFunction,
     canApproveProduction,
     isEventLocked: data.isEventLocked,
     commentCountByInclusion: data.commentCountByInclusion,

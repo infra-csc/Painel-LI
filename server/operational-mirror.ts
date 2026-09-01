@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { horarioDoCarro, ANTECEDENCIA_MIN, ESPERA_POUSO_MIN } from "@shared/uber-routing";
 import { lerPlanilhaDoEspelho, type PessoaDoEvento } from "@shared/mirror-import";
+import { chaveDaColuna } from "@shared/mirror-columns";
 import {
   events,
   teamInclusions,
@@ -711,12 +712,39 @@ export async function lerPlanilhaParaOEspelho(eventId: string, arquivo: Buffer) 
   const data = await getOperationalMirror(eventId);
   if (!data) return null;
 
-  const wb = XLSX.read(arquivo, { type: "buffer", cellDates: true });
-  const aba = wb.Sheets[wb.SheetNames[0]];
-  if (!aba) {
+  /**
+   * `cellDates: false` de propósito.
+   *
+   * Com `true`, uma célula de HORA volta como Date de 30/12/1899 montada com o
+   * fuso local embutido: a célula que mostra 15:55 chega como
+   * "1899-12-30T19:01:28Z", e ler as horas dela dá 16:01 — hora errada, gravada
+   * em silêncio. O valor cru (0,6631944 = fração do dia) converte exato, e é o
+   * mesmo caminho já usado para as datas em número de série.
+   */
+  const wb = XLSX.read(arquivo, { type: "buffer", cellDates: false });
+  if (wb.SheetNames.length === 0) {
     return { linhas: [], avisos: ["A planilha está vazia."], formatoInvalido: true };
   }
-  const matriz = XLSX.utils.sheet_to_json<unknown[]>(aba, { header: 1, raw: true, defval: "" });
+
+  /**
+   * A aba com os dados, não a primeira do arquivo.
+   *
+   * A planilha que a equipe usa tem três abas — "DASH", a do evento e "NÃO
+   * MEXER" — e a de dados é a do meio. Ler sempre a primeira fazia a
+   * importação recusar o arquivo inteiro dizendo que o formato era inválido.
+   */
+  const abas = wb.SheetNames.map((nome) => ({
+    nome,
+    matriz: XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[nome], { header: 1, raw: true, defval: "" }),
+  }));
+  const temCabecalho = (m: unknown[][]) =>
+    m.some((linha) => {
+      if (!Array.isArray(linha)) return false;
+      const chaves = linha.map(chaveDaColuna);
+      return chaves.includes("NOME") && chaves.includes("DEPARTAMENTO");
+    });
+  const escolhida = abas.find((a) => temCabecalho(a.matriz)) ?? abas[0];
+  const matriz = escolhida.matriz;
 
   const pessoas: PessoaDoEvento[] = data.rows.map((r) => ({
     teamInclusionId: r.teamInclusionId,
@@ -724,7 +752,11 @@ export async function lerPlanilhaParaOEspelho(eventId: string, arquivo: Buffer) 
     ler: (campo: string) => lerCampoDaLinha(r, campo),
   }));
 
-  return lerPlanilhaDoEspelho(matriz, pessoas);
+  const leitura = lerPlanilhaDoEspelho(matriz, pessoas);
+  if (wb.SheetNames.length > 1 && !leitura.formatoInvalido) {
+    leitura.avisos.unshift(`Li a aba "${escolhida.nome}" — o arquivo tem ${wb.SheetNames.length} abas.`);
+  }
+  return leitura;
 }
 
 /** Valor atual de um campo do espelho, pelo caminho que a planilha usa. */

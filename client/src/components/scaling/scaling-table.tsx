@@ -88,7 +88,10 @@ export interface ScalingTableProps {
   currentUserId?: string;
   /** admin/purchasing: pode analisar trocas de escalações sem logística */
   isAdminOrPurchasing: boolean;
-  /** Escalar só na função pela qual o usuário responde. */
+  /**
+   * Quem pode ESCALAR nesta linha: administrador ou o responsável pela função.
+   * Mais estrito que a permissão de editar — é o gatilho do botão da lista.
+   */
   canManageFunction: (functionId: string) => boolean;
   /** Quem aprova cenotécnica vê "aguardando gestor" como coisa sua. */
   canApproveProduction: boolean;
