@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, ChevronDown } from "lucide-react";
 import { fixEncoding } from "@/lib/utils";
 import {
@@ -26,6 +26,12 @@ interface CollaboratorComboboxProps {
   disabled?: boolean;
   /** Vira o `title` do gatilho travado — diz POR QUE não dá para trocar. */
   disabledReason?: string | null;
+  /**
+   * Nasce aberto. Serve ao "Escalar alguém" da linha da Escalação: quem clicou
+   * ali já disse o que quer fazer, e obrigar um segundo clique para abrir a
+   * lista é justamente o atrito que o botão veio tirar.
+   */
+  abrirAoMontar?: boolean;
 }
 
 export default function CollaboratorCombobox({
@@ -37,8 +43,18 @@ export default function CollaboratorCombobox({
   hideAll = false,
   disabled = false,
   disabledReason,
+  abrirAoMontar = false,
 }: CollaboratorComboboxProps) {
   const [open, setOpen] = useState(false);
+
+  // Abrir no próprio render não funciona dentro de um Dialog: o diálogo puxa o
+  // foco para si ao montar e fecha o popover no mesmo instante. Um tique
+  // depois, o foco já assentou e a lista abre e fica.
+  useEffect(() => {
+    if (!abrirAoMontar || disabled) return;
+    const t = setTimeout(() => setOpen(true), 0);
+    return () => clearTimeout(t);
+  }, [abrirAoMontar, disabled]);
   const [search, setSearch] = useState("");
 
   const sortedCollaborators =

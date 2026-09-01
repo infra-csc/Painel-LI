@@ -55,6 +55,11 @@ export interface InclusionDetailsDialogProps {
   modal: boolean;
   inclusion: TeamInclusion | null;
   initialTab: DetailsTab;
+  /**
+   * Veio do botão "Escalar alguém" da linha: a lista de colaboradores já abre
+   * escolhida, sem exigir que a pessoa procure o campo dentro do modal.
+   */
+  abrirEscolhaDeColaborador?: boolean;
   modalData: ModalData;
   setModalData: React.Dispatch<React.SetStateAction<ModalData>>;
   data: ScalingData;
@@ -190,7 +195,7 @@ const isTypingTarget = (el: EventTarget | null) => {
 
 export default function InclusionDetailsDialog(props: InclusionDetailsDialogProps) {
   const {
-    open, onOpenChange, modal, inclusion, initialTab, modalData, setModalData, data, details, mutations, user,
+    open, onOpenChange, modal, inclusion, initialTab, abrirEscolhaDeColaborador = false, modalData, setModalData, data, details, mutations, user,
     openAttachment, navIndex, navTotal, onNavigate, onSave, onConfirm,
   } = props;
 
@@ -609,6 +614,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                   setModalData(prev => ({ ...prev, collaboratorId: value, city: fromSP ? "São Paulo - SP" : (newCity || ""), departureFromSP: fromSP }));
                                 }}
                                 placeholder="Selecione um colaborador"
+                                abrirAoMontar={abrirEscolhaDeColaborador}
                                 testId="select-collaborator-escalation"
                                 hideAll={true}
                                 disabled={!!requestLockReason}

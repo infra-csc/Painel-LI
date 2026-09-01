@@ -12,6 +12,7 @@ import { isEventPast, canActOnPastEvent } from "@shared/event-window";
 import { isAtendimentoFunction } from "@shared/atendimento";
 import { isPercursoFunction } from "@shared/calculation-rules";
 import { isCenotecnicaFunctionName } from "@shared/scaling-rules";
+import { getScalingStatusLabel } from "./scaling-status";
 import type {
   TeamInclusion, Event, Function, Collaborator, Comment, Ticket, Accommodation,
   TeamInclusionLog, SwapRequest, User,
@@ -370,6 +371,10 @@ export function useScalingData(opts: {
           case "function": return getFunctionName(a.functionId).localeCompare(getFunctionName(b.functionId), "pt-BR") * multiplier;
           case "collaborator": return getCollaboratorName(a.collaboratorId).localeCompare(getCollaboratorName(b.collaboratorId), "pt-BR") * multiplier;
           case "period": return byPeriod(a, b) * multiplier;
+          // A coluna Situação passou a ser ordenável no redesenho (01/09).
+          // Ordena pelo RÓTULO, que é o que a pessoa lê — não pelo status
+          // gravado, cujos nomes internos não têm ordem que signifique nada.
+          case "status": return getScalingStatusLabel(a).localeCompare(getScalingStatusLabel(b), "pt-BR") * multiplier;
           default: return 0;
         }
       });
