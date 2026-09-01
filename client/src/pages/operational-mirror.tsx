@@ -33,6 +33,7 @@ import {
 import { EditDrawer, ROOM_TYPE_OPTIONS, ROOM_TYPE_LABEL, type DrawerKind, type DrawerSource } from "@/components/operational-mirror-drawers";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SeletorDeEvento } from "@/components/operational-mirror-context-bar";
+import { ImportarPlanilha } from "@/components/operational-mirror-import";
 import { ProvedorDeAvisos, useAvisos } from "@/components/operational-mirror-avisos";
 import {
   RefreshCw, FileSpreadsheet, AlertTriangle, Plane, BedDouble, Luggage, Car,
@@ -1024,6 +1025,23 @@ function EspelhoOperacional() {
                     <TooltipContent>Refaz as sugestões de quarto e Uber (grupos confirmados são preservados)</TooltipContent>
                   </Tooltip>
                 </>
+              )}
+              {/* O par de "Exportar": a equipe preenche a planilha em lote e
+                  precisava digitar tudo de volta célula a célula. */}
+              {canEditMirror && eventId && (
+                <ImportarPlanilha
+                  eventId={eventId}
+                  aoAplicar={(gravados, falhas) => {
+                    queryClient.invalidateQueries({ queryKey: mirrorKey });
+                    avisar({
+                      tom: falhas > 0 ? "erro" : "ok",
+                      titulo: `${gravados} ${gravados === 1 ? "campo atualizado" : "campos atualizados"} pela planilha`,
+                      texto: falhas > 0
+                        ? `${falhas} ${falhas === 1 ? "campo não pôde ser gravado" : "campos não puderam ser gravados"} — confira a grade.`
+                        : undefined,
+                    });
+                  }}
+                />
               )}
               <Button size="sm" className="h-[34px]" onClick={handleExport} data-testid="button-export">
                 <FileSpreadsheet className="h-4 w-4 mr-2" aria-hidden="true" /> Exportar planilha

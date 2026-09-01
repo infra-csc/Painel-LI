@@ -55,7 +55,7 @@ function safeTokenEqual(a: string, b: string): boolean {
   if (ab.length !== bb.length) return false;
   return timingSafeEqual(ab, bb);
 }
-import { getOperationalMirror, recalculateLogisticsSuggestions, exportOperationalMirrorExcel, patchOperationalMirrorCell } from "./operational-mirror";
+import { getOperationalMirror, recalculateLogisticsSuggestions, exportOperationalMirrorExcel, patchOperationalMirrorCell, lerPlanilhaParaOEspelho } from "./operational-mirror";
 import { registerScalingValidationRoutes } from "./scaling-validation";
 import { effectiveUserId, registerSimulationRoutes } from "./simulation";
 import {
@@ -3018,6 +3018,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Erro ao recalcular sugestões:", error);
       res.status(500).json({ message: "Erro ao recalcular sugestões" });
+    }
+  });
+
+  /**
+   * Lê a planilha e devolve o que mudaria. NÃO grava: aplicar é outra chamada,
+   * depois de alguém ver o preview — 200 alterações num evento não podem
+   * acontecer por um arquivo solto num campo de upload.
+   */
+  app.post("/api/events/:eventId/operational-mirror/import/preview", upload.single("file"), async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
+    try {
+      const arquivo = req.file;
+      if (!arquivo) return res.status(400).json({ message: "Nenhum arquivo enviado." });
+      const leitura = await lerPlanilhaParaOEspelho(req.params.eventId, arquivo.buffer);
+      if (!leitura) return res.status(404).json({ message: "Evento não encontrado" });
+      res.set("Cache-Control", "no-store");
+      res.json(leitura);
+    } catch (error) {
+      console.error("erro ao ler planilha do espelho:", error);
+      res.status(400).json({ message: "Não consegui ler esta planilha. Confira se é o arquivo exportado por esta tela." });
+    }
+  });
+
+  /**
+   * Aplica as alterações confirmadas. O cliente manda o que foi mostrado no
+   * preview — assim o que se grava é exatamente o que a pessoa viu e aceitou.
+   */
+  app.post("/api/events/:eventId/operational-mirror/import/aplicar", async (req, res) => {
+    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
+    try {
+      if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+      const linhas = Array.isArray(req.body?.linhas) ? req.body.linhas : null;
+      if (!linhas) return res.status(400).json({ message: "Nada para aplicar." });
+
+      let gravados = 0;
+      const falhas: { nome: string; campo: string; motivo: string }[] = [];
+      for (const linha of linhas) {
+        const rowId = String(linha?.teamInclusionId ?? "");
+        if (!rowId || !Array.isArray(linha?.alteracoes)) continue;
+        // Sequencial de propósito, como no saveMany do drawer: o servidor faz
+        // "busca a linha; se não existir, insere" a cada campo — em paralelo,
+        // dois campos do mesmo bloco criavam registros duplicados.
+        for (const alt of linha.alteracoes) {
+          try {
+            await patchOperationalMirrorCell(req.params.eventId, rowId, String(alt.campo), alt.para);
+            gravados += 1;
+          } catch (e) {
+            falhas.push({ nome: String(linha.nome ?? ""), campo: String(alt.campo), motivo: (e as Error)?.message || "erro" });
+          }
+        }
+      }
+      res.json({ gravados, falhas });
+    } catch (error) {
+      console.error("erro ao aplicar planilha do espelho:", error);
+      res.status(500).json({ message: "Erro ao aplicar as alterações" });
     }
   });
 

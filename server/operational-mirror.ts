@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { horarioDoCarro, ANTECEDENCIA_MIN, ESPERA_POUSO_MIN } from "@shared/uber-routing";
+import { lerPlanilhaDoEspelho, type PessoaDoEvento } from "@shared/mirror-import";
 import {
   events,
   teamInclusions,
@@ -694,6 +695,52 @@ import * as XLSX from "xlsx";
 
 function brl(cents: number): string {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+/**
+ * Lê a planilha do espelho e devolve o que MUDARIA — sem gravar (31/08).
+ *
+ * A equipe já trabalha nesse arquivo: exporta, preenche em lote (uma agência
+ * manda 30 localizadores de uma vez) e devolve. O caminho de volta não existia,
+ * e cada célula voltava para o sistema na mão.
+ *
+ * Preview e gravação são chamadas separadas de propósito: ninguém aplica 200
+ * alterações num evento sem ver antes o que vai mudar.
+ */
+export async function lerPlanilhaParaOEspelho(eventId: string, arquivo: Buffer) {
+  const data = await getOperationalMirror(eventId);
+  if (!data) return null;
+
+  const wb = XLSX.read(arquivo, { type: "buffer", cellDates: true });
+  const aba = wb.Sheets[wb.SheetNames[0]];
+  if (!aba) {
+    return { linhas: [], avisos: ["A planilha está vazia."], formatoInvalido: true };
+  }
+  const matriz = XLSX.utils.sheet_to_json<unknown[]>(aba, { header: 1, raw: true, defval: "" });
+
+  const pessoas: PessoaDoEvento[] = data.rows.map((r) => ({
+    teamInclusionId: r.teamInclusionId,
+    nome: r.collaborator.fullName,
+    ler: (campo: string) => lerCampoDaLinha(r, campo),
+  }));
+
+  return lerPlanilhaDoEspelho(matriz, pessoas);
+}
+
+/** Valor atual de um campo do espelho, pelo caminho que a planilha usa. */
+function lerCampoDaLinha(r: MirrorRow, campo: string): unknown {
+  const [grupo, chave] = campo.split(".");
+  if (grupo === "schedule") {
+    const s = r.schedule as unknown as Record<string, unknown>;
+    if (chave === "departureDate") return s.flightDepartureDate;
+    if (chave === "returnDate") return s.flightReturnDate;
+    return s[chave];
+  }
+  if (grupo === "baggage" && chave === "amountCents") return r.baggage.extraCents;
+  if (grupo === "uber" && chave === "amountCents") return r.uber.totalCents;
+  if (grupo === "carRental" && chave === "amountCents") return r.carRental.totalCents;
+  const bloco = (r as unknown as Record<string, unknown>)[grupo] as Record<string, unknown> | null;
+  return bloco ? bloco[chave] : null;
 }
 
 export async function exportOperationalMirrorExcel(eventId: string): Promise<Buffer | null> {
