@@ -90,7 +90,7 @@ export function ExportColumnsDialog({ open, onOpenChange, onExport, exporting }:
 
   return (
     <Dialog open={open} onOpenChange={(o) => !exporting && onOpenChange(o)}>
-      <DialogContent className="max-w-5xl p-0 gap-0 flex flex-col max-h-[92vh] overflow-hidden rounded-2xl">
+      <DialogContent className="max-w-5xl p-0 gap-0 flex flex-col max-h-[92vh] overflow-hidden rounded-[14px]">
         <DialogHeader className="px-6 pt-6 pb-3 border-b border-slate-100 pr-12">
           <DialogTitle>Exportar escalações</DialogTitle>
           <DialogDescription>

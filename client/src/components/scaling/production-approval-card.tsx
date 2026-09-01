@@ -29,7 +29,7 @@ export function ProductionApprovalCard({ inclusion, canApprove, mutations, block
 
   return (
     <div className="mt-5">
-      <div className="border border-red-200 rounded-2xl overflow-hidden">
+      <div className="border border-red-200 rounded-[14px] overflow-hidden">
         <div className="bg-red-50 border-b border-red-100 px-4 py-2.5 flex items-center gap-2">
           <AlertCircle className="w-4 h-4 text-red-600" />
           <span className="text-[11px] font-black text-red-700 uppercase tracking-[0.12em]">Aprovação do gestor</span>
@@ -114,7 +114,7 @@ export interface SentToProductionInfo { collaboratorName: string; functionName: 
 export function SentToProductionDialog({ info, onClose }: { info: SentToProductionInfo | null; onClose: () => void }) {
   return (
     <Dialog open={!!info} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-[420px] p-0 gap-0 rounded-2xl overflow-hidden">
+      <DialogContent className="max-w-[460px] p-0 gap-0 rounded-[14px] overflow-hidden">
         <div className="px-6 pt-7 pb-6 space-y-5">
           <div className="flex flex-col items-center text-center gap-3">
             <div className="w-14 h-14 rounded-full bg-amber-50 border-2 border-amber-200 flex items-center justify-center">

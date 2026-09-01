@@ -81,11 +81,21 @@ const COLLAB_TYPE: Record<string, { label: string; cls: string }> = {
   local:  { label: "Local",  cls: "bg-orange-50 text-orange-700 border-orange-100" },
 };
 
-const tabTrigger = "relative rounded-none border-b-2 border-transparent data-[state=active]:border-[#2563EB] data-[state=active]:text-[#2563EB] text-slate-500 bg-transparent data-[state=active]:bg-transparent px-4 pb-3 pt-2 text-sm font-medium shadow-none hover:text-slate-700 transition-colors";
-const lbl = "text-[10px] uppercase tracking-[0.12em] text-slate-400 font-black mb-1";
+const tabTrigger = "relative rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary text-muted-foreground bg-transparent data-[state=active]:bg-transparent px-4 pb-3 pt-2 text-sm font-medium shadow-none hover:text-slate-700 transition-colors";
+// Rótulo de campo: 11px normal. Era 10px `font-black` com tracking de 0.12em —
+// caixa alta esticada e mais pesada que o próprio valor que rotulava.
+const lbl = "text-[11px] text-muted-foreground font-medium mb-1";
 const val = "text-[13px] font-semibold text-slate-700";
-const doneBadge = <span className="ml-1.5 bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">✓</span>;
-const pendingBadge = <span className="ml-1.5 bg-amber-100 text-amber-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">!</span>;
+// A aba só sinaliza o que FALTA. Um "✓" verde em cada etapa pronta enche a
+// barra de ruído para dizer que não há nada a fazer ali.
+const doneBadge = null;
+const pendingBadge = (
+  <span
+    aria-label="etapa pendente"
+    title="Esta etapa ainda está pendente"
+    className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-[#D97706] align-middle"
+  />
+);
 
 const brl = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -357,24 +367,24 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} modal={modal}>
-      <DialogContent ref={contentRef} className="!max-w-[1180px] w-[95vw] max-h-[88vh] !flex !flex-col p-0 gap-0 overflow-hidden">
-        {/* ── Header ── */}
-        <div className="px-6 pt-5 pb-4 border-b border-slate-100 shrink-0 flex items-center gap-4 pr-14" style={{ background: "linear-gradient(to right, #f8faff 0%, #ffffff 60%)" }}>
-          <div
-            className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0"
-            style={{ background: "linear-gradient(135deg, #3b7ef8 0%, #1d4ed8 100%)", boxShadow: "0 4px 16px #2563EB30" }}
-          >
-            <Users style={{ width: 20, height: 20 }} />
-          </div>
+      {/* 980px no lugar de 1180: em duas colunas o conteúdo respira, e a
+          terceira coluna do layout antigo só existia porque a largura sobrava. */}
+      <DialogContent ref={contentRef} className="!max-w-[980px] w-[95vw] max-h-[calc(100dvh-48px)] !rounded-[14px] !flex !flex-col p-0 gap-0 overflow-hidden">
+        {/* ── Cabeçalho ──
+            O gradiente e o quadrado azul de 44px com sombra ocupavam a linha
+            inteira para dizer "Detalhes da Escalação", que é o que o próprio
+            modal já é. O que identifica o registro é o ID, o nome e a
+            situação — e é isso que fica. */}
+        <div className="px-6 pt-4 pb-3.5 border-b border-slate-100 shrink-0 flex items-center gap-3 pr-14">
+          <span className="font-mono text-[12px] text-muted-foreground tabular-nums shrink-0">
+            #{inclusion?.inclusionNumber || "—"}
+          </span>
+          {inclusion && getStatusBadge(inclusion, "sm")}
           <div className="flex-1 min-w-0">
-            <DialogTitle className="text-[17px] font-bold text-slate-900 leading-tight m-0 p-0">
-              Detalhes da Escalação
+            <DialogTitle className="text-[17px] font-semibold text-slate-900 leading-tight m-0 p-0 truncate">
+              {inclusion?.collaboratorId ? getCollaboratorName(inclusion.collaboratorId) : "Vaga sem nome"}
             </DialogTitle>
-            <div className="text-[12px] text-slate-400 mt-0.5 truncate">
-              <span className="font-mono font-bold text-slate-500">#{inclusion?.inclusionNumber || "N/A"}</span>
-              <span className="mx-1.5 text-slate-300">·</span>
-              {inclusion ? getCollaboratorName(inclusion.collaboratorId) : ""}
-            </div>
+            <span className="sr-only">Detalhes da escalação</span>
           </div>
           {navTotal > 1 && navIndex >= 0 && (
             <div className="flex items-center gap-1 shrink-0" aria-label="Navegar entre escalações da lista">
@@ -405,7 +415,6 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
               </button>
             </div>
           )}
-          {inclusion && getStatusBadge(inclusion, "lg")}
         </div>
 
         {inclusion && (
@@ -424,9 +433,9 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                     {accommodation ? doneBadge : inclusion.needsAccommodation ? pendingBadge : null}
                   </TabsTrigger>
                   <TabsTrigger value="comentarios" className={tabTrigger}>
-                    Comentários e Histórico
+                    Histórico
                     {comments && comments.length > 0 && (
-                      <span className="ml-1.5 bg-[#2563EB] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{comments.length}</span>
+                      <span className="ml-1.5 bg-primary text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">{comments.length}</span>
                     )}
                   </TabsTrigger>
                 </TabsList>
@@ -436,14 +445,14 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
 
                 {/* ══ ABA: RESUMO ══ */}
                 <TabsContent value="resumo" className="m-0 p-4 sm:p-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
 
                     {/* Col 1: Informações Básicas */}
                     <div className="space-y-4">
                       <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4 space-y-3">
                         <div>
                           <div className={lbl}>Evento</div>
-                          <div className="text-[13px] font-semibold text-[#2563EB] leading-snug">{getEventName(inclusion.eventId)}</div>
+                          <div className="text-[13px] font-semibold text-primary leading-snug">{getEventName(inclusion.eventId)}</div>
                         </div>
                         <div>
                           <div className={lbl}>ID</div>
@@ -718,7 +727,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                   onClick={() => setModalData(prev => ({ ...prev, departureFromSP: true, city: "São Paulo - SP" }))}
                                   disabled={!!requestLockReason}
                                   title={requestLockReason ?? undefined}
-                                  className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${modalData.departureFromSP ? "bg-[#2563EB] text-white border-[#2563EB]" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`}
+                                  className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${modalData.departureFromSP ? "bg-primary text-white border-primary" : "bg-card text-slate-600 border-border hover:border-slate-300"}`}
                                 >
                                   São Paulo - SP
                                 </button>
@@ -1005,7 +1014,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                           <Button
                             onClick={onConfirm}
                             disabled={isSaving || !!confirmReason}
-                            style={{ background: "#2563EB", boxShadow: "0 4px 14px #2563EB50" }}
+                            style={{ background: "hsl(var(--primary))" }}
                             className="flex items-center gap-2 text-white rounded-xl px-6 py-2 h-10 text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
                             data-testid="button-confirm-scaling"
                           >

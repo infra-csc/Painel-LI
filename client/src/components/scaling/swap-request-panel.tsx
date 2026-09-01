@@ -344,7 +344,7 @@ export function SwapRequestDialog({
     <>
       {/* Formulário */}
       <Dialog open={open && !success} onOpenChange={(o) => { if (!o) resetAndClose(); }}>
-        <DialogContent className="max-w-[700px] p-0 gap-0 rounded-2xl overflow-hidden">
+        <DialogContent className="max-w-[700px] p-0 gap-0 rounded-[14px] overflow-hidden">
           <div className="px-6 pt-5 pb-4 border-b border-slate-100" style={{ background: "linear-gradient(135deg, #f0f7ff 0%, #ffffff 55%)" }}>
             <div className="flex items-center gap-3 mb-3">
               <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0" style={{ boxShadow: "0 3px 10px #2563EB30" }}>
@@ -469,7 +469,7 @@ export function SwapRequestDialog({
 
       {/* Confirmação pós-envio */}
       <Dialog open={success} onOpenChange={(o) => { if (!o) resetAndClose(); }}>
-        <DialogContent className="max-w-[480px] p-0 gap-0 rounded-2xl overflow-hidden">
+        <DialogContent className="max-w-[460px] p-0 gap-0 rounded-[14px] overflow-hidden">
           <div className="px-8 py-8">
             <div className="flex flex-col items-center text-center mb-6">
               <div className="w-14 h-14 rounded-full bg-green-50 border border-green-100 flex items-center justify-center mb-4">

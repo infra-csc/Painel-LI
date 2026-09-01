@@ -18,7 +18,7 @@
  */
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { markSwapSeen, getSeenState } from "@/lib/seenSwaps";
-import { CloudOff, Download, FilterX, List, Lock, TrendingUp, Users } from "lucide-react";
+import { AlertTriangle, CloudOff, Download, FilterX, List, Lock, TrendingUp, Users } from "lucide-react";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -35,6 +35,7 @@ import InclusionDetailsDialog, { type DetailsTab } from "@/components/scaling/in
 import ScalingSuccessDialog, { type ScalingSuccessInfo } from "@/components/scaling/scaling-success-dialog";
 import { SentToProductionDialog, type SentToProductionInfo } from "@/components/scaling/production-approval-card";
 import AttachmentLightbox from "@/components/scaling/attachment-lightbox";
+import ConfirmDialog from "@/components/scaling/confirm-dialog";
 import BulkConfirmBar from "@/components/scaling/bulk-confirm-bar";
 import { useScalingData, useInclusionDetails, DEFAULT_SCALING_FILTERS, type ScalingFilters } from "@/components/scaling/use-scaling-data";
 import { useScalingMutations, type InclusionSavePayload } from "@/components/scaling/use-scaling-mutations";
@@ -93,6 +94,8 @@ export default function Scaling() {
   const [sentToProductionInfo, setSentToProductionInfo] = useState<SentToProductionInfo | null>(null);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  /** Direção da navegação que espera a confirmação de descarte. */
+  const [descartePendente, setDescartePendente] = useState<-1 | 1 | null>(null);
 
   // "Hoje" muda enquanto a aba fica aberta; congelar na montagem manteria os
   // prazos de ontem numa tela que fica dias aberta na mesa de alguém.
@@ -272,9 +275,20 @@ export default function Scaling() {
     if (navIndex < 0) return;
     const next = visibleRows[navIndex + direction];
     if (!next) return;
-    if (modalIsDirty && !window.confirm("Há alterações não salvas nesta escalação. Descartar e ir para a próxima?")) return;
+    // window.confirm() aparece fora da janela, com a cara do navegador e sem
+    // dizer o que se perde. Perguntar sobre trabalho não salvo merece a mesma
+    // linguagem do resto da tela.
+    if (modalIsDirty) { setDescartePendente(direction); return; }
     openInclusion(next, "resumo");
   }, [navIndex, visibleRows, openInclusion, modalIsDirty]);
+
+  const confirmarDescarte = () => {
+    const direcao = descartePendente;
+    setDescartePendente(null);
+    if (direcao === null || navIndex < 0) return;
+    const next = visibleRows[navIndex + direcao];
+    if (next) openInclusion(next, "resumo");
+  };
 
   // ── Anexos / lightbox ───────────────────────────────────────────────────
   const prefetchAttachmentIds = useMemo(() => {
@@ -677,6 +691,21 @@ export default function Scaling() {
       <ScalingSuccessDialog info={successInfo} onClose={() => setSuccessInfo(null)} />
       <SentToProductionDialog info={sentToProductionInfo} onClose={() => setSentToProductionInfo(null)} />
       <AttachmentLightbox item={lightbox} onClose={() => setLightbox(null)} />
+
+      <ConfirmDialog
+        open={descartePendente !== null}
+        onOpenChange={(o) => { if (!o) setDescartePendente(null); }}
+        icon={(props) => <AlertTriangle {...props} />}
+        tone="orange"
+        title="Descartar alterações?"
+        description="Você mudou esta escalação e ainda não salvou. Ir para a próxima descarta o que foi digitado."
+        cancelLabel="Continuar editando"
+        confirmLabel="Descartar e sair"
+        pendingLabel="Descartando…"
+        isPending={false}
+        onConfirm={confirmarDescarte}
+        testId="dialog-descartar-alteracoes"
+      />
     </div>
   );
 }

@@ -26,7 +26,7 @@ export default function AttachmentLightbox({ item, onClose }: { item: LightboxIt
 
   return (
     <Dialog open={!!item} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="!max-w-5xl w-[95vw] max-h-[90vh] p-0 gap-0 overflow-hidden rounded-2xl flex flex-col" data-testid="dialog-lightbox">
+      <DialogContent className="!max-w-5xl w-[95vw] max-h-[90vh] p-0 gap-0 overflow-hidden rounded-[14px] flex flex-col" data-testid="dialog-lightbox">
         {item && (
           <>
             <div className="bg-white border-b border-slate-100 px-5 py-3 pr-12 flex flex-wrap items-center justify-between gap-2 flex-shrink-0">

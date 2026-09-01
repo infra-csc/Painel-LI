@@ -15,7 +15,7 @@ export interface ScalingSuccessInfo {
 export default function ScalingSuccessDialog({ info, onClose }: { info: ScalingSuccessInfo | null; onClose: () => void }) {
   return (
     <AlertDialog open={!!info} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <AlertDialogContent className="max-w-[440px] rounded-2xl p-0 gap-0 overflow-hidden" data-testid="dialog-scaling-success">
+      <AlertDialogContent className="max-w-[460px] rounded-[14px] p-0 gap-0 overflow-hidden" data-testid="dialog-scaling-success">
         <div className="flex flex-col items-center px-8 py-7">
           <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ background: "#DCFCE7" }}>
             <svg width="32" height="32" viewBox="0 0 36 36" fill="none" aria-hidden="true">

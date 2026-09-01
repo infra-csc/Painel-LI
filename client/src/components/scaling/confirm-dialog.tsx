@@ -45,7 +45,7 @@ export default function ConfirmDialog({
   const handleCancel = () => { onCancel?.(); onOpenChange(false); };
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) { onCancel?.(); } onOpenChange(o); }}>
-      <DialogContent className="max-w-[400px] p-0 gap-0 rounded-2xl overflow-hidden" data-testid={testId}>
+      <DialogContent className="max-w-[460px] p-0 gap-0 rounded-[14px] overflow-hidden" data-testid={testId}>
         <div className="px-6 py-6 space-y-4">
           <div className="flex items-start gap-3">
             <div className={`w-9 h-9 rounded-full border flex items-center justify-center shrink-0 ${t.iconWrap}`}>

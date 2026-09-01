@@ -79,7 +79,7 @@ export default function BulkConfirmBar({ selected, onClear, getEventName, getFun
     <>
       {selected.length > 0 && (
         <div
-          className="sticky bottom-3 z-30 mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-blue-200 bg-white/95 backdrop-blur px-4 py-3 shadow-lg shadow-blue-100"
+          className="sticky bottom-4 z-30 mt-4 flex flex-wrap items-center gap-3 rounded-[10px] border border-primary bg-card px-3.5 py-2.5 shadow-[0_10px_30px_rgba(2,8,23,0.12)]"
           role="region"
           aria-label="Ações em massa"
           data-testid="bulk-confirm-bar"
@@ -113,7 +113,7 @@ export default function BulkConfirmBar({ selected, onClear, getEventName, getFun
       )}
 
       <AlertDialog open={open} onOpenChange={(o) => { if (!o) close(); }}>
-        <AlertDialogContent className="max-w-[560px] rounded-2xl p-0 gap-0 overflow-hidden" data-testid="dialog-bulk-confirm">
+        <AlertDialogContent className="max-w-[560px] rounded-[14px] p-0 gap-0 overflow-hidden" data-testid="dialog-bulk-confirm">
           <div className="px-6 pt-6 pb-4">
             <AlertDialogHeader className="space-y-1 text-left">
               <AlertDialogTitle className="text-[16px] font-bold text-slate-900">
