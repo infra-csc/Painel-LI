@@ -20,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
+import EscolherColaborador from "./escolher-colaborador";
 import { isReadOnly } from "@/lib/interactions";
 import { PastEventBanner } from "@/lib/event-lock";
 import { PAST_EVENT_BLOCK_MSG } from "@shared/event-window";
@@ -213,6 +213,12 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
   const [showAllLogs, setShowAllLogs] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [showSwapModal, setShowSwapModal] = useState(false);
+  /**
+   * A lista de nomes está aberta dentro do cartão. Nasce aberta quando a vaga
+   * chegou vazia ou quando o clique veio do "Escalar alguém" da linha — nos
+   * dois casos a pessoa já disse o que quer fazer.
+   */
+  const [escolhendoColaborador, setEscolhendoColaborador] = useState(false);
   const [showReactivateConfirm, setShowReactivateConfirm] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -231,6 +237,13 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
     staleTime: 5 * 60 * 1000,
   });
   const fmtBRL = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  // A escolha acompanha a vaga: reabre sozinha na que está sem nome e fecha
+  // ao navegar para uma que já tem.
+  useEffect(() => {
+    if (!open) { setEscolhendoColaborador(false); return; }
+    setEscolhendoColaborador(abrirEscolhaDeColaborador || !inclusion?.collaboratorId);
+  }, [open, inclusion?.id, abrirEscolhaDeColaborador, inclusion?.collaboratorId]);
 
   // Ao abrir (ou navegar para outra escalação) volta para a aba pedida
   useEffect(() => {
@@ -614,21 +627,49 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                           <div className="space-y-2">
                             {/* Marcação inline: colaborador é obrigatório para confirmar */}
                             <div className={!modalData.collaboratorId && !isEscalated(inclusion) ? "rounded-lg ring-1 ring-amber-300" : ""}>
-                              <CollaboratorCombobox
-                                collaborators={collaborators}
-                                value={modalData.collaboratorId}
-                                onValueChange={(value) => {
-                                  const newCity = getCollaboratorCity(value);
-                                  const fromSP = isCityFromSP(newCity);
-                                  setModalData(prev => ({ ...prev, collaboratorId: value, city: fromSP ? "São Paulo - SP" : (newCity || ""), departureFromSP: fromSP }));
-                                }}
-                                placeholder="Selecione um colaborador"
-                                abrirAoMontar={abrirEscolhaDeColaborador}
-                                testId="select-collaborator-escalation"
-                                hideAll={true}
-                                disabled={!!requestLockReason}
-                                disabledReason={requestLockReason}
-                              />
+                              {escolhendoColaborador ? (
+                                <EscolherColaborador
+                                  colaboradores={collaborators}
+                                  inclusion={inclusion}
+                                  getConflitos={getCollaboratorConflicts}
+                                  getEventName={getEventName}
+                                  onEscolher={(value) => {
+                                    // Mesma regra de sempre: a cidade de saída
+                                    // acompanha o colaborador, e quem é de São
+                                    // Paulo já entra com "Sai de SP" marcado.
+                                    const newCity = getCollaboratorCity(value);
+                                    const fromSP = isCityFromSP(newCity);
+                                    setModalData(prev => ({ ...prev, collaboratorId: value, city: fromSP ? "São Paulo - SP" : (newCity || ""), departureFromSP: fromSP }));
+                                    setEscolhendoColaborador(false);
+                                  }}
+                                  onCancelar={modalData.collaboratorId ? () => setEscolhendoColaborador(false) : undefined}
+                                  disabled={!!requestLockReason}
+                                  disabledReason={requestLockReason}
+                                />
+                              ) : (
+                                <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2.5">
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm font-medium text-slate-700" data-testid="text-collaborator-escolhido">
+                                      {modalData.collaboratorId ? getCollaboratorName(modalData.collaboratorId) : "Nenhum colaborador escolhido"}
+                                    </span>
+                                    {modalData.collaboratorId && (modalData.city || getCollaboratorCity(modalData.collaboratorId)) && (
+                                      <span className="block truncate text-[11px] text-muted-foreground">
+                                        {modalData.city || getCollaboratorCity(modalData.collaboratorId)}
+                                      </span>
+                                    )}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEscolhendoColaborador(true)}
+                                    disabled={!!requestLockReason}
+                                    title={requestLockReason ?? "Escolher outro colaborador para esta vaga"}
+                                    data-testid="select-collaborator-escalation"
+                                    className="shrink-0 rounded-lg border border-border bg-card px-2.5 py-1 text-[12px] font-medium text-primary hover:border-primary hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    {modalData.collaboratorId ? "Trocar" : "Escolher"}
+                                  </button>
+                                </div>
+                              )}
                             </div>
                             {!modalData.collaboratorId && !isEscalated(inclusion) && (
                               <p className="text-[10px] text-amber-600 flex items-center gap-1" data-testid="hint-collaborator-required">
@@ -916,6 +957,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                   addComment={mutations.addComment}
                   canComment={!isReadOnly(inclusion, user) && canConfirmEscalation(inclusion)}
                   canSend={!isReadOnly(inclusion, user)}
+                  carregando={details.isLoadingHistorico}
                 />
               </div>
             </Tabs>

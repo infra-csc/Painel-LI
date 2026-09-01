@@ -4,7 +4,7 @@ import multer from "multer";
 import { z } from "zod";
 import { storage, mapSwapRequestRow } from "./storage";
 import { db } from "./db";
-import { budgetNotes, eventComments as eventCommentsTable, users, functionManagers as functionManagersTable, budgetPlanned as budgetPlannedTable, events as eventsTable, swapRequests as swapRequestsTable, teamInclusions as teamInclusionsTable, collaborators as collaboratorsTable, tickets as ticketsTable } from "@shared/schema";
+import { budgetNotes, eventComments as eventCommentsTable, users, functionManagers as functionManagersTable, budgetPlanned as budgetPlannedTable, events as eventsTable, swapRequests as swapRequestsTable, teamInclusions as teamInclusionsTable, collaborators as collaboratorsTable, tickets as ticketsTable, comments as commentsTable } from "@shared/schema";
 import { eq, and, inArray, desc, sql as drizzleSql } from "drizzle-orm";
 import { 
   insertEventSchema,
@@ -1508,11 +1508,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Function Managers routes
   // Retorna todos os function managers em uma única query (evita N+1 no frontend)
+  /**
+   * Responsáveis por função, com o NOME de quem responde (01/09).
+   *
+   * A Escalação precisa dizer "quem escala esta vaga" na linha que o usuário
+   * não pode mexer. Só o userId não serve para escrever isso, e carregar a
+   * lista inteira de usuários na tela para traduzir um id seria desproporcional.
+   *
+   * O campo é aditivo: quem já consumia { functionId, userId } continua igual.
+   */
   app.get("/api/function-managers/all", async (req, res) => {
     try {
-      const all = await db.select().from(functionManagersTable);
+      const all = await db
+        .select({
+          functionId: functionManagersTable.functionId,
+          userId: functionManagersTable.userId,
+          userName: users.name,
+        })
+        .from(functionManagersTable)
+        .leftJoin(users, eq(functionManagersTable.userId, users.id));
       res.json(all);
     } catch (error) {
+      console.error("erro ao buscar responsáveis:", error);
       res.status(500).json({ message: "Erro ao buscar responsáveis" });
     }
   });
@@ -3468,6 +3485,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Comments routes
+  /**
+   * Quantos comentários cada vaga tem (01/09).
+   *
+   * A lista da Escalação mostra o número no botão de comentários — sem ele, o
+   * ícone é igual em quem tem uma conversa de dez mensagens e em quem nunca
+   * recebeu nada, e a pessoa precisa abrir cada registro para descobrir.
+   *
+   * É uma agregação no banco de propósito: /api/all-comments desce o texto de
+   * TODOS os comentários do sistema, o que seria um exagero para exibir um
+   * contador numa coluna de 30px.
+   */
+  app.get("/api/comments/counts", async (req, res) => {
+    try {
+      const linhas = await db
+        .select({ teamInclusionId: commentsTable.teamInclusionId, n: drizzleSql`count(*)::int` })
+        .from(commentsTable)
+        .groupBy(commentsTable.teamInclusionId);
+      res.set("Cache-Control", "no-store");
+      res.json(linhas);
+    } catch (error) {
+      console.error("erro ao contar comentários:", error);
+      res.status(500).json({ message: "Erro ao contar comentários" });
+    }
+  });
+
   app.get("/api/comments/:teamInclusionId", async (req, res) => {
     try {
       const { teamInclusionId } = req.params;

@@ -86,11 +86,34 @@ export function useScalingData(opts: {
 
   const { data: events, isLoading: isLoadingEvents } = useQuery<Event[]>({ queryKey: ["/api/events"], staleTime: 300_000 });
   const { data: functions, isLoading: isLoadingFunctions } = useQuery<Function[]>({ queryKey: ["/api/functions"], staleTime: 300_000 });
-  // Managers de todas as funções — uma única requisição
-  const { data: allFunctionManagers, isLoading: isLoadingManagers } = useQuery<{ functionId: string; userId: string }[]>({
+  // Managers de todas as funções — uma única requisição. `userName` (01/09)
+  // é o que permite a linha dizer QUEM escala a vaga que você não pode mexer.
+  const { data: allFunctionManagers, isLoading: isLoadingManagers } = useQuery<{ functionId: string; userId: string; userName?: string | null }[]>({
     queryKey: ["/api/function-managers/all"],
     staleTime: 300_000,
   });
+
+  /**
+   * Quantos comentários cada vaga tem. Agregação no banco: sem ela, o ícone da
+   * lista é igual em quem tem dez mensagens e em quem nunca recebeu nada, e a
+   * pessoa precisa abrir cada registro para descobrir.
+   */
+  const { data: commentCounts } = useQuery<{ teamInclusionId: string; n: number }[]>({
+    queryKey: ["/api/comments/counts"],
+    staleTime: 60_000,
+    // A rota é nova: numa implantação atrasada o servidor responde o HTML do
+    // SPA, e a tela fica sem o contador em vez de quebrar inteira.
+    queryFn: async () => {
+      const r = await fetch("/api/comments/counts", { credentials: "include" });
+      if (!r.ok || !r.headers.get("content-type")?.includes("application/json")) return [];
+      return r.json();
+    },
+  });
+  const commentCountByInclusion = useMemo(() => {
+    const m = new Map<string, number>();
+    (commentCounts || []).forEach((c) => { if (c.teamInclusionId) m.set(c.teamInclusionId, Number(c.n) || 0); });
+    return m;
+  }, [commentCounts]);
   const { data: collaborators, isLoading: isLoadingCollaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"], staleTime: 300_000 });
   const { data: accommodations } = useQuery<Accommodation[]>({ queryKey: ["/api/accommodations"] });
   const { data: tickets } = useQuery<Ticket[]>({ queryKey: ["/api/tickets"] });
@@ -226,6 +249,23 @@ export function useScalingData(opts: {
     () => new Set((allFunctionManagers || []).filter(m => m.userId === user?.id).map(m => m.functionId)),
     [allFunctionManagers, user?.id],
   );
+
+  /** Quem responde pela função, por extenso. Vazio quando não há responsável. */
+  const responsaveisPorFuncao = useMemo(() => {
+    const m = new Map<string, string[]>();
+    (allFunctionManagers || []).forEach((fm) => {
+      const nome = (fm.userName || "").trim();
+      if (!nome) return;
+      const lista = m.get(fm.functionId);
+      if (lista) { if (!lista.includes(nome)) lista.push(nome); } else m.set(fm.functionId, [nome]);
+    });
+    return m;
+  }, [allFunctionManagers]);
+  const getResponsavelDaFuncao = (functionId: string): string | null => {
+    const nomes = responsaveisPorFuncao.get(functionId);
+    if (!nomes || nomes.length === 0) return null;
+    return nomes.length === 1 ? nomes[0] : `${nomes[0]} e mais ${nomes.length - 1}`;
+  };
 
   const isAdminRole = !!user?.role && ADMIN_ROLES.includes(user.role);
   const isAdminOrPurchasing = hasRoleIn(user?.role, ["admin", "purchasing"]);
@@ -479,6 +519,7 @@ export function useScalingData(opts: {
     // índices
     eventById, functionById, collaboratorById, ticketByInclusion, purchasedTicketByInclusion,
     accommodationByInclusion, pendingChangeByInclusion, pendingSwapByInclusion, approvedSwapInclusionIds, firstSwapByInclusion,
+    commentCountByInclusion, getResponsavelDaFuncao,
     // listas
     filteredTeamInclusions, scalingInclusions,
     pendingSwapInclusionsAll, pendingSwapInclusionsInView,
@@ -501,12 +542,12 @@ export type ScalingData = ReturnType<typeof useScalingData>;
 export function useInclusionDetails(inclusionId: string | undefined) {
   const enabled = !!inclusionId;
 
-  const { data: comments } = useQuery<Comment[]>({
+  const { data: comments, isLoading: isLoadingComments } = useQuery<Comment[]>({
     queryKey: ["/api/comments", inclusionId],
     enabled,
   });
 
-  const { data: inclusionLogs } = useQuery<TeamInclusionLog[]>({
+  const { data: inclusionLogs, isLoading: isLoadingLogs } = useQuery<TeamInclusionLog[]>({
     queryKey: ["/api/team-inclusions", inclusionId, "logs"],
     enabled,
   });
@@ -535,7 +576,15 @@ export function useInclusionDetails(inclusionId: string | undefined) {
   const pendingSwap = swapRequests.find(s => s.status === "pendente");
   const latestSwap = swapRequests[0]; // mais recente (pode ser rejeitado/cancelado)
 
-  return { comments, inclusionLogs, swapRequests, pendingSwap, latestSwap, users, refetchUsers };
+  /**
+   * O histórico tem esqueleto próprio porque vem de OUTRA consulta: mostrar
+   * "nenhum comentário" enquanto ela ainda corre é afirmar uma coisa que não
+   * se sabe — e é justamente na aba de histórico que a ausência de conteúdo
+   * costuma ser lida como fato.
+   */
+  const isLoadingHistorico = enabled && (isLoadingComments || isLoadingLogs);
+
+  return { comments, inclusionLogs, swapRequests, pendingSwap, latestSwap, users, refetchUsers, isLoadingHistorico };
 }
 
 export type InclusionDetails = ReturnType<typeof useInclusionDetails>;

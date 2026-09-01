@@ -92,6 +92,12 @@ export interface ScalingTableProps {
   canManageFunction: (functionId: string) => boolean;
   /** Quem aprova cenotécnica vê "aguardando gestor" como coisa sua. */
   canApproveProduction: boolean;
+  /** Quantos comentários cada vaga tem — o botão mostra o número. */
+  commentCountByInclusion?: Map<string, number>;
+  /** Nome de quem responde pela função, para o título da linha travada. */
+  getResponsavelDaFuncao?: (functionId: string) => string | null;
+  /** Passagem efetivamente comprada — decide se o chip está resolvido. */
+  temPassagemComprada?: (inclusion: TeamInclusion) => boolean;
   /** Evento encerrado / somente leitura: nada de botão que a API vai negar. */
   readOnly?: boolean;
   // ── Seleção múltipla (ações em massa) ──
@@ -138,25 +144,43 @@ function diaMes(valor: string | Date | null | undefined): string | null {
 export function detalheDaSituacao(
   inclusion: TeamInclusion,
   opts: { swap?: NormalizedSwap; pedido?: PendingChangeRequest },
-): { texto: string; tom: "troca" | "pedido" | "neutro" } | null {
+): { texto: string; titulo: string; tom: "troca" | "pedido" | "neutro" } | null {
   if (opts.swap) {
     const nome = opts.swap.newCollaboratorName?.trim();
-    return { texto: nome ? `Troca para ${nome} em análise` : "Troca em análise", tom: "troca" };
+    const texto = nome ? `Troca para ${nome} em análise` : "Troca em análise";
+    // O título carrega quem pediu e por quê: a linha tem espaço para a frase
+    // curta, mas essa informação não pode sumir da lista — era o que o antigo
+    // badge "Troca pendente" guardava no hover.
+    const porQuem = opts.swap.requestedByName?.trim();
+    return {
+      texto,
+      titulo: [texto, porQuem ? `pedida por ${porQuem}` : null, opts.swap.reason?.trim() || null]
+        .filter(Boolean).join(" · "),
+      tom: "troca",
+    };
   }
   if (opts.pedido) {
     const tipo = opts.pedido.requestType === "exclusao" ? "exclusão" : "ajuste";
     const quando = diaMes(opts.pedido.createdAt);
-    return { texto: `Pedido de ${tipo} com o aprovador${quando ? ` desde ${quando}` : ""}`, tom: "pedido" };
+    const texto = `Pedido de ${tipo} com o aprovador${quando ? ` desde ${quando}` : ""}`;
+    return {
+      texto,
+      titulo: [texto, opts.pedido.requestedByName ? `por ${opts.pedido.requestedByName}` : null, opts.pedido.reason || null]
+        .filter(Boolean).join(" · "),
+      tom: "pedido",
+    };
   }
   if (inclusion.status === "aguardando_producao") {
     // `updatedAt` é a melhor aproximação da transição: quando o status é este,
     // a última gravação foi justamente o envio ao gestor.
     const quando = diaMes(inclusion.updatedAt);
-    return { texto: quando ? `Enviada ao gestor em ${quando}` : "Enviada ao gestor", tom: "neutro" };
+    const texto = quando ? `Enviada ao gestor em ${quando}` : "Enviada ao gestor";
+    return { texto, titulo: texto, tom: "neutro" };
   }
   const aprovado = diaMes(inclusion.approvedByProductionAt);
   if (aprovado && getScalingStatusKey(inclusion) === "aprovado") {
-    return { texto: `Aprovada pelo gestor em ${aprovado}`, tom: "neutro" };
+    const texto = `Aprovada pelo gestor em ${aprovado}`;
+    return { texto, titulo: texto, tom: "neutro" };
   }
   return null;
 }
@@ -170,20 +194,50 @@ const NEED_FALTA = "bg-[#FEF3C7] text-[#92400E]";
 
 export function needsDaLinha(
   inclusion: TeamInclusion,
-  opts: { ticket?: Ticket; funcao: string },
+  opts: {
+    ticket?: Ticket;
+    funcao: string;
+    /** Passagem efetivamente COMPRADA (não só registrada). */
+    passagemComprada?: boolean;
+    /** Reserva de hotel já existente. */
+    hospedagem?: Accommodation;
+  },
 ): Need[] {
   const needs: Need[] = [];
+  // O chip diz do que a vaga precisa E se aquilo já está resolvido: azul
+  // quando está, âmbar enquanto falta. A lista antiga trazia essa informação
+  // numa pílula roxa separada ("Hotel"), que dizia "reservada" com a mesma
+  // palavra que a coluna ao lado usava para dizer "precisa" — duas leituras
+  // possíveis para o mesmo rótulo.
   if (inclusion.needsTicket) {
     const tipo = opts.ticket?.transportType;
+    const comprada = !!opts.passagemComprada;
+    const nome = tipo === "van" ? "Van" : tipo === "rodoviario" ? "Rodoviária" : "Passagem";
+    const anexos = opts.ticket?.attachmentIds?.length ?? 0;
     needs.push({
       key: "transporte",
       icon: tipo === "rodoviario" ? <Bus className="w-3.5 h-3.5" aria-hidden="true" /> : <Plane className="w-3.5 h-3.5" aria-hidden="true" />,
-      label: tipo === "van" ? "Van" : tipo === "rodoviario" ? "Rodoviária" : "Passagem",
-      title: "Precisa de transporte", cls: NEED_INFO,
+      label: nome,
+      title: comprada
+        ? `${nome} comprada${anexos ? ` · ${anexos} ${anexos === 1 ? "anexo" : "anexos"}` : ""}`
+        : `Precisa de transporte — ainda não comprada`,
+      cls: comprada ? NEED_INFO : NEED_FALTA,
     });
   }
   if (inclusion.needsAccommodation) {
-    needs.push({ key: "hotel", icon: <BedDouble className="w-3.5 h-3.5" aria-hidden="true" />, label: "Hotel", title: "Precisa de hospedagem", cls: NEED_INFO });
+    const reservada = !!opts.hospedagem;
+    // O clipe colado em "Hotel 📎" escondia um dado real num caractere; a
+    // contagem de anexos passa para o título, onde dá para ler.
+    const anexos = opts.hospedagem?.attachmentIds?.length ?? 0;
+    needs.push({
+      key: "hotel",
+      icon: <BedDouble className="w-3.5 h-3.5" aria-hidden="true" />,
+      label: "Hotel",
+      title: reservada
+        ? `Hospedagem reservada${opts.hospedagem?.hotelName ? ` · ${opts.hospedagem.hotelName}` : ""}${anexos ? ` · ${anexos} ${anexos === 1 ? "anexo" : "anexos"}` : ""}`
+        : "Precisa de hospedagem — ainda não reservada",
+      cls: reservada ? NEED_INFO : NEED_FALTA,
+    });
   }
   if (inclusion.emitsNf === false) {
     needs.push({ key: "nf", icon: <Receipt className="w-3.5 h-3.5" aria-hidden="true" />, label: "Sem NF", title: "Não emite nota fiscal", cls: NEED_NEUTRO });
@@ -249,6 +303,7 @@ export default function ScalingTable({
   getTicket, getAccommodation,
   pendingSwapByInclusion, pendingChangeByInclusion, approvedSwapInclusionIds, seenSwapIds,
   currentUserId, isAdminOrPurchasing, canManageFunction, canApproveProduction, readOnly = false,
+  commentCountByInclusion, getResponsavelDaFuncao, temPassagemComprada,
   selectedIds, getSelectBlockReason, onToggleSelect, onToggleAllVisible,
 }: ScalingTableProps) {
   // Corte de renderização (auditoria 28/08): sem filtro, a tela montava TODAS
@@ -326,7 +381,11 @@ export default function ScalingTable({
               const cancelada = inclusion.status === "cancelado";
               const podeGerir = canManageFunction(inclusion.functionId) && !readOnly;
               const vazia = !inclusion.collaboratorId && !cancelada;
-              const needs = needsDaLinha(inclusion, { ticket, funcao });
+              const needs = needsDaLinha(inclusion, {
+                ticket, funcao,
+                passagemComprada: temPassagemComprada?.(inclusion) ?? !!ticket?.purchaseDate,
+                hospedagem: getAccommodation(inclusion.id),
+              });
               const detalhe = detalheDaSituacao(inclusion, { swap: mostraSwap ? swap : undefined, pedido });
 
               // O marcador de 3px responde a uma pergunta só: isto espera
@@ -400,9 +459,16 @@ export default function ScalingTable({
                       </button>
                     ) : (
                       <span
-                        title={readOnly
-                          ? "Esta lista está em modo consulta."
-                          : `Quem responde por ${funcao} escala esta vaga. Você pode consultar.`}
+                        title={(() => {
+                          if (readOnly) return "Esta lista está em modo consulta.";
+                          const quem = getResponsavelDaFuncao?.(inclusion.functionId);
+                          // Com o nome, a linha travada vira um encaminhamento:
+                          // a pessoa sabe a quem pedir em vez de só descobrir
+                          // que não pode.
+                          return quem
+                            ? `Quem escala esta vaga é ${quem}, responsável por ${funcao}. Você pode consultar.`
+                            : `Quem responde por ${funcao} escala esta vaga. Você pode consultar.`;
+                        })()}
                         className="inline-flex items-center gap-1.5 text-[13px] text-slate-400"
                       >
                         <Lock className="w-3.5 h-3.5" aria-hidden="true" />Não escalado
@@ -438,7 +504,7 @@ export default function ScalingTable({
                       {detalhe && (
                         <span
                           className={`text-[11px] truncate ${detalhe.tom === "troca" ? "text-[#7E22CE]" : detalhe.tom === "pedido" ? "text-[#92400E]" : "text-muted-foreground"}`}
-                          title={detalhe.texto}
+                          title={detalhe.titulo}
                           data-testid={`detalhe-situacao-${inclusion.id}`}
                         >
                           {detalhe.texto}
@@ -452,16 +518,32 @@ export default function ScalingTable({
 
                   <td className="px-3" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-0.5">
-                      <button
-                        type="button"
-                        className="inline-flex items-center justify-center w-[30px] h-[30px] rounded-lg text-slate-400 hover:bg-brand-soft hover:text-primary transition-colors"
-                        onClick={(e) => onViewComments(e, inclusion)}
-                        title="Comentários e histórico"
-                        aria-label={`Abrir comentários e histórico da escalação ${idLabel}`}
-                        data-testid={`button-comments-${inclusion.id}`}
-                      >
-                        <MessageSquare className="w-[17px] h-[17px]" aria-hidden="true" />
-                      </button>
+                      {(() => {
+                        const nComments = commentCountByInclusion?.get(inclusion.id) ?? 0;
+                        return (
+                          <button
+                            type="button"
+                            className="relative inline-flex items-center justify-center w-[30px] h-[30px] rounded-lg text-slate-400 hover:bg-brand-soft hover:text-primary transition-colors"
+                            onClick={(e) => onViewComments(e, inclusion)}
+                            title={nComments === 0
+                              ? "Comentários e histórico"
+                              : `${nComments} ${nComments === 1 ? "comentário" : "comentários"} · abrir histórico`}
+                            aria-label={`Abrir comentários e histórico da escalação ${idLabel}${nComments ? ` (${nComments})` : ""}`}
+                            data-testid={`button-comments-${inclusion.id}`}
+                          >
+                            <MessageSquare className="w-[17px] h-[17px]" aria-hidden="true" />
+                            {nComments > 0 && (
+                              <span
+                                aria-hidden="true"
+                                className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[14px] h-[14px] px-[3px] rounded-full bg-primary text-white text-[9px] font-bold leading-none tabular-nums"
+                                data-testid={`badge-comments-${inclusion.id}`}
+                              >
+                                {nComments > 9 ? "9+" : nComments}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })()}
                       <button
                         type="button"
                         className="inline-flex items-center justify-center w-[30px] h-[30px] rounded-lg text-slate-400 hover:bg-brand-soft hover:text-primary transition-colors"

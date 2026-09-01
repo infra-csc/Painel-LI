@@ -113,7 +113,7 @@ export default function BulkConfirmBar({ selected, onClear, getEventName, getFun
       )}
 
       <AlertDialog open={open} onOpenChange={(o) => { if (!o) close(); }}>
-        <AlertDialogContent className="max-w-[560px] rounded-[14px] p-0 gap-0 overflow-hidden" data-testid="dialog-bulk-confirm">
+        <AlertDialogContent className="max-w-[580px] rounded-[14px] p-0 gap-0 overflow-hidden" data-testid="dialog-bulk-confirm">
           <div className="px-6 pt-6 pb-4">
             <AlertDialogHeader className="space-y-1 text-left">
               <AlertDialogTitle className="text-[16px] font-bold text-slate-900">

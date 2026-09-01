@@ -13,7 +13,7 @@ import { ptBR } from "date-fns/locale";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
+import EscolherColaborador from "./escolher-colaborador";
 import type { TeamInclusion, Collaborator } from "@shared/schema";
 import ConfirmDialog from "./confirm-dialog";
 import { formatShortDateTime, parseDay, type NormalizedSwap } from "./scaling-utils";
@@ -397,12 +397,15 @@ export function SwapRequestDialog({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[10px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5 block">Novo colaborador</label>
-                <CollaboratorCombobox
-                  collaborators={(collaborators || []).filter(c => c.id !== inclusion.collaboratorId)}
-                  value={newCollaboratorId}
-                  onValueChange={(v) => { setNewCollaboratorId(v); setSubmitAttempted(false); }}
-                  placeholder="Selecione o colaborador"
-                  hideAll={true}
+                {/* O conflito de agenda aparece NA LISTA, não depois de
+                    escolher: descobrir que a pessoa não pode só ao selecioná-la
+                    é fazer o trabalho duas vezes. */}
+                <EscolherColaborador
+                  colaboradores={(collaborators || []).filter(c => c.id !== inclusion.collaboratorId)}
+                  inclusion={inclusion}
+                  getConflitos={getCollaboratorConflicts}
+                  getEventName={getEventName}
+                  onEscolher={(v) => { setNewCollaboratorId(v); setSubmitAttempted(false); }}
                 />
                 {collabEmpty && <p className="text-[10px] text-red-500 mt-1">Selecione um novo colaborador.</p>}
                 {isSameCollab && <p className="text-[10px] text-red-500 mt-1">Precisa ser diferente do atual.</p>}
