@@ -140,7 +140,9 @@ export default function VoucherLoteDialog({
 
   const resumoCampos = (c: Record<string, string>) => {
     const partes: string[] = [];
-    if (c.purchaseOrderNumber) partes.push(`LOC ${c.purchaseOrderNumber}`);
+    // Rodoviária chama o mesmo campo de "Bilhete" no formulário; o resumo
+    // precisa falar a mesma língua de quem vai conferir.
+    if (c.purchaseOrderNumber) partes.push(`${c.transportType === "rodoviario" ? "Bilhete" : "LOC"} ${c.purchaseOrderNumber}`);
     if (c.departureAirport && c.destinationAirport) partes.push(`${c.departureAirport}→${c.destinationAirport}`);
     if (c.actualDepartureDate) partes.push(`ida ${c.actualDepartureDate.split("-").reverse().join("/")} ${c.actualDepartureTime ?? ""}`.trim());
     if (c.actualReturnDate) partes.push(`volta ${c.actualReturnDate.split("-").reverse().join("/")} ${c.actualReturnTime ?? ""}`.trim());

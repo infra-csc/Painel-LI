@@ -658,9 +658,182 @@ export function lerVoucherHospedagem(texto: string): VoucherLeitura | null {
   };
 }
 
+// ─── Passagem rodoviária (QueroPassagem e semelhantes) ─────────────────────
+//
+// Layout diferente do aéreo em tudo o que importa: os dois trechos vêm em
+// blocos "VIAGEM DE IDA" / "VIAGEM DE VOLTA", cada um com o seu localizador,
+// e as rodoviárias aparecem por extenso ("São Paulo, SP - Barra Funda") em
+// vez da sigla de três letras.
+
+/** "São Paulo, SP - Barra Funda" → cidade e terminal, separados. */
+function rodoviaria(linha: string): { cidade: string; terminal: string } {
+  const texto = linha.trim();
+  // "Cidade, UF - Terminal". Sem o traço, o nome inteiro é o terminal.
+  const m = texto.match(/^(.+?),\s*[A-Za-z]{2}\s*[-–—]\s*(.+)$/);
+  if (m) return { cidade: capitalizar(m[1]), terminal: m[2].trim() };
+  const semUf = texto.match(/^(.+?),\s*[A-Za-z]{2}$/);
+  if (semUf) return { cidade: capitalizar(semUf[1]), terminal: "" };
+  return { cidade: "", terminal: texto };
+}
+
+/**
+ * A seção "RODOVIÁRIA DE EMBARQUE (IDA)" e suas três irmãs: o cabeçalho diz
+ * qual ponta de qual trecho, e a linha seguinte traz o nome. É a fonte mais
+ * confiável do arquivo — a linha "Trecho:" junta as duas pontas com uma seta
+ * que nem sempre sobrevive à extração do PDF.
+ */
+function pontoRodoviario(
+  linhas: string[],
+  qual: "EMBARQUE" | "DESEMBARQUE",
+  trecho: "IDA" | "VOLTA",
+): { cidade: string; terminal: string } | null {
+  const cabecalho = new RegExp(`RODOVI[ÁA]RIA\\s+DE\\s+${qual}\\s*\\(\\s*${trecho}\\s*\\)`, "i");
+  const i = linhas.findIndex((l) => cabecalho.test(l));
+  if (i < 0) return null;
+  const nome = (linhas[i + 1] ?? "").trim();
+  if (!nome) return null;
+  return rodoviaria(nome);
+}
+
+/** "03/09/2026 07:00:00" → data ISO e hora sem os segundos. */
+function dataEHoraRodoviaria(texto: string): { data: string; hora: string } | null {
+  const m = texto.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  return { data: `${m[3]}-${m[2]}-${m[1]}`, hora: `${m[4].padStart(2, "0")}:${m[5]}` };
+}
+
+/** "2026-09-07" → "07/09" (só para caber na frase do aviso). */
+function diaMesBr(iso: string): string {
+  const [, mes, dia] = iso.split("-");
+  return `${dia}/${mes}`;
+}
+
+interface TrechoRodoviario {
+  partida: { data: string; hora: string } | null;
+  chegada: { data: string; hora: string } | null;
+  localizador: string;
+  poltrona: string;
+  classe: string;
+}
+
+/** Lê um bloco "VIAGEM DE IDA"/"VIAGEM DE VOLTA" inteiro. */
+function lerTrechoRodoviario(bloco: string): TrechoRodoviario {
+  // Rótulo e valor caem em linhas separadas na extração do PDF; o \s* depois
+  // dos dois-pontos cobre os dois casos sem precisar de dois padrões.
+  const acha = (rotulo: string, valor: string) =>
+    bloco.match(new RegExp(`${rotulo}:\\s*(${valor})`, "i"))?.[1]?.trim() ?? "";
+  const partida = acha("Partida", "\\d{2}/\\d{2}/\\d{4}\\s+[\\d:]+");
+  const chegada = acha("Chegada", "\\d{2}/\\d{2}/\\d{4}\\s+[\\d:]+");
+  return {
+    partida: partida ? dataEHoraRodoviaria(partida) : null,
+    chegada: chegada ? dataEHoraRodoviaria(chegada) : null,
+    localizador: acha("Localizador", "[A-Za-z0-9]{4,10}").toUpperCase(),
+    poltrona: acha("Poltrona", "\\d{1,3}"),
+    classe: acha("Classe", "[A-Za-zÀ-ÿ]+(?: [A-Za-zÀ-ÿ]+)?"),
+  };
+}
+
+export function lerVoucherRodoviario(texto: string): VoucherLeitura | null {
+  if (!/VIAGEM\s+DE\s+(IDA|VOLTA)/i.test(texto)) return null;
+  if (!/RODOVI[ÁA]RIA|Poltrona/i.test(texto)) return null;
+
+  const linhas = texto.split(/\r?\n/);
+  const avisos: string[] = [];
+  const campos: Record<string, string> = { transportType: "rodoviario" };
+
+  const iIda = texto.search(/VIAGEM\s+DE\s+IDA/i);
+  const iVolta = texto.search(/VIAGEM\s+DE\s+VOLTA/i);
+  // O bloco da ida termina onde começa o da volta; o da volta vai até as
+  // seções de rodoviária, que já não pertencem a nenhum dos dois.
+  const fimDosTrechos = texto.search(/RODOVI[ÁA]RIA\s+DE\s+EMBARQUE/i);
+  const fim = (depois: number) => (fimDosTrechos > depois ? fimDosTrechos : texto.length);
+
+  const ida = iIda >= 0
+    ? lerTrechoRodoviario(texto.slice(iIda, iVolta > iIda ? iVolta : fim(iIda)))
+    : null;
+  const volta = iVolta >= 0 ? lerTrechoRodoviario(texto.slice(iVolta, fim(iVolta))) : null;
+
+  // "Bilhete" no formulário é o número da compra, não o localizador: cada
+  // trecho tem o seu e o campo é um só.
+  const comprovante = texto.match(/Comprovante:\s*([A-Za-z0-9-]{4,20})/i);
+  if (comprovante) campos.purchaseOrderNumber = comprovante[1].toUpperCase();
+
+  if (ida) {
+    const origem = pontoRodoviario(linhas, "EMBARQUE", "IDA");
+    const destino = pontoRodoviario(linhas, "DESEMBARQUE", "IDA");
+    if (origem?.terminal) campos.departureAirport = origem.terminal;
+    if (origem?.cidade) campos.departureCityOrigin = origem.cidade;
+    if (destino?.terminal) campos.destinationAirport = destino.terminal;
+    if (destino?.cidade) campos.departureCityDestination = destino.cidade;
+    if (ida.partida) {
+      campos.actualDepartureDate = ida.partida.data;
+      campos.actualDepartureTime = ida.partida.hora;
+    } else {
+      avisos.push("Não consegui ler o embarque da ida — confira.");
+    }
+    if (ida.chegada) campos.actualArrivalTime = ida.chegada.hora;
+  }
+
+  if (volta) {
+    const origem = pontoRodoviario(linhas, "EMBARQUE", "VOLTA");
+    const destino = pontoRodoviario(linhas, "DESEMBARQUE", "VOLTA");
+    if (origem?.terminal) campos.returnOriginAirport = origem.terminal;
+    if (origem?.cidade) campos.returnCityOrigin = origem.cidade;
+    if (destino?.terminal) campos.returnDestinationAirport = destino.terminal;
+    if (destino?.cidade) campos.returnCityDestination = destino.cidade;
+    if (volta.partida) {
+      campos.actualReturnDate = volta.partida.data;
+      campos.actualReturnTime = volta.partida.hora;
+    } else {
+      avisos.push("Não consegui ler o embarque da volta — confira.");
+    }
+    if (volta.chegada) campos.returnArrivalTime = volta.chegada.hora;
+    // Ônibus noturno desembarca no dia seguinte. Só o horário é gravado, e
+    // "chega 06:30" lido sozinho parece o mesmo dia — é diferença que muda
+    // diária de hotel e mobilidade de madrugada.
+    if (volta.partida && volta.chegada && volta.chegada.data !== volta.partida.data) {
+      avisos.push(
+        `A volta embarca ${diaMesBr(volta.partida.data)} e desembarca ${diaMesBr(volta.chegada.data)} — vira o dia.`,
+      );
+    }
+  }
+
+  // Não existe campo para localizador, poltrona nem classe: vão no aviso,
+  // para quem confere não precisar reabrir o PDF.
+  const detalhe = (t: TrechoRodoviario) =>
+    [t.localizador, t.poltrona && `poltrona ${t.poltrona}`, t.classe].filter(Boolean).join(" · ");
+  const detalhes = [ida && `ida ${detalhe(ida)}`, volta && `volta ${detalhe(volta)}`].filter(Boolean);
+  if (detalhes.length) avisos.push(`Localizador e assento: ${detalhes.join(" | ")}.`);
+
+  // Igual ao voucher da Onfly: este comprovante não estampa preço nenhum.
+  avisos.push("Este comprovante não traz o valor — preencha o Valor da Passagem à mão.");
+
+  const passageiro = texto.match(/Passageiro:\s*(.+)/i);
+  const pessoa = passageiro ? capitalizar(passageiro[1].trim()) : undefined;
+
+  const umTrechoSo = !(ida && volta);
+  if (umTrechoSo) {
+    avisos.push("Este comprovante traz um trecho só. Confira se é a ida ou a volta antes de registrar.");
+  }
+
+  return {
+    tipo: "passagem",
+    formato: "Passagem rodoviária",
+    campos,
+    pessoa,
+    pessoas: pessoa ? [pessoa] : undefined,
+    trechoUnico: umTrechoSo,
+    avisos,
+  };
+}
+
 /** Reconhece o arquivo e devolve o que der para aproveitar. */
 export function lerVoucher(texto: string): VoucherLeitura {
   return (
+    // O rodoviário antes do voucher da agência: aquele detecta por
+    // "LOCALIZADOR:", que o bilhete de ônibus também tem, e leria a viagem
+    // de ônibus como se fosse um voo.
+    lerVoucherRodoviario(texto) ??
     lerVoucherPassagem(texto) ??
     lerVoucherAereoOnfly(texto) ??
     // Os dois de hotel antes do da Onfly: o detector dele é genérico

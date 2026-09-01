@@ -132,6 +132,21 @@ export default function TicketModal({
     };
   }, [inclusion, data.systemSettings, data.functionById]);
 
+  // Um anexo só: o PDF do voucher vira comprovante E preenche os campos
+  // (pedido do dono, 28/08 — "não ter dois pra subir").
+  //
+  // Precisa ficar ANTES do early return abaixo. É um hook: chamado só depois
+  // que a inclusão chega, o React vê no segundo render uma lista de hooks
+  // maior que a do primeiro ("Rendered more hooks than during the previous
+  // render") e a tela inteira cai no ErrorBoundary ao abrir a passagem.
+  const voucher = useVoucherFill({
+    colaborador: inclusion?.collaboratorId ? data.getCollaboratorName(inclusion.collaboratorId) : undefined,
+    trecho: form.isReturnOnly ? "so_volta" : form.isOneWay ? "so_ida" : "ida_volta",
+    onPreencher: (campos: Record<string, string>) => {
+      if (inclusion) handlers.onPatch(inclusion.id, campos);
+    },
+  });
+
   if (!inclusion) {
     return (
       <Dialog open={open} onOpenChange={(o) => { if (!o) onRequestClose(); }} modal={!successOpen}>
@@ -166,14 +181,6 @@ export default function TicketModal({
       } : {}),
     });
   };
-
-  // Um anexo só: o PDF do voucher vira comprovante E preenche os campos
-  // (pedido do dono, 28/08 — "não ter dois pra subir").
-  const voucher = useVoucherFill({
-    colaborador: inclusion.collaboratorId ? data.getCollaboratorName(inclusion.collaboratorId) : undefined,
-    trecho: form.isReturnOnly ? "so_volta" : form.isOneWay ? "so_ida" : "ida_volta",
-    onPreencher: (campos: Record<string, string>) => handlers.onPatch(sid, campos),
-  });
 
   const useSuggestion = () => {
     const patch = suggestionToFormPatch(suggestion, form);

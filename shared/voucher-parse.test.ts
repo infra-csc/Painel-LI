@@ -448,3 +448,131 @@ describe("relatório de reservas do hotel", () => {
     expect(r.avisos.join(" ")).toMatch(/6 hóspedes/);
   });
 });
+
+/**
+ * Passagem rodoviária (01/09) — texto real do comprovante, com o passageiro
+ * trocado por um nome fictício. Formato que precisa ser reconhecido ANTES do
+ * voucher da agência: ele detecta por "LOCALIZADOR:", que este arquivo também
+ * tem, e leria a viagem de ônibus como se fosse um voo.
+ */
+const RODOVIARIA = `Confirmação de Compra
+Comprovante: 20804178
+VIAGEM DE IDA
+Passageiro: FULANA ANDRADE ALVES DA SILVA
+Bilhete Eletrônico
+Clique Aqui
+Trecho:
+São Paulo, SP - Barra Funda→Londrina, PR - Terminal José Garcia Villar
+Partida:
+03/09/2026 07:00:00
+Chegada:
+03/09/2026 14:45:00
+Seguro:
+Não contratado
+Classe:
+LEITO
+Poltrona:
+32
+Localizador:
+NKCFOUT
+VIAGEM DE VOLTA
+Passageiro: FULANA ANDRADE ALVES DA SILVA
+Bilhete Eletrônico
+Clique Aqui
+Trecho:
+Londrina, PR - Terminal José Garcia Villar→São Paulo, SP - Barra Funda
+Partida:
+06/09/2026 23:30:00
+Chegada:
+07/09/2026 06:30:00
+Seguro:
+Não contratado
+Classe:
+LEITO
+Poltrona:
+29
+Localizador:
+NZCFOUN
+RODOVIÁRIA DE EMBARQUE (IDA)
+São Paulo, SP - Barra Funda
+R. Jorn. Aloysio Biondi, 215 - 556 - Barra Funda São Paulo, SP
+RODOVIÁRIA DE DESEMBARQUE (IDA)
+Londrina, PR - Terminal José Garcia Villar
+Av. Dez de Dezembro, 1830 – Centro Londrina – PR
+RODOVIÁRIA DE EMBARQUE (VOLTA)
+Londrina, PR - Terminal José Garcia Villar
+Av. Dez de Dezembro, 1830 – Centro Londrina – PR
+RODOVIÁRIA DE DESEMBARQUE (VOLTA)
+São Paulo, SP - Barra Funda
+R. Jorn. Aloysio Biondi, 215 - 556 - Barra Funda São Paulo, SP
+ORIENTAÇÕES PARA RETIRADA DA PASSAGEM
+Bilhete Eletrônico: Imprima o bilhete eletrônico e apresente-se com documento original diretamente na plataforma de embarque.`;
+
+describe("passagem rodoviária", () => {
+  const r = lerVoucher(RODOVIARIA);
+
+  it("é lida como rodoviária, e não como voo", () => {
+    // O detector do voucher da agência ("LOCALIZADOR:") casa com este texto:
+    // se a ordem do lerVoucher mudar, este teste cai.
+    expect(r.tipo).toBe("passagem");
+    expect(r.formato).toBe("Passagem rodoviária");
+    expect(r.campos.transportType).toBe("rodoviario");
+  });
+
+  it('"Bilhete" recebe o comprovante da compra, não o localizador', () => {
+    // Cada trecho tem o seu localizador e o campo é um só — o número da
+    // compra é o que identifica a passagem inteira.
+    expect(r.campos.purchaseOrderNumber).toBe("20804178");
+  });
+
+  it("separa a rodoviária da cidade, nas quatro pontas", () => {
+    expect(r.campos.departureAirport).toBe("Barra Funda");
+    expect(r.campos.departureCityOrigin).toBe("São Paulo");
+    expect(r.campos.destinationAirport).toBe("Terminal José Garcia Villar");
+    expect(r.campos.departureCityDestination).toBe("Londrina");
+    expect(r.campos.returnOriginAirport).toBe("Terminal José Garcia Villar");
+    expect(r.campos.returnCityOrigin).toBe("Londrina");
+    expect(r.campos.returnDestinationAirport).toBe("Barra Funda");
+    expect(r.campos.returnCityDestination).toBe("São Paulo");
+  });
+
+  it("lê partida e chegada dos dois trechos", () => {
+    expect(r.campos.actualDepartureDate).toBe("2026-09-03");
+    expect(r.campos.actualDepartureTime).toBe("07:00");
+    expect(r.campos.actualArrivalTime).toBe("14:45");
+    expect(r.campos.actualReturnDate).toBe("2026-09-06");
+    expect(r.campos.actualReturnTime).toBe("23:30");
+    expect(r.campos.returnArrivalTime).toBe("06:30");
+  });
+
+  it("avisa quando o ônibus noturno desembarca no dia seguinte", () => {
+    // Só o HORÁRIO da chegada é gravado: "06:30" lido sozinho parece o mesmo
+    // dia, e a diferença muda diária de hotel e mobilidade de madrugada.
+    expect(r.avisos.join(" ")).toMatch(/embarca 06\/09 e desembarca 07\/09/);
+  });
+
+  it("leva localizador, poltrona e classe para o aviso — não há campo para eles", () => {
+    expect(r.avisos.join(" ")).toMatch(/ida NKCFOUT · poltrona 32 · LEITO/);
+    expect(r.avisos.join(" ")).toMatch(/volta NZCFOUN · poltrona 29 · LEITO/);
+  });
+
+  it("lê o passageiro e avisa que não há valor no comprovante", () => {
+    expect(r.pessoa).toBe("Fulana Andrade Alves da Silva");
+    expect(r.trechoUnico).toBe(false);
+    expect(r.avisos.join(" ")).toMatch(/não traz o valor/i);
+  });
+});
+
+describe("passagem rodoviária só de ida", () => {
+  const soIda = RODOVIARIA.slice(0, RODOVIARIA.indexOf("VIAGEM DE VOLTA"))
+    + RODOVIARIA.slice(RODOVIARIA.indexOf("RODOVIÁRIA DE EMBARQUE (IDA)"), RODOVIARIA.indexOf("RODOVIÁRIA DE EMBARQUE (VOLTA)"));
+  const r = lerVoucher(soIda);
+
+  it("não inventa a volta e marca o trecho como único", () => {
+    expect(r.campos.actualDepartureDate).toBe("2026-09-03");
+    expect(r.campos.actualReturnDate).toBeUndefined();
+    expect(r.campos.returnOriginAirport).toBeUndefined();
+    expect(r.trechoUnico).toBe(true);
+    expect(r.avisos.join(" ")).toMatch(/um trecho só/i);
+  });
+});
