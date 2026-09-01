@@ -10,14 +10,14 @@
  * linhas sobram se eu marcar ISTO mantendo o resto". Por isso a base recebida
  * é sempre a lista SEM o filtro em questão.
  */
-import { useMemo, useState } from "react";
+import { forwardRef, useMemo, useState } from "react";
 import { Check, ChevronDown, CalendarDays, Search, SlidersHorizontal } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { TeamInclusion } from "@shared/schema";
 import ScalingPeriodFilter from "./scaling-period-filter";
 import type { PeriodConfig } from "./scaling-period";
 import {
-  FLAG_GROUPS, contarComFlag, contarFlagsAtivas, normalizarBusca,
+  FLAG_GROUPS, contadoresDasFlags, contarFlagsAtivas, normalizarBusca,
   type FlagKey, type QueueContext,
 } from "./scaling-queue";
 
@@ -50,24 +50,34 @@ interface Props {
   contagem: string;
 }
 
-/** Botão de popover no padrão da barra: 34px, rótulo com o recorte dentro. */
-function BotaoFiltro({ ativo, icone, texto, testid, maxW = "max-w-[320px]" }: {
+/**
+ * Botão de popover no padrão da barra: 34px, rótulo com o recorte dentro.
+ *
+ * Encaminha ref e props porque vai direto dentro de `PopoverTrigger asChild`.
+ * Envolvê-lo num `<span>` fazia o Radix pendurar o clique e o aria-expanded no
+ * span: o botão recebia foco, mas Enter não abria nada — o filtro ficava
+ * inacessível para quem navega por teclado.
+ */
+const BotaoFiltro = forwardRef<HTMLButtonElement, {
   ativo: boolean; icone: React.ReactNode; texto: string; testid: string; maxW?: string;
-}) {
-  return (
+} & React.ButtonHTMLAttributes<HTMLButtonElement>>(
+  ({ ativo, icone, texto, testid, maxW = "max-w-[320px]", className, ...props }, ref) => (
     <button
+      ref={ref}
       type="button"
       data-testid={testid}
-      className={`inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg border bg-card text-[13px] font-medium text-slate-700 ${maxW} hover:bg-slate-100 transition-colors ${
+      {...props}
+      className={`inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg border bg-card text-[13px] font-medium text-slate-700 ${maxW} hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:border-primary ${
         ativo ? "border-[rgba(0,51,204,0.35)]" : "border-border"
-      }`}
+      } ${className ?? ""}`}
     >
       {icone}
       <span className="truncate">{texto}</span>
       <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" aria-hidden="true" />
     </button>
-  );
-}
+  ),
+);
+BotaoFiltro.displayName = "BotaoFiltro";
 
 /** Caixa de marcação desenhada — o Checkbox do shadcn não cabe em 16px aqui. */
 function Caixa({ on }: { on: boolean }) {
@@ -85,6 +95,17 @@ function Caixa({ on }: { on: boolean }) {
 
 export default function ScalingFilterBar(p: Props) {
   const [buscaEvento, setBuscaEvento] = useState("");
+  /**
+   * Os contadores só existem enquanto o popover está aberto — e são
+   * calculados de uma vez, não uma varredura por opção. Com a lista inteira
+   * na tela, a diferença entre as duas coisas é a tela travar ou não a cada
+   * clique.
+   */
+  const [filtrosAberto, setFiltrosAberto] = useState(false);
+  const contagens = useMemo(
+    () => (filtrosAberto ? contadoresDasFlags(p.linhasSemFlags, p.flags, p.queueContext) : {}),
+    [filtrosAberto, p.linhasSemFlags, p.flags, p.queueContext],
+  );
 
   const eventosMarcados = Object.keys(p.eventos).filter((k) => p.eventos[k]);
   const rotuloEvento = eventosMarcados.length === 0
@@ -119,14 +140,12 @@ export default function ScalingFilterBar(p: Props) {
 
       <Popover>
         <PopoverTrigger asChild>
-          <span>
-            <BotaoFiltro
-              ativo={eventosMarcados.length > 0}
-              icone={<CalendarDays className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />}
-              texto={rotuloEvento}
-              testid="button-filtro-evento"
-            />
-          </span>
+          <BotaoFiltro
+            ativo={eventosMarcados.length > 0}
+            icone={<CalendarDays className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />}
+            texto={rotuloEvento}
+            testid="button-filtro-evento"
+          />
         </PopoverTrigger>
         <PopoverContent align="start" className="w-[420px] p-0 rounded-xl overflow-hidden">
           <div className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-100 bg-background">
@@ -176,17 +195,15 @@ export default function ScalingFilterBar(p: Props) {
 
       <ScalingPeriodFilter valor={p.periodo} onChange={p.onPeriodo} linhas={p.linhasSemPeriodo} hoje={p.hoje} />
 
-      <Popover>
+      <Popover open={filtrosAberto} onOpenChange={setFiltrosAberto}>
         <PopoverTrigger asChild>
-          <span>
-            <BotaoFiltro
-              ativo={nFlags > 0}
-              icone={<SlidersHorizontal className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />}
-              texto={nFlags === 0 ? "Filtros" : `Filtros · ${nFlags}`}
-              testid="button-filtros"
-              maxW="max-w-[200px]"
-            />
-          </span>
+          <BotaoFiltro
+            ativo={nFlags > 0}
+            icone={<SlidersHorizontal className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />}
+            texto={nFlags === 0 ? "Filtros" : `Filtros · ${nFlags}`}
+            testid="button-filtros"
+            maxW="max-w-[200px]"
+          />
         </PopoverTrigger>
         <PopoverContent align="start" className="w-[560px] p-0 rounded-xl overflow-hidden">
           <div className="flex items-center px-3.5 py-3 border-b border-slate-100">
@@ -229,7 +246,7 @@ export default function ScalingFilterBar(p: Props) {
                       <Caixa on={!!p.flags[o.key]} />
                       <span className="flex-1 min-w-0 truncate">{o.label}</span>
                       <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
-                        {contarComFlag(p.linhasSemFlags, p.flags, o.key, p.queueContext)}
+                        {contagens[o.key] ?? 0}
                       </span>
                     </button>
                   ))}

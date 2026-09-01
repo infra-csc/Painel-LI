@@ -45,6 +45,8 @@ import { ExportColumnsDialog, type ExportScope } from "@/components/scaling/expo
 import { getSaveBlockReason, getConfirmBlockReason, getBulkConfirmBlockReason } from "@/components/scaling/scaling-validation";
 import { describeLoadError, modalDataFromInclusion, type ModalData } from "@/components/scaling/scaling-utils";
 import { DEFAULT_PERIOD, fazTesteDePeriodo, temRecorteDePeriodo, type PeriodConfig } from "@/components/scaling/scaling-period";
+import { ordenarEscalacoes } from "@/components/scaling/scaling-sort";
+import { getScalingStatusLabel } from "@/components/scaling/scaling-status";
 import {
   FLAG_GROUPS, contarFlagsAtivas, fazTesteDeFlags, normalizarBusca, testeDaFila,
   QUEUE_META, type QueueContext, type QueueKey,
@@ -97,9 +99,19 @@ export default function Scaling() {
   /** Direção da navegação que espera a confirmação de descarte. */
   const [descartePendente, setDescartePendente] = useState<-1 | 1 | null>(null);
 
-  // "Hoje" muda enquanto a aba fica aberta; congelar na montagem manteria os
-  // prazos de ontem numa tela que fica dias aberta na mesa de alguém.
-  const hoje = useMemo(() => new Date(), []);
+  /**
+   * "Hoje" de verdade: esta tela fica aberta na mesa de alguém por dias, e um
+   * `new Date()` congelado na montagem manteria "faltam 3 dias" na terça
+   * seguinte. O relógio só dispara re-render quando o DIA vira — não de minuto
+   * em minuto.
+   */
+  const [hoje, setHoje] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => {
+      setHoje((atual) => (atual.toDateString() === new Date().toDateString() ? atual : new Date()));
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   // IDs de trocas pendentes já visualizadas pelo solicitante
   const readSeen = () => {
@@ -124,7 +136,11 @@ export default function Scaling() {
     () => ({ ...DEFAULT_SCALING_FILTERS, eventId: eventosMarcados, showDeleted: verExcluidos }),
     [eventosMarcados, verExcluidos],
   );
-  const data = useScalingData({ filters: hookFilters, sortConfig, user });
+  // O hook recebe sortConfig NULO de propósito: ordenar é a última etapa,
+  // aplicada aqui sobre a lista já recortada. Deixá-la no hook fazia cada
+  // clique num cabeçalho invalidar as camadas de filtro e os contadores da
+  // fila — que não dependem da ordem — e a tela congelava ~1,8s por clique.
+  const data = useScalingData({ filters: hookFilters, sortConfig: null, user });
   const {
     teamInclusions, isLoading, isErrorInclusions, inclusionsError,
     scalingInclusions, pendingSwapByInclusion, canApproveProduction, canExport, isAdminOrPurchasing,
@@ -141,10 +157,18 @@ export default function Scaling() {
   });
 
   // ── Contexto compartilhado pela fila, pelos filtros e pelas Análises ─────
+  /**
+   * Motivo de bloqueio por linha, memoizado.
+   *
+   * Depende de `filteredTeamInclusions` (o recorte de permissão) e NÃO da
+   * lista já ordenada: ordenar não muda quem pode ser confirmado, e usar a
+   * lista ordenada fazia este mapa — 3.700 avaliações que varrem conflito de
+   * agenda — ser refeito a cada clique num cabeçalho de coluna.
+   */
   const bulkBlockReasonById = useMemo(
-    () => new Map(scalingInclusions.map(i => [i.id, getBulkConfirmBlockReason(i, data)])),
+    () => new Map(data.filteredTeamInclusions.map(i => [i.id, getBulkConfirmBlockReason(i, data)])),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scalingInclusions, teamInclusions, data.functionById, data.eventById, data.collaboratorById, data.userFunctionIds, user?.id, user?.role],
+    [data.filteredTeamInclusions, teamInclusions, data.functionById, data.eventById, data.collaboratorById, data.userFunctionIds, user?.id, user?.role],
   );
   const getSelectBlockReason = useCallback(
     (inclusion: TeamInclusion) => bulkBlockReasonById.get(inclusion.id) ?? getBulkConfirmBlockReason(inclusion, data),
@@ -202,9 +226,17 @@ export default function Scaling() {
     return out;
   }, [comPeriodo, queueContext]);
 
-  const visibleRows = useMemo(
+  const daFila = useMemo(
     () => (fila ? comFlags.filter(testeDaFila(fila, queueContext)) : comFlags),
     [comFlags, fila, queueContext],
+  );
+
+  const visibleRows = useMemo(
+    () => ordenarEscalacoes(daFila, sortConfig, {
+      getEventName, getFunctionName, getCollaboratorName, getScalingStatusLabel,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [daFila, sortConfig, data.eventById, data.functionById, data.collaboratorById],
   );
 
   const opcoesDeEvento = useMemo(() => {
@@ -518,6 +550,7 @@ export default function Scaling() {
     isAdminOrPurchasing,
     canManageFunction: data.canManageFunction,
     canApproveProduction,
+    isEventLocked: data.isEventLocked,
     commentCountByInclusion: data.commentCountByInclusion,
     getResponsavelDaFuncao: data.getResponsavelDaFuncao,
     temPassagemComprada: queueContext.temPassagemComprada,
@@ -685,6 +718,8 @@ export default function Scaling() {
         open={exportOpen}
         onOpenChange={setExportOpen}
         exporting={exporting}
+        quantasLinhas={visibleRows.filter(i => i.status !== "cancelado" && !i.deletedAt).length}
+        comFiltro={temRecorte}
         onExport={async (colunas, formato, scope) => {
           setExporting(true);
           try { await handleExportToExcel(colunas, formato, scope); setExportOpen(false); }

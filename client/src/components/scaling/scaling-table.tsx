@@ -100,6 +100,13 @@ export interface ScalingTableProps {
   temPassagemComprada?: (inclusion: TeamInclusion) => boolean;
   /** Evento encerrado / somente leitura: nada de botão que a API vai negar. */
   readOnly?: boolean;
+  /**
+   * Esta LINHA está travada por evento encerrado. Precisa ser por linha, e não
+   * da tela inteira: sem filtro de evento a lista mistura eventos abertos e
+   * encerrados, e o botão de escalar aparecia nos dois — o servidor respondia
+   * 403 depois que a pessoa já tinha escolhido o nome.
+   */
+  isEventLocked?: (inclusion: TeamInclusion) => boolean;
   // ── Seleção múltipla (ações em massa) ──
   selectedIds: Set<string>;
   /** Motivo pelo qual a linha NÃO pode ser selecionada (null = pode) */
@@ -303,7 +310,7 @@ export default function ScalingTable({
   getTicket, getAccommodation,
   pendingSwapByInclusion, pendingChangeByInclusion, approvedSwapInclusionIds, seenSwapIds,
   currentUserId, isAdminOrPurchasing, canManageFunction, canApproveProduction, readOnly = false,
-  commentCountByInclusion, getResponsavelDaFuncao, temPassagemComprada,
+  commentCountByInclusion, getResponsavelDaFuncao, temPassagemComprada, isEventLocked,
   selectedIds, getSelectBlockReason, onToggleSelect, onToggleAllVisible,
 }: ScalingTableProps) {
   // Corte de renderização (auditoria 28/08): sem filtro, a tela montava TODAS
@@ -379,7 +386,8 @@ export default function ScalingTable({
               const isSelected = selectedIds.has(inclusion.id);
               const idLabel = `#${inclusion.inclusionNumber ?? ""}`;
               const cancelada = inclusion.status === "cancelado";
-              const podeGerir = canManageFunction(inclusion.functionId) && !readOnly;
+              const eventoTravado = isEventLocked?.(inclusion) ?? false;
+              const podeGerir = canManageFunction(inclusion.functionId) && !readOnly && !eventoTravado;
               const vazia = !inclusion.collaboratorId && !cancelada;
               const needs = needsDaLinha(inclusion, {
                 ticket, funcao,
@@ -392,7 +400,10 @@ export default function ScalingTable({
               // alguém? Âmbar quando espera VOCÊ (vaga sua por preencher, ou
               // aprovação que é sua), roxo quando está com outra pessoa.
               const esperaVoce = (vazia && podeGerir) || (inclusion.status === "aguardando_producao" && canApproveProduction);
-              const emAnalise = !!swap || !!pedido;
+              // Só pinta de roxo o que a linha CONSEGUE explicar: a troca que
+              // este usuário não deve ver não tem detalhe embaixo, e uma borda
+              // colorida sem legenda é charada, não sinal.
+              const emAnalise = (!!swap && mostraSwap) || !!pedido;
               const marker = cancelada ? "transparent" : esperaVoce ? "#FBBF24" : emAnalise ? "#A855F7" : "transparent";
 
               return (
@@ -414,23 +425,21 @@ export default function ScalingTable({
                     onClick={(e) => e.stopPropagation()}
                     onKeyDown={(e) => e.stopPropagation()}
                   >
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="inline-flex" tabIndex={selectBlock ? 0 : -1}>
-                          <Checkbox
-                            checked={isSelected}
-                            disabled={!!selectBlock}
-                            onCheckedChange={() => onToggleSelect(inclusion.id)}
-                            aria-label={selectBlock ? `Não selecionável: ${selectBlock}` : `Selecionar escalação ${idLabel}`}
-                            data-testid={`checkbox-select-${inclusion.id}`}
-                            className={CHECKBOX_CLS}
-                          />
-                        </span>
-                      </TooltipTrigger>
-                      {selectBlock && (
-                        <TooltipContent side="right" className="text-[11px] max-w-[240px]">{selectBlock}</TooltipContent>
-                      )}
-                    </Tooltip>
+                    {/* `title` nativo em vez do Tooltip do Radix: eram 150
+                        instâncias por página, cada uma com contexto e portal
+                        próprios, e a lista congelava perto de um segundo a cada
+                        reordenação. O motivo continua legível — no title e no
+                        aria-label — e o cabeçalho, que é UM, mantém o Tooltip. */}
+                    <span className="inline-flex" title={selectBlock ?? undefined}>
+                      <Checkbox
+                        checked={isSelected}
+                        disabled={!!selectBlock}
+                        onCheckedChange={() => onToggleSelect(inclusion.id)}
+                        aria-label={selectBlock ? `Não selecionável: ${selectBlock}` : `Selecionar escalação ${idLabel}`}
+                        data-testid={`checkbox-select-${inclusion.id}`}
+                        className={CHECKBOX_CLS}
+                      />
+                    </span>
                   </td>
 
                   <td className="pr-3.5 whitespace-nowrap">
@@ -460,6 +469,7 @@ export default function ScalingTable({
                     ) : (
                       <span
                         title={(() => {
+                          if (eventoTravado) return "Evento encerrado — a partir do dia seguinte ao término, só o administrador altera.";
                           if (readOnly) return "Esta lista está em modo consulta.";
                           const quem = getResponsavelDaFuncao?.(inclusion.functionId);
                           // Com o nome, a linha travada vira um encaminhamento:

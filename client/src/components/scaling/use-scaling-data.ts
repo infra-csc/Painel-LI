@@ -50,6 +50,15 @@ export type ScalingUser = User | null | undefined;
 
 const ADMIN_ROLES = ["administrador", "admin", "administrator"];
 
+/**
+ * Um comparador só, criado uma vez.
+ *
+ * `String.localeCompare` monta um Intl.Collator novo a cada chamada. Num sort
+ * de 3.700 linhas são ~45 mil chamadas, e a tela congelava perto de dois
+ * segundos a cada clique de ordenação.
+ */
+const COLLATOR = new Intl.Collator("pt-BR", { numeric: true, sensitivity: "base" });
+
 /** Pedido de ajuste/exclusão em aberto de uma vaga (GET pending-by-inclusion). */
 export interface PendingChangeRequest {
   teamInclusionId: string;
@@ -401,41 +410,71 @@ export function useScalingData(opts: {
       return new Date(a.scheduleStartDate).getTime() - new Date(b.scheduleStartDate).getTime();
     };
 
+    /**
+     * Ordena por CHAVE pré-computada.
+     *
+     * O comparador antigo chamava getCollaboratorName/getEventName dentro do
+     * sort — e getCollaboratorName passa por fixEncoding, que reprocessa a
+     * string inteira. Numa lista de 3.700 linhas isso rodava ~45 mil vezes por
+     * clique. Calcular a chave uma vez por linha troca isso por 3.700.
+     */
+    const ordenarPorChave = <T,>(
+      itens: TeamInclusion[],
+      chave: (i: TeamInclusion) => T,
+      compara: (a: T, b: T) => number,
+      multiplier: number,
+    ) => itens
+      .map((item, idx) => ({ item, idx, k: chave(item) }))
+      // idx como desempate mantém a ordem estável entre iguais — sem ele, duas
+      // linhas equivalentes trocavam de lugar a cada rerender.
+      .sort((a, b) => { const r = compara(a.k, b.k) * multiplier; return r !== 0 ? r : a.idx - b.idx; })
+      .map((x) => x.item);
+
     if (sortConfig) {
       const { field, direction } = sortConfig;
       const multiplier = direction === "asc" ? 1 : -1;
-      return filtered.sort((a, b) => {
-        switch (field) {
-          case "id": return ((a.inclusionNumber || 0) - (b.inclusionNumber || 0)) * multiplier;
-          case "event": return getEventName(a.eventId).localeCompare(getEventName(b.eventId), "pt-BR", { numeric: true }) * multiplier;
-          case "function": return getFunctionName(a.functionId).localeCompare(getFunctionName(b.functionId), "pt-BR", { numeric: true }) * multiplier;
-          // Vaga sem nome vai SEMPRE para o fim, nos dois sentidos: ordenar por
-          // colaborador é procurar uma pessoa, e "Não escalado" alfabetizado no
-          // "N" enfia o que não tem nome no meio de quem tem.
-          case "collaborator": {
-            if (!a.collaboratorId && !b.collaboratorId) return 0;
-            if (!a.collaboratorId) return 1;
-            if (!b.collaboratorId) return -1;
-            return getCollaboratorName(a.collaboratorId).localeCompare(getCollaboratorName(b.collaboratorId), "pt-BR", { numeric: true }) * multiplier;
-          }
-          case "period": return byPeriod(a, b) * multiplier;
-          // A coluna Situação passou a ser ordenável no redesenho (01/09).
-          // Ordena pelo RÓTULO, que é o que a pessoa lê — não pelo status
-          // gravado, cujos nomes internos não têm ordem que signifique nada.
-          case "status": return getScalingStatusLabel(a).localeCompare(getScalingStatusLabel(b), "pt-BR") * multiplier;
-          default: return 0;
-        }
-      });
+      switch (field) {
+        case "id":
+          return ordenarPorChave(filtered, (i) => i.inclusionNumber || 0, (a, b) => a - b, multiplier);
+        case "event":
+          return ordenarPorChave(filtered, (i) => getEventName(i.eventId), COLLATOR.compare, multiplier);
+        case "function":
+          return ordenarPorChave(filtered, (i) => getFunctionName(i.functionId), COLLATOR.compare, multiplier);
+        // Vaga sem nome vai SEMPRE para o fim, nos DOIS sentidos: ordenar por
+        // colaborador é procurar uma pessoa, e "Não escalado" alfabetizado no
+        // "N" enfia o que não tem nome no meio de quem tem. A checagem vem
+        // antes da direção, senão inverter a ordem traria as vazias para cima.
+        case "collaborator":
+          return filtered
+            .map((item, idx) => ({ item, idx, k: item.collaboratorId ? getCollaboratorName(item.collaboratorId) : "" }))
+            .sort((a, b) => {
+              const semA = a.item.collaboratorId ? 0 : 1;
+              const semB = b.item.collaboratorId ? 0 : 1;
+              if (semA !== semB) return semA - semB;
+              const r = COLLATOR.compare(a.k, b.k) * multiplier;
+              return r !== 0 ? r : a.idx - b.idx;
+            })
+            .map((x) => x.item);
+        case "period":
+          return ordenarPorChave(filtered, (i) => i.scheduleStartDate ?? null,
+            (a, b) => (!a && !b ? 0 : !a ? 1 : !b ? -1 : (a < b ? -1 : a > b ? 1 : 0)), multiplier);
+        // A coluna Situação passou a ser ordenável no redesenho (01/09).
+        // Ordena pelo RÓTULO, que é o que a pessoa lê — não pelo status
+        // gravado, cujos nomes internos não têm ordem que signifique nada.
+        case "status":
+          return ordenarPorChave(filtered, (i) => getScalingStatusLabel(i), COLLATOR.compare, multiplier);
+        default:
+          return filtered;
+      }
     }
 
     // Default: Evento → Função → Data
-    return filtered.sort((a, b) => {
-      const ev = getEventName(a.eventId).localeCompare(getEventName(b.eventId), "pt-BR");
-      if (ev !== 0) return ev;
-      const fn = getFunctionName(a.functionId).localeCompare(getFunctionName(b.functionId), "pt-BR");
-      if (fn !== 0) return fn;
-      return byPeriod(a, b);
-    });
+    return ordenarPorChave(
+      filtered,
+      (i) => `${getEventName(i.eventId)}\u0000${getFunctionName(i.functionId)}\u0000${i.scheduleStartDate ?? "9999"}`,
+      COLLATOR.compare,
+      1,
+    );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredTeamInclusions, filters, sortConfig, eventById, functionById, collaboratorById, purchasedTicketByInclusion, accommodationByInclusion]);
 

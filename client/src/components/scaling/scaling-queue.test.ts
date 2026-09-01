@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import type { TeamInclusion } from "@shared/schema";
 import {
-  contarComFlag, fazTesteDeFlags, normalizarBusca, testeDaFila,
-  type QueueContext,
+  TODAS_AS_FLAGS, contadoresDasFlags, contarComFlag, fazTesteDeFlags, normalizarBusca,
+  testeDaFila, type QueueContext,
 } from "./scaling-queue";
 
 /** Uma vaga com só o que a fila olha — o resto do TeamInclusion não importa. */
@@ -109,6 +109,54 @@ describe("contadores hipotéticos", () => {
     expect(contarComFlag(linhas, ativas, "hosp:precisa", ctx())).toBe(1);
     // E o contador da própria opção marcada mostra o que sobraria ao DESMARCAR.
     expect(contarComFlag(linhas, ativas, "pass:precisa", ctx())).toBe(3);
+  });
+});
+
+describe("contadores em lote", () => {
+  // A versão rápida existe porque a ingênua (uma varredura por opção) travava
+  // a tela com 3.700 linhas. Ela só vale se der EXATAMENTE o mesmo número.
+  const linhas = [
+    vaga({ id: "a", needsTicket: true, needsAccommodation: true, status: "aguardando_producao", collaboratorId: "c1" }),
+    vaga({ id: "b", needsTicket: true, needsAccommodation: false }),
+    vaga({ id: "c", needsTicket: false, needsAccommodation: true, collaboratorId: "c2", status: "escalado" }),
+    vaga({ id: "d", status: "cancelado" }),
+    vaga({ id: "e", emitsNf: false, city: "" }),
+  ];
+  const contexto = ctx({
+    temPassagemComprada: (i) => i.id === "a",
+    temHospedagemReservada: (i) => i.id === "c",
+    temTroca: (i) => i.id === "b",
+    ehCenoEmpreita: (i) => i.id === "e",
+  });
+
+  const casos: Record<string, boolean>[] = [
+    {},
+    { "pass:precisa": true },
+    { "pass:precisa": true, "hosp:nao-precisa": true },
+    { "sit:aberta": true, "sit:cancelada": true },
+    { "falta:nf": true, "falta:cidade": true, "pass:nao-precisa": true },
+    { "anal:troca": true },
+  ];
+
+  it("bate com a contagem uma-a-uma, em toda combinação", () => {
+    for (const ativas of casos) {
+      const emLote = contadoresDasFlags(linhas, ativas, contexto);
+      for (const k of TODAS_AS_FLAGS) {
+        expect(`${JSON.stringify(ativas)}/${k}=${emLote[k]}`)
+          .toBe(`${JSON.stringify(ativas)}/${k}=${contarComFlag(linhas, ativas, k, contexto)}`);
+      }
+    }
+  });
+
+  it("devolve um número para cada uma das 18 opções", () => {
+    const out = contadoresDasFlags(linhas, {}, contexto);
+    expect(Object.keys(out)).toHaveLength(18);
+    expect(TODAS_AS_FLAGS.every((k) => typeof out[k] === "number")).toBe(true);
+  });
+
+  it("lista vazia não quebra", () => {
+    const out = contadoresDasFlags([], {}, contexto);
+    expect(out["pass:precisa"]).toBe(0);
   });
 });
 

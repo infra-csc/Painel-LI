@@ -170,6 +170,58 @@ export function contarComFlag(
   return linhas.filter(teste).length;
 }
 
+/** Todas as chaves de flag, na ordem em que aparecem no popover. */
+export const TODAS_AS_FLAGS: FlagKey[] = FLAG_GROUPS.flatMap((g) => g.opcoes.map((o) => o.key));
+
+/**
+ * Os dezoito contadores de uma vez.
+ *
+ * A versão ingênua chamava contarComFlag por opção: 18 varreduras da lista
+ * inteira, cada uma reconstruindo os predicados e reavaliando coisas caras
+ * (status, mapas de troca, conflito). Com 3.700 vagas isso travava a tela a
+ * cada clique dentro do popover.
+ *
+ * Aqui cada linha é avaliada UMA vez contra cada flag; as hipóteses depois
+ * trabalham só sobre booleanos.
+ */
+export function contadoresDasFlags(
+  linhas: TeamInclusion[],
+  ativas: Record<string, boolean>,
+  ctx: QueueContext,
+): Record<string, number> {
+  const testes = TODAS_AS_FLAGS.map((k) => testeDaFlag(k, ctx));
+  // matriz[i][j] = a linha i atende a flag j
+  const matriz: boolean[][] = linhas.map((linha) => testes.map((t) => t(linha)));
+
+  // Índices das opções de cada grupo, para o "dentro do grupo OU".
+  const gruposIdx = FLAG_GROUPS.map((g) => g.opcoes.map((o) => TODAS_AS_FLAGS.indexOf(o.key)));
+
+  const passa = (linhaIdx: number, marcadas: boolean[]) => {
+    for (const grupo of gruposIdx) {
+      let temMarcada = false;
+      let algumaBate = false;
+      for (const j of grupo) {
+        if (!marcadas[j]) continue;
+        temMarcada = true;
+        if (matriz[linhaIdx][j]) { algumaBate = true; break; }
+      }
+      if (temMarcada && !algumaBate) return false;
+    }
+    return true;
+  };
+
+  const base = TODAS_AS_FLAGS.map((k) => !!ativas[k]);
+  const out: Record<string, number> = {};
+  TODAS_AS_FLAGS.forEach((k, j) => {
+    const hipotese = base.slice();
+    hipotese[j] = !hipotese[j];
+    let n = 0;
+    for (let i = 0; i < linhas.length; i++) if (passa(i, hipotese)) n++;
+    out[k] = n;
+  });
+  return out;
+}
+
 export function contarFlagsAtivas(ativas: Record<string, boolean>): number {
   return Object.values(ativas).filter(Boolean).length;
 }

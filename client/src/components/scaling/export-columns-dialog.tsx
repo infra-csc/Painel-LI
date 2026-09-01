@@ -47,9 +47,17 @@ export const EXPORT_SCOPES: { id: ExportScope; label: string; hint: string }[] =
 
 const SCOPE_KEY = "scaling-export-scope-v1";
 
-export function ExportColumnsDialog({ open, onOpenChange, onExport, exporting }: {
+export function ExportColumnsDialog({ open, onOpenChange, onExport, exporting, quantasLinhas, comFiltro }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Quantas linhas a lista tem AGORA. O arquivo sai do que está na tela, e
+   * quem exporta com um filtro ligado precisa saber disso antes de abrir a
+   * planilha e achar que faltou gente.
+   */
+  quantasLinhas?: number;
+  /** Há recorte ativo — muda a frase de "todas" para "as filtradas". */
+  comFiltro?: boolean;
   /** Chamado com as colunas MARCADAS (na ordem canônica) e o formato. */
   onExport: (columns: string[], format: ExportFormat, scope: ExportScope) => void;
   exporting?: boolean;
@@ -94,6 +102,13 @@ export function ExportColumnsDialog({ open, onOpenChange, onExport, exporting }:
         <DialogHeader className="px-6 pt-6 pb-3 border-b border-slate-100 pr-12">
           <DialogTitle>Exportar escalações</DialogTitle>
           <DialogDescription>
+            {typeof quantasLinhas === "number" && (
+              <span className="block font-medium text-slate-700">
+                {comFiltro
+                  ? `Sai a lista como ela está agora: ${quantasLinhas} ${quantasLinhas === 1 ? "escalação" : "escalações"} do recorte filtrado.`
+                  : `${quantasLinhas} ${quantasLinhas === 1 ? "escalação" : "escalações"} na lista.`}
+              </span>
+            )}
             Marque as colunas que devem sair no arquivo. A escolha fica salva neste navegador.
           </DialogDescription>
         </DialogHeader>
