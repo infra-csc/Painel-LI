@@ -367,9 +367,17 @@ export function useScalingData(opts: {
       return filtered.sort((a, b) => {
         switch (field) {
           case "id": return ((a.inclusionNumber || 0) - (b.inclusionNumber || 0)) * multiplier;
-          case "event": return getEventName(a.eventId).localeCompare(getEventName(b.eventId), "pt-BR") * multiplier;
-          case "function": return getFunctionName(a.functionId).localeCompare(getFunctionName(b.functionId), "pt-BR") * multiplier;
-          case "collaborator": return getCollaboratorName(a.collaboratorId).localeCompare(getCollaboratorName(b.collaboratorId), "pt-BR") * multiplier;
+          case "event": return getEventName(a.eventId).localeCompare(getEventName(b.eventId), "pt-BR", { numeric: true }) * multiplier;
+          case "function": return getFunctionName(a.functionId).localeCompare(getFunctionName(b.functionId), "pt-BR", { numeric: true }) * multiplier;
+          // Vaga sem nome vai SEMPRE para o fim, nos dois sentidos: ordenar por
+          // colaborador é procurar uma pessoa, e "Não escalado" alfabetizado no
+          // "N" enfia o que não tem nome no meio de quem tem.
+          case "collaborator": {
+            if (!a.collaboratorId && !b.collaboratorId) return 0;
+            if (!a.collaboratorId) return 1;
+            if (!b.collaboratorId) return -1;
+            return getCollaboratorName(a.collaboratorId).localeCompare(getCollaboratorName(b.collaboratorId), "pt-BR", { numeric: true }) * multiplier;
+          }
           case "period": return byPeriod(a, b) * multiplier;
           // A coluna Situação passou a ser ordenável no redesenho (01/09).
           // Ordena pelo RÓTULO, que é o que a pessoa lê — não pelo status
