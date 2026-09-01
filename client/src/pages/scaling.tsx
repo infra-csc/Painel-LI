@@ -35,6 +35,7 @@ import InclusionDetailsDialog, { type DetailsTab } from "@/components/scaling/in
 import ScalingSuccessDialog, { type ScalingSuccessInfo } from "@/components/scaling/scaling-success-dialog";
 import { SentToProductionDialog, type SentToProductionInfo } from "@/components/scaling/production-approval-card";
 import AttachmentLightbox from "@/components/scaling/attachment-lightbox";
+import ScalingCoverageDialog from "@/components/scaling/scaling-coverage-dialog";
 import ConfirmDialog from "@/components/scaling/confirm-dialog";
 import BulkConfirmBar from "@/components/scaling/bulk-confirm-bar";
 import { useScalingData, useInclusionDetails, DEFAULT_SCALING_FILTERS, type ScalingFilters } from "@/components/scaling/use-scaling-data";
@@ -44,7 +45,7 @@ import { exportScalingPdf, exportScalingXlsxColunas } from "@/components/scaling
 import { ExportColumnsDialog, type ExportScope } from "@/components/scaling/export-columns-dialog";
 import { getSaveBlockReason, getConfirmBlockReason, getBulkConfirmBlockReason } from "@/components/scaling/scaling-validation";
 import { describeLoadError, modalDataFromInclusion, type ModalData } from "@/components/scaling/scaling-utils";
-import { DEFAULT_PERIOD, fazTesteDePeriodo, temRecorteDePeriodo, type PeriodConfig } from "@/components/scaling/scaling-period";
+import { DEFAULT_PERIOD, fazTesteDePeriodo, rotuloDoPeriodo, temRecorteDePeriodo, type PeriodConfig } from "@/components/scaling/scaling-period";
 import { ordenarEscalacoes } from "@/components/scaling/scaling-sort";
 import { getScalingStatusLabel } from "@/components/scaling/scaling-status";
 import {
@@ -192,6 +193,7 @@ export default function Scaling() {
     temTroca: queueContext.temTroca,
     temPedido: queueContext.temPedido,
     getEventName, getFunctionName, getCollaboratorName,
+    getEventDates: (id) => (id ? data.eventById.get(id) : undefined),
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [queueContext, data.eventById, data.functionById, data.collaboratorById]);
 
@@ -400,8 +402,14 @@ export default function Scaling() {
   // ── Exportar ────────────────────────────────────────────────────────────
   const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  /** "O que falta escalar" — a exportação própria da aba Análises. */
+  const [coberturaOpen, setCoberturaOpen] = useState(false);
 
   const abrirExportar = () => {
+    // Nas Análises o botão exporta a COBERTURA — "o que falta escalar", por
+    // evento e função. É o relatório que se manda para quem escala, e não a
+    // planilha de colunas da fila. Um botão só, o que muda é a aba.
+    if (aba === "analises") { setCoberturaOpen(true); return; }
     if (!canExport) {
       toast({ title: "Sem permissão", description: "Somente administradores, Compras e RH/Financeiro podem exportar.", variant: "destructive" });
       return;
@@ -535,6 +543,12 @@ export default function Scaling() {
     fila ? QUEUE_META.find(q => q.key === fila)?.label.toLowerCase() ?? null : null,
   ].filter(Boolean).join(" · ");
 
+  const nomesDosFiltrosDoRecorte = [
+    eventosMarcados.length ? `${eventosMarcados.length} ${eventosMarcados.length === 1 ? "evento" : "eventos"}` : null,
+    temRecorteDePeriodo(periodo) ? rotuloDoPeriodo(periodo) : null,
+    verExcluidos ? "incluindo excluídas" : null,
+  ].filter(Boolean).join(" · ");
+
   const tableProps = {
     sortConfig,
     onSort: handleSort,
@@ -594,7 +608,9 @@ export default function Scaling() {
           <button
             type="button"
             onClick={abrirExportar}
-            title="Escolha as colunas e o formato (Excel ou PDF). O arquivo pode conter dados pessoais dos colaboradores."
+            title={aba === "analises"
+              ? "Gera a lista do que falta escalar, por evento e função, pronta para colar."
+              : "Escolha as colunas e o formato (Excel ou PDF). O arquivo pode conter dados pessoais dos colaboradores."}
             data-testid="button-export-excel"
             className="ml-auto inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg bg-primary text-[13px] font-medium text-white hover:bg-primary-hover shrink-0"
           >
@@ -729,6 +745,15 @@ export default function Scaling() {
       <ScalingSuccessDialog info={successInfo} onClose={() => setSuccessInfo(null)} />
       <SentToProductionDialog info={sentToProductionInfo} onClose={() => setSentToProductionInfo(null)} />
       <AttachmentLightbox item={lightbox} onClose={() => setLightbox(null)} />
+
+      <ScalingCoverageDialog
+        open={coberturaOpen}
+        onOpenChange={setCoberturaOpen}
+        linhas={comPeriodo}
+        ctx={analyticsContext}
+        hoje={hoje}
+        recorte={nomesDosFiltrosDoRecorte}
+      />
 
       <ConfirmDialog
         open={descartePendente !== null}

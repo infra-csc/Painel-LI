@@ -28,6 +28,12 @@ export interface AnalyticsContext {
   getEventName: (eventId: string | null) => string;
   getFunctionName: (functionId: string | null) => string;
   getCollaboratorName: (collaboratorId?: string | null) => string;
+  /**
+   * Datas do EVENTO, que não são as da escala: a equipe entra dias antes para
+   * montar. Quem pede gente fala a data do evento ("Primavera São Paulo, dia
+   * 12"), então é ela que sai no relatório.
+   */
+  getEventDates?: (eventId: string | null) => { startDate?: string | null; endDate?: string | null } | undefined;
 }
 
 export type BucketKey = "aprovado" | "escalado" | "gestor" | "vaga";
