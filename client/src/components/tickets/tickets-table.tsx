@@ -1,6 +1,7 @@
 // Tabela de Passagens: cabeçalho ordenável + linhas (TicketRow) + estado vazio.
 import { Plane } from "lucide-react";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
+import { LARGURA_MINIMA_DA_TABELA, useLarguraUtil } from "./use-largura-util";
 import type { TeamInclusion } from "@shared/schema";
 import TicketRow from "./ticket-row";
 import type { TicketsData } from "./use-tickets-data";
@@ -30,6 +31,10 @@ export default function TicketsTable({
   data, filters, sortConfig, onSort, selectedTickets, allSelectableSelected, onToggleAll, onToggleSelect, onOpen, canEdit, onToggleEmitida, emitindo,
 }: TicketsTableProps) {
   const rows = data.filteredTicketInclusions;
+  // Medido sobre a largura ÚTIL, não pela janela: o menu lateral compacto
+  // muda o espaço da lista sem mudar o tamanho da tela.
+  const { ref: refLargura, largura } = useLarguraUtil<HTMLDivElement>();
+  const modoCartao = largura !== null && largura < LARGURA_MINIMA_DA_TABELA;
 
   if (rows.length === 0) {
     return (
@@ -78,7 +83,41 @@ export default function TicketsTable({
 
   return (
     <>
-      <div className="overflow-x-auto">
+      {/*
+        Abaixo do limiar, cada célula vira uma faixa de largura cheia com o
+        próprio rótulo. Antes só a linha de cabeçalho saía do DOM: as células
+        mantinham a largura de coluna e apenas embrulhavam, sobrando metade da
+        linha vazia e deixando "12/09 06:40 → 09:15" sem dizer o que era.
+
+        Feito em CSS sobre a MESMA árvore de células — nenhum dado é
+        re-renderizado de outro jeito, então nada pode se perder no caminho.
+      */}
+      <style>{`
+        .passagens-cartao thead { display: none; }
+        .passagens-cartao table,
+        .passagens-cartao tbody,
+        .passagens-cartao tr,
+        .passagens-cartao td { display: block; width: 100%; }
+        .passagens-cartao tr {
+          padding: 4px 0 10px;
+          border-bottom: 1px solid hsl(var(--border));
+        }
+        .passagens-cartao td { padding: 4px 14px; text-align: left !important; }
+        .passagens-cartao td[data-rotulo]::before {
+          content: attr(data-rotulo);
+          display: block;
+          margin-bottom: 2px;
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: .06em;
+          color: #94A3B8;
+        }
+        /* A caixa de seleção divide a primeira faixa com o ID. */
+        .passagens-cartao td:first-child { display: inline-block; width: auto; vertical-align: middle; }
+        .passagens-cartao td:nth-child(2) { display: inline-block; width: auto; vertical-align: middle; }
+      `}</style>
+      <div ref={refLargura} className={`overflow-x-auto ${modoCartao ? "passagens-cartao" : ""}`}>
       <table className="w-full text-left border-collapse">
         <thead style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
           <tr>

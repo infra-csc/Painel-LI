@@ -89,7 +89,7 @@ function TicketRow({
       </td>
 
       {/* Evento / Função */}
-      <td className={cellCls} onClick={open}>
+      <td className={cellCls} data-rotulo="Evento e função" onClick={open}>
         {eventName === "Evento não encontrado" ? (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-50 text-red-500 text-[11px] font-semibold rounded-md">⚠ Não encontrado</span>
         ) : (
@@ -99,7 +99,7 @@ function TicketRow({
       </td>
 
       {/* Colaborador */}
-      <td className={cellCls} onClick={open}>
+      <td className={cellCls} data-rotulo="Passageiro" onClick={open}>
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0" style={{ background: "#E8EFFE", color: "#3B4FE4" }}>{initials}</div>
           <div>
@@ -120,7 +120,7 @@ function TicketRow({
       </td>
 
       {/* Destino */}
-      <td className={cellCls} onClick={open}>
+      <td className={cellCls} data-rotulo="Destino" onClick={open}>
         {ticket ? (
           <div className="flex flex-col gap-0.5">
             <p className="text-[14px] font-semibold text-[#111827]">{eventLocation}</p>
@@ -180,7 +180,7 @@ function TicketRow({
       </td>
 
       {/* Datas e Horários */}
-      <td className={`${cellCls} whitespace-nowrap`} onClick={open} title={summary || undefined}>
+      <td className={`${cellCls} whitespace-nowrap`} data-rotulo="Ida e volta" onClick={open} title={summary || undefined}>
         {ticket ? (
           ticket.transportType === "van" ? (
             <div className="flex flex-col gap-1">
@@ -209,7 +209,7 @@ function TicketRow({
       </td>
 
       {/* Sugestões */}
-      <td className={cellCls} onClick={open}>
+      <td className={cellCls} data-rotulo="Sugestões" onClick={open}>
         {idaVazia && voltaVazia ? (
           <span className="text-[11px] text-slate-300 italic">—</span>
         ) : (
@@ -234,7 +234,7 @@ function TicketRow({
       </td>
 
       {/* Status (+ resumo LOC/valor/tipo) */}
-      <td className={`${cellCls} text-center`} onClick={open}>
+      <td className={`${cellCls} text-center`} data-rotulo="Situação" onClick={open}>
         {cancelado ? (
           <span className={`${PILULA} bg-[#F1F5F9] text-[#64748B]`}>Cancelado</span>
         ) : ticket ? (
