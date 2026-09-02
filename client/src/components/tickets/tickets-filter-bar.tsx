@@ -91,7 +91,7 @@ export default function TicketsFilterBar({
           larguraPopover={360}
         />
       </div>
-      <div className="w-[150px] shrink-0">
+      <div className="w-[172px] shrink-0">
         <FiltroMultiplo
           valores={filters.functionId}
           onChange={(ids) => set("functionId", ids)}
@@ -101,7 +101,7 @@ export default function TicketsFilterBar({
           testid="filter-function"
         />
       </div>
-      <div className="w-[170px] shrink-0">
+      <div className="w-[206px] shrink-0">
         <FiltroUnico
           valor={filters.collaboratorId}
           onChange={(v) => set("collaboratorId", v)}
@@ -122,7 +122,7 @@ export default function TicketsFilterBar({
           larguraPopover={290}
         />
       </div>
-      <div className="w-[172px] shrink-0">
+      <div className="w-[190px] shrink-0">
         <FiltroDeLista
           valor={filters.transportType}
           onChange={(v) => set("transportType", v)}

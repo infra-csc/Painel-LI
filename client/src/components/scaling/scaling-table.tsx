@@ -388,6 +388,9 @@ export default function ScalingTable({
               const selectBlock = getSelectBlockReason(inclusion);
               const isSelected = selectedIds.has(inclusion.id);
               const idLabel = `#${inclusion.inclusionNumber ?? ""}`;
+              // Guardados porque agora aparecem duas vezes: no texto e no title.
+              const nomeDoEvento = getEventName(inclusion.eventId);
+              const nomeDoColaborador = getCollaboratorName(inclusion.collaboratorId);
               const cancelada = inclusion.status === "cancelado";
               const eventoTravado = isEventLocked?.(inclusion) ?? false;
               const podeGerir = canManageFunction(inclusion.functionId) && !readOnly && !eventoTravado;
@@ -450,15 +453,15 @@ export default function ScalingTable({
                   </td>
 
                   <td className="px-3.5 min-w-0">
-                    <div className="text-[13px] font-semibold text-slate-900 truncate">{funcao}</div>
-                    <div className="text-[12px] text-muted-foreground truncate">{getEventName(inclusion.eventId)}</div>
+                    <div className="text-[13px] font-semibold text-slate-900 truncate" title={funcao}>{funcao}</div>
+                    <div className="text-[12px] text-muted-foreground truncate" title={nomeDoEvento}>{nomeDoEvento}</div>
                   </td>
 
                   <td className="px-3.5 min-w-0">
                     {inclusion.collaboratorId ? (
                       <>
-                        <div className="text-[13px] font-medium text-slate-900 truncate">{getCollaboratorName(inclusion.collaboratorId)}</div>
-                        {city && <div className="text-[12px] text-muted-foreground truncate">{city}</div>}
+                        <div className="text-[13px] font-medium text-slate-900 truncate" title={nomeDoColaborador}>{nomeDoColaborador}</div>
+                        {city && <div className="text-[12px] text-muted-foreground truncate" title={city}>{city}</div>}
                       </>
                     ) : vazia && podeGerir ? (
                       <button

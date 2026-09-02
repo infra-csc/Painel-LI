@@ -251,7 +251,7 @@ function TicketRow({
             <span className={`${PILULA} bg-[#DCFCE7] text-[#15803D]`}>
               <span className="w-[5px] h-[5px] rounded-full bg-[#15803D] shrink-0" aria-hidden="true" />Comprada
             </span>
-            <span className="text-[10px] text-slate-400 whitespace-nowrap max-w-[160px] truncate" data-testid={`ticket-summary-${inclusion.id}`}>{summary}</span>
+            <span className="text-[10px] text-slate-400 whitespace-nowrap max-w-[210px] truncate" title={summary} data-testid={`ticket-summary-${inclusion.id}`}>{summary}</span>
           </div>
         ) : (
           <span className={`${PILULA} bg-[#FEF3C7] text-[#92400E]`}>

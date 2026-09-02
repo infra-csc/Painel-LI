@@ -39,6 +39,9 @@ const Gatilho = forwardRef<HTMLButtonElement, {
       ref={ref}
       type="button"
       data-testid={testid}
+      // Evento e colaborador têm nome de tamanho imprevisível: quando o
+      // escolhido não couber, o title deixa ler o nome inteiro no hover.
+      title={texto}
       {...props}
       className={`${GATILHO} ${ativo ? "border-[rgba(0,51,204,0.35)]" : "border-border"} ${className ?? ""}`}
     >
