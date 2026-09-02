@@ -19,7 +19,8 @@ import { ROOM_TYPE_LABEL } from "@/components/operational-mirror-drawers";
 import type { TeamInclusion, Event, Function, Collaborator, Accommodation, Comment, TeamInclusionLog } from "@shared/schema";
 import { EMPTY_DRAFT } from "./types";
 import type { AccommodationDraft, NormalizedSwap, UserLite } from "./types";
-import { brl, draftFrom, fetchSwaps, formatDate, isCheckOutAfterCheckIn } from "./utils";
+import { brl, draftFrom, fetchSwaps, formatDate, isCheckOutAfterCheckIn, toDateInput } from "./utils";
+import { contarDiarias } from "./accommodations-queue";
 import SwapReviewPanel from "./swap-review-panel";
 import { PastEventBanner, PAST_EVENT_BLOCK_MSG } from "@/lib/event-lock";
 
@@ -103,13 +104,56 @@ function AccommodationModalContent({
 }: AccommodationModalProps & { inclusion: TeamInclusion }) {
   const { toast } = useToast();
   const [draft, setDraft] = useState<AccommodationDraft>(() => draftFrom(accommodation, inclusion));
-  const [activeTab, setActiveTab] = useState("resumo");
+  /*
+   * A aba de abertura segue a intenção de quem abriu: vaga pendente abre em
+   * Dados, que é o trabalho a fazer; registrada abre em Resumo, que é consulta.
+   * Abrir as duas em Resumo custava um clique a cada reserva registrada.
+   */
+  const [activeTab, setActiveTab] = useState(accommodation ? "resumo" : "dados");
+  /** O aviso de check-in tardio só aparece depois que o usuário mexe em algo. */
+  const [tocou, setTocou] = useState(false);
   const [showAllLogs, setShowAllLogs] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const roMode = !canEditRecord;
 
-  const set = <K extends keyof AccommodationDraft>(field: K, value: AccommodationDraft[K]) =>
+  const set = <K extends keyof AccommodationDraft>(field: K, value: AccommodationDraft[K]) => {
+    setTocou(true);
     setDraft((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // ── Período de trabalho da escala, que é o que a hospedagem precisa cobrir ──
+  const escalaInicio = toDateInput(inclusion.scheduleStartDate);
+  const escalaFim = toDateInput(inclusion.scheduleEndDate);
+  const temPeriodoDaEscala = !!(escalaInicio && escalaFim);
+  const diariasDaEscala = contarDiarias(escalaInicio, escalaFim);
+  const diariasDoRascunho = contarDiarias(draft.checkInDate, draft.checkOutDate);
+  const periodoDaEscalaPorExtenso = temPeriodoDaEscala
+    ? `${formatDate(escalaInicio).slice(0, 5)} a ${formatDate(escalaFim)} · ${diariasDaEscala} ${diariasDaEscala === 1 ? "diária" : "diárias"}`
+    : null;
+
+  const usarPeriodoDaEscala = () => {
+    setTocou(true);
+    // Não sobrescreve o que já foi digitado: o botão é atalho, não borracha.
+    setDraft((prev) => ({
+      ...prev,
+      checkInDate: prev.checkInDate || escalaInicio,
+      checkOutDate: prev.checkOutDate || escalaFim,
+    }));
+  };
+
+  /*
+   * Progresso dos obrigatórios. São quatro: hotel, localização, check-in e
+   * check-out — os mesmos que o botão de salvar exige.
+   */
+  const obrigatorios = [draft.hotelName, draft.hotelLocation, draft.checkInDate, draft.checkOutDate];
+  const preenchidos = obrigatorios.filter((v) => !!(v || "").trim()).length;
+
+  /*
+   * Check-in depois do começo da escala significa uma noite sem hotel para
+   * alguém que já está trabalhando. É aviso, não impedimento — às vezes a
+   * pessoa mesmo pediu para chegar depois.
+   */
+  const chegaTarde = tocou && !!escalaInicio && !!draft.checkInDate && draft.checkInDate > escalaInicio;
 
   /**
    * O mesmo anexo que vira comprovante preenche a reserva (31/08) — como já
@@ -208,6 +252,31 @@ function AccommodationModalContent({
         </div>
         <div className="flex items-center gap-2 shrink-0">{StatusPill}</div>
       </div>
+
+      {/*
+        Progresso só na aba Dados: fora dela ele contava "0 de 0" e virava um
+        indicador que media nada.
+      */}
+      {activeTab === "dados" && !roMode && (
+        <div className="shrink-0 px-6 py-2 border-b border-slate-100 flex items-center gap-3" data-testid="progresso-obrigatorios">
+          <div
+            className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden"
+            role="progressbar"
+            aria-valuenow={preenchidos}
+            aria-valuemin={0}
+            aria-valuemax={obrigatorios.length}
+            aria-label="Campos obrigatórios preenchidos"
+          >
+            <div
+              className={`h-full rounded-full transition-[width] duration-200 ${preenchidos === obrigatorios.length ? "bg-[#059669]" : "bg-primary"}`}
+              style={{ width: `${(preenchidos / obrigatorios.length) * 100}%` }}
+            />
+          </div>
+          <span className="text-[12px] text-[#64748B] tabular-nums whitespace-nowrap">
+            {preenchidos} de {obrigatorios.length} campos obrigatórios
+          </span>
+        </div>
+      )}
 
       {/* ─── ABAS ─── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden min-h-0">
@@ -318,6 +387,36 @@ function AccommodationModalContent({
                 </div>
               )}
 
+              {/*
+                O voucher vem primeiro porque é o caminho mais curto: ele
+                preenche hotel, período e valores de uma vez. Estava no fim da
+                aba, depois de todos os campos que ele mesmo preencheria.
+              */}
+              {!roMode && (
+                <div className="rounded-2xl border border-[#DDE3FF] bg-[#F5F7FF] p-4" data-testid="card-voucher">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4 text-primary" aria-hidden="true" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-semibold text-slate-800">Comece pelo voucher em PDF</p>
+                      <p className="text-[12px] text-[#64748B] mt-0.5 leading-snug">
+                        Ele fica guardado como comprovante e preenche hotel, período e valores.
+                        Serve também para o relatório de reservas do hotel — nele buscamos a reserva desta pessoa.
+                      </p>
+                      <div className="mt-2.5">
+                        <AttachmentUpload
+                          attachmentIds={draft.attachmentIds}
+                          onAttachmentsChange={(ids) => set("attachmentIds", ids)}
+                          onFileSelected={voucher.lerArquivo}
+                        />
+                      </div>
+                    </div>
+                    {voucher.lendo && <span className="text-[11px] font-semibold text-primary shrink-0">Lendo o voucher…</span>}
+                  </div>
+                </div>
+              )}
+
               {/* Dados do Hotel */}
               <div className="bg-white border border-slate-200 rounded-2xl p-4">
                 <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 mb-3">Dados do Hotel</div>
@@ -342,9 +441,28 @@ function AccommodationModalContent({
 
               {/* Check-in / Check-out */}
               <div className="bg-white border border-slate-200 rounded-2xl p-4">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
                   <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">Check-in / Check-out</div>
-                  <span className="text-[11px] text-slate-400">Pré-preenchido com o período de trabalho</span>
+                  {periodoDaEscalaPorExtenso && (
+                    <div className="flex items-center gap-2.5">
+                      {/* O período dito por extenso: "de 11/09 a 15/09/2026" é o
+                          que o operador precisa conferir, e ele estava só
+                          implícito nos campos já preenchidos. */}
+                      <span className="text-[12px] text-[#64748B]" data-testid="periodo-da-escala">
+                        Escala: {periodoDaEscalaPorExtenso}
+                      </span>
+                      {!roMode && (
+                        <button
+                          type="button"
+                          onClick={usarPeriodoDaEscala}
+                          className="h-[26px] px-2.5 rounded-lg border border-border bg-card text-[12px] font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+                          data-testid="button-usar-periodo-escala"
+                        >
+                          Usar o período da escala
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="rounded-xl border border-green-100 bg-green-50/40 p-3">
@@ -383,6 +501,17 @@ function AccommodationModalContent({
                     <AlertCircle className="w-3.5 h-3.5" /> O check-out deve ser igual ou posterior ao check-in.
                   </p>
                 )}
+                {chegaTarde && (
+                  <p className="mt-2 text-[12px] text-[#92400E] bg-[#FEF3C7] rounded-xl px-3 py-2" role="alert" data-testid="aviso-chegada-tardia">
+                    O check-in é depois do início da escala ({formatDate(escalaInicio)}) — a pessoa fica sem hotel na primeira noite.
+                  </p>
+                )}
+                {diariasDoRascunho > 0 && (
+                  <p className="mt-2 text-[12px] text-[#64748B]" data-testid="impacto-no-planejado">
+                    {diariasDoRascunho} {diariasDoRascunho === 1 ? "diária" : "diárias"} neste período.
+                    O valor da diária e o total são preenchidos no Espelho Operacional.
+                  </p>
+                )}
               </div>
 
               {/* Dados do Espelho Operacional — só leitura: quem preenche é a Logística. */}
@@ -409,23 +538,21 @@ function AccommodationModalContent({
                   onChange={(e) => set("accommodationObservations", e.target.value)} className="h-24 resize-none" data-testid="textarea-observations" disabled={roMode} />
               </div>
 
-              {/* Anexos */}
-              <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-slate-400" />
-                  <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Anexos</span>
-                  {voucher.lendo && <span className="ml-auto text-[11px] font-semibold text-primary">Lendo o voucher…</span>}
+              {/*
+                Em leitura o card do voucher não aparece, mas os anexos ainda
+                precisam ser vistos — é onde está o comprovante da reserva.
+              */}
+              {roMode && (
+                <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                  <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-slate-400" aria-hidden="true" />
+                    <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Anexos</span>
+                  </div>
+                  <div className="p-4">
+                    <AttachmentUpload attachmentIds={draft.attachmentIds} onAttachmentsChange={(ids) => set("attachmentIds", ids)} disabled />
+                  </div>
                 </div>
-                <div className="p-4 space-y-2">
-                  <p className="text-[11px] leading-snug text-slate-500">
-                    Anexe o <strong>voucher em PDF</strong>: ele fica guardado como comprovante
-                    e preenche hotel, período e valores. Serve também para o relatório de
-                    reservas do hotel — nele buscamos a reserva desta pessoa.
-                  </p>
-                  <AttachmentUpload attachmentIds={draft.attachmentIds} onAttachmentsChange={(ids) => set("attachmentIds", ids)} disabled={roMode}
-                    onFileSelected={roMode ? undefined : voucher.lerArquivo} />
-                </div>
-              </div>
+              )}
             </div>
           </TabsContent>
 
