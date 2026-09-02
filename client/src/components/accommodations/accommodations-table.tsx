@@ -104,6 +104,10 @@ export default function AccommodationsTable({
            propósito — empata em especificidade com as regras acima, e nesse
            empate quem vence é a última. */
         .hospedagem-cartao td[data-vazio="sim"] { display: none; }
+        /* No cartão sobra largura: o nome do evento não tem por que continuar
+           preso aos 200px que a coluna da tabela lhe dava. */
+        .hospedagem-cartao td:nth-child(3) { max-width: none; }
+        .hospedagem-cartao td:nth-child(3) p { overflow: visible; text-overflow: clip; white-space: normal; }
       `}</style>
 
       <div ref={refLargura} className={`overflow-x-auto ${modoCartao ? "hospedagem-cartao" : ""}`}>
