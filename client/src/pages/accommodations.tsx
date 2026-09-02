@@ -115,24 +115,36 @@ export default function Accommodations() {
     [eventById, collaboratorById, accommodationMap, pendingSwapByInclusion],
   );
 
+  /**
+   * O bloco da fila também recorta a lista, e por isso entra no contador.
+   *
+   * Sem ele o popover prometia sobre a lista inteira enquanto a tela mostrava
+   * o recorte do bloco: com "Urgente" ligado, 114 linhas na tela e 1.824
+   * prometidas nos números ao lado das opções.
+   */
+  const refinarPeloBloco = useCallback(
+    (linhas: TeamInclusion[]) => (blocoAtivo ? linhas.filter((i) => pertenceAoBloco(blocoAtivo, i, ctxFila)) : linhas),
+    [blocoAtivo, ctxFila],
+  );
+
   const opcoesDeEvento = useMemo<OpcaoDeFiltro[]>(() => {
-    const n = contarPorOpcao(teamInclusionsWithAccommodation, filters, "eventId", ctxFiltro);
+    const n = contarPorOpcao(teamInclusionsWithAccommodation, filters, "eventId", ctxFiltro, refinarPeloBloco);
     return (events ?? [])
       .filter((e) => e.status !== "excluido" && e.status !== "excluído")
       .map((e) => ({ id: e.id, nome: e.name, n: n.get(e.id) ?? 0 }));
-  }, [events, teamInclusionsWithAccommodation, filters, ctxFiltro]);
+  }, [events, teamInclusionsWithAccommodation, filters, ctxFiltro, refinarPeloBloco]);
 
   const opcoesDeFuncao = useMemo<OpcaoDeFiltro[]>(() => {
-    const n = contarPorOpcao(teamInclusionsWithAccommodation, filters, "functionId", ctxFiltro);
+    const n = contarPorOpcao(teamInclusionsWithAccommodation, filters, "functionId", ctxFiltro, refinarPeloBloco);
     return (functions ?? [])
       .map((f) => ({ id: f.id, nome: f.name, n: n.get(f.id) ?? 0 }));
-  }, [functions, teamInclusionsWithAccommodation, filters, ctxFiltro]);
+  }, [functions, teamInclusionsWithAccommodation, filters, ctxFiltro, refinarPeloBloco]);
 
   const opcoesDeColaborador = useMemo<OpcaoDeFiltro[]>(() => {
-    const n = contarPorOpcao(teamInclusionsWithAccommodation, filters, "collaboratorId", ctxFiltro);
+    const n = contarPorOpcao(teamInclusionsWithAccommodation, filters, "collaboratorId", ctxFiltro, refinarPeloBloco);
     return (collaborators ?? [])
       .map((c) => ({ id: c.id, nome: toTitleCase(c.fullName) || "—", n: n.get(c.id) ?? 0 }));
-  }, [collaborators, teamInclusionsWithAccommodation, filters, ctxFiltro]);
+  }, [collaborators, teamInclusionsWithAccommodation, filters, ctxFiltro, refinarPeloBloco]);
 
   // A seleção sobrevive à troca de filtros e a registros feitos em outra aba; o
   // contador e o botão de lote usam só o que ainda é aplicável.

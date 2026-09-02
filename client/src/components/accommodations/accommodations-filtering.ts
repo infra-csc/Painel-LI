@@ -79,12 +79,18 @@ export function passaNosFiltros(
  * O contador roda a lista inteira IGNORANDO o próprio campo — senão, com um
  * evento já escolhido, todos os outros mostrariam zero e o número não ajudaria
  * a escolher outro.
+ *
+ * `refinar` é o resto do funil que não cabe em `AccommodationFilters`: hoje, o
+ * bloco da fila de trabalho. Sem ele o contador mente — medido em 02/09 com
+ * "Urgente" ligado, a lista tinha 114 linhas e os popovers prometiam 1.824.
+ * É o mesmo defeito que Passagens já tinha tido, chegando por outra porta.
  */
 export function contarPorOpcao(
   todas: TeamInclusion[],
   filters: AccommodationFilters,
   campo: "eventId" | "functionId" | "collaboratorId",
   ctx: ContextoDaLista,
+  refinar: (linhas: TeamInclusion[]) => TeamInclusion[] = (l) => l,
 ): Map<string, number> {
   const neutro: AccommodationFilters = {
     ...filters,
@@ -94,8 +100,7 @@ export function contarPorOpcao(
   };
 
   const contagem = new Map<string, number>();
-  for (const inclusion of todas) {
-    if (!passaNosFiltros(inclusion, neutro, ctx)) continue;
+  for (const inclusion of refinar(todas.filter((i) => passaNosFiltros(i, neutro, ctx)))) {
     const chave = campo === "functionId" ? inclusion.functionId : inclusion[campo];
     if (!chave) continue;
     contagem.set(chave, (contagem.get(chave) ?? 0) + 1);

@@ -159,4 +159,21 @@ describe("contadores dos popovers", () => {
     const aoEscolherE1 = todas.filter((i) => passaNosFiltros(i, { ...pendentes, eventId: "e1" }, comHotel));
     expect(aoEscolherE1).toHaveLength(porEvento.get("e1")!);
   });
+
+  it("o bloco da fila também entra na conta", () => {
+    /**
+     * Encontrado na revisão de 02/09: o bloco da fila recorta a lista mas não
+     * passava por `AccommodationFilters`, então ficava de fora do contador.
+     * Ao vivo, com "Urgente" ligado: 114 linhas na tela, 1.824 prometidas nos
+     * popovers. O mesmo defeito de Passagens chegando por outra porta.
+     */
+    const soAPrimeira = (linhas: TeamInclusion[]) => linhas.filter((i) => i.id === todas[0].id);
+
+    const semRefino = contarPorOpcao(todas, filtros(), "eventId", ctxBase);
+    expect(semRefino.get("e1")).toBe(2);
+
+    const comRefino = contarPorOpcao(todas, filtros(), "eventId", ctxBase, soAPrimeira);
+    expect(comRefino.get("e1")).toBe(1);
+    expect(comRefino.get("e2")).toBeUndefined();
+  });
 });

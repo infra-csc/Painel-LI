@@ -30,7 +30,7 @@ import {
   type BaggageRequestItem, type CiaGroup, type CollaboratorItem, type EventOption,
   type FormErrors, type FormState,
 } from "./baggage-core";
-import type { AgregadoDoColaborador } from "./baggage-logic";
+import { validate, type AgregadoDoColaborador } from "./baggage-logic";
 import { CollaboratorCombobox, EventCombobox } from "./baggage-comboboxes";
 
 const LBL = "text-[10px] font-bold text-[#64748B] uppercase tracking-widest block mb-1.5";
@@ -61,6 +61,14 @@ export default function BaggageFormModal({
   const [confirmarDescarte, setConfirmarDescarte] = useState(false);
   const { preenchidos, total } = contarObrigatorios(form);
   const faltam = total - preenchidos;
+  /*
+   * A barra conta seis grupos, mas `validate` cobre dez: CIA e agência com
+   * "Outros" pedem o texto livre, e a data da solicitação pode ser apagada
+   * depois de nascer preenchida. Sem esta conta o rodapé dizia "Tudo
+   * preenchido" enquanto o salvar recusava — a barra prometendo o que o botão
+   * não entrega.
+   */
+  const pendenciasReais = Object.keys(validate(form)).length;
 
   const fieldError = (key: string, id: string) =>
     errors[key] ? <p id={id} className="text-[10px] text-[#B91C1C] mt-1" role="alert">{errors[key]}</p> : null;
@@ -361,7 +369,9 @@ export default function BaggageFormModal({
             <p className="text-[12px] text-[#64748B]" data-testid="rodape-obrigatorios">
               {faltam > 0
                 ? `Faltam ${faltam} ${faltam === 1 ? "campo obrigatório" : "campos obrigatórios"} — nada é salvo até você ${editing ? "salvar" : "registrar"}.`
-                : "Tudo preenchido."}
+                : pendenciasReais > 0
+                  ? "Revise os campos marcados antes de salvar."
+                  : "Tudo preenchido."}
             </p>
             <div className="ml-auto flex items-center gap-2">
               <Button variant="outline" className="h-10 rounded-lg" onClick={tentarFechar} data-testid="button-cancel-form">

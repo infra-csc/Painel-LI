@@ -480,6 +480,16 @@ export default function BaggageControlPage() {
                   aria-controls={`panel-${t.id}`}
                   tabIndex={on ? 0 : -1}
                   onClick={() => setTab(t.id)}
+                  onKeyDown={e => {
+                    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+                    e.preventDefault();
+                    const idx = ABAS.findIndex(x => x.id === tab);
+                    const next = e.key === "ArrowRight"
+                      ? (idx + 1) % ABAS.length
+                      : (idx - 1 + ABAS.length) % ABAS.length;
+                    setTab(ABAS[next].id);
+                    document.getElementById(`tab-${ABAS[next].id}`)?.focus();
+                  }}
                   className={`inline-flex items-center gap-1.5 h-[30px] px-2.5 rounded-md text-[12px] font-medium transition-colors ${
                     on ? "bg-brand-soft text-primary" : "text-[#64748B] hover:bg-slate-50"
                   }`}
