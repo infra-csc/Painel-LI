@@ -1,7 +1,15 @@
 // Tabela de Passagens: cabeçalho ordenável + linhas (TicketRow) + estado vazio.
 import { Plane } from "lucide-react";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
-import { LARGURA_MINIMA_DA_TABELA, useLarguraUtil } from "./use-largura-util";
+import { useLarguraUtil } from "@/components/common/use-largura-util";
+
+/**
+ * Abaixo disto a tabela não cabe sem espremer coluna.
+ *
+ * Medido sobre as oito colunas desta lista: com menos que isto, as células de
+ * datas e sugestões passam a quebrar linha no meio de um horário.
+ */
+const LARGURA_MINIMA_DA_TABELA = 1100;
 import type { TeamInclusion } from "@shared/schema";
 import TicketRow from "./ticket-row";
 import type { TicketsData } from "./use-tickets-data";

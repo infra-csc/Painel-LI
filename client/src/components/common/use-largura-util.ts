@@ -25,10 +25,3 @@ export function useLarguraUtil<T extends HTMLElement>() {
   return { ref, largura };
 }
 
-/**
- * Abaixo disto a tabela não cabe sem espremer coluna.
- *
- * Medido sobre as oito colunas da lista de Passagens: com menos que isto, as
- * células de datas e sugestões passam a quebrar linha no meio de um horário.
- */
-export const LARGURA_MINIMA_DA_TABELA = 1100;

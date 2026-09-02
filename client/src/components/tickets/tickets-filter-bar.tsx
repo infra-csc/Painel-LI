@@ -11,7 +11,7 @@
  * todos aqui — só mudaram de forma e de lugar.
  */
 import { Search, X } from "lucide-react";
-import { FiltroDeLista, FiltroMultiplo, FiltroUnico, type OpcaoDeFiltro } from "./tickets-filter-popover";
+import { FiltroDeLista, FiltroMultiplo, FiltroUnico, type OpcaoDeFiltro } from "@/components/common/filter-popover";
 import { DEFAULT_TICKET_FILTERS, type TicketFilters } from "./types";
 
 interface TicketsFilterBarProps {

@@ -4,34 +4,20 @@ import { fixEncoding } from "@/lib/utils";
 import type { TeamInclusion, Event, Function, Collaborator, Accommodation } from "@shared/schema";
 import type { AccommodationFilters, AccSortConfig, AccSortField, ApiError, NormalizedSwap, TicketLite, UserLite } from "./types";
 import { fetchSwaps } from "./utils";
-
-// Sem colaborador escalado, a inclusão só aparece nestes status.
-const VALID_STATUSES_WITHOUT_COLLABORATOR = [
-  "reaberto", "escalado",
-  "aguardando_passagem", "aguardando_hospedagem",
-  "passagem", "passagem_comprada",
-  "hospedagem", "hospedagem_comprada", "hospedagem_passagem_comprada",
-  "aprovado", "cancelado",
-];
+import { passaNosFiltros, precisaDeHospedagem } from "./accommodations-filtering";
 
 export interface UseAccommodationsDataParams {
   filters: AccommodationFilters;
   sortConfig: AccSortConfig | null;
+  /** Recorte "só quem tem troca pendente" — hoje vem do bloco Troca da fila. */
   showOnlyPendingSwaps: boolean;
-  isPurchasingRole: boolean;
-}
-
-export interface AccommodationCounts {
-  total: number;
-  purchased: number;
-  pending: number;
 }
 
 /**
  * Queries, índices O(1), filtro/ordenação e KPIs da tela de Hospedagens.
  * Não tem estado próprio: recebe filtros/ordenação e devolve dados derivados.
  */
-export function useAccommodationsData({ filters, sortConfig, showOnlyPendingSwaps, isPurchasingRole }: UseAccommodationsDataParams) {
+export function useAccommodationsData({ filters, sortConfig, showOnlyPendingSwaps }: UseAccommodationsDataParams) {
   const { data: teamInclusions, isLoading: isLoadingInclusions, error: inclusionsError } = useQuery<TeamInclusion[]>({ queryKey: ["/api/team-inclusions"] });
   const { data: events, isLoading: isLoadingEvents, error: eventsError } = useQuery<Event[]>({ queryKey: ["/api/events"], staleTime: 300_000 });
   const { data: functions, isLoading: isLoadingFunctions, error: functionsError } = useQuery<Function[]>({ queryKey: ["/api/functions"], staleTime: 300_000 });
@@ -63,21 +49,6 @@ export function useAccommodationsData({ filters, sortConfig, showOnlyPendingSwap
     return set;
   }, [allSwapRequests]);
 
-  // Inclusões que precisam de hospedagem. Canceladas ficam: quem decide é o
-  // filtro "Status Inclusão" (senão a opção "Canceladas" seria sempre vazia).
-  const teamInclusionsWithAccommodation = useMemo(() => {
-    if (!teamInclusions) return [];
-    return teamInclusions.filter((inclusion) => {
-      if (inclusion.needsAccommodation !== true) return false;
-      // Evento excluído leva junto a escalação dele (regra do dono, 26/08).
-      const evento = events?.find((e) => e.id === inclusion.eventId);
-      if (!evento || evento.status === "excluído" || evento.status === "excluido") return false;
-      // Com colaborador escalado, aparece independente do status (workflow flexível).
-      if (inclusion.collaboratorId) return true;
-      return VALID_STATUSES_WITHOUT_COLLABORATOR.includes(inclusion.status);
-    });
-  }, [teamInclusions, events]);
-
   // Havendo mais de um registro para a mesma inclusão, o ÚLTIMO vence
   // (semântica original; representa a hospedagem mais recente).
   const accommodationMap = useMemo(() => {
@@ -104,6 +75,14 @@ export function useAccommodationsData({ filters, sortConfig, showOnlyPendingSwap
     return map;
   }, [collaborators]);
 
+  // Inclusões que precisam de hospedagem — a lista base da tela, antes de
+  // qualquer filtro. Sai daqui para fora também, porque os contadores dos
+  // popovers contam sobre ela.
+  const teamInclusionsWithAccommodation = useMemo(
+    () => (teamInclusions ?? []).filter((inclusion) => precisaDeHospedagem(inclusion, eventById)),
+    [teamInclusions, eventById],
+  );
+
   const filteredData = useMemo(() => {
     const getFieldValue = (inclusion: TeamInclusion, field: AccSortField): string | number | null => {
       const event = eventById.get(inclusion.eventId);
@@ -121,26 +100,8 @@ export function useAccommodationsData({ filters, sortConfig, showOnlyPendingSwap
       }
     };
 
-    const q = filters.searchId.replace(/#/g, "").trim().toLowerCase();
-    const data = teamInclusionsWithAccommodation.filter((inclusion) => {
-      if (showOnlyPendingSwaps && !pendingSwapByInclusion.has(inclusion.id)) return false;
-      if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
-      if (filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;
-      if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
-
-      if (q) {
-        const colName = (inclusion.collaboratorId ? collaboratorById.get(inclusion.collaboratorId)?.fullName ?? "" : "").toLowerCase();
-        if (!String(inclusion.inclusionNumber ?? "").toLowerCase().includes(q) && !colName.includes(q)) return false;
-      }
-
-      const accommodationStatus = accommodationMap.get(inclusion.id) ? "processed" : "pending";
-      if (filters.accommodationStatus !== "all" && filters.accommodationStatus !== accommodationStatus) return false;
-
-      // "Canceladas" só canceladas; "Todas" mostra tudo; "ativas" esconde as canceladas.
-      if (filters.inclusionStatus === "cancelado") return inclusion.status === "cancelado";
-      if (filters.inclusionStatus === "active") return inclusion.status !== "cancelado";
-      return true;
-    });
+    const ctx = { eventById, collaboratorById, accommodationMap, pendingSwapByInclusion, showOnlyPendingSwaps };
+    const data = teamInclusionsWithAccommodation.filter((inclusion) => passaNosFiltros(inclusion, filters, ctx));
 
     if (sortConfig) {
       data.sort((a, b) => {
@@ -166,14 +127,6 @@ export function useAccommodationsData({ filters, sortConfig, showOnlyPendingSwap
   }, [teamInclusionsWithAccommodation, accommodationMap, eventById, functionById, collaboratorById,
       filters, sortConfig, showOnlyPendingSwaps, pendingSwapByInclusion]);
 
-  // Banner: trocas pendentes que exigem análise de Compras. Derivado da MESMA
-  // lista renderizada, então o contador nunca diverge da tabela.
-  const pendingSwapsCount = useMemo(() => {
-    if (!isPurchasingRole) return 0;
-    if (showOnlyPendingSwaps) return filteredData.length;
-    return filteredData.filter((inc) => pendingSwapByInclusion.has(inc.id)).length;
-  }, [isPurchasingRole, showOnlyPendingSwaps, filteredData, pendingSwapByInclusion]);
-
   // Linhas elegíveis ao lote: pendentes, não canceladas e visíveis agora.
   const selectableInclusionIds = useMemo(() => {
     const ids = new Set<string>();
@@ -181,20 +134,11 @@ export function useAccommodationsData({ filters, sortConfig, showOnlyPendingSwap
     return ids;
   }, [filteredData, accommodationMap]);
 
-  const counts: AccommodationCounts = useMemo(() => {
-    let purchased = 0, pending = 0;
-    filteredData.forEach((inc) => {
-      if (accommodationMap.get(inc.id)) purchased++;
-      // Inclusão cancelada não é "pendente" — contá-la inflava a fila de trabalho.
-      else if (inc.status !== "cancelado") pending++;
-    });
-    return { total: filteredData.length, purchased, pending };
-  }, [filteredData, accommodationMap]);
-
   return {
     teamInclusions, events, functions, collaborators, accommodations, tickets, users,
+    teamInclusionsWithAccommodation,
     isLoading, loadError,
     accommodationMap, eventById, functionById, collaboratorById,
-    pendingSwapByInclusion, filteredData, pendingSwapsCount, selectableInclusionIds, counts,
+    pendingSwapByInclusion, filteredData, selectableInclusionIds,
   };
 }

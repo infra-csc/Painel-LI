@@ -1,16 +1,17 @@
 /**
- * Popover de filtro da tela de Passagens (02/09), com busca e contador.
+ * Popover de filtro das filas de trabalho — Passagens (02/09) e Hospedagem.
  *
  * O que ele acrescenta aos seletores antigos é o NÚMERO ao lado de cada opção:
  * quantas linhas sobram se você escolher aquela, mantendo o resto do recorte.
  * Sem ele, escolher um evento numa lista de 160 é apostar — e descobrir que a
  * escolha devolve zero linhas só depois de fechar o popover.
  *
- * A contagem vem de `tickets-filtering.ts`, a MESMA regra que monta a lista.
- * Um contador que usasse a própria cópia da regra passaria a mentir na
- * primeira mudança.
+ * Os contadores são passados de fora, e cada tela os calcula com a MESMA regra
+ * que monta a sua lista (`tickets-filtering.ts`, `accommodations-filtering.ts`).
+ * Um contador com cópia própria da regra passaria a mentir na primeira
+ * mudança — foi o que aconteceu quando ele contava só os filtros base.
  *
- * A semântica de valor é a de antes, intocada: evento e colaborador são
+ * A semântica de valor é a das telas, intocada: evento e colaborador são
  * escolha única com "all" para "todos"; função é seleção múltipla por array.
  */
 import { forwardRef, useMemo, useState } from "react";
@@ -76,9 +77,20 @@ function Lista({ opcoes, busca, onBusca, estaMarcada, onEscolher, placeholder, t
   testidPrefixo: string;
   rodape?: React.ReactNode;
 }) {
+  /*
+   * O `trim` não é enfeite: 24 dos 209 eventos do banco têm espaço à esquerda
+   * ou uma fileira de tabulações à direita, herdados de importação de planilha.
+   * Com eles na comparação, " S RUN" e " Night Run" iam para antes do "A" e a
+   * lista alfabética parecia embaralhada — quem procurava "Night Run" na letra N
+   * não achava.
+   *
+   * Corrigido só na exibição e na ordem: o dado no banco continua como está, e
+   * o id, que é o que filtra, nunca dependeu do nome.
+   */
   const filtradas = useMemo(() => {
     const q = normalizar(busca);
-    const ordenadas = [...opcoes].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    const limpas = opcoes.map((o) => ({ ...o, nome: o.nome.trim() }));
+    const ordenadas = limpas.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
     return q ? ordenadas.filter((o) => normalizar(o.nome).includes(q)) : ordenadas;
   }, [opcoes, busca]);
 
