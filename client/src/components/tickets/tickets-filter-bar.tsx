@@ -11,7 +11,7 @@
  * todos aqui — só mudaram de forma e de lugar.
  */
 import { Search, X } from "lucide-react";
-import { FiltroMultiplo, FiltroUnico, type OpcaoDeFiltro } from "./tickets-filter-popover";
+import { FiltroDeLista, FiltroMultiplo, FiltroUnico, type OpcaoDeFiltro } from "./tickets-filter-popover";
 import { DEFAULT_TICKET_FILTERS, type TicketFilters } from "./types";
 
 interface TicketsFilterBarProps {
@@ -33,7 +33,27 @@ interface TicketsFilterBarProps {
 
 /** Altura e forma comuns a todos os controles da linha. */
 const CONTROLE = "h-[34px] rounded-lg border border-border bg-card text-[13px] font-medium text-slate-700";
-const SELECT = `${CONTROLE} px-2.5 pr-7 outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12 transition-colors`;
+
+/** Os mesmos valores dos `<select>` que estavam aqui — nada mudou de opção. */
+const STATUS_DA_PASSAGEM = [
+  { id: "all", nome: "Todos os status" },
+  { id: "pending", nome: "Pendentes" },
+  { id: "processed", nome: "Compradas" },
+  { id: "no_arrival", nome: "Compradas sem horário de chegada" },
+];
+const TRANSPORTES = [
+  { id: "all", nome: "Todos os transportes" },
+  { id: "aereo", nome: "Aéreo" },
+  { id: "rodoviario", nome: "Rodoviário" },
+  { id: "van", nome: "Van" },
+];
+// Aqui o padrão NÃO é "all": a tela abre em "Inclusões ativas", e "Todas" é
+// uma escolha explícita. Por isso é a primeira da lista.
+const SITUACOES_DA_INCLUSAO = [
+  { id: "active", nome: "Inclusões ativas" },
+  { id: "all", nome: "Todas" },
+  { id: "cancelado", nome: "Canceladas" },
+];
 
 export default function TicketsFilterBar({
   filters, onChange, onClear, opcoesDeEvento, opcoesDeFuncao, opcoesDeColaborador, count, total,
@@ -93,43 +113,31 @@ export default function TicketsFilterBar({
         />
       </div>
 
-      <select
-        value={filters.ticketStatus}
-        onChange={(e) => set("ticketStatus", e.target.value)}
-        className={SELECT}
-        data-testid="filter-ticket-status"
-        aria-label="Filtrar por situação da passagem"
-      >
-        <option value="all">Todos os status</option>
-        <option value="pending">Pendentes</option>
-        <option value="processed">Compradas</option>
-        <option value="no_arrival">Compradas sem horário de chegada</option>
-      </select>
-
-      <select
-        value={filters.transportType}
-        onChange={(e) => set("transportType", e.target.value)}
-        className={SELECT}
-        data-testid="filter-transport-type"
-        aria-label="Filtrar por tipo de transporte"
-      >
-        <option value="all">Todos os transportes</option>
-        <option value="aereo">Aéreo</option>
-        <option value="rodoviario">Rodoviário</option>
-        <option value="van">Van</option>
-      </select>
-
-      <select
-        value={filters.inclusionStatus}
-        onChange={(e) => set("inclusionStatus", e.target.value)}
-        className={SELECT}
-        data-testid="filter-inclusion-status"
-        aria-label="Filtrar por situação da inclusão"
-      >
-        <option value="active">Inclusões ativas</option>
-        <option value="all">Todas</option>
-        <option value="cancelado">Canceladas</option>
-      </select>
+      <div className="w-[210px] shrink-0">
+        <FiltroDeLista
+          valor={filters.ticketStatus}
+          onChange={(v) => set("ticketStatus", v)}
+          opcoes={STATUS_DA_PASSAGEM}
+          testid="filter-ticket-status"
+          larguraPopover={290}
+        />
+      </div>
+      <div className="w-[172px] shrink-0">
+        <FiltroDeLista
+          valor={filters.transportType}
+          onChange={(v) => set("transportType", v)}
+          opcoes={TRANSPORTES}
+          testid="filter-transport-type"
+        />
+      </div>
+      <div className="w-[156px] shrink-0">
+        <FiltroDeLista
+          valor={filters.inclusionStatus}
+          onChange={(v) => set("inclusionStatus", v)}
+          opcoes={SITUACOES_DA_INCLUSAO}
+          testid="filter-inclusion-status"
+        />
+      </div>
 
       {/* "Limpar" zera também o filtro de trocas pendentes (via onClear). */}
       <button

@@ -119,6 +119,68 @@ function Lista({ opcoes, busca, onBusca, estaMarcada, onEscolher, placeholder, t
   );
 }
 
+/**
+ * Lista curta de opções fixas — situação da passagem, transporte, situação da
+ * inclusão.
+ *
+ * Eram `<select>` nativos: abriam o menu do sistema operacional, com fonte,
+ * cor de seleção e altura de item que não são as do resto da tela. No meio de
+ * três popovers desenhados, o menu do sistema aparecia como um corpo estranho.
+ *
+ * Sem busca, de propósito: são três ou quatro opções, e um campo de busca
+ * sobre quatro itens é ruído.
+ */
+export function FiltroDeLista({ valor, onChange, opcoes, testid, larguraPopover = 260, contagens }: {
+  valor: string;
+  onChange: (v: string) => void;
+  /** Opções na ordem em que devem aparecer. A primeira costuma ser o padrão. */
+  opcoes: { id: string; nome: string }[];
+  testid: string;
+  larguraPopover?: number;
+  /** Quantas linhas cada opção deixaria. Opcional — nem toda lista tem. */
+  contagens?: Map<string, number>;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const atual = opcoes.find((o) => o.id === valor) ?? opcoes[0];
+  // "Ativo" é ter escolhido algo diferente do padrão — a primeira opção.
+  const noPadrao = valor === opcoes[0]?.id;
+
+  return (
+    <Popover open={aberto} onOpenChange={setAberto}>
+      <PopoverTrigger asChild>
+        <Gatilho ativo={!noPadrao} texto={atual?.nome ?? ""} testid={testid} />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="p-0 rounded-xl overflow-hidden" style={{ width: larguraPopover }}>
+        <div className="p-1.5">
+          {opcoes.map((o) => {
+            const marcada = o.id === valor;
+            const n = contagens?.get(o.id);
+            return (
+              <button
+                key={o.id}
+                type="button"
+                role="radio"
+                aria-checked={marcada}
+                onClick={() => { onChange(o.id); setAberto(false); }}
+                className={`flex items-center gap-2.5 w-full min-h-[32px] px-2 py-1.5 rounded-[7px] text-[13px] text-left hover:bg-slate-100 ${
+                  marcada ? "text-primary font-medium" : "text-slate-700"
+                }`}
+                data-testid={`${testid}-opcao-${o.id}`}
+              >
+                <Caixa on={marcada} />
+                <span className="flex-1 min-w-0 truncate">{o.nome}</span>
+                {typeof n === "number" && (
+                  <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">{n}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /** Escolha ÚNICA — "all" é "todos". Mesma semântica dos seletores antigos. */
 export function FiltroUnico({ valor, onChange, opcoes, rotuloTodos, placeholderBusca, testid, larguraPopover = 320 }: {
   valor: string;
