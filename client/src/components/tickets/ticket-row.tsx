@@ -28,6 +28,9 @@ export interface TicketRowProps {
 
 const transportLabel = (t: Ticket) => (t.transportType === "van" ? "Van" : t.transportType === "rodoviario" ? "Rodoviário" : "Aéreo");
 
+/** Forma única das pílulas da linha (h22 · px7 · r6 · 11px/500). */
+const PILULA = "inline-flex items-center gap-1.5 h-[22px] px-[7px] rounded-md text-[11px] font-medium whitespace-nowrap";
+
 /** "LOC AX782Q · R$ 1.500,00 · Aéreo" — resumo curto da compra para tooltip/linha. */
 export function ticketSummaryLine(t: Ticket): string {
   const parts: string[] = [];
@@ -62,21 +65,25 @@ function TicketRow({
     >
       {/* Checkbox — só para PENDENTES */}
       <td className="px-4 py-3 whitespace-nowrap w-10" onClick={(e) => e.stopPropagation()}>
+        {/* O alvo é o <label> de 40x40: margem não amplia área de clique e
+            padding em checkbox nativo não funciona. */}
         {!ticket && !cancelado && !locked ? (
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={() => onToggleSelect(inclusion.id)}
-            aria-label={`Selecionar passagem da inclusão #${inclusion.inclusionNumber ?? ""}`}
-            className="rounded border-gray-300 accent-blue-600"
-            data-testid={`checkbox-ticket-${inclusion.id}`}
-          />
+          <label className="flex items-center justify-center w-10 h-10 -m-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={() => onToggleSelect(inclusion.id)}
+              aria-label={`Selecionar passagem da inclusão #${inclusion.inclusionNumber ?? ""}`}
+              className="rounded border-gray-300 accent-blue-600"
+              data-testid={`checkbox-ticket-${inclusion.id}`}
+            />
+          </label>
         ) : <div className="w-4 h-4" />}
       </td>
 
       {/* ID */}
       <td className={`px-3 py-3 w-[64px] ${cancelado ? "opacity-60" : "cursor-pointer"}`} onClick={cancelado ? undefined : open}>
-        <span style={{ display: "inline-block", background: "#EEF2FF", color: "#3B4FE4", fontSize: 13, fontWeight: 600, borderRadius: 6, padding: "4px 8px", whiteSpace: "nowrap" }}>
+        <span className={`${PILULA} bg-brand-soft text-primary font-mono tabular-nums`}>
           #{inclusion.inclusionNumber || "N/A"}
         </span>
       </td>
@@ -98,14 +105,14 @@ function TicketRow({
           <div>
             <span className="text-[14px] font-[500] text-[#1a1a2e]">{name}</span>
             {hasPendingSwap && (
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-100 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 animate-pulse" />
-                <span className="text-[10px] font-medium text-amber-600">Troca pendente</span>
+              <span className={`${PILULA} bg-[#FEF3C7] text-[#92400E] mt-0.5`}>
+                <span className="w-[5px] h-[5px] rounded-full bg-[#D97706] shrink-0" aria-hidden="true" />
+                Troca pendente
               </span>
             )}
             {!hasPendingSwap && hasApprovedSwap && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[10px] font-bold border border-green-200 mt-0.5">
-                <ArrowLeftRight className="w-2.5 h-2.5" />Troca aprovada
+              <span className={`${PILULA} bg-[#ECFDF5] text-[#047857] mt-0.5`}>
+                <ArrowLeftRight className="w-3 h-3" aria-hidden="true" />Troca aprovada
               </span>
             )}
           </div>
@@ -229,26 +236,26 @@ function TicketRow({
       {/* Status (+ resumo LOC/valor/tipo) */}
       <td className={`${cellCls} text-center`} onClick={open}>
         {cancelado ? (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-400 text-[10px] font-bold tracking-wide rounded-md">Cancelado</span>
+          <span className={`${PILULA} bg-[#F1F5F9] text-[#64748B]`}>Cancelado</span>
         ) : ticket ? (
           <div className="flex flex-col items-center gap-1" title={summary}>
             {ticket.emittedAt && (
               <span
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold tracking-wide rounded-md bg-violet-50 text-violet-700"
+                className={`${PILULA} bg-[#EDE9FE] text-[#5B21B6]`}
                 title="Passagem emitida — a área não pede mais ajuste nesta vaga"
                 data-testid={`ticket-emitida-${inclusion.id}`}
               >
                 <Lock className="w-3 h-3" aria-hidden="true" />Emitida
               </span>
             )}
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold tracking-wide rounded-md" style={{ background: "#DCFCE7", color: "#15803D" }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />Comprada
+            <span className={`${PILULA} bg-[#DCFCE7] text-[#15803D]`}>
+              <span className="w-[5px] h-[5px] rounded-full bg-[#15803D] shrink-0" aria-hidden="true" />Comprada
             </span>
             <span className="text-[10px] text-slate-400 whitespace-nowrap max-w-[160px] truncate" data-testid={`ticket-summary-${inclusion.id}`}>{summary}</span>
           </div>
         ) : (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold tracking-wide rounded-md" style={{ background: "#FEF9C3", color: "#B45309" }}>
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />Pendente
+          <span className={`${PILULA} bg-[#FEF3C7] text-[#92400E]`}>
+            <span className="w-[5px] h-[5px] rounded-full bg-[#D97706] shrink-0" aria-hidden="true" />Pendente
           </span>
         )}
       </td>

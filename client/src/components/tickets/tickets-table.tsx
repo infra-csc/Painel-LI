@@ -22,7 +22,9 @@ interface TicketsTableProps {
   emitindo?: boolean;
 }
 
-const TH = "px-4 py-3 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400";
+// 11px/600 com tracking curto — era 10px `font-black` com 0.15em, caixa alta
+// esticada e mais pesada que o próprio dado que rotulava.
+const TH = "px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground";
 
 export default function TicketsTable({
   data, filters, sortConfig, onSort, selectedTickets, allSelectableSelected, onToggleAll, onToggleSelect, onOpen, canEdit, onToggleEmitida, emitindo,
@@ -31,17 +33,17 @@ export default function TicketsTable({
 
   if (rows.length === 0) {
     return (
-      <div className="p-12 text-center">
-        <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
-          <Plane className="w-7 h-7 text-blue-200" />
+      <div className="border border-dashed border-slate-300 rounded-xl px-8 py-11 text-center">
+        <div className="flex justify-center text-slate-400 mb-2.5" aria-hidden="true">
+          <Plane className="w-7 h-7" />
         </div>
-        <h3 className="text-[15px] font-bold text-slate-600 mb-1">
+        <h3 className="text-[15px] font-semibold text-slate-900 mb-1.5">
           {filters.ticketStatus === "pending" ? "Nenhuma passagem pendente" :
            filters.ticketStatus === "processed" ? "Nenhuma passagem comprada" :
            filters.ticketStatus === "no_arrival" ? "Todas as compradas têm horário de chegada" :
            "Nenhuma passagem encontrada"}
         </h3>
-        <p className="text-[13px] text-slate-400">
+        <p className="mx-auto max-w-[440px] text-[13px] leading-relaxed text-muted-foreground">
           {filters.ticketStatus === "pending"
             ? "Todas as passagens foram compradas ou não há colaboradores escalados."
             : filters.ticketStatus === "processed"
@@ -56,11 +58,13 @@ export default function TicketsTable({
 
   const sortIcon = (field: SortField) =>
     sortConfig?.field === field ? (sortConfig.direction === "asc" ? " ▲" : " ▼") : "";
+  // Alvo de 26px: o botão de ordenar tinha a altura do texto (15px), pequeno
+  // demais para acertar com o mouse.
   const sortBtn = (field: SortField, label: string) => (
     <button
       type="button"
       onClick={() => onSort(field)}
-      className={`hover:text-slate-600 transition-colors ${sortConfig?.field === field ? "text-slate-600" : ""}`}
+      className={`inline-flex items-center h-[26px] rounded-sm hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${sortConfig?.field === field ? "text-primary" : ""}`}
       data-testid={`header-${field}`}
       title={`Ordenar por ${label.toLowerCase()}`}
     >
@@ -68,8 +72,13 @@ export default function TicketsTable({
     </button>
   );
 
+  const ordemLabel = sortConfig
+    ? ({ id: "nº da inclusão", event: "evento", function: "função", collaborator: "colaborador", diarias: "datas" } as Record<string, string>)[sortConfig.field] ?? sortConfig.field
+    : "evento e função";
+
   return (
-    <div className="overflow-x-auto">
+    <>
+      <div className="overflow-x-auto">
       <table className="w-full text-left border-collapse">
         <thead style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
           <tr>
@@ -85,7 +94,7 @@ export default function TicketsTable({
                 data-testid="checkbox-select-all"
               />
             </th>
-            <th className={`px-3 py-3 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 w-[64px] whitespace-nowrap`}>
+            <th className={`px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground w-[64px] whitespace-nowrap`}>
               {sortBtn("id", "ID")}
             </th>
             {/* Evento e Função ordenam separadamente */}
@@ -97,7 +106,7 @@ export default function TicketsTable({
             <SortableHeader field="diarias" sortConfig={sortConfig} onSort={onSort}>Datas e Horários</SortableHeader>
             <th className={TH}>Sugestões</th>
             <th className={`${TH} text-center`}>Status</th>
-            <th className="py-3 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 text-center w-[72px]">Ações</th>
+            <th className="py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground text-center w-[72px]">Ações</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -124,6 +133,23 @@ export default function TicketsTable({
           ))}
         </tbody>
       </table>
-    </div>
+      </div>
+
+      {/* Rodapé: o que está na tela e o que a cor da borda esquerda quer dizer.
+          Um marcador colorido sem legenda é charada, não sinal. */}
+      <div className="flex items-center gap-3 h-10 px-4 bg-background border-t border-border">
+        <span className="text-[12px] text-[#475569] tabular-nums whitespace-nowrap">
+          Mostrando {rows.length} {rows.length === 1 ? "vaga" : "vagas"} · ordenado por {ordemLabel}
+        </span>
+        <span className="flex items-center gap-3 ml-auto text-[11px] text-muted-foreground whitespace-nowrap">
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden="true" className="w-[3px] h-[11px] rounded-full bg-[#F97316]" />espera você
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden="true" className="w-[3px] h-[11px] rounded-full bg-[#F59E0B]" />troca em análise
+          </span>
+        </span>
+      </div>
+    </>
   );
 }

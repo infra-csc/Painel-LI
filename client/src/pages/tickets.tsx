@@ -4,7 +4,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
-import { Plane, AlertCircle, Stamp, FileUp } from "lucide-react";
+import { AlertCircle, Stamp, FileUp } from "lucide-react";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -27,7 +27,7 @@ import type { TeamInclusion, Ticket } from "@shared/schema";
 import { useTicketsData, toTitleCase } from "@/components/tickets/use-tickets-data";
 import { useTicketUpsert } from "@/components/tickets/use-ticket-upsert";
 import { filtersFromSearch, searchFromFilters } from "@/components/tickets/filters-url";
-import { TicketsKpis, PendingSwapsBanner } from "@/components/tickets/tickets-kpis";
+import TicketsWorkQueue, { type FilaDePassagens } from "@/components/tickets/tickets-work-queue";
 import TicketsFilterBar from "@/components/tickets/tickets-filter-bar";
 import QuickBatchPanel from "@/components/tickets/quick-batch-panel";
 import VoucherLoteDialog from "@/components/tickets/voucher-lote-dialog";
@@ -96,6 +96,47 @@ export default function Tickets() {
     ticketInclusions, filteredTicketInclusions, pendingTicketSwapsCount, selectableInclusionIds, kpis, isPurchasingRole,
   } = data;
   const canEdit = canEditScreen(user, "tickets");
+
+  /**
+   * Qual bloco da fila está aceso. Deriva dos filtros que a tela já tinha —
+   * não é estado novo, e por isso a URL, o "Limpar" e o botão de voltar do
+   * navegador continuam funcionando sem saber que a fila existe.
+   */
+  const filaAtiva: FilaDePassagens =
+    showOnlyPendingSwaps ? "troca"
+    : filters.ticketStatus === "pending" ? "comprar"
+    : filters.ticketStatus === "no_arrival" ? "sem-chegada"
+    : filters.ticketStatus === "processed" ? "compradas"
+    : null;
+
+  const escolherFila = (k: FilaDePassagens) => {
+    // Um bloco por vez: acender "Comprar" apaga o recorte de trocas, e
+    // vice-versa. Dois recortes somados devolveriam lista vazia sem explicar.
+    setShowOnlyPendingSwaps(k === "troca");
+    setFilters(prev => ({
+      ...prev,
+      ticketStatus:
+        k === "comprar" ? "pending"
+        : k === "sem-chegada" ? "no_arrival"
+        : k === "compradas" ? "processed"
+        : "all",
+    }));
+  };
+
+  /**
+   * O resumo da barra de contexto. É onde o cartão "Total geral" foi parar:
+   * diz quantas vagas o recorte tem, em quantos eventos, e quantas ainda
+   * esperam compra — a informação que fazia a pessoa somar os cartões.
+   */
+  const resumoTopo = (() => {
+    const n = filteredTicketInclusions.length;
+    if (n === 0) return "nenhuma vaga neste recorte";
+    const nEventos = new Set(filteredTicketInclusions.map(i => i.eventId)).size;
+    return [
+      `${n} ${n === 1 ? "vaga" : "vagas"} em ${nEventos} ${nEventos === 1 ? "evento" : "eventos"}`,
+      kpis.aguardando > 0 ? `${kpis.aguardando} aguardando compra` : null,
+    ].filter(Boolean).join(" · ");
+  })();
 
   const handleSort = (field: SortField) => {
     setSortConfig(current => {
@@ -414,25 +455,40 @@ export default function Tickets() {
 
   return (
     <>
-      <div className="space-y-3">
-        {/* Header */}
-        <div className="flex items-center gap-5">
-          <div className="w-10 h-10 bg-[#0033CC] rounded-[10px] flex items-center justify-center shrink-0" style={{ boxShadow: "0 4px 14px #0033CC50" }}>
-            <Plane className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-[18px] font-bold tracking-tight text-slate-900 leading-tight">Compra de Passagens</h1>
-            <p className="text-[13px] text-slate-400 mt-0.5">Gerencie a compra de passagens para os colaboradores escalados.</p>
-          </div>
+      <div className="-mx-6 -mt-6">
+        {/* Barra de contexto: 56px no lugar do bloco de ~76px que repetia o que
+            o breadcrumb já dizia. O "Total geral" do KPI vira o resumo daqui —
+            nenhum número se perdeu. */}
+        <div className="sticky top-0 z-25 flex items-center gap-4 h-14 px-6 bg-card border-b border-border">
+          <span className="text-[15px] font-semibold text-slate-900 whitespace-nowrap">Passagens</span>
+          <div aria-hidden="true" className="w-px h-5 bg-border" />
+          <span className="min-w-0 text-[12px] text-muted-foreground truncate" data-testid="resumo-passagens">{resumoTopo}</span>
+          {canEdit && (
+            <Button
+              type="button"
+              onClick={() => setVoucherLoteAberto(true)}
+              className="ml-auto shrink-0 h-[34px] rounded-lg bg-primary hover:bg-primary-hover text-white text-[13px] font-medium"
+              data-testid="abrir-voucher-lote"
+            >
+              <FileUp className="w-4 h-4 mr-1.5" aria-hidden="true" />
+              Registrar pelos vouchers (PDF)
+            </Button>
+          )}
         </div>
 
-        <TicketsKpis kpis={kpis} />
+      <main className="px-6 pt-5 pb-6">
+        <div className="flex flex-col gap-4 max-w-[1560px] mx-auto">
         {/* Evento encerrado: banner discreto quando o filtro aponta para um evento
             já terminado e o usuário não é o administrador. */}
         <PastEventBanner show={!!filteredEvent && data.isEventLocked({ eventId: filteredEvent.id })} />
-        {isPurchasingRole && (
-          <PendingSwapsBanner count={pendingTicketSwapsCount} active={showOnlyPendingSwaps} onToggle={() => setShowOnlyPendingSwaps(v => !v)} />
-        )}
+
+        <TicketsWorkQueue
+          kpis={kpis}
+          trocasPendentes={pendingTicketSwapsCount}
+          mostrarTrocas={isPurchasingRole}
+          ativa={filaAtiva}
+          onEscolher={escolherFila}
+        />
         {/* Emitidas em lote: aparece assim que há linhas marcadas, acima do
             painel de aplicar dados. É o aviso de "o bilhete saiu" para várias
             pessoas de uma vez — não preenche nada, só fecha a janela de ajuste. */}
@@ -457,20 +513,6 @@ export default function Tickets() {
           </div>
         )}
 
-        {canEdit && (
-          <div className="mb-3 flex justify-end">
-            <Button
-              type="button" variant="outline"
-              onClick={() => setVoucherLoteAberto(true)}
-              className="rounded-lg border-slate-200 bg-white hover:bg-brand-soft hover:text-primary"
-              data-testid="abrir-voucher-lote"
-            >
-              <FileUp className="w-4 h-4 mr-1.5" aria-hidden="true" />
-              Registrar pelos vouchers (PDF)
-            </Button>
-          </div>
-        )}
-
         <QuickBatchPanel
           expanded={batchExpanded}
           onToggle={() => setBatchExpanded(v => !v)}
@@ -486,17 +528,18 @@ export default function Tickets() {
           onApply={handleApplyToSelected}
         />
 
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <TicketsFilterBar
-            filters={filters}
-            onChange={setFilters}
-            onClear={() => setShowOnlyPendingSwaps(false)}
-            events={events}
-            functions={functions}
-            collaborators={collaborators}
-            count={filteredTicketInclusions.length}
-          />
+        <TicketsFilterBar
+          filters={filters}
+          onChange={setFilters}
+          onClear={() => setShowOnlyPendingSwaps(false)}
+          events={events}
+          functions={functions}
+          collaborators={collaborators}
+          count={filteredTicketInclusions.length}
+          total={ticketInclusions.length}
+        />
 
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
           <TicketsTable
             data={data}
             filters={filters}
@@ -512,6 +555,8 @@ export default function Tickets() {
             emitindo={emitirMutation.isPending}
           />
         </div>
+        </div>
+      </main>
       </div>
 
       <TicketModal
