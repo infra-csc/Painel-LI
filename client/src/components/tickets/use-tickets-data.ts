@@ -1,8 +1,9 @@
 // Dados da tela de Passagens: queries, índices O(1), filtros/dedupe/ordenação
 // e KPIs memoizados. Sem JSX — a página e os componentes só consomem.
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fixEncoding } from "@/lib/utils";
+import { passaNosFiltrosBase, passaNosFiltrosDePassagem, VALID_STATUSES_WITHOUT_COLLABORATOR } from "./tickets-filtering";
 import { purchasedValueKpi, isStoredTicketOneWay } from "@/lib/ticket-form";
 import { isEventPast, canActOnPastEvent } from "@shared/event-window";
 import type { SortConfig } from "@/components/common/sortable-header";
@@ -26,13 +27,6 @@ export type UserName = Pick<User, "id" | "name">;
 
 const swapInclusionId = (s: SwapRequestRow) => s.team_inclusion_id || s.teamInclusionId;
 
-/** Status que mostram a inclusão mesmo sem colaborador (compra antes do nome). */
-const VALID_STATUSES_WITHOUT_COLLABORATOR = [
-  "reaberto", "escalado",
-  "aguardando_passagem", "aguardando_hospedagem",
-  "passagem", "hospedagem", "hospedagem_comprada",
-  "aprovado", "passagem_comprada", "hospedagem_passagem_comprada",
-];
 
 const STATUS_PRIORITY: Record<string, number> = {
   hospedagem_passagem_comprada: 7,
@@ -211,34 +205,18 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
   const getUserName = (userId: string) => userNameById.get(userId) || "Usuário";
 
   // ── Inclusões que precisam de passagem + filtros simples ──
-  const ticketInclusions = useMemo(() => teamInclusions?.filter(inclusion => {
-    if (!inclusion.needsTicket) return false;
-    // Evento excluído (ou que sumiu) não aparece na lista — mesma regra da
-    // Escalação. Antes a linha ficava aqui com "⚠ Não encontrado" no lugar do
-    // nome, pedindo compra de passagem para um evento que não existe mais.
-    const eventoDaVaga = eventById.get(inclusion.eventId);
-    if (!eventoDaVaga || eventoDaVaga.status === "excluído" || eventoDaVaga.status === "excluido") return false;
-    // Canceladas só somem no filtro "Inclusões ativas".
-    if (inclusion.status === "cancelado" && filters.inclusionStatus === "active") return false;
-    // Com colaborador aparece independente do status; sem colaborador só nos status previstos.
-    if (!inclusion.collaboratorId && !VALID_STATUSES_WITHOUT_COLLABORATOR.includes(inclusion.status)) return false;
-
-    if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
-    if (filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;
-    if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
-    if (filters.searchId) {
-      const q = filters.searchId.replace(/#/g, "").trim().toLowerCase();
-      const colName = (inclusion.collaboratorId ? collaboratorById.get(inclusion.collaboratorId)?.fullName ?? "" : "").toLowerCase();
-      if (!(String(inclusion.inclusionNumber ?? "").toLowerCase().includes(q) ||
-        inclusion.id.toLowerCase().includes(q) ||
-        colName.includes(q))) return false;
-    }
-    if (filters.inclusionStatus === "cancelado" && inclusion.status !== "cancelado") return false;
-    return true;
-  }) || [], [teamInclusions, collaboratorById, eventById, filters.eventId, filters.functionId, filters.collaboratorId, filters.searchId, filters.inclusionStatus]);
+  // A regra mora em tickets-filtering.ts para os contadores dos popovers
+  // poderem chamar EXATAMENTE o mesmo teste que a lista usa.
+  const contextoDosFiltros = useMemo(() => ({ eventById, collaboratorById }), [eventById, collaboratorById]);
+  const ticketInclusions = useMemo(
+    () => teamInclusions?.filter(inclusion => passaNosFiltrosBase(inclusion, filters, contextoDosFiltros)) || [],
+    [teamInclusions, contextoDosFiltros, filters.eventId, filters.functionId, filters.collaboratorId, filters.searchId, filters.inclusionStatus], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   // ── Dedupe por colaborador (documento normalizado) + evento + função ──
-  const deduplicatedInclusions = useMemo(() => {
+  // Extraído para função para que o contador dos popovers possa rodar o
+  // pipeline INTEIRO — sem o dedupe ele prometeria linhas que a lista junta.
+  const deduplicar = useCallback((linhas: TeamInclusion[]) => {
     const map = new Map<string, TeamInclusion>();
     const normalizeDocument = (doc?: string | null) => (doc ? doc.replace(/[^a-zA-Z0-9]/g, "").toUpperCase() : "");
     const makeKey = (inc: TeamInclusion) => {
@@ -247,7 +225,7 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
       if (!businessId) return `${inc.eventId}|${inc.functionId}|unassigned-${inc.id}`;
       return `${inc.eventId}|${inc.functionId}|${businessId}`;
     };
-    for (const inclusion of ticketInclusions) {
+    for (const inclusion of linhas) {
       const key = makeKey(inclusion);
       const existing = map.get(key);
       if (!existing) { map.set(key, inclusion); continue; }
@@ -268,25 +246,28 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
       if (isNewer) map.set(key, inclusion);
     }
     return Array.from(map.values());
-  }, [ticketInclusions, collaboratorById]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collaboratorById]);
+
+  const deduplicatedInclusions = useMemo(() => deduplicar(ticketInclusions), [deduplicar, ticketInclusions]);
+
+  /**
+   * O resto do pipeline sobre uma lista qualquer: dedupe + filtros de
+   * passagem. É o que os contadores dos popovers chamam para que o número
+   * prometido seja o número entregue.
+   */
+  const completarPipeline = useCallback(
+    (linhas: TeamInclusion[], f: typeof filters) =>
+      deduplicar(linhas).filter(i => passaNosFiltrosDePassagem(i, f, {
+        ticketByInclusion, pendingSwapByInclusion, showOnlyPendingSwaps,
+      })),
+    [deduplicar, ticketByInclusion, pendingSwapByInclusion, showOnlyPendingSwaps],
+  );
 
   // ── Filtro de status da passagem/transporte + ordenação ──
   const filteredTicketInclusions = useMemo(() => {
-    const filtered = deduplicatedInclusions.filter(inclusion => {
-      if (showOnlyPendingSwaps && !pendingSwapByInclusion.has(inclusion.id)) return false;
-      const t = ticketByInclusion.get(inclusion.id);
-      if (filters.ticketStatus !== "all") {
-        const hasTicket = !!t;
-        if (filters.ticketStatus === "pending" && hasTicket) return false;
-        if (filters.ticketStatus === "processed" && !hasTicket) return false;
-        // Qualidade: compradas (aéreo/rodoviário) sem horário de chegada.
-        if (filters.ticketStatus === "no_arrival" && !(t && t.transportType !== "van" && !t.actualArrivalTime)) return false;
-      }
-      if (filters.transportType !== "all") {
-        if (!t || (t.transportType || "aereo") !== filters.transportType) return false;
-      }
-      return true;
-    });
+    const filtered = deduplicatedInclusions.filter(inclusion =>
+      passaNosFiltrosDePassagem(inclusion, filters, { ticketByInclusion, pendingSwapByInclusion, showOnlyPendingSwaps }));
 
     if (!sortConfig) return filtered;
     const { field, direction } = sortConfig;
@@ -356,6 +337,7 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
     // índices
     ticketByInclusion, eventById, functionById, collaboratorById, accommodationByInclusion,
     pendingSwapByInclusion, approvedSwapInclusionIds, isPurchasingRole, isEventLocked,
+    completarPipeline,
     // getters
     getTicket, getEventName, getFunctionName, getCollaboratorName, getCollaborator, getEventLocation, getUserName,
     // listas derivadas

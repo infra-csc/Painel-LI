@@ -11,19 +11,21 @@
  * todos aqui — só mudaram de forma e de lugar.
  */
 import { Search, X } from "lucide-react";
-import EventCombobox from "@/components/ui/event-combobox";
-import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
-import FunctionMultiSelect from "@/components/ui/function-multi-select";
-import type { Event, Function, Collaborator } from "@shared/schema";
+import { FiltroMultiplo, FiltroUnico, type OpcaoDeFiltro } from "./tickets-filter-popover";
 import { DEFAULT_TICKET_FILTERS, type TicketFilters } from "./types";
 
 interface TicketsFilterBarProps {
   filters: TicketFilters;
   onChange: (updater: (prev: TicketFilters) => TicketFilters) => void;
   onClear: () => void;
-  events: Event[] | undefined;
-  functions: Function[] | undefined;
-  collaborators: Collaborator[] | undefined;
+  /**
+   * Opções JÁ com a contagem cruzada — "quantas linhas sobram se eu escolher
+   * ISTO mantendo o resto". Vêm prontas da página porque quem sabe contar é a
+   * regra que monta a lista, não a barra.
+   */
+  opcoesDeEvento: OpcaoDeFiltro[];
+  opcoesDeFuncao: OpcaoDeFiltro[];
+  opcoesDeColaborador: OpcaoDeFiltro[];
   count: number;
   /** Total sem recorte — a contagem vira "N de M" quando há filtro ativo. */
   total?: number;
@@ -34,7 +36,7 @@ const CONTROLE = "h-[34px] rounded-lg border border-border bg-card text-[13px] f
 const SELECT = `${CONTROLE} px-2.5 pr-7 outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12 transition-colors`;
 
 export default function TicketsFilterBar({
-  filters, onChange, onClear, events, functions, collaborators, count, total,
+  filters, onChange, onClear, opcoesDeEvento, opcoesDeFuncao, opcoesDeColaborador, count, total,
 }: TicketsFilterBarProps) {
   const set = <K extends keyof TicketFilters>(key: K, value: TicketFilters[K]) =>
     onChange(prev => ({ ...prev, [key]: value }));
@@ -59,30 +61,35 @@ export default function TicketsFilterBar({
       </div>
 
       <div className="w-[168px] shrink-0">
-        <EventCombobox
-          events={events?.filter(e => e.status !== "excluido" && e.status !== "excluído")}
-          value={filters.eventId}
-          onValueChange={(value) => set("eventId", value)}
-          placeholder="Todos os eventos"
-          testId="filter-event"
+        <FiltroUnico
+          valor={filters.eventId}
+          onChange={(v) => set("eventId", v)}
+          opcoes={opcoesDeEvento}
+          rotuloTodos="Todos os eventos"
+          placeholderBusca="Buscar evento…"
+          testid="filter-event"
+          larguraPopover={360}
         />
       </div>
       <div className="w-[150px] shrink-0">
-        <FunctionMultiSelect
-          functions={functions}
-          selectedIds={filters.functionId}
-          onSelectedChange={(ids) => set("functionId", ids)}
-          placeholder="Todas as funções"
-          testId="filter-function"
+        <FiltroMultiplo
+          valores={filters.functionId}
+          onChange={(ids) => set("functionId", ids)}
+          opcoes={opcoesDeFuncao}
+          rotuloTodos="Todas as funções"
+          placeholderBusca="Buscar função…"
+          testid="filter-function"
         />
       </div>
       <div className="w-[170px] shrink-0">
-        <CollaboratorCombobox
-          collaborators={collaborators}
-          value={filters.collaboratorId}
-          onValueChange={(value) => set("collaboratorId", value)}
-          placeholder="Todos os colaboradores"
-          testId="filter-collaborator"
+        <FiltroUnico
+          valor={filters.collaboratorId}
+          onChange={(v) => set("collaboratorId", v)}
+          opcoes={opcoesDeColaborador}
+          rotuloTodos="Todos os colaboradores"
+          placeholderBusca="Buscar colaborador…"
+          testid="filter-collaborator"
+          larguraPopover={340}
         />
       </div>
 

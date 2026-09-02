@@ -27,6 +27,7 @@ import type { TeamInclusion, Ticket } from "@shared/schema";
 import { useTicketsData, toTitleCase } from "@/components/tickets/use-tickets-data";
 import { useTicketUpsert } from "@/components/tickets/use-ticket-upsert";
 import { filtersFromSearch, searchFromFilters } from "@/components/tickets/filters-url";
+import { contarPorOpcao } from "@/components/tickets/tickets-filtering";
 import TicketsWorkQueue, { type FilaDePassagens } from "@/components/tickets/tickets-work-queue";
 import TicketsFilterBar from "@/components/tickets/tickets-filter-bar";
 import QuickBatchPanel from "@/components/tickets/quick-batch-panel";
@@ -122,6 +123,34 @@ export default function Tickets() {
         : "all",
     }));
   };
+
+  /**
+   * Opções dos filtros, cada uma com quantas linhas deixaria. A contagem sai
+   * de `tickets-filtering.ts` — a MESMA regra que monta a lista, para o número
+   * não poder divergir do que a pessoa vê depois de escolher.
+   */
+  const opcoesDosFiltros = useMemo(() => {
+    const todas = data.teamInclusions ?? [];
+    const ctx = { eventById: data.eventById, collaboratorById: data.collaboratorById };
+    const completar = data.completarPipeline;
+    const porEvento = contarPorOpcao(todas, filters, "eventId", ctx, completar);
+    const porFuncao = contarPorOpcao(todas, filters, "functionId", ctx, completar);
+    const porColaborador = contarPorOpcao(todas, filters, "collaboratorId", ctx, completar);
+    // Só entra no popover quem tem ao menos uma linha no recorte: uma lista de
+    // 900 colaboradores em que 890 devolvem zero não ajuda a escolher.
+    return {
+      eventos: (events ?? [])
+        .filter(e => e.status !== "excluido" && e.status !== "excluído" && porEvento.has(e.id))
+        .map(e => ({ id: e.id, nome: e.name, n: porEvento.get(e.id) ?? 0 })),
+      funcoes: (functions ?? [])
+        .filter(f => porFuncao.has(f.id))
+        .map(f => ({ id: f.id, nome: f.name, n: porFuncao.get(f.id) ?? 0 })),
+      colaboradores: (collaborators ?? [])
+        .filter(c => porColaborador.has(c.id))
+        .map(c => ({ id: c.id, nome: toTitleCase(c.fullName), n: porColaborador.get(c.id) ?? 0 })),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.teamInclusions, data.eventById, data.collaboratorById, data.completarPipeline, events, functions, collaborators, filters]);
 
   /**
    * O resumo da barra de contexto. É onde o cartão "Total geral" foi parar:
@@ -532,9 +561,9 @@ export default function Tickets() {
           filters={filters}
           onChange={setFilters}
           onClear={() => setShowOnlyPendingSwaps(false)}
-          events={events}
-          functions={functions}
-          collaborators={collaborators}
+          opcoesDeEvento={opcoesDosFiltros.eventos}
+          opcoesDeFuncao={opcoesDosFiltros.funcoes}
+          opcoesDeColaborador={opcoesDosFiltros.colaboradores}
           count={filteredTicketInclusions.length}
           total={ticketInclusions.length}
         />
