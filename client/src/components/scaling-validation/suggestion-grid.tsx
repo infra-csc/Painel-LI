@@ -143,7 +143,7 @@ const GridRow = memo(function GridRow({
               )}
             >
               {!expanded && <Pencil className="w-3 h-3" aria-hidden="true" />}
-              {expanded ? "Fechar logística" : hasLogistics ? "Editar" : "Definir logística"}
+              {expanded ? "Fechar" : hasLogistics ? "Editar viagem" : "Definir viagem"}
             </button>
           </div>
         </td>
@@ -211,7 +211,7 @@ export function SuggestionGrid({
                   <div className="text-xs mt-0.5 font-normal normal-case tracking-normal">{h.dayName}</div>
                 </th>
               ))}
-              <th scope="col" className={cn(TH, "w-[48px] bg-slate-50 border-l border-l-slate-200")}>Total</th>
+              <th scope="col" className={cn(TH, "w-[56px] bg-slate-50 border-l border-l-slate-200")}>Vagas</th>
               <th scope="col" className={cn(TH, "text-left min-w-[260px]")}>Logística e observação</th>
               <th scope="col" className={cn(TH, "border-r-0 w-[44px]")}><span className="sr-only">Ações</span></th>
             </tr>

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
-  AlertTriangle, CalendarDays, Check, CheckCircle2, ClipboardPaste, ExternalLink, Eye, FolderInput,
-  ListPlus, Plus, RotateCcw, Send, Save, Undo2, X,
+  AlertTriangle, CalendarDays, Check, CheckCircle2, ChevronRight, ClipboardPaste, ExternalLink, Eye, FolderInput,
+  ListPlus, Plus, Send, Save, Undo2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -747,6 +747,24 @@ export default function ScalingSuggestionPage() {
               : `Enviar ${vagasLabel}`;
   const sendDisabled = readOnly || records.length === 0 || busy || pendencias.errors.length > 0 || sendBlocked || !!periodError;
 
+  /**
+   * Por que o envio está travado (ou o que merece um olhar antes dele).
+   *
+   * Sai da MESMA cadeia de `sendDisabled` e na mesma ordem — um texto com
+   * régua própria acabaria dizendo "corrija a grade" enquanto o botão estava
+   * bloqueado pelo período.
+   */
+  const motivoDoBloqueio: { tom: "erro" | "aviso" | "info"; texto: string } | null =
+    readOnly ? { tom: "info", texto: "Só Produção e Admin enviam" }
+      : sentCheckLoading ? { tom: "info", texto: "Verificando envios deste evento…" }
+        : periodError ? { tom: "erro", texto: "O período da grade está inválido" }
+          : pendencias.errors.length > 0
+            ? { tom: "erro", texto: `${plural(pendencias.errors.length, "linha impede", "linhas impedem")} o envio` }
+            : records.length === 0 ? { tom: "info", texto: "Preencha ao menos uma quantidade" }
+              : pendencias.warnings.length > 0
+                ? { tom: "aviso", texto: `${plural(pendencias.warnings.length, "aviso", "avisos")} — não travam o envio` }
+                : null;
+
   // ── Render ──
   if (!canAccess) {
     return (
@@ -931,19 +949,35 @@ export default function ScalingSuggestionPage() {
                   )}
                 </div>
               </div>
+              {/*
+                Quatro botões do mesmo peso não diziam por onde começar — e
+                "Limpar", que apaga a grade inteira, ficava do lado de
+                "Adicionar função" com a mesma aparência. Agora colar é o
+                caminho principal (é como a produção monta de verdade), copiar
+                e adicionar são as alternativas, e limpar virou link discreto do
+                outro lado, visível só quando há o que limpar.
+              */}
               <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" size="sm" className="rounded-lg h-8" disabled={!gridReady || busy || !!functionsError} onClick={openPaste}>
+                <Button type="button" size="sm" className="rounded-lg h-8 bg-primary hover:bg-primary-hover" disabled={!gridReady || busy || !!functionsError} onClick={openPaste}>
                   <ClipboardPaste className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Colar da planilha
+                </Button>
+                <Button type="button" variant="outline" size="sm" className="rounded-lg h-8" disabled={!gridReady || busy || !!functionsError} onClick={() => setShowCopyEvent(true)}>
+                  <FolderInput className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Copiar de outro evento
                 </Button>
                 <Button type="button" variant="outline" size="sm" className="rounded-lg h-8" disabled={!gridReady || busy || !!functionsError} onClick={openAddFunction}>
                   <Plus className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Adicionar função
                 </Button>
-                <Button type="button" variant="outline" size="sm" className="rounded-lg h-8" disabled={!gridReady || busy || !!functionsError} onClick={() => setShowCopyEvent(true)}>
-                  <FolderInput className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Copiar de evento
-                </Button>
-                <Button type="button" variant="ghost" size="sm" className="rounded-lg h-8 text-slate-600" disabled={(!hasContent) || busy} onClick={() => setConfirmClear(true)}>
-                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Limpar
-                </Button>
+                {hasContent && !readOnly && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setConfirmClear(true)}
+                    className="ml-auto rounded text-[12.5px] font-semibold text-slate-500 transition-colors hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:opacity-50"
+                    data-testid="scaling-suggestion-clear"
+                  >
+                    Limpar grade
+                  </button>
+                )}
               </div>
             </div>
 
@@ -954,35 +988,76 @@ export default function ScalingSuggestionPage() {
               </p>
             )}
 
-            {/* Pendências: uma faixa com chips clicáveis (clique foca a célula da linha). */}
-            {gridReady && (pendencias.errors.length > 0 || pendencias.warnings.length > 0) && (
-              <div className={cn("rounded-xl border py-2.5 px-3.5", pendencias.errors.length > 0 ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50")}>
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className={cn("w-3.5 h-3.5 mt-0.5 shrink-0", pendencias.errors.length > 0 ? "text-red-600" : "text-amber-600")} aria-hidden="true" />
-                  <div className="min-w-0 flex-1">
-                    <p className={cn("text-xs font-semibold", pendencias.errors.length > 0 ? "text-red-800" : "text-amber-800")}>
-                      {pendencias.errors.length > 0
-                        ? `${pendencias.errors.length} ${pendencias.errors.length === 1 ? "pendência impede" : "pendências impedem"} o envio`
-                        : `${pendencias.warnings.length} ${pendencias.warnings.length === 1 ? "aviso" : "avisos"} — não impedem o envio`}
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {pendencias.errors.map((p, i) => (
-                        <button key={`e-${p.rowId}-${i}`} type="button" onClick={() => focusRow(p.rowId)}
-                          className="rounded-full border border-red-300 bg-white px-2 py-0.5 text-[11px] font-medium text-red-700 transition-colors hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400">
-                          {p.text}
-                        </button>
-                      ))}
-                      {pendencias.warnings.map((p, i) => (
-                        <button key={`w-${p.rowId}-${i}`} type="button" onClick={() => focusRow(p.rowId)}
-                          className="rounded-full border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-medium text-amber-800 transition-colors hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
-                          {p.text}
-                        </button>
-                      ))}
+            {/*
+              Painel de revisão: erro e aviso deixam de ter o mesmo peso.
+              Eram chips do mesmo tamanho embaralhados numa faixa só — o que
+              trava o envio e o que apenas merece um olhar liam igual, e o
+              texto "Função: problema" cortava dentro da pílula. Agora cada
+              item é uma linha inteira, com o ponto de cor, a função em
+              destaque, o problema embaixo e a ação nomeada ("Corrigir" para
+              erro, "Revisar" para aviso).
+            */}
+            {gridReady && (pendencias.errors.length > 0 || pendencias.warnings.length > 0) && (() => {
+              const temErro = pendencias.errors.length > 0;
+              const itens = [
+                ...pendencias.errors.map((e) => ({ ...e, tipo: "erro" as const })),
+                ...pendencias.warnings.map((w) => ({ ...w, tipo: "aviso" as const })),
+              ];
+              return (
+                <section
+                  aria-label="Pontos a revisar antes de enviar"
+                  data-testid="scaling-suggestion-revisao"
+                  className={cn("overflow-hidden rounded-[14px] border", temErro ? "border-red-200 bg-red-50/60" : "border-amber-200 bg-amber-50/60")}
+                >
+                  <div className="flex items-start gap-2.5 px-3.5 pt-3 pb-2">
+                    <AlertTriangle className={cn("mt-px h-4 w-4 shrink-0", temErro ? "text-red-600" : "text-amber-600")} aria-hidden="true" />
+                    <div className="min-w-0">
+                      <p className={cn("text-[13.5px] font-bold", temErro ? "text-red-900" : "text-amber-900")}>
+                        {temErro
+                          ? `${pendencias.errors.length} ${pendencias.errors.length === 1 ? "linha impede" : "linhas impedem"} o envio`
+                          : `${pendencias.warnings.length} ${pendencias.warnings.length === 1 ? "ponto para revisar" : "pontos para revisar"}`}
+                      </p>
+                      <p className={cn("text-[12px]", temErro ? "text-red-700" : "text-amber-800")}>
+                        {temErro
+                          ? pendencias.warnings.length > 0
+                            ? `E mais ${plural(pendencias.warnings.length, "aviso", "avisos")} — avisos não travam o envio.`
+                            : "Corrija para liberar o envio."
+                          : "Avisos não travam o envio — dá para enviar assim mesmo."}
+                      </p>
                     </div>
                   </div>
-                </div>
-              </div>
-            )}
+                  <ul className="divide-y divide-white/70 border-t border-white/70">
+                    {itens.map((item, i) => {
+                      // O texto vem como "Função: problema" — separar devolve
+                      // hierarquia ao nome, que é por onde se acha a linha.
+                      const corte = item.text.indexOf(": ");
+                      const funcao = corte > 0 ? item.text.slice(0, corte) : item.text;
+                      const problema = corte > 0 ? item.text.slice(corte + 2) : "";
+                      const erro = item.tipo === "erro";
+                      return (
+                        <li key={`${item.tipo}-${item.rowId}-${i}`}>
+                          <button
+                            type="button"
+                            onClick={() => focusRow(item.rowId)}
+                            className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left transition-colors hover:bg-white/70 focus-visible:outline-none focus-visible:bg-white/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
+                          >
+                            <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", erro ? "bg-red-500" : "bg-amber-500")} aria-hidden="true" />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[12.5px] font-semibold text-slate-800">{funcao}</span>
+                              {problema && <span className="block truncate text-[12px] text-slate-600">{problema}</span>}
+                            </span>
+                            <span className={cn("shrink-0 text-[12px] font-semibold", erro ? "text-red-700" : "text-amber-800")}>
+                              {erro ? "Corrigir" : "Revisar"}
+                            </span>
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              );
+            })()}
 
             {!eventId ? (
               /* Estado vazio com saída: escolher evento ou copiar de um anterior. */
@@ -1099,20 +1174,28 @@ export default function ScalingSuggestionPage() {
                     <Eye className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
                     {previewOpen ? "Fechar prévia" : "Ver prévia das vagas"}
                   </Button>
-                  {(pendencias.errors.length > 0 || pendencias.warnings.length > 0) && (
+                  {/*
+                    O motivo do bloqueio fica AO LADO do botão, não só dentro
+                    do rótulo dele: quem via "Revise para enviar" não sabia o
+                    que revisar sem procurar. Clicar leva à primeira linha.
+                  */}
+                  {motivoDoBloqueio && (
                     <button
                       type="button"
-                      onClick={() => focusRow((pendencias.errors[0] ?? pendencias.warnings[0]).rowId)}
+                      onClick={() => { const alvo = pendencias.errors[0] ?? pendencias.warnings[0]; if (alvo) focusRow(alvo.rowId); }}
+                      disabled={!pendencias.errors.length && !pendencias.warnings.length}
                       className={cn(
-                        "inline-flex h-9 items-center rounded-lg border px-2.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2",
-                        pendencias.errors.length > 0
+                        "inline-flex h-9 max-w-[280px] items-center gap-1.5 rounded-lg border px-2.5 text-[12px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:cursor-default",
+                        motivoDoBloqueio.tom === "erro"
                           ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100 focus-visible:ring-red-400"
-                          : "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-400",
+                          : motivoDoBloqueio.tom === "aviso"
+                            ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-400"
+                            : "border-slate-200 bg-slate-50 text-slate-600 focus-visible:ring-slate-400",
                       )}
+                      data-testid="scaling-suggestion-motivo"
                     >
-                      {pendencias.errors.length > 0
-                        ? plural(pendencias.errors.length, "pendência", "pendências")
-                        : plural(pendencias.warnings.length, "aviso", "avisos")}
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <span className="truncate">{motivoDoBloqueio.texto}</span>
                     </button>
                   )}
                   <Button

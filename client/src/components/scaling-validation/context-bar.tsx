@@ -75,7 +75,7 @@ export function ContextBar({
         <span className="hidden md:block h-6 w-px bg-slate-200" aria-hidden="true" />
 
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Grade</span>
+          <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Dias na grade</span>
           <Label htmlFor="sug-period-start" className="sr-only">Início da grade</Label>
           <Input
             id="sug-period-start" type="date" value={periodStart} disabled={periodDisabled}
@@ -106,7 +106,7 @@ export function ContextBar({
           </button>
           <button type="button" className={CHIP_BTN} disabled={periodDisabled || !canShrink} onClick={onShrink}
             title="Tirar o último dia da grade">
-            Encolher 1 dia
+            Tirar último dia
           </button>
         </div>
 
@@ -118,7 +118,7 @@ export function ContextBar({
           onClick={() => setShowComments((v) => !v)}
         >
           <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
-          Comentários
+          Recado para as áreas
           {obsLen > 0 && (
             <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-semibold text-primary tabular-nums">{obsLen}</span>
           )}
@@ -130,7 +130,7 @@ export function ContextBar({
 
       {showComments && (
         <div id={obsId} className="mt-2.5 border-t border-slate-100 pt-2.5 space-y-1">
-          <Label htmlFor="sug-event-obs" className="text-xs font-semibold text-slate-600">Comentários gerais do evento</Label>
+          <Label htmlFor="sug-event-obs" className="text-xs font-semibold text-slate-600">Recado para as áreas</Label>
           <Textarea
             id="sug-event-obs" value={observations} disabled={!eventId || disabled} rows={2} maxLength={2000}
             placeholder="Orientações gerais para as áreas (horários de montagem, ponto de encontro, restrições…)."
