@@ -520,11 +520,14 @@ type ViewKey = typeof VIEWS[number]["key"];
 // abria o espelho já filtrado sem perceber.
 const LS_KEY = "operational-mirror-prefs-v2";
 
-// Abaixo de `md` (768px) a grade de ~36 colunas é inutilizável: a view padrão
-// passa a ser "Colaboradores" (cards) e a preferência salva de view é ignorada.
+/**
+ * Abaixo de 900px a grade de 39 colunas é inutilizável — rolar de lado esconde
+ * justamente a coluna que a pessoa foi ver. Nessa faixa a visão Pessoas assume
+ * o lugar da Grade e a preferência salva de visão é ignorada.
+ */
 function isNarrowViewport(): boolean {
   return typeof window !== "undefined" && typeof window.matchMedia === "function"
-    && window.matchMedia("(max-width: 767px)").matches;
+    && window.matchMedia("(max-width: 899px)").matches;
 }
 
 export default function OperationalMirror() {
@@ -567,6 +570,20 @@ function EspelhoOperacional() {
   const [sort, setSort] = useState<SortState>({ key: null, dir: "asc" });
   const [hiddenBlocks, setHiddenBlocks] = useState<Set<Block>>(new Set());
   const [collapsedDepts, setCollapsedDepts] = useState<Set<string>>(new Set());
+  /**
+   * Largura estreita, medida de verdade e acompanhando o resize.
+   *
+   * `isNarrowViewport()` só era consultado na montagem: quem abria no desktop e
+   * estreitava a janela continuava com a grade de 39 colunas rolando de lado.
+   */
+  const [estreito, setEstreito] = useState(isNarrowViewport);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 899px)");
+    const aplicar = () => setEstreito(mq.matches);
+    aplicar();
+    mq.addEventListener("change", aplicar);
+    return () => mq.removeEventListener("change", aplicar);
+  }, []);
   const [drawer, setDrawer] = useState<{ kind: DrawerKind | null; rowId: string | null; name?: string; source: DrawerSource }>({ kind: null, rowId: null, source: null });
 
   // persist prefs (só layout)
@@ -954,7 +971,10 @@ function EspelhoOperacional() {
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-[34px]" onClick={() => setConfirmar({
+                      {/* Abaixo de 1280px as duas ações secundárias saem do
+                          cabeçalho: com elas, o nome do evento — que é o
+                          "onde estou" — era o primeiro a ser espremido. */}
+                      <Button variant="outline" size="sm" className="hidden xl:inline-flex h-[34px]" onClick={() => setConfirmar({
                           titulo: "Refazer as sugestões deste evento?",
                           texto: "Os agrupamentos e horários voltam a ser calculados a partir dos voos. Quartos e carros já confirmados são preservados — o resto é sobrescrito, inclusive ajustes feitos à mão.",
                           rotulo: "Refazer sugestões",
@@ -971,6 +991,7 @@ function EspelhoOperacional() {
               {/* O par de "Exportar": a equipe preenche a planilha em lote e
                   precisava digitar tudo de volta célula a célula. */}
               {canEditMirror && eventId && (
+                <span className="hidden xl:inline-flex">
                 <ImportarPlanilha
                   eventId={eventId}
                   aoAplicar={(gravados, falhas) => {
@@ -984,9 +1005,12 @@ function EspelhoOperacional() {
                     });
                   }}
                 />
+                </span>
               )}
-              <Button size="sm" className="h-[34px]" onClick={handleExport} data-testid="button-export">
-                <FileSpreadsheet className="h-4 w-4 mr-2" aria-hidden="true" /> Exportar planilha
+              <Button size="sm" className="h-[34px]" onClick={handleExport} data-testid="button-export" title="Exportar planilha">
+                <FileSpreadsheet className="h-4 w-4 sm:mr-2" aria-hidden="true" />
+                <span className="hidden sm:inline">Exportar</span>
+                <span className="hidden xl:inline">&nbsp;planilha</span>
               </Button>
             </div>
           </div>
@@ -1325,7 +1349,12 @@ function EspelhoOperacional() {
               </div>
             ) : (
             <>
-            {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} confirmados={confirmados} pendenciaDe={pendenciaDe} irParaVisao={setView} totalDoEvento={rows.length} />}
+            {/* A grade de 39 colunas não existe no estreito: abaixo de 900px
+                a visão Pessoas assume, com os mesmos dados e sem rolagem
+                horizontal. O seletor continua mostrando "Grade" como ativa —
+                é a mesma informação, noutra forma. */}
+            {view === "grade" && estreito && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} pendenciaDe={pendenciaDe} totalDoEvento={rows.length} />}
+            {view === "grade" && !estreito && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} confirmados={confirmados} pendenciaDe={pendenciaDe} irParaVisao={setView} totalDoEvento={rows.length} />}
             {view === "colaboradores" && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} pendenciaDe={pendenciaDe} totalDoEvento={rows.length} />}
             {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} pendenciaDe={pendenciaDe} verNaGrade={(dep) => { setDeptFilter(dep); setView("grade"); }} />}
             {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} rows={rows} onMover={(c, de, para) => moverMutation.mutate({ tipo: "quarto", corpo: { collaboratorId: c, deGrupoId: de, paraGrupoId: para } })} onSeparar={(id) => setConfirmar({
@@ -1967,6 +1996,17 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, 
           </Card>
         );
       })}
+      {/* Rodapé da visão: o mesmo par que fecha Grade e Pessoas — o que está
+          na tela e quanto custa. Sem ele, Departamentos era a única visão em
+          que o total do recorte não aparecia. */}
+      <div className="flex items-center gap-4 rounded-lg border bg-muted/30 px-4 py-2.5 text-[12px] text-muted-foreground">
+        <span className="tabular-nums">
+          {groups.length} {groups.length === 1 ? "departamento" : "departamentos"} · {rows.length} {rows.length === 1 ? "pessoa" : "pessoas"}
+        </span>
+        <span className="ml-auto font-mono tabular-nums text-foreground">
+          {brl(groups.reduce((acc, [nome]) => acc + (deptTotals.get(nome)?.total ?? 0), 0))}
+        </span>
+      </div>
     </div>
   );
 }
