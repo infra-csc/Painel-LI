@@ -75,6 +75,12 @@ export interface MirrorRow {
    * fica fora dos carros, num bloco proprio na visao de Uber.
    */
   skipUber: boolean;
+  /**
+   * A inclusão precisa de passagem / de hospedagem. Opcionais porque servidores
+   * antigos não os mandam — a regra de pendência cai então em "tem o registro".
+   */
+  needsTicket?: boolean;
+  needsAccommodation?: boolean;
   suggestedRoomGroupId: string | null;
   roomGroupLabel: string | null;
   pendencies: string[];

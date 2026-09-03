@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useDeferredValue } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback, useDeferredValue } from "react";
 import { useSearch, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import EventCombobox from "@/components/ui/event-combobox";
@@ -25,7 +25,12 @@ import {
   hotelTotalCents, isHotelTotalDerived,
   type MirrorRow, type MirrorTotals, type MirrorResponse, type MirrorSubtotal, type RoomGroup, type UberGroup, type MirrorCollaborator,
 } from "@shared/operational-mirror-types";
-import { estadoDaCelula, etapaCompleta, type ContextoDaLinha, type EstadoCelula } from "@shared/mirror-cell-state";
+import { estadoDaCelula, type ContextoDaLinha, type EstadoCelula } from "@shared/mirror-cell-state";
+import {
+  BLOCOS_DE_CUSTO, CHIPS_DE_PENDENCIA, ROTULO_DO_BLOCO, blocoEmUso, blocoPendencia, blocosAbertos,
+  caiNoChip, contextoDaLinha, resumoDoEvento, temSugestaoAConfirmar, textoDaSituacao,
+  type BlocoDeCusto, type ChipDePendencia, type GruposConfirmados,
+} from "@shared/mirror-pendencia";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -88,44 +93,17 @@ type SortState = { key: "nome" | "departamento" | null; dir: "asc" | "desc" };
  * inteira. Cada um carrega o próprio predicado — é ele que a lista usa para
  * filtrar E para contar quantas pessoas o filtro devolveria.
  */
-const GRUPOS_DE_FILTRO: { titulo: string; itens: { key: string; label: string; match: (r: MirrorRow) => boolean }[] }[] = [
-  {
-    titulo: "Situação",
-    itens: [
-      { key: "comPendencia", label: "Com pendência", match: (r) => r.pendencies.length > 0 },
-      { key: "semPassagem", label: "Sem passagem", match: (r) => !r.ticket },
-      { key: "semHospedagem", label: "Sem hospedagem", match: (r) => !r.accommodation },
-    ],
-  },
-  {
-    titulo: "Documento",
-    itens: [
-      { key: "semLocalizador", label: "Sem localizador", match: (r) => !r.ticket?.locator },
-      { key: "semOc", label: "Sem OC", match: (r) => !r.ticket?.purchaseOrderNumber },
-      { key: "semConferencia", label: "Sem conferência", match: (r) => !(r.ticket?.checkIn3 && r.accommodation?.checkIn4) },
-    ],
-  },
-  {
-    titulo: "Extras",
-    itens: [
-      { key: "comBagagem", label: "Com bagagem", match: (r) => r.baggage.extraCents > 0 },
-      { key: "comUber", label: "Com Uber", match: (r) => r.uber.totalCents > 0 },
-      { key: "comLocacao", label: "Com locação", match: (r) => r.carRental.totalCents > 0 },
-    ],
-  },
-];
-
-const PEND_CATS: { key: string; label: string; match: (p: string) => boolean }[] = [
-  { key: "passagem", label: "Sem passagem", match: (p) => p === "Sem passagem" },
-  { key: "hospedagem", label: "Sem hospedagem", match: (p) => p === "Sem hospedagem" },
-  { key: "oc", label: "Sem OC", match: (p) => /sem OC/i.test(p) },
-  { key: "localizador", label: "Sem localizador", match: (p) => /localizador/i.test(p) },
-  { key: "genero", label: "Sem gênero", match: (p) => /^Sem (gênero|sexo)/i.test(p) },
-  { key: "voucher", label: "Sem voucher/anexo", match: (p) => /(voucher|anexo)/i.test(p) },
-  { key: "reserva", label: "Sem reserva", match: (p) => /sem reserva/i.test(p) },
-  { key: "quarto", label: "Impossível sugerir quarto", match: (p) => /sugerir quarto/i.test(p) },
-  { key: "uber", label: "Uber sem grupo", match: (p) => /^Uber sem grupo/i.test(p) },
-  { key: "data", label: "Divergência de data", match: (p) => /(≠|diverg)/i.test(p) },
+/**
+ * Filtros de situação (02/09): a unidade é o bloco. "Documento" e "Extras"
+ * saíram daqui porque viraram, respectivamente, os chips da faixa de
+ * pendências e os cartões do placar — cada um conta e filtra no lugar em que
+ * a informação aparece, em vez de num popover a três cliques de distância.
+ */
+type SituacaoFiltro = "comPendencia" | "pronto" | "aConfirmar";
+const SITUACOES: { key: SituacaoFiltro; label: string; match: (abertos: number, sugestao: boolean) => boolean }[] = [
+  { key: "comPendencia", label: "Com pendência", match: (abertos) => abertos > 0 },
+  { key: "pronto", label: "Pronto", match: (abertos) => abertos === 0 },
+  { key: "aConfirmar", label: "Tem sugestão a confirmar", match: (_a, sugestao) => sugestao },
 ];
 
 // Pendências que só se resolvem em outra tela (anexo/voucher/reserva). As telas de
@@ -151,29 +129,37 @@ function PendencyBadge({ p, withLink = true }: { p: string; withLink?: boolean }
 }
 
 /**
- * Resumo compacto das pendências de uma linha: 1 badge "N pend." que abre um
- * popover com a lista completa. Sem pendências, mostra o check verde.
+ * A situação da linha: "pronto" · "1 bloco aberto" · "N blocos abertos".
+ *
+ * Nunca conta campos (regra de 02/09). A lista detalhada do servidor —
+ * voucher, anexo, gênero, divergência de data, com os links para a tela que
+ * resolve — continua a um clique, porque é onde a pessoa descobre O QUE falta.
  */
-function PendencyCountBadge({ pendencies, testId }: { pendencies: string[]; testId?: string }) {
-  if (pendencies.length === 0) {
-    return <CheckCircle2 className="h-4 w-4 text-green-600" aria-label="Sem pendências" />;
-  }
+function SituacaoPill({ abertos, pendencies, testId }: { abertos: number; pendencies: string[]; testId?: string }) {
+  const pronto = abertos === 0;
+  const pill = (
+    <button
+      type="button"
+      data-testid={testId}
+      aria-label={`${textoDaSituacao(abertos)} — ver detalhes`}
+      className="inline-flex h-[22px] items-center rounded-md px-[7px] text-[11px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      style={pronto
+        ? { background: "#f0fdfa", color: "#0f766e" }
+        : { background: "#fef3c7", color: "#92400e" }}
+    >
+      {textoDaSituacao(abertos)}
+    </button>
+  );
+  if (pendencies.length === 0 && pronto) return pill;
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          data-testid={testId}
-          aria-label={`${pendencies.length} pendência(s) — ver lista`}
-          className="inline-flex items-center rounded-full border border-amber-400 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {pendencies.length} pend.
-        </button>
-      </PopoverTrigger>
+      <PopoverTrigger asChild>{pill}</PopoverTrigger>
       <PopoverContent align="start" className="w-auto max-w-xs p-2">
-        <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">Pendências</p>
+        <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">O que falta</p>
         <div className="flex flex-col gap-1">
-          {pendencies.map((p, i) => <PendencyBadge key={i} p={p} />)}
+          {pendencies.length === 0
+            ? <span className="text-[11px] text-muted-foreground">Bloco em uso ainda sem todos os campos ou com sugestão a confirmar.</span>
+            : pendencies.map((p, i) => <PendencyBadge key={i} p={p} />)}
         </div>
       </PopoverContent>
     </Popover>
@@ -573,8 +559,11 @@ function EspelhoOperacional() {
   const deferredSearch = useDeferredValue(searchText);
   const [deptFilter, setDeptFilter] = useState("all");
   const [hotelFilter, setHotelFilter] = useState("all");
-  const [pendCat, setPendCat] = useState<string | null>(null);
-  const [flags, setFlags] = useState<Record<string, boolean>>({});
+  /** Chip da faixa de pendências. */
+  const [chip, setChip] = useState<ChipDePendencia | null>(null);
+  /** Cartão do placar: mostra só quem falta naquele bloco (ou quem lançou, nos eventuais). */
+  const [blocoFiltro, setBlocoFiltro] = useState<BlocoDeCusto | null>(null);
+  const [situacoes, setSituacoes] = useState<Set<SituacaoFiltro>>(new Set());
   const [sort, setSort] = useState<SortState>({ key: null, dir: "asc" });
   const [hiddenBlocks, setHiddenBlocks] = useState<Set<Block>>(new Set());
   const [collapsedDepts, setCollapsedDepts] = useState<Set<string>>(new Set());
@@ -598,7 +587,7 @@ function EspelhoOperacional() {
 
   // Trocar de evento zera filtros/flags/ordenação — cada evento começa "limpo".
   useEffect(() => {
-    setSearchText(""); setDeptFilter("all"); setHotelFilter("all"); setPendCat(null); setFlags({});
+    setSearchText(""); setDeptFilter("all"); setHotelFilter("all"); setChip(null); setBlocoFiltro(null); setSituacoes(new Set());
     setSort({ key: null, dir: "asc" }); setCollapsedDepts(new Set());
   }, [eventId]);
 
@@ -780,42 +769,55 @@ function EspelhoOperacional() {
     return Array.from(set).sort();
   }, [rows]);
 
-  // Conta COLABORADORES, não ocorrências: o chip filtra linhas, e quem tinha
-  // "Passagem sem OC" + "Hospedagem sem OC" era contado duas vezes — o número do
-  // chip nunca batia com a quantidade de linhas exibidas ao clicar nele.
-  /** Pessoas com ao menos uma pendência — "30 pendências em 12 pessoas". */
-  const pessoasComPendencia = useMemo(() => rows.filter((r) => r.pendencies.length > 0).length, [rows]);
-  const pendCounts = useMemo(() => {
-    const c: Record<string, number> = {};
-    PEND_CATS.forEach((cat) => { c[cat.key] = 0; });
-    rows.forEach((r) => {
-      PEND_CATS.forEach((cat) => {
-        if (r.pendencies.some((p) => cat.match(p))) c[cat.key]++;
-      });
-    });
-    return c;
-  }, [rows]);
+  const uberConfirmados = useMemo(
+    () => new Set((data?.uberGroups ?? []).filter((g) => g.confirmed).map((g) => g.id)),
+    [data?.uberGroups],
+  );
+  const quartosConfirmados = useMemo(
+    () => new Set((data?.roomGroups ?? []).filter((g) => g.confirmed).map((g) => g.id)),
+    [data?.roomGroups],
+  );
+  const confirmados = useMemo<GruposConfirmados>(() => ({ uber: uberConfirmados, quartos: quartosConfirmados }), [uberConfirmados, quartosConfirmados]);
+
+  /**
+   * A pendência de cada pessoa pela regra de BLOCO (shared/mirror-pendencia).
+   *
+   * Calculada uma vez por carga: faixa, placar, chips, grade, Departamentos e
+   * Pessoas leem daqui — a mesma resposta em todo lugar. Antes cada parte
+   * contava do seu jeito e os números divergiam entre si.
+   */
+  const pendenciaPorLinha = useMemo(() => {
+    const m = new Map<string, { abertos: BlocoDeCusto[]; sugestao: boolean; ctx: ContextoDaLinha }>();
+    for (const r of rows) {
+      const ctx = contextoDaLinha(r, confirmados);
+      m.set(r.teamInclusionId, { abertos: blocosAbertos(r, ctx), sugestao: temSugestaoAConfirmar(r, ctx), ctx });
+    }
+    return m;
+  }, [rows, confirmados]);
+  const pendenciaDe = useCallback(
+    (r: MirrorRow) => pendenciaPorLinha.get(r.teamInclusionId) ?? { abertos: [] as BlocoDeCusto[], sugestao: false, ctx: contextoDaLinha(r, confirmados) },
+    [pendenciaPorLinha, confirmados],
+  );
+  const resumo = useMemo(() => resumoDoEvento(rows, confirmados), [rows, confirmados]);
 
   const filteredRows = useMemo(() => {
-    // Constantes calculadas UMA vez: antes, toLowerCase() da busca e o PEND_CATS.find()
-    // rodavam a cada linha, a cada tecla digitada.
     const q = deferredSearch.trim().toLowerCase();
-    const activeCat = pendCat ? PEND_CATS.find((c) => c.key === pendCat) : undefined;
     const out = rows.filter((r) => {
       if (q && !r.collaborator.fullName.toLowerCase().includes(q)) return false;
       const dept = r.function.area || r.function.name || "(sem departamento)";
       if (deptFilter !== "all" && dept !== deptFilter) return false;
       if (hotelFilter !== "all" && r.accommodation?.hotelName !== hotelFilter) return false;
-      if (activeCat && !r.pendencies.some((p) => activeCat.match(p))) return false;
-      if (flags.comPendencia && r.pendencies.length === 0) return false;
-      if (flags.semPassagem && r.ticket) return false;
-      if (flags.semHospedagem && r.accommodation) return false;
-      if (flags.semLocalizador && r.ticket?.locator) return false;
-      if (flags.semOc && r.ticket?.purchaseOrderNumber) return false;
-      if (flags.semConferencia && r.ticket?.checkIn3 && r.accommodation?.checkIn4) return false;
-      if (flags.comBagagem && !(r.baggage.extraCents > 0)) return false;
-      if (flags.comUber && !(r.uber.totalCents > 0)) return false;
-      if (flags.comLocacao && !(r.carRental.totalCents > 0)) return false;
+      const { abertos, sugestao, ctx } = pendenciaDe(r);
+      if (chip && !caiNoChip(chip, r, ctx)) return false;
+      // O cartão do placar: nos blocos que pendenciam, quem está com ele
+      // aberto; nos eventuais, quem lançou.
+      if (blocoFiltro) {
+        if (!blocoEmUso(blocoFiltro, r)) return false;
+        if (blocoPendencia(blocoFiltro) && !abertos.includes(blocoFiltro)) return false;
+      }
+      for (const st of SITUACOES) {
+        if (situacoes.has(st.key) && !st.match(abertos.length, sugestao)) return false;
+      }
       return true;
     });
     if (sort.key) {
@@ -824,10 +826,9 @@ function EspelhoOperacional() {
       if (sort.dir === "desc") out.reverse();
     }
     return out;
-  }, [rows, deferredSearch, deptFilter, hotelFilter, pendCat, flags, sort]);
-
-  const activeFilterCount = (searchText ? 1 : 0) + (deptFilter !== "all" ? 1 : 0) + (hotelFilter !== "all" ? 1 : 0) + (pendCat ? 1 : 0) + Object.values(flags).filter(Boolean).length;
-  function clearFilters() { setSearchText(""); setDeptFilter("all"); setHotelFilter("all"); setPendCat(null); setFlags({}); }
+  }, [rows, deferredSearch, deptFilter, hotelFilter, chip, blocoFiltro, situacoes, sort, pendenciaDe]);
+  const activeFilterCount = (searchText ? 1 : 0) + (deptFilter !== "all" ? 1 : 0) + (hotelFilter !== "all" ? 1 : 0) + (chip ? 1 : 0) + (blocoFiltro ? 1 : 0) + situacoes.size;
+  function clearFilters() { setSearchText(""); setDeptFilter("all"); setHotelFilter("all"); setChip(null); setBlocoFiltro(null); setSituacoes(new Set()); }
   function toggleSort(key: "nome" | "departamento") { setSort((s) => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }); }
 
   // Uma falha de rede/sessão deixava a tela em branco abaixo do seletor, como se o
@@ -850,12 +851,11 @@ function EspelhoOperacional() {
     if (searchText) nomes.push(`busca "${searchText}"`);
     if (deptFilter !== "all") nomes.push(`departamento ${deptFilter}`);
     if (hotelFilter !== "all") nomes.push(`hotel ${hotelFilter}`);
-    if (pendCat) nomes.push(PEND_CATS.find((c) => c.key === pendCat)?.label.toLowerCase() ?? "pendência");
-    for (const g of GRUPOS_DE_FILTRO) {
-      for (const item of g.itens) if (flags[item.key]) nomes.push(item.label.toLowerCase());
-    }
+    if (chip) nomes.push(CHIPS_DE_PENDENCIA.find((c) => c.key === chip)?.label.toLowerCase() ?? "pendência");
+    if (blocoFiltro) nomes.push(blocoPendencia(blocoFiltro) ? `falta em ${ROTULO_DO_BLOCO[blocoFiltro].toLowerCase()}` : `com ${ROTULO_DO_BLOCO[blocoFiltro].toLowerCase()}`);
+    for (const st of SITUACOES) if (situacoes.has(st.key)) nomes.push(st.label.toLowerCase());
     return nomes;
-  }, [searchText, deptFilter, hotelFilter, pendCat, flags]);
+  }, [searchText, deptFilter, hotelFilter, chip, blocoFiltro, situacoes]);
 
   /**
    * Confirmação para o que não tem volta (31/08). Duas ações sobrescreviam
@@ -867,8 +867,8 @@ function EspelhoOperacional() {
   const [confirmar, setConfirmar] = useState<{ titulo: string; texto: string; rotulo: string; destrutivo?: boolean; acao: () => void } | null>(null);
 
   const emptyMessage = activeFilterCount > 0
-    ? "Nenhum colaborador corresponde aos filtros aplicados."
-    : "Nenhum colaborador escalado neste evento.";
+    ? "Ninguém corresponde a esses filtros."
+    : "Ninguém escalado neste evento.";
 
   const openDrawer: OpenDrawer = (kind, r) => {
     if (!canEditMirror) return; // somente leitura: sem drawer de edição
@@ -891,69 +891,11 @@ function EspelhoOperacional() {
    * lidos como decisão tomada. Agora dizem "a confirmar" até alguém confirmar
    * na visão correspondente.
    */
-  /**
-   * Le um campo da linha pelo caminho usado na grade ("ticket.value"). E o que
-   * permite a regra de obrigatoriedade rodar sobre a linha inteira sem
-   * reescrever a lista de campos em dois lugares.
-   */
-  const lerCampo = (r: MirrorRow, campo: string): unknown => {
-    const [grupo, chave] = campo.split(".");
-    if (!chave) return (r as unknown as Record<string, unknown>)[grupo];
-    if (grupo === "schedule") {
-      const sc = r.schedule as unknown as Record<string, unknown>;
-      // A grade chama de "departureDate"/"returnDate" o que o schedule guarda
-      // com o prefixo do voo.
-      if (chave === "departureDate") return sc.flightDepartureDate;
-      if (chave === "returnDate") return sc.flightReturnDate;
-      return sc[chave];
-    }
-    if (grupo === "baggage" && chave === "amountCents") return r.baggage.extraCents;
-    if (grupo === "uber" && chave === "amountCents") return r.uber.totalCents;
-    if (grupo === "carRental" && chave === "amountCents") return r.carRental.totalCents;
-    const bloco = (r as unknown as Record<string, unknown>)[grupo] as Record<string, unknown> | null;
-    return bloco ? bloco[chave] : null;
+  /** Valor e cor de cada bloco no placar. */
+  const VALOR_DO_BLOCO: Record<BlocoDeCusto, number> = {
+    passagem: totals?.tickets ?? 0, hospedagem: totals?.hotel ?? 0, bagagem: totals?.baggage ?? 0,
+    uber: totals?.uber ?? 0, locacao: totals?.carRental ?? 0,
   };
-
-  const uberConfirmados = useMemo(
-    () => new Set((data?.uberGroups ?? []).filter((g) => g.confirmed).map((g) => g.id)),
-    [data?.uberGroups],
-  );
-  const quartosConfirmados = useMemo(
-    () => new Set((data?.roomGroups ?? []).filter((g) => g.confirmed).map((g) => g.id)),
-    [data?.roomGroups],
-  );
-
-  /**
-   * As cinco etapas do fechamento. "Prontas" é quantas pessoas têm TODOS os
-   * campos obrigatórios daquela etapa preenchidos — não quantas têm o registro
-   * criado. É o número que responde "quanto falta para eu comprar".
-   */
-  const etapasFechamento = useMemo(() => {
-    const defs = [
-      { chave: "passagem" as const, rotulo: "Passagem", ponto: "bg-indigo-500", valor: totals?.tickets ?? 0 },
-      { chave: "hospedagem" as const, rotulo: "Hospedagem", ponto: "bg-emerald-500", valor: totals?.hotel ?? 0 },
-      { chave: "bagagem" as const, rotulo: "Bagagem", ponto: "bg-amber-500", valor: totals?.baggage ?? 0 },
-      { chave: "uber" as const, rotulo: "Uber", ponto: "bg-fuchsia-500", valor: totals?.uber ?? 0 },
-      { chave: "locacao" as const, rotulo: "Locação", ponto: "bg-orange-500", valor: totals?.carRental ?? 0 },
-    ];
-    return defs.map((d) => {
-      let prontas = 0;
-      for (const r of rows) {
-        const ctx: ContextoDaLinha = {
-          temPassagem: !!r.ticket,
-          temHotel: !!r.accommodation?.hotelName,
-          bagagemCents: r.baggage.extraCents,
-          uberCents: r.uber.totalCents,
-          locacaoCents: r.carRental.totalCents,
-          semUber: r.skipUber,
-    uberConfirmado: !!r.uber.suggestedGroupId && uberConfirmados.has(r.uber.suggestedGroupId),
-          quartoConfirmado: !!r.suggestedRoomGroupId && quartosConfirmados.has(r.suggestedRoomGroupId),
-        };
-        if (etapaCompleta(d.chave, (campo) => lerCampo(r, campo), ctx)) prontas += 1;
-      }
-      return { ...d, prontas, faltam: rows.length - prontas };
-    });
-  }, [rows, totals, uberConfirmados, quartosConfirmados]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -1081,8 +1023,8 @@ function EspelhoOperacional() {
             <span className="mx-auto mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
               <AlertTriangle className="h-5 w-5" aria-hidden="true" />
             </span>
-            <p className="font-medium">Não foi possível carregar o espelho operacional</p>
-            <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{loadErrorMessage}</p>
+            <p className="font-medium">Não foi possível carregar o espelho</p>
+            <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{loadErrorMessage} Nada do que você preencheu foi perdido.</p>
             <Button variant="outline" size="sm" className="mt-4" onClick={() => queryClient.invalidateQueries({ queryKey: mirrorKey })}>
               <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" /> Tentar de novo
             </Button>
@@ -1091,104 +1033,111 @@ function EspelhoOperacional() {
 
         {eventId && !isLoading && !loadErrorMessage && data && ev && totals && (
           <>
-            {/* Faixa de fechamento (31/08): eram três blocos empilhados — custo,
-                progresso e pendências. O que Compras precisa saber é UMA coisa:
-                quanto falta para fechar cada etapa. O contador é quantas pessoas
-                estão PRONTAS (todo campo obrigatório preenchido), não quantas
-                têm o registro criado — a diferença entre "13 têm hotel" e "9 dá
-                para comprar". */}
-            <section className="rounded-lg border bg-card overflow-hidden" aria-label="Fechamento do evento">
-              <div className="flex flex-col lg:flex-row">
-                <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x divide-y sm:divide-y-0">
-                  {etapasFechamento.map((e) => (
-                    <button
-                      key={e.chave}
-                      type="button"
-                      onClick={() => setView("grade")}
-                      title={`${e.rotulo}: ${e.prontas} de ${rows.length} ${rows.length === 1 ? "pessoa pronta" : "pessoas prontas"}`}
-                      className="px-3.5 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-                    >
-                      <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${e.ponto}`} aria-hidden="true" />
-                        {e.rotulo}
-                      </span>
-                      <span className="mt-1 flex items-baseline gap-1">
-                        <span className="text-[19px] font-semibold tabular-nums leading-none tracking-tight">{e.prontas}</span>
-                        <span className="text-xs text-muted-foreground">de {rows.length}</span>
-                      </span>
-                      <span className="mt-1.5 block h-[3px] w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
-                        <span
-                          className={`block h-full rounded-full ${e.faltam ? "bg-amber-500" : "bg-emerald-500"}`}
-                          style={{ width: `${rows.length ? Math.round((e.prontas / rows.length) * 100) : 0}%` }}
-                        />
-                      </span>
-                      <span className="mt-1 block text-xs tabular-nums text-muted-foreground">{brl(e.valor)}</span>
-                      <span className={`block text-[11px] font-semibold ${e.faltam ? "text-amber-700 dark:text-amber-300" : "text-emerald-700 dark:text-emerald-300"}`}>
-                        {e.faltam ? `${e.faltam} a preencher` : "completo"}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                <div className="px-4 py-3 bg-muted/30 lg:border-l lg:w-[210px] shrink-0">
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Custo do evento</p>
-                  {/* De 26px para 22px e para o fim da faixa: é o maior número
-                      da tela e o que Compras menos usa para decidir. */}
-                  <p className="mt-1 text-[22px] font-semibold tracking-tight tabular-nums" data-testid="mirror-total-geral">{brl(totals.grand)}</p>
-                  {derivedHotelCount > 0 && (
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      Inclui {derivedHotelCount} hotel calculado por diária × noites
+            {/* ===== FAIXA DE PENDÊNCIAS (02/09) =====
+                A unidade é o BLOCO e a manchete é gente: "N pessoas travam o
+                fechamento". Contar pendências ("30 pendências em 12 pessoas")
+                somava campos de blocos que ninguém usa, e fazia o evento
+                parecer mais atrasado do que está. */}
+            {resumo.pessoasTravando === 0 ? (
+              <div className="flex flex-wrap items-center gap-2.5 rounded-[14px] border px-4 py-3" style={{ background: "#f0fdfa", borderColor: "rgba(20,184,166,.35)" }} data-testid="mirror-no-pendencies">
+                <CheckCircle2 className="h-[17px] w-[17px] shrink-0" style={{ color: "#0f766e" }} aria-hidden="true" />
+                <span className="text-[13.5px] font-bold" style={{ color: "#0f766e" }}>Nada pendente neste evento</span>
+                <span className="text-[12.5px]" style={{ color: "#0d9488" }}>Todo bloco em uso está preenchido e conferido</span>
+              </div>
+            ) : (
+              <section className="rounded-[14px] border px-4 py-3.5" style={{ background: "#fffbeb", borderColor: "rgba(252,211,77,.75)" }} aria-label="Pendências do evento" data-testid="mirror-pendencias">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 shrink-0 mt-px" style={{ color: "#b45309" }} aria-hidden="true" />
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-bold" style={{ color: "#78350f" }}>
+                      {resumo.pessoasTravando} {resumo.pessoasTravando === 1 ? "pessoa trava" : "pessoas travam"} o fechamento deste evento
                     </p>
+                    <p className="text-[12.5px] mt-0.5" style={{ color: "#92400e" }}>
+                      De {rows.length} {rows.length === 1 ? "escalado" : "escalados"}. Contam passagem, hospedagem e Uber, e só para quem usa cada um — bagagem e locação são eventuais.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {CHIPS_DE_PENDENCIA.map((c) => {
+                    const count = resumo.porChip[c.key];
+                    const active = chip === c.key;
+                    return (
+                      <button key={c.key} type="button" onClick={() => setChip(active ? null : c.key)} data-testid={`chip-${c.key}`}
+                        aria-pressed={active} disabled={count === 0 && !active}
+                        title={count === 0 ? `Ninguém em "${c.label}"` : `${c.label}: ${count} ${count === 1 ? "pessoa" : "pessoas"}. Clique para filtrar.`}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[12px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                        style={active
+                          ? { background: "#b45309", borderColor: "#b45309", color: "#fff" }
+                          : { background: "transparent", borderColor: "#fcd34d", color: "#92400e" }}>
+                        {c.label}
+                        <span className="tabular-nums opacity-80">{count}</span>
+                      </button>
+                    );
+                  })}
+                  {chip && (
+                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs ml-auto" onClick={() => setChip(null)}>
+                      <X className="h-3 w-3 mr-1" aria-hidden="true" /> Limpar filtro
+                    </Button>
                   )}
                 </div>
-              </div>
+              </section>
+            )}
 
-              {/* Linha de baixo da MESMA faixa (31/08): eram três blocos
-                  empilhados — custo, progresso e pendências. Fechar o evento é
-                  uma leitura só: o que já está pronto e o que trava. */}
-              {(() => {
-              const comPendencia = PEND_CATS.filter((c) => (pendCounts[c.key] ?? 0) > 0);
-              if (data.pendingCount === 0) {
+            {/* ===== PLACAR DE BLOCOS (02/09) =====
+                Cada cartão é um filtro: nos blocos que pendenciam, "quem falta
+                aqui"; nos eventuais, "quem lançou". Bagagem e locação não têm
+                barra — não há progresso num bloco que não trava nada, e a
+                barra cheia dizia "100%" de uma corrida que não existe. */}
+            <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(178px, 1fr))" }} data-testid="mirror-placar">
+              {BLOCOS_DE_CUSTO.map((b) => {
+                const rb = resumo.porBloco[b];
+                const obrigatorio = blocoPendencia(b);
+                const ativo = blocoFiltro === b;
+                const pct = obrigatorio ? (rb.emUso ? Math.round((rb.prontas / rb.emUso) * 100) : 100) : 100;
+                const ponto = PONTO_ETAPA[b === "passagem" ? "ticket" : b === "hospedagem" ? "hotel" : b === "bagagem" ? "baggage" : b === "uber" ? "uber" : "car"];
                 return (
-                  <div className="flex items-center gap-2 border-t border-emerald-200 bg-emerald-50/50 px-4 py-2.5 text-sm dark:border-emerald-900/50 dark:bg-emerald-950/20" data-testid="mirror-no-pendencies">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden="true" />
-                    <span className="font-medium text-emerald-900 dark:text-emerald-200">Nada pendente neste evento.</span>
-                    <span className="text-emerald-700/80 dark:text-emerald-300/70">Passagens, hospedagens e documentos estão completos.</span>
-                  </div>
-                );
-              }
-              return (
-                <div className="border-t border-amber-200 bg-amber-50/60 px-4 py-2.5 dark:border-amber-900/50 dark:bg-amber-950/20">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-900 dark:text-amber-200 mr-1">
-                      <AlertTriangle className="h-[15px] w-[15px] text-amber-600 dark:text-amber-400 shrink-0" aria-hidden="true" />
-                      {data.pendingCount} {data.pendingCount === 1 ? "pendência" : "pendências"} em {pessoasComPendencia} {pessoasComPendencia === 1 ? "pessoa" : "pessoas"}
+                  <button
+                    key={b}
+                    type="button"
+                    aria-pressed={ativo}
+                    onClick={() => setBlocoFiltro(ativo ? null : b)}
+                    disabled={rb.emUso === 0 && !ativo}
+                    title={ativo
+                      ? `Mostrando só ${obrigatorio ? "quem falta em" : "quem lançou"} ${ROTULO_DO_BLOCO[b].toLowerCase()}. Clique para ver todos.`
+                      : rb.emUso === 0
+                        ? `Ninguém usa ${ROTULO_DO_BLOCO[b].toLowerCase()} neste evento.`
+                        : obrigatorio
+                          ? `${rb.prontas} de ${rb.emUso} pessoas que usam ${ROTULO_DO_BLOCO[b].toLowerCase()} estão prontas. Clique para filtrar.`
+                          : `${rb.emUso} ${rb.emUso === 1 ? "pessoa" : "pessoas"} com ${ROTULO_DO_BLOCO[b].toLowerCase()} lançada. Bloco eventual. Clique para filtrar.`}
+                    className={`rounded-2xl border bg-card px-4 py-3.5 text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${ativo ? "border-primary bg-brand-soft" : "border-border hover:bg-muted/30"}`}
+                    data-testid={`placar-${b}`}
+                  >
+                    <span className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.09em] text-muted-foreground">
+                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ponto}`} aria-hidden="true" />
+                      {ROTULO_DO_BLOCO[b]}
                     </span>
-                    {comPendencia.map((c) => {
-                      const count = pendCounts[c.key] ?? 0;
-                      const active = pendCat === c.key;
-                      return (
-                        <button key={c.key} type="button" onClick={() => setPendCat(active ? null : c.key)} data-testid={`chip-${c.key}`}
-                          aria-pressed={active}
-                          title={`${c.label}: ${count} ${count === 1 ? "colaborador" : "colaboradores"}. Clique para filtrar.`}
-                          className={`inline-flex h-6 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
-                            active
-                              ? "border-amber-600 bg-amber-200 text-amber-900 dark:bg-amber-900/60 dark:text-amber-100"
-                              : "border-amber-300 bg-background text-amber-800 hover:bg-amber-100/60 dark:text-amber-300 dark:hover:bg-amber-950/40"}`}>
-                          {c.label}
-                          <span className="font-semibold tabular-nums opacity-75">{count}</span>
-                        </button>
-                      );
-                    })}
-                    {pendCat && (
-                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs ml-auto" onClick={() => setPendCat(null)}>
-                        <X className="h-3 w-3 mr-1" aria-hidden="true" /> Limpar filtro
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              );
-              })()}
-            </section>
+                    <span className="mt-1 flex items-baseline gap-1.5">
+                      <span className="text-[27px] font-extrabold tabular-nums leading-none tracking-[-0.03em]">{obrigatorio ? rb.prontas : rb.emUso}</span>
+                      <span className="text-[12.5px] text-muted-foreground">{obrigatorio ? `de ${rb.emUso} que usam` : (rb.emUso === 1 ? "lançamento" : "lançamentos")}</span>
+                    </span>
+                    <span className="mt-2 block h-[5px] w-full overflow-hidden rounded-full" style={{ background: obrigatorio ? "#eef1f5" : "transparent" }} aria-hidden="true">
+                      {obrigatorio && <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${pct}%`, background: rb.faltam ? "#f59e0b" : "#10b981" }} />}
+                    </span>
+                    <span className="mt-1.5 block font-mono text-[12.5px] tabular-nums text-slate-700 dark:text-slate-300">{brl(VALOR_DO_BLOCO[b])}</span>
+                    <span className="mt-0.5 block h-4 text-[11px] font-bold" style={{ color: rb.faltam ? "#b45309" : "#0f766e" }}>
+                      {obrigatorio ? (rb.faltam ? `${rb.faltam} ${rb.faltam === 1 ? "pessoa" : "pessoas"} a completar` : "bloco fechado") : ""}
+                    </span>
+                  </button>
+                );
+              })}
+              <div className="rounded-2xl px-4 py-3.5" style={{ background: "#0f172a" }} data-testid="placar-custo">
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.09em]" style={{ color: "rgba(255,255,255,.55)" }}>Custo do evento</p>
+                <p className="mt-1 text-[25px] font-extrabold tabular-nums leading-none tracking-[-0.03em] text-white" data-testid="mirror-total-geral">{brl(totals.grand)}</p>
+                <p className="mt-2 text-[11px]" style={{ color: "rgba(255,255,255,.55)" }}>
+                  {derivedHotelCount > 0 ? "Hospedagem calculada por diária × noites" : "Soma dos cinco blocos"}
+                </p>
+              </div>
+            </div>
 
             {/* ===== BARRA DE TRABALHO (fixa no topo ao rolar) ===== */}
             {/* Antes as abas e a busca sumiam ao rolar a grade e o conteúdo
@@ -1268,24 +1217,23 @@ function EspelhoOperacional() {
                       {/* Cada filtro diz quantas pessoas ele devolveria ANTES do
                           clique: sem isso, filtrar era às cegas — marcar, ver a
                           lista vazia, desmarcar. */}
-                      <div className="grid gap-x-4 gap-y-3 sm:grid-cols-3">
-                        {GRUPOS_DE_FILTRO.map((g) => (
-                          <div key={g.titulo} className="space-y-1">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{g.titulo}</p>
-                            {g.itens.map((item) => {
-                              const quantas = rows.filter(item.match).length;
-                              return (
-                                <label key={item.key}
-                                  className={`flex h-7 items-center gap-2 rounded px-1 text-[13px] ${quantas === 0 && !flags[item.key] ? "cursor-not-allowed opacity-45" : "cursor-pointer hover:bg-muted/60"}`}>
-                                  <Checkbox checked={!!flags[item.key]} disabled={quantas === 0 && !flags[item.key]}
-                                    onCheckedChange={(v) => setFlags((f) => ({ ...f, [item.key]: !!v }))} />
-                                  <span className="truncate">{item.label}</span>
-                                  <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">{quantas}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        ))}
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Situação</p>
+                        {SITUACOES.map((st) => {
+                          const quantas = st.key === "comPendencia" ? resumo.pessoasTravando
+                            : st.key === "pronto" ? rows.length - resumo.pessoasTravando
+                            : resumo.comSugestao;
+                          const marcada = situacoes.has(st.key);
+                          return (
+                            <label key={st.key}
+                              className={`flex h-7 items-center gap-2 rounded px-1 text-[13px] ${quantas === 0 && !marcada ? "cursor-not-allowed opacity-45" : "cursor-pointer hover:bg-muted/60"}`}>
+                              <Checkbox checked={marcada} disabled={quantas === 0 && !marcada}
+                                onCheckedChange={(v) => setSituacoes((s) => { const n = new Set(s); if (v) n.add(st.key); else n.delete(st.key); return n; })} />
+                              <span className="truncate">{st.label}</span>
+                              <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">{quantas}</span>
+                            </label>
+                          );
+                        })}
                       </div>
                     </div>
                   </PopoverContent>
@@ -1377,9 +1325,9 @@ function EspelhoOperacional() {
               </div>
             ) : (
             <>
-            {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} uberConfirmados={uberConfirmados} quartosConfirmados={quartosConfirmados} irParaVisao={setView} />}
-            {view === "colaboradores" && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
-            {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} />}
+            {view === "grade" && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={saveCell} openDrawer={openDrawer} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} confirmados={confirmados} pendenciaDe={pendenciaDe} irParaVisao={setView} totalDoEvento={rows.length} />}
+            {view === "colaboradores" && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} pendenciaDe={pendenciaDe} totalDoEvento={rows.length} />}
+            {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} pendenciaDe={pendenciaDe} verNaGrade={(dep) => { setDeptFilter(dep); setView("grade"); }} />}
             {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} rows={rows} onMover={(c, de, para) => moverMutation.mutate({ tipo: "quarto", corpo: { collaboratorId: c, deGrupoId: de, paraGrupoId: para } })} onSeparar={(id) => setConfirmar({
               titulo: "Separar em quartos individuais?",
               texto: "Cada ocupante passa a ter um quarto próprio. O custo de hotelaria do evento sobe — a diária individual é maior que a compartilhada.",
@@ -1436,37 +1384,33 @@ interface GradeViewProps {
   canEdit: boolean;
   emptyMessage: string;
   /** Ids de grupos já confirmados — separam sugestão de dado na grade. */
-  uberConfirmados: Set<string>;
-  quartosConfirmados: Set<string>;
+  confirmados: GruposConfirmados;
+  /** A pendência por bloco de cada linha, calculada uma vez na página. */
+  pendenciaDe: (r: MirrorRow) => { abertos: BlocoDeCusto[]; sugestao: boolean; ctx: ContextoDaLinha };
   /** Leva para a visao que confirma o grupo (celula em "a confirmar"). */
   irParaVisao: (v: "uber" | "quartos") => void;
+  /** Total sem filtro — o rodapé diz "N de M pessoas". */
+  totalDoEvento: number;
 }
-function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, onSort, editMode, canEdit, emptyMessage, uberConfirmados, quartosConfirmados, irParaVisao }: GradeViewProps) {
+function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, onSort, editMode, canEdit, emptyMessage, confirmados, pendenciaDe, irParaVisao, totalDoEvento }: GradeViewProps) {
   const show = (b: Block) => !hiddenBlocks.has(b);
-  /**
-   * O que cada linha tem — é daqui que sai a obrigatoriedade condicional de
-   * cada célula (shared/mirror-cell-state.ts).
-   */
-  const ctxDaLinha = (r: MirrorRow): ContextoDaLinha => ({
-    temPassagem: !!r.ticket,
-    temHotel: !!r.accommodation?.hotelName,
-    bagagemCents: r.baggage.extraCents,
-    uberCents: r.uber.totalCents,
-    locacaoCents: r.carRental.totalCents,
-    semUber: r.skipUber,
-    uberConfirmado: !!r.uber.suggestedGroupId && uberConfirmados.has(r.uber.suggestedGroupId),
-    quartoConfirmado: !!r.suggestedRoomGroupId && quartosConfirmados.has(r.suggestedRoomGroupId),
-  });
+  const ctxDaLinha = (r: MirrorRow): ContextoDaLinha => contextoDaLinha(r, confirmados);
   // "Bater o olho e entender" (pedido do dono): cada etapa diz quantas pessoas
   // já têm aquilo resolvido. Sem isso, saber o que falta exigia percorrer ~36
   // colunas linha a linha.
-  const feito = useMemo(() => ({
-    passagem: rows.filter((r) => !!r.ticket).length,
-    hospedagem: rows.filter((r) => !!r.accommodation).length,
-    bagagem: rows.filter((r) => r.baggage.extraCents > 0).length,
-    uber: rows.filter((r) => r.uber.totalCents > 0).length,
-    locacao: rows.filter((r) => r.carRental.totalCents > 0).length,
-  }), [rows]);
+  const feito = useMemo(() => {
+    const f = { passagem: 0, hospedagem: 0, bagagem: 0, uber: 0, locacao: 0 };
+    const base = { passagem: 0, hospedagem: 0, bagagem: 0, uber: 0, locacao: 0 };
+    for (const r of rows) {
+      const { abertos } = pendenciaDe(r);
+      for (const b of BLOCOS_DE_CUSTO) {
+        if (!blocoEmUso(b, r)) continue;
+        base[b] += 1;
+        if (!blocoPendencia(b) || !abertos.includes(b)) f[b] += 1;
+      }
+    }
+    return { feito: f, base };
+  }, [rows, pendenciaDe]);
   /** Somas por coluna de dinheiro — o que o rodapé da grade mostra. */
   const soma = useMemo(() => {
     const s = { passagem: 0, hotel: 0, bagagem: 0, uber: 0, locacao: 0 };
@@ -1549,11 +1493,11 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
                 <tr>
                   <th colSpan={2} className="sticky left-0 top-0 z-40 h-8 py-0 leading-none bg-muted px-2 text-left font-semibold border-r border-b border-border">Colaborador</th>
                   <GrupoHead colSpan={4} ponto={PONTO_ETAPA.schedule}>Período</GrupoHead>
-                  {show("passagem") && <GrupoHead data-bloco="passagem" colSpan={9} ponto={PONTO_ETAPA.ticket}><Progresso rotulo="Passagem" feito={feito.passagem} total={rows.length} /></GrupoHead>}
-                  {show("hospedagem") && <GrupoHead data-bloco="hospedagem" colSpan={12} ponto={PONTO_ETAPA.hotel}><Progresso rotulo="Hospedagem" feito={feito.hospedagem} total={rows.length} /></GrupoHead>}
-                  {show("bagagem") && <GrupoHead data-bloco="bagagem" colSpan={3} ponto={PONTO_ETAPA.baggage}><Progresso rotulo="Bagagem" feito={feito.bagagem} total={rows.length} /></GrupoHead>}
-                  {show("uber") && <GrupoHead data-bloco="uber" colSpan={3} ponto={PONTO_ETAPA.uber}><Progresso rotulo="Uber" feito={feito.uber} total={rows.length} /></GrupoHead>}
-                  {show("locacao") && <GrupoHead data-bloco="locacao" colSpan={4} ponto={PONTO_ETAPA.car}><Progresso rotulo="Locação" feito={feito.locacao} total={rows.length} /></GrupoHead>}
+                  {show("passagem") && <GrupoHead data-bloco="passagem" colSpan={9} ponto={PONTO_ETAPA.ticket}><Progresso rotulo="Passagem" feito={feito.feito.passagem} total={feito.base.passagem} /></GrupoHead>}
+                  {show("hospedagem") && <GrupoHead data-bloco="hospedagem" colSpan={12} ponto={PONTO_ETAPA.hotel}><Progresso rotulo="Hospedagem" feito={feito.feito.hospedagem} total={feito.base.hospedagem} /></GrupoHead>}
+                  {show("bagagem") && <GrupoHead data-bloco="bagagem" colSpan={3} ponto={PONTO_ETAPA.baggage}>Bagagem</GrupoHead>}
+                  {show("uber") && <GrupoHead data-bloco="uber" colSpan={3} ponto={PONTO_ETAPA.uber}><Progresso rotulo="Uber" feito={feito.feito.uber} total={feito.base.uber} /></GrupoHead>}
+                  {show("locacao") && <GrupoHead data-bloco="locacao" colSpan={4} ponto={PONTO_ETAPA.car}>Locação</GrupoHead>}
                   {show("pendencias") && <GrupoHead data-bloco="pendencias" colSpan={2} ponto={PONTO_ETAPA.pend}>Situação</GrupoHead>}
                 </tr>
                 <tr className="bg-muted/70">
@@ -1584,11 +1528,17 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
                   const t: Partial<NonNullable<MirrorRow["ticket"]>> = r.ticket || {};
                   const a: Partial<NonNullable<MirrorRow["accommodation"]>> = r.accommodation || {};
                   const ctx = ctxDaLinha(r);
+                  const { abertos } = pendenciaDe(r);
                   const est = (campo: string, valor: unknown) => estadoDaCelula(campo, valor, ctx);
                   return (
                     <tr key={r.teamInclusionId} className="border-b hover:bg-primary/[0.04] group" data-testid={`row-${r.teamInclusionId}`}>
                       <td className={`sticky left-0 z-20 bg-card group-hover:bg-muted px-2 py-1 font-medium border-r border-border/40 min-w-[210px]`}>
-                        <Tooltip><TooltipTrigger asChild><div className="truncate max-w-[196px] leading-tight">{r.collaborator.fullName}</div></TooltipTrigger><TooltipContent>{r.collaborator.fullName}</TooltipContent></Tooltip>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {/* Dois ou mais blocos abertos: o alerta fica junto do
+                              nome, onde o olho passa primeiro. */}
+                          {abertos.length >= 2 && <AlertTriangle className="h-3.5 w-3.5 shrink-0" style={{ color: "#b45309" }} aria-label={`${abertos.length} blocos abertos`} />}
+                          <Tooltip><TooltipTrigger asChild><div className="truncate max-w-[176px] leading-tight">{r.collaborator.fullName}</div></TooltipTrigger><TooltipContent>{r.collaborator.fullName}</TooltipContent></Tooltip>
+                        </div>
                         {/* A segunda linha só existe quando há o que dizer: antes
                             todas as linhas exibiam "? · —" e isso virava ruído. */}
                         {(() => {
@@ -1645,8 +1595,8 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
                         <EditableCell rowId={r.teamInclusionId} field="carRental.checkIn" value={r.carRental.checkIn} estado={est("carRental.checkIn", r.carRental.checkIn)} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
                       </>}
                       {show("pendencias") && <>
-                        <td className="px-2 py-1 border-r border-border/30 text-center">
-                          <PendencyCountBadge pendencies={r.pendencies} testId={`pend-${r.teamInclusionId}`} />
+                        <td className="px-2 py-1 border-r border-border/30 text-center whitespace-nowrap">
+                          <SituacaoPill abertos={abertos.length} pendencies={r.pendencies} testId={`pend-${r.teamInclusionId}`} />
                         </td>
                         <EditableCell rowId={r.teamInclusionId} field="observations" value={r.observations} estado={est("observations", r.observations)} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
                       </>}
@@ -1683,11 +1633,15 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
             — dizer que ela existe é metade do ganho. */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t bg-card px-3.5 py-2 text-[11px] text-muted-foreground">
           <span className="tabular-nums">
-            {rows.length} {rows.length === 1 ? "pessoa" : "pessoas"} · {colunasVisiveis} colunas
+            {rows.length === totalDoEvento ? `${rows.length} ${rows.length === 1 ? "pessoa" : "pessoas"}` : `${rows.length} de ${totalDoEvento} pessoas`} · {colunasVisiveis} colunas
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-sm bg-amber-100 ring-1 ring-inset ring-amber-300 dark:bg-amber-950/50" aria-hidden="true" />
             falta preencher
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm ring-1 ring-inset" style={{ background: "#f5f3ff", boxShadow: "inset 0 0 0 1px #ddd6fe" }} aria-hidden="true" />
+            a confirmar
           </span>
           {editMode && (
             <span className="ml-auto inline-flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -1745,79 +1699,119 @@ function ColHead({ children, pad }: { children: React.ReactNode; pad: string }) 
 }
 
 // ============ COLABORADORES VIEW ============
-interface ColaboradoresViewProps { rows: MirrorRow[]; openDrawer: OpenDrawer; canEdit: boolean; emptyMessage: string }
-function ColaboradoresView({ rows, openDrawer, canEdit, emptyMessage }: ColaboradoresViewProps) {
+interface ColaboradoresViewProps {
+  rows: MirrorRow[];
+  openDrawer: OpenDrawer;
+  canEdit: boolean;
+  emptyMessage: string;
+  pendenciaDe: (r: MirrorRow) => { abertos: BlocoDeCusto[]; sugestao: boolean; ctx: ContextoDaLinha };
+  /** Total sem filtro — o rodapé diz "N de M pessoas". */
+  totalDoEvento: number;
+}
+
+/**
+ * Pessoas (02/09): uma linha por pessoa com quatro fatos — Período, Passagem,
+ * Hospedagem, Extras.
+ *
+ * SEM selo de estado, sem régua de blocos e sem contagem: decisão do cliente.
+ * A lista informa; o alerta vive na faixa âmbar, no placar e na Grade. Eram
+ * cartões em duas colunas, cada um com altura própria — comparar duas pessoas
+ * exigia procurar o mesmo dado em alturas diferentes. O grid de quatro fatos
+ * não tem padding nem divisória por item: é o que alinha as linhas entre si.
+ */
+function ColaboradoresView({ rows, openDrawer, canEdit, emptyMessage, pendenciaDe, totalDoEvento }: ColaboradoresViewProps) {
   const edit = (kind: DrawerKind, r: MirrorRow) => canEdit ? () => openDrawer(kind, r) : undefined;
   if (rows.length === 0) return <div className="rounded-lg border border-dashed bg-muted/20 py-14 text-center text-sm text-muted-foreground">{emptyMessage}</div>;
+  const prontas = rows.filter((r) => pendenciaDe(r).abertos.length === 0).length;
+  const custoDoConjunto = rows.reduce((s, r) => s + (r.ticket?.value || 0) + hotelTotalCents(r) + (r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0), 0);
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+    <div className="rounded-2xl border bg-card overflow-hidden">
+      <div className="divide-y">
       {rows.map((r) => {
         const t = r.ticket; const a = r.accommodation;
         const hotelTotal = hotelTotalCents(r);
         const hotelDerived = isHotelTotalDerived(r);
         const indivTotal = (t?.value || 0) + hotelTotal + (r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0);
-        // Extras zerados viravam três blocos vazios do mesmo tamanho dos que
-        // têm dado. Agora só entram na lista quando existem de fato.
+        const usaPassagem = blocoEmUso("passagem", r);
+        const usaHotel = blocoEmUso("hospedagem", r);
+        // Extras zerados não entram: três rótulos com R$ 0,00 ocupavam o mesmo
+        // espaço dos que têm dado.
         const extras = [
-          r.baggage.extraCents > 0 && { icon: <Luggage className="h-3.5 w-3.5" />, titulo: "Bagagem", valor: r.baggage.extraCents, detalhe: r.baggage.oc ? `OC ${r.baggage.oc}` : null, kind: "extras" as DrawerKind },
-          r.uber.totalCents > 0 && { icon: <Car className="h-3.5 w-3.5" />, titulo: "Uber", valor: r.uber.totalCents, detalhe: r.uber.groupName || (r.uber.oc ? `OC ${r.uber.oc}` : null), kind: "extras" as DrawerKind },
-          r.carRental.totalCents > 0 && { icon: <Car className="h-3.5 w-3.5" />, titulo: "Locação", valor: r.carRental.totalCents, detalhe: r.carRental.company || (r.carRental.oc ? `OC ${r.carRental.oc}` : null), kind: "extras" as DrawerKind },
-        ].filter(Boolean) as { icon: React.ReactNode; titulo: string; valor: number; detalhe: string | null; kind: DrawerKind }[];
-
+          r.baggage.extraCents > 0 && `bagagem ${brl(r.baggage.extraCents)}`,
+          r.uber.totalCents > 0 && `uber ${brl(r.uber.totalCents)}`,
+          r.carRental.totalCents > 0 && `carro ${brl(r.carRental.totalCents)}`,
+        ].filter(Boolean) as string[];
+        const meta = [
+          r.collaborator.gender && r.collaborator.gender !== "unknown" ? genderLabel[r.collaborator.gender] : null,
+          r.collaborator.state,
+        ].filter(Boolean).join(" · ");
         return (
-          <article key={r.teamInclusionId} className="rounded-lg border bg-card overflow-hidden transition-shadow hover:shadow-sm" data-testid={`collab-card-${r.teamInclusionId}`}>
-            <header className="flex items-start justify-between gap-3 px-4 py-3 border-b">
-              <div className="flex items-start gap-3 min-w-0">
-                <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-[11px] font-semibold">
-                  {r.collaborator.fullName.slice(0, 2).toUpperCase()}
-                </span>
-                <div className="min-w-0">
-                  <p className="font-medium leading-tight truncate" title={r.collaborator.fullName}>{r.collaborator.fullName}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                    <span className="capitalize">{r.function.area || r.function.name || "Sem função"}</span>
-                    {" · "}{fmtDate(r.schedule.startDate)} – {fmtDate(r.schedule.endDate)}
-                  </p>
-                </div>
+          <article key={r.teamInclusionId} className="px-4 py-3.5" data-testid={`collab-card-${r.teamInclusionId}`}>
+            <header className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[14.5px] font-bold leading-tight truncate" title={r.collaborator.fullName}>{r.collaborator.fullName}</p>
+                <p className="text-[12px] mt-0.5 truncate text-muted-foreground">
+                  <span className="capitalize">{r.function.area || r.function.name || "Sem função"}</span>{meta ? ` · ${meta}` : ""}
+                </p>
               </div>
-              <div className="text-right shrink-0">
-                <p className="text-[11px] text-muted-foreground">Total</p>
-                <p className="font-semibold tabular-nums leading-tight">{brl(indivTotal)}</p>
+              <div className="flex items-center gap-2 shrink-0">
+                <p className="font-mono text-[13.5px] font-bold tabular-nums" title={hotelDerived ? "Inclui hospedagem calculada por diária × noites" : undefined}>{brl(indivTotal)}</p>
+                {canEdit && (
+                  <button type="button" onClick={() => openDrawer(usaPassagem ? "ticket" : "accommodation", r)} aria-label={`Editar ${r.collaborator.fullName}`}
+                    className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-lg border text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                )}
               </div>
             </header>
-
-            <div className="divide-y">
-              <LinhaCusto icon={<Plane className="h-3.5 w-3.5" />} titulo="Passagem" valor={t?.value ?? 0}
-                detalhes={[t?.locator && `Loc ${t.locator}`, [t?.departureAirport, t?.returnOriginAirport].filter(Boolean).join(" → ") || null, t?.purchaseOrderNumber && `OC ${t.purchaseOrderNumber}`]}
-                vazio="Sem passagem registrada" onEdit={edit("ticket", r)} />
-              <LinhaCusto icon={<BedDouble className="h-3.5 w-3.5" />} titulo="Hospedagem" valor={hotelTotal} derivado={hotelDerived}
-                detalhes={[a?.hotelName, a?.reservationNumber && `Reserva ${a.reservationNumber}`, (a?.checkInDate || a?.checkOutDate) && `${fmtDate(a?.checkInDate)} – ${fmtDate(a?.checkOutDate)}`, a?.nightsCount ? `${a.nightsCount} ${a.nightsCount === 1 ? "noite" : "noites"}${a.roomType ? " · " + (ROOM_TYPE_LABEL[a.roomType] ?? a.roomType) : ""}` : null]}
-                vazio="Sem hospedagem registrada" onEdit={edit("accommodation", r)} />
-              {extras.map((e) => (
-                <LinhaCusto key={e.titulo} icon={e.icon} titulo={e.titulo} valor={e.valor} detalhes={[e.detalhe]} vazio="" onEdit={edit(e.kind, r)} />
-              ))}
-              {extras.length === 0 && canEdit && (
-                <button type="button" onClick={() => openDrawer("extras", r)}
-                  className="w-full px-4 py-2.5 text-left text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:bg-muted/40">
-                  Sem bagagem, Uber ou locação — <span className="underline underline-offset-2">adicionar</span>
-                </button>
-              )}
+            <div className="mt-2.5 grid grid-cols-2 xl:grid-cols-4" style={{ gap: "12px 26px" }}>
+              <Fato rotulo="Período">{fmtDate(r.schedule.startDate)} → {fmtDate(r.schedule.endDate)}</Fato>
+              <Fato rotulo="Passagem" onClick={usaPassagem ? edit("ticket", r) : undefined}>
+                {!usaPassagem ? <span className="text-muted-foreground/70">não se aplica</span>
+                  : !t ? <span style={{ color: "#92400e" }}>sem passagem</span>
+                  : <>
+                      {[t.ticketCompany, t.locator].filter(Boolean).join(" · ") || "—"}
+                      {!t.locator && <span style={{ color: "#92400e" }}> · sem localizador</span>}
+                      {t.value ? ` · ${brl(t.value)}` : ""}
+                    </>}
+              </Fato>
+              <Fato rotulo="Hospedagem" onClick={usaHotel ? edit("accommodation", r) : undefined}>
+                {!usaHotel ? <span className="text-muted-foreground/70">não se aplica</span>
+                  : !a?.hotelName ? <span style={{ color: "#92400e" }}>sem hotel</span>
+                  : [a.hotelName, a.roomType ? (ROOM_TYPE_LABEL[a.roomType] ?? a.roomType) : null, a.nightsCount ? `${a.nightsCount} ${a.nightsCount === 1 ? "noite" : "noites"}` : null].filter(Boolean).join(" · ")}
+              </Fato>
+              <Fato rotulo="Extras" onClick={edit("extras", r)}>
+                {extras.length ? extras.join(" · ") : <span className="text-muted-foreground/70">sem extras</span>}
+              </Fato>
             </div>
-
-            <footer className="px-4 py-2.5 bg-muted/20 border-t">
-              {r.pendencies.length === 0 ? (
-                <p className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
-                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> Sem pendências
-                </p>
-              ) : (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {r.pendencies.map((pd, i) => <PendencyBadge key={i} p={pd} />)}
-                </div>
-              )}
-            </footer>
+            {r.observations && <p className="mt-2 text-[12px] text-muted-foreground">{r.observations}</p>}
           </article>
         );
       })}
+      </div>
+      <div className="flex items-center gap-4 border-t bg-muted/30 px-4 py-2.5 text-[12px] text-muted-foreground">
+        <span className="tabular-nums">
+          {rows.length === totalDoEvento ? `${rows.length} ${rows.length === 1 ? "pessoa" : "pessoas"}` : `${rows.length} de ${totalDoEvento} pessoas`} · {prontas} {prontas === 1 ? "pronta" : "prontas"}
+        </span>
+        <span className="ml-auto font-mono tabular-nums text-foreground">{brl(custoDoConjunto)}</span>
+      </div>
     </div>
+  );
+}
+
+/** Um fato da linha de Pessoas: rótulo miúdo e valor que pode quebrar. */
+function Fato({ rotulo, children, onClick }: { rotulo: string; children: React.ReactNode; onClick?: () => void }) {
+  const corpo = (
+    <>
+      <span className="block text-[9.5px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground/80">{rotulo}</span>
+      <span className="block text-[12.5px] font-medium" style={{ lineHeight: 1.45 }}>{children}</span>
+    </>
+  );
+  if (!onClick) return <div className="min-w-0">{corpo}</div>;
+  return (
+    <button type="button" onClick={onClick} className="-mx-1 min-w-0 rounded px-1 text-left hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      {corpo}
+    </button>
   );
 }
 
@@ -1871,6 +1865,8 @@ type SummaryLine = string | number | false | null | undefined;
 
 // ============ DEPARTAMENTOS VIEW ============
 interface DepartamentosViewProps {
+  pendenciaDe: (r: MirrorRow) => { abertos: BlocoDeCusto[]; sugestao: boolean; ctx: ContextoDaLinha };
+  verNaGrade: (departamento: string) => void;
   rows: MirrorRow[];
   totals: MirrorTotals;
   collapsed: Set<string>;
@@ -1879,7 +1875,7 @@ interface DepartamentosViewProps {
   canEdit: boolean;
   emptyMessage: string;
 }
-function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, canEdit, emptyMessage }: DepartamentosViewProps) {
+function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, canEdit, emptyMessage, pendenciaDe, verNaGrade }: DepartamentosViewProps) {
   const groups = useMemo(() => {
     const m = new Map<string, MirrorRow[]>();
     rows.forEach((r) => { const k = r.function.area || r.function.name || "(sem departamento)"; if (!m.has(k)) m.set(k, []); m.get(k)!.push(r); });
@@ -1900,29 +1896,46 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, 
         const isOpen = !collapsed.has(name);
         const subtotal = dt?.total ?? 0;
         const extrasTotal = members.reduce((s, r) => s + (r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0), 0);
-        const pendCount = members.reduce((s, r) => s + r.pendencies.length, 0);
+        // Progresso em BLOCOS em uso (só os três que pendenciam): "X de Y
+        // blocos em uso prontos". A base conta o que cada pessoa usa, não
+        // pessoas × 3.
+        let blocosEmUso = 0, blocosProntos = 0, aCompletar = 0;
+        for (const r of members) {
+          const { abertos } = pendenciaDe(r);
+          if (abertos.length > 0) aCompletar += 1;
+          for (const b of BLOCOS_DE_CUSTO) {
+            if (!blocoPendencia(b) || !blocoEmUso(b, r)) continue;
+            blocosEmUso += 1;
+            if (!abertos.includes(b)) blocosProntos += 1;
+          }
+        }
+        const pct = blocosEmUso ? Math.round((blocosProntos / blocosEmUso) * 100) : 100;
         return (
           <Card key={name} data-testid={`dept-${name}`}>
             <Collapsible open={isOpen} onOpenChange={(o) => setCollapsed((s) => { const n = new Set(s); if (o) n.delete(name); else n.add(name); return n; })}>
-              <CollapsibleTrigger className="w-full">
-                <div className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors">
-                  <div className="flex items-center gap-2">
-                    {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                    <Building2 className="h-4 w-4 text-primary" />
-                    <span className="font-semibold capitalize">{name}</span>
-                    <Badge variant="secondary">{members.length}</Badge>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    {dt && <>
-                      <span className="hidden md:inline text-muted-foreground">Passagem {brl(dt.tickets)}</span>
-                      <span className="hidden md:inline text-muted-foreground">Hotel {brl(dt.hotel)}</span>
-                    </>}
-                    <span className="hidden md:inline text-muted-foreground">Extras {brl(extrasTotal)}</span>
-                    {pendCount > 0 && <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-700 dark:text-amber-400">{pendCount} pend.</Badge>}
-                    <span className="font-bold">{brl(subtotal)}</span>
-                  </div>
+              <div className="flex items-center gap-3 px-4 py-3">
+                <CollapsibleTrigger className="flex items-center gap-2 min-w-0 text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                  <Building2 className="h-4 w-4 text-primary shrink-0" />
+                  <span className="text-[14px] font-bold capitalize truncate">{name}</span>
+                </CollapsibleTrigger>
+                <span className="text-[12px] text-muted-foreground whitespace-nowrap">
+                  {members.length} {members.length === 1 ? "pessoa" : "pessoas"} · {aCompletar ? `${aCompletar} a completar` : "nenhuma pendência"}
+                </span>
+                <div className="hidden md:flex items-center gap-2 min-w-[180px]" title={`${blocosProntos} de ${blocosEmUso} blocos em uso prontos`}>
+                  <span className="h-[5px] flex-1 overflow-hidden rounded-full" style={{ background: "#eef1f5" }} aria-hidden="true">
+                    <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${pct}%`, background: blocosProntos < blocosEmUso ? "#f59e0b" : "#10b981" }} />
+                  </span>
+                  <span className="text-[11px] tabular-nums text-muted-foreground whitespace-nowrap">{blocosProntos} de {blocosEmUso} blocos</span>
                 </div>
-              </CollapsibleTrigger>
+                <div className="ml-auto flex items-center gap-3">
+                  {dt && <span className="hidden lg:inline text-[12px] text-muted-foreground">Passagem {brl(dt.tickets)} · Hotel {brl(dt.hotel)} · Extras {brl(extrasTotal)}</span>}
+                  <span className="font-mono text-[15px] font-bold tabular-nums">{brl(subtotal)}</span>
+                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => verNaGrade(name)} data-testid={`dept-ver-${name}`}>
+                    Ver na grade
+                  </Button>
+                </div>
+              </div>
               <CollapsibleContent>
                 <Separator />
                 <div className="divide-y">
@@ -1938,7 +1951,9 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, 
                         <BedDouble className="h-3 w-3 text-emerald-500" /> {brl(hotelTotalCents(r))}
                       </span>
                       <span className="flex items-center gap-1 text-xs"><Luggage className="h-3 w-3 text-amber-500" /> {brl((r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0))}</span>
-                      {r.pendencies.length > 0 && <Badge variant="outline" className="text-[9px] border-amber-400 text-amber-700 dark:text-amber-400 ml-auto">{r.pendencies.length} pend.</Badge>}
+                      {(() => { const n = pendenciaDe(r).abertos.length; return n > 0
+                        ? <span className="ml-auto inline-flex h-[22px] items-center rounded-md px-[7px] text-[11px] font-medium" style={{ background: "#fef3c7", color: "#92400e" }}>{textoDaSituacao(n)}</span>
+                        : null; })()}
                       {canEdit && <>
                         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("ticket", r)}><Pencil className="h-3 w-3 mr-1" /> Passagem</Button>
                         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("accommodation", r)}><Pencil className="h-3 w-3 mr-1" /> Hotel</Button>

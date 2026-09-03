@@ -220,6 +220,10 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
       },
       carRental: { company: carExtra.company, totalCents: carExtra.total, oc: carExtra.oc, notes: carExtra.notes, checkIn: carExtra.checkIn },
       skipUber: !!ti.skipUber,
+      // Sinais de "em uso" da regra de pendência por bloco (02/09): quem não
+      // precisa de passagem não fica pendente de passagem.
+      needsTicket: !!ti.needsTicket,
+      needsAccommodation: !!ti.needsAccommodation,
       suggestedRoomGroupId: roomGroup?.id || null,
       roomGroupLabel: roomGroup ? `${roomGroup.roomType || ""} ${roomGroup.confirmed ? "(Confirmado)" : "(Sugestão)"}`.trim() : null,
       pendencies,
