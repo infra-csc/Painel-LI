@@ -18,7 +18,11 @@
  */
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { markSwapSeen, getSeenState } from "@/lib/seenSwaps";
-import { AlertTriangle, CloudOff, Download, FilterX, List, Lock, TrendingUp, Users } from "lucide-react";
+import { AlertTriangle, CalendarDays, CloudOff, Download, FilterX, List, Lock, TrendingUp, Users } from "lucide-react";
+import { ScheduleBoard } from "@/components/scaling-validation/schedule-board";
+import { buildDateList } from "@/components/scaling-validation/scaling-grid-utils";
+import { SUGESTAO_STATUS } from "@shared/scaling-validation-rules";
+import type { SuggestionRow } from "@/components/scaling-validation/types";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -78,7 +82,7 @@ export default function Scaling() {
   // Nada disso vai para o localStorage, e a decisão é deliberada: filtro
   // persistido faz o usuário abrir a tela filtrado sem perceber. A ABA também
   // não persiste — quem abre a Escalação vem trabalhar na fila.
-  const [aba, setAba] = useState<"fila" | "analises">("fila");
+  const [aba, setAba] = useState<"fila" | "analises" | "escala">("fila");
   const [fila, setFila] = useState<QueueKey | null>(null);
   const [busca, setBusca] = useState("");
   const [eventos, setEventos] = useState<Record<string, boolean>>({});
@@ -531,13 +535,37 @@ export default function Scaling() {
     ].filter(Boolean).join(" · ");
   })();
 
+  /**
+   * Quadro função × dia (04/09) — o mesmo da Validação, sobre as vagas do
+   * recorte. Quem escala abria a Validação para saber "quantas pessoas por
+   * dia" e voltava aqui para escalar; agora a visão mora nas duas telas.
+   * Vaga sem dias listados usa o período de trabalho; cancelada não soma.
+   */
+  const linhasDoQuadro = useMemo<SuggestionRow[]>(() => comFlags.map((i) => {
+    const listados = (i.workDays ?? []).map((d) => String(d).slice(0, 10)).filter(Boolean);
+    const inicio = i.scheduleStartDate ? String(i.scheduleStartDate).slice(0, 10) : "";
+    const fim = i.scheduleEndDate ? String(i.scheduleEndDate).slice(0, 10) : "";
+    const dias = listados.length > 0 ? listados : (inicio && fim ? buildDateList(inicio, fim) : []);
+    return {
+      ...i,
+      workDays: dias,
+      status: i.status === "cancelado" ? SUGESTAO_STATUS.NEGADA : i.status,
+      canEdit: false, canDecide: false, daysPending: 0, pendingRequest: null, lastDecision: null, lastVagaDecision: null,
+    } as unknown as SuggestionRow;
+  }), [comFlags]);
+  const nomesDasFuncoes = useMemo(
+    () => new Map(Array.from(data.functionById.values()).map((f) => [f.id, f.name] as const)),
+    [data.functionById],
+  );
+  const eventoUnico = eventosMarcados.length === 1 ? data.eventById.get(eventosMarcados[0]) : undefined;
+
   /*
    * A contagem segue a aba: a Fila mostra o que a tabela lista (com o bloco da
    * fila de trabalho aplicado), as Análises mostram o que os gráficos e o
    * relatório usam. Uma contagem só diria "18 vagas" ao lado de um painel que
    * analisa 3.741.
    */
-  const linhasDaAba = aba === "analises" ? comFlags : visibleRows;
+  const linhasDaAba = aba === "fila" ? visibleRows : comFlags;
   const contagem = temRecorte && linhasDaAba.length !== comPeriodo.length
     ? `${linhasDaAba.length} de ${comPeriodo.length} vagas`
     : `${linhasDaAba.length} ${linhasDaAba.length === 1 ? "vaga" : "vagas"}`;
@@ -603,7 +631,7 @@ export default function Scaling() {
         <span className="min-w-0 text-[12px] text-muted-foreground truncate" data-testid="resumo-topo">{resumoTopo}</span>
 
         <div role="tablist" aria-label="Modo da tela" className="inline-flex gap-0.5 p-[3px] rounded-[9px] border border-border bg-background shrink-0">
-          {([["fila", "Fila de trabalho", List], ["analises", "Análises", TrendingUp]] as const).map(([k, label, Icone]) => (
+          {([["fila", "Fila de trabalho", List], ["escala", "Escala", CalendarDays], ["analises", "Análises", TrendingUp]] as const).map(([k, label, Icone]) => (
             <button
               key={k}
               type="button"
@@ -678,7 +706,20 @@ export default function Scaling() {
               contagem={contagem}
             />
 
-            {aba === "analises" ? (
+            {aba === "escala" ? (
+              <div className="space-y-2" data-testid="aba-escala-quadro">
+                <ScheduleBoard
+                  rows={linhasDoQuadro}
+                  functionNameById={nomesDasFuncoes}
+                  rangeStart={eventoUnico?.startDate ?? undefined}
+                  rangeEnd={eventoUnico?.endDate ?? undefined}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Quadro do recorte atual, somente leitura — vagas canceladas não entram na soma.
+                  {eventosMarcados.length !== 1 ? " Escolha um evento no filtro para ver o período inteiro dele." : ""}
+                </p>
+              </div>
+            ) : aba === "analises" ? (
             <ScalingAnalytics
               linhas={comFlags}
               ctx={analyticsContext}

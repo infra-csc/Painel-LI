@@ -18,6 +18,7 @@
  *   a coluna congelada ficava sem fundo próprio.
  */
 import { useEffect, useState } from "react";
+import { AlertTriangle } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   MessageSquare, ChevronRight, ChevronUp, ChevronDown, ChevronsUpDown, Lock, UserPlus,
@@ -517,9 +518,24 @@ export default function ScalingTable({
                   <td className="px-3.5">
                     <div className="flex flex-col gap-[3px] min-w-0">
                       {getStatusBadge(inclusion, "sm")}
-                      {detalhe && (
+                      {/* Pedido de ajuste/exclusão em aberto TRAVA a vaga (regra do
+                          dono, 26/08): não dá para escalar, comprar nem confirmar até o
+                          aprovador decidir. Um texto de 11px cortado em "Pedido de
+                          ajuste com o …" não avisava isso a ninguém — virou chip
+                          âmbar, com ícone, que quebra linha em vez de cortar. */}
+                      {detalhe && detalhe.tom === "pedido" ? (
                         <span
-                          className={`text-[11px] truncate ${detalhe.tom === "troca" ? "text-[#7E22CE]" : detalhe.tom === "pedido" ? "text-[#92400E]" : "text-muted-foreground"}`}
+                          className="inline-flex max-w-full items-start gap-1 rounded-md border px-[7px] py-[3px] text-[11px] font-semibold leading-tight"
+                          style={{ background: "#FEF3C7", color: "#92400E", borderColor: "#FDE68A" }}
+                          title={detalhe.titulo}
+                          data-testid={`detalhe-situacao-${inclusion.id}`}
+                        >
+                          <AlertTriangle className="mt-px h-3 w-3 shrink-0" aria-hidden="true" />
+                          <span>{detalhe.texto}</span>
+                        </span>
+                      ) : detalhe && (
+                        <span
+                          className={`text-[11px] truncate ${detalhe.tom === "troca" ? "text-[#7E22CE]" : "text-muted-foreground"}`}
                           title={detalhe.titulo}
                           data-testid={`detalhe-situacao-${inclusion.id}`}
                         >
