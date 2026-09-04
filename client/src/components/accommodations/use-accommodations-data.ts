@@ -100,7 +100,7 @@ export function useAccommodationsData({ filters, sortConfig, showOnlyPendingSwap
       }
     };
 
-    const ctx = { eventById, collaboratorById, accommodationMap, pendingSwapByInclusion, showOnlyPendingSwaps };
+    const ctx = { eventById, collaboratorById, accommodationMap, pendingSwapByInclusion, showOnlyPendingSwaps, hoje: new Date() };
     const data = teamInclusionsWithAccommodation.filter((inclusion) => passaNosFiltros(inclusion, filters, ctx));
 
     if (sortConfig) {

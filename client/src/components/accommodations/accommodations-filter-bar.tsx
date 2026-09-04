@@ -13,6 +13,8 @@
 import { ArrowDown, ArrowUp, Search, X } from "lucide-react";
 import { FiltroDeLista, FiltroMultiplo, FiltroUnico, type OpcaoDeFiltro } from "@/components/common/filter-popover";
 import type { AccommodationFilters, AccSortConfig, AccSortField } from "./types";
+import ScalingPeriodFilter from "@/components/scaling/scaling-period-filter";
+import type { TeamInclusion } from "@shared/schema";
 
 interface Props {
   filters: AccommodationFilters;
@@ -27,6 +29,9 @@ interface Props {
   opcoesDeEvento: OpcaoDeFiltro[];
   opcoesDeFuncao: OpcaoDeFiltro[];
   opcoesDeColaborador: OpcaoDeFiltro[];
+  /** Base do contador do período: tudo aplicado, menos o próprio período. */
+  linhasSemPeriodo: TeamInclusion[];
+  hoje: Date;
   sortConfig: AccSortConfig | null;
   onSortChange: (c: AccSortConfig | null) => void;
   count: number;
@@ -66,7 +71,7 @@ const ORDENAR_POR: { id: string; nome: string }[] = [
 
 export default function AccommodationsFilterBar({
   filters, onChange, onClear, opcoesDeEvento, opcoesDeFuncao, opcoesDeColaborador,
-  sortConfig, onSortChange, count, total,
+  linhasSemPeriodo, hoje, sortConfig, onSortChange, count, total,
 }: Props) {
   const contagem = total !== count
     ? `${count} de ${total} ${total === 1 ? "vaga" : "vagas"}`
@@ -121,6 +126,11 @@ export default function AccommodationsFilterBar({
           testid="filter-collaborator"
           larguraPopover={340}
         />
+      </div>
+      {/* O mesmo período da Escalação (04/09): "Já terminou" é o que permite
+          conferir hospedagens de eventos realizados sem os que ainda vêm. */}
+      <div className="shrink-0">
+        <ScalingPeriodFilter valor={filters.periodo} onChange={(v) => onChange({ periodo: v })} linhas={linhasSemPeriodo} hoje={hoje} />
       </div>
 
       <div className="w-[166px] shrink-0">

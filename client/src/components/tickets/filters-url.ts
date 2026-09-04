@@ -1,5 +1,26 @@
 // Filtros da tela ↔ query string (?event=&function=a,b&collaborator=&q=&status=&inclusion=&transport=&swaps=1).
 import { DEFAULT_TICKET_FILTERS, type TicketFilters } from "./types";
+import { DEFAULT_PERIOD, PRESETS, type PeriodConfig, type PeriodPreset, type PeriodSemana } from "@/components/scaling/scaling-period";
+
+// Período na URL: ?periodo=<preset>&de=&ate=&semana=&fds=1 — só o que difere do padrão.
+function periodoDaUrl(p: URLSearchParams): PeriodConfig {
+  const preset = p.get("periodo") as PeriodPreset | null;
+  const valido = preset && (PRESETS.includes(preset) || preset === "custom") ? preset : DEFAULT_PERIOD.preset;
+  const semana = p.get("semana") as PeriodSemana | null;
+  return {
+    preset: valido,
+    de: valido === "custom" ? (p.get("de") || "") : "",
+    ate: valido === "custom" ? (p.get("ate") || "") : "",
+    semana: semana === "fds" || semana === "uteis" ? semana : "todos",
+    inicioFds: p.get("fds") === "1",
+  };
+}
+function periodoNaUrl(p: URLSearchParams, c: PeriodConfig): void {
+  if (c.preset !== "todos") p.set("periodo", c.preset);
+  if (c.preset === "custom") { if (c.de) p.set("de", c.de); if (c.ate) p.set("ate", c.ate); }
+  if (c.semana !== "todos") p.set("semana", c.semana);
+  if (c.inicioFds) p.set("fds", "1");
+}
 
 export function filtersFromSearch(search: string): { filters: TicketFilters; swaps: boolean } {
   const p = new URLSearchParams(search);
@@ -13,6 +34,7 @@ export function filtersFromSearch(search: string): { filters: TicketFilters; swa
       ticketStatus: p.get("status") || DEFAULT_TICKET_FILTERS.ticketStatus,
       inclusionStatus: p.get("inclusion") || DEFAULT_TICKET_FILTERS.inclusionStatus,
       transportType: p.get("transport") || DEFAULT_TICKET_FILTERS.transportType,
+      periodo: periodoDaUrl(p),
     },
     swaps: p.get("swaps") === "1",
   };
@@ -27,6 +49,7 @@ export function searchFromFilters(f: TicketFilters, swaps: boolean): string {
   if (f.ticketStatus !== "all") p.set("status", f.ticketStatus);
   if (f.inclusionStatus !== "active") p.set("inclusion", f.inclusionStatus);
   if (f.transportType !== "all") p.set("transport", f.transportType);
+  periodoNaUrl(p, f.periodo);
   if (swaps) p.set("swaps", "1");
   return p.toString();
 }

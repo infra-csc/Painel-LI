@@ -27,7 +27,8 @@ import type { TeamInclusion, Ticket } from "@shared/schema";
 import { useTicketsData, toTitleCase } from "@/components/tickets/use-tickets-data";
 import { useTicketUpsert } from "@/components/tickets/use-ticket-upsert";
 import { filtersFromSearch, searchFromFilters } from "@/components/tickets/filters-url";
-import { contarPorOpcao } from "@/components/tickets/tickets-filtering";
+import { contarPorOpcao, passaNosFiltrosBase } from "@/components/tickets/tickets-filtering";
+import { DEFAULT_PERIOD } from "@/components/scaling/scaling-period";
 import TicketsWorkQueue, { type FilaDePassagens } from "@/components/tickets/tickets-work-queue";
 import TicketsFilterBar from "@/components/tickets/tickets-filter-bar";
 import QuickBatchPanel from "@/components/tickets/quick-batch-panel";
@@ -131,14 +132,17 @@ export default function Tickets() {
    */
   const opcoesDosFiltros = useMemo(() => {
     const todas = data.teamInclusions ?? [];
-    const ctx = { eventById: data.eventById, collaboratorById: data.collaboratorById };
+    const ctx = { eventById: data.eventById, collaboratorById: data.collaboratorById, hoje: data.hoje };
     const completar = data.completarPipeline;
+    // Base do contador do período: tudo aplicado, menos o próprio período.
+    const semPeriodo = completar(todas.filter((i) => passaNosFiltrosBase(i, { ...filters, periodo: DEFAULT_PERIOD }, ctx)), filters);
     const porEvento = contarPorOpcao(todas, filters, "eventId", ctx, completar);
     const porFuncao = contarPorOpcao(todas, filters, "functionId", ctx, completar);
     const porColaborador = contarPorOpcao(todas, filters, "collaboratorId", ctx, completar);
     // Só entra no popover quem tem ao menos uma linha no recorte: uma lista de
     // 900 colaboradores em que 890 devolvem zero não ajuda a escolher.
     return {
+      semPeriodo,
       eventos: (events ?? [])
         .filter(e => e.status !== "excluido" && e.status !== "excluído" && porEvento.has(e.id))
         .map(e => ({ id: e.id, nome: e.name, n: porEvento.get(e.id) ?? 0 })),
@@ -150,7 +154,7 @@ export default function Tickets() {
         .map(c => ({ id: c.id, nome: toTitleCase(c.fullName), n: porColaborador.get(c.id) ?? 0 })),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.teamInclusions, data.eventById, data.collaboratorById, data.completarPipeline, events, functions, collaborators, filters]);
+  }, [data.teamInclusions, data.eventById, data.collaboratorById, data.completarPipeline, data.hoje, events, functions, collaborators, filters]);
 
   /**
    * O resumo da barra de contexto. É onde o cartão "Total geral" foi parar:
@@ -564,6 +568,8 @@ export default function Tickets() {
           opcoesDeEvento={opcoesDosFiltros.eventos}
           opcoesDeFuncao={opcoesDosFiltros.funcoes}
           opcoesDeColaborador={opcoesDosFiltros.colaboradores}
+          linhasSemPeriodo={opcoesDosFiltros.semPeriodo}
+          hoje={data.hoje}
           count={filteredTicketInclusions.length}
           total={ticketInclusions.length}
         />

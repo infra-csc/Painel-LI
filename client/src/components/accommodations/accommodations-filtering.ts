@@ -12,6 +12,7 @@
  * ao lado travam o comportamento exatamente como ele é hoje.
  */
 import type { Accommodation, Collaborator, Event, TeamInclusion } from "@shared/schema";
+import { fazTesteDePeriodo, temRecorteDePeriodo } from "@/components/scaling/scaling-period";
 import type { AccommodationFilters } from "./types";
 
 /** Sem colaborador escalado, a inclusão só aparece nestes status. */
@@ -29,6 +30,8 @@ export interface ContextoDaLista {
   accommodationMap: Map<string, Accommodation>;
   pendingSwapByInclusion: Set<string>;
   showOnlyPendingSwaps: boolean;
+  /** Base do filtro de período; sem ele, agora. */
+  hoje?: Date;
 }
 
 /**
@@ -57,6 +60,7 @@ export function passaNosFiltros(
   if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
   if (filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;
   if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
+  if (temRecorteDePeriodo(filters.periodo) && !fazTesteDePeriodo(filters.periodo, ctx.hoje ?? new Date())(inclusion)) return false;
 
   const q = filters.searchId.replace(/#/g, "").trim().toLowerCase();
   if (q) {

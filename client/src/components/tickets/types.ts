@@ -1,6 +1,7 @@
 // Tipos compartilhados entre a página de Passagens e seus componentes.
 import type { ReactNode } from "react";
 import type { TicketFormValues } from "@/lib/ticket-form";
+import { DEFAULT_PERIOD, type PeriodConfig } from "@/components/scaling/scaling-period";
 
 /** Formulários por escopo: "quick" (lote) ou o id da inclusão (modal). */
 export type TicketFormState = Record<string, TicketFormValues>;
@@ -19,6 +20,11 @@ export interface TicketFilters {
   inclusionStatus: string;
   /** all | aereo | rodoviario | van */
   transportType: string;
+  /**
+   * Período da vaga — o MESMO filtro da Escalação (04/09), com "Já terminou"
+   * para conferir passagens de eventos realizados sem misturar com o que vem.
+   */
+  periodo: PeriodConfig;
 }
 
 export const DEFAULT_TICKET_FILTERS: TicketFilters = {
@@ -29,6 +35,7 @@ export const DEFAULT_TICKET_FILTERS: TicketFilters = {
   ticketStatus: "all",
   inclusionStatus: "active",
   transportType: "all",
+  periodo: DEFAULT_PERIOD,
 };
 
 /** Helpers de apresentação de erro/obrigatoriedade — funções, não componentes (não remontam a cada tecla). */

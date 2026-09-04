@@ -13,6 +13,8 @@
 import { Search, X } from "lucide-react";
 import { FiltroDeLista, FiltroMultiplo, FiltroUnico, type OpcaoDeFiltro } from "@/components/common/filter-popover";
 import { DEFAULT_TICKET_FILTERS, type TicketFilters } from "./types";
+import ScalingPeriodFilter from "@/components/scaling/scaling-period-filter";
+import type { TeamInclusion } from "@shared/schema";
 
 interface TicketsFilterBarProps {
   filters: TicketFilters;
@@ -26,6 +28,9 @@ interface TicketsFilterBarProps {
   opcoesDeEvento: OpcaoDeFiltro[];
   opcoesDeFuncao: OpcaoDeFiltro[];
   opcoesDeColaborador: OpcaoDeFiltro[];
+  /** Base do contador do período: tudo aplicado, menos o próprio período. */
+  linhasSemPeriodo: TeamInclusion[];
+  hoje: Date;
   count: number;
   /** Total sem recorte — a contagem vira "N de M" quando há filtro ativo. */
   total?: number;
@@ -56,7 +61,7 @@ const SITUACOES_DA_INCLUSAO = [
 ];
 
 export default function TicketsFilterBar({
-  filters, onChange, onClear, opcoesDeEvento, opcoesDeFuncao, opcoesDeColaborador, count, total,
+  filters, onChange, onClear, opcoesDeEvento, opcoesDeFuncao, opcoesDeColaborador, linhasSemPeriodo, hoje, count, total,
 }: TicketsFilterBarProps) {
   const set = <K extends keyof TicketFilters>(key: K, value: TicketFilters[K]) =>
     onChange(prev => ({ ...prev, [key]: value }));
@@ -111,6 +116,11 @@ export default function TicketsFilterBar({
           testid="filter-collaborator"
           larguraPopover={340}
         />
+      </div>
+      {/* O mesmo período da Escalação (04/09): "Já terminou" é o que permite
+          conferir passagens de eventos realizados sem os que ainda vêm. */}
+      <div className="shrink-0">
+        <ScalingPeriodFilter valor={filters.periodo} onChange={(v) => set("periodo", v)} linhas={linhasSemPeriodo} hoje={hoje} />
       </div>
 
       <div className="w-[210px] shrink-0">

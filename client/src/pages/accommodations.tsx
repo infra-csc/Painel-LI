@@ -23,7 +23,8 @@ import {
   BatchConfirmDialog, BatchResultDialog, BatchSelectionBar, type BatchResult,
 } from "@/components/accommodations/accommodations-batch";
 import { useAccommodationsData } from "@/components/accommodations/use-accommodations-data";
-import { contarPorOpcao } from "@/components/accommodations/accommodations-filtering";
+import { contarPorOpcao, passaNosFiltros } from "@/components/accommodations/accommodations-filtering";
+import { DEFAULT_PERIOD, temRecorteDePeriodo } from "@/components/scaling/scaling-period";
 import {
   contadoresDaFila, pertenceAoBloco, type BlocoDaFila,
 } from "@/components/accommodations/accommodations-queue";
@@ -110,9 +111,10 @@ export default function Accommodations() {
   // ── Contadores cruzados dos popovers ──
   // "Quantas linhas sobram se eu marcar ISTO mantendo o resto do recorte" — pela
   // MESMA regra que monta a lista, para o número prometido ser o entregue.
+  const hojeData = useMemo(() => new Date(), []);
   const ctxFiltro = useMemo(
-    () => ({ eventById, collaboratorById, accommodationMap, pendingSwapByInclusion, showOnlyPendingSwaps: false }),
-    [eventById, collaboratorById, accommodationMap, pendingSwapByInclusion],
+    () => ({ eventById, collaboratorById, accommodationMap, pendingSwapByInclusion, showOnlyPendingSwaps: false, hoje: hojeData }),
+    [eventById, collaboratorById, accommodationMap, pendingSwapByInclusion, hojeData],
   );
 
   /**
@@ -125,6 +127,12 @@ export default function Accommodations() {
   const refinarPeloBloco = useCallback(
     (linhas: TeamInclusion[]) => (blocoAtivo ? linhas.filter((i) => pertenceAoBloco(blocoAtivo, i, ctxFila)) : linhas),
     [blocoAtivo, ctxFila],
+  );
+
+  // Base do contador do período: tudo aplicado (inclusive o bloco), menos o próprio período.
+  const linhasSemPeriodo = useMemo(
+    () => refinarPeloBloco(teamInclusionsWithAccommodation.filter((i) => passaNosFiltros(i, { ...filters, periodo: DEFAULT_PERIOD }, ctxFiltro))),
+    [teamInclusionsWithAccommodation, filters, ctxFiltro, refinarPeloBloco],
   );
 
   const opcoesDeEvento = useMemo<OpcaoDeFiltro[]>(() => {
@@ -165,7 +173,7 @@ export default function Accommodations() {
   const hasActiveFilters =
     filters.eventId !== "all" || filters.functionId.length > 0 || filters.collaboratorId !== "all" ||
     filters.searchId.trim() !== "" || filters.accommodationStatus !== "all" || filters.inclusionStatus !== "active" ||
-    blocoAtivo !== null;
+    temRecorteDePeriodo(filters.periodo) || blocoAtivo !== null;
 
   const handleSort = (field: AccSortField) => {
     setSortConfig((current) => {
@@ -436,6 +444,8 @@ export default function Accommodations() {
         opcoesDeEvento={opcoesDeEvento}
         opcoesDeFuncao={opcoesDeFuncao}
         opcoesDeColaborador={opcoesDeColaborador}
+        linhasSemPeriodo={linhasSemPeriodo}
+        hoje={hojeData}
         sortConfig={sortConfig}
         onSortChange={setSortConfig}
         count={linhasVisiveis.length}

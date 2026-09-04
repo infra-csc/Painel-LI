@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Accommodation, Collaborator, Event, TeamInclusion } from "@shared/schema";
+import { DEFAULT_PERIOD } from "@/components/scaling/scaling-period";
 import type { AccommodationFilters } from "./types";
 import {
   VALID_STATUSES_WITHOUT_COLLABORATOR, contarPorOpcao, passaNosFiltros, precisaDeHospedagem,
@@ -32,7 +33,7 @@ const ctxBase = {
 
 const filtros = (over: Partial<AccommodationFilters> = {}): AccommodationFilters => ({
   eventId: "all", functionId: [], collaboratorId: "all", searchId: "",
-  accommodationStatus: "all", inclusionStatus: "active",
+  accommodationStatus: "all", inclusionStatus: "active", periodo: DEFAULT_PERIOD,
   ...over,
 });
 
@@ -105,6 +106,16 @@ describe("filtros da lista", () => {
     expect(passaNosFiltros(cancelada, filtros({ inclusionStatus: "cancelado" }), ctxBase)).toBe(true);
     // "Canceladas" esconde as que não são.
     expect(passaNosFiltros(vaga(), filtros({ inclusionStatus: "cancelado" }), ctxBase)).toBe(false);
+  });
+
+  it("o período recorta pela data da vaga — 'Já terminou' só deixa o que acabou antes de hoje", () => {
+    const ctx = { ...ctxBase, hoje: new Date(2026, 8, 4) };
+    const passada = vaga({ scheduleStartDate: "2026-08-20", scheduleEndDate: "2026-08-22" });
+    const rolando = vaga({ scheduleStartDate: "2026-09-03", scheduleEndDate: "2026-09-06" });
+    const f = filtros({ periodo: { ...DEFAULT_PERIOD, preset: "realizados" } });
+    expect(passaNosFiltros(passada, f, ctx)).toBe(true);
+    expect(passaNosFiltros(rolando, f, ctx)).toBe(false);
+    expect(passaNosFiltros(rolando, filtros(), ctx)).toBe(true);
   });
 
   it("o recorte de trocas mantém só quem tem troca pendente", () => {

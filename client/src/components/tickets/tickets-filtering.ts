@@ -11,6 +11,7 @@
  * Nada aqui decide nada de novo: é o mesmo teste, no mesmo lugar do pipeline.
  */
 import type { Collaborator, Event, TeamInclusion } from "@shared/schema";
+import { fazTesteDePeriodo, temRecorteDePeriodo } from "@/components/scaling/scaling-period";
 import type { TicketFilters } from "./types";
 
 /** Status que mostram a inclusão mesmo sem colaborador (compra antes do nome). */
@@ -24,6 +25,8 @@ export const VALID_STATUSES_WITHOUT_COLLABORATOR = [
 export interface ContextoDosFiltros {
   eventById: Map<string, Event>;
   collaboratorById: Map<string, Collaborator>;
+  /** Base do filtro de período; sem ele, agora. */
+  hoje?: Date;
 }
 
 /**
@@ -50,6 +53,7 @@ export function passaNosFiltrosBase(
   if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
   if (filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;
   if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
+  if (temRecorteDePeriodo(filters.periodo) && !fazTesteDePeriodo(filters.periodo, ctx.hoje ?? new Date())(inclusion)) return false;
   if (filters.searchId) {
     const q = filters.searchId.replace(/#/g, "").trim().toLowerCase();
     const colName = (inclusion.collaboratorId ? ctx.collaboratorById.get(inclusion.collaboratorId)?.fullName ?? "" : "").toLowerCase();

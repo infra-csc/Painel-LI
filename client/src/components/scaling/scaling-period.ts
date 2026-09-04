@@ -18,7 +18,7 @@
  */
 
 /** Recorte "quando acontece". */
-export type PeriodPreset = "todos" | "7" | "30" | "mes" | "proximo" | "andamento" | "custom";
+export type PeriodPreset = "todos" | "7" | "30" | "mes" | "proximo" | "andamento" | "realizados" | "custom";
 
 /** Recorte por dia da semana — as três opções são exclusivas entre si. */
 export type PeriodSemana = "todos" | "fds" | "uteis";
@@ -50,11 +50,12 @@ export const PRESET_LABEL: Record<PeriodPreset, string> = {
   mes: "Este mês",
   proximo: "Mês que vem",
   andamento: "Já começou",
+  realizados: "Já terminou",
   custom: "Datas exatas",
 };
 
 /** Ordem dos presets na coluna esquerda do popover. */
-export const PRESETS: PeriodPreset[] = ["todos", "7", "30", "mes", "proximo", "andamento"];
+export const PRESETS: PeriodPreset[] = ["todos", "7", "30", "mes", "proximo", "andamento", "realizados"];
 
 export const SEMANA_LABEL: Record<PeriodSemana, string> = {
   todos: "Todos os dias",
@@ -121,6 +122,11 @@ export function janelaDoPeriodo(cfg: PeriodConfig, hoje: Date): [Date, Date] | n
     case "mes": return mes(0);
     case "proximo": return mes(1);
     case "andamento": return [new Date(1900, 0, 1), base];
+    // Eventos realizados (04/09): o fim caiu ANTES de hoje. "Já começou"
+    // inclui o que está rolando; aqui é só o que acabou — o que se quer para
+    // conferir escala/passagem/hotel do que já passou sem misturar com o
+    // que ainda vem.
+    case "realizados": return [new Date(1900, 0, 1), somaDias(-1)];
     case "custom": {
       const de = diaLocal(cfg.de);
       const ate = diaLocal(cfg.ate);
@@ -145,7 +151,10 @@ export function fazTesteDePeriodo(cfg: PeriodConfig, hoje: Date): (row: PeriodRo
     // Vaga sem data não é escondida por um filtro de data: ela ainda precisa
     // ser escalada, e sumir da fila é pior do que aparecer fora do recorte.
     if (!p) return true;
-    if (janela && !(p.ini <= janela[1] && p.fim >= janela[0])) return false;
+    // "Já terminou" olha o FIM da vaga, não a sobreposição: um evento que
+    // começou ontem e acaba amanhã encosta no passado, mas não terminou.
+    if (janela && cfg.preset === "realizados" && !(p.fim <= janela[1])) return false;
+    if (janela && cfg.preset !== "realizados" && !(p.ini <= janela[1] && p.fim >= janela[0])) return false;
     if (cfg.semana !== "todos") {
       const pega = pegaFimDeSemana(p.ini, p.fim);
       if (cfg.semana === "fds" && !pega) return false;

@@ -70,6 +70,14 @@ describe("janela dos presets", () => {
     expect(janelaDoPeriodo(cfg({ preset: "andamento" }), HOJE)![1]).toEqual(new Date(2026, 6, 25));
   });
 
+  it("já terminou (eventos realizados) para em ontem — o que está rolando fica de fora", () => {
+    const janela = janelaDoPeriodo(cfg({ preset: "realizados" }), HOJE)!;
+    expect(janela[1]).toEqual(new Date(2026, 6, 24));
+    const teste = fazTesteDePeriodo(cfg({ preset: "realizados" }), HOJE);
+    expect(teste({ scheduleStartDate: "2026-07-20", scheduleEndDate: "2026-07-24" })).toBe(true);
+    expect(teste({ scheduleStartDate: "2026-07-23", scheduleEndDate: "2026-07-25" })).toBe(false);
+  });
+
   it("datas exatas com um lado só deixam a outra ponta aberta", () => {
     const so = janelaDoPeriodo(cfg({ preset: "custom", de: "2026-09-01" }), HOJE)!;
     expect(so[0]).toEqual(new Date(2026, 8, 1));

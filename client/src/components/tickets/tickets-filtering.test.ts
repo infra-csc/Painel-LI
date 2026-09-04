@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Collaborator, Event, TeamInclusion } from "@shared/schema";
+import { DEFAULT_PERIOD } from "@/components/scaling/scaling-period";
 import type { TicketFilters } from "./types";
 import {
   VALID_STATUSES_WITHOUT_COLLABORATOR, contarPorOpcao, passaNosFiltrosBase, passaNosFiltrosDePassagem,
@@ -26,7 +27,7 @@ const ctx = { eventById: EVENTOS, collaboratorById: COLABS };
 
 const filtros = (over: Partial<TicketFilters> = {}): TicketFilters => ({
   eventId: "all", functionId: [], collaboratorId: "all", searchId: "",
-  ticketStatus: "all", transportType: "all", inclusionStatus: "active",
+  ticketStatus: "all", transportType: "all", inclusionStatus: "active", periodo: DEFAULT_PERIOD,
   ...over,
 } as TicketFilters);
 
@@ -58,6 +59,17 @@ describe("quem entra na lista de Passagens", () => {
     expect(passaNosFiltrosBase(cancelada, filtros({ inclusionStatus: "cancelado" }), ctx)).toBe(true);
     // "Canceladas" esconde as que não são.
     expect(passaNosFiltrosBase(vaga(), filtros({ inclusionStatus: "cancelado" }), ctx)).toBe(false);
+  });
+
+  it("o período recorta pela data da vaga — 'Já terminou' só deixa o que acabou antes de hoje", () => {
+    const hoje = new Date(2026, 8, 4);
+    const passada = vaga({ scheduleStartDate: "2026-08-20", scheduleEndDate: "2026-08-22" });
+    const rolando = vaga({ scheduleStartDate: "2026-09-03", scheduleEndDate: "2026-09-06" });
+    const f = filtros({ periodo: { ...DEFAULT_PERIOD, preset: "realizados" } });
+    expect(passaNosFiltrosBase(passada, f, { ...ctx, hoje })).toBe(true);
+    expect(passaNosFiltrosBase(rolando, f, { ...ctx, hoje })).toBe(false);
+    // Sem recorte, as duas passam.
+    expect(passaNosFiltrosBase(rolando, filtros(), { ...ctx, hoje })).toBe(true);
   });
 
   it("vaga SEM colaborador só aparece nos status previstos", () => {

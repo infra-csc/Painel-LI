@@ -1,5 +1,6 @@
 import type { SortField, SortConfig } from "@/components/common/sortable-header";
 import type { Ticket, User } from "@shared/schema";
+import { DEFAULT_PERIOD, type PeriodConfig } from "@/components/scaling/scaling-period";
 
 /** Colunas ordenáveis da tabela de Hospedagens: as compartilhadas + 'hotelName'. */
 export type AccSortField = SortField | "hotelName";
@@ -59,6 +60,8 @@ export interface AccommodationFilters {
   searchId: string;
   accommodationStatus: AccommodationStatusFilter;
   inclusionStatus: InclusionStatusFilter;
+  /** Período da vaga — o mesmo filtro da Escalação (04/09), com "Já terminou". */
+  periodo: PeriodConfig;
 }
 
 export const DEFAULT_FILTERS: AccommodationFilters = {
@@ -68,6 +71,7 @@ export const DEFAULT_FILTERS: AccommodationFilters = {
   searchId: "",
   accommodationStatus: "all",
   inclusionStatus: "active",
+  periodo: DEFAULT_PERIOD,
 };
 
 /**

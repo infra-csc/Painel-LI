@@ -207,10 +207,13 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
   // ── Inclusões que precisam de passagem + filtros simples ──
   // A regra mora em tickets-filtering.ts para os contadores dos popovers
   // poderem chamar EXATAMENTE o mesmo teste que a lista usa.
-  const contextoDosFiltros = useMemo(() => ({ eventById, collaboratorById }), [eventById, collaboratorById]);
+  // "Hoje" fixo por montagem: o filtro de período compara contra ele e o
+  // contador do popover precisa da MESMA base que a lista.
+  const hoje = useMemo(() => new Date(), []);
+  const contextoDosFiltros = useMemo(() => ({ eventById, collaboratorById, hoje }), [eventById, collaboratorById, hoje]);
   const ticketInclusions = useMemo(
     () => teamInclusions?.filter(inclusion => passaNosFiltrosBase(inclusion, filters, contextoDosFiltros)) || [],
-    [teamInclusions, contextoDosFiltros, filters.eventId, filters.functionId, filters.collaboratorId, filters.searchId, filters.inclusionStatus], // eslint-disable-line react-hooks/exhaustive-deps
+    [teamInclusions, contextoDosFiltros, filters.eventId, filters.functionId, filters.collaboratorId, filters.searchId, filters.inclusionStatus, filters.periodo], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // ── Dedupe por colaborador (documento normalizado) + evento + função ──
@@ -338,6 +341,7 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
     ticketByInclusion, eventById, functionById, collaboratorById, accommodationByInclusion,
     pendingSwapByInclusion, approvedSwapInclusionIds, isPurchasingRole, isEventLocked,
     completarPipeline,
+    hoje,
     // getters
     getTicket, getEventName, getFunctionName, getCollaboratorName, getCollaborator, getEventLocation, getUserName,
     // listas derivadas
