@@ -9,10 +9,10 @@
  * aprovadas (viraram Inclusão) e as negadas, mais recentes primeiro. É leitura
  * pura — decisão continua nas abas de trabalho.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { CheckCircle2, ExternalLink, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronRight, ExternalLink, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateBr } from "@/lib/dates";
 import { scalingHref } from "@/lib/use-scaling-event";
@@ -20,6 +20,7 @@ import { SUGESTAO_STATUS } from "@shared/scaling-validation-rules";
 import { LoadingState } from "@/components/common/loading-state";
 import { EmptyState } from "@/components/common/empty-state";
 import { periodLabel } from "./suggestions-list";
+import { SuggestionDetailDrawer } from "./suggestion-detail-drawer";
 import { SUGGESTIONS_QUERY_KEY, type SuggestionRow } from "./types";
 
 /** Linha do event-view (vaga + evento anexado + pedidos da vaga). */
@@ -49,6 +50,13 @@ export function DecidedPanel({ eventId, functionNameById }: {
     },
   });
 
+  /**
+   * Detalhe da vaga decidida (04/09): a lista só dizia "aprovada"/"negada" e
+   * mandava para o Histórico para ver o resto. A seta abre o mesmo modal de
+   * detalhe da Lista, em leitura, com ‹ › percorrendo as decididas.
+   */
+  const [detailId, setDetailId] = useState<string | null>(null);
+
   const rows = useMemo(() => {
     const aprovadas = (query.data?.inclusions ?? [])
       .filter((i) => i.status !== "cancelado")
@@ -60,6 +68,8 @@ export function DecidedPanel({ eventId, functionNameById }: {
       .sort((a, b) => String(b.row.updatedAt ?? "").localeCompare(String(a.row.updatedAt ?? "")))
       .slice(0, MAX_LINHAS);
   }, [query.data]);
+
+  const detailRow = rows.find((r) => r.row.id === detailId)?.row ?? null;
 
   if (query.isLoading) return <LoadingState label="Carregando as vagas decididas…" />;
   if (query.isError) {
@@ -86,14 +96,22 @@ export function DecidedPanel({ eventId, functionNameById }: {
               {["Vaga", "Evento", "Período / diárias", "Decisão", "Quando"].map((h) => (
                 <th key={h} scope="col" className="border-b border-slate-200 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 whitespace-nowrap">{h}</th>
               ))}
+              <th scope="col" className="w-10 border-b border-slate-200 px-2 py-2"><span className="sr-only">Detalhes</span></th>
             </tr>
           </thead>
           <tbody>
             {rows.map(({ row, decisao }) => (
               <tr key={row.id} className="border-b border-slate-100 last:border-0">
                 <td className="px-3 py-2">
-                  <span className="mr-2 inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-blue-800">#{row.inclusionNumber}</span>
-                  <span className="font-medium text-slate-800">{functionNameById.get(row.functionId) ?? "Sem função"}</span>
+                  <button
+                    type="button"
+                    onClick={() => setDetailId(row.id)}
+                    className="group inline-flex items-center rounded-sm text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-label={`Ver detalhes da vaga #${row.inclusionNumber}`}
+                  >
+                    <span className="mr-2 inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-blue-800">#{row.inclusionNumber}</span>
+                    <span className="font-medium text-slate-800 group-hover:text-primary group-hover:underline">{functionNameById.get(row.functionId) ?? "Sem função"}</span>
+                  </button>
                 </td>
                 <td className="max-w-[260px] whitespace-normal break-words px-3 py-2 text-slate-600" title={row.eventName ?? undefined}>{row.eventName ?? "Sem evento"}</td>
                 <td className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums text-slate-700">{periodLabel(row)}</td>
@@ -109,6 +127,18 @@ export function DecidedPanel({ eventId, functionNameById }: {
                   )}
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-500">{row.updatedAt ? formatDateBr(row.updatedAt) : "Sem data"}</td>
+                <td className="px-2 py-2 text-right">
+                  <button
+                    type="button"
+                    onClick={() => setDetailId(row.id)}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-label={`Abrir detalhes da vaga #${row.inclusionNumber}`}
+                    title="Ver detalhes"
+                    data-testid={`decidida-detalhe-${row.id}`}
+                  >
+                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -121,6 +151,14 @@ export function DecidedPanel({ eventId, functionNameById }: {
           Histórico da Escala <ExternalLink className="h-3 w-3" aria-hidden="true" />
         </Link>.
       </p>
+      <SuggestionDetailDrawer
+        open={!!detailRow}
+        onOpenChange={(o) => { if (!o) setDetailId(null); }}
+        row={detailRow}
+        functionName={detailRow ? functionNameById.get(detailRow.functionId) : undefined}
+        list={rows.map((r) => r.row)}
+        onNavigate={(r) => setDetailId(r.id)}
+      />
     </div>
   );
 }
