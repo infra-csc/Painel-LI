@@ -15,7 +15,7 @@ import { Check, ChevronDown, CalendarDays, Search, SlidersHorizontal } from "luc
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { TeamInclusion } from "@shared/schema";
 import ScalingPeriodFilter from "./scaling-period-filter";
-import type { PeriodConfig } from "./scaling-period";
+import { PRESETS_SEM_REALIZADOS, type PeriodConfig } from "./scaling-period";
 import {
   FLAG_GROUPS, contadoresDasFlags, contarFlagsAtivas, normalizarBusca,
   type FlagKey, type QueueContext,
@@ -45,6 +45,11 @@ interface Props {
 
   verExcluidos: boolean;
   onVerExcluidos: (v: boolean) => void;
+  /** Só eventos já realizados (fim antes de hoje) — switch próprio, fora do popover de período (04/09). */
+  soRealizados: boolean;
+  onSoRealizados: (v: boolean) => void;
+  /** Quantas linhas o switch deixaria (base: tudo aplicado menos ele). */
+  contagemRealizados: number;
 
   /** "10 vagas" ou "6 de 10 vagas" quando há recorte. */
   contagem: string;
@@ -193,7 +198,7 @@ export default function ScalingFilterBar(p: Props) {
         </PopoverContent>
       </Popover>
 
-      <ScalingPeriodFilter valor={p.periodo} onChange={p.onPeriodo} linhas={p.linhasSemPeriodo} hoje={p.hoje} />
+      <ScalingPeriodFilter valor={p.periodo} onChange={p.onPeriodo} linhas={p.linhasSemPeriodo} hoje={p.hoje} presets={PRESETS_SEM_REALIZADOS} />
 
       <Popover open={filtrosAberto} onOpenChange={setFiltrosAberto}>
         <PopoverTrigger asChild>
@@ -279,6 +284,27 @@ export default function ScalingFilterBar(p: Props) {
           />
         </span>
         Excluídas
+      </button>
+
+      <button
+        type="button"
+        role="switch"
+        aria-checked={p.soRealizados}
+        onClick={() => p.onSoRealizados(!p.soRealizados)}
+        title={`Só eventos que já terminaram (${p.contagemRealizados} ${p.contagemRealizados === 1 ? "vaga" : "vagas"})`}
+        data-testid="toggle-realizados"
+        className={`inline-flex items-center gap-2 h-[34px] pl-2.5 pr-3 rounded-lg border text-[13px] font-medium shrink-0 transition-colors ${
+          p.soRealizados ? "border-[rgba(0,51,204,0.35)] bg-brand-soft text-primary" : "border-border bg-card text-slate-700 hover:bg-slate-100"
+        }`}
+      >
+        <span className={`relative inline-flex items-center w-8 h-[18px] rounded-full shrink-0 transition-colors ${p.soRealizados ? "bg-primary" : "bg-slate-300"}`}>
+          <span
+            className="absolute left-0.5 h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform"
+            style={{ transform: `translateX(${p.soRealizados ? "14px" : "0"})` }}
+          />
+        </span>
+        Realizados
+        <span className="text-[11px] text-muted-foreground tabular-nums">{p.contagemRealizados}</span>
       </button>
 
       <span className="ml-auto text-[12px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0" data-testid="contagem-vagas">

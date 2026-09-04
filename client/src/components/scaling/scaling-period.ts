@@ -165,6 +165,14 @@ export function fazTesteDePeriodo(cfg: PeriodConfig, hoje: Date): (row: PeriodRo
   };
 }
 
+/** Presets do popover SEM "Já terminou" — na Escalação ele é um switch próprio na barra. */
+export const PRESETS_SEM_REALIZADOS: PeriodPreset[] = PRESETS.filter((p) => p !== "realizados");
+
+/** Teste "só eventos realizados" (fim antes de hoje) — o mesmo do preset, como switch. */
+export function fazTesteDeRealizados(hoje: Date): (row: PeriodRow) => boolean {
+  return fazTesteDePeriodo({ ...DEFAULT_PERIOD, preset: "realizados" }, hoje);
+}
+
 export function temRecorteDePeriodo(cfg: PeriodConfig): boolean {
   if (cfg.semana !== "todos" || cfg.inicioFds) return true;
   if (cfg.preset === "todos") return false;

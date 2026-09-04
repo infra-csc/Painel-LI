@@ -29,6 +29,8 @@ interface Props<T extends PeriodRow> {
   /** Base para os contadores: as linhas do recorte de evento, sem o de período. */
   linhas: T[];
   hoje: Date;
+  /** Presets oferecidos (padrão: todos). A Escalação tira "Já terminou" daqui — ele vira um switch na barra (04/09). */
+  presets?: PeriodPreset[];
 }
 
 /** Uma opção da lista, com a contagem hipotética à direita. */
@@ -51,7 +53,7 @@ function Opcao({ label, n, ativo, onClick, testid }: {
   );
 }
 
-export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChange, linhas, hoje }: Props<T>) {
+export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChange, linhas, hoje, presets }: Props<T>) {
   const ativo = temRecorteDePeriodo(valor);
   const hojeBr = `hoje é ${String(hoje.getDate()).padStart(2, "0")}/${String(hoje.getMonth() + 1).padStart(2, "0")}`;
 
@@ -110,7 +112,7 @@ export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChan
               Quando acontece
             </p>
             <div className="flex flex-col gap-px">
-              {PRESETS.map((p) => (
+              {(presets ?? PRESETS).map((p) => (
                 <Opcao
                   key={p}
                   label={PRESET_LABEL[p]}
