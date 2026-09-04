@@ -287,17 +287,7 @@ function ReviewForm({ kind, type, request, inclusion, vagaFalhou, event, pending
               <VagaCompleta inclusion={inclusion} falhou={vagaFalhou} />
             </div>
           )}
-          {/* 1) Comentário */}
-          <div className="space-y-1">
-            <Label htmlFor="rev-comment" className="text-xs text-slate-600">Comentário para a área <span className="text-red-500" aria-hidden="true">*</span></Label>
-            <Textarea id="rev-comment" rows={3} maxLength={1000} value={comment} disabled={pending} required aria-required="true"
-              aria-invalid={error === COMMENT_REQUIRED || undefined}
-              placeholder={kind === "reajustar" ? "Explique o que foi ajustado e por quê." : "Explique por que o pedido foi negado."}
-              onChange={(e) => setComment(e.target.value)} className="rounded-lg text-sm bg-white" />
-            <p className="text-[11px] text-slate-400">Entra na conversa do pedido e no histórico da vaga.</p>
-          </div>
-
-          {/* 2) Editar campos (só reajuste de ajuste/inclusão) */}
+          {/* 1) Editar campos (só reajuste de ajuste/inclusão) */}
           {canEditFields && (
             <div className="space-y-3">
               <label className={cn("flex items-center gap-2 text-sm text-slate-700", awaitingInclusion ? "cursor-not-allowed opacity-60" : "cursor-pointer")}>
@@ -346,7 +336,7 @@ function ReviewForm({ kind, type, request, inclusion, vagaFalhou, event, pending
             </div>
           )}
 
-          {/* 3) Destino da vaga */}
+          {/* 2) Destino da vaga */}
           <fieldset className="space-y-2">
             <legend className="text-xs text-slate-600 mb-1">Depois de {verb.toLowerCase()}, o que fazer com {subject}? <span className="text-red-500" aria-hidden="true">*</span></legend>
             <RadioGroup value={then} onValueChange={(v) => setThen(v as ReviewBody["then"])} disabled={pending} className="gap-2">
@@ -364,6 +354,18 @@ function ReviewForm({ kind, type, request, inclusion, vagaFalhou, event, pending
               })}
             </RadioGroup>
           </fieldset>
+
+          {/* 3) Comentário — por último (04/09): o campo é obrigatório e ficava no
+              topo; quem rolava até o destino da vaga e clicava Reajustar recebia o
+              "Preencha este campo" lá em cima, fora da vista. */}
+          <div className="space-y-1">
+            <Label htmlFor="rev-comment" className="text-xs text-slate-600">Comentário para a área <span className="text-red-500" aria-hidden="true">*</span></Label>
+            <Textarea id="rev-comment" rows={3} maxLength={1000} value={comment} disabled={pending} required aria-required="true"
+              aria-invalid={error === COMMENT_REQUIRED || undefined}
+              placeholder={kind === "reajustar" ? "Explique o que foi ajustado e por quê." : "Explique por que o pedido foi negado."}
+              onChange={(e) => setComment(e.target.value)} className="rounded-lg text-sm bg-white" />
+            <p className="text-[11px] text-slate-400">Entra na conversa do pedido e no histórico da vaga.</p>
+          </div>
 
           {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
         </div>

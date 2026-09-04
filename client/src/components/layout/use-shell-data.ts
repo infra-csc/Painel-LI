@@ -14,6 +14,7 @@
  * Query → uma requisição só).
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { SUGESTAO_STATUS } from "@shared/scaling-validation-rules";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
@@ -177,6 +178,29 @@ export function useShellData() {
     [pendingRequests],
   );
 
+  /**
+   * Vagas validadas pela área esperando a decisão DESTE aprovador (04/09).
+   * O badge da Aprovação contava só pedidos de ajuste/inclusão/exclusão; as
+   * vagas "aguardando sua aprovação" — a fila principal da tela — ficavam de
+   * fora, e o menu mostrava "3" com 22 vagas paradas esperando a pessoa.
+   * Mesma fonte e mesma regra da tela (status validada + canDecide).
+   */
+  const { data: suggestionsForBadge } = useQuery<{ status?: string; canDecide?: boolean }[]>({
+    queryKey: ["shell", "awaiting-approval"],
+    queryFn: async () => {
+      const r = await fetch("/api/scaling-suggestions", { credentials: "include" });
+      if (!r.ok) return [];
+      const data = await r.json();
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: !!user && canSeeApprovals,
+    staleTime: 60_000,
+  });
+  const myAwaitingApprovalCount = useMemo(
+    () => (suggestionsForBadge ?? []).filter((s) => s.status === SUGESTAO_STATUS.VALIDADA && s.canDecide === true).length,
+    [suggestionsForBadge],
+  );
+
   // ── Vistos (só apagam o ponto de "novo"; nunca mudam a contagem real) ──
   const [seenIds, setSeenIds] = useState<string[]>(() => getSeenNotifications(user?.id));
   useEffect(() => {
@@ -251,7 +275,8 @@ export function useShellData() {
     tickets: ticketSwapCount,
     accommodations: accommodationSwapCount,
     scaling: isPurchasing ? scalingSwapCount : myScalingSwapsCount,
-    "scaling-approval": myPendingRequests.length,
+    // Tudo que espera ação do aprovador: pedidos + vagas validadas aguardando ele.
+    "scaling-approval": myPendingRequests.length + myAwaitingApprovalCount,
   };
 
   return { tabBadgeCount, notifications, pendingTotal, hasUnseen: notifications.some((n) => n.isNew), markAllSeen };
