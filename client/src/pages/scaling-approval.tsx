@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { formatDateRange } from "@/lib/dates";
 import { useLocation, useSearch } from "wouter";
 import { CalendarDays, CheckCircle2, CheckSquare, Clock, EyeOff, Inbox, Search, ShieldCheck, Square } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -22,7 +23,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { apiErrorMessage, cn } from "@/lib/utils";
 import { scalingHref, useScalingEvent } from "@/lib/use-scaling-event";
 import { normalizeRole } from "@shared/roles";
-import type { Event, User as UserType } from "@shared/schema";
+import type { Event, TeamInclusion, User as UserType } from "@shared/schema";
 import {
   ALL_EVENTS_ROW_LIMIT,
   CHANGE_REQUEST_STATUS, CHANGE_REQUEST_STATUS_LABELS, CHANGE_REQUEST_STATUS_VALUES,
@@ -255,6 +256,26 @@ export default function ScalingApprovalPage() {
     () => (openRequest?.teamInclusionId ? (suggestionsQuery.data ?? []).find((s) => s.id === openRequest.teamInclusionId) ?? null : null),
     [suggestionsQuery.data, openRequest?.teamInclusionId],
   );
+  /**
+   * Vaga já escalada não está na lista de sugestões — ela só traz a fase
+   * "sugestao". O reajuste de um pedido vindo da Escalação ficava travado em
+   * "aguarde a vaga carregar" para sempre, e o aprovador não conseguia editar.
+   * Quando a lista não tem a vaga, ela é buscada pelo id.
+   */
+  const idDaVagaFaltante = openRequest?.requestType === "ajuste" && openRequest.teamInclusionId && !openInclusion
+    ? openRequest.teamInclusionId : null;
+  const vagaPorIdQuery = useQuery<TeamInclusion>({
+    queryKey: [APPROVAL_QUERY_KEYS.teamInclusions, "uma", idDaVagaFaltante],
+    queryFn: async () => (await apiRequest("GET", `${APPROVAL_QUERY_KEYS.teamInclusions}/${idDaVagaFaltante}`)).json(),
+    enabled: !!idDaVagaFaltante,
+    staleTime: 15_000,
+  });
+  const vagaDoPedido: TeamInclusion | null = openInclusion ?? (idDaVagaFaltante ? (vagaPorIdQuery.data ?? null) : null);
+  /** Período de cada evento, pronto para a fila e para os diálogos. */
+  const eventPeriodById = useMemo(
+    () => new Map(activeEvents.map((e) => [e.id, formatDateRange(e.startDate, e.endDate, { withYear: true })] as const)),
+    [activeEvents],
+  );
   const stalledRowsAll = useMemo(
     () => (suggestionsQuery.data ?? [])
       .filter((s) => s.status === SUGESTAO_STATUS.PENDENTE && !s.pendingRequest && s.daysPending >= STALLED_DAYS)
@@ -406,7 +427,7 @@ export default function ScalingApprovalPage() {
     filtered.find((r) => r.id !== id && r.status === CHANGE_REQUEST_STATUS.PENDENTE && r.canDecide)
       ?? filtered.find((r) => r.id !== id && r.status === CHANGE_REQUEST_STATUS.PENDENTE)
       ?? null;
-  const { approve, review, approveVagas, decideVaga, bypass } = useDecisionMutations({
+  const { approve, review, approveVagas, decideVaga, bypass, bypassMany } = useDecisionMutations({
     onSettledRequest: closeAll,
     onStale: closeAll,
     successAction: () => {
@@ -777,6 +798,7 @@ export default function ScalingApprovalPage() {
               items={filtered}
               onOpen={openDetail}
               showEvent={!eventId}
+              eventPeriodById={eventPeriodById}
               busy={busy}
               // Decidir direto da fila: abre o pedido e já vai para o diálogo —
               // "Cancelar"/"Voltar" cai no detalhe, o mesmo caminho do Sheet.
@@ -811,6 +833,7 @@ export default function ScalingApprovalPage() {
                     showEvent={!eventId}
                     busy={busy}
                     onDecide={(row, kind, comment) => bypass.mutate({ inclusionId: row.id, kind, comment })}
+                    onDecideMany={(rows, kind, comment) => bypassMany.mutateAsync({ ids: rows.map((r) => r.id), kind, comment })}
                   />
                 )}
               </>
@@ -831,6 +854,8 @@ export default function ScalingApprovalPage() {
         open={overlay.mode === "sheet"}
         onOpenChange={(o) => { if (!o) closeAll(); }}
         request={openRequest}
+        inclusion={vagaDoPedido}
+        eventPeriod={openRequest ? eventPeriodById.get(openRequest.eventId) ?? null : null}
         busy={busy}
         onApprove={() => dispatch({ type: "mode", mode: "approve", origin: "detalhe" })}
         onReajustar={() => dispatch({ type: "mode", mode: "reajustar", origin: "detalhe" })}
@@ -848,7 +873,7 @@ export default function ScalingApprovalPage() {
         onOpenChange={(o) => { if (!o) dispatch({ type: "back" }); }}
         kind={reviewKind ?? "reajustar"}
         request={openRequest}
-        inclusion={openInclusion}
+        inclusion={vagaDoPedido}
         event={openRequest ? eventById.get(openRequest.eventId) ?? selectedEvent : selectedEvent}
         pending={review.isPending}
         onSubmit={submitReview}

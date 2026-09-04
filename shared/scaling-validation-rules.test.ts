@@ -221,7 +221,7 @@ describe("diffInclusion", () => {
     });
     expect(d.map((e) => e.field)).toEqual(["dailyRates", "flightReturnDate"]);
     expect(d[0]).toEqual({ field: "dailyRates", label: "Diárias", from: 2, to: 3 });
-    expect(d[1]).toEqual({ field: "flightReturnDate", label: "Data de volta", from: "2026-09-03", to: "2026-09-04" });
+    expect(d[1]).toEqual({ field: "flightReturnDate", label: "Volta · data", from: "2026-09-03", to: "2026-09-04" });
   });
   it("campos ausentes no pedido não entram; quantity é ignorado; lista vazia quando nada muda", () => {
     expect(diffInclusion(current, { v: 1, quantity: 3 })).toEqual([]);

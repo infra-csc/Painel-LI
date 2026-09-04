@@ -2,6 +2,8 @@ import { MessageSquareQuote } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PROPOSED_FIELD_LABELS, type InclusionDiffEntry, type ProposedChanges, type ProposedField } from "@shared/scaling-validation-rules";
 import { formatProposedValue } from "./request-badges";
+import type { TeamInclusion } from "@shared/schema";
+import { draftFromProposed, fullFromDraft } from "./proposed-changes-form";
 
 /** Tabela "de → para" (pedido de AJUSTE) a partir do `diff` que o servidor devolve. */
 export function DiffTable({ diff, className, tom = "resultado" }: { diff: InclusionDiffEntry[]; className?: string; tom?: "resultado" | "pedido" }) {
@@ -34,15 +36,17 @@ export function DiffTable({ diff, className, tom = "resultado" }: { diff: Inclus
 }
 
 /** Lista completa dos campos propostos (pedido de INCLUSÃO) + quantidade. */
-export function ProposedList({ proposed, className }: { proposed: ProposedChanges | null; className?: string }) {
+export function ProposedList({ proposed, className, semQuantidade = false }: { proposed: ProposedChanges | null; className?: string; semQuantidade?: boolean }) {
   if (!proposed) return <p className={cn("text-xs text-slate-400", className)}>Sem detalhes da vaga proposta.</p>;
   const fields = (Object.keys(PROPOSED_FIELD_LABELS) as ProposedField[]).filter((f) => proposed[f] !== undefined);
   return (
     <dl className={cn("rounded-xl border border-slate-200 divide-y divide-slate-100 text-xs", className)}>
-      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-2 px-3 py-2 bg-emerald-50/50">
-        <dt className="font-semibold text-slate-700">Quantidade de vagas</dt>
-        <dd className="font-bold text-emerald-800 tabular-nums">{proposed.quantity ?? 1}</dd>
-      </div>
+      {!semQuantidade && (
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-2 px-3 py-2 bg-emerald-50/50">
+          <dt className="font-semibold text-slate-700">Quantidade de vagas</dt>
+          <dd className="font-bold text-emerald-800 tabular-nums">{proposed.quantity ?? 1}</dd>
+        </div>
+      )}
       {fields.map((f) => (
         <div key={f} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-2 px-3 py-2">
           <dt className="font-semibold text-slate-600">{PROPOSED_FIELD_LABELS[f]}</dt>
@@ -51,6 +55,21 @@ export function ProposedList({ proposed, className }: { proposed: ProposedChange
       ))}
     </dl>
   );
+}
+
+/**
+ * A vaga inteira, como está hoje (04/09).
+ *
+ * O pedido mostrava só o que muda — "Horário sugerido de chegada: 22h → 07:00"
+ * — e o aprovador decidia sem ver os dias, a volta, a passagem, o hotel. Uma
+ * alteração não se avalia sozinha: 07:00 é cedo ou tarde dependendo de quando
+ * a pessoa trabalha. Reaproveita o mesmo rascunho que o formulário de reajuste
+ * usa, então a lista é exatamente o que o servidor conhece da vaga.
+ */
+export function VagaCompleta({ inclusion, className }: { inclusion: TeamInclusion | null | undefined; className?: string }) {
+  if (!inclusion) return <p className={cn("text-xs text-slate-400", className)}>Carregando a vaga…</p>;
+  const completa = fullFromDraft(draftFromProposed(null, inclusion));
+  return <ProposedList proposed={completa} semQuantidade className={className} />;
 }
 
 /** Motivo do solicitante, em destaque. */

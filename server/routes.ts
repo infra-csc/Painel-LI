@@ -2018,6 +2018,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get logs for a specific team inclusion
+  /**
+   * Uma vaga pelo id (04/09).
+   *
+   * A Aprovação precisa da vaga completa para reajustar um pedido de ajuste, e
+   * só tinha a lista de sugestões — que não contém vaga já escalada. Sem esta
+   * rota, o reajuste de um pedido vindo da Escalação ficava travado para sempre
+   * em "aguarde a vaga carregar".
+   */
+  app.get("/api/team-inclusions/:id", async (req, res) => {
+    try {
+      const inclusion = await storage.getTeamInclusion(req.params.id);
+      if (!inclusion) return res.status(404).json({ message: "Vaga não encontrada" });
+      res.set("Cache-Control", "no-store");
+      res.json(inclusion);
+    } catch (error) {
+      console.error("Erro ao buscar a vaga:", error);
+      res.status(500).json({ message: "Erro ao buscar a vaga" });
+    }
+  });
+
   app.get("/api/team-inclusions/:id/logs", async (req, res) => {
     try {
       const { id } = req.params;

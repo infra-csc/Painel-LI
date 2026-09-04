@@ -5,7 +5,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { CHANGE_REQUEST_STATUS, daysPending, type ChangeRequestType } from "@shared/scaling-validation-rules";
 import type { ChangeRequestItem } from "./types";
 import { CanDecideBadge, RequestAgeBadge, RequestStatusBadge, RequestTypeBadge, formatDateTimeBr } from "./request-badges";
-import { DiffTable, ProposedList, ReasonBlock } from "./request-detail";
+import { DiffTable, ProposedList, ReasonBlock, VagaCompleta } from "./request-detail";
+import type { TeamInclusion } from "@shared/schema";
 import { RequestChat } from "./request-chat";
 import { targetLabel } from "./request-queue";
 
@@ -13,6 +14,10 @@ interface RequestDetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   request: ChangeRequestItem | null;
+  /** A vaga do pedido, completa — para o aprovador ver o todo, não só o delta. */
+  inclusion?: TeamInclusion | null;
+  /** Período do evento já formatado ("21/10/2026 – 25/10/2026"). */
+  eventPeriod?: string | null;
   onApprove: (r: ChangeRequestItem) => void;
   onReajustar: (r: ChangeRequestItem) => void;
   onNegar: (r: ChangeRequestItem) => void;
@@ -28,7 +33,7 @@ const SECTION = "text-[11px] font-bold uppercase tracking-wide text-slate-500";
  * de três colunas mais os chips de logística quebravam em duas linhas o tempo
  * todo. Com 720px cabe na linha, e o que sobra é menos rolagem para decidir.
  */
-export function RequestDetailSheet({ open, onOpenChange, request, onApprove, onReajustar, onNegar, busy }: RequestDetailSheetProps) {
+export function RequestDetailSheet({ open, onOpenChange, request, inclusion, eventPeriod, onApprove, onReajustar, onNegar, busy }: RequestDetailSheetProps) {
   const r = request;
   const type = (r?.requestType ?? "ajuste") as ChangeRequestType;
   const isPending = r?.status === CHANGE_REQUEST_STATUS.PENDENTE;
@@ -61,7 +66,7 @@ export function RequestDetailSheet({ open, onOpenChange, request, onApprove, onR
                 <span className="font-mono text-[13px] text-slate-400 font-normal"> · {targetLabel(r)}</span>
               </DialogTitle>
               <DialogDescription className="text-xs">
-                {r.eventName ?? "Evento"}{r.area ? ` · ${r.area}` : ""} · pedido por <span className="font-semibold text-slate-700">{r.requestedByName}</span> em {formatDateTimeBr(r.createdAt)}
+                {r.eventName ?? "Evento"}{eventPeriod ? <span className="font-mono tabular-nums"> · {eventPeriod}</span> : null}{r.area ? ` · ${r.area}` : ""} · pedido por <span className="font-semibold text-slate-700">{r.requestedByName}</span> em {formatDateTimeBr(r.createdAt)}
               </DialogDescription>
             </DialogHeader>
 
@@ -69,6 +74,12 @@ export function RequestDetailSheet({ open, onOpenChange, request, onApprove, onR
               <div className="px-5 py-4 space-y-5">
                 <ReasonBlock reason={r.reason} by={r.requestedByName} />
 
+                {type === "ajuste" && (
+                  <section className="space-y-2" aria-labelledby="det-vaga">
+                    <h3 id="det-vaga" className={SECTION}>A vaga hoje — completa</h3>
+                    <VagaCompleta inclusion={inclusion} />
+                  </section>
+                )}
                 {type === "ajuste" && (
                   <section className="space-y-2" aria-labelledby="det-diff">
                     <h3 id="det-diff" className={SECTION}>O que muda (de → para)</h3>

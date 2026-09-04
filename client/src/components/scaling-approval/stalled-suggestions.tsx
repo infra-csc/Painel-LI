@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CheckCircle2, Clock, Timer, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -30,6 +31,8 @@ interface StalledSuggestionsProps {
    * ordem continua sendo pelo tempo parado). Com filtro por evento ela some.
    */
   showEvent?: boolean;
+  /** Decidir VÁRIAS de uma vez (lote) — mesma decisão, mesmo comentário. */
+  onDecideMany?: (rows: SuggestionRow[], kind: "approve" | "reject", comment?: string) => Promise<unknown> | void;
   busy?: boolean;
   onDecide: (row: SuggestionRow, kind: "approve" | "reject", comment?: string) => void;
 }
@@ -40,16 +43,30 @@ const TH = "px-2.5 py-2 text-left text-[11px] uppercase tracking-[0.06em] text-s
  * "Vagas paradas": sugestões que a área nunca validou (sugestao_pendente, sem
  * pedido) há ≥ STALLED_DAYS dias. O aprovador pode aprovar direto ou reprovar (bypass).
  */
-export function StalledSuggestions({ rows, functionNameById, canActOn, approverNamesFor, showEvent = false, busy, onDecide }: StalledSuggestionsProps) {
-  const [confirm, setConfirm] = useState<{ row: SuggestionRow; kind: "approve" | "reject" } | null>(null);
+export function StalledSuggestions({ rows, functionNameById, canActOn, approverNamesFor, showEvent = false, busy, onDecide, onDecideMany }: StalledSuggestionsProps) {
+  /** O diálogo serve a UMA vaga (botão da linha) ou a VÁRIAS (barra de seleção). */
+  const [confirm, setConfirm] = useState<{ rows: SuggestionRow[]; kind: "approve" | "reject" } | null>(null);
   const [comment, setComment] = useState("");
-
-  const openConfirm = (row: SuggestionRow, kind: "approve" | "reject") => { setComment(""); setConfirm({ row, kind }); };
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const selecionaveis = useMemo(() => rows.filter((r) => canActOn(r)), [rows, canActOn]);
+  const selecionadas = useMemo(() => selecionaveis.filter((r) => selected.has(r.id)), [selecionaveis, selected]);
+  const todasMarcadas = selecionaveis.length > 0 && selecionadas.length === selecionaveis.length;
+  const alternar = (id: string) => setSelected((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const alternarTodas = () => setSelected(todasMarcadas ? new Set() : new Set(selecionaveis.map((r) => r.id)));
+  const openConfirm = (row: SuggestionRow, kind: "approve" | "reject") => { setComment(""); setConfirm({ rows: [row], kind }); };
+  const openConfirmMany = (kind: "approve" | "reject") => { if (selecionadas.length) { setComment(""); setConfirm({ rows: selecionadas, kind }); } };
   const doConfirm = () => {
     if (!confirm) return;
-    onDecide(confirm.row, confirm.kind, comment.trim() || undefined);
+    const texto = comment.trim() || undefined;
+    if (confirm.rows.length === 1 || !onDecideMany) {
+      for (const row of confirm.rows) onDecide(row, confirm.kind, texto);
+    } else {
+      void onDecideMany(confirm.rows, confirm.kind, texto);
+    }
+    setSelected(new Set());
     setConfirm(null);
   };
+  const unica = confirm && confirm.rows.length === 1 ? confirm.rows[0] : null;
 
   if (rows.length === 0) {
     return (
@@ -73,12 +90,34 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
         </span>
       </p>
 
+      {/* Barra de lote (04/09): decidir 17 vagas paradas uma a uma era 17
+          confirmações iguais. A seleção só existe para quem pode decidir. */}
+      {onDecideMany && selecionaveis.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs" data-testid="paradas-lote">
+          <span className="text-slate-600 tabular-nums">
+            {selecionadas.length === 0 ? `Marque vagas para decidir em lote (${selecionaveis.length} ${selecionaveis.length === 1 ? "disponível" : "disponíveis"})` : `${selecionadas.length} ${selecionadas.length === 1 ? "vaga selecionada" : "vagas selecionadas"}`}
+          </span>
+          <div className="ml-auto flex items-center gap-1.5">
+            <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg px-2.5 text-xs text-red-700 border-red-200 hover:bg-red-50" disabled={busy || selecionadas.length === 0} onClick={() => openConfirmMany("reject")}>
+              <XCircle className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Reprovar{selecionadas.length ? ` (${selecionadas.length})` : ""}
+            </Button>
+            <Button type="button" size="sm" className="h-7 rounded-lg px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white" disabled={busy || selecionadas.length === 0} onClick={() => openConfirmMany("approve")}>
+              <CheckCircle2 className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Aprovar direto{selecionadas.length ? ` (${selecionadas.length})` : ""}
+            </Button>
+          </div>
+        </div>
+      )}
       <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[820px] text-[13px]">
             <caption className="sr-only">Vagas sem validação da área há {STALLED_DAYS} dias ou mais</caption>
             <thead className="bg-slate-50">
               <tr>
+                {onDecideMany && (
+                  <th scope="col" className={cn(TH, "w-10 text-center")}>
+                    <Checkbox checked={todasMarcadas} disabled={busy || selecionaveis.length === 0} onCheckedChange={alternarTodas} aria-label="Selecionar todas as vagas que você pode decidir" />
+                  </th>
+                )}
                 <th scope="col" className={TH}>Vaga</th>
                 {showEvent && <th scope="col" className={cn(TH, "min-w-[170px]")}>Evento</th>}
                 <th scope="col" className={TH}>Área</th>
@@ -95,7 +134,12 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                 const lockReason = approvers.length ? `Aprovador: ${approvers.join(", ")}` : "Você não é aprovador desta função";
                 const fnName = functionNameById.get(row.functionId) ?? "Sem função";
                 return (
-                  <tr key={row.id} className={cn("border-b border-slate-100", i % 2 === 1 ? "bg-slate-50/50" : "bg-white")}>
+                  <tr key={row.id} className={cn("border-b border-slate-100", selected.has(row.id) ? "bg-brand-soft/40" : i % 2 === 1 ? "bg-slate-50/50" : "bg-white")}>
+                    {onDecideMany && (
+                      <td className="px-2 py-2 align-middle text-center">
+                        {canAct && <Checkbox checked={selected.has(row.id)} disabled={busy} onCheckedChange={() => alternar(row.id)} aria-label={`Selecionar vaga #${row.inclusionNumber}`} />}
+                      </td>
+                    )}
                     <td className="px-2.5 py-2 align-middle max-w-[260px]">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="inline-flex shrink-0 rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800 tabular-nums">#{row.inclusionNumber}</span>
@@ -145,27 +189,43 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
         <AlertDialogContent className="!max-w-[560px] max-h-[88vh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {confirm?.kind === "approve" ? "Aprovar vaga direto, sem validação da área?" : "Reprovar vaga sem validação da área?"}
+              {confirm && confirm.rows.length > 1
+                ? (confirm.kind === "approve" ? `Aprovar ${confirm.rows.length} vagas direto, sem validação da área?` : `Reprovar ${confirm.rows.length} vagas sem validação da área?`)
+                : (confirm?.kind === "approve" ? "Aprovar vaga direto, sem validação da área?" : "Reprovar vaga sem validação da área?")}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {confirm?.kind === "approve"
-                ? "Ela vira Inclusão de Equipe (aguardando escalação) imediatamente."
-                : "Ela sai da escala e fica registrada como negada."}
+              {confirm && confirm.rows.length > 1
+                ? (confirm.kind === "approve" ? "Todas viram Inclusão de Equipe (aguardando escalação) imediatamente." : "Todas saem da escala e ficam registradas como negadas.")
+                : (confirm?.kind === "approve" ? "Ela vira Inclusão de Equipe (aguardando escalação) imediatamente." : "Ela sai da escala e fica registrada como negada.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {/* Passar por cima da área é a decisão mais pesada da tela: a vaga
               precisa estar à vista, com quanto tempo está parada. */}
-          {confirm && (
+          {/* Em lote a lista nomeia cada vaga: "17 vagas" sem os nomes é
+              assinar em branco. */}
+          {confirm && !unica && (
+            <ul className="max-h-[180px] overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100 text-xs" data-testid="paradas-lote-lista">
+              {confirm.rows.map((row) => (
+                <li key={row.id} className="flex items-center gap-2 px-3 py-1.5">
+                  <span className="font-mono text-[11px] text-slate-500 tabular-nums">#{row.inclusionNumber}</span>
+                  <span className="font-semibold text-slate-800 truncate">{functionNameById.get(row.functionId) ?? "Sem função"}</span>
+                  {row.eventName && <span className="text-slate-500 truncate">· {row.eventName}</span>}
+                  <span className="ml-auto shrink-0 text-[11px] text-slate-500">{row.daysPending} {row.daysPending === 1 ? "dia" : "dias"}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {confirm && unica && (
             <>
               <VagaCard
-                row={confirm.row}
-                functionName={functionNameById.get(confirm.row.functionId)}
+                row={unica}
+                functionName={functionNameById.get(unica.functionId)}
                 badge={
                   <span className={cn(
                     "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap",
-                    confirm.row.daysPending >= DANGER_DAYS ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200",
+                    unica.daysPending >= DANGER_DAYS ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200",
                   )}>
-                    <Clock className="w-3 h-3" aria-hidden="true" /> parada há {confirm.row.daysPending} {confirm.row.daysPending === 1 ? "dia" : "dias"}
+                    <Clock className="w-3 h-3" aria-hidden="true" /> parada há {unica.daysPending} {unica.daysPending === 1 ? "dia" : "dias"}
                   </span>
                 }
                 nota="A área nunca validou esta vaga."
@@ -183,12 +243,12 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                       <li>A vaga vira Inclusão de Equipe e já pode ser escalada.</li>
                       <li>A área perde a chance de validar esta vaga — o pulo fica registrado com o seu nome.</li>
                       <li>
-                        Entram <span className="font-semibold tabular-nums">{pessoasDiaDaVaga(confirm.row)}</span>{" "}
-                        {pessoasDiaDaVaga(confirm.row) === 1 ? "pessoa-dia" : "pessoas-dia"} no total do evento.
+                        Entram <span className="font-semibold tabular-nums">{pessoasDiaDaVaga(unica)}</span>{" "}
+                        {pessoasDiaDaVaga(unica) === 1 ? "pessoa-dia" : "pessoas-dia"} no total do evento.
                       </li>
                       <li>
-                        {confirm.row.needsTicket || confirm.row.needsAccommodation
-                          ? <>Compras passa a ter {[confirm.row.needsTicket ? "passagem" : null, confirm.row.needsAccommodation ? "hospedagem" : null].filter(Boolean).join(" e ")} para comprar.</>
+                        {unica.needsTicket || unica.needsAccommodation
+                          ? <>Compras passa a ter {[unica.needsTicket ? "passagem" : null, unica.needsAccommodation ? "hospedagem" : null].filter(Boolean).join(" e ")} para comprar.</>
                           : <>Nenhuma compra é gerada — a vaga não pede passagem nem hospedagem.</>}
                       </li>
                     </>

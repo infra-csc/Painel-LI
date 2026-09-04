@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { PencilLine } from "lucide-react";
+import { formatDateRange } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -16,7 +17,7 @@ import { CHANGE_REQUEST_TYPE_LABELS, diffInclusion, type ChangeRequestType, type
 import { isPostValidationInclusion } from "@shared/scaling-change-window";
 import type { ChangeRequestItem, ReviewBody } from "./types";
 import { PostScalingBadge, RequestTypeBadge } from "./request-badges";
-import { DiffTable, ProposedList } from "./request-detail";
+import { DiffTable, ProposedList, VagaCompleta } from "./request-detail";
 import { targetLabel } from "./request-queue";
 import { ProposedChangesForm, draftFromProposed, draftToProposed, fullFromDraft, validateDraft, type ProposedDraft } from "./proposed-changes-form";
 
@@ -158,6 +159,7 @@ export function ReviewRequestDialog({ open, onOpenChange, kind, request, inclusi
             {request?.functionName ?? "Função"}
             {request ? ` · ${targetLabel(request)}` : ""}
             {request?.eventName ? ` · ${request.eventName}` : ""}
+            {event?.startDate ? ` · ${formatDateRange(event.startDate, event.endDate, { withYear: true })}` : ""}
             {kind === "reajustar"
               ? " — você altera o pedido (ou mantém como veio) e decide o que acontece com a vaga."
               : " — o pedido é recusado e você decide o que acontece com a vaga."}
@@ -274,6 +276,14 @@ function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFie
 
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
         <div className="space-y-5">
+          {/* 0) A vaga inteira, antes de qualquer decisão: o delta sozinho não
+              diz se 07:00 é cedo ou tarde para quem trabalha aqueles dias. */}
+          {type === "ajuste" && (
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">A vaga hoje — completa</p>
+              <VagaCompleta inclusion={inclusion} />
+            </div>
+          )}
           {/* 1) Comentário */}
           <div className="space-y-1">
             <Label htmlFor="rev-comment" className="text-xs text-slate-600">Comentário para a área <span className="text-red-500" aria-hidden="true">*</span></Label>

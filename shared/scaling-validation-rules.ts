@@ -364,13 +364,16 @@ export type ProposedChanges = z.infer<typeof proposedChangesSchema>;
 export const PROPOSED_FIELD_LABELS: Record<Exclude<keyof ProposedChanges, "v" | "quantity">, string> = {
   workDays: "Dias de trabalho",
   dailyRates: "Diárias",
-  flightDepartureDate: "Data de ida",
-  flightDepartureSuggestedTime: "Horário sugerido de ida",
-  flightArrivalSuggestedTime: "Horário sugerido de chegada",
-  flightReturnDate: "Data de volta",
-  flightReturnSuggestedTime: "Horário sugerido de volta",
-  transportModeIda: "Transporte de ida",
-  transportModeVolta: "Transporte de volta",
+  // A perna vem PRIMEIRO em todo campo de viagem (04/09). "Horário sugerido
+  // de chegada" sozinho não dizia se era a chegada da ida ou da volta, e o
+  // aprovador lia o pedido sem saber o que estava aprovando.
+  flightDepartureDate: "Ida · data",
+  flightDepartureSuggestedTime: "Ida · saída sugerida",
+  flightArrivalSuggestedTime: "Ida · chegar até",
+  flightReturnDate: "Volta · data",
+  flightReturnSuggestedTime: "Volta · sair após",
+  transportModeIda: "Ida · transporte",
+  transportModeVolta: "Volta · transporte",
   needsTicket: "Precisa de passagem",
   needsAccommodation: "Precisa de hospedagem",
   observations: "Observações",

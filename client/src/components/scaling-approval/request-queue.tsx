@@ -14,6 +14,8 @@ interface RequestQueueProps {
   onOpen: (item: ChangeRequestItem) => void;
   /** Mostrar a coluna do evento (quando o filtro é "todos"). */
   showEvent?: boolean;
+  /** Período de cada evento ("21/10/2026 – 25/10/2026"), por id. */
+  eventPeriodById?: Map<string, string>;
   /** Decisões direto da fila (abrem os mesmos diálogos do detalhe). Sem elas a linha só abre o detalhe. */
   onApprove?: (item: ChangeRequestItem) => void;
   onReajustar?: (item: ChangeRequestItem) => void;
@@ -55,7 +57,7 @@ function isInnerControlClick(e: MouseEvent<HTMLTableRowElement>): boolean {
 }
 
 /** Nível 1 — fila de pedidos (tabela ≥ md, cards < md). Decisão na própria linha ou pelo detalhe. */
-export function RequestQueue({ items, onOpen, showEvent = true, onApprove, onReajustar, onNegar, busy }: RequestQueueProps) {
+export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById, onApprove, onReajustar, onNegar, busy }: RequestQueueProps) {
   const canAct = !!(onApprove && onReajustar && onNegar);
   return (
     <>
@@ -111,7 +113,17 @@ export function RequestQueue({ items, onOpen, showEvent = true, onApprove, onRea
                       <span className="block text-[11px] text-slate-400 font-mono">{targetLabel(r)}{r.area ? ` · ${r.area}` : ""}</span>
                       <span className="block text-[11px] text-slate-400 truncate" title={r.requestedByName ?? undefined}>por {r.requestedByName}</span>
                     </td>
-                    {showEvent && <td className="px-2.5 py-2 align-middle text-xs text-slate-600 max-w-[180px]"><span className="block truncate" title={r.eventName ?? undefined}>{r.eventName ?? "Sem evento"}</span></td>}
+                    {/* A data embaixo do nome (04/09): "Night Run - Salvador" sem
+                        a data não diz se o pedido é para semana que vem ou para
+                        daqui a dois meses — e é isso que decide a pressa. */}
+                    {showEvent && (
+                      <td className="px-2.5 py-2 align-middle text-xs text-slate-600 max-w-[200px]">
+                        <span className="block truncate font-medium text-slate-700" title={r.eventName ?? undefined}>{r.eventName ?? "Sem evento"}</span>
+                        {eventPeriodById?.get(r.eventId) && (
+                          <span className="block font-mono text-[11px] text-slate-400 tabular-nums">{eventPeriodById.get(r.eventId)}</span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-2.5 py-2 align-middle min-w-[240px] max-w-[340px]">
                       {r.reason
                         ? <span className="block text-xs text-slate-600 truncate" title={r.reason}>{r.reason}</span>
@@ -201,7 +213,7 @@ export function RequestQueue({ items, onOpen, showEvent = true, onApprove, onRea
               <p className="text-sm font-semibold text-slate-800 leading-tight">
                 {r.functionName ?? "Sem função"} <span className="font-mono text-xs text-slate-400 font-normal">· {targetLabel(r)}</span>
               </p>
-              <p className="text-[11px] text-slate-500">{showEvent && r.eventName ? `${r.eventName} · ` : ""}por {r.requestedByName}{!pending && r.createdAt ? ` · ${formatDateBr(new Date(r.createdAt))}` : ""}</p>
+              <p className="text-[11px] text-slate-500">{showEvent && r.eventName ? `${r.eventName}${eventPeriodById?.get(r.eventId) ? ` (${eventPeriodById.get(r.eventId)})` : ""} · ` : ""}por {r.requestedByName}{!pending && r.createdAt ? ` · ${formatDateBr(new Date(r.createdAt))}` : ""}</p>
               {r.reason && <p className="text-xs text-slate-600 line-clamp-2" title={r.reason}>{r.reason}</p>}
               {changeSummary(r) && <p className="text-[11px] text-slate-500 line-clamp-2">{changeSummary(r)}</p>}
             </li>

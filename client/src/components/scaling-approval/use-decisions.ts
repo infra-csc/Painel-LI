@@ -200,5 +200,42 @@ export function useDecisionMutations(opts: DecisionOptions = {}) {
     onError: (err: ApiError, vars) => fail(vars.kind === "approve" ? "Não foi possível aprovar a vaga" : "Não foi possível reprovar a vaga")(err),
   });
 
-  return { approve, review, approveVagas, decideVaga, bypass, invalidateAll };
+  /**
+   * Bypass em LOTE (04/09). "Vagas paradas" só decidia uma por vez: um evento
+   * com 17 paradas eram 17 confirmações iguais. Sequencial de propósito — cada
+   * PATCH é uma decisão auditada com o nome do aprovador; o que falhar volta em
+   * `skipped`, no mesmo formato do lote de aprovação.
+   */
+  const bypassMany = useMutation({
+    mutationFn: async (vars: { ids: string[]; kind: "approve" | "reject"; comment?: string }): Promise<BatchResult> => {
+      const ok: string[] = [];
+      const skipped: { id: string; reason: string }[] = [];
+      for (const id of vars.ids) {
+        try {
+          await apiRequest("PATCH", `${APPROVAL_QUERY_KEYS.suggestions}/${id}/bypass-${vars.kind}`, vars.comment ? { comment: vars.comment } : {});
+          ok.push(id);
+        } catch (err) {
+          skipped.push({ id, reason: apiErrorMessage(err as ApiError, "falha ao decidir") });
+        }
+      }
+      return { ok, skipped };
+    },
+    onSuccess: (res, vars) => {
+      invalidateAll();
+      const okN = res.ok.length;
+      if (okN > 0) {
+        toast({
+          title: vars.kind === "approve" ? `${okN} vaga(s) aprovada(s) direto` : `${okN} vaga(s) reprovada(s)`,
+          description: vars.kind === "approve" ? "Viraram Inclusão de Equipe sem validação da área." : "Ficam registradas como negadas.",
+        });
+      }
+      if (res.skipped.length > 0) {
+        const reasons = Array.from(new Set(res.skipped.map((s) => s.reason))).slice(0, 3).join(" · ");
+        toast({ title: `${res.skipped.length} vaga(s) não decidida(s)`, description: reasons, variant: "destructive" });
+      }
+    },
+    onError: fail("Não foi possível decidir as vagas"),
+  });
+
+  return { approve, review, approveVagas, decideVaga, bypass, bypassMany, invalidateAll };
 }
