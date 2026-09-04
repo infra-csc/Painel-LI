@@ -1036,19 +1036,6 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                       {saveReason && <TooltipContent side="top" className="max-w-[300px] text-[12px]">{saveReason}</TooltipContent>}
                     </Tooltip>
                   )}
-                  {showSave && hasNext && (
-                    <Button
-                      variant="secondary"
-                      onClick={() => onSave(true)}
-                      disabled={isSaving || !!saveReason}
-                      title="Salva esta escalação e abre a próxima da lista"
-                      className="flex items-center gap-2 border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl px-4 py-2 text-sm font-medium"
-                      data-testid="button-save-next-scaling"
-                    >
-                      Salvar e próxima
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  )}
                   {showConfirm && (
                     <Tooltip>
                       <TooltipTrigger asChild>
