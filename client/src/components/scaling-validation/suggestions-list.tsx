@@ -413,7 +413,7 @@ export function EventLine({ row, className }: { row: Pick<SuggestionRow, "eventN
   return (
     <span className={cn("flex items-center gap-1 text-[11px] text-slate-500 min-w-0", className)}>
       <CalendarDays className="w-3 h-3 shrink-0 text-slate-400" aria-hidden="true" />
-      <span className="truncate font-semibold text-slate-600">{row.eventName ?? "Evento sem nome"}</span>
+      <span className="break-words font-semibold text-slate-600">{row.eventName ?? "Evento sem nome"}</span>
       {period && <span className="font-mono text-slate-500 whitespace-nowrap">· {period}</span>}
     </span>
   );
@@ -561,11 +561,11 @@ function RowActions({ row, onValidate, onAdjust, onDelete, onOpenDetail, compact
 function NameButton({ name, onOpen }: { name: string; onOpen?: () => void }) {
   return onOpen ? (
     <button type="button" onClick={onOpen} title={name}
-      className="block max-w-full truncate text-left text-[13px] font-semibold hover:text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm">
+      className="block max-w-full break-words text-left text-[13px] font-semibold hover:text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm">
       {name}
     </button>
   ) : (
-    <span className="block truncate text-[13px] font-semibold" title={name}>{name}</span>
+    <span className="block break-words text-[13px] font-semibold" title={name}>{name}</span>
   );
 }
 
