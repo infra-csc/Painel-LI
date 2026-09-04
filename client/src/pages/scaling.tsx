@@ -531,9 +531,16 @@ export default function Scaling() {
     ].filter(Boolean).join(" · ");
   })();
 
-  const contagem = temRecorte && visibleRows.length !== comPeriodo.length
-    ? `${visibleRows.length} de ${comPeriodo.length} vagas`
-    : `${visibleRows.length} ${visibleRows.length === 1 ? "vaga" : "vagas"}`;
+  /*
+   * A contagem segue a aba: a Fila mostra o que a tabela lista (com o bloco da
+   * fila de trabalho aplicado), as Análises mostram o que os gráficos e o
+   * relatório usam. Uma contagem só diria "18 vagas" ao lado de um painel que
+   * analisa 3.741.
+   */
+  const linhasDaAba = aba === "analises" ? comFlags : visibleRows;
+  const contagem = temRecorte && linhasDaAba.length !== comPeriodo.length
+    ? `${linhasDaAba.length} de ${comPeriodo.length} vagas`
+    : `${linhasDaAba.length} ${linhasDaAba.length === 1 ? "vaga" : "vagas"}`;
 
   const nomesDosFiltrosAtivos = [
     busca.trim() ? `“${busca.trim()}”` : null,
@@ -543,9 +550,18 @@ export default function Scaling() {
     fila ? QUEUE_META.find(q => q.key === fila)?.label.toLowerCase() ?? null : null,
   ].filter(Boolean).join(" · ");
 
+  /*
+   * O que o relatório exportado declara como recorte.
+   *
+   * Busca e situações entraram junto com a barra de filtros nas Análises: elas
+   * passaram a recortar o que sai no arquivo, e um cabeçalho que só citasse
+   * evento e período diria um recorte e entregaria outro.
+   */
   const nomesDosFiltrosDoRecorte = [
     eventosMarcados.length ? `${eventosMarcados.length} ${eventosMarcados.length === 1 ? "evento" : "eventos"}` : null,
     temRecorteDePeriodo(periodo) ? rotuloDoPeriodo(periodo) : null,
+    busca.trim() ? `busca “${busca.trim()}”` : null,
+    contarFlagsAtivas(flags) ? FLAG_GROUPS.flatMap(g => g.opcoes).filter(o => flags[o.key]).map(o => o.label).join(", ") : null,
     verExcluidos ? "incluindo excluídas" : null,
   ].filter(Boolean).join(" · ");
 
@@ -644,9 +660,27 @@ export default function Scaling() {
                 ))}
               </div>
             </div>
-          ) : aba === "analises" ? (
+          ) : (
+            <>
+            {/*
+              A MESMA barra de filtros das duas abas (04/09).
+              Ela só existia na Fila, e as Análises liam a lista filtrada
+              apenas pelo período — então o "Exportar" daqui levava tudo, sem
+              como recortar. Agora o que se vê nas Análises e o que sai no
+              relatório são o mesmo recorte.
+            */}
+            <ScalingFilterBar
+              busca={busca} onBusca={setBusca}
+              eventos={eventos} onEventos={setEventos} opcoesDeEvento={opcoesDeEvento}
+              periodo={periodo} onPeriodo={setPeriodo} linhasSemPeriodo={scalingInclusions} hoje={hoje}
+              flags={flags} onFlags={setFlags} linhasSemFlags={comBusca} queueContext={queueContext}
+              verExcluidos={verExcluidos} onVerExcluidos={setVerExcluidos}
+              contagem={contagem}
+            />
+
+            {aba === "analises" ? (
             <ScalingAnalytics
-              linhas={comPeriodo}
+              linhas={comFlags}
               ctx={analyticsContext}
               hoje={hoje}
               onVerVagasDoEvento={(eventId) => {
@@ -675,15 +709,6 @@ export default function Scaling() {
                   Atualizando a lista…
                 </p>
               )}
-
-              <ScalingFilterBar
-                busca={busca} onBusca={setBusca}
-                eventos={eventos} onEventos={setEventos} opcoesDeEvento={opcoesDeEvento}
-                periodo={periodo} onPeriodo={setPeriodo} linhasSemPeriodo={scalingInclusions} hoje={hoje}
-                flags={flags} onFlags={setFlags} linhasSemFlags={comBusca} queueContext={queueContext}
-                verExcluidos={verExcluidos} onVerExcluidos={setVerExcluidos}
-                contagem={contagem}
-              />
 
               {scalingInclusions.length === 0 && !temRecorte ? (
                 <EstadoVazio
@@ -723,6 +748,8 @@ export default function Scaling() {
                   queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
                 }}
               />
+            </>
+          )}
             </>
           )}
         </div>
@@ -768,7 +795,7 @@ export default function Scaling() {
       <ScalingCoverageDialog
         open={coberturaOpen}
         onOpenChange={setCoberturaOpen}
-        linhas={comPeriodo}
+        linhas={comFlags}
         ctx={analyticsContext}
         hoje={hoje}
         recorte={nomesDosFiltrosDoRecorte}
