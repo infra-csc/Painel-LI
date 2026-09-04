@@ -75,6 +75,15 @@ function ActionWithHint({ hint, disabled, side = "top", children }: {
   );
 }
 
+/** Recortes dos cards do resumo — a mesma leitura de status dos contadores. */
+type KpiFiltro = "pendentes" | "aguardandoAprovacao" | "comPedido" | "atrasadas";
+const KPI_MATCH: Record<KpiFiltro, (r: SuggestionRow) => boolean> = {
+  pendentes: (r) => r.status === SUGESTAO_STATUS.PENDENTE,
+  aguardandoAprovacao: (r) => r.status === SUGESTAO_STATUS.VALIDADA,
+  comPedido: (r) => r.status === SUGESTAO_STATUS.AJUSTE,
+  atrasadas: (r) => r.status === SUGESTAO_STATUS.PENDENTE && pendingSeverity(r.daysPending) !== "ok",
+};
+
 export default function ScalingValidationPage() {
   usePageTitle("Validação de Escala");
   const { user } = useAuth();
@@ -96,6 +105,13 @@ export default function ScalingValidationPage() {
   const [functionFilter, setFunctionFilter] = useState(ALL);
   const [areaFilter, setAreaFilter] = useState(ALL);
   const [onlyMine, setOnlyMine] = useState(false);
+  /**
+   * Card do resumo que está filtrando a lista (04/09). Antes só "Minhas
+   * pendentes" respondia ao clique; os outros cinco tinham cara de botão e não
+   * faziam nada — o usuário clicava em "Aguardando aprovação" e a lista não
+   * mudava. Um card de cada vez: eles são recortes exclusivos por status.
+   */
+  const [kpiFiltro, setKpiFiltro] = useState<KpiFiltro | null>(null);
   const [showEventComments, setShowEventComments] = useState(false);
   const [sortConfig, setSortConfig] = useState<SortConfig<SuggestionSortField> | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -250,6 +266,7 @@ export default function ScalingValidationPage() {
       // rever o que já validou. Por isso o filtro pode mostrar MAIS vagas do
       // que o número do KPI "Minhas pendentes" (que conta só as validáveis).
       .filter((r) => !onlyMine || canActOn(r))
+      .filter((r) => !kpiFiltro || KPI_MATCH[kpiFiltro](r))
       .filter((r) => {
         if (!q) return true;
         return nameOf(r).toLowerCase().includes(q) || String(r.inclusionNumber).includes(q) || (r.area ?? "").toLowerCase().includes(q) || (r.observations ?? "").toLowerCase().includes(q);
@@ -263,13 +280,13 @@ export default function ScalingValidationPage() {
       period: (a, b) => periodKey(a).localeCompare(periodKey(b)) || byDefault(a, b),
     };
     return list.sort((a, b) => dir * cmp[sortConfig.field](a, b));
-  }, [rows, functionFilter, areaFilter, onlyMine, search, functionNameById, sortConfig]);
+  }, [rows, functionFilter, areaFilter, onlyMine, kpiFiltro, search, functionNameById, sortConfig]);
 
   const onSort = (field: SuggestionSortField) =>
     setSortConfig((prev) => (prev?.field === field ? (prev.direction === "asc" ? { field, direction: "desc" } : null) : { field, direction: "asc" }));
 
-  const hasActiveFilters = search.trim() !== "" || functionFilter !== ALL || areaFilter !== ALL || onlyMine;
-  const clearFilters = () => { setSearch(""); setFunctionFilter(ALL); setAreaFilter(ALL); setOnlyMine(false); };
+  const hasActiveFilters = search.trim() !== "" || functionFilter !== ALL || areaFilter !== ALL || onlyMine || kpiFiltro !== null;
+  const clearFilters = () => { setSearch(""); setFunctionFilter(ALL); setAreaFilter(ALL); setOnlyMine(false); setKpiFiltro(null); };
 
   // ── Seleção ──
   // Selecionáveis no evento inteiro (a seleção sobrevive ao filtro) e só as visíveis (para o "selecionar todas").
@@ -504,13 +521,13 @@ export default function ScalingValidationPage() {
     "Com pedido": "Vagas com pedido de ajuste/exclusão aguardando o aprovador.",
     "Aguardando aprovação": "Vagas que a área já validou e agora aguardam a decisão do aprovador. Enquanto ele não decide, você ainda pode pedir ajuste ou exclusão.",
   };
-  const KPIS: { label: string; n: number; cls: string }[] = [
+  const KPIS: { label: string; n: number; cls: string; filtro?: KpiFiltro | "minhas" }[] = [
     { label: "Vagas", n: counts.total, cls: "text-slate-800" },
-    { label: "Aguardando validação", n: counts.pendentes, cls: "text-amber-700" },
-    { label: "Aguardando aprovação", n: counts.aguardandoAprovacao, cls: "text-sky-700" },
-    { label: "Com pedido", n: counts.comPedido, cls: "text-violet-700" },
-    { label: "Atrasadas", n: counts.atrasadas, cls: counts.atrasadas ? "text-red-600" : "text-slate-800" },
-    { label: "Minhas pendentes", n: counts.minhas, cls: "text-primary" },
+    { label: "Aguardando validação", n: counts.pendentes, cls: "text-amber-700", filtro: "pendentes" },
+    { label: "Aguardando aprovação", n: counts.aguardandoAprovacao, cls: "text-sky-700", filtro: "aguardandoAprovacao" },
+    { label: "Com pedido", n: counts.comPedido, cls: "text-violet-700", filtro: "comPedido" },
+    { label: "Atrasadas", n: counts.atrasadas, cls: counts.atrasadas ? "text-red-600" : "text-slate-800", filtro: "atrasadas" },
+    { label: "Minhas pendentes", n: counts.minhas, cls: "text-primary", filtro: "minhas" },
   ];
   const KPI_BOX = "rounded-xl border px-3 py-2 text-left";
 
@@ -612,16 +629,23 @@ export default function ScalingValidationPage() {
         // último indicador caía sozinho e esticado, parecendo outra coisa.
         // Faltando espaço, a faixa rola em vez de quebrar.
         <dl className="grid auto-cols-[minmax(150px,1fr)] grid-flow-col items-stretch gap-2 overflow-x-auto pb-1" aria-label="Resumo do evento">
-          {KPIS.map(({ label, n, cls }) => {
+          {KPIS.map(({ label, n, cls, filtro }) => {
             const tip = KPI_TOOLTIPS[label];
-            // "Minhas pendentes" filtra a lista; os demais são leitura.
-            const clickable = label === "Minhas pendentes" && anyEditable;
+            // "Vagas" é o total — não há o que recortar. "Minhas pendentes"
+            // liga o filtro "Só as minhas funções" (como sempre); os demais
+            // recortam por status, um de cada vez.
+            const ativo = filtro === "minhas" ? onlyMine : filtro !== undefined && kpiFiltro === filtro;
+            const clickable = filtro === "minhas" ? anyEditable : filtro !== undefined && (n > 0 || ativo);
+            const alternar = () => {
+              if (filtro === "minhas") { setOnlyMine((v) => !v); return; }
+              if (filtro) setKpiFiltro((atual) => (atual === filtro ? null : filtro));
+            };
             const box = (
               <div
                 key={label}
                 className={cn(KPI_BOX, "relative border-slate-200 bg-white",
                   clickable && "transition-colors hover:border-primary/30",
-                  clickable && onlyMine && "border-primary/30 bg-brand-soft",
+                  ativo && "border-primary/30 bg-brand-soft",
                   !clickable && tip && "cursor-help")}
                 tabIndex={!clickable && tip ? 0 : undefined}
               >
@@ -634,8 +658,9 @@ export default function ScalingValidationPage() {
                       quebrar o par <dt>/<dd> (botão não pode conter dt/dd). */}
                   {clickable && (
                     <button
-                      type="button" aria-pressed={onlyMine} aria-label={`${label}: ${n}. Filtrar a lista pelas minhas funções`}
-                      onClick={() => setOnlyMine((v) => !v)}
+                      type="button" aria-pressed={ativo}
+                      aria-label={filtro === "minhas" ? `${label}: ${n}. Filtrar a lista pelas minhas funções` : `${label}: ${n}. ${ativo ? "Tirar o filtro" : "Filtrar a lista"}`}
+                      onClick={alternar}
                       className="absolute inset-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     />
                   )}
