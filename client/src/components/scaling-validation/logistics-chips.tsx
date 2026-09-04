@@ -63,6 +63,19 @@ export const CHIP_NEUTRAL = cn(CHIP_BASE, "border-slate-200 bg-slate-50 text-sla
 /** Chip de destaque — o que a vaga PRECISA (passagem, hotel). */
 export const CHIP_NEED = cn(CHIP_BASE, "border-primary/20 bg-brand-soft font-semibold text-primary");
 
+// ── Tipografia compartilhada do módulo (04/09) ───────────────────────────────
+//
+// Título de seção e cabeçalho de tabela eram escritos à mão em cada arquivo
+// (10px/11px, tracking-wider/[0.12em]/widest, slate-400/500…). Uma constante
+// só para cada papel: quem cria um cartão novo importa daqui e sai igual ao
+// resto. As duas são idênticas HOJE — ficam separadas porque são papéis
+// diferentes (uma seção pode ganhar ícone/altura própria sem mexer no `<th>`).
+
+/** Título de seção de cartão/drawer/diálogo ("Período e diárias", "Logística"). */
+export const SECTION_TITLE = "text-[11px] font-bold uppercase tracking-wide text-slate-500";
+/** `<th>` das tabelas do módulo — o mesmo desenho do quadro "Escala". */
+export const TABLE_TH = "text-[11px] font-bold uppercase tracking-wide text-slate-500";
+
 const MODE_ICONS: Record<TransportMode, LucideIcon> = {
   aereo: Route, // aéreo nunca usa este mapa: a direção manda (decolar/pousar)
   onibus: Bus,
@@ -108,13 +121,20 @@ export interface LegChipProps {
   /** Hora "HH:MM" (desembarque na ida, embarque na volta). */
   time?: string | null;
   className?: string;
+  /**
+   * Versão curta (04/09): só direção + "dd/mm", sem dia da semana nem hora —
+   * para a coluna estreita da lista abaixo de `xl`. O `title`/`aria-label`
+   * continuam com a frase inteira, então nada se perde para quem passa o
+   * mouse ou usa leitor de tela.
+   */
+  compact?: boolean;
 }
 
 /**
  * Chip de uma perna da viagem: `↗ Ida · Qua 15/10 · 11:00`.
  * Sem modal, sem data e sem hora → não aparece (nada a dizer).
  */
-export function LegChip({ dir, mode, date, time, className }: LegChipProps) {
+export function LegChip({ dir, mode, date, time, className, compact = false }: LegChipProps) {
   // `legValue` primeiro: travessão solto no dado não pode virar chip.
   const m = asMode(legValue(mode) as string | null);
   const day = dayInfo(legValue(date));
@@ -138,10 +158,10 @@ export function LegChip({ dir, mode, date, time, className }: LegChipProps) {
       {day && (
         <>
           <span className="text-slate-300" aria-hidden="true">·</span>
-          <DayLabel v={date} />
+          {compact ? <span className="tabular-nums">{day.date}</span> : <DayLabel v={date} />}
         </>
       )}
-      {hour && (
+      {hour && !compact && (
         <>
           <span className="text-slate-300" aria-hidden="true">·</span>
           <span className="tabular-nums">{hour}</span>

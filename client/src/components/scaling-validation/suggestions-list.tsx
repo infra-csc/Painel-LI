@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { memo } from "react";
 import {
   CalendarDays, CheckCheck, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Clock, Lock,
   MessageSquareWarning, PencilLine, Trash2, Undo2,
@@ -20,7 +20,7 @@ import {
   lockReason, workDaysOf, ymd,
   type DecisionDescription, type SuggestionRow,
 } from "./types";
-import { DayLabel, LegChip, NeedChips, dayText, legValue } from "./logistics-chips";
+import { CHIP_NEUTRAL, DayLabel, LegChip, NeedChips, TABLE_TH, dayText, legValue } from "./logistics-chips";
 
 // Reexport: outros módulos (ex.: scaling-approval) importam daqui.
 export { workDaysOf } from "./types";
@@ -70,6 +70,10 @@ export type PendingDaysRow = Pick<SuggestionRow, "status" | "daysPending" | "val
  * `approverNames`: aprovador(es) da função, quando a tela souber — vai para o
  * tooltip da vaga validada ("quem tem de decidir"). Lista vazia é tratada pelo
  * `NoApproverBadge`.
+ *
+ * Selo SECUNDÁRIO (04/09): sem `tabIndex` — o texto do selo já diz tudo que
+ * importa ("pendente há 6 dias"); o tooltip é complemento para o mouse. Um
+ * tab-stop por selo fazia a fila de 40 linhas ter 120 paradas de teclado.
  */
 export function PendingDaysBadge({ row, approverNames }: { row: PendingDaysRow; approverNames?: string[] }) {
   const awaiting = row.status === SUGESTAO_STATUS.VALIDADA;
@@ -82,7 +86,7 @@ export function PendingDaysBadge({ row, approverNames }: { row: PendingDaysRow; 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span tabIndex={0} className={cn(BADGE, danger ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200")}>
+        <span className={cn(BADGE, danger ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200")}>
           <Clock className="w-3 h-3" aria-hidden="true" />
           {awaiting ? "aguardando aprovação" : "pendente"} há {days} {days === 1 ? "dia" : "dias"}
         </span>
@@ -118,6 +122,7 @@ export function PendingRequestBadge({ row }: { row: SuggestionRow }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
+        {/* Selo PRINCIPAL da vaga com pedido: fica focável — o motivo do pedido só existe no tooltip. */}
         <span tabIndex={0} className={cn(BADGE, "border-violet-200 bg-violet-50 text-violet-700")}>
           <MessageSquareWarning className="w-3 h-3" aria-hidden="true" /> Com pedido de {label.toLowerCase()}
         </span>
@@ -133,14 +138,14 @@ export function PendingRequestBadge({ row }: { row: SuggestionRow }) {
 
 /** Badge + tooltip de uma decisão do aprovador (comentário, quem e quando). */
 function DecisionBadge(
-  { d, heading, comment, byName, at }:
-  { d: DecisionDescription; heading: string; comment: string | null; byName: string | null; at: string | null },
+  { d, heading, label, comment, byName, at }:
+  { d: DecisionDescription; heading: string; label?: string; comment: string | null; byName: string | null; at: string | null },
 ) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span tabIndex={0} className={cn(BADGE, DECISION_TONE_CLASS[d.tone])}>
-          <Undo2 className="w-3 h-3" aria-hidden="true" /> {d.title}
+        <span className={cn(BADGE, DECISION_TONE_CLASS[d.tone])}>
+          <Undo2 className="w-3 h-3" aria-hidden="true" /> {label ?? d.title}
         </span>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-xs text-xs space-y-1">
@@ -176,8 +181,44 @@ export function VagaDecisionBadge({ info }: { info: LastVagaDecisionInfo | null 
   return <DecisionBadge d={d} heading={d.title} comment={info.comment} byName={info.byName} at={info.at} />;
 }
 
+const ts = (v: string | null | undefined) => (v ? new Date(v).getTime() || 0 : 0);
+
 /**
- * Todos os badges de status de uma vaga (mesma ordem na tabela e nos cards).
+ * UM selo "Voltou do aprovador" (04/09) no lugar de dois. A vaga podia carregar
+ * ao mesmo tempo a decisão sobre um PEDIDO e a decisão sobre a VAGA, e a linha
+ * mostrava dois selos compridos ("Devolvida pelo aprovador (reajuste)" +
+ * "Devolvida pelo aprovador para nova validação") dizendo quase a mesma coisa.
+ * Aqui vale a decisão MAIS RECENTE; o tooltip traz o título completo, o
+ * comentário e quem decidiu, e o drawer continua mostrando as duas na íntegra.
+ * O rótulo curto só vale quando a vaga de fato voltou (warn/danger); uma
+ * decisão positiva mantém o próprio título.
+ */
+function ReturnedBadge({ row }: { row: Pick<SuggestionRow, "lastDecision" | "lastVagaDecision"> }) {
+  const req = row.lastDecision ? describeLastDecision(row.lastDecision) : null;
+  const vaga = row.lastVagaDecision ? describeVagaDecision(row.lastVagaDecision) : null;
+  if (!req && !vaga) return null;
+  const useVaga = !!vaga && (!req || ts(row.lastVagaDecision?.at) >= ts(row.lastDecision?.at));
+  if (useVaga && vaga && row.lastVagaDecision) {
+    const info = row.lastVagaDecision;
+    return (
+      <DecisionBadge d={vaga} heading={vaga.title} label={vaga.tone === "ok" ? undefined : "Voltou do aprovador"}
+        comment={info.comment} byName={info.byName} at={info.at} />
+    );
+  }
+  if (req && row.lastDecision) {
+    const info = row.lastDecision;
+    const typeLabel = CHANGE_REQUEST_TYPE_LABELS[info.requestType] ?? info.requestType;
+    return (
+      <DecisionBadge d={req} heading={`${req.title} · pedido de ${typeLabel.toLowerCase()}`} label={req.tone === "ok" ? undefined : "Voltou do aprovador"}
+        comment={info.comment} byName={info.byName} at={info.at} />
+    );
+  }
+  return null;
+}
+
+/**
+ * Todos os badges de status de uma vaga (mesma ordem na tabela e nos cards):
+ * selo principal + dias parada + "voltou do aprovador".
  * `approverNames`: aprovador(es) da função — `undefined` quando a tela não sabe
  * (aí nada é afirmado); `[]` significa "função sem aprovador cadastrado".
  */
@@ -192,8 +233,7 @@ export function StatusCell({ row, approverNames }: { row: SuggestionRow; approve
         ? <PendingRequestBadge row={row} />
         : <SuggestionStatusBadge status={row.status} />}
       <PendingDaysBadge row={row} approverNames={approverNames} />
-      <LastDecisionBadge info={row.lastDecision} />
-      <VagaDecisionBadge info={row.lastVagaDecision} />
+      <ReturnedBadge row={row} />
     </div>
   );
 }
@@ -238,7 +278,7 @@ function PeriodCell({ row, className }: { row: SuggestionRow; className?: string
             {end && end !== start && <> – <DayLabel v={end} /></>}
           </>
         // Travessão solto não diz nada a quem lê: a falta vira frase.
-        : <span className="font-sans italic text-slate-400">Sem período</span>}
+        : <span className="font-sans italic text-slate-500">Sem período</span>}
       {" "}<span className="text-slate-500 font-sans">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
     </span>
   );
@@ -257,8 +297,13 @@ function PeriodCell({ row, className }: { row: SuggestionRow; className?: string
 /**
  * Ida/volta + o que a vaga precisa, em chips (uma coluna só de "Logística") —
  * mesma linguagem visual da grade da Sugestão (`logistics-chips`).
+ *
+ * `responsive` (04/09): abaixo de `xl` os chips saem na versão curta (só
+ * "Ida · 15/10"), que cabe na coluna estreita; de `xl` para cima, a versão
+ * inteira. São dois blocos com `hidden`, não uma media query em JS — a lista
+ * não precisa re-renderizar ao redimensionar.
  */
-function LogisticsChips({ row }: { row: SuggestionRow }) {
+function LogisticsChips({ row, responsive = false }: { row: SuggestionRow; responsive?: boolean }) {
   // `legValue` trata travessão solto como ausência: campo "—" não pode virar
   // chip nem fazer a vaga parecer que tem viagem.
   const hasLeg = [
@@ -266,14 +311,21 @@ function LogisticsChips({ row }: { row: SuggestionRow }) {
     row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime,
   ].some((v) => legValue(v) !== null);
   if (!hasLeg && !row.needsTicket && !row.needsAccommodation) {
-    return <span className="text-[11px] italic text-slate-400">Sem logística</span>;
+    return <span className="text-[11px] italic text-slate-500">Sem logística</span>;
   }
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <LegChip dir="ida" mode={row.transportModeIda} date={row.flightDepartureDate} time={row.flightArrivalSuggestedTime} />
-      <LegChip dir="volta" mode={row.transportModeVolta} date={row.flightReturnDate} time={row.flightReturnSuggestedTime} />
+  const chips = (compact: boolean) => (
+    <>
+      <LegChip dir="ida" mode={row.transportModeIda} date={row.flightDepartureDate} time={row.flightArrivalSuggestedTime} compact={compact} />
+      <LegChip dir="volta" mode={row.transportModeVolta} date={row.flightReturnDate} time={row.flightReturnSuggestedTime} compact={compact} />
       <NeedChips needsTicket={row.needsTicket} needsAccommodation={row.needsAccommodation} />
-    </div>
+    </>
+  );
+  if (!responsive) return <div className="flex flex-wrap items-center gap-1.5">{chips(false)}</div>;
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-1.5 xl:hidden">{chips(true)}</div>
+      <div className="hidden flex-wrap items-center gap-1.5 xl:flex">{chips(false)}</div>
+    </>
   );
 }
 
@@ -350,14 +402,18 @@ export function groupRowsByEvent(rows: SuggestionRow[]): EventGroup[] {
   );
 }
 
-/** Rótulo do evento na linha/no card — mesmo padrão tipográfico do módulo. */
-function EventLine({ row }: { row: SuggestionRow }) {
+/**
+ * Rótulo do evento na linha/no card — mesmo padrão tipográfico do módulo.
+ * Exportado (04/09): a confirmação do lote na tela usa a MESMA linha para
+ * dizer de que evento é cada vaga no modo "Todos os eventos".
+ */
+export function EventLine({ row, className }: { row: Pick<SuggestionRow, "eventName" | "eventStartDate" | "eventEndDate">; className?: string }) {
   const period = eventPeriodLabel(row);
   return (
-    <span className="flex items-center gap-1 text-[11px] text-slate-500 min-w-0">
+    <span className={cn("flex items-center gap-1 text-[11px] text-slate-500 min-w-0", className)}>
       <CalendarDays className="w-3 h-3 shrink-0 text-slate-400" aria-hidden="true" />
       <span className="truncate font-semibold text-slate-600">{row.eventName ?? "Evento sem nome"}</span>
-      {period && <span className="font-mono text-slate-400 whitespace-nowrap">· {period}</span>}
+      {period && <span className="font-mono text-slate-500 whitespace-nowrap">· {period}</span>}
     </span>
   );
 }
@@ -381,8 +437,8 @@ export interface SuggestionsListProps extends SuggestionRowActions {
   sortConfig: SortConfig<SuggestionSortField> | null;
   onSort: (field: SuggestionSortField) => void;
   onOpenDetail?: (row: SuggestionRow) => void;
-  /** Linha que acabou de receber um pedido — pulsa por 2s. */
-  highlightId?: string | null;
+  /** Linhas realçadas por um instante (pedido enviado; "Ver quais" do lote parcial). */
+  highlightIds?: ReadonlySet<string>;
   /**
    * Aprovador(es) cadastrados da função da linha (de /api/functions). Lista
    * vazia → a vaga validada não tem para quem ir (aviso na linha + banner da
@@ -397,7 +453,8 @@ export interface SuggestionsListProps extends SuggestionRowActions {
   showEvent?: boolean;
 }
 
-const TH = "px-3 py-2 text-left text-[11px] uppercase tracking-widest text-slate-500 font-semibold whitespace-nowrap";
+/** `<th>` no padrão do módulo (mesma tipografia do quadro "Escala"). */
+const TH = cn("px-3 py-2 text-left whitespace-nowrap", TABLE_TH);
 
 /** Botão de ordenação usado dentro dos `<th>` (o `<th>` carrega o `aria-sort`). */
 function SortButton({
@@ -441,6 +498,16 @@ const ICON_BTN = "inline-flex items-center justify-center w-7 h-7 rounded-lg bor
  * pedir exclusão como ícones, detalhe no fim. Quais aparecem sai de
  * `canValidate`/`canRequestChange` (availableSuggestionActions); travada mostra
  * o motivo — nunca `title` em elemento desabilitado.
+ *
+ * Na tabela (04/09) cada botão tem um LUGAR reservado: quando a ação não
+ * existe, entra um espaço invisível do mesmo tamanho, e a coluna "Ações" sai
+ * alinhada de cima a baixo — antes o botão "Ver detalhe" pulava para a
+ * esquerda nas linhas sem "Validar". Nos cards (`compact`) não há coluna a
+ * alinhar, então os espaços não entram.
+ *
+ * Os ícones usam `title` + `aria-label` em vez de Tooltip (04/09): três
+ * tooltips Radix por linha eram ~600 nós a mais numa lista de 200 vagas, para
+ * dizer o mesmo que o `title` nativo diz.
  */
 function RowActions({ row, onValidate, onAdjust, onDelete, onOpenDetail, compact }: SuggestionRowActions & {
   row: SuggestionRow; onOpenDetail?: (row: SuggestionRow) => void; compact?: boolean;
@@ -453,125 +520,172 @@ function RowActions({ row, onValidate, onAdjust, onDelete, onOpenDetail, compact
   // sua). O cadeado da primeira coluna continua explicando no tooltip.
   const lock = mayValidate || mayRequest ? null : lockReason(row);
   const reason = lock && !row.pendingRequest && row.status !== SUGESTAO_STATUS.VALIDADA ? lock : null;
+  /** Espaço do tamanho do botão ausente (só na tabela). */
+  const vazio = (w: string) => (compact ? null : <span className={cn("inline-block h-7", w)} aria-hidden="true" />);
+  const n = row.inclusionNumber;
   return (
     <div className={cn("inline-flex items-center gap-1.5", compact && "flex-wrap")}>
-      {mayValidate && (
+      {reason && <span className="mr-1 text-[11px] text-slate-500">{reason}</span>}
+      {mayValidate ? (
         <Button type="button" size="sm" onClick={() => onValidate!(row)}
-          className="h-7 rounded-lg bg-emerald-600 px-2.5 text-xs font-semibold text-white hover:bg-emerald-700">
+          className="h-7 w-[76px] rounded-lg bg-emerald-600 px-2 text-xs font-semibold text-white hover:bg-emerald-700">
           <CheckCheck className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Validar
         </Button>
-      )}
-      {mayRequest && onAdjust && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button type="button" onClick={() => onAdjust(row)} aria-label={`Pedir ajuste da vaga #${row.inclusionNumber}`}
-              className={cn(ICON_BTN, "border-slate-200 text-slate-600 hover:border-primary/30 hover:text-primary")}>
-              <PencilLine className="w-3.5 h-3.5" aria-hidden="true" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="text-xs">Pedir ajuste</TooltipContent>
-        </Tooltip>
-      )}
-      {mayRequest && onDelete && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button type="button" onClick={() => onDelete(row)} aria-label={`Pedir exclusão da vaga #${row.inclusionNumber}`}
-              className={cn(ICON_BTN, "border-red-200 text-red-700 hover:bg-red-50")}>
-              <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="text-xs">Pedir exclusão</TooltipContent>
-        </Tooltip>
-      )}
-      {reason && <span className="text-[11px] text-slate-400">{reason}</span>}
+      ) : vazio("w-[76px]")}
+      {mayRequest && onAdjust ? (
+        <button type="button" onClick={() => onAdjust(row)} aria-label={`Pedir ajuste da vaga #${n}`} title="Pedir ajuste"
+          className={cn(ICON_BTN, "border-slate-200 text-slate-600 hover:border-primary/30 hover:text-primary")}>
+          <PencilLine className="w-3.5 h-3.5" aria-hidden="true" />
+        </button>
+      ) : vazio("w-7")}
+      {mayRequest && onDelete ? (
+        <button type="button" onClick={() => onDelete(row)} aria-label={`Pedir exclusão da vaga #${n}`} title="Pedir exclusão"
+          className={cn(ICON_BTN, "border-red-200 text-red-700 hover:bg-red-50")}>
+          <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+        </button>
+      ) : vazio("w-7")}
       {onOpenDetail && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button type="button" onClick={() => onOpenDetail(row)} aria-label={`Ver detalhe da vaga #${row.inclusionNumber}`}
-              className={cn(ICON_BTN, "border-slate-200 text-slate-600 hover:border-primary/30 hover:text-primary")}>
-              <ChevronRight className="w-4 h-4" aria-hidden="true" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="text-xs">Ver detalhe</TooltipContent>
-        </Tooltip>
+        <button type="button" onClick={() => onOpenDetail(row)} aria-label={`Ver detalhe da vaga #${n}`} title="Ver detalhe"
+          className={cn(ICON_BTN, "border-slate-200 text-slate-600 hover:border-primary/30 hover:text-primary")}>
+          <ChevronRight className="w-4 h-4" aria-hidden="true" />
+        </button>
       )}
     </div>
   );
 }
 
+// ── Blocos compartilhados entre a linha da tabela e o card ──────────────────
+
+/** Nome da função — botão que abre o detalhe quando a lista permite. */
+function NameButton({ name, onOpen }: { name: string; onOpen?: () => void }) {
+  return onOpen ? (
+    <button type="button" onClick={onOpen} title={name}
+      className="block max-w-full truncate text-left text-[13px] font-semibold hover:text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm">
+      {name}
+    </button>
+  ) : (
+    <span className="block truncate text-[13px] font-semibold" title={name}>{name}</span>
+  );
+}
+
+/**
+ * "Área · observação" — a segunda linha do bloco "Vaga" (04/09): a área vira um
+ * chip neutro (é um rótulo, não uma frase) e a observação ganha duas linhas
+ * antes de cortar — numa linha só, "Levar rádio e colete; chegar às 6h para a
+ * montagem" virava "Levar rádio e col…", e o corte comia justamente a instrução.
+ */
+function AreaLine({ row }: { row: SuggestionRow }) {
+  const obs = row.observations?.trim();
+  return (
+    <span className="flex items-start gap-1.5 min-w-0">
+      <span className={cn(CHIP_NEUTRAL, "shrink-0")}>{row.area ?? "Sem área"}</span>
+      {obs && <span className="line-clamp-2 text-[11px] leading-4 text-slate-500" title={obs}>{obs}</span>}
+    </span>
+  );
+}
+
+/** Pulso da linha que acabou de receber um pedido — sem animação para quem pediu menos movimento. */
+const PULSE = "animate-pulse motion-reduce:animate-none ring-2 ring-inset ring-primary/40";
+
+interface TableRowProps extends SuggestionRowActions {
+  row: SuggestionRow;
+  name: string;
+  zebra: boolean;
+  selectable: boolean;
+  selected: boolean;
+  showSelection: boolean;
+  highlighted: boolean;
+  approverNames?: string[];
+  onToggle: (id: string) => void;
+  onOpenDetail?: (row: SuggestionRow) => void;
+}
+
+/**
+ * Uma linha da tabela — `memo` (04/09): digitar na busca ou marcar uma vaga
+ * re-renderizava a tela inteira, e com ela as 200 linhas. Com props primitivas
+ * e callbacks estáveis (a tela usa `useCallback`), só a linha que mudou volta
+ * a renderizar.
+ */
+const SuggestionTableRow = memo(function SuggestionTableRow({
+  row, name, zebra, selectable, selected, showSelection, highlighted, approverNames,
+  onToggle, onOpenDetail, onValidate, onAdjust, onDelete,
+}: TableRowProps) {
+  const reason = selectable ? null : lockReason(row);
+  const open = onOpenDetail ? () => onOpenDetail(row) : undefined;
+  return (
+    <tr data-testid={`suggestion-row-${row.inclusionNumber}`}
+      className={cn("border-b border-slate-100 transition-colors", selected ? "bg-brand-soft/50" : zebra ? "bg-slate-50/40" : "bg-white",
+        row.canEdit ? "text-slate-800" : "text-slate-600", highlighted && PULSE)}>
+      {/* Filete na altura toda da linha (absoluto dentro da célula): com 36px
+          fixos ele parecia um traço solto nas linhas de duas ou três alturas. */}
+      <td className="relative w-9 p-0">
+        <span className={cn("absolute inset-y-1.5 left-2 w-1 rounded-full", railClass(row.status))} aria-hidden="true" />
+      </td>
+      {showSelection && (
+        <td className="px-1 py-2 text-center">
+          {selectable ? (
+            <Checkbox checked={selected} onCheckedChange={() => onToggle(row.id)} aria-label={`Selecionar vaga #${row.inclusionNumber}`} />
+          ) : (
+            <LockedHint reason={reason ?? "Sem ações disponíveis"} />
+          )}
+        </td>
+      )}
+      {/* `align-top` nas duas: o chip "#" fica na linha do NOME, não flutuando
+          no meio de um bloco de três linhas. */}
+      <td className="px-3 py-2.5 align-top"><IdChip row={row} onClick={open} /></td>
+      <td className="px-3 py-2 align-top max-w-[300px]">
+        <div className="min-w-0 space-y-0.5">
+          <NameButton name={name} onOpen={open} />
+          <AreaLine row={row} />
+          {/* Abaixo de 2xl o período mora aqui, como 3ª linha do bloco "Vaga" —
+              a coluna própria só existe quando a tabela cabe inteira. */}
+          <span className="block text-xs 2xl:hidden"><PeriodCell row={row} /></span>
+        </div>
+      </td>
+      <td className="hidden px-3 py-2 text-xs whitespace-nowrap 2xl:table-cell"><PeriodCell row={row} /></td>
+      <td className="px-3 py-2"><LogisticsChips row={row} responsive /></td>
+      <td className="px-3 py-2 min-w-[220px]"><StatusCell row={row} approverNames={approverNames} /></td>
+      <td className="px-3 py-2 text-right whitespace-nowrap">
+        <RowActions row={row} onValidate={onValidate} onAdjust={onAdjust} onDelete={onDelete} onOpenDetail={onOpenDetail} />
+      </td>
+    </tr>
+  );
+});
+
 export function SuggestionsList({
   rows, functionNameById, selectableIds, selectedIds, onToggle, onToggleAll, showSelection, sortConfig, onSort,
-  onOpenDetail, highlightId, approverNamesFor, showEvent = false, onValidate, onAdjust, onDelete,
+  onOpenDetail, highlightIds, approverNamesFor, showEvent = false, onValidate, onAdjust, onDelete,
 }: SuggestionsListProps) {
   const selectableList = Array.from(selectableIds);
   const selectedVisible = selectableList.filter((id) => selectedIds.has(id)).length;
   const allSelected = selectableList.length > 0 && selectedVisible === selectableList.length;
   const someSelected = selectedVisible > 0 && !allSelected;
   /** Ações por linha só quando a tela permite agir (fora do modo leitura). */
-  const rowActions: SuggestionRowActions = showSelection ? { onValidate, onAdjust, onDelete } : {};
+  const acoes: SuggestionRowActions = showSelection ? { onValidate, onAdjust, onDelete } : {};
 
   const nameOf = (row: SuggestionRow) => functionNameById.get(row.functionId) ?? "Sem função";
   const rowTone = (row: SuggestionRow) => (row.canEdit ? "text-slate-800" : "text-slate-600");
-  const pulse = (row: SuggestionRow) => highlightId === row.id && "animate-pulse ring-2 ring-inset ring-primary/40";
-
-  const nameButton = (row: SuggestionRow) => (
-    onOpenDetail ? (
-      <button type="button" onClick={() => onOpenDetail(row)} title={nameOf(row)}
-        className="block max-w-full truncate text-left text-[13px] font-semibold hover:text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm">
-        {nameOf(row)}
-      </button>
-    ) : (
-      <span className="block truncate text-[13px] font-semibold" title={nameOf(row)}>{nameOf(row)}</span>
-    )
-  );
-
-  /** "Área · observação" — a segunda linha do bloco "Vaga". */
-  const areaLine = (row: SuggestionRow): ReactNode => {
-    const text = [row.area ?? "Sem área", row.observations?.trim()].filter(Boolean).join(" · ");
-    return <span className="block truncate text-[11px] text-slate-500" title={text}>{text}</span>;
-  };
 
   /** Uma linha da tabela (a mesma, agrupada por evento ou não). */
-  const tableRow = (row: SuggestionRow, i: number) => {
-    const selectable = selectableIds.has(row.id);
-    const selected = selectedIds.has(row.id);
-    const reason = selectable ? null : lockReason(row);
-    return (
-      <tr key={row.id} data-testid={`suggestion-row-${row.inclusionNumber}`}
-        className={cn("border-b border-slate-100 transition-colors", selected ? "bg-brand-soft/50" : i % 2 === 1 ? "bg-slate-50/40" : "bg-white", rowTone(row), pulse(row))}>
-        <td className="p-0 w-9">
-          <span className={cn("ml-2 block h-9 w-1 rounded-full", railClass(row.status))} aria-hidden="true" />
-        </td>
-        {showSelection && (
-          <td className="px-1 py-2 text-center">
-            {selectable ? (
-              <Checkbox checked={selected} onCheckedChange={() => onToggle(row.id)} aria-label={`Selecionar vaga #${row.inclusionNumber}`} />
-            ) : (
-              <LockedHint reason={reason ?? "Sem ações disponíveis"} />
-            )}
-          </td>
-        )}
-        <td className="px-3 py-2 max-w-[300px]">
-          <div className="flex items-center gap-2 min-w-0">
-            <IdChip row={row} onClick={onOpenDetail ? () => onOpenDetail(row) : undefined} />
-            <div className="min-w-0">
-              {nameButton(row)}
-              {areaLine(row)}
-            </div>
-          </div>
-        </td>
-        <td className="px-3 py-2 text-xs whitespace-nowrap"><PeriodCell row={row} /></td>
-        <td className="px-3 py-2"><LogisticsChips row={row} /></td>
-        <td className="px-3 py-2 min-w-[240px]"><StatusCell row={row} approverNames={approverNamesFor?.(row)} /></td>
-        <td className="px-3 py-2 text-right">
-          <RowActions row={row} {...rowActions} onOpenDetail={onOpenDetail} />
-        </td>
-      </tr>
-    );
-  };
+  const tableRow = (row: SuggestionRow, i: number) => (
+    <SuggestionTableRow
+      key={row.id}
+      row={row}
+      name={nameOf(row)}
+      zebra={i % 2 === 1}
+      selectable={selectableIds.has(row.id)}
+      selected={selectedIds.has(row.id)}
+      showSelection={showSelection}
+      highlighted={!!highlightIds?.has(row.id)}
+      approverNames={approverNamesFor?.(row)}
+      onToggle={onToggle}
+      onOpenDetail={onOpenDetail}
+      {...acoes}
+    />
+  );
 
   /** Colunas da tabela — o cabeçalho de grupo atravessa todas. */
-  const colCount = showSelection ? 7 : 6;
+  const colCount = showSelection ? 8 : 7;
   const groups = showEvent ? groupRowsByEvent(rows) : [];
 
   return (
@@ -582,11 +696,15 @@ export function SuggestionsList({
           NELE — que não rola — ou seja, o cabeçalho não gruda em lugar nenhum. */}
       <div className="hidden md:block rounded-2xl border border-slate-200 bg-white">
         {/* Sem altura máxima: a lista rola COM a página (nada de barra dentro de
-            barra). Até `xl` a tabela (980px) pode não caber e precisa da barra
+            barra). Até `xl` a tabela (820px) pode não caber e precisa da barra
             horizontal; de `xl` para cima ela cabe, o overflow volta a `visible`
-            e só então o cabeçalho consegue grudar no topo da página. */}
+            e só então o cabeçalho consegue grudar no topo da página.
+            Por que `xl` e não `lg` (04/09): em 1024px a área útil é 1024 −
+            248 do sidebar − 64 de padding = 712px — nenhuma tabela de sete
+            colunas cabe, e overflow visível ali só faria a tabela vazar do
+            card. Em 1280px (968px úteis) a versão compacta (~880px) cabe. */}
         <div className="overflow-x-auto xl:overflow-x-visible">
-          <table className="w-full min-w-[980px] text-sm">
+          <table className="w-full min-w-[820px] text-sm">
             <caption className="sr-only">Vagas sugeridas do evento</caption>
             {/* --sticky-top (main-layout) = barra do topo + banner de simulação:
                 o cabeçalho para EMBAIXO do que está fixo, nunca atrás. */}
@@ -604,17 +722,20 @@ export function SuggestionsList({
                     />
                   </th>
                 )}
-                <th scope="col" className={TH} aria-sort={ariaSort(sortConfig, "id", "function")}>
-                  <span className="inline-flex items-center gap-2">
-                    <SortButton field="id" label="#" sortConfig={sortConfig} onSort={onSort} />
-                    <SortButton field="function" label="Vaga" sortConfig={sortConfig} onSort={onSort} />
-                  </span>
+                {/* "#" e "Vaga" em colunas próprias (04/09): cada uma com o seu
+                    `aria-sort` — num `<th>` só, o leitor de tela anunciava
+                    "ordenado" sem dizer por qual dos dois. */}
+                <th scope="col" className={cn(TH, "w-[64px] pr-1")} aria-sort={ariaSort(sortConfig, "id")}>
+                  <SortButton field="id" label="#" sortConfig={sortConfig} onSort={onSort} />
                 </th>
-                <th scope="col" className={TH} aria-sort={ariaSort(sortConfig, "period")}>
+                <th scope="col" className={TH} aria-sort={ariaSort(sortConfig, "function")}>
+                  <SortButton field="function" label="Vaga" sortConfig={sortConfig} onSort={onSort} />
+                </th>
+                <th scope="col" className={cn(TH, "hidden 2xl:table-cell")} aria-sort={ariaSort(sortConfig, "period")}>
                   <SortButton field="period" label="Período / diárias" sortConfig={sortConfig} onSort={onSort} />
                 </th>
                 <th scope="col" className={TH}>Logística</th>
-                <th scope="col" className={cn(TH, "min-w-[240px]")}>Status</th>
+                <th scope="col" className={cn(TH, "min-w-[220px]")}>Status</th>
                 <th scope="col" className={cn(TH, "min-w-[180px] text-right")}>Ações</th>
               </tr>
             </thead>
@@ -626,10 +747,10 @@ export function SuggestionsList({
                   <tr className="bg-slate-50/80">
                     <th scope="colgroup" colSpan={colCount} className="border-y border-slate-200 px-3 py-1.5 text-left">
                       <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Evento</span>
+                        <span className={TABLE_TH}>Evento</span>
                         <span className="text-[13px] font-semibold text-slate-800">{g.name}</span>
                         {g.period && <span className="font-mono text-[11px] text-slate-500">{g.period}</span>}
-                        <span className="text-[11px] text-slate-400">· {g.rows.length} {g.rows.length === 1 ? "vaga" : "vagas"}</span>
+                        <span className="text-[11px] text-slate-500">· {g.rows.length} {g.rows.length === 1 ? "vaga" : "vagas"}</span>
                       </span>
                     </th>
                   </tr>
@@ -649,8 +770,9 @@ export function SuggestionsList({
           const selectable = selectableIds.has(row.id);
           const selected = selectedIds.has(row.id);
           const reason = selectable ? null : lockReason(row);
+          const open = onOpenDetail ? () => onOpenDetail(row) : undefined;
           return (
-            <li key={row.id} className={cn("overflow-hidden rounded-2xl border bg-white", selected ? "border-primary/40 bg-brand-soft/40" : "border-slate-200", rowTone(row), pulse(row))}>
+            <li key={row.id} className={cn("overflow-hidden rounded-2xl border bg-white", selected ? "border-primary/40 bg-brand-soft/40" : "border-slate-200", rowTone(row), highlightIds?.has(row.id) && PULSE)}>
               <div className="flex">
                 <span className={cn("w-1 shrink-0", railClass(row.status))} aria-hidden="true" />
                 <div className="flex-1 min-w-0 p-3 space-y-2">
@@ -662,12 +784,12 @@ export function SuggestionsList({
                           : <LockedHint reason={reason ?? "Sem ações disponíveis"} />}
                       </span>
                     )}
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 space-y-0.5">
                       <div className="flex items-center gap-1.5">
-                        <IdChip row={row} onClick={onOpenDetail ? () => onOpenDetail(row) : undefined} />
-                        <span className="min-w-0 flex-1">{nameButton(row)}</span>
+                        <IdChip row={row} onClick={open} />
+                        <span className="min-w-0 flex-1"><NameButton name={nameOf(row)} onOpen={open} /></span>
                       </div>
-                      {areaLine(row)}
+                      <AreaLine row={row} />
                       {showEvent && <EventLine row={row} />}
                     </div>
                   </div>
@@ -675,7 +797,7 @@ export function SuggestionsList({
                   <LogisticsChips row={row} />
                   <StatusCell row={row} approverNames={approverNamesFor?.(row)} />
                   <div className="flex justify-end pt-0.5">
-                    <RowActions row={row} {...rowActions} onOpenDetail={onOpenDetail} compact />
+                    <RowActions row={row} {...acoes} onOpenDetail={onOpenDetail} compact />
                   </div>
                 </div>
               </div>

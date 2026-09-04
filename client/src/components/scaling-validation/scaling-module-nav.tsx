@@ -42,11 +42,16 @@ export function ScalingModuleNav({ current, eventId, className }: ScalingModuleN
   const visible = SCREENS.filter((s) => hasPermission(user, s.permission));
   if (visible.length <= 1) return null;
   return (
-    <nav aria-label="Telas do módulo de Escala" className={cn("flex flex-nowrap shrink-0 items-center gap-1", className)}>
+    // `flex-wrap` (04/09): com `nowrap` + `shrink-0`, em telas estreitas a fila
+    // de quatro pills empurrava o botão "Incluir escalação" para fora da
+    // linha do cabeçalho. Abaixo de `sm` cada pill vira só o número (o rótulo
+    // fica em `sr-only`, então o leitor de tela continua ouvindo "Passo 2:
+    // Validação"); o `title` do link cobre quem passa o mouse.
+    <nav aria-label="Telas do módulo de Escala" className={cn("flex flex-wrap items-center gap-1", className)}>
       {visible.map((s) => {
         const active = s.key === current;
         const cls = cn(
-          "inline-flex items-center gap-1.5 rounded-full border pl-1 pr-2.5 py-0.5 text-[11px] font-medium leading-4 transition-colors",
+          "inline-flex items-center gap-1.5 rounded-full border pl-1 pr-1 sm:pr-2.5 py-0.5 text-[11px] font-medium leading-4 transition-colors",
           active
             ? "border-primary/30 bg-brand-soft text-primary cursor-default"
             : "border-slate-200 bg-white text-slate-500 hover:border-primary/30 hover:text-primary",
@@ -67,16 +72,18 @@ export function ScalingModuleNav({ current, eventId, className }: ScalingModuleN
             {s.passo}
           </span>
         );
+        // `sr-only sm:not-sr-only`: o rótulo some da tela (não do leitor) abaixo de `sm`.
+        const rotulo = <span className="sr-only sm:not-sr-only">{s.label}</span>;
         if (active) {
           return (
-            <span key={s.key} className={cls} aria-current="step">
-              {numero}<span className="sr-only">Passo {s.passo}: </span>{s.label}
+            <span key={s.key} className={cls} aria-current="step" title={`Passo ${s.passo} — ${s.label}`}>
+              {numero}<span className="sr-only">Passo {s.passo}: </span>{rotulo}
             </span>
           );
         }
         return (
           <Link key={s.key} href={scalingHref(s.path, eventId)} className={cls} title={eventId ? `Passo ${s.passo} — ${s.label}, mesmo evento` : `Passo ${s.passo} — ${s.label}`}>
-            {numero}<span className="sr-only">Passo {s.passo}: </span>{s.label}
+            {numero}<span className="sr-only">Passo {s.passo}: </span>{rotulo}
           </Link>
         );
       })}

@@ -85,7 +85,24 @@ export function workDaysOf(row: Pick<SuggestionRow, "workDays">): string[] {
 
 /** Estado da vaga no formato que a máquina do shared entende. */
 type ActionableRow = Pick<SuggestionRow, "canEdit" | "pendingRequest" | "status" | "phase">;
-const actionsOf = (r: ActionableRow) => availableSuggestionActions({ status: r.status, phase: r.phase });
+/**
+ * Cache das ações por `status|phase` (04/09). A máquina do shared é pura e o
+ * par (status, fase) tem meia dúzia de combinações, mas `canValidate` /
+ * `canRequestChange` / `canActOn` rodam por LINHA em vários `useMemo` da tela
+ * (selecionáveis, validáveis, filtro "só as minhas") e de novo em cada linha
+ * renderizada — com 200 vagas, são centenas de chamadas por render. O Map
+ * devolve a mesma lista para o mesmo par; a regra continua sendo a do shared.
+ */
+const actionsCache = new Map<string, ReturnType<typeof availableSuggestionActions>>();
+const actionsOf = (r: ActionableRow) => {
+  const key = `${r.status}|${r.phase}`;
+  let actions = actionsCache.get(key);
+  if (!actions) {
+    actions = availableSuggestionActions({ status: r.status, phase: r.phase });
+    actionsCache.set(key, actions);
+  }
+  return actions;
+};
 
 /** A vaga aceita a ação `validar` do usuário (só vaga ainda pendente)? */
 export function canValidate(r: ActionableRow): boolean {

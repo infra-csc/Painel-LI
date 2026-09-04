@@ -13,7 +13,7 @@ import type { ReactNode } from "react";
 import { Label } from "@/components/ui/label";
 import { formatDayMonthBr } from "@/lib/dates";
 import { cn, formatDiarias } from "@/lib/utils";
-import { LegChip, NeedChips } from "./logistics-chips";
+import { LegChip, NeedChips, SECTION_TITLE } from "./logistics-chips";
 import { workDaysOf, type SuggestionRow } from "./types";
 
 /** Dias de trabalho em "dd/mm – dd/mm" (ou o dia único). Vazio → "Sem período". */
@@ -71,13 +71,16 @@ export function VagaCard({ row, functionName, rotuloLogistica = "Logística", ba
 
       <p className="text-xs text-slate-600">
         <span className="font-mono tabular-nums text-slate-700">{periodoDaVaga(row)}</span>
-        <span className="text-slate-400"> · </span>
+        <span className="text-slate-500" aria-hidden="true"> · </span>
         {formatDiarias(dias.length || row.dailyRates || 0)}
       </p>
       {nota ? <p className="text-[11px] text-slate-500">{nota}</p> : null}
 
+      {/* Títulos e textos de ausência em slate-500 (04/09): slate-400 sobre
+          branco fica abaixo do contraste mínimo para texto; 400 é só para
+          ícone decorativo. */}
       <div className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{rotuloLogistica}</p>
+        <p className={SECTION_TITLE}>{rotuloLogistica}</p>
         {temLogistica ? (
           <div className="flex flex-wrap items-center gap-1.5">
             <NeedChips needsTicket={row.needsTicket} needsAccommodation={row.needsAccommodation} />
@@ -85,13 +88,13 @@ export function VagaCard({ row, functionName, rotuloLogistica = "Logística", ba
             <LegChip dir="volta" mode={row.transportModeVolta} date={row.flightReturnDate} time={row.flightReturnSuggestedTime} />
           </div>
         ) : (
-          <p className="text-xs italic text-slate-400">Sem passagem e sem hospedagem.</p>
+          <p className="text-xs italic text-slate-500">Sem passagem e sem hospedagem.</p>
         )}
       </div>
 
       <div className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Observações</p>
-        <p className={cn("text-xs", row.observations ? "text-slate-600" : "italic text-slate-400")}>
+        <p className={SECTION_TITLE}>Observações</p>
+        <p className={cn("text-xs", row.observations ? "text-slate-600" : "italic text-slate-500")}>
           {row.observations || "Sem observações."}
         </p>
       </div>
@@ -114,7 +117,7 @@ export function DiariasDerivadas({ dias, id }: { dias: number; id: string }) {
         <span className="text-[15px] font-bold tabular-nums text-slate-800">{dias}</span>
         <span className="text-xs text-slate-500">{dias === 1 ? "diária" : "diárias"}</span>
       </output>
-      <p className="text-[11px] text-slate-400">1 por dia de trabalho — muda ao marcar os dias acima.</p>
+      <p className="text-[11px] text-slate-500">1 por dia de trabalho — muda ao marcar os dias acima.</p>
     </div>
   );
 }

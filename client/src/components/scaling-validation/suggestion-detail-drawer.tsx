@@ -21,7 +21,7 @@ import {
   type ChangeRequestType, type SugestaoStatus, type TransportMode,
 } from "@shared/scaling-validation-rules";
 import { StatusCell } from "./suggestions-list";
-import { DayLabel, LegChip, NeedChip, dayInfo, dayText, legValue } from "./logistics-chips";
+import { DayLabel, LegChip, NeedChip, SECTION_TITLE, dayInfo, dayText, legValue } from "./logistics-chips";
 import {
   DECISION_TONE_CLASS, TEAM_INCLUSIONS_QUERY_KEY, canRequestChange, canValidate,
   describeLastDecision, describeVagaDecision, workDaysOf, type InclusionLog, type SuggestionRow,
@@ -175,7 +175,10 @@ function valueText(raw: string | null | undefined): string | null {
 
 // ── Estilo ───────────────────────────────────────────────────────────────────
 
-const SECTION = "flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400";
+// Título de seção do módulo (04/09): antes 10px/slate-400 só aqui — o mesmo
+// título era 11px/slate-500 nos cartões vizinhos, e o contraste de 400 sobre
+// branco não passa para texto.
+const SECTION = cn("flex items-center gap-1.5", SECTION_TITLE);
 const CARD = "rounded-2xl border border-slate-200 bg-white p-3.5 space-y-2";
 
 /** "Qua 20/08 14:32" — dia da semana como no resto do módulo. */
@@ -351,7 +354,7 @@ export function SuggestionDetailDrawer({
                     fica à esquerda do X (pr-8 reserva o lugar dele). */}
                 {canNavigate && (
                   <span className="ml-auto mr-8 flex shrink-0 items-center gap-1.5">
-                    <span className="text-[11px] tabular-nums text-slate-400">{index + 1} de {queue.length}</span>
+                    <span className="text-[11px] tabular-nums text-slate-500">{index + 1} de {queue.length}</span>
                     <button
                       type="button" onClick={() => prevRow && onNavigate!(prevRow)} disabled={!prevRow}
                       title="Vaga anterior (←)" aria-label="Vaga anterior"
@@ -381,7 +384,7 @@ export function SuggestionDetailDrawer({
                 {/* Decisão do aprovador (a vaga voltou) */}
                 {row.lastDecision && decision && (
                   <section aria-labelledby="det-decisao" className={cn("rounded-2xl border px-3.5 py-3 space-y-1", DECISION_TONE_CLASS[decision.tone])}>
-                    <p id="det-decisao" className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em]">
+                    <p id="det-decisao" className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide">
                       <Undo2 className="w-3.5 h-3.5" aria-hidden="true" /> {decision.title} · pedido de {(CHANGE_REQUEST_TYPE_LABELS[row.lastDecision.requestType] ?? row.lastDecision.requestType).toLowerCase()}
                     </p>
                     <p className="text-sm text-slate-800 whitespace-pre-wrap">{row.lastDecision.comment?.trim() ? row.lastDecision.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}</p>
@@ -392,7 +395,7 @@ export function SuggestionDetailDrawer({
                 {/* Decisão do aprovador sobre a VAGA (devolvida/reprovada/aprovada) */}
                 {row.lastVagaDecision && vagaDecision && (
                   <section aria-labelledby="det-decisao-vaga" className={cn("rounded-2xl border px-3.5 py-3 space-y-1", DECISION_TONE_CLASS[vagaDecision.tone])}>
-                    <p id="det-decisao-vaga" className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em]">
+                    <p id="det-decisao-vaga" className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide">
                       <Undo2 className="w-3.5 h-3.5" aria-hidden="true" /> {vagaDecision.title}
                     </p>
                     <p className="text-sm text-slate-800 whitespace-pre-wrap">{row.lastVagaDecision.comment?.trim() ? row.lastVagaDecision.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}</p>
@@ -403,7 +406,7 @@ export function SuggestionDetailDrawer({
                 {/* Pedido pendente */}
                 {pending && (
                   <section aria-labelledby="det-pedido" className="rounded-2xl border border-violet-200 bg-violet-50/60 px-3.5 py-3 space-y-1">
-                    <p id="det-pedido" className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-violet-700">
+                    <p id="det-pedido" className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-violet-700">
                       <MessageSquareWarning className="w-3.5 h-3.5" aria-hidden="true" /> Pedido de {(CHANGE_REQUEST_TYPE_LABELS[pending.requestType as ChangeRequestType] ?? pending.requestType).toLowerCase()} aguardando o aprovador
                     </p>
                     <p className="text-sm text-slate-800 whitespace-pre-wrap">{pending.reason}</p>
@@ -420,7 +423,7 @@ export function SuggestionDetailDrawer({
                         {end && end !== start && <> <span className="text-slate-300" aria-hidden="true">–</span> <DayLabel v={end} /></>}
                       </span>
                     ) : (
-                      <span className="text-slate-400">Período não definido</span>
+                      <span className="text-slate-500">Período não definido</span>
                     )}
                     <span className="inline-flex items-center rounded-md bg-brand-soft px-2 py-0.5 text-[11px] font-semibold tabular-nums text-primary">
                       {formatDiarias(days.length || row.dailyRates || 0)}
@@ -435,7 +438,7 @@ export function SuggestionDetailDrawer({
                         {days.map((d) => <DayChip key={d} v={d} />)}
                       </div>
                     ) : (
-                      <p className="text-xs text-slate-400">Nenhum dia marcado.</p>
+                      <p className="text-xs text-slate-500">Nenhum dia marcado.</p>
                     )}
                   </div>
                 </Card>
@@ -453,12 +456,12 @@ export function SuggestionDetailDrawer({
                         {row.needsTicket && <NeedChip kind="passagem" />}
                         {row.needsAccommodation && <NeedChip kind="hotel" />}
                       </div>
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-[11px] text-slate-500">
                         Modal, datas e horários vêm da sugestão da logística — mudar isso é pedido de ajuste.
                       </p>
                     </>
                   ) : (
-                    <p className="text-xs italic text-slate-400">Sem logística — esta vaga não precisa de passagem nem de hospedagem.</p>
+                    <p className="text-xs italic text-slate-500">Sem logística — esta vaga não precisa de passagem nem de hospedagem.</p>
                   )}
                 </Card>
 
@@ -467,7 +470,7 @@ export function SuggestionDetailDrawer({
                   {row.observations?.trim() ? (
                     <p className="whitespace-pre-wrap text-sm text-slate-800">{row.observations}</p>
                   ) : (
-                    <p className="text-xs italic text-slate-400">Sem observações — a logística não escreveu nada para esta vaga.</p>
+                    <p className="text-xs italic text-slate-500">Sem observações — a logística não escreveu nada para esta vaga.</p>
                   )}
                 </Card>
 
@@ -513,16 +516,16 @@ export function SuggestionDetailDrawer({
                                 sem "para", e guardar tudo pelo "para" fazia o
                                 registro sumir inteiro. */}
                             {(before || after) && (
-                              <p className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] text-slate-400">
+                              <p className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] text-slate-500">
                                 {before && (
                                   <>
                                     <span className="line-through decoration-slate-300">{before}</span>
-                                    {after && <ArrowRight className="h-3 w-3 shrink-0" aria-hidden="true" />}
+                                    {after && <ArrowRight className="h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />}
                                   </>
                                 )}
                                 {after
-                                  ? <span className="font-medium text-slate-500">{after}</span>
-                                  : <span className="italic text-slate-400">(esvaziado)</span>}
+                                  ? <span className="font-medium text-slate-600">{after}</span>
+                                  : <span className="italic">(esvaziado)</span>}
                               </p>
                             )}
                             <p className="mt-0.5 text-[11px] text-slate-500">{log.userName} · {fmtDateTime(log.createdAt)}</p>

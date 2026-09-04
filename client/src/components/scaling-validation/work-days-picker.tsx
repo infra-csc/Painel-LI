@@ -39,6 +39,19 @@ export function WorkDaysPicker({ rangeStart, rangeEnd, value, onChange, disabled
 
   const selected = useMemo(() => new Set(value), [value]);
   const pedidosSet = useMemo(() => new Set(pedidos ?? []), [pedidos]);
+  /**
+   * Atalhos (04/09): num evento de 6 dias, marcar tudo era seis cliques (ou
+   * saber do Shift+clique, que ninguém descobre sozinho). "Todos os dias do
+   * evento" marca só o período do evento — os dias de montagem/desmontagem
+   * já marcados fora dele FICAM (é união, não substituição). "Limpar" zera.
+   */
+  const eventDays = useMemo(
+    () => (rangeStart && rangeEnd ? days.filter((d) => d >= rangeStart && d <= rangeEnd) : []),
+    [days, rangeStart, rangeEnd],
+  );
+  const allEventSelected = eventDays.length > 0 && eventDays.every((d) => selected.has(d));
+  const marcarEvento = () => onChange(Array.from(new Set([...value, ...eventDays])).sort());
+  const ATALHO = "inline-flex h-7 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-medium text-slate-600 transition-colors hover:border-primary/30 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
   // Último dia clicado — âncora do shift+clique (seleciona o intervalo inteiro).
   const anchorRef = useRef<string | null>(null);
   const toggle = (d: string, shift: boolean) => {
@@ -61,6 +74,19 @@ export function WorkDaysPicker({ rangeStart, rangeEnd, value, onChange, disabled
 
   return (
     <div id={id} role="group" aria-label="Dias de trabalho" className="space-y-1.5">
+    {eventDays.length > 0 && (
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button" className={ATALHO} disabled={disabled || allEventSelected} onClick={marcarEvento}
+          title="Marca todos os dias do período do evento (dias já marcados fora dele continuam)"
+        >
+          Todos os dias do evento <span className="tabular-nums text-slate-500">({eventDays.length})</span>
+        </button>
+        <button type="button" className={ATALHO} disabled={disabled || value.length === 0} onClick={() => onChange([])}>
+          Limpar
+        </button>
+      </div>
+    )}
     <div className="flex flex-wrap gap-1.5">
       {days.map((d) => {
         const { date, dayName, isWeekend } = formatDateHeader(d);

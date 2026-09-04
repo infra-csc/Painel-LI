@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   CalendarDays, CheckCheck, CheckSquare, ChevronDown, ChevronUp, ClipboardCheck, CloudOff, Eye, EyeOff,
-  History, Info, MessageSquare, PencilLine, Plus, Search, Square, Trash2, Users, X,
+  Gauge, History, Info, PencilLine, Plus, Search, Square, StickyNote, Trash2, TriangleAlert, Users, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToastAction } from "@/components/ui/toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -31,7 +33,8 @@ import { scalingHref, useScalingEvent } from "@/lib/use-scaling-event";
 import { normalizeRole } from "@shared/roles";
 import type { Event, User as UserType } from "@shared/schema";
 import { ALL_EVENTS_ROW_LIMIT, SUGESTAO_STATUS, STALLED_DAYS, pendingSeverity } from "@shared/scaling-validation-rules";
-import { SuggestionsList, periodLabel, type SuggestionSortField } from "@/components/scaling-validation/suggestions-list";
+import { EventLine, SuggestionsList, groupRowsByEvent, periodLabel, type SuggestionSortField } from "@/components/scaling-validation/suggestions-list";
+import { SECTION_TITLE } from "@/components/scaling-validation/logistics-chips";
 import { ScheduleBoard } from "@/components/scaling-validation/schedule-board";
 import { AdjustRequestDialog, DeleteRequestDialog, IncludeRequestDialog } from "@/components/scaling-validation/change-request-dialogs";
 import { SuggestionDetailDrawer } from "@/components/scaling-validation/suggestion-detail-drawer";
@@ -47,11 +50,21 @@ import {
 const ALL = "all";
 const BASE_PATH = "/scaling-validation";
 const PULSE_MS = 2000;
+/** Realce mais longo para "Ver quais" (o usuário sai do toast e ainda precisa achar as linhas). */
+const PULSE_LONG_MS = 5000;
 /** Rede de segurança caso o drawer não avise que terminou de fechar (ver `runAfterDrawer`). */
 const AFTER_DRAWER_FALLBACK_MS = 400;
+/** Acima disto, "selecionar todas" pede confirmação — um clique no cabeçalho não pode montar um lote de 200. */
+const BIG_SELECTION = 50;
+/** Lista vazia congelada: `approverNamesFor` devolve sempre a MESMA referência para "sem aprovador" (as linhas são `memo`). */
+const NO_NAMES: string[] = [];
 
 /** Botão-chip da barra de contexto/filtros (mesma altura dos selects). */
 const CHIP_BTN = "inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none";
+
+/** "3 vagas" / "1 vaga" — plural de verdade, sem "(s)". */
+const vagas = (n: number) => `${n} ${n === 1 ? "vaga" : "vagas"}`;
+const eventos = (n: number) => `${n} ${n === 1 ? "evento" : "eventos"}`;
 
 /**
  * Botão com dica que também funciona no teclado.
@@ -61,17 +74,46 @@ const CHIP_BTN = "inline-flex h-9 items-center gap-2 rounded-lg border px-3 text
  * o gatilho passa a ser um `<span tabIndex={0}>` em volta (o padrão do resto do
  * app). Sem dica, devolve o botão puro.
  */
-function ActionWithHint({ hint, disabled, side = "top", children }: {
-  hint?: ReactNode; disabled?: boolean; side?: "top" | "bottom"; children: ReactElement;
+function ActionWithHint({ hint, disabled, side = "top", wrapClassName, children }: {
+  hint?: ReactNode; disabled?: boolean; side?: "top" | "bottom";
+  /** Classes do `<span>` que envolve o botão DESABILITADO (ex.: `flex-1` na barra empilhada do celular). */
+  wrapClassName?: string; children: ReactElement;
 }) {
   if (!hint) return children;
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        {disabled ? <span tabIndex={0} className="inline-flex">{children}</span> : children}
+        {disabled ? <span tabIndex={0} className={cn("inline-flex", wrapClassName)}>{children}</span> : children}
       </TooltipTrigger>
       <TooltipContent side={side} className="text-xs">{hint}</TooltipContent>
     </Tooltip>
+  );
+}
+
+/**
+ * Esqueleto da tela (04/09) com a MESMA forma do que vai aparecer — faixa de
+ * resumo, barra de filtros e linhas — para o conteúdo não "pular" quando os
+ * dados chegam. O `LoadingState` genérico (só linhas) fazia a página crescer
+ * 200px de uma vez.
+ */
+function ValidationSkeleton({ label }: { label: string }) {
+  // Só as partes decorativas ficam `aria-hidden`: o `LoadingState` no fim é
+  // quem anuncia o carregamento (role="status") ao leitor de tela.
+  return (
+    <div className="space-y-3">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white" aria-hidden="true">
+        <div className="h-10 border-b border-slate-200 bg-slate-50/60" />
+        <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 xl:grid-cols-6">
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-[58px] rounded-xl" />)}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2.5" aria-hidden="true">
+        <Skeleton className="h-9 min-w-[240px] flex-1 rounded-lg" />
+        <Skeleton className="h-9 w-[180px] rounded-lg" />
+        <Skeleton className="h-9 w-[160px] rounded-lg" />
+      </div>
+      <LoadingState count={5} className="rounded-2xl" label={label} />
+    </div>
   );
 }
 
@@ -83,6 +125,9 @@ const KPI_MATCH: Record<KpiFiltro, (r: SuggestionRow) => boolean> = {
   comPedido: (r) => r.status === SUGESTAO_STATUS.AJUSTE,
   atrasadas: (r) => r.status === SUGESTAO_STATUS.PENDENTE && pendingSeverity(r.daysPending) !== "ok",
 };
+
+/** Depois de validar, a vaga é do aprovador — a frase única da tela (toast, dica e confirmação). */
+const AFTER_VALIDATE_MSG = "Depois de validar, a vaga fica com o aprovador e não muda mais — se faltar gente, use Incluir escalação.";
 
 export default function ScalingValidationPage() {
   usePageTitle("Validação de Escala");
@@ -102,6 +147,12 @@ export default function ScalingValidationPage() {
   const { eventId, setEventId, sanitize } = useScalingEvent(BASE_PATH, { allEventsDefault: true });
   const [tab, setTab] = useState<"lista" | "escala" | "decididas">("lista");
   const [search, setSearch] = useState("");
+  /**
+   * A busca filtra com o valor ADIADO (04/09): o campo responde na hora e a
+   * lista (200 linhas, ordenação, agrupamento) corre atrás no próximo quadro —
+   * sem isso cada tecla travava o campo por um instante.
+   */
+  const deferredSearch = useDeferredValue(search);
   const [functionFilter, setFunctionFilter] = useState(ALL);
   const [areaFilter, setAreaFilter] = useState(ALL);
   const [onlyMine, setOnlyMine] = useState(false);
@@ -116,6 +167,8 @@ export default function ScalingValidationPage() {
   const [sortConfig, setSortConfig] = useState<SortConfig<SuggestionSortField> | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmValidate, setConfirmValidate] = useState(false);
+  /** "Selecionar todas" com mais de BIG_SELECTION vagas visíveis pede confirmação. */
+  const [confirmSelectAll, setConfirmSelectAll] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [includeOpen, setIncludeOpen] = useState(false);
@@ -128,7 +181,8 @@ export default function ScalingValidationPage() {
    */
   const [validateTargetIds, setValidateTargetIds] = useState<string[] | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [pulseId, setPulseId] = useState<string | null>(null);
+  /** Linhas realçadas por um instante (pedido enviado, "Ver quais" do lote parcial). */
+  const [pulseIds, setPulseIds] = useState<ReadonlySet<string>>(() => new Set());
   const pulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
   /** Ação que espera o drawer terminar de fechar — ver `runAfterDrawer`. */
@@ -136,6 +190,9 @@ export default function ScalingValidationPage() {
   const afterDrawerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Vaga a abrir no drawer assim que a validação corrente terminar ("Validar e próxima"). */
   const chainNextId = useRef<string | null>(null);
+  /** Espelho de `detailId` para os callbacks estáveis (as linhas da tabela são `memo`). */
+  const detailIdRef = useRef<string | null>(null);
+  detailIdRef.current = detailId;
 
   // Trocou de evento: limpa a seleção (evita agir em vaga que sumiu da lista).
   useEffect(() => { setSelected(new Set()); setDetailId(null); setRequestTargetId(null); setValidateTargetIds(null); }, [eventId]);
@@ -150,21 +207,38 @@ export default function ScalingValidationPage() {
   // `managers` desta tela vem do cadastro PRÓPRIO da Escala (27/08), não da
   // lista clássica de responsáveis da função.
   const { functions } = useEscalaManagers(funcoesCruas, usuariosParaNome);
+  /**
+   * Permissões ainda carregando (04/09): enquanto /api/functions não responde a
+   * tela não sabe se o usuário valida alguma função. Em vez de mostrar o botão
+   * e depois trocá-lo pelo banner de modo leitura (salto de layout), o botão
+   * vira um esqueleto e o lugar do banner fica reservado.
+   */
+  const permissoesCarregando = loadingFunctions && !functions;
   // Sem evento a rota devolve as vagas em validação de TODOS os eventos (o
   // servidor aplica o teto de ALL_EVENTS_ROW_LIMIT linhas, as mais antigas
-  // primeiro). A chave do cache mantém o eventId — a mesma de sempre quando há
-  // filtro, e "" no modo "todos".
-  const suggestionsQuery = useQuery<SuggestionRow[]>({
-    queryKey: [SUGGESTIONS_QUERY_KEY, eventId || "__todos__"],
-    queryFn: async () =>
-      (await apiRequest("GET", eventId ? `${SUGGESTIONS_QUERY_KEY}?eventId=${encodeURIComponent(eventId)}` : SUGGESTIONS_QUERY_KEY)).json(),
+  // primeiro, e anuncia o corte no cabeçalho `X-Scaling-Truncated`).
+  //
+  // Chave PRÓPRIA desta tela ("validacao"): a Aprovação e o "Copiar evento"
+  // usam `[SUGGESTIONS_QUERY_KEY, eventId]` esperando um ARRAY; aqui o cache
+  // guarda `{ rows, truncated }` — partilhar a chave quebraria as outras. A
+  // invalidação por prefixo (`invalidateScalingQueries`) continua alcançando.
+  const suggestionsQuery = useQuery<{ rows: SuggestionRow[]; truncated: boolean }>({
+    queryKey: [SUGGESTIONS_QUERY_KEY, "validacao", eventId || "__todos__"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", eventId ? `${SUGGESTIONS_QUERY_KEY}?eventId=${encodeURIComponent(eventId)}` : SUGGESTIONS_QUERY_KEY);
+      const rows = (await res.json()) as SuggestionRow[];
+      // O cabeçalho é a fonte de verdade do corte (04/09): antes a tela
+      // deduzia pelo tamanho (`>= limite`) e avisava "pode haver outras"
+      // numa lista que tinha EXATAMENTE o limite, sem nada cortado.
+      return { rows, truncated: res.headers.get("X-Scaling-Truncated") === "1" };
+    },
     // Quem não tem acesso vê o cartão de "Acesso negado" — nem chega a buscar.
     enabled: canAccess,
     staleTime: 15_000,
   });
-  const rows = useMemo(() => suggestionsQuery.data ?? [], [suggestionsQuery.data]);
+  const rows = useMemo(() => suggestionsQuery.data?.rows ?? [], [suggestionsQuery.data]);
   /** O servidor cortou a lista? (teto só existe no modo "todos os eventos"). */
-  const truncated = !eventId && rows.length >= ALL_EVENTS_ROW_LIMIT;
+  const truncated = !eventId && !!suggestionsQuery.data?.truncated;
   /** Quantos eventos há no conjunto exibido — só faz sentido no modo "todos". */
   const eventsInList = useMemo(() => new Set(rows.map((r) => r.eventId)).size, [rows]);
   /** Aba efetiva: sem evento, o quadro "Escala" não existe — cai na Lista. */
@@ -252,24 +326,33 @@ export default function ScalingValidationPage() {
     ])),
     [functions],
   );
+  // Só depois que /api/functions responde: enquanto carrega, a tela não sabe
+  // quem aprova (o tooltip da vaga validada omite). Função ESTÁVEL entre
+  // renders — é o que deixa as linhas `memo` da tabela pularem o re-render.
+  const approverNamesFor = useMemo(
+    () => (functions ? (r: SuggestionRow) => approverNamesByFunctionId.get(r.functionId) ?? NO_NAMES : undefined),
+    [functions, approverNamesByFunctionId],
+  );
 
   const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = deferredSearch.trim().toLowerCase();
+    // "#123" acha a vaga 123 (04/09): o chip da lista mostra "#123" e era isso
+    // que a pessoa copiava para a busca — e não achava nada. O "#" sai só da
+    // comparação com o número; nos textos (função, área, observação) a busca
+    // continua literal.
+    const qNum = q.replace(/^#/, "");
     const nameOf = (r: SuggestionRow) => functionNameById.get(r.functionId) ?? "";
     const periodKey = (r: SuggestionRow) => workDaysOf(r)[0] ?? String(r.scheduleStartDate ?? "").slice(0, 10) ?? "";
     const list = rows
       .filter((r) => functionFilter === ALL || r.functionId === functionFilter)
       .filter((r) => areaFilter === ALL || r.area === areaFilter)
       // "Só as minhas funções" = tudo em que o usuário PODE AGIR (validar OU
-      // pedir ajuste/exclusão), não só o que falta validar: a área pode pedir
-      // mudança a qualquer momento, e este é o único atalho para o validador
-      // rever o que já validou. Por isso o filtro pode mostrar MAIS vagas do
-      // que o número do KPI "Minhas pendentes" (que conta só as validáveis).
+      // pedir ajuste/exclusão) — o mesmo conjunto das linhas selecionáveis.
       .filter((r) => !onlyMine || canActOn(r))
       .filter((r) => !kpiFiltro || KPI_MATCH[kpiFiltro](r))
       .filter((r) => {
         if (!q) return true;
-        return nameOf(r).toLowerCase().includes(q) || String(r.inclusionNumber).includes(q) || (r.area ?? "").toLowerCase().includes(q) || (r.observations ?? "").toLowerCase().includes(q);
+        return nameOf(r).toLowerCase().includes(q) || (qNum !== "" && String(r.inclusionNumber).includes(qNum)) || (r.area ?? "").toLowerCase().includes(q) || (r.observations ?? "").toLowerCase().includes(q);
       });
     const byDefault = (a: SuggestionRow, b: SuggestionRow) => nameOf(a).localeCompare(nameOf(b), "pt-BR") || (a.inclusionNumber ?? 0) - (b.inclusionNumber ?? 0);
     if (!sortConfig) return list.sort(byDefault);
@@ -280,7 +363,7 @@ export default function ScalingValidationPage() {
       period: (a, b) => periodKey(a).localeCompare(periodKey(b)) || byDefault(a, b),
     };
     return list.sort((a, b) => dir * cmp[sortConfig.field](a, b));
-  }, [rows, functionFilter, areaFilter, onlyMine, kpiFiltro, search, functionNameById, sortConfig]);
+  }, [rows, functionFilter, areaFilter, onlyMine, kpiFiltro, deferredSearch, functionNameById, sortConfig]);
 
   const onSort = (field: SuggestionSortField) =>
     setSortConfig((prev) => (prev?.field === field ? (prev.direction === "asc" ? { field, direction: "desc" } : null) : { field, direction: "asc" }));
@@ -289,21 +372,27 @@ export default function ScalingValidationPage() {
   const clearFilters = () => { setSearch(""); setFunctionFilter(ALL); setAreaFilter(ALL); setOnlyMine(false); setKpiFiltro(null); };
 
   // ── Seleção ──
-  // Selecionáveis no evento inteiro (a seleção sobrevive ao filtro) e só as visíveis (para o "selecionar todas").
-  // Inclui as VALIDADAS: elas não podem ser validadas de novo, mas ainda aceitam
-  // pedido de ajuste/exclusão enquanto o aprovador não decidiu (availableSuggestionActions).
+  // Selecionáveis no evento inteiro (a seleção sobrevive ao filtro) e só as
+  // visíveis (para o "selecionar todas"). Selecionável = aceita ALGUMA ação da
+  // área (validar / pedir ajuste / pedir exclusão) — pela regra atual (26/08)
+  // é o mesmo que "ainda pendente": a vaga validada não aceita mais nada.
   const selectableAll = useMemo(
     () => new Set<string>(readOnlyMode ? [] : rows.filter(canActOn).map((r) => r.id)),
     [rows, readOnlyMode],
   );
-  /** Subconjunto que aceita "Validar" agora (vaga ainda pendente) — o resto só aceita pedido. */
-  const validatableAll = useMemo(
-    () => new Set<string>(readOnlyMode ? [] : rows.filter(canValidate).map((r) => r.id)),
-    [rows, readOnlyMode],
-  );
+  /**
+   * Subconjunto que aceita "Validar" agora. Derivado das selecionáveis (é um
+   * subconjunto delas), em vez de uma segunda varredura em todas as linhas.
+   */
+  const validatableAll = useMemo(() => {
+    const out = new Set<string>();
+    selectableAll.forEach((id) => { const r = rowById.get(id); if (r && canValidate(r)) out.add(id); });
+    return out;
+  }, [selectableAll, rowById]);
   const visibleIds = useMemo(() => new Set(filteredRows.map((r) => r.id)), [filteredRows]);
   const selectableVisible = useMemo(() => new Set(filteredRows.filter((r) => selectableAll.has(r.id)).map((r) => r.id)), [filteredRows, selectableAll]);
   const effectiveSelected = useMemo(() => Array.from(selected).filter((id) => selectableAll.has(id)), [selected, selectableAll]);
+  const effectiveSelectedSet = useMemo(() => new Set(effectiveSelected), [effectiveSelected]);
   const selectedRows = useMemo(() => effectiveSelected.map((id) => rowById.get(id)).filter((r): r is SuggestionRow => !!r), [effectiveSelected, rowById]);
   /** Selecionadas que ainda dá para validar (as já validadas ficam de fora do lote). */
   const validatableSelected = useMemo(() => effectiveSelected.filter((id) => validatableAll.has(id)), [effectiveSelected, validatableAll]);
@@ -317,6 +406,8 @@ export default function ScalingValidationPage() {
     () => validateIds.map((id) => rowById.get(id)).filter((r): r is SuggestionRow => !!r),
     [validateIds, rowById],
   );
+  /** Lote da confirmação agrupado por evento (só importa no modo "Todos os eventos"). */
+  const validateGroups = useMemo(() => groupRowsByEvent(validateRows), [validateRows]);
   const hiddenSelectedCount = useMemo(() => effectiveSelected.filter((id) => !visibleIds.has(id)).length, [effectiveSelected, visibleIds]);
   const singleSelected = selectedRows.length === 1 ? selectedRows[0] : null;
   // Em modo leitura não há seleção nem barra de ações — nem para o eventual
@@ -326,22 +417,32 @@ export default function ScalingValidationPage() {
   /** Alvo dos diálogos de ajuste/exclusão: a linha clicada ou a seleção única. */
   const requestTarget = requestTargetId ? rowById.get(requestTargetId) ?? null : null;
 
-  const toggle = (id: string) => setSelected((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const toggleAll = () => {
-    const all = Array.from(selectableVisible).every((id) => selected.has(id));
+  const toggle = useCallback((id: string) => setSelected((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; }), []);
+  const allVisibleSelected = useMemo(() => Array.from(selectableVisible).every((id) => selected.has(id)), [selectableVisible, selected]);
+  const applyToggleAll = (all: boolean) => {
     setSelected((prev) => {
       const n = new Set(prev);
       selectableVisible.forEach((id) => { if (all) n.delete(id); else n.add(id); });
       return n;
     });
   };
-
-  const pulseRow = (id: string | null) => {
-    if (!id) return;
-    if (pulseTimer.current) clearTimeout(pulseTimer.current);
-    setPulseId(id);
-    pulseTimer.current = setTimeout(() => setPulseId(null), PULSE_MS);
+  const toggleAll = () => {
+    // Marcar mais de BIG_SELECTION vagas de uma vez pede confirmação (04/09):
+    // em "Todos os eventos" um clique no cabeçalho montava um lote de 200
+    // vagas de eventos diferentes, e "Validar (200)" ficava a um clique.
+    if (!allVisibleSelected && selectableVisible.size > BIG_SELECTION) { setConfirmSelectAll(true); return; }
+    applyToggleAll(allVisibleSelected);
   };
+
+  /** Realça uma ou mais linhas por um instante (a última chamada substitui a anterior). */
+  const pulseRows = (ids: (string | null)[], ms = PULSE_MS) => {
+    const valid = ids.filter((id): id is string => !!id);
+    if (valid.length === 0) return;
+    if (pulseTimer.current) clearTimeout(pulseTimer.current);
+    setPulseIds(new Set(valid));
+    pulseTimer.current = setTimeout(() => setPulseIds(new Set()), ms);
+  };
+  const pulseRow = (id: string | null) => pulseRows([id]);
   /**
    * Pedido enviado: sai da seleção SÓ a vaga que virou pedido (ela deixa de
    * aceitar ações). Pedir ajuste pela LINHA de uma vaga não pode apagar o lote
@@ -360,29 +461,31 @@ export default function ScalingValidationPage() {
   };
 
   // ── Ações por vaga (linha, card e rodapé do drawer) ──
+  // Todas com `useCallback` (04/09): são props das linhas `memo` da tabela —
+  // recriadas a cada render, elas anulariam o memo.
   /** Executa a ação pendente que esperava o drawer fechar (idempotente). */
-  const flushAfterDrawer = () => {
+  const flushAfterDrawer = useCallback(() => {
     if (afterDrawerTimer.current) { clearTimeout(afterDrawerTimer.current); afterDrawerTimer.current = null; }
     const fn = pendingAfterDrawer.current;
     pendingAfterDrawer.current = null;
     fn?.();
-  };
+  }, []);
   /**
    * Abre um diálogo só DEPOIS que o drawer terminou de fechar: dois overlays
    * Radix trocando focus-trap/scroll-lock no mesmo tick deixam a página com o
    * scroll travado. O drawer avisa pelo `onClosed`; o timer é a rede de
    * segurança (animação desligada, remontagem…).
    */
-  const runAfterDrawer = (fn: () => void) => {
-    if (!detailId) { fn(); return; }
+  const runAfterDrawer = useCallback((fn: () => void) => {
+    if (!detailIdRef.current) { fn(); return; }
     pendingAfterDrawer.current = fn;
     setDetailId(null);
     if (afterDrawerTimer.current) clearTimeout(afterDrawerTimer.current);
     afterDrawerTimer.current = setTimeout(flushAfterDrawer, AFTER_DRAWER_FALLBACK_MS);
-  };
+  }, [flushAfterDrawer]);
 
   /** Validar uma vaga só: mesma confirmação do lote, mas com alvo próprio — a seleção fica intacta. */
-  const validateOne = (row: SuggestionRow) => runAfterDrawer(() => { setValidateTargetIds([row.id]); setConfirmValidate(true); });
+  const validateOne = useCallback((row: SuggestionRow) => runAfterDrawer(() => { setValidateTargetIds([row.id]); setConfirmValidate(true); }), [runAfterDrawer]);
 
   /**
    * "Validar e próxima" (rodapé do drawer): encadeia a fila sem passar pela
@@ -402,8 +505,9 @@ export default function ScalingValidationPage() {
     chainNextId.current = nextValidatableAfter(row)?.id ?? null;
     validateOne(row);
   };
-  const openAdjust = (row: SuggestionRow) => runAfterDrawer(() => { setRequestTargetId(row.id); setAdjustOpen(true); });
-  const openDelete = (row: SuggestionRow) => runAfterDrawer(() => { setRequestTargetId(row.id); setDeleteOpen(true); });
+  const openAdjust = useCallback((row: SuggestionRow) => runAfterDrawer(() => { setRequestTargetId(row.id); setAdjustOpen(true); }), [runAfterDrawer]);
+  const openDelete = useCallback((row: SuggestionRow) => runAfterDrawer(() => { setRequestTargetId(row.id); setDeleteOpen(true); }), [runAfterDrawer]);
+  const openDetail = useCallback((row: SuggestionRow) => setDetailId(row.id), []);
 
   // ── Resumo ──
   const counts = useMemo(() => ({
@@ -442,15 +546,27 @@ export default function ScalingValidationPage() {
       }
       const okN = res.ok?.length ?? 0;
       const skipped = res.skipped ?? [];
-      if (okN > 0) {
+      const reasons = Array.from(new Set(skipped.map((s) => s.reason))).slice(0, 3).join(" · ");
+      if (okN > 0 && skipped.length > 0) {
+        // Resultado PARCIAL num toast só (04/09): dois toasts empilhados (um
+        // verde, um vermelho) sobre o mesmo lote confundiam — e o vermelho
+        // não dizia QUAIS ficaram de fora. "Ver quais" realça as linhas.
         toast({
-          title: `${okN} vaga(s) validada(s)`,
-          description: "Elas seguem para a aprovação e ficam como “Validada pela área — aguardando aprovação”. Enquanto o aprovador não decide, ainda dá para pedir ajuste ou exclusão.",
+          title: `${okN} ${okN === 1 ? "validada" : "validadas"} · ${skipped.length} não ${skipped.length === 1 ? "validada" : "validadas"}`,
+          description: reasons,
+          action: (
+            <ToastAction altText="Realçar na lista as vagas que não foram validadas" onClick={() => pulseRows(skipped.map((s) => s.id), PULSE_LONG_MS)}>
+              Ver quais
+            </ToastAction>
+          ),
         });
-      }
-      if (skipped.length > 0) {
-        const reasons = Array.from(new Set(skipped.map((s) => s.reason))).slice(0, 3).join(" · ");
-        toast({ title: `${skipped.length} vaga(s) não validada(s)`, description: reasons, variant: "destructive" });
+      } else if (okN > 0) {
+        toast({
+          title: `${vagas(okN)} ${okN === 1 ? "validada" : "validadas"}`,
+          description: `${okN === 1 ? "Ela segue" : "Elas seguem"} para o aprovador. ${AFTER_VALIDATE_MSG}`,
+        });
+      } else if (skipped.length > 0) {
+        toast({ title: `${vagas(skipped.length)} não ${skipped.length === 1 ? "validada" : "validadas"}`, description: reasons, variant: "destructive" });
       }
     },
     onError: (err: ApiError) => {
@@ -484,13 +600,13 @@ export default function ScalingValidationPage() {
   const nVal = validatableSelected.length;
   /** Números do diálogo de confirmação: o alvo corrente (linha ou lote). */
   const nConfirm = validateIds.length;
-  const nConfirmTarget = validateTarget.length;
 
   /**
    * "Incluir escalação" — a área pode pedir vaga nova a QUALQUER momento, mesmo
    * com a lista vazia (evento sem sugestões, ou tudo já aprovado). Só depende de
-   * ser validador de alguma função e de ter um evento escolhido; por isso o botão
-   * aparece no cabeçalho E no estado vazio.
+   * ser validador de alguma função e de ter um evento escolhido. Mora no
+   * cabeçalho; o estado vazio oferece o mesmo caminho como link, sem repetir
+   * o botão (04/09).
    */
   const includeButton = (
     <ActionWithHint hint={includeDisabledReason} disabled={!!includeDisabledReason} side="bottom">
@@ -514,45 +630,112 @@ export default function ScalingValidationPage() {
     // Só as que dependem da ÁREA: o atraso das validadas é do aprovador e
     // aparece no badge "aguardando aprovação há N dias" de cada linha.
     Atrasadas: `Vagas que a área ainda não validou há ${STALLED_DAYS} dias ou mais.`,
-    // O número conta só o que FALTA validar; o clique liga o filtro "Só as
-    // minhas funções", que mostra tudo em que você pode agir (inclusive o que
-    // já validou e ainda aceita pedido). Por isso a lista pode ter mais linhas.
-    "Minhas pendentes": "Vagas que você pode validar agora (sem pedido pendente). Clique para filtrar a lista pelas suas funções — ela também mostra o que você já validou e ainda aceita pedido.",
+    // O número conta o que FALTA validar; o clique liga o filtro "Só as
+    // minhas funções" — o mesmo conjunto (regra de 26/08: validada não aceita
+    // mais nada da área).
+    "Minhas pendentes": "Vagas que você pode validar agora (sem pedido pendente). Clique para filtrar a lista pelas suas funções.",
     "Com pedido": "Vagas com pedido de ajuste/exclusão aguardando o aprovador.",
-    "Aguardando aprovação": "Vagas que a área já validou e agora aguardam a decisão do aprovador. Enquanto ele não decide, você ainda pode pedir ajuste ou exclusão.",
+    "Aguardando aprovação": `Vagas que a área já validou e agora aguardam a decisão do aprovador. ${AFTER_VALIDATE_MSG}`,
   };
-  const KPIS: { label: string; n: number; cls: string; filtro?: KpiFiltro | "minhas" }[] = [
+  type Kpi = { label: string; n: number; cls: string; filtro?: KpiFiltro | "minhas" };
+  /** O funil: da vaga sugerida à decisão do aprovador. */
+  const FUNIL: Kpi[] = [
     { label: "Vagas", n: counts.total, cls: "text-slate-800" },
     { label: "Aguardando validação", n: counts.pendentes, cls: "text-amber-700", filtro: "pendentes" },
     { label: "Aguardando aprovação", n: counts.aguardandoAprovacao, cls: "text-sky-700", filtro: "aguardandoAprovacao" },
     { label: "Com pedido", n: counts.comPedido, cls: "text-violet-700", filtro: "comPedido" },
+  ];
+  /** Recortes de "Aguardando validação" — não somam com o funil. */
+  const RECORTES: Kpi[] = [
     { label: "Atrasadas", n: counts.atrasadas, cls: counts.atrasadas ? "text-red-600" : "text-slate-800", filtro: "atrasadas" },
     { label: "Minhas pendentes", n: counts.minhas, cls: "text-primary", filtro: "minhas" },
   ];
   const KPI_BOX = "rounded-xl border px-3 py-2 text-left";
+  const renderKpi = ({ label, n, cls, filtro }: Kpi) => {
+    const tip = KPI_TOOLTIPS[label];
+    // "Vagas" é o total — não há o que recortar. "Minhas pendentes"
+    // liga o filtro "Só as minhas funções" (como sempre); os demais
+    // recortam por status, um de cada vez.
+    const ativo = filtro === "minhas" ? onlyMine : filtro !== undefined && kpiFiltro === filtro;
+    const clickable = filtro === "minhas" ? anyEditable : filtro !== undefined && (n > 0 || ativo);
+    const alternar = () => {
+      if (filtro === "minhas") { setOnlyMine((v) => !v); return; }
+      if (filtro) setKpiFiltro((atual) => (atual === filtro ? null : filtro));
+    };
+    const box = (
+      <div
+        key={label}
+        className={cn(KPI_BOX, "relative border-slate-200 bg-white",
+          clickable && "transition-colors hover:border-primary/30",
+          ativo && "border-primary/30 bg-brand-soft",
+          !clickable && tip && "cursor-help")}
+        tabIndex={!clickable && tip ? 0 : undefined}
+      >
+        <dt className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+          {label}{tip && <Info className="w-3 h-3 text-slate-400" aria-hidden="true" />}
+        </dt>
+        <dd className={cn("mt-0.5 text-xl font-bold tabular-nums", cls)}>
+          {n}
+          {/* Botão em cima do cartão inteiro: mantém o clique no KPI sem
+              quebrar o par <dt>/<dd> (botão não pode conter dt/dd). */}
+          {clickable && (
+            <button
+              type="button" aria-pressed={ativo}
+              aria-label={filtro === "minhas" ? `${label}: ${n}. Filtrar a lista pelas minhas funções` : `${label}: ${n}. ${ativo ? "Tirar o filtro" : "Filtrar a lista"}`}
+              onClick={alternar}
+              className="absolute inset-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          )}
+        </dd>
+      </div>
+    );
+    if (!tip) return box;
+    return (
+      <Tooltip key={label}>
+        <TooltipTrigger asChild>{box}</TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs text-xs">{tip}</TooltipContent>
+      </Tooltip>
+    );
+  };
+
+  /** Texto ao lado das abas — um por aba, para a aba "Decididas" não herdar a frase do quadro. */
+  const contadorDaAba = (() => {
+    switch (boardTab) {
+      case "lista":
+        return `${filteredRows.length} de ${vagas(rows.length)}${!eventId && eventsInList > 0 ? ` · ${eventos(eventsInList)}` : ""}`;
+      case "escala":
+        return "Quadro de todas as áreas (somente leitura)";
+      case "decididas":
+        return "Decisões já tomadas pelo aprovador (somente leitura)";
+    }
+  })();
 
   return (
     <PageContainer fluid className="pb-24">
       <div ref={topRef} aria-hidden="true" />
-      <PageHeader
-        icon={ClipboardCheck}
-        title="Validação de escala"
-        subtitle="Confira as vagas sugeridas pela logística: valide, peça ajuste ou exclusão, ou inclua vagas novas."
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <ScalingModuleNav current="validation" eventId={eventId} />
-            {/* Em modo leitura o botão nem aparece — o banner já explica o porquê. */}
-            {!readOnlyMode && includeButton}
-          </div>
-        }
-      />
-
-      {/* Barra de contexto: evento · período · escopo · comentários da logística */}
-      <section aria-label="Evento" className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft text-primary shrink-0" aria-hidden="true">
-            <CalendarDays className="w-4 h-4" />
-          </span>
+      {/* Cabeçalho + linha de contexto num bloco só (04/09): antes o evento
+          ficava num card próprio abaixo do título, e a página abria com três
+          faixas (título, evento, resumo) antes da primeira vaga. A linha do
+          evento é o "subtítulo" da página — fora do <p> do PageHeader porque
+          o combobox é um <div>. */}
+      <div className="space-y-2.5">
+        <PageHeader
+          icon={ClipboardCheck}
+          title="Validação de escala"
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <ScalingModuleNav current="validation" eventId={eventId} />
+              {/* Em modo leitura o botão nem aparece — o banner já explica o
+                  porquê. Permissão ainda carregando: esqueleto do mesmo
+                  tamanho, para o cabeçalho não mudar de altura. */}
+              {readOnlyMode ? null : permissoesCarregando
+                ? <Skeleton className="h-9 w-[150px] rounded-lg" aria-hidden="true" />
+                : includeButton}
+            </div>
+          }
+        />
+        <section aria-label="Evento" className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:pl-11">
+          <CalendarDays className="w-4 h-4 shrink-0 text-slate-400" aria-hidden="true" />
           {/* Cresce até 420px quando há espaço (31/08): em 260px fixos, nome
               de evento longo era cortado e o usuário não tinha como ler o
               resto — nem sabia em qual evento estava. */}
@@ -576,7 +759,7 @@ export default function ScalingValidationPage() {
           ) : (
             <p className="text-xs text-slate-500">
               {eventsInList > 0
-                ? `Vagas em validação de ${eventsInList} ${eventsInList === 1 ? "evento" : "eventos"} — escolha um para filtrar.`
+                ? `Vagas em validação de ${eventos(eventsInList)} — escolha um para filtrar.`
                 : "Todos os eventos — escolha um para filtrar."}
             </p>
           )}
@@ -595,87 +778,69 @@ export default function ScalingValidationPage() {
               className={cn(CHIP_BTN, "ml-auto h-8 border-slate-200 bg-white text-slate-600 hover:border-primary/30 hover:text-primary")}
             />
           )}
+          {/* "Nota da logística" (04/09): é o campo de observações do evento,
+              escrito pela logística ao montar a sugestão — "comentários"
+              confundia com a conversa do botão ao lado. */}
           {selectedEvent?.observations && (
             <button
               type="button" className={cn(CHIP_BTN, "h-8 border-slate-200 bg-white text-slate-600 hover:border-primary/30 hover:text-primary")}
               aria-expanded={showEventComments} aria-controls="val-event-obs"
               onClick={() => setShowEventComments((v) => !v)}
             >
-              <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
-              Comentários da logística
+              <StickyNote className="w-3.5 h-3.5" aria-hidden="true" />
+              Nota da logística
               {showEventComments ? <ChevronUp className="w-3 h-3 text-slate-400" aria-hidden="true" /> : <ChevronDown className="w-3 h-3 text-slate-400" aria-hidden="true" />}
             </button>
           )}
-        </div>
+        </section>
         {showEventComments && selectedEvent?.observations && (
-          <p id="val-event-obs" className="mt-2.5 border-t border-slate-100 pt-2.5 text-xs text-slate-600 whitespace-pre-wrap">
-            <span className="font-semibold text-slate-500">Comentários da logística: </span>{selectedEvent.observations}
+          <p id="val-event-obs" className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-600 whitespace-pre-wrap sm:ml-11">
+            <span className="font-semibold text-slate-500">Nota da logística: </span>{selectedEvent.observations}
           </p>
         )}
-      </section>
+      </div>
 
-      {readOnlyMode && (
+      {readOnlyMode ? (
         <div role="status" className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-700">
           <EyeOff className="w-4 h-4 shrink-0 text-slate-500" aria-hidden="true" />
           <span><span className="font-semibold">Modo leitura</span> — {readOnlyReason}</span>
         </div>
-      )}
+      ) : permissoesCarregando ? (
+        // Lugar do banner reservado enquanto a permissão não chega (sem salto).
+        <div className="h-[38px]" aria-hidden="true" />
+      ) : null}
 
-      {/* KPIs — somam SEMPRE o conjunto exibido (um evento ou todos). */}
+      {/* Resumo — soma SEMPRE o conjunto exibido (um evento ou todos). Card
+          com faixa de cabeçalho (04/09), como os cartões do detalhe da
+          inclusão: os seis números soltos na página pareciam parte dos
+          filtros. Funil de um lado, recortes do outro — "Atrasadas" e
+          "Minhas pendentes" são fatias de "Aguardando validação", não etapas,
+          e lado a lado com o funil pareciam somar com ele. */}
       {rows.length > 0 && (
-        // <dl>/<dt>/<dd>: cada KPI é um par rótulo/valor de verdade para o
-        // leitor de tela (um <div aria-label> sem role seria ignorado).
-        // Uma linha só, colunas de mesma largura (30/08): com quebra, o
-        // último indicador caía sozinho e esticado, parecendo outra coisa.
-        // Faltando espaço, a faixa rola em vez de quebrar.
-        <dl className="grid auto-cols-[minmax(150px,1fr)] grid-flow-col items-stretch gap-2 overflow-x-auto pb-1" aria-label="Resumo do evento">
-          {KPIS.map(({ label, n, cls, filtro }) => {
-            const tip = KPI_TOOLTIPS[label];
-            // "Vagas" é o total — não há o que recortar. "Minhas pendentes"
-            // liga o filtro "Só as minhas funções" (como sempre); os demais
-            // recortam por status, um de cada vez.
-            const ativo = filtro === "minhas" ? onlyMine : filtro !== undefined && kpiFiltro === filtro;
-            const clickable = filtro === "minhas" ? anyEditable : filtro !== undefined && (n > 0 || ativo);
-            const alternar = () => {
-              if (filtro === "minhas") { setOnlyMine((v) => !v); return; }
-              if (filtro) setKpiFiltro((atual) => (atual === filtro ? null : filtro));
-            };
-            const box = (
-              <div
-                key={label}
-                className={cn(KPI_BOX, "relative border-slate-200 bg-white",
-                  clickable && "transition-colors hover:border-primary/30",
-                  ativo && "border-primary/30 bg-brand-soft",
-                  !clickable && tip && "cursor-help")}
-                tabIndex={!clickable && tip ? 0 : undefined}
-              >
-                <dt className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                  {label}{tip && <Info className="w-3 h-3 text-slate-400" aria-hidden="true" />}
-                </dt>
-                <dd className={cn("mt-0.5 text-xl font-bold tabular-nums", cls)}>
-                  {n}
-                  {/* Botão em cima do cartão inteiro: mantém o clique no KPI sem
-                      quebrar o par <dt>/<dd> (botão não pode conter dt/dd). */}
-                  {clickable && (
-                    <button
-                      type="button" aria-pressed={ativo}
-                      aria-label={filtro === "minhas" ? `${label}: ${n}. Filtrar a lista pelas minhas funções` : `${label}: ${n}. ${ativo ? "Tirar o filtro" : "Filtrar a lista"}`}
-                      onClick={alternar}
-                      className="absolute inset-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    />
-                  )}
-                </dd>
-              </div>
-            );
-            if (!tip) return box;
-            return (
-              <Tooltip key={label}>
-                <TooltipTrigger asChild>{box}</TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs text-xs">{tip}</TooltipContent>
-              </Tooltip>
-            );
-          })}
-        </dl>
+        <section aria-labelledby="val-resumo" className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-brand-soft/60 px-4 py-2.5">
+            <Gauge className="w-4 h-4 text-primary" aria-hidden="true" />
+            <h2 id="val-resumo" className="text-[11px] font-black uppercase tracking-[0.12em] text-primary">
+              Resumo {eventId ? "do evento" : "de todos os eventos"}
+            </h2>
+            <span className="ml-auto text-[11px] text-slate-500">Clique num indicador para filtrar a lista.</span>
+          </div>
+          <div className="grid gap-3 p-3 xl:grid-cols-[minmax(0,1fr)_auto]">
+            {/* <dl>/<dt>/<dd>: cada KPI é um par rótulo/valor de verdade para o
+                leitor de tela (um <div aria-label> sem role seria ignorado).
+                Grade que QUEBRA (04/09) em vez de rolar para o lado: a faixa
+                de uma linha só escondia o último indicador sem barra visível. */}
+            <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Funil das vagas">
+              {FUNIL.map(renderKpi)}
+            </dl>
+            <div className="space-y-1.5 border-t border-slate-200 pt-3 xl:border-l xl:border-t-0 xl:pl-3 xl:pt-0">
+              <p className={SECTION_TITLE}>Recortes de “Aguardando validação”</p>
+              <dl className="grid grid-cols-2 gap-2 xl:grid-cols-[repeat(2,minmax(150px,1fr))]" aria-label="Recortes de aguardando validação">
+                {RECORTES.map(renderKpi)}
+              </dl>
+            </div>
+          </div>
+        </section>
       )}
 
       {/* Teto do modo "todos os eventos": a lista foi cortada, o filtro é a saída. */}
@@ -683,14 +848,14 @@ export default function ScalingValidationPage() {
         <p role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
           <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
           <span>
-            <span className="font-semibold">Mostrando as {ALL_EVENTS_ROW_LIMIT} vagas que esperam há mais tempo</span> — pode haver outras.
+            <span className="font-semibold">Mostrando as {ALL_EVENTS_ROW_LIMIT} vagas que esperam há mais tempo</span> — há outras fora da lista.
             Escolha um evento no filtro acima para ver a lista completa dele.
           </span>
         </p>
       )}
 
-      {suggestionsQuery.isLoading || (loadingFunctions && !functions) ? (
-        <LoadingState count={5} className="rounded-2xl" label={loadingFunctions ? "Carregando funções…" : "Carregando escala sugerida…"} />
+      {suggestionsQuery.isLoading || permissoesCarregando ? (
+        <ValidationSkeleton label={loadingFunctions ? "Carregando funções…" : "Carregando escala sugerida…"} />
       ) : loadError ? (
         <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5">
           <CloudOff className="w-4 h-4 shrink-0 text-red-600" aria-hidden="true" />
@@ -707,9 +872,14 @@ export default function ScalingValidationPage() {
             description={eventId
               ? "A logística ainda não enviou a escala sugerida deste evento, ou todas as vagas já foram aprovadas e seguiram para a Inclusão de Equipe. Você pode pedir a inclusão de uma vaga nova a qualquer momento."
               : "Nenhum evento tem vaga aguardando validação, pedido em aberto ou vaga esperando aprovação. Para pedir a inclusão de uma vaga nova, escolha um evento no filtro acima."}
-            action={!readOnlyMode ? includeButton : undefined}
+            // O botão "Incluir escalação" já está no cabeçalho; aqui o mesmo
+            // caminho vira um link, para não haver dois botões primários iguais.
+            action={!readOnlyMode && eventId && !includeDisabledReason ? (
+              <Button type="button" variant="link" size="sm" className="h-auto p-0 text-primary" onClick={() => setIncludeOpen(true)}>
+                <Plus className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Pedir uma vaga nova
+              </Button>
+            ) : undefined}
           />
-          {approvedGoesToScaling}
           {hasPermission(user, "canAccessScalingEventView") && (
             <p className="text-center">
               <Link href={scalingHref("/scaling-event-view", eventId)} className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-primary underline-offset-2 hover:underline">
@@ -721,14 +891,14 @@ export default function ScalingValidationPage() {
               quando as Decididas ficavam inalcançáveis (o vazio engolia as
               abas). O histórico aparece aqui mesmo, sem aba. */}
           <div className="pt-3">
-            <h3 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">
-              <ClipboardCheck className="h-3.5 w-3.5" aria-hidden="true" /> Decididas neste recorte
+            <h3 className={cn("mb-2 flex items-center gap-1.5", SECTION_TITLE)}>
+              <ClipboardCheck className="h-3.5 w-3.5" aria-hidden="true" /> Decididas
             </h3>
             <DecidedPanel eventId={eventId} functionNameById={functionNameById} />
           </div>
         </div>
       ) : (
-        <Tabs value={boardTab} onValueChange={(v) => setTab(v as "lista" | "escala")} className="space-y-3">
+        <Tabs value={boardTab} onValueChange={(v) => setTab(v as "lista" | "escala" | "decididas")} className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <TabsList className="rounded-xl">
               <TabsTrigger value="lista" className="rounded-lg">Lista</TabsTrigger>
@@ -737,11 +907,7 @@ export default function ScalingValidationPage() {
               {eventId && <TabsTrigger value="escala" className="rounded-lg">Escala</TabsTrigger>}
               <TabsTrigger value="decididas" className="rounded-lg">Decididas</TabsTrigger>
             </TabsList>
-            <p className="text-xs text-slate-500" aria-live="polite">
-              {boardTab === "lista"
-                ? `${filteredRows.length} de ${rows.length} vaga(s)${!eventId && eventsInList > 0 ? ` · ${eventsInList} ${eventsInList === 1 ? "evento" : "eventos"}` : ""}`
-                : "Quadro de todas as áreas (somente leitura)"}
-            </p>
+            <p className="text-xs text-slate-500" aria-live="polite">{contadorDaAba}</p>
           </div>
 
           <TabsContent value="lista" className="space-y-3 mt-0">
@@ -781,6 +947,9 @@ export default function ScalingValidationPage() {
                   Só as minhas funções
                 </button>
               )}
+              {/* O ÚNICO "Limpar filtros" da barra (04/09) — o estado vazio
+                  filtrado tem o dele; o aviso de seleção oculta, logo abaixo,
+                  já não repete o botão. */}
               {hasActiveFilters && (
                 <button type="button" onClick={clearFilters}
                   className="h-9 rounded-lg px-2 text-xs font-medium text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -792,8 +961,7 @@ export default function ScalingValidationPage() {
             {hiddenSelectedCount > 0 && (
               <p role="status" className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                 <Eye className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                {hiddenSelectedCount} {hiddenSelectedCount === 1 ? "vaga selecionada ficou oculta" : "vagas selecionadas ficaram ocultas"} pelo filtro — elas continuam na seleção.
-                <button type="button" onClick={clearFilters} className="ml-auto font-semibold underline underline-offset-2 hover:text-amber-900">Limpar filtros</button>
+                {hiddenSelectedCount} {hiddenSelectedCount === 1 ? "vaga selecionada ficou oculta" : "vagas selecionadas ficaram ocultas"} pelo filtro — {hiddenSelectedCount === 1 ? "ela continua" : "elas continuam"} na seleção.
               </p>
             )}
 
@@ -804,20 +972,18 @@ export default function ScalingValidationPage() {
                 rows={filteredRows}
                 functionNameById={functionNameById}
                 selectableIds={selectableVisible}
-                selectedIds={new Set(effectiveSelected)}
+                selectedIds={effectiveSelectedSet}
                 onToggle={toggle}
                 onToggleAll={toggleAll}
                 showSelection={anyEditable}
                 sortConfig={sortConfig}
                 onSort={onSort}
-                onOpenDetail={(r) => setDetailId(r.id)}
+                onOpenDetail={openDetail}
                 onValidate={validateOne}
                 onAdjust={openAdjust}
                 onDelete={openDelete}
-                highlightId={pulseId}
-                // Só depois que /api/functions responde: enquanto carrega, a
-                // tela não sabe quem aprova (o tooltip da vaga validada omite).
-                approverNamesFor={functions ? (r) => approverNamesByFunctionId.get(r.functionId) ?? [] : undefined}
+                highlightIds={pulseIds}
+                approverNamesFor={approverNamesFor}
                 // "Todos os eventos": a lista agrupa por evento e cada card
                 // ganha a linha do evento; com filtro, a barra já diz qual é.
                 showEvent={!eventId}
@@ -827,6 +993,15 @@ export default function ScalingValidationPage() {
           </TabsContent>
 
           <TabsContent value="escala" className="mt-0 space-y-2">
+            {/* O quadro soma TODAS as vagas do evento, sempre — quem chega da
+                Lista com filtro ligado precisa saber que os números aqui não
+                são os da lista filtrada (04/09). */}
+            {hasActiveFilters && (
+              <p role="status" className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                <Info className="w-3.5 h-3.5 shrink-0 text-slate-500" aria-hidden="true" />
+                O quadro sempre soma todas as áreas — os filtros da Lista não valem aqui.
+              </p>
+            )}
             <ScheduleBoard rows={rows} functionNameById={functionNameById} rangeStart={selectedEvent?.startDate} rangeEnd={selectedEvent?.endDate} />
             <p className="text-[11px] text-slate-500">Quadro de todas as áreas, somente leitura — vagas negadas não entram na soma.</p>
           </TabsContent>
@@ -839,89 +1014,130 @@ export default function ScalingValidationPage() {
         </Tabs>
       )}
 
-      {/* Barra de ações em massa */}
+      {/* Barra de ações em massa — empilha abaixo de `sm` (04/09): no celular
+          os quatro botões não cabiam numa linha com o contador e a barra
+          estourava a largura da tela. */}
       {nSel > 0 && (
         <div role="region" aria-label="Ações para as vagas selecionadas"
-          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-3xl rounded-2xl border border-slate-200 bg-white shadow-lg px-4 py-3 flex items-center gap-3">
-          <div className="mr-auto min-w-0">
-            <span className="block text-sm font-semibold text-slate-700">{nSel} {nSel === 1 ? "vaga selecionada" : "vagas selecionadas"}</span>
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex w-[calc(100%-2rem)] max-w-3xl flex-col items-stretch gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-lg sm:flex-row sm:items-center">
+          <div className="min-w-0 sm:mr-auto">
+            <span className="block text-sm font-semibold text-slate-700">{vagas(nSel)} {nSel === 1 ? "selecionada" : "selecionadas"}</span>
             {/* Frase inteira, nunca cortada no meio: em 1366px a dica encolhe
                 antes dos botões (min-w-0 + truncate), que ficam sempre na mesma
-                linha graças ao flex-nowrap do grupo ao lado. */}
-            <span className="block truncate text-[11px] text-slate-500">
-              {nSel > 1 ? "Ajuste e exclusão: uma vaga por vez." : "Validar age só sobre as que ainda estão pendentes."}
+                linha graças ao flex-nowrap do grupo ao lado. Abaixo de `sm`
+                ela sai — o espaço é dos botões. */}
+            <span className="hidden truncate text-[11px] text-slate-500 sm:block">
+              {nSel > 1 ? "Ajuste e exclusão: uma vaga por vez." : "Validar envia a vaga para o aprovador."}
             </span>
           </div>
-          <div className="flex items-center gap-2 flex-nowrap flex-shrink-0">
-          <Button type="button" size="sm" variant="ghost" className="rounded-lg text-slate-500" onClick={() => setSelected(new Set())} aria-label="Limpar seleção">
+          <div className="flex flex-nowrap items-center gap-2 sm:flex-shrink-0">
+          <Button type="button" size="sm" variant="ghost" className="shrink-0 rounded-lg text-slate-500" onClick={() => setSelected(new Set())} aria-label="Limpar seleção">
             <X className="w-4 h-4" />
           </Button>
           <ActionWithHint
-            disabled={!singleSelected}
+            disabled={!singleSelected} wrapClassName="flex-1 sm:flex-none"
             hint={singleSelected ? "Pedido para a vaga selecionada" : "Selecione apenas uma vaga para pedir ajuste"}
           >
-            <Button type="button" size="sm" variant="outline" className="rounded-lg" disabled={!singleSelected} onClick={() => singleSelected && openAdjust(singleSelected)}>
-              <PencilLine className="w-4 h-4 mr-1.5" /> Pedir ajuste
+            <Button type="button" size="sm" variant="outline" className="w-full flex-1 rounded-lg sm:w-auto sm:flex-none" disabled={!singleSelected} onClick={() => singleSelected && openAdjust(singleSelected)}>
+              <PencilLine className="w-4 h-4 sm:mr-1.5" /> <span className="sr-only sm:not-sr-only">Pedir ajuste</span>
             </Button>
           </ActionWithHint>
           <ActionWithHint
-            disabled={!singleSelected}
+            disabled={!singleSelected} wrapClassName="flex-1 sm:flex-none"
             hint={singleSelected ? "Pedido para a vaga selecionada" : "Selecione apenas uma vaga para pedir exclusão"}
           >
-            <Button type="button" size="sm" variant="outline" className="rounded-lg text-red-700 border-red-200 hover:bg-red-50" disabled={!singleSelected} onClick={() => singleSelected && openDelete(singleSelected)}>
-              <Trash2 className="w-4 h-4 mr-1.5" /> Pedir exclusão
+            <Button type="button" size="sm" variant="outline" className="w-full flex-1 rounded-lg border-red-200 text-red-700 hover:bg-red-50 sm:w-auto sm:flex-none" disabled={!singleSelected} onClick={() => singleSelected && openDelete(singleSelected)}>
+              <Trash2 className="w-4 h-4 sm:mr-1.5" /> <span className="sr-only sm:not-sr-only">Pedir exclusão</span>
             </Button>
           </ActionWithHint>
-          <ActionWithHint
-            disabled={nVal === 0 || validateMutation.isPending}
-            hint={nVal === 0 ? (nSel === 1 ? "Esta vaga já foi validada — aguarda o aprovador." : "As vagas selecionadas já foram validadas — aguardam o aprovador.") : undefined}
-          >
-            <Button type="button" size="sm" className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white"
-              onClick={() => { setValidateTargetIds(null); setConfirmValidate(true); }} disabled={nVal === 0 || validateMutation.isPending}>
-              <CheckCheck className="w-4 h-4 mr-1.5" /> Validar ({nVal})
-            </Button>
-          </ActionWithHint>
+          {/* Sem dica de "já validada": pela regra de 26/08 uma vaga validada
+              nem entra na seleção — o caso não existe mais. */}
+          <Button type="button" size="sm" className="flex-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 sm:flex-none"
+            onClick={() => { setValidateTargetIds(null); setConfirmValidate(true); }} disabled={nVal === 0 || validateMutation.isPending}>
+            <CheckCheck className="w-4 h-4 mr-1.5" /> Validar ({nVal})
+          </Button>
           </div>
         </div>
       )}
+
+      {/* Confirmar "selecionar todas" acima do teto */}
+      <AlertDialog open={confirmSelectAll} onOpenChange={setConfirmSelectAll}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Selecionar {vagas(selectableVisible.size)}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você vai marcar {vagas(selectableVisible.size)} de uma vez{!eventId && eventsInList > 1 ? `, de ${eventos(eventsInList)}` : ""}.
+              A validação em lote ainda pede confirmação, mas confira a lista antes — é fácil validar o que não devia num lote grande.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-lg">Voltar</AlertDialogCancel>
+            <AlertDialogAction className="rounded-lg" onClick={() => { applyToggleAll(false); setConfirmSelectAll(false); }}>
+              Selecionar {vagas(selectableVisible.size)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Confirmar validação */}
       {/* Fechar/cancelar zera só o alvo — a seleção do lote não é tocada. */}
       <AlertDialog open={confirmValidate} onOpenChange={(o) => { setConfirmValidate(o); if (!o) { setValidateTargetIds(null); chainNextId.current = null; } }}>
         <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Validar {nConfirm} {nConfirm === 1 ? "vaga" : "vagas"}?</AlertDialogTitle>
+            <AlertDialogTitle>Validar {vagas(nConfirm)}?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
                 <p>
-                  Você confirma que a escala sugerida está correta para {nConfirm === 1 ? "esta vaga" : "estas vagas"}. As vagas seguem para aprovação e ficam na lista como
-                  “Validada pela área — aguardando aprovação”. Enquanto o aprovador não decide, você ainda pode usar “Pedir ajuste” ou “Pedir exclusão”.
+                  Você confirma que a escala sugerida está correta para {nConfirm === 1 ? "esta vaga" : "estas vagas"}.
+                  {" "}{nConfirm === 1 ? "Ela segue" : "Elas seguem"} para o aprovador e {nConfirm === 1 ? "fica" : "ficam"} na lista como
+                  “Validada pela área — aguardando aprovação”.
                 </p>
-                {nConfirmTarget > nConfirm && (
-                  <p className="text-xs">
-                    {nConfirmTarget - nConfirm} das selecionadas {nConfirmTarget - nConfirm === 1 ? "já foi validada e não entra" : "já foram validadas e não entram"} neste lote.
+                {/* A consequência dita ANTES do clique (04/09) — o texto antigo
+                    prometia "ainda dá para pedir ajuste", o que a regra de
+                    26/08 não permite. */}
+                <p className="text-xs">{AFTER_VALIDATE_MSG}</p>
+                {/* Lote de vários eventos (só em "Todos os eventos"): dito em
+                    destaque, porque o número no título não conta isso. */}
+                {!eventId && validateGroups.length > 1 && (
+                  <p role="status" className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                    <TriangleAlert className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                    Este lote tem vagas de {eventos(validateGroups.length)}.
                   </p>
                 )}
-                <ul className="rounded-lg border border-slate-200 bg-white divide-y divide-slate-100 text-xs text-slate-700 overflow-hidden">
-                  {validateRows.slice(0, 5).map((r) => (
-                    <li key={r.id} className="flex items-center gap-2 px-3 py-1.5">
-                      <span className="rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800">#{r.inclusionNumber}</span>
-                      <span className="truncate font-semibold">{functionNameById.get(r.functionId) ?? "Sem função"}</span>
-                      <span className="ml-auto font-mono text-slate-500 whitespace-nowrap">{periodLabel(r)}</span>
+                {/* Lista COMPLETA e rolável (04/09): antes eram 5 e "… e mais
+                    N" — a pessoa confirmava um lote sem poder conferir o que
+                    havia nele. Em "Todos os eventos", agrupada por evento. */}
+                <ul className="max-h-[220px] overflow-y-auto rounded-lg border border-slate-200 bg-white text-xs text-slate-700" aria-label="Vagas deste lote">
+                  {(eventId ? [{ key: "__evento__", name: "", period: "", rows: validateRows }] : validateGroups).map((g) => (
+                    <li key={g.key}>
+                      {!eventId && (
+                        <div className="sticky top-0 border-b border-slate-200 bg-slate-50 px-3 py-1">
+                          <EventLine row={g.rows[0]} />
+                        </div>
+                      )}
+                      <ul className="divide-y divide-slate-100">
+                        {g.rows.map((r) => (
+                          <li key={r.id} className="flex items-center gap-2 px-3 py-1.5">
+                            <span className="rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800">#{r.inclusionNumber}</span>
+                            <span className="truncate font-semibold">{functionNameById.get(r.functionId) ?? "Sem função"}</span>
+                            <span className="ml-auto font-mono text-slate-500 whitespace-nowrap">{periodLabel(r)}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </li>
                   ))}
-                  {validateRows.length > 5 && <li className="px-3 py-1.5 text-slate-500">… e mais {validateRows.length - 5} {validateRows.length - 5 === 1 ? "vaga" : "vagas"}</li>}
                 </ul>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-lg" disabled={validateMutation.isPending}>Voltar</AlertDialogCancel>
+            {/* O botão declara a consequência — o mesmo padrão dos diálogos de decisão da Aprovação. */}
             <AlertDialogAction
               onClick={(e) => { e.preventDefault(); validateMutation.mutate({ ids: validateIds, fromRow: validateTargetIds !== null }); }}
-              disabled={nConfirm === 0 || validateMutation.isPending} className="rounded-lg bg-emerald-600 hover:bg-emerald-700"
+              disabled={nConfirm === 0 || validateMutation.isPending} className="rounded-lg min-w-[200px] bg-emerald-600 hover:bg-emerald-700"
             >
-              {validateMutation.isPending ? "Validando…" : "Validar"}
+              {validateMutation.isPending ? "Validando…" : `Validar ${vagas(nConfirm)} · enviar para aprovação`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -949,7 +1165,7 @@ export default function ScalingValidationPage() {
         // ‹ › e as setas do teclado andam nesta lista — a filtrada e ordenada
         // que está na tela, não em todas as vagas do evento.
         list={filteredRows}
-        onNavigate={(r) => setDetailId(r.id)}
+        onNavigate={openDetail}
         // Fora do modo leitura o rodapé do drawer repete as ações da linha.
         onValidate={anyEditable ? validateOne : undefined}
         onValidateAndNext={anyEditable ? validateAndNext : undefined}
