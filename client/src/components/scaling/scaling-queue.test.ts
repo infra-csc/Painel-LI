@@ -121,11 +121,15 @@ describe("contadores hipotéticos", () => {
   ];
 
   it("o número responde “quantas sobram se eu marcar isto, mantendo o resto”", () => {
-    // Com "precisa de passagem" já marcado, marcar "precisa de hotel" deixa 1.
+    // Com "precisa de passagem" marcado, "precisa de hotel" diz quantas
+    // dessas (a, b) precisam de hotel: 1.
     const ativas = { "pass:precisa": true };
     expect(contarComFlag(linhas, ativas, "hosp:precisa", ctx())).toBe(1);
-    // E o contador da própria opção marcada mostra o que sobraria ao DESMARCAR.
-    expect(contarComFlag(linhas, ativas, "pass:precisa", ctx())).toBe(3);
+    // A própria opção marcada mostra o recorte que ela dá (a, b) — não o que
+    // sobraria ao desmarcar (04/09: os filtros passaram a "conversar").
+    expect(contarComFlag(linhas, ativas, "pass:precisa", ctx())).toBe(2);
+    // A irmã da mesma lista conta sozinha: "não precisa" = c.
+    expect(contarComFlag(linhas, ativas, "pass:nao-precisa", ctx())).toBe(1);
   });
 });
 

@@ -48,7 +48,7 @@ import { useAttachments } from "@/components/scaling/use-attachments";
 import { exportScalingPdf, exportScalingXlsxColunas } from "@/components/scaling/export-scaling-xlsx";
 import { ExportColumnsDialog, type ExportScope } from "@/components/scaling/export-columns-dialog";
 import { getSaveBlockReason, getConfirmBlockReason, getBulkConfirmBlockReason } from "@/components/scaling/scaling-validation";
-import { describeLoadError, modalDataFromInclusion, type ModalData } from "@/components/scaling/scaling-utils";
+import { describeLoadError, modalDataFromInclusion, type ModalData, isEscalated } from "@/components/scaling/scaling-utils";
 import { DEFAULT_PERIOD, fazTesteDePeriodo, rotuloDoPeriodo, temRecorteDePeriodo, type PeriodConfig } from "@/components/scaling/scaling-period";
 import { ordenarEscalacoes } from "@/components/scaling/scaling-sort";
 import { getScalingStatusLabel } from "@/components/scaling/scaling-status";
@@ -363,8 +363,17 @@ export default function Scaling() {
         setShowModal(false);
         return;
       }
+      // "Salvar" com colaborador escolhido NÃO escala (04/09, #4166): a vaga
+      // segue aberta com nome até "Confirmar Escalação" — e é o Confirmar que
+      // manda cenotécnica para o gestor. A mensagem precisa dizer isso, senão
+      // a pessoa fecha o modal achando que escalou.
+      const salvouSemConfirmar = action !== "confirm" && !!updated.collaboratorId && !isEscalated(updated);
       setSuccessInfo({
-        message: action === "confirm" ? "Escalação confirmada com sucesso!" : "Alterações salvas com sucesso!",
+        message: action === "confirm"
+          ? "Escalação confirmada com sucesso!"
+          : salvouSemConfirmar
+            ? "Colaborador salvo — a vaga continua ABERTA até você clicar em Confirmar Escalação."
+            : "Alterações salvas com sucesso!",
         inclusionNumber,
         eventName: data.eventById.get(updated.eventId || selectedInclusion?.eventId || "")?.name ?? "—",
         collaboratorName: collabName,

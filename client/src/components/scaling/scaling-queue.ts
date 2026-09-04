@@ -181,10 +181,14 @@ export function fazTesteDeFlags(
 }
 
 /**
- * Quantas linhas sobram se eu marcar ISTO mantendo o resto — o número que
- * aparece ao lado de cada opção. Alternar a própria chave e recontar é o que
- * torna o contador honesto: ele responde pela combinação inteira, não pela
- * opção isolada.
+ * O número ao lado de cada opção: "quantas linhas DO RECORTE ATUAL são esta
+ * opção" (04/09). As outras listas entram como estão marcadas; a própria
+ * lista é ignorada (a opção conta sozinha, sem somar com as irmãs).
+ *
+ * Antes o número era "quantas sobrariam se eu alternasse esta opção" — com
+ * "Vaga aberta" marcada o contador dela dizia 3776 (o que sobraria ao
+ * DESMARCAR), e os filtros pareciam não conversar entre si. Agora, marcado
+ * "Precisa de passagem", cada opção diz quantas dessas vagas ela alcança.
  */
 export function contarComFlag(
   linhas: TeamInclusion[],
@@ -192,9 +196,12 @@ export function contarComFlag(
   key: FlagKey,
   ctx: QueueContext,
 ): number {
-  const hipotese = { ...ativas, [key]: !ativas[key] };
-  const teste = fazTesteDeFlags(hipotese, ctx);
-  return linhas.filter(teste).length;
+  const listaDaChave = listasDeFlags().find((l) => l.includes(key)) ?? [key];
+  const semAPropriaLista: Record<string, boolean> = { ...ativas };
+  for (const k of listaDaChave) delete semAPropriaLista[k];
+  const outras = fazTesteDeFlags(semAPropriaLista, ctx);
+  const esta = testeDaFlag(key, ctx);
+  return linhas.filter((i) => outras(i) && esta(i)).length;
 }
 
 /** Todas as chaves de flag, na ordem em que aparecem no popover. */
@@ -223,11 +230,14 @@ export function contadoresDasFlags(
   // Índices das opções de cada lista, para o "dentro da lista OU".
   const gruposIdx = listasDeFlags().map((keys) => keys.map((k) => TODAS_AS_FLAGS.indexOf(k)));
 
-  const passa = (linhaIdx: number, marcadas: boolean[]) => {
-    for (const grupo of gruposIdx) {
+  // A linha passa nas listas marcadas, IGNORANDO a lista `pular` (a da
+  // opção que está sendo contada).
+  const passaNasOutras = (linhaIdx: number, marcadas: boolean[], pular: number) => {
+    for (let g = 0; g < gruposIdx.length; g++) {
+      if (g === pular) continue;
       let temMarcada = false;
       let algumaBate = false;
-      for (const j of grupo) {
+      for (const j of gruposIdx[g]) {
         if (!marcadas[j]) continue;
         temMarcada = true;
         if (matriz[linhaIdx][j]) { algumaBate = true; break; }
@@ -238,12 +248,13 @@ export function contadoresDasFlags(
   };
 
   const base = TODAS_AS_FLAGS.map((k) => !!ativas[k]);
+  const listaDe = new Map<number, number>();
+  gruposIdx.forEach((grupo, g) => grupo.forEach((j) => listaDe.set(j, g)));
   const out: Record<string, number> = {};
   TODAS_AS_FLAGS.forEach((k, j) => {
-    const hipotese = base.slice();
-    hipotese[j] = !hipotese[j];
+    const g = listaDe.get(j) ?? -1;
     let n = 0;
-    for (let i = 0; i < linhas.length; i++) if (passa(i, hipotese)) n++;
+    for (let i = 0; i < linhas.length; i++) if (matriz[i][j] && passaNasOutras(i, base, g)) n++;
     out[k] = n;
   });
   return out;

@@ -173,10 +173,13 @@ export function detalheDaSituacao(
   if (opts.pedido) {
     const tipo = opts.pedido.requestType === "exclusao" ? "exclusão" : "ajuste";
     const quando = diaMes(opts.pedido.createdAt);
-    const texto = `Pedido de ${tipo} com o aprovador${quando ? ` desde ${quando}` : ""}`;
+    // Curto para caber numa linha do chip (04/09: três linhas na coluna
+    // Situação ficavam pesadas); o texto inteiro vai no tooltip.
+    const texto = `${tipo === "exclusão" ? "Exclusão" : "Ajuste"} c/ aprovador${quando ? ` · ${quando}` : ""}`;
+    const completo = `Pedido de ${tipo} com o aprovador${quando ? ` desde ${quando}` : ""}`;
     return {
       texto,
-      titulo: [texto, opts.pedido.requestedByName ? `por ${opts.pedido.requestedByName}` : null, opts.pedido.reason || null]
+      titulo: [completo, opts.pedido.requestedByName ? `por ${opts.pedido.requestedByName}` : null, opts.pedido.reason || null]
         .filter(Boolean).join(" · "),
       tom: "pedido",
     };
@@ -525,12 +528,12 @@ export default function ScalingTable({
                           âmbar, com ícone, que quebra linha em vez de cortar. */}
                       {detalhe && detalhe.tom === "pedido" ? (
                         <span
-                          className="inline-flex max-w-full items-start gap-1 rounded-md border px-[7px] py-[3px] text-[11px] font-semibold leading-tight"
+                          className="inline-flex max-w-full items-center gap-1 rounded-md border px-[7px] py-[2px] text-[11px] font-semibold leading-tight whitespace-nowrap"
                           style={{ background: "#FEF3C7", color: "#92400E", borderColor: "#FDE68A" }}
                           title={detalhe.titulo}
                           data-testid={`detalhe-situacao-${inclusion.id}`}
                         >
-                          <AlertTriangle className="mt-px h-3 w-3 shrink-0" aria-hidden="true" />
+                          <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
                           <span>{detalhe.texto}</span>
                         </span>
                       ) : detalhe && (

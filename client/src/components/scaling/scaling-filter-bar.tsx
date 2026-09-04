@@ -211,8 +211,8 @@ export default function ScalingFilterBar(p: Props) {
             {/* Dentro da lista OU, entre listas E: escrito porque é o que
                 permite "precisa de passagem E não comprada" e ninguém adivinha.
                 Passagem e Hospedagem têm duas listas cada (o traço separa). */}
-            <span className="ml-2 text-[12px] text-muted-foreground">
-              na mesma lista soma; entre listas (e grupos), cruza
+            <span className="ml-2 text-[12px] text-muted-foreground" title="O número ao lado de cada opção é quantas vagas do recorte atual ela alcança.">
+              mesma lista soma · entre listas cruza · nº = quantas do recorte
             </span>
             {nFlags > 0 && (
               <button
