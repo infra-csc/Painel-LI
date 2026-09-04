@@ -232,8 +232,8 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
               {confirm.rows.map((row) => (
                 <li key={row.id} className="flex items-center gap-2 px-3 py-1.5">
                   <span className="font-mono text-[11px] text-slate-500 tabular-nums">#{row.inclusionNumber}</span>
-                  <span className="font-semibold text-slate-800 truncate">{functionNameById.get(row.functionId) ?? "Sem função"}</span>
-                  {row.eventName && <span className="text-slate-500 truncate">· {row.eventName}</span>}
+                  <span className="font-semibold text-slate-800 break-words">{functionNameById.get(row.functionId) ?? "Sem função"}</span>
+                  {row.eventName && <span className="text-slate-500 break-words">· {row.eventName}</span>}
                 </li>
               ))}
             </ul>
