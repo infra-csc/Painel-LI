@@ -17,6 +17,13 @@ export interface EmptyStateProps {
   variant?: "default" | "filtered";
   onClearFilters?: () => void;
   className?: string;
+  /**
+   * `role="status"` (região live) — padrão `true`. Passe `false` quando o vazio
+   * mora DENTRO de uma área que já tem a própria região aria-live (ex.: a
+   * contagem "N de M" das abas do Histórico): dois live regions anunciando ao
+   * mesmo tempo se atropelam no leitor de tela.
+   */
+  live?: boolean;
 }
 
 /** Estado vazio padrão (lista sem itens / busca sem resultado). Só tokens, sem hex. */
@@ -28,11 +35,12 @@ export function EmptyState({
   variant = "default",
   onClearFilters,
   className,
+  live = true,
 }: EmptyStateProps) {
   const Icon = icon ?? (variant === "filtered" ? SearchX : Inbox);
   return (
     <div
-      role="status"
+      role={live ? "status" : undefined}
       className={cn(
         "flex flex-col items-center justify-center text-center rounded-xl border border-dashed border-border bg-card px-6 py-12",
         className,

@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useSearch } from "wouter";
 import {
-  AlertCircle, CalendarDays, CalendarRange, ClipboardCheck, Download, ExternalLink, Gavel,
-  History, PencilLine, Search, Send, Timer, Trash2,
+  AlertCircle, CalendarDays, CalendarRange, ChevronRight, ClipboardCheck, Download, ExternalLink, Gavel,
+  History, Info, PencilLine, Search, Send, Timer, Trash2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import { EventCommentsButton } from "@/components/scaling-validation/event-comme
 import { PageContainer } from "@/components/common/page-container";
 import { PageHeader } from "@/components/common/page-header";
 import { LoadingState } from "@/components/common/loading-state";
+import { EmptyState } from "@/components/common/empty-state";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -29,16 +30,17 @@ import { formatDateBr, formatDayMonthBr, todayIso } from "@/lib/dates";
 import { scalingHref, useScalingEvent } from "@/lib/use-scaling-event";
 import type { Event, ScalingChangeRequest, TeamInclusion } from "@shared/schema";
 import {
-  SUGESTAO_STATUS, SUGESTAO_STATUS_LABELS, TRANSPORT_MODE_LABELS, CHANGE_REQUEST_STATUS,
-  CHANGE_REQUEST_STATUS_LABELS, CHANGE_REQUEST_TYPE_LABELS,
-  isSuggestionInclusion, type SugestaoStatus, type TransportMode, type ChangeRequestStatus, type ChangeRequestType,
+  SUGESTAO_STATUS, SUGESTAO_STATUS_LABELS, CHANGE_REQUEST_STATUS, CHANGE_REQUEST_STATUS_LABELS,
+  CHANGE_REQUEST_TYPES, CHANGE_REQUEST_TYPE_LABELS,
+  isSuggestionInclusion, type SugestaoStatus, type ChangeRequestStatus, type ChangeRequestType,
 } from "@shared/scaling-validation-rules";
 import { workDaysOf, ymd, type FunctionWithManagers, type SuggestionRow } from "@/components/scaling-validation/types";
-import { SuggestionStatusBadge, periodLabel } from "@/components/scaling-validation/suggestions-list";
+import { SuggestionStatusBadge, legLabel, periodLabel } from "@/components/scaling-validation/suggestions-list";
+import { LegChip, NeedChips, legValue } from "@/components/scaling-validation/logistics-chips";
 import { ScheduleBoard } from "@/components/scaling-validation/schedule-board";
 import { buildReadDateList } from "@/components/scaling-validation/scaling-grid-utils";
 import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module-nav";
-import { RequestStatusBadge, RequestTypeBadge, ageLabel } from "@/components/scaling-approval/request-badges";
+import { RequestStatusBadge, RequestTypeBadge, ageLabel, formatDateTimeBr } from "@/components/scaling-approval/request-badges";
 import { APPROVAL_QUERY_KEYS } from "@/components/scaling-approval/types";
 
 const ALL = "all";
@@ -105,7 +107,13 @@ const ORIGIN_LABELS: Record<string, string> = { ...SUGESTAO_STATUS_LABELS, [IN_I
 /** Badge da coluna Origem/Status: sugestão (SUGESTAO_STATUS_LABELS), "Em Inclusão de Equipe" ou "Excluída em dd/mm". */
 function OriginBadge({ row }: { row: EventViewRow }) {
   if (isDeleted(row)) {
-    return <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700 whitespace-nowrap line-through decoration-red-300">{originLabel(row)}</span>;
+    // Só a palavra fica riscada: a data "em dd/mm" é informação viva (quando foi
+    // excluída) e riscada parecia um erro de digitação.
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700 whitespace-nowrap">
+        <span className="line-through decoration-red-300">{ORIGIN_LABEL_EXCLUIDA}</span> em {formatDayMonthBr(toDate(row.deletedAt))}
+      </span>
+    );
   }
   if (isSuggestionInclusion(row)) return <SuggestionStatusBadge status={row.status} />;
   return <span className="inline-flex items-center rounded-full border border-primary/30 bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-primary whitespace-nowrap">{ORIGIN_LABEL_INCLUSAO}</span>;
@@ -122,25 +130,24 @@ const ORIGIN_DOT: Record<string, string> = {
   [DELETED]: "bg-red-300",
 };
 
-function legLabel(mode: string | null | undefined, date: string | Date | null | undefined, time: string | null | undefined): string {
-  const parts: string[] = [];
-  if (mode) parts.push(TRANSPORT_MODE_LABELS[mode as TransportMode] ?? mode);
-  if (date) parts.push(formatDayMonthBr(ymd(date)));
-  if (time) parts.push(time);
-  // Perna sem modal, data nem hora ainda não foi decidida: dizer isso é mais
-  // útil do que um travessão, que o leitor confunde com "não tem".
-  return parts.length ? parts.join(" ") : "A definir";
-}
+/**
+ * Só a hora ("hh:mm"). Data+hora completa é `formatDateTimeBr` (compartilhado
+ * com a Aprovação); este fica porque a linha do tempo e a coluna "Hora" do CSV
+ * mostram a hora SEM a data — o dia já está no cabeçalho do grupo.
+ */
 const hhmm = (d: Date) => d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-function fmtDateTime(v: string | Date | null | undefined): string {
-  const d = toDate(v);
-  return d ? `${formatDateBr(d)} ${hhmm(d)}` : "Sem data";
-}
-/** "dd/mm hh:mm" — usado nas colunas compactas (Último movimento, hora da linha do tempo). */
+/**
+ * "dd/mm hh:mm" — colunas compactas (Último movimento, última movimentação da
+ * barra). Sem o ano de propósito: o evento cabe num mês ou dois e a coluna é
+ * estreita; a data completa mora no CSV e no drawer da vaga.
+ */
 function fmtShort(v: string | Date | null | undefined): string {
   const d = toDate(v);
   return d ? `${formatDayMonthBr(d)} ${hhmm(d)}` : "Sem data";
 }
+/** Alguma perna da viagem tem modal, data ou hora? (Mesmo critério do LegChip: sem nada, ele não desenha.) */
+const hasLeg = (mode: string | null | undefined, date: string | Date | null | undefined, time: string | null | undefined) =>
+  !!(legValue(mode) || legValue(date) || legValue(time));
 const DAY_MS = 86_400_000;
 function daysSince(v: unknown): number {
   const d = toDate(v);
@@ -176,13 +183,37 @@ function downloadCsv(filename: string, header: string[], lines: string[][]) {
   URL.revokeObjectURL(a.href);
 }
 
-/** Colunas anunciadas no diálogo de exportação (o CSV real segue esta ordem). */
+/**
+ * Colunas anunciadas no diálogo de exportação, NA ORDEM em que saem no CSV
+ * (ver `exportCsv`) — quem lê o diálogo e depois abre o arquivo encontra os
+ * grupos na mesma sequência. A coluna "Evento" do modo "todos" é anunciada à
+ * parte (`EXPORT_EVENT_COL`), porque só existe sem filtro de evento.
+ */
 const EXPORT_COLS: Record<Tab, [string, string][]> = {
   timeline: [["Quando", "data e hora"], ["Movimento", "tipo, título e descrição"], ["Quem", "autor do movimento"], ["Vagas", "#IDs e contagens envolvidas"], ["Comentário", "texto do pedido ou da decisão"]],
-  lista: [["Vaga", "#ID, função, área, observações"], ["Período", "dias de trabalho, diárias"], ["Logística", "ida, volta, passagem, hotel"], ["Situação", "origem/status, pedidos"], ["Último movimento", "o que aconteceu e quando"]],
-  escala: [["Função", "nome e área"], ["Vagas", "total por função"], ["Dias", "uma coluna por dia do período"], ["Pessoas-dia", "total por função e por dia"]],
+  lista: [["Vaga", "#ID, função, área, origem/status"], ["Período", "período, dias de trabalho, diárias"], ["Logística", "ida, volta, passagem, hotel"], ["Situação", "quantidade de pedidos, observações"], ["Último movimento", "o que aconteceu e quando"]],
+  escala: [["Função", "nome e área"], ["Vagas", "total por função"], ["Dias", "uma coluna por dia do período"], ["Pessoas-dia", "total por função, mais a linha Total por dia"]],
   pedidos: [["Pedido", "tipo, função, vaga, área"], ["Abertura", "solicitante e data"], ["Motivo", "texto do solicitante"], ["Decisão", "status, aprovador, data, comentário"]],
 };
+const EXPORT_EVENT_COL: [string, string] = ["Evento", "de qual evento é cada linha (modo \"Todos os eventos\")"];
+
+/** Linha do quadro função × dia agregada (CSV da Escala e lista mobile). */
+interface FunctionAggregate { functionId: string; name: string; area: string; vagas: number; perDay: Record<string, number>; total: number }
+/**
+ * Mesma agregação do ScheduleBoard: vagas e pessoas-dia por função (soma dos
+ * dias de trabalho de todas as áreas), em ordem alfabética. Fica fora do
+ * componente para o CSV e a lista mobile lerem os MESMOS números do quadro.
+ */
+function aggregateByFunction(rows: EventViewRow[], nameById: Map<string, string>): FunctionAggregate[] {
+  const byFn = new Map<string, FunctionAggregate>();
+  for (const r of rows) {
+    let l = byFn.get(r.functionId);
+    if (!l) { l = { functionId: r.functionId, name: nameById.get(r.functionId) ?? "Sem função", area: r.area ?? "", vagas: 0, perDay: {}, total: 0 }; byFn.set(r.functionId, l); }
+    l.vagas += 1;
+    for (const d of workDaysOf(r)) { l.perDay[d] = (l.perDay[d] || 0) + 1; l.total += 1; }
+  }
+  return Array.from(byFn.values()).sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+}
 
 // ── Linha do tempo ───────────────────────────────────────────────────────────
 
@@ -211,7 +242,15 @@ interface TlEntry {
   linkLabel?: string;
   /** Evento do movimento — a linha do tempo agrupa por ele no modo "todos". */
   eventId?: string;
+  /**
+   * Texto pesquisável já em minúsculas (título, descrição, tag, autor, citação
+   * e chips). Pré-computado UMA vez por movimento: a busca re-filtra a cada
+   * tecla e montar essa string por cartão a cada vez era o custo dominante.
+   */
+  haystack: string;
 }
+/** Movimento antes de ganhar o `haystack` (montado de uma vez no fim). */
+type TlDraft = Omit<TlEntry, "haystack">;
 
 /**
  * Agrupa por minuto: um envio/validação/exclusão em lote vira UM movimento.
@@ -239,36 +278,17 @@ function namesOf(rows: EventViewRow[], nameById: Map<string, string>, max = 4): 
 const idChips = (rows: EventViewRow[], max = 8) =>
   rows.slice(0, max).map((r) => `#${r.inclusionNumber}`).concat(rows.length > max ? [`+${rows.length - max}`] : []);
 
-// ── Estado vazio local ───────────────────────────────────────────────────────
-
-/**
- * Cópia local do EmptyState com uma diferença de a11y: `role="status"` só nos
- * estados de PÁGINA. Dentro das abas, a contagem já é a (única) região
- * aria-live da tela — dois live regions simultâneos se atropelam no leitor.
- */
-function ViewEmpty({ icon: Icon, title, description, onClear, live }: {
-  icon: LucideIcon; title: string; description?: string; onClear?: () => void; live?: boolean;
-}) {
-  return (
-    <div role={live ? "status" : undefined} className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center">
-      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500">
-        <Icon className="h-6 w-6" aria-hidden="true" />
-      </div>
-      <p className="text-sm font-semibold text-slate-800">{title}</p>
-      {description && <p className="mt-1 max-w-md text-xs text-slate-500">{description}</p>}
-      {onClear && (
-        <Button type="button" variant="outline" size="sm" className="mt-4 rounded-lg" onClick={onClear}>Limpar filtros</Button>
-      )}
-    </div>
-  );
-}
-
 /** Quantos eventos a linha do tempo mostra por vez no modo "Todos os eventos". */
 const TIMELINE_EVENTS_STEP = 3;
 
-const TH = "px-3 py-2 text-left text-[11px] uppercase tracking-widest text-slate-500 font-semibold whitespace-nowrap";
+/** Cabeçalho de tabela — mesmo padrão das outras telas do módulo. */
+const TH = "px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-slate-500 whitespace-nowrap";
+/** Título de seção/rótulo de grupo (design system: 11px, bold, caixa alta, slate-500). */
+const SECTION = "text-[11px] font-bold uppercase tracking-wide text-slate-500";
 const LABEL = "text-xs text-slate-500";
 const CHIP = "inline-flex items-center h-[22px] rounded-full px-2 text-[11px] font-medium";
+/** Contêiner com rolagem horizontal alcançável pelo teclado (tabIndex + região nomeada). */
+const SCROLL_X = "overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
 
 export default function ScalingEventViewPage() {
   usePageTitle("Histórico da Escala");
@@ -298,25 +318,43 @@ export default function ScalingEventViewPage() {
   /**
    * Aba EFETIVA: sem evento selecionado o quadro "Escala" não existe (função ×
    * dia de eventos diferentes na mesma coluna não quer dizer nada), então um
-   * `?tab=escala` antigo cai na Lista. Tudo que descreve a aba VISÍVEL —
-   * contagem, exportação, banner — lê daqui; só a URL continua com `tab`.
+   * `?tab=escala` sem evento mostra a Lista — com a aba "Escala" desabilitada
+   * e um aviso acima da Lista dizendo o porquê (`escalaSemEvento`), em vez de
+   * trocar de aba em silêncio. Tudo que descreve a aba VISÍVEL — contagem,
+   * exportação, banner — lê daqui; só a URL continua com `tab`.
    */
   const effectiveTab: Tab = !eventId && tab === "escala" ? "lista" : tab;
+  const escalaSemEvento = !eventId && tab === "escala";
 
   const [search, setSearch] = useState("");
+  /**
+   * A busca re-filtra três listas (linha do tempo, vagas e pedidos) a cada
+   * tecla; o valor adiado deixa o campo responder na hora e as listas correrem
+   * atrás — em evento grande a digitação parava de engasgar.
+   */
+  const deferredSearch = useDeferredValue(search);
+  /**
+   * Origem/status é UM filtro para a Lista e o quadro (era um estado por aba,
+   * e o KPI clicado numa aba não se refletia na outra). A legenda do quadro
+   * escreve aqui também.
+   */
   const [originFilter, setOriginFilter] = useState(ALL);
   const [functionFilter, setFunctionFilter] = useState(ALL);
-  /** Filtro de status do quadro (legenda clicável). */
-  const [boardFilter, setBoardFilter] = useState(ALL);
+  /** Filtros da aba Pedidos (tipo e status) — a busca é a mesma das outras abas. */
+  const [requestTypeFilter, setRequestTypeFilter] = useState(ALL);
+  const [requestStatusFilter, setRequestStatusFilter] = useState(ALL);
   /** Categorias visíveis na linha do tempo. */
   const [tlCats, setTlCats] = useState<TlCat[]>(TL_ORDER);
   const [exportOpen, setExportOpen] = useState(false);
   /** Quantos eventos a linha do tempo mostra no modo "Todos os eventos". */
   const [visibleEvents, setVisibleEvents] = useState(TIMELINE_EVENTS_STEP);
+  /** Envolve o combobox de evento: o aviso "escolha um evento" leva o foco até ele. */
+  const eventPickerRef = useRef<HTMLDivElement>(null);
+  const focusEventPicker = () => eventPickerRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
 
   // ── Dados ──
   const { data: events, isLoading: loadingEvents } = useQuery<Event[]>({ queryKey: ["/api/events"] });
-  const { data: functions } = useQuery<FunctionWithManagers[]>({ queryKey: ["/api/functions"] });
+  const { data: functions, isLoading: loadingFunctions } = useQuery<FunctionWithManagers[]>({ queryKey: ["/api/functions"] });
   const activeEvents = useMemo(() => (events ?? []).filter((e) => e.status !== "excluido" && e.status !== "excluído"), [events]);
   const selectedEvent = activeEvents.find((e) => e.id === eventId);
   const functionNameById = useMemo(() => new Map((functions ?? []).map((f) => [f.id, f.name])), [functions]);
@@ -349,6 +387,12 @@ export default function ScalingEventViewPage() {
     for (const r of rows) if (r.eventId && r.eventName) map.set(r.eventId, r.eventName);
     return map;
   }, [rows]);
+  /** Nome do evento de uma linha (lista/CSV/busca no modo "todos os eventos"). */
+  const eventNameOf = useCallback(
+    (row: { eventId: string; eventName?: string | null }) =>
+      row.eventName ?? eventById.get(row.eventId)?.name ?? eventNameByRowId.get(row.eventId) ?? "Sem evento",
+    [eventById, eventNameByRowId],
+  );
   const rowById = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
   /**
    * Detalhe COMPLETO de uma vaga sem sair do Histórico (28/08): os chips #id da
@@ -366,6 +410,15 @@ export default function ScalingEventViewPage() {
   const liveRows = useMemo(() => rows.filter((r) => !isDeleted(r)), [rows]);
   const deletedCount = rows.length - liveRows.length;
   const requests = useMemo(() => [...(viewQuery.data?.requests ?? [])].sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()), [viewQuery.data]);
+  /** Tipos e status que EXISTEM nos pedidos carregados — os Selects só oferecem o que dá resultado. */
+  const requestTypesInView = useMemo(() => {
+    const set = new Set(requests.map((r) => r.requestType));
+    return CHANGE_REQUEST_TYPES.filter((t) => set.has(t));
+  }, [requests]);
+  const requestStatusesInView = useMemo(() => {
+    const set = new Set(requests.map((r) => r.status));
+    return (Object.values(CHANGE_REQUEST_STATUS) as ChangeRequestStatus[]).filter((s) => set.has(s));
+  }, [requests]);
 
   const functionsInEvent = useMemo(() => {
     const ids = new Set(rows.map((r) => r.functionId));
@@ -377,7 +430,7 @@ export default function ScalingEventViewPage() {
   }, [rows]);
 
   const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = deferredSearch.trim().toLowerCase();
     return rows
       .filter((r) => originFilter === ALL || originKey(r) === originFilter)
       .filter((r) => functionFilter === ALL || r.functionId === functionFilter)
@@ -387,7 +440,7 @@ export default function ScalingEventViewPage() {
         return fn.includes(q) || String(r.inclusionNumber).includes(q) || (r.area ?? "").toLowerCase().includes(q) || (r.observations ?? "").toLowerCase().includes(q);
       })
       .sort((a, b) => (functionNameById.get(a.functionId) ?? "").localeCompare(functionNameById.get(b.functionId) ?? "", "pt-BR") || (a.inclusionNumber ?? 0) - (b.inclusionNumber ?? 0));
-  }, [rows, originFilter, functionFilter, search, functionNameById]);
+  }, [rows, originFilter, functionFilter, deferredSearch, functionNameById]);
 
   // ── KPIs (só vagas vivas; a soma das 6 categorias = Vagas) ──
   const counts = useMemo(() => {
@@ -446,7 +499,7 @@ export default function ScalingEventViewPage() {
   // ── Linha do tempo: cada movimento real do fluxo (envio → validação → pedido → decisão) ──
   const timeline = useMemo<TlEntry[]>(() => {
     if (rows.length === 0 && requests.length === 0) return [];
-    const out: TlEntry[] = [];
+    const out: TlDraft[] = [];
     const fnName = (id: string) => functionNameById.get(id) ?? "Sem função";
 
     // `eventOf` separa os lotes por evento (ver `batchByMinute`) e carimba a
@@ -518,28 +571,31 @@ export default function ScalingEventViewPage() {
         });
       }
     }
-    return out.sort((a, b) => b.at.getTime() - a.at.getTime());
+    // Os chips entram no texto pesquisável: carregam os #IDs das vagas (e as
+    // contagens do envio) — sem eles o placeholder prometeria "#ID" e buscar
+    // "1049" não acharia o cartão.
+    return out
+      .sort((a, b) => b.at.getTime() - a.at.getTime())
+      .map((e) => ({ ...e, haystack: `${e.title} ${e.text} ${e.tag} ${e.author ?? ""} ${e.quote ?? ""} ${(e.chips ?? []).join(" ")}`.toLowerCase() }));
   }, [rows, requests, rowById, functionNameById, canOpenApproval, eventId]);
 
   const filteredTimeline = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = deferredSearch.trim().toLowerCase();
     return timeline
       .filter((e) => tlCats.includes(e.cat))
-      // Os chips carregam os #IDs das vagas (e as contagens do envio); sem eles o
-      // placeholder prometeria "#ID" e buscar "1049" não acharia o cartão.
-      .filter((e) => !q || `${e.title} ${e.text} ${e.tag} ${e.author ?? ""} ${e.quote ?? ""} ${(e.chips ?? []).join(" ")}`.toLowerCase().includes(q));
-  }, [timeline, tlCats, search]);
-  /** Movimentos agrupados por dia (mais recente primeiro). */
+      .filter((e) => !q || e.haystack.includes(q));
+  }, [timeline, tlCats, deferredSearch]);
+  /** Movimentos agrupados por dia (mais recente primeiro — a ordem de inserção do Map preserva isso). */
   const groupByDay = useCallback((entries: TlEntry[]) => {
     const today = formatDateBr(new Date());
-    const out: { key: string; label: string; items: TlEntry[] }[] = [];
+    const groups = new Map<string, { key: string; label: string; items: TlEntry[] }>();
     for (const e of entries) {
       const key = formatDateBr(e.at);
-      let g = out.find((x) => x.key === key);
-      if (!g) { g = { key, label: key === today ? `${key} · hoje` : key, items: [] }; out.push(g); }
+      let g = groups.get(key);
+      if (!g) { g = { key, label: key === today ? `${key} · hoje` : key, items: [] }; groups.set(key, g); }
       g.items.push(e);
     }
-    return out;
+    return Array.from(groups.values());
   }, []);
   const timelineDays = useMemo(() => groupByDay(filteredTimeline), [groupByDay, filteredTimeline]);
 
@@ -552,27 +608,49 @@ export default function ScalingEventViewPage() {
    */
   const timelineEvents = useMemo(() => {
     if (eventId) return [];
-    const out: { key: string; name: string; period: string; items: TlEntry[] }[] = [];
+    const groups = new Map<string, { key: string; name: string; period: string; items: TlEntry[] }>();
     for (const e of filteredTimeline) {
       const key = e.eventId ?? "";
-      let g = out.find((x) => x.key === key);
+      let g = groups.get(key);
       if (!g) {
         const ev = eventById.get(key);
-        out.push((g = {
+        g = {
           key,
           name: ev?.name ?? eventNameByRowId.get(key) ?? "Evento sem nome",
           period: ev ? formatDateRange(ev.startDate, ev.endDate, { withYear: true }) : "",
           items: [],
-        }));
+        };
+        groups.set(key, g);
       }
       g.items.push(e);
     }
     // `filteredTimeline` já vem do mais recente para o mais antigo, então a
-    // ordem de aparição dos grupos já é a ordem certa.
-    return out;
+    // ordem de inserção no Map já é a ordem certa dos grupos.
+    return Array.from(groups.values());
   }, [eventId, filteredTimeline, eventById, eventNameByRowId]);
   const timelineStart = timeline.length ? formatDateBr(timeline[timeline.length - 1].at) : "";
   const lastMovement = timeline[0] ?? null;
+  // "Ver mais eventos" volta ao começo quando o recorte muda: o número de
+  // eventos abertos era de OUTRA busca/evento e não faz sentido continuar valendo.
+  useEffect(() => { setVisibleEvents(TIMELINE_EVENTS_STEP); }, [eventId, deferredSearch, tlCats]);
+
+  // ── Pedidos: busca + tipo + status (mesma busca das outras abas) ──
+  const filteredRequests = useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
+    return requests
+      .filter((r) => requestTypeFilter === ALL || r.requestType === requestTypeFilter)
+      .filter((r) => requestStatusFilter === ALL || r.status === requestStatusFilter)
+      .filter((r) => {
+        if (!q) return true;
+        const vaga = r.teamInclusionId ? `#${rowById.get(r.teamInclusionId)?.inclusionNumber ?? ""}` : "vaga nova";
+        return [
+          functionNameById.get(r.functionId) ?? "", vaga, r.area ?? "", r.reason ?? "", r.reviewComment ?? "",
+          r.requestedByName ?? "", r.reviewedByName ?? "", eventId ? "" : eventNameOf(r),
+        ].join(" ").toLowerCase().includes(q);
+      });
+  }, [requests, requestTypeFilter, requestStatusFilter, deferredSearch, rowById, functionNameById, eventId, eventNameOf]);
+  const reqHasFilters = search.trim() !== "" || requestTypeFilter !== ALL || requestStatusFilter !== ALL;
+  const clearReqFilters = () => { setSearch(""); setRequestTypeFilter(ALL); setRequestStatusFilter(ALL); };
 
   // Cada aba limpa o que ela mesma mostra: os pills da linha do tempo não
   // aparecem na barra da Lista, então não podem acender o "Limpar filtros" dela
@@ -598,14 +676,21 @@ export default function ScalingEventViewPage() {
     };
   }, [liveRows, requests, counts.pendentes]);
 
-  // ── Quadro (Escala): vagas vivas, sem negadas (o board já ignora), com filtro de legenda ──
+  // ── Quadro (Escala): vagas vivas, sem negadas (o board já ignora), com o MESMO filtro de origem da Lista ──
   const boardRowsAll = useMemo(() => liveRows.filter((r) => originKey(r) !== SUGESTAO_STATUS.NEGADA), [liveRows]);
   const boardLegend = useMemo(() => {
     const keys = new Set(boardRowsAll.map(originKey));
     return ORIGIN_ORDER.filter((k) => keys.has(k)).map((k) => ({ key: k, label: ORIGIN_LABELS[k], n: boardRowsAll.filter((r) => originKey(r) === k).length }));
   }, [boardRowsAll]);
+  /**
+   * Filtro que o quadro consegue honrar. "Negadas" e "Excluídas" nunca entram
+   * no quadro, então com o KPI delas ativo o quadro mostra TUDO (e avisa) em
+   * vez de ficar vazio — derivado, sem efeito de saneamento de estado.
+   */
+  const boardFilter = boardLegend.some((l) => l.key === originFilter) ? originFilter : ALL;
   const boardRows = useMemo(() => (boardFilter === ALL ? boardRowsAll : boardRowsAll.filter((r) => originKey(r) === boardFilter)), [boardRowsAll, boardFilter]);
-  useEffect(() => { if (boardFilter !== ALL && !boardLegend.some((l) => l.key === boardFilter)) setBoardFilter(ALL); }, [boardLegend, boardFilter]);
+  /** Linhas função × dia do quadro (CSV e lista mobile). */
+  const boardLines = useMemo(() => aggregateByFunction(boardRows, functionNameById), [boardRows, functionNameById]);
 
   /** Último movimento de UMA vaga (para a coluna da Lista e o CSV). */
   const lastMoveOf = useCallback((row: EventViewRow): { label: string; at: Date | null } => {
@@ -633,7 +718,7 @@ export default function ScalingEventViewPage() {
     effectiveTab === "timeline" ? filteredTimeline.length > 0
       : effectiveTab === "lista" ? filteredRows.length > 0
         : effectiveTab === "escala" ? !!eventId && boardRows.length > 0
-          : requests.length > 0
+          : filteredRequests.length > 0
   );
   const exportFilename = `historico-escala-${slugify(selectedEvent?.name ?? (eventId ? "evento" : "todos-os-eventos"))}-${effectiveTab}-${todayIso()}.csv`;
   const exportCsv = () => {
@@ -663,14 +748,14 @@ export default function ScalingEventViewPage() {
           legLabel(r.transportModeIda, r.flightDepartureDate, r.flightArrivalSuggestedTime),
           legLabel(r.transportModeVolta, r.flightReturnDate, r.flightReturnSuggestedTime),
           r.needsTicket ? "Sim" : "Não", r.needsAccommodation ? "Sim" : "Não", String(r.requests.length), r.observations ?? "",
-          last.label, last.at ? fmtDateTime(last.at) : "",
+          last.label, last.at ? formatDateTimeBr(last.at) : "",
         ];
       });
       downloadCsv(filename, header, lines);
       return;
     }
     if (effectiveTab === "escala") {
-      // Mesma agregação do ScheduleBoard: função × dia (soma de vagas por dia).
+      // Mesma agregação do ScheduleBoard (`aggregateByFunction`): função × dia.
       let min = ymd(selectedEvent?.startDate); let max = ymd(selectedEvent?.endDate);
       for (const r of boardRows) {
         const days = workDaysOf(r);
@@ -687,14 +772,7 @@ export default function ScalingEventViewPage() {
           variant: "destructive",
         });
       }
-      const byFn = new Map<string, { name: string; area: string; vagas: number; perDay: Record<string, number>; total: number }>();
-      for (const r of boardRows) {
-        let l = byFn.get(r.functionId);
-        if (!l) { l = { name: functionNameById.get(r.functionId) ?? "Sem função", area: r.area ?? "", vagas: 0, perDay: {}, total: 0 }; byFn.set(r.functionId, l); }
-        l.vagas += 1;
-        for (const d of workDaysOf(r)) { l.perDay[d] = (l.perDay[d] || 0) + 1; l.total += 1; }
-      }
-      const fnLines = Array.from(byFn.values()).sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+      const fnLines = boardLines;
       const lines = fnLines.map((l) => [l.name, l.area, String(l.vagas), ...dates.map((d) => String(l.perDay[d] || 0)), String(l.total)]);
       const totalRow = [
         "Total por dia", "", String(fnLines.reduce((a, l) => a + l.vagas, 0)),
@@ -704,15 +782,16 @@ export default function ScalingEventViewPage() {
       downloadCsv(filename, ["Função", "Área", "Vagas", ...dates.map((d) => formatDayMonthBr(d)), "Pessoas-dia"], [...lines, totalRow]);
       return;
     }
+    // Pedidos: sai o que está na tela (busca, tipo e status aplicados) — igual às outras abas.
     const header = [...(eventId ? [] : ["Evento"]), "Tipo", "Função", "Vaga", "Área", "Solicitante", "Aberto em", "Motivo", "Status", "Revisado por", "Revisado em", "Comentário"];
-    const lines = requests.map((r) => [
+    const lines = filteredRequests.map((r) => [
       ...(eventId ? [] : [eventNameOf(r)]),
       CHANGE_REQUEST_TYPE_LABELS[r.requestType as ChangeRequestType] ?? r.requestType,
       functionNameById.get(r.functionId) ?? "",
       r.teamInclusionId ? `#${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "?"}` : "vaga nova",
-      r.area ?? "", r.requestedByName ?? "", fmtDateTime(r.createdAt), r.reason ?? "",
+      r.area ?? "", r.requestedByName ?? "", formatDateTimeBr(r.createdAt), r.reason ?? "",
       CHANGE_REQUEST_STATUS_LABELS[r.status as ChangeRequestStatus] ?? r.status,
-      r.reviewedByName ?? "", r.reviewedAt ? fmtDateTime(r.reviewedAt) : "", r.reviewComment ?? "",
+      r.reviewedByName ?? "", r.reviewedAt ? formatDateTimeBr(r.reviewedAt) : "", r.reviewComment ?? "",
     ]);
     downloadCsv(filename, header, lines);
   };
@@ -726,17 +805,12 @@ export default function ScalingEventViewPage() {
   );
 
   const showData = !viewQuery.isLoading && !viewQuery.error && (rows.length > 0 || requests.length > 0);
-  /** Nome do evento de uma linha (lista/CSV no modo "todos os eventos"). */
-  const eventNameOf = useCallback(
-    (row: { eventId: string; eventName?: string | null }) =>
-      row.eventName ?? eventById.get(row.eventId)?.name ?? eventNameByRowId.get(row.eventId) ?? "Sem evento",
-    [eventById, eventNameByRowId],
-  );
+  /** Contagem da aba visível — "N de M": o filtrado e o total, no mesmo formato nas quatro abas. */
   const countText =
-    effectiveTab === "timeline" ? `${filteredTimeline.length} de ${timeline.length} movimento(s)`
-      : effectiveTab === "lista" ? `${filteredRows.length} de ${rows.length} vaga(s)`
-        : effectiveTab === "escala" ? "Quadro função × dia (vagas negadas e excluídas não entram)"
-          : `${requests.length} pedido(s)`;
+    effectiveTab === "timeline" ? `${filteredTimeline.length} de ${plural(timeline.length, "movimento", "movimentos")}`
+      : effectiveTab === "lista" ? `${filteredRows.length} de ${plural(rows.length, "vaga", "vagas")}`
+        : effectiveTab === "escala" ? `${boardRows.length} de ${plural(boardRowsAll.length, "vaga", "vagas")} no quadro`
+          : `${filteredRequests.length} de ${plural(requests.length, "pedido", "pedidos")}`;
 
   /**
    * Bloco de dias da linha do tempo — o MESMO markup com evento selecionado e
@@ -747,7 +821,7 @@ export default function ScalingEventViewPage() {
       <div key={g.key} className="flex flex-col">
         <div className="sticky top-0 z-[2] flex items-center gap-2.5 bg-white pb-2 pt-3">
           <span className="text-[11px] font-bold uppercase tracking-wide text-slate-800">{g.label}</span>
-          <span className="text-[11px] text-slate-400">{plural(g.items.length, "movimento", "movimentos")}</span>
+          <span className="text-[11px] text-slate-500">{plural(g.items.length, "movimento", "movimentos")}</span>
           <span className="h-px flex-1 bg-slate-100" aria-hidden="true" />
         </div>
         <ol className="m-0 flex list-none flex-col gap-3 border-l border-slate-200 pl-6">
@@ -762,7 +836,7 @@ export default function ScalingEventViewPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[13px] font-semibold text-slate-800">{e.title}</span>
                     <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide", c.tag)}>{e.tag}</span>
-                    <span className="ml-auto font-mono text-[11px] text-slate-400">{hhmm(e.at)}</span>
+                    <span className="ml-auto font-mono text-[11px] text-slate-500">{hhmm(e.at)}</span>
                   </div>
                   {e.text && <p className="text-xs text-slate-600">{e.text}</p>}
                   {e.chips && e.chips.length > 0 && (
@@ -786,7 +860,7 @@ export default function ScalingEventViewPage() {
                   {e.quote && <p className={cn("border-l-2 pl-2.5 text-xs text-slate-700 whitespace-pre-wrap break-words", c.quote)}>{e.quote}</p>}
                   {(e.author || e.href) && (
                     <div className="flex flex-wrap items-center gap-3">
-                      {e.author && <span className="text-[11px] text-slate-400">{e.author}</span>}
+                      {e.author && <span className="text-[11px] text-slate-500">{e.author}</span>}
                       {e.href && (
                         <Link href={e.href} className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline">
                           <ExternalLink className="h-3 w-3" aria-hidden="true" />{e.linkLabel}
@@ -808,28 +882,34 @@ export default function ScalingEventViewPage() {
       <PageHeader
         icon={History}
         title="Histórico da Escala"
-        subtitle="Como a escala deste evento andou: cada envio, validação, pedido e decisão, na ordem em que aconteceram — e onde ela está agora."
+        subtitle="Cada envio, validação, pedido e decisão — e onde cada vaga está agora."
         actions={
           <>
-            <ScalingModuleNav current="history" eventId={eventId} />
             {selectedEvent && <EventCommentsButton eventId={selectedEvent.id} eventName={selectedEvent.name} />}
+            {/* Sem `disabled`: o botão continua na tabulação e o tooltip abre
+                também pelo teclado, explicando POR QUE não há o que exportar.
+                O clique é guardado; o sr-only repete o motivo para o leitor. */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex" tabIndex={exportEnabled ? -1 : 0}>
-                  {/* O sufixo da aba saiu de dentro do botão: colado ao rótulo
-                      ele quebrava "Exportar CSV" em duas linhas quando a
-                      navegação do módulo disputava a mesma faixa. */}
-                  <Button type="button" size="sm" variant="outline" className="rounded-lg whitespace-nowrap" disabled={!exportEnabled} onClick={() => setExportOpen(true)}>
-                    <Download className="w-4 h-4 mr-1.5" aria-hidden="true" /> Exportar CSV
-                  </Button>
-                </span>
+                <Button
+                  type="button" size="sm" variant="outline"
+                  aria-disabled={!exportEnabled}
+                  className={cn("rounded-lg whitespace-nowrap", !exportEnabled && "cursor-not-allowed opacity-50 hover:bg-background hover:text-foreground")}
+                  onClick={() => { if (exportEnabled) setExportOpen(true); }}
+                >
+                  <Download className="w-4 h-4 mr-1.5" aria-hidden="true" /> Exportar CSV
+                  <span className="sr-only">{exportEnabled ? ` — aba ${TAB_LABEL[effectiveTab]}` : " — nada para exportar nesta aba"}</span>
+                </Button>
               </TooltipTrigger>
-              <TooltipContent>{exportEnabled ? `Exporta a aba ${TAB_LABEL[effectiveTab]}` : "Nada para exportar nesta aba"}</TooltipContent>
+              <TooltipContent>{exportEnabled ? `Exporta a aba ${TAB_LABEL[effectiveTab]} com os filtros aplicados` : "Nada para exportar nesta aba"}</TooltipContent>
             </Tooltip>
-            <span className="whitespace-nowrap text-[11px] text-slate-400">aba {TAB_LABEL[effectiveTab]}</span>
           </>
         }
       />
+      {/* A fila do módulo (Sugestão → Validação → Aprovação → Histórico) tem
+          faixa própria: dividindo a linha com os botões de ação ela parecia
+          mais um botão — e espremia "Exportar CSV" em telas médias. */}
+      <ScalingModuleNav current="history" eventId={eventId} className="-mt-1" />
 
       {/* ── Barra de contexto: evento · última movimentação · funil · KPIs ── */}
       <section aria-label="Evento" className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 space-y-3">
@@ -837,7 +917,7 @@ export default function ScalingEventViewPage() {
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft text-primary shrink-0" aria-hidden="true">
             <CalendarDays className="w-4 h-4" />
           </span>
-          <div className="w-[280px] max-w-full shrink-0">
+          <div ref={eventPickerRef} className="w-[280px] max-w-full shrink-0">
             {loadingEvents ? (
               <div className="h-8 rounded-lg bg-slate-100 animate-pulse" aria-hidden="true" />
             ) : (
@@ -915,8 +995,8 @@ export default function ScalingEventViewPage() {
               })}
             </div>
             {deletedCount > 0 && (
-              <p className={cn("text-[11px] text-slate-400 text-right")}>
-                + {deletedCount} vaga(s) excluída(s) — fora da soma e do quadro.{" "}
+              <p className="text-[11px] text-slate-500 text-right">
+                + {plural(deletedCount, "vaga excluída", "vagas excluídas")} — fora da soma e do quadro.{" "}
                 <button type="button" className="text-primary underline hover:no-underline" onClick={() => onKpiClick(DELETED)}>
                   {kpiWouldClear(DELETED) ? "Limpar filtro" : "Ver excluídas"}
                 </button>
@@ -943,19 +1023,23 @@ export default function ScalingEventViewPage() {
       )}
 
       {/* Teto do modo "todos os eventos" — a consulta histórica é a que mais
-          cresce, então quando ela é cortada o filtro é a saída. */}
+          cresce, então quando ela é cortada o filtro é a saída. Tom NEUTRO de
+          propósito: não é um problema da escala (esse é o âmbar do "travada"
+          acima), é só um aviso de que a página não mostra tudo. */}
       {truncated && (
-        <p role="status" className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-800">
-          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <p role="status" className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-600">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
           <span>
-            <span className="font-semibold">Histórico parcial</span> — são muitos movimentos para mostrar de uma vez
+            <span className="font-semibold text-slate-700">Histórico parcial</span> — são muitos movimentos para mostrar de uma vez
             {viewQuery.data?.rowLimit ? ` (teto de ${viewQuery.data.rowLimit} vagas)` : ""}. Escolha um evento acima para ver o histórico completo dele.
           </span>
         </p>
       )}
 
-      {viewQuery.isLoading ? (
-        <LoadingState count={5} label="Carregando escala do evento…" />
+      {/* As funções entram no gate (como na Validação): sem elas a tela abriria
+          com "Sem função" em toda linha até a segunda consulta responder. */}
+      {viewQuery.isLoading || (loadingFunctions && !functions) ? (
+        <LoadingState count={5} label={viewQuery.isLoading ? (eventId ? "Carregando escala do evento…" : "Carregando histórico dos eventos…") : "Carregando funções…"} />
       ) : viewQuery.error ? (
         <div role="alert" className="rounded-2xl border border-red-200 bg-white p-6 text-center">
           <AlertCircle className="mx-auto mb-2 h-5 w-5 text-red-500" aria-hidden="true" />
@@ -964,8 +1048,8 @@ export default function ScalingEventViewPage() {
           <Button variant="outline" size="sm" className="mt-3 rounded-lg" onClick={() => viewQuery.refetch()}>Tentar novamente</Button>
         </div>
       ) : rows.length === 0 && requests.length === 0 ? (
-        <ViewEmpty
-          live
+        <EmptyState
+          className="rounded-2xl"
           icon={CalendarRange}
           title={eventId ? "Nenhuma vaga passou pela Validação de Escala neste evento" : "Nenhuma vaga passou pela Validação de Escala"}
           description={eventId
@@ -979,8 +1063,17 @@ export default function ScalingEventViewPage() {
               <TabsTrigger value="timeline" className="h-7 rounded-lg px-3.5 text-[13px]">Linha do tempo</TabsTrigger>
               <TabsTrigger value="lista" className="h-7 rounded-lg px-3.5 text-[13px]">Lista</TabsTrigger>
               {/* O quadro é função × dia DE UM evento: sem filtro ele somaria
-                  dias de eventos diferentes na mesma coluna. */}
-              {eventId && <TabsTrigger value="escala" className="h-7 rounded-lg px-3.5 text-[13px]">Escala</TabsTrigger>}
+                  dias de eventos diferentes na mesma coluna. A aba fica
+                  visível e desabilitada (com o motivo no title) — sumir com
+                  ela fazia a pessoa achar que a tela não tinha quadro. */}
+              <TabsTrigger
+                value="escala"
+                disabled={!eventId}
+                title={eventId ? undefined : "Escolha um evento para ver o quadro função × dia"}
+                className="h-7 rounded-lg px-3.5 text-[13px] disabled:pointer-events-auto disabled:cursor-not-allowed"
+              >
+                Escala
+              </TabsTrigger>
               <TabsTrigger value="pedidos" className="h-7 rounded-lg px-3.5 text-[13px]">Pedidos{requests.length ? ` (${requests.length})` : ""}</TabsTrigger>
             </TabsList>
             <p className={LABEL} aria-live="polite">{countText}</p>
@@ -989,7 +1082,7 @@ export default function ScalingEventViewPage() {
           {/* ── ABA 1: Linha do tempo ── */}
           <TabsContent value="timeline" className="mt-0 space-y-3">
             <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Mostrar</span>
+              <span className={SECTION}>Mostrar</span>
               {TL_ORDER.map((k) => {
                 const c = TL[k];
                 const on = tlCats.includes(k);
@@ -1023,19 +1116,27 @@ export default function ScalingEventViewPage() {
               )}
             </div>
 
+            {/* `live={false}` dentro das abas: a contagem acima já é a (única)
+                região aria-live — dois live regions se atropelam no leitor. */}
             {filteredTimeline.length === 0 ? (
               timeline.length === 0 ? (
-                <ViewEmpty
+                <EmptyState
+                  live={false}
+                  className="rounded-2xl"
                   icon={History}
                   title="Nenhum movimento registrado ainda"
-                  description="As vagas deste evento não têm envio, validação, pedido ou decisão com data registrada."
+                  description={eventId
+                    ? "As vagas deste evento não têm envio, validação, pedido ou decisão com data registrada."
+                    : "As vagas dos eventos do recorte não têm envio, validação, pedido ou decisão com data registrada."}
                 />
               ) : (
-                <ViewEmpty
-                  icon={Search}
+                <EmptyState
+                  live={false}
+                  className="rounded-2xl"
+                  variant="filtered"
                   title="Nada encontrado com esses filtros"
                   description="Ajuste a busca ou o tipo de movimento."
-                  onClear={tlHasFilters ? clearTlFilters : undefined}
+                  onClearFilters={tlHasFilters ? clearTlFilters : undefined}
                 />
               )
             ) : !eventId ? (
@@ -1045,10 +1146,10 @@ export default function ScalingEventViewPage() {
                 {timelineEvents.slice(0, visibleEvents).map((g) => (
                   <section key={g.key} className="rounded-2xl border border-slate-200 bg-white px-4 pb-4 pt-1" aria-label={`Movimentos de ${g.name}`}>
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-slate-100 pb-2 pt-3">
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Evento</span>
+                      <span className={SECTION}>Evento</span>
                       <span className="text-[13px] font-semibold text-slate-800">{g.name}</span>
                       {g.period && <span className="font-mono text-[11px] text-slate-500">{g.period}</span>}
-                      <span className="text-[11px] text-slate-400">· {plural(g.items.length, "movimento", "movimentos")}</span>
+                      <span className="text-[11px] text-slate-500">· {plural(g.items.length, "movimento", "movimentos")}</span>
                     </div>
                     {renderTimelineDays(groupByDay(g.items))}
                   </section>
@@ -1068,7 +1169,7 @@ export default function ScalingEventViewPage() {
               <div className="rounded-2xl border border-slate-200 bg-white px-4 pb-4 pt-1">
                 {renderTimelineDays(timelineDays)}
                 {timelineStart && (
-                  <p className="mt-4 text-center text-[11px] text-slate-400">Fim do histórico — a escala deste evento começou em {timelineStart}.</p>
+                  <p className="mt-4 text-center text-[11px] text-slate-500">Fim do histórico — a escala deste evento começou em {timelineStart}.</p>
                 )}
               </div>
             )}
@@ -1076,6 +1177,20 @@ export default function ScalingEventViewPage() {
 
           {/* ── ABA 2: Lista (situação atual de cada vaga) ── */}
           <TabsContent value="lista" className="space-y-3 mt-0">
+            {/* `?tab=escala` sem evento: em vez de trocar de aba em silêncio, a
+                Lista diz o que aconteceu e leva o foco ao seletor de evento. */}
+            {escalaSemEvento && (
+              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-brand-soft px-3.5 py-2.5">
+                <Info className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                <p className="min-w-0 flex-1 text-xs text-slate-700">
+                  <span className="font-semibold text-slate-800">O quadro Escala precisa de um evento.</span>{" "}
+                  Ele cruza função × dia de UM evento; enquanto isso, a Lista mostra as vagas de todos.
+                </p>
+                <Button type="button" variant="outline" size="sm" className="h-7 rounded-lg text-xs" onClick={focusEventPicker}>
+                  Escolher evento
+                </Button>
+              </div>
+            )}
             <div className="flex flex-wrap items-end gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
               <div className="relative min-w-[240px] flex-1 space-y-1">
                 <Label htmlFor="ev-search" className="sr-only">Buscar vaga</Label>
@@ -1108,18 +1223,20 @@ export default function ScalingEventViewPage() {
             </div>
 
             {filteredRows.length === 0 ? (
-              <ViewEmpty
-                icon={Search}
+              <EmptyState
+                live={false}
+                className="rounded-2xl"
+                variant="filtered"
                 title="Nada encontrado com esses filtros"
                 description="Ajuste a busca, a função ou o filtro de origem/status."
-                onClear={listHasFilters ? clearListFilters : undefined}
+                onClearFilters={listHasFilters ? clearListFilters : undefined}
               />
             ) : (
               <>
                 <div className="hidden md:block rounded-2xl border border-slate-200 bg-white overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[940px] text-sm">
-                      <caption className="sr-only">Vagas do evento na Validação de Escala</caption>
+                  <div className={SCROLL_X} tabIndex={0} role="region" aria-label="Tabela de vagas (rolagem horizontal)">
+                    <table className="w-full min-w-[1040px] text-sm">
+                      <caption className="sr-only">{eventId ? "Vagas do evento na Validação de Escala" : "Vagas dos eventos do recorte na Validação de Escala"}</caption>
                       <thead className="bg-slate-50 border-b border-slate-200">
                         <tr>
                           <th className="w-9 border-b border-slate-200 px-0"><span className="sr-only">Origem</span></th>
@@ -1137,77 +1254,64 @@ export default function ScalingEventViewPage() {
                           const dim = isDeleted(row) || (isSuggestionInclusion(row) && row.status === SUGESTAO_STATUS.NEGADA);
                           const last = lastMoveOf(row);
                           const fnName = functionNameById.get(row.functionId) ?? "Sem função";
-                          const chips: { text: string; cls: string }[] = [];
-                          if (row.needsTicket) chips.push({ text: "Passagem", cls: "bg-violet-50 text-violet-700" });
-                          if (row.needsAccommodation) chips.push({ text: "Hotel", cls: "bg-sky-50 text-sky-700" });
-                          // Ida/volta só existem no tooltip: sem `tabIndex` no gatilho, teclado e
-                          // leitor de tela nunca chegariam neles. O aria-label repete o conteúdo
-                          // inteiro para não depender do tooltip abrir.
-                          const ida = legLabel(row.transportModeIda, row.flightDepartureDate, row.flightArrivalSuggestedTime);
-                          const volta = legLabel(row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime);
-                          const logisticaLabel = `Logística: ${row.needsTicket ? "passagem" : "sem passagem"}, ${row.needsAccommodation ? "hotel" : "sem hotel"} · Ida: ${ida} · Volta: ${volta}`;
+                          // Logística nos MESMOS chips da Validação (ícone + ida/volta com data):
+                          // cada chip carrega o próprio aria-label, então nada fica escondido
+                          // num tooltip que só abre no hover.
+                          const semLogistica = !row.needsTicket && !row.needsAccommodation
+                            && !hasLeg(row.transportModeIda, row.flightDepartureDate, row.flightArrivalSuggestedTime)
+                            && !hasLeg(row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime);
                           return (
                             <tr key={row.id} className={cn("border-b border-slate-100", i % 2 === 1 ? "bg-slate-50/40" : "bg-white")}>
                               <td className="w-9 px-0 py-2">
                                 <span className={cn("ml-2 block h-10 w-1 rounded-full", ORIGIN_DOT[originKey(row)])} aria-hidden="true" />
                               </td>
                               <td className="px-3 py-2 max-w-[280px]">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <button type="button" onClick={() => setDetailId(row.id)} title="Ver o detalhe completo desta vaga"
-                                    className="inline-flex rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-[11px] font-semibold text-primary tabular-nums transition-colors hover:bg-primary hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">#{row.inclusionNumber}</button>
-                                  <div className="min-w-0">
-                                    {/* O nome também abre a ficha: o #ID é um
-                                        alvo pequeno demais para ser o único. */}
-                                    <button
-                                      type="button" onClick={() => setDetailId(row.id)} title={`Ver o detalhe completo de ${fnName}`}
-                                      className={cn("block max-w-full truncate text-left text-[13px] font-semibold transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded", dim ? "text-slate-400 line-through" : "text-slate-800")}
-                                    >{fnName}</button>
-                                    <span className="block truncate text-[11px] text-slate-400" title={row.observations ?? undefined}>
-                                      {row.area ?? "Sem área"}{row.observations ? ` · ${row.observations}` : ""}
-                                    </span>
-                                  </div>
+                                <div className="min-w-0">
+                                  {/* #ID e nome num botão só: UMA parada de tabulação por
+                                      linha (eram duas para a mesma ação), e o alvo de clique
+                                      cresce sem o #ID deixar de parecer um chip. */}
+                                  <button
+                                    type="button" onClick={() => setDetailId(row.id)} title={`Ver o detalhe completo de ${fnName}`}
+                                    className="group flex max-w-full items-center gap-2 rounded text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                  >
+                                    <span className="inline-flex shrink-0 rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-[11px] font-semibold text-primary tabular-nums transition-colors group-hover:bg-primary group-hover:text-white">#{row.inclusionNumber}</span>
+                                    {/* Negada/excluída: riscada e mais clara — mas ainda legível (slate-500, não 400). */}
+                                    <span className={cn("truncate text-[13px] font-semibold transition-colors group-hover:text-primary", dim ? "text-slate-500 line-through" : "text-slate-800")}>{fnName}</span>
+                                  </button>
+                                  <span className="mt-0.5 block truncate text-[11px] text-slate-500" title={row.observations ?? undefined}>
+                                    {row.area ?? "Sem área"}{row.observations ? ` · ${row.observations}` : ""}
+                                  </span>
                                 </div>
                               </td>
                               {!eventId && (
                                 <td className="px-3 py-2 max-w-[220px]">
                                   <span className="block truncate text-[13px] font-semibold text-slate-700" title={eventNameOf(row)}>{eventNameOf(row)}</span>
-                                  <span className="block font-mono text-[11px] text-slate-400">
+                                  <span className="block font-mono text-[11px] text-slate-500">
                                     {row.eventStartDate ? formatDateRange(ymd(row.eventStartDate), ymd(row.eventEndDate) || ymd(row.eventStartDate), { withYear: true }) : "Sem datas"}
                                   </span>
                                 </td>
                               )}
                               <td className="px-3 py-2 whitespace-nowrap">
-                                <span className={cn("font-mono text-xs tabular-nums", dim ? "text-slate-400" : "text-slate-700")}>{periodLabel(row)}</span>
-                                <span className="ml-1 text-[11px] text-slate-400">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
+                                <span className={cn("font-mono text-xs tabular-nums", dim ? "text-slate-500" : "text-slate-700")}>{periodLabel(row)}</span>
+                                <span className="ml-1 text-[11px] text-slate-500">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
                               </td>
-                              <td className="px-3 py-2 whitespace-nowrap">
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span
-                                      tabIndex={0}
-                                      aria-label={logisticaLabel}
-                                      className="inline-flex gap-1.5 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                    >
-                                      {chips.length
-                                        ? chips.map((c) => <span key={c.text} className={cn(CHIP, c.cls)} aria-hidden="true">{c.text}</span>)
-                                        : <span className="text-[11px] text-slate-400" aria-hidden="true">Sem logística</span>}
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <span className="block">Ida: {ida}</span>
-                                    <span className="block">Volta: {volta}</span>
-                                  </TooltipContent>
-                                </Tooltip>
+                              <td className="px-3 py-2">
+                                <div className="flex min-w-[220px] flex-wrap items-center gap-1">
+                                  <NeedChips needsTicket={row.needsTicket} needsAccommodation={row.needsAccommodation} />
+                                  <LegChip dir="ida" mode={row.transportModeIda} date={row.flightDepartureDate} time={row.flightArrivalSuggestedTime} />
+                                  <LegChip dir="volta" mode={row.transportModeVolta} date={row.flightReturnDate} time={row.flightReturnSuggestedTime} />
+                                  {semLogistica && <span className="text-[11px] text-slate-500">Sem logística</span>}
+                                </div>
                               </td>
                               <td className="px-3 py-2">
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   <OriginBadge row={row} />
-                                  {row.requests.length > 0 && <span className="text-[11px] text-slate-500">{row.requests.length} pedido(s)</span>}
+                                  {row.requests.length > 0 && <span className="text-[11px] text-slate-500">{plural(row.requests.length, "pedido", "pedidos")}</span>}
                                 </div>
                               </td>
                               <td className="px-3 py-2">
                                 <span className="block text-xs text-slate-600">{last.label}</span>
-                                <span className="block font-mono text-[11px] text-slate-400">{fmtShort(last.at)}</span>
+                                <span className="block font-mono text-[11px] text-slate-500">{fmtShort(last.at)}</span>
                               </td>
                             </tr>
                           );
@@ -1217,29 +1321,49 @@ export default function ScalingEventViewPage() {
                   </div>
                 </div>
 
-                <ul className="md:hidden space-y-2" aria-label="Vagas do evento">
+                <ul className="md:hidden space-y-2" aria-label={eventId ? "Vagas do evento" : "Vagas dos eventos do recorte"}>
                   {filteredRows.map((row) => {
                     const days = workDaysOf(row);
                     const last = lastMoveOf(row);
+                    const fnName = functionNameById.get(row.functionId) ?? "Sem função";
+                    const semLogistica = !row.needsTicket && !row.needsAccommodation
+                      && !hasLeg(row.transportModeIda, row.flightDepartureDate, row.flightArrivalSuggestedTime)
+                      && !hasLeg(row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime);
                     return (
-                      <li key={row.id} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
-                        <p className="text-sm font-semibold text-slate-800 truncate">
-                          <span className="mr-1.5 font-mono text-xs text-slate-500">#{row.inclusionNumber}</span>
-                          {functionNameById.get(row.functionId) ?? "Sem função"}
-                        </p>
+                      /* O cartão inteiro abre o drawer (no desktop o #ID/nome já
+                         abriam; no celular não havia como). O botão é só o
+                         título e se "estica" pelo cartão via ::after — assim o
+                         HTML continua válido (sem <dl> dentro de <button>) e a
+                         seta à direita diz que o cartão é clicável. */
+                      <li key={row.id} className="relative rounded-2xl border border-slate-200 bg-white p-3 space-y-2 transition-colors focus-within:ring-2 focus-within:ring-ring hover:border-slate-300">
+                        <div className="flex items-start gap-2">
+                          <button
+                            type="button" onClick={() => setDetailId(row.id)} title={`Ver o detalhe completo de ${fnName}`}
+                            className="min-w-0 flex-1 text-left focus-visible:outline-none after:absolute after:inset-0 after:rounded-2xl after:content-['']"
+                          >
+                            <span className="block truncate text-sm font-semibold text-slate-800">
+                              <span className="mr-1.5 font-mono text-xs text-slate-500">#{row.inclusionNumber}</span>
+                              {fnName}
+                            </span>
+                          </button>
+                          <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                        </div>
                         <p className={LABEL}>{row.area ?? "Sem área"}</p>
                         {!eventId && <p className={cn(LABEL, "truncate font-semibold text-slate-600")}>{eventNameOf(row)}</p>}
                         <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                           <dt className="text-slate-500">Período</dt><dd className="font-mono text-slate-700">{periodLabel(row)} · {formatDiarias(days.length || row.dailyRates || 0)}</dd>
-                          <dt className="text-slate-500">Ida</dt><dd className="text-slate-700">{legLabel(row.transportModeIda, row.flightDepartureDate, row.flightArrivalSuggestedTime)}</dd>
-                          <dt className="text-slate-500">Volta</dt><dd className="text-slate-700">{legLabel(row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime)}</dd>
-                          <dt className="text-slate-500">Passagem / hotel</dt><dd className="text-slate-700">{[row.needsTicket ? "Passagem" : null, row.needsAccommodation ? "Hotel" : null].filter(Boolean).join(" · ") || "Sem logística"}</dd>
                           <dt className="text-slate-500">Último movimento</dt><dd className="text-slate-700">{last.label}{last.at ? ` · ${fmtShort(last.at)}` : ""}</dd>
                         </dl>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <NeedChips needsTicket={row.needsTicket} needsAccommodation={row.needsAccommodation} />
+                          <LegChip dir="ida" mode={row.transportModeIda} date={row.flightDepartureDate} time={row.flightArrivalSuggestedTime} />
+                          <LegChip dir="volta" mode={row.transportModeVolta} date={row.flightReturnDate} time={row.flightReturnSuggestedTime} />
+                          {semLogistica && <span className="text-[11px] text-slate-500">Sem logística</span>}
+                        </div>
                         {row.observations && <p className="text-xs text-slate-500 italic">{row.observations}</p>}
                         <div className="flex flex-wrap items-center gap-1.5">
                           <OriginBadge row={row} />
-                          {row.requests.length > 0 && <span className="text-xs text-slate-500">{row.requests.length} pedido(s)</span>}
+                          {row.requests.length > 0 && <span className="text-xs text-slate-500">{plural(row.requests.length, "pedido", "pedidos")}</span>}
                         </div>
                       </li>
                     );
@@ -1251,10 +1375,10 @@ export default function ScalingEventViewPage() {
 
           {/* ── ABA 3: Escala (quadro função × dia) ── */}
           <TabsContent value="escala" className="mt-0 space-y-2.5">
-            {/* Legenda por origem/status — clicável, filtra as vagas que entram no quadro. */}
+            {/* Legenda por origem/status — clicável, é o MESMO filtro de origem da Lista/KPIs. */}
             {boardLegend.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Legenda do quadro por origem/status (clique para filtrar)">
-                <span className="mr-1 text-[11px] text-slate-400">Legenda:</span>
+                <span className={cn(SECTION, "mr-1")}>Legenda</span>
                 {boardLegend.map((l) => {
                   const active = boardFilter === l.key;
                   return (
@@ -1262,7 +1386,7 @@ export default function ScalingEventViewPage() {
                       key={l.key}
                       type="button"
                       aria-pressed={active}
-                      onClick={() => setBoardFilter(active ? ALL : l.key)}
+                      onClick={() => setOriginFilter(active ? ALL : l.key)}
                       title={active ? "Clique para mostrar todas" : `Mostrar só "${l.label}" no quadro`}
                       className={cn(
                         "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -1270,96 +1394,179 @@ export default function ScalingEventViewPage() {
                       )}
                     >
                       <span className={cn("inline-block w-2 h-2 rounded-full", ORIGIN_DOT[l.key])} aria-hidden="true" />
-                      {l.label} <span className="tabular-nums text-slate-400">({l.n})</span>
+                      {l.label} <span className="tabular-nums text-slate-500">({l.n})</span>
                     </button>
                   );
                 })}
                 {boardFilter !== ALL && (
-                  <button type="button" className="ml-1 text-[11px] text-primary hover:underline" onClick={() => setBoardFilter(ALL)}>Mostrar todas</button>
+                  <button type="button" className="ml-1 text-[11px] text-primary hover:underline" onClick={() => setOriginFilter(ALL)}>Mostrar todas</button>
+                )}
+                {/* KPI "Negadas"/"Excluídas" ativo: a Lista está filtrada, o quadro não tem como estar. */}
+                {originFilter !== ALL && boardFilter === ALL && (
+                  <span className="ml-1 text-[11px] text-slate-500">O filtro "{ORIGIN_LABELS[originFilter] ?? originFilter}" não se aplica ao quadro.</span>
                 )}
               </div>
             )}
-            <ScheduleBoard rows={boardRows} functionNameById={functionNameById} rangeStart={selectedEvent?.startDate} rangeEnd={selectedEvent?.endDate} />
-            <p className="text-[11px] text-slate-400">Quadro função × dia — vagas negadas e excluídas não entram na soma.</p>
+            {/* No celular o quadro função × dia não cabe (uma coluna por dia); a
+                lista traz os totais de cada função com os MESMOS números. */}
+            <ul className="md:hidden space-y-2" aria-label="Vagas e pessoas-dia por função">
+              {boardLines.length === 0 ? (
+                <li className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">Nenhuma vaga com dias de trabalho para montar o quadro.</li>
+              ) : boardLines.map((l) => (
+                <li key={l.functionId} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-slate-800">{l.name}</p>
+                    {l.area && <p className="truncate text-xs text-slate-500">{l.area}</p>}
+                  </div>
+                  <dl className="flex shrink-0 gap-3 text-right">
+                    <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Vagas</dt><dd className="text-sm font-bold tabular-nums text-slate-800">{l.vagas}</dd></div>
+                    <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Pessoas-dia</dt><dd className="text-sm font-bold tabular-nums text-primary">{l.total}</dd></div>
+                  </dl>
+                </li>
+              ))}
+              {boardLines.length > 0 && (
+                <li className="flex items-center justify-between gap-3 px-3 text-xs font-semibold text-slate-700">
+                  <span>Total</span>
+                  <span className="tabular-nums">{plural(boardLines.reduce((a, l) => a + l.vagas, 0), "vaga", "vagas")} · {boardLines.reduce((a, l) => a + l.total, 0)} pessoas-dia</span>
+                </li>
+              )}
+            </ul>
+            <div className="hidden md:block">
+              <ScheduleBoard rows={boardRows} functionNameById={functionNameById} rangeStart={selectedEvent?.startDate} rangeEnd={selectedEvent?.endDate} />
+            </div>
+            <p className="text-[11px] text-slate-500">Quadro função × dia — vagas negadas e excluídas não entram na soma.</p>
           </TabsContent>
 
           {/* ── ABA 4: Pedidos ── */}
-          <TabsContent value="pedidos" className="mt-0">
+          <TabsContent value="pedidos" className="mt-0 space-y-3">
             {requests.length === 0 ? (
-              <ViewEmpty icon={PencilLine} title="Nenhum pedido neste evento" description="As áreas não abriram pedidos de ajuste, inclusão ou exclusão." />
+              <EmptyState
+                live={false}
+                className="rounded-2xl"
+                icon={PencilLine}
+                title={eventId ? "Nenhum pedido neste evento" : "Nenhum pedido nos eventos do recorte"}
+                description="As áreas não abriram pedidos de ajuste, inclusão ou exclusão."
+              />
             ) : (
               <>
-                <div className="hidden md:block rounded-2xl border border-slate-200 bg-white overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[900px] text-sm">
-                      <caption className="sr-only">Histórico de pedidos do evento</caption>
-                      <thead className="bg-slate-50 border-b border-slate-200">
-                        <tr>
-                          <th className={TH}>Tipo</th>
-                          <th className={cn(TH, "min-w-[240px]")}>Função / vaga</th>
-                          <th className={TH}>Aberto em</th>
-                          <th className={TH}>Status</th>
-                          <th className={cn(TH, "min-w-[300px]")}>Decisão / comentário</th>
-                          {canOpenApproval && <th className={cn(TH, "text-right")}><span className="sr-only">Ações</span></th>}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {requests.map((r, i) => (
-                          <tr key={r.id} className={cn("border-b border-slate-100 align-top", i % 2 === 1 ? "bg-slate-50/40" : "bg-white")}>
-                            <td className="px-3 py-2.5 align-top"><RequestTypeBadge type={r.requestType} /></td>
-                            <td className="px-3 py-2.5 align-top max-w-[280px]">
-                              <span className="block text-[13px] font-semibold text-slate-800 truncate">{functionNameById.get(r.functionId) ?? "Sem função"}</span>
-                              {/* Sem filtro de evento, o pedido precisa dizer de qual ele é. */}
-                              {!eventId && <span className="block truncate text-[11px] font-semibold text-slate-500" title={eventNameOf(r)}>{eventNameOf(r)}</span>}
-                              <span className="block font-mono text-[11px] text-slate-400">
-                                {r.teamInclusionId ? `vaga #${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "?"}` : "vaga nova"}{r.area ? ` · ${r.area}` : ""}
-                              </span>
-                              {r.reason && <span className="mt-0.5 block text-xs text-slate-600 line-clamp-2" title={r.reason}>{r.reason}</span>}
-                            </td>
-                            <td className="px-3 py-2.5 align-top whitespace-nowrap">
-                              <span className="block font-mono text-[11px] text-slate-500">{fmtDateTime(r.createdAt)}</span>
-                              <span className="block text-[11px] text-slate-400">por {r.requestedByName}</span>
-                            </td>
-                            <td className="px-3 py-2.5 align-top"><RequestStatusBadge status={r.status} /></td>
-                            <td className="px-3 py-2.5 align-top min-w-[300px]">
-                              {r.reviewedByName ? (
-                                <>
-                                  <span className="block text-[11px] text-slate-400">{r.reviewedByName} · {fmtDateTime(r.reviewedAt)}</span>
-                                  {r.reviewComment && <span className="block text-xs text-slate-700 whitespace-pre-wrap break-words">{r.reviewComment}</span>}
-                                </>
-                              ) : <span className="text-xs text-slate-400">Aguardando decisão do aprovador.</span>}
-                            </td>
-                            {canOpenApproval && <td className="px-3 py-2.5 align-top text-right">{approvalLink(r)}</td>}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                {/* Mesma barra da Lista (busca + dois Selects): a aba tinha só a tabela, e
+                    com dezenas de pedidos achar um era rolar a tela inteira. */}
+                <div className="flex flex-wrap items-end gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
+                  <div className="relative min-w-[240px] flex-1 space-y-1">
+                    <Label htmlFor="ev-req-search" className="sr-only">Buscar pedido</Label>
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                    <Input id="ev-req-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Função, #ID, área, pessoa ou texto" className="h-8 pl-8 rounded-lg text-xs" />
                   </div>
+                  <div className="min-w-[150px]">
+                    <Label htmlFor="ev-req-type" className="sr-only">Tipo do pedido</Label>
+                    <Select value={requestTypeFilter} onValueChange={setRequestTypeFilter}>
+                      <SelectTrigger id="ev-req-type" className="h-8 rounded-lg text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ALL}>Todos os tipos</SelectItem>
+                        {requestTypesInView.map((t) => <SelectItem key={t} value={t}>{CHANGE_REQUEST_TYPE_LABELS[t]}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="min-w-[190px]">
+                    <Label htmlFor="ev-req-status" className="sr-only">Status do pedido</Label>
+                    <Select value={requestStatusFilter} onValueChange={setRequestStatusFilter}>
+                      <SelectTrigger id="ev-req-status" className="h-8 rounded-lg text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ALL}>Todos os status</SelectItem>
+                        {requestStatusesInView.map((s) => <SelectItem key={s} value={s}>{CHANGE_REQUEST_STATUS_LABELS[s]}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {reqHasFilters && (
+                    <Button type="button" variant="ghost" size="sm" className="h-8 rounded-lg text-xs text-primary" onClick={clearReqFilters}>Limpar filtros</Button>
+                  )}
                 </div>
 
-                <ul className="md:hidden space-y-2" aria-label="Pedidos do evento">
-                  {requests.map((r) => (
-                    <li key={r.id} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
-                      <div className="flex flex-wrap items-start gap-1.5">
-                        <RequestTypeBadge type={r.requestType} />
-                        <RequestStatusBadge status={r.status} />
+                {filteredRequests.length === 0 ? (
+                  <EmptyState
+                    live={false}
+                    className="rounded-2xl"
+                    variant="filtered"
+                    title="Nada encontrado com esses filtros"
+                    description="Ajuste a busca, o tipo ou o status do pedido."
+                    onClearFilters={reqHasFilters ? clearReqFilters : undefined}
+                  />
+                ) : (
+                  <>
+                    <div className="hidden md:block rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                      <div className={SCROLL_X} tabIndex={0} role="region" aria-label="Tabela de pedidos (rolagem horizontal)">
+                        <table className="w-full min-w-[900px] text-sm">
+                          <caption className="sr-only">{eventId ? "Histórico de pedidos do evento" : "Histórico de pedidos dos eventos do recorte"}</caption>
+                          <thead className="bg-slate-50 border-b border-slate-200">
+                            <tr>
+                              <th className={TH}>Tipo</th>
+                              <th className={cn(TH, "min-w-[240px]")}>Função / vaga</th>
+                              <th className={TH}>Aberto em</th>
+                              <th className={TH}>Status</th>
+                              <th className={cn(TH, "min-w-[300px]")}>Decisão / comentário</th>
+                              {canOpenApproval && <th className={cn(TH, "text-right")}><span className="sr-only">Ações</span></th>}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredRequests.map((r, i) => (
+                              <tr key={r.id} className={cn("border-b border-slate-100 align-top", i % 2 === 1 ? "bg-slate-50/40" : "bg-white")}>
+                                <td className="px-3 py-2.5 align-top"><RequestTypeBadge type={r.requestType} /></td>
+                                <td className="px-3 py-2.5 align-top max-w-[280px]">
+                                  <span className="block text-[13px] font-semibold text-slate-800 truncate">{functionNameById.get(r.functionId) ?? "Sem função"}</span>
+                                  {/* Sem filtro de evento, o pedido precisa dizer de qual ele é. */}
+                                  {!eventId && <span className="block truncate text-[11px] font-semibold text-slate-500" title={eventNameOf(r)}>{eventNameOf(r)}</span>}
+                                  <span className="block font-mono text-[11px] text-slate-500">
+                                    {r.teamInclusionId ? `vaga #${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "?"}` : "vaga nova"}{r.area ? ` · ${r.area}` : ""}
+                                  </span>
+                                  {r.reason && <span className="mt-0.5 block text-xs text-slate-600 line-clamp-2" title={r.reason}>{r.reason}</span>}
+                                </td>
+                                <td className="px-3 py-2.5 align-top whitespace-nowrap">
+                                  <span className="block font-mono text-[11px] text-slate-500">{formatDateTimeBr(r.createdAt)}</span>
+                                  <span className="block text-[11px] text-slate-500">por {r.requestedByName}</span>
+                                </td>
+                                <td className="px-3 py-2.5 align-top"><RequestStatusBadge status={r.status} /></td>
+                                <td className="px-3 py-2.5 align-top min-w-[300px]">
+                                  {r.reviewedByName ? (
+                                    <>
+                                      <span className="block text-[11px] text-slate-500">{r.reviewedByName} · {formatDateTimeBr(r.reviewedAt)}</span>
+                                      {r.reviewComment && <span className="block text-xs text-slate-700 whitespace-pre-wrap break-words">{r.reviewComment}</span>}
+                                    </>
+                                  ) : <span className="text-xs text-slate-500">Aguardando decisão do aprovador.</span>}
+                                </td>
+                                {canOpenApproval && <td className="px-3 py-2.5 align-top text-right">{approvalLink(r)}</td>}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
-                      <p className="text-sm font-semibold text-slate-800">
-                        {functionNameById.get(r.functionId) ?? "Sem função"}
-                        <span className="ml-1.5 font-mono text-xs font-normal text-slate-500">{r.teamInclusionId ? `vaga #${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "?"}` : "vaga nova"}</span>
-                      </p>
-                      <p className={LABEL}>por {r.requestedByName} · {fmtDateTime(r.createdAt)}</p>
-                      {r.reason && <p className="text-xs text-slate-600">{r.reason}</p>}
-                      {r.reviewedByName && (
-                        <p className="border-t border-slate-100 pt-2 text-xs text-slate-700">
-                          <span className="block text-xs text-slate-500">{CHANGE_REQUEST_STATUS_LABELS[r.status as ChangeRequestStatus] ?? r.status} · {r.reviewedByName} · {fmtDateTime(r.reviewedAt)}</span>
-                          {r.reviewComment}
-                        </p>
-                      )}
-                      {approvalLink(r)}
-                    </li>
-                  ))}
-                </ul>
+                    </div>
+
+                    <ul className="md:hidden space-y-2" aria-label={eventId ? "Pedidos do evento" : "Pedidos dos eventos do recorte"}>
+                      {filteredRequests.map((r) => (
+                        <li key={r.id} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
+                          <div className="flex flex-wrap items-start gap-1.5">
+                            <RequestTypeBadge type={r.requestType} />
+                            <RequestStatusBadge status={r.status} />
+                          </div>
+                          <p className="text-sm font-semibold text-slate-800">
+                            {functionNameById.get(r.functionId) ?? "Sem função"}
+                            <span className="ml-1.5 font-mono text-xs font-normal text-slate-500">{r.teamInclusionId ? `vaga #${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "?"}` : "vaga nova"}</span>
+                          </p>
+                          {!eventId && <p className={cn(LABEL, "truncate font-semibold text-slate-600")}>{eventNameOf(r)}</p>}
+                          <p className={LABEL}>por {r.requestedByName} · {formatDateTimeBr(r.createdAt)}</p>
+                          {r.reason && <p className="text-xs text-slate-600">{r.reason}</p>}
+                          {r.reviewedByName && (
+                            <p className="border-t border-slate-100 pt-2 text-xs text-slate-700">
+                              <span className="block text-xs text-slate-500">{CHANGE_REQUEST_STATUS_LABELS[r.status as ChangeRequestStatus] ?? r.status} · {r.reviewedByName} · {formatDateTimeBr(r.reviewedAt)}</span>
+                              {r.reviewComment}
+                            </p>
+                          )}
+                          {approvalLink(r)}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
               </>
             )}
           </TabsContent>
@@ -1372,17 +1579,18 @@ export default function ScalingEventViewPage() {
           <DialogHeader>
             <DialogTitle>Exportar o histórico em CSV</DialogTitle>
             <DialogDescription>
-              O arquivo sai com a aba aberta agora — <strong className="font-semibold text-slate-700">{TAB_LABEL[effectiveTab]}</strong> — separado por ponto e vírgula, pronto para o Excel.
+              O arquivo sai com a aba aberta agora — <strong className="font-semibold text-slate-700">{TAB_LABEL[effectiveTab]}</strong> — com os filtros aplicados agora, separado por ponto e vírgula, pronto para o Excel.
             </DialogDescription>
           </DialogHeader>
           <ul className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-            {EXPORT_COLS[effectiveTab].map(([grupo, cols]) => (
+            {/* "Evento" é a primeira coluna no modo "todos" (o quadro Escala só existe com evento). */}
+            {[...(!eventId && effectiveTab !== "escala" ? [EXPORT_EVENT_COL] : []), ...EXPORT_COLS[effectiveTab]].map(([grupo, cols]) => (
               <li key={grupo} className="border-b border-slate-100 px-3 py-1.5 text-xs text-slate-500 last:border-b-0">
                 <span className="font-semibold text-slate-700">{grupo}</span> {cols}
               </li>
             ))}
           </ul>
-          <p className="font-mono text-[11px] text-slate-400 break-all">{exportFilename}</p>
+          <p className="font-mono text-[11px] text-slate-500 break-all">{exportFilename}</p>
           <DialogFooter>
             <Button type="button" variant="outline" className="rounded-lg" onClick={() => setExportOpen(false)}>Cancelar</Button>
             <Button type="button" className="rounded-lg" onClick={exportCsv}>Baixar CSV</Button>

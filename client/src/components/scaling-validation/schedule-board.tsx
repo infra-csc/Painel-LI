@@ -64,7 +64,8 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
     return <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-400" role="status">Nenhuma vaga com dias de trabalho para montar o quadro.</p>;
   }
 
-  const TH = "px-2 py-2 text-center border-r border-slate-100 text-xs uppercase tracking-widest text-slate-500 font-semibold whitespace-nowrap";
+  // Cabeçalho no padrão das tabelas do módulo (11px, bold, caixa alta, tracking-wide).
+  const TH = "px-2 py-2 text-center border-r border-slate-100 text-[11px] font-bold uppercase tracking-wide text-slate-500 whitespace-nowrap";
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
@@ -73,7 +74,14 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
           Período muito longo para exibir o quadro — {totalDays} dias. Mostrando os {dates.length} primeiros (a partir de {formatDateHeader(dates[0]).date}); os demais dias ficaram de fora das colunas.
         </p>
       )}
-      <div className="overflow-x-auto max-h-[600px]">
+      {/* Focável: o quadro rola para o lado (uma coluna por dia) e sem tabIndex
+          quem navega pelo teclado não tinha como chegar nas colunas escondidas. */}
+      <div
+        className="overflow-x-auto max-h-[600px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        tabIndex={0}
+        role="region"
+        aria-label="Quadro de vagas por função e dia (rolagem horizontal)"
+      >
         <table className="w-full min-w-[640px] text-sm">
           <caption className="sr-only">Quadro de vagas por função e dia (todas as áreas)</caption>
           <thead className="bg-slate-50 sticky top-0 z-20">
