@@ -18,7 +18,7 @@
  *   a coluna congelada ficava sem fundo próprio.
  */
 import { useEffect, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Check } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   MessageSquare, ChevronRight, ChevronUp, ChevronDown, ChevronsUpDown, Lock, UserPlus,
@@ -111,6 +111,15 @@ export interface ScalingTableProps {
    * 403 depois que a pessoa já tinha escolhido o nome.
    */
   isEventLocked?: (inclusion: TeamInclusion) => boolean;
+  /**
+   * Confirmar direto da linha (04/09): a fila "Prontas" listava 121 vagas com
+   * nome esperando um clique, e o único caminho era abrir o modal (ou marcar
+   * e usar o lote). Mesmo POST /confirm — o servidor decide status/gestor.
+   */
+  podeConfirmarRapido?: (inclusion: TeamInclusion) => boolean;
+  onConfirmarRapido?: (e: React.MouseEvent, inclusion: TeamInclusion) => void;
+  /** Linha cuja confirmação está em andamento (botão trava e mostra "Confirmando…"). */
+  confirmandoId?: string | null;
   // ── Seleção múltipla (ações em massa) ──
   selectedIds: Set<string>;
   /** Motivo pelo qual a linha NÃO pode ser selecionada (null = pode) */
@@ -318,7 +327,7 @@ export default function ScalingTable({
   pendingSwapByInclusion, pendingChangeByInclusion, approvedSwapInclusionIds, seenSwapIds,
   currentUserId, isAdminOrPurchasing, canManageFunction, canApproveProduction, readOnly = false,
   commentCountByInclusion, getResponsavelDaFuncao, temPassagemComprada, isEventLocked,
-  selectedIds, getSelectBlockReason, onToggleSelect, onToggleAllVisible,
+  podeConfirmarRapido, onConfirmarRapido, confirmandoId, selectedIds, getSelectBlockReason, onToggleSelect, onToggleAllVisible,
 }: ScalingTableProps) {
   // Corte de renderização (auditoria 28/08): sem filtro, a tela montava TODAS
   // as linhas de uma vez e cada tecla na busca repintava tudo. O dado continua
@@ -553,6 +562,20 @@ export default function ScalingTable({
 
                   <td className="px-3" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-0.5">
+                      {onConfirmarRapido && podeGerir && podeConfirmarRapido?.(inclusion) && (
+                        <button
+                          type="button"
+                          onClick={(e) => onConfirmarRapido(e, inclusion)}
+                          disabled={confirmandoId === inclusion.id}
+                          className="inline-flex h-[30px] items-center gap-1 rounded-lg bg-emerald-600 px-2.5 text-[12px] font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-60 disabled:cursor-wait whitespace-nowrap"
+                          title={`Confirmar a escalação de ${nomeDoColaborador} — o servidor decide o status (cenotécnica vai ao gestor)`}
+                          aria-label={`Confirmar escalação ${idLabel}`}
+                          data-testid={`button-confirmar-rapido-${inclusion.id}`}
+                        >
+                          <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                          {confirmandoId === inclusion.id ? "Confirmando…" : "Confirmar"}
+                        </button>
+                      )}
                       {(() => {
                         const nComments = commentCountByInclusion?.get(inclusion.id) ?? 0;
                         return (

@@ -135,7 +135,9 @@ export function TravelFields({ value, onChange, disabled, idPrefix: p, titulo, l
     <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-3">
       {titulo ? <p className={GROUP_TITLE}>{titulo}</p> : null}
       <div className={emLinha ? "flex flex-wrap gap-5" : "space-y-3"}>
-      <fieldset className={cn("space-y-1.5", emLinha && "min-w-[260px] flex-1")}>
+      {/* Em linha, cada perna precisa de ~440px (3 colunas); com menos, os
+          blocos se sobrepunham em vez de quebrar linha (04/09). */}
+      <fieldset className={cn("space-y-1.5", emLinha && "min-w-[440px] flex-1")}>
         <legend className={GROUP_TITLE}>
           <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /> Ida
         </legend>
@@ -160,7 +162,7 @@ export function TravelFields({ value, onChange, disabled, idPrefix: p, titulo, l
         </div>
       </fieldset>
 
-      <fieldset className={cn("space-y-1.5", emLinha && "min-w-[260px] flex-1", regua)}>
+      <fieldset className={cn("space-y-1.5", emLinha && "min-w-[440px] flex-1", regua)}>
         <legend className={GROUP_TITLE}>
           <ArrowDownLeft className="h-3.5 w-3.5" aria-hidden="true" /> Volta
         </legend>
@@ -224,7 +226,9 @@ const NEED_OFF = "border-slate-200 bg-white text-slate-600 hover:border-primary/
 export function validateTravel(v: TravelDraft): string[] {
   const out: string[] = [];
   if (v.flightDepartureDate && v.flightReturnDate && v.flightReturnDate < v.flightDepartureDate) out.push("A data de volta não pode ser anterior à data de ida.");
-  if (v.needsTicket && (!v.flightDepartureDate || !v.flightReturnDate)) out.push("Com passagem marcada, informe as datas de ida e volta.");
+  // Só ida (ou só volta) vale (04/09): a pessoa pode voltar por conta própria
+  // ou já estar no destino. Com passagem marcada, basta UMA das datas.
+  if (v.needsTicket && !v.flightDepartureDate && !v.flightReturnDate) out.push("Com passagem marcada, informe a data da ida ou da volta.");
   return out;
 }
 

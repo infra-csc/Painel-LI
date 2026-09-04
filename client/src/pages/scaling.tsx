@@ -43,12 +43,12 @@ import ScalingCoverageDialog from "@/components/scaling/scaling-coverage-dialog"
 import ConfirmDialog from "@/components/scaling/confirm-dialog";
 import BulkConfirmBar from "@/components/scaling/bulk-confirm-bar";
 import { useScalingData, useInclusionDetails, DEFAULT_SCALING_FILTERS, type ScalingFilters } from "@/components/scaling/use-scaling-data";
-import { useScalingMutations, type InclusionSavePayload } from "@/components/scaling/use-scaling-mutations";
+import { useScalingMutations, confirmInclusionRequest, type InclusionSavePayload } from "@/components/scaling/use-scaling-mutations";
 import { useAttachments } from "@/components/scaling/use-attachments";
 import { exportScalingPdf, exportScalingXlsxColunas } from "@/components/scaling/export-scaling-xlsx";
 import { ExportColumnsDialog, type ExportScope } from "@/components/scaling/export-columns-dialog";
 import { getSaveBlockReason, getConfirmBlockReason, getBulkConfirmBlockReason } from "@/components/scaling/scaling-validation";
-import { describeLoadError, modalDataFromInclusion, type ModalData, isEscalated } from "@/components/scaling/scaling-utils";
+import { describeLoadError, modalDataFromInclusion, type ModalData, isEscalated, isCityFromSP } from "@/components/scaling/scaling-utils";
 import { DEFAULT_PERIOD, fazTesteDePeriodo, rotuloDoPeriodo, temRecorteDePeriodo, type PeriodConfig } from "@/components/scaling/scaling-period";
 import { ordenarEscalacoes } from "@/components/scaling/scaling-sort";
 import { getScalingStatusLabel } from "@/components/scaling/scaling-status";
@@ -602,7 +602,47 @@ export default function Scaling() {
     verExcluidos ? "incluindo excluídas" : null,
   ].filter(Boolean).join(" · ");
 
+  /**
+   * Confirmar direto da linha (04/09) — pedido do dono na fila "Prontas".
+   * Mesmo payload do lote: manda o que a linha já tem gravado e o servidor
+   * decide status/fase (cenotécnica → gestor). Sem diálogo de confirmação:
+   * o botão só aparece em vaga com nome, não confirmada e sem bloqueio.
+   */
+  const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
+  const podeConfirmarRapido = (i: TeamInclusion) =>
+    !!i.collaboratorId && !isEscalated(i) && i.status !== "cancelado" && !queueContext.bloqueioParaConfirmar(i);
+  const confirmarRapido = async (e: React.MouseEvent, inclusion: TeamInclusion) => {
+    e.stopPropagation();
+    if (confirmandoId) return;
+    setConfirmandoId(inclusion.id);
+    const nome = getCollaboratorName(inclusion.collaboratorId);
+    try {
+      const updated = await confirmInclusionRequest(inclusion.id, {
+        collaboratorId: inclusion.collaboratorId || "",
+        observations: inclusion.observations || "",
+        city: isCityFromSP(inclusion.city) ? "São Paulo - SP" : (inclusion.city || ""),
+        atendimentoTipo: (inclusion as any).atendimentoTipo || null,
+        percurseiroTipo: (inclusion as any).percurseiroTipo || null,
+        needsTicket: inclusion.needsTicket,
+        needsAccommodation: inclusion.needsAccommodation,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+      if (updated.status === "aguardando_producao") {
+        setSentToProductionInfo({ collaboratorName: nome, functionName: getFunctionName(inclusion.functionId), inclusionNumber: inclusion.inclusionNumber ?? null });
+      } else {
+        toast({ title: "Escalação confirmada", description: `#${inclusion.inclusionNumber ?? "—"} · ${nome}` });
+      }
+    } catch (err: any) {
+      toast({ title: "Não foi possível confirmar", description: err?.body?.message || err?.message || "Erro desconhecido", variant: "destructive" });
+    } finally {
+      setConfirmandoId(null);
+    }
+  };
+
   const tableProps = {
+    podeConfirmarRapido,
+    onConfirmarRapido: confirmarRapido,
+    confirmandoId,
     sortConfig,
     onSort: handleSort,
     onRowClick: (i: TeamInclusion) => openInclusion(i, "resumo"),

@@ -1715,7 +1715,8 @@ export function validateGridRow(row: SuggestionGridRow): RowValidation {
   if (row.flightArrivalSuggestedTime && !horarioOk(row.flightArrivalSuggestedTime)) errors.push("horário de desembarque inválido (ex.: 11:00 ou 8-14h)");
   if (row.flightReturnSuggestedTime && !horarioOk(row.flightReturnSuggestedTime)) errors.push("horário de embarque inválido (ex.: 11:00 ou 8-14h)");
   if (row.flightDepartureDate && row.flightReturnDate && row.flightReturnDate < row.flightDepartureDate) errors.push("data de volta anterior à data de ida");
-  if (row.needsTicket && (!row.flightDepartureDate || !row.flightReturnDate)) warnings.push("passagem marcada sem data de ida/volta");
+  // Só ida ou só volta é legítimo (04/09); o aviso é para NENHUMA data.
+  if (row.needsTicket && !row.flightDepartureDate && !row.flightReturnDate) warnings.push("passagem marcada sem data de ida nem de volta");
   if (errors.length === 0 && warnings.length === 0) return NO_ISSUES;
   return { errors, warnings };
 }
