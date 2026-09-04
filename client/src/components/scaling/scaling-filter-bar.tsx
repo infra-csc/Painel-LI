@@ -10,7 +10,7 @@
  * linhas sobram se eu marcar ISTO mantendo o resto". Por isso a base recebida
  * é sempre a lista SEM o filtro em questão.
  */
-import { forwardRef, useMemo, useState } from "react";
+import { forwardRef, useMemo, useState, Fragment } from "react";
 import { Check, ChevronDown, CalendarDays, Search, SlidersHorizontal } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { TeamInclusion } from "@shared/schema";
@@ -208,10 +208,11 @@ export default function ScalingFilterBar(p: Props) {
         <PopoverContent align="start" className="w-[560px] p-0 rounded-xl overflow-hidden">
           <div className="flex items-center px-3.5 py-3 border-b border-slate-100">
             <span className="text-[13px] font-semibold text-slate-900">Filtros</span>
-            {/* Dentro do grupo OU, entre grupos E: escrito porque é o que
-                permite "com passagem E sem hospedagem" e ninguém adivinha. */}
+            {/* Dentro da lista OU, entre listas E: escrito porque é o que
+                permite "precisa de passagem E não comprada" e ninguém adivinha.
+                Passagem e Hospedagem têm duas listas cada (o traço separa). */}
             <span className="ml-2 text-[12px] text-muted-foreground">
-              dentro do grupo soma; entre grupos, cruza
+              na mesma lista soma; entre listas (e grupos), cruza
             </span>
             {nFlags > 0 && (
               <button
@@ -231,9 +232,12 @@ export default function ScalingFilterBar(p: Props) {
                   {g.titulo}
                 </p>
                 <div className="flex flex-col gap-px">
-                  {g.opcoes.map((o) => (
+                  {g.opcoes.map((o, idx) => (
+                    <Fragment key={o.key}>
+                    {idx > 0 && o.eixo !== g.opcoes[idx - 1].eixo && (
+                      <div className="my-1 mx-2 border-t border-slate-200" aria-hidden="true" data-testid={`flag-eixo-${g.id}-${o.eixo}`} />
+                    )}
                     <button
-                      key={o.key}
                       type="button"
                       role="checkbox"
                       aria-checked={!!p.flags[o.key]}
@@ -249,6 +253,7 @@ export default function ScalingFilterBar(p: Props) {
                         {contagens[o.key] ?? 0}
                       </span>
                     </button>
+                    </Fragment>
                   ))}
                 </div>
               </div>

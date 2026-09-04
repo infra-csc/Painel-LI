@@ -16,6 +16,8 @@ interface RequestDetailSheetProps {
   request: ChangeRequestItem | null;
   /** A vaga do pedido, completa — para o aprovador ver o todo, não só o delta. */
   inclusion?: TeamInclusion | null;
+  /** A busca separada da vaga falhou (só quando ela não veio na lista). */
+  vagaFalhou?: boolean;
   /** Período do evento já formatado ("21/10/2026 – 25/10/2026"). */
   eventPeriod?: string | null;
   onApprove: (r: ChangeRequestItem) => void;
@@ -33,7 +35,7 @@ const SECTION = "text-[11px] font-bold uppercase tracking-wide text-slate-500";
  * de três colunas mais os chips de logística quebravam em duas linhas o tempo
  * todo. Com 720px cabe na linha, e o que sobra é menos rolagem para decidir.
  */
-export function RequestDetailSheet({ open, onOpenChange, request, inclusion, eventPeriod, onApprove, onReajustar, onNegar, busy }: RequestDetailSheetProps) {
+export function RequestDetailSheet({ open, onOpenChange, request, inclusion, vagaFalhou, eventPeriod, onApprove, onReajustar, onNegar, busy }: RequestDetailSheetProps) {
   const r = request;
   const type = (r?.requestType ?? "ajuste") as ChangeRequestType;
   const isPending = r?.status === CHANGE_REQUEST_STATUS.PENDENTE;
@@ -77,7 +79,7 @@ export function RequestDetailSheet({ open, onOpenChange, request, inclusion, eve
                 {type === "ajuste" && (
                   <section className="space-y-2" aria-labelledby="det-vaga">
                     <h3 id="det-vaga" className={SECTION}>A vaga hoje — completa</h3>
-                    <VagaCompleta inclusion={inclusion} />
+                    <VagaCompleta inclusion={inclusion} falhou={vagaFalhou} />
                   </section>
                 )}
                 {type === "ajuste" && (

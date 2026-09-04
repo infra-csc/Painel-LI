@@ -65,7 +65,15 @@ export type FlagKey =
 export interface FlagGroup {
   id: string;
   titulo: string;
-  opcoes: { key: FlagKey; label: string }[];
+  /**
+   * `eixo` separa, dentro do mesmo grupo visual, listas que CRUZAM entre si.
+   * Passagem tem dois eixos — precisa/não precisa e comprada/não comprada —
+   * e "Precisa de passagem" + "Não comprada" tem que dar o cruzamento (quem
+   * precisa E ainda não tem), não a soma (04/09: a soma trazia a passagem já
+   * comprada da Maria Claudia, porque ela "precisa"). Sem eixo, o grupo
+   * inteiro é uma lista só.
+   */
+  opcoes: { key: FlagKey; label: string; eixo?: string }[];
 }
 
 export const FLAG_GROUPS: FlagGroup[] = [
@@ -80,18 +88,18 @@ export const FLAG_GROUPS: FlagGroup[] = [
   },
   {
     id: "pass", titulo: "Passagem", opcoes: [
-      { key: "pass:precisa", label: "Precisa de passagem" },
-      { key: "pass:nao-precisa", label: "Não precisa" },
-      { key: "pass:comprada", label: "Comprada" },
-      { key: "pass:nao-comprada", label: "Não comprada" },
+      { key: "pass:precisa", label: "Precisa de passagem", eixo: "precisa" },
+      { key: "pass:nao-precisa", label: "Não precisa", eixo: "precisa" },
+      { key: "pass:comprada", label: "Comprada", eixo: "compra" },
+      { key: "pass:nao-comprada", label: "Não comprada", eixo: "compra" },
     ],
   },
   {
     id: "hosp", titulo: "Hospedagem", opcoes: [
-      { key: "hosp:precisa", label: "Precisa de hotel" },
-      { key: "hosp:nao-precisa", label: "Não precisa" },
-      { key: "hosp:reservada", label: "Reservada" },
-      { key: "hosp:nao-reservada", label: "Não reservada" },
+      { key: "hosp:precisa", label: "Precisa de hotel", eixo: "precisa" },
+      { key: "hosp:nao-precisa", label: "Não precisa", eixo: "precisa" },
+      { key: "hosp:reservada", label: "Reservada", eixo: "reserva" },
+      { key: "hosp:nao-reservada", label: "Não reservada", eixo: "reserva" },
     ],
   },
   {
@@ -138,19 +146,38 @@ function testeDaFlag(key: FlagKey, ctx: QueueContext): (i: TeamInclusion) => boo
 }
 
 /**
- * O teste completo de flags, como fábrica. Dentro do grupo OU, entre grupos E:
- * marcar "Comprada" e "Não comprada" no mesmo grupo devolve tudo (é o que a
- * pessoa pediu), enquanto "Precisa de passagem" + "Não reservada" cruza os dois.
+ * As listas que somam entre si (OU): cada grupo sem eixo é uma lista; um
+ * grupo com eixos vira uma lista por eixo. Entre listas, cruza (E).
+ */
+export function listasDeFlags(): FlagKey[][] {
+  const listas: FlagKey[][] = [];
+  for (const g of FLAG_GROUPS) {
+    const porEixo = new Map<string, FlagKey[]>();
+    for (const o of g.opcoes) {
+      const chave = o.eixo ?? "";
+      if (!porEixo.has(chave)) porEixo.set(chave, []);
+      porEixo.get(chave)!.push(o.key);
+    }
+    listas.push(...Array.from(porEixo.values()));
+  }
+  return listas;
+}
+
+/**
+ * O teste completo de flags, como fábrica. Dentro da lista OU, entre listas E:
+ * marcar "Comprada" e "Não comprada" na mesma lista devolve tudo (é o que a
+ * pessoa pediu), enquanto "Precisa de passagem" + "Não comprada" cruza os dois
+ * eixos — quem precisa E ainda não tem.
  */
 export function fazTesteDeFlags(
   ativas: Record<string, boolean>,
   ctx: QueueContext,
 ): (i: TeamInclusion) => boolean {
-  const porGrupo = FLAG_GROUPS
-    .map((g) => g.opcoes.filter((o) => ativas[o.key]).map((o) => testeDaFlag(o.key, ctx)))
+  const porLista = listasDeFlags()
+    .map((keys) => keys.filter((k) => ativas[k]).map((k) => testeDaFlag(k, ctx)))
     .filter((testes) => testes.length > 0);
-  if (porGrupo.length === 0) return () => true;
-  return (i) => porGrupo.every((testes) => testes.some((t) => t(i)));
+  if (porLista.length === 0) return () => true;
+  return (i) => porLista.every((testes) => testes.some((t) => t(i)));
 }
 
 /**
@@ -193,8 +220,8 @@ export function contadoresDasFlags(
   // matriz[i][j] = a linha i atende a flag j
   const matriz: boolean[][] = linhas.map((linha) => testes.map((t) => t(linha)));
 
-  // Índices das opções de cada grupo, para o "dentro do grupo OU".
-  const gruposIdx = FLAG_GROUPS.map((g) => g.opcoes.map((o) => TODAS_AS_FLAGS.indexOf(o.key)));
+  // Índices das opções de cada lista, para o "dentro da lista OU".
+  const gruposIdx = listasDeFlags().map((keys) => keys.map((k) => TODAS_AS_FLAGS.indexOf(k)));
 
   const passa = (linhaIdx: number, marcadas: boolean[]) => {
     for (const grupo of gruposIdx) {

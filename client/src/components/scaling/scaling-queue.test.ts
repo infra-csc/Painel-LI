@@ -66,9 +66,26 @@ describe("filtros por grupo", () => {
     expect(linhas.filter(fazTesteDeFlags({}, ctx()))).toHaveLength(3);
   });
 
-  it("dentro do grupo é OU", () => {
+  it("dentro da lista é OU", () => {
     const teste = fazTesteDeFlags({ "pass:precisa": true, "pass:nao-precisa": true }, ctx());
     expect(linhas.filter(teste)).toHaveLength(3);
+  });
+
+  it("os dois eixos de Passagem cruzam: precisa + não comprada = quem precisa E não tem", () => {
+    // 04/09: a soma trazia a passagem já comprada de quem "precisa".
+    const comprou = ctx({ temPassagemComprada: (i) => i.id === "a" });
+    const teste = fazTesteDeFlags({ "pass:precisa": true, "pass:nao-comprada": true }, comprou);
+    expect(linhas.filter(teste).map((l) => l.id)).toEqual(["b"]);
+    // O contador do popover promete o mesmo cruzamento.
+    const n = contadoresDasFlags(linhas, { "pass:precisa": true }, comprou);
+    expect(n["pass:nao-comprada"]).toBe(1);
+    expect(n["pass:comprada"]).toBe(1);
+  });
+
+  it("os dois eixos de Hospedagem também cruzam", () => {
+    const reservou = ctx({ temHospedagemReservada: (i) => i.id === "a" });
+    const teste = fazTesteDeFlags({ "hosp:precisa": true, "hosp:nao-reservada": true }, reservou);
+    expect(linhas.filter(teste).map((l) => l.id)).toEqual(["c"]);
   });
 
   it("entre grupos é E — o que permite “com passagem e sem hospedagem”", () => {

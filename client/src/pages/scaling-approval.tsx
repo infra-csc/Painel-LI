@@ -271,6 +271,7 @@ export default function ScalingApprovalPage() {
     staleTime: 15_000,
   });
   const vagaDoPedido: TeamInclusion | null = openInclusion ?? (idDaVagaFaltante ? (vagaPorIdQuery.data ?? null) : null);
+  const vagaFalhou = !!idDaVagaFaltante && vagaPorIdQuery.isError;
   /** Período de cada evento, pronto para a fila e para os diálogos. */
   const eventPeriodById = useMemo(
     () => new Map(activeEvents.map((e) => [e.id, formatDateRange(e.startDate, e.endDate, { withYear: true })] as const)),
@@ -855,6 +856,7 @@ export default function ScalingApprovalPage() {
         onOpenChange={(o) => { if (!o) closeAll(); }}
         request={openRequest}
         inclusion={vagaDoPedido}
+        vagaFalhou={vagaFalhou}
         eventPeriod={openRequest ? eventPeriodById.get(openRequest.eventId) ?? null : null}
         busy={busy}
         onApprove={() => dispatch({ type: "mode", mode: "approve", origin: "detalhe" })}
@@ -874,6 +876,7 @@ export default function ScalingApprovalPage() {
         kind={reviewKind ?? "reajustar"}
         request={openRequest}
         inclusion={vagaDoPedido}
+        vagaFalhou={vagaFalhou}
         event={openRequest ? eventById.get(openRequest.eventId) ?? selectedEvent : selectedEvent}
         pending={review.isPending}
         onSubmit={submitReview}

@@ -66,10 +66,50 @@ export function ProposedList({ proposed, className, semQuantidade = false }: { p
  * a pessoa trabalha. Reaproveita o mesmo rascunho que o formulário de reajuste
  * usa, então a lista é exatamente o que o servidor conhece da vaga.
  */
-export function VagaCompleta({ inclusion, className }: { inclusion: TeamInclusion | null | undefined; className?: string }) {
+export function VagaCompleta({ inclusion, falhou, className }: { inclusion: TeamInclusion | null | undefined; falhou?: boolean; className?: string }) {
+  // A vaga pode vir por uma busca separada (pedido de ajuste sobre vaga já
+  // escalada); se essa busca falhar, "Carregando…" para sempre esconderia o
+  // problema — a pessoa precisa saber que a lista abaixo não veio.
+  if (!inclusion && falhou) return <p className={cn("text-xs text-red-600", className)}>Não foi possível carregar a vaga — recarregue a página para tentar de novo.</p>;
   if (!inclusion) return <p className={cn("text-xs text-slate-400", className)}>Carregando a vaga…</p>;
   const completa = fullFromDraft(draftFromProposed(null, inclusion));
-  return <ProposedList proposed={completa} semQuantidade className={className} />;
+  // Blocos em vez de uma lista de treze linhas (04/09, "o design está
+  // péssimo"): a perna vira o título do bloco e o rótulo perde o prefixo.
+  const valor = (f: ProposedField) => {
+    const v = completa[f];
+    const vazio = v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
+    return <span className={vazio ? "text-slate-400" : "text-slate-800 font-medium"}>{formatProposedValue(f, v)}</span>;
+  };
+  const blocos: { titulo: string; campos: [ProposedField, string][] }[] = [
+    { titulo: "Trabalho", campos: [["workDays", "Dias"], ["dailyRates", "Diárias"]] },
+    { titulo: "Ida", campos: [["flightDepartureDate", "Data"], ["flightDepartureSuggestedTime", "Saída sugerida"], ["flightArrivalSuggestedTime", "Chegar até"], ["transportModeIda", "Transporte"]] },
+    { titulo: "Volta", campos: [["flightReturnDate", "Data"], ["flightReturnSuggestedTime", "Sair após"], ["transportModeVolta", "Transporte"]] },
+    { titulo: "Logística", campos: [["needsTicket", "Passagem"], ["needsAccommodation", "Hospedagem"]] },
+  ];
+  const obs = String(completa.observations ?? "").trim();
+  return (
+    <div className={cn("grid grid-cols-2 gap-2 text-xs", className)} data-testid="vaga-completa">
+      {blocos.map((bl) => (
+        <section key={bl.titulo} className="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2" aria-label={bl.titulo}>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-400">{bl.titulo}</p>
+          <dl className="space-y-0.5">
+            {bl.campos.map(([f, rotulo]) => (
+              <div key={f} className="flex items-baseline justify-between gap-3">
+                <dt className="text-slate-500 shrink-0">{rotulo}</dt>
+                <dd className="text-right break-words min-w-0">{valor(f)}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ))}
+      {obs && (
+        <section className="col-span-2 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2" aria-label="Observações">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-400">Observações</p>
+          <p className="text-slate-800 whitespace-pre-wrap break-words">{obs}</p>
+        </section>
+      )}
+    </div>
+  );
 }
 
 /** Motivo do solicitante, em destaque. */

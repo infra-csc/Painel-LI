@@ -89,6 +89,7 @@ interface ReviewDialogProps {
   request: ChangeRequestItem | null;
   /** Vaga atual (só para AJUSTE) — preenche o formulário editável e calcula o diff. */
   inclusion?: TeamInclusion | null;
+  vagaFalhou?: boolean;
   event?: Event | null;
   pending: boolean;
   onSubmit: (body: ReviewBody) => void;
@@ -143,7 +144,7 @@ export function thenOption(
 
 const THEN_VALUES: ReviewBody["then"][] = ["reenviar_validacao", "aprovar_direto"];
 
-export function ReviewRequestDialog({ open, onOpenChange, kind, request, inclusion, event, pending, onSubmit }: ReviewDialogProps) {
+export function ReviewRequestDialog({ open, onOpenChange, kind, request, inclusion, vagaFalhou, event, pending, onSubmit }: ReviewDialogProps) {
   const type = (request?.requestType ?? "ajuste") as ChangeRequestType;
   const canEditFields = kind === "reajustar" && type !== "exclusao";
   const title = kind === "reajustar" ? "Reajustar pedido" : "Negar pedido";
@@ -172,6 +173,7 @@ export function ReviewRequestDialog({ open, onOpenChange, kind, request, inclusi
           type={type}
           request={request}
           inclusion={inclusion}
+          vagaFalhou={vagaFalhou}
           event={event}
           pending={pending}
           canEditFields={canEditFields}
@@ -188,6 +190,7 @@ interface ReviewFormProps {
   type: ChangeRequestType;
   request: ChangeRequestItem | null;
   inclusion?: TeamInclusion | null;
+  vagaFalhou?: boolean;
   event?: Event | null;
   pending: boolean;
   canEditFields: boolean;
@@ -197,7 +200,7 @@ interface ReviewFormProps {
 
 const COMMENT_REQUIRED = "O comentário para a área é obrigatório.";
 
-function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFields, onCancel, onSubmit }: ReviewFormProps) {
+function ReviewForm({ kind, type, request, inclusion, vagaFalhou, event, pending, canEditFields, onCancel, onSubmit }: ReviewFormProps) {
   // Pedido sobre vaga JÁ ESCALADA (modal de Escalação): o servidor recusa
   // "reenviar_validacao" — a vaga não está em fila nenhuma para voltar. Aqui a
   // opção nem aparece, e o destino já nasce em "aprovar_direto".
@@ -281,7 +284,7 @@ function ReviewForm({ kind, type, request, inclusion, event, pending, canEditFie
           {type === "ajuste" && (
             <div className="space-y-1.5">
               <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">A vaga hoje — completa</p>
-              <VagaCompleta inclusion={inclusion} />
+              <VagaCompleta inclusion={inclusion} falhou={vagaFalhou} />
             </div>
           )}
           {/* 1) Comentário */}
