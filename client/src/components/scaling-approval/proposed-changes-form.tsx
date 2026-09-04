@@ -161,12 +161,8 @@ export function ProposedChangesForm({ type, value, onChange, event, disabled, id
   const divergencia = pedidos.length ? divergenciaDeDias(value.workDays, pedidos) : "";
   return (
     <div className="space-y-4">
-      {type === "inclusao" && (
-        <div className="space-y-1 max-w-[160px]">
-          <Label htmlFor={`${idPrefix}-qty`} className="text-xs text-slate-600">Quantidade de vagas</Label>
-          <Input id={`${idPrefix}-qty`} type="number" min={1} step={1} value={value.quantity} disabled={disabled} onChange={(e) => set({ quantity: e.target.value })} className="h-9 rounded-lg" />
-        </div>
-      )}
+      {/* Sem campo de quantidade (dono, 04/09): pedido de inclusão é sempre
+          de UMA vaga; o valor segue no rascunho como veio do pedido. */}
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Label className="text-xs text-slate-600">Dias de trabalho <span className="text-red-400">*</span></Label>
@@ -187,7 +183,7 @@ export function ProposedChangesForm({ type, value, onChange, event, disabled, id
           </p>
         )}
       </div>
-      <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
+      <div className="grid gap-3 sm:grid-cols-[220px_1fr]">
         <DiariasDerivadas id={`${idPrefix}-daily`} dias={value.workDays.length} />
         <div className="space-y-1">
           <Label htmlFor={`${idPrefix}-obs`} className="text-xs text-slate-600">Observações da vaga</Label>

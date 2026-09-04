@@ -328,7 +328,7 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
               aria-describedby={error?.campo === "days" || error?.campo === "diff" ? "adj-erro" : undefined}>
               <WorkDaysPicker rangeStart={event?.startDate ?? ""} rangeEnd={event?.endDate ?? ""} value={workDays} onChange={setWorkDays} disabled={mutation.isPending} />
             </div>
-            <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
+            <div className="grid gap-3 sm:grid-cols-[220px_1fr]">
               <DiariasDerivadas id="adj-daily" dias={workDays.length} />
               <div className="space-y-1">
                 <Label htmlFor="adj-obs" className="text-xs text-slate-600">Observações da vaga</Label>
@@ -596,7 +596,7 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
 
         <div className={DIALOG_BODY}>
           <section className="space-y-2" aria-labelledby="inc-passo-1">
-            <Passo n={1} id="inc-passo-1" obrigatorio>Função e quantidade</Passo>
+            <Passo n={1} id="inc-passo-1" obrigatorio>Função</Passo>
             <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
               <div className="space-y-1">
                 <Label htmlFor="inc-function" className="text-xs text-slate-600">Função</Label>
@@ -612,14 +612,8 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="inc-qty" className="text-xs text-slate-600">Quantidade</Label>
-                <Input id="inc-qty" type="number" min={1} max={MAX_VAGAS} step={1} value={quantity} disabled={mutation.isPending}
-                  aria-invalid={error?.campo === "quantity" || undefined} aria-describedby={error?.campo === "quantity" ? "inc-erro" : "inc-qty-dica"}
-                  onChange={(e) => { setQuantity(e.target.value); if (error?.campo === "quantity") setError(null); }}
-                  className={cn("h-9 rounded-lg", error?.campo === "quantity" && "border-red-400 focus-visible:ring-red-300")} />
-                <p id="inc-qty-dica" className="text-[11px] text-slate-500">No máximo {MAX_VAGAS} vagas por pedido.</p>
-              </div>
+              {/* Sem campo de quantidade (dono, 04/09): o pedido é sempre de UMA
+                  vaga — a quantidade fica fixa em 1 (estado mantido). */}
             </div>
           </section>
 
@@ -629,7 +623,7 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
               <WorkDaysPicker rangeStart={event?.startDate ?? ""} rangeEnd={event?.endDate ?? ""} value={workDays}
                 onChange={(d) => { setWorkDays(d); if (error?.campo === "days" && d.length) setError(null); }} disabled={mutation.isPending} />
             </div>
-            <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
+            <div className="grid gap-3 sm:grid-cols-[220px_1fr]">
               <DiariasDerivadas id="inc-daily" dias={workDays.length} />
               <div className="space-y-1">
                 <Label htmlFor="inc-obs" className="text-xs text-slate-600">Observações da vaga</Label>
