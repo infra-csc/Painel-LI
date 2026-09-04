@@ -232,7 +232,8 @@ export function StatusCell({ row, approverNames }: { row: SuggestionRow; approve
       {row.pendingRequest
         ? <PendingRequestBadge row={row} />
         : <SuggestionStatusBadge status={row.status} />}
-      <PendingDaysBadge row={row} approverNames={approverNames} />
+      {/* "pendente há N dias" saiu da lista (04/09): a contagem virava ruído
+          vermelho em toda linha; o recorte "Atrasadas" continua nos KPIs. */}
       <ReturnedBadge row={row} />
     </div>
   );

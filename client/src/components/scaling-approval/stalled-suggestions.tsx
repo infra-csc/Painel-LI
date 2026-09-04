@@ -143,7 +143,6 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                 {showEvent && <th scope="col" className={cn(TH, "min-w-[170px]")}>Evento</th>}
                 <th scope="col" className={TH}>Área</th>
                 <th scope="col" className={TH}>Período / diárias</th>
-                <th scope="col" className={TH}>Parada há</th>
                 <th scope="col" className={cn(TH, STICKY_TH, "text-right min-w-[250px]")}>Ações</th>
               </tr>
             </thead>
@@ -168,14 +167,14 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="inline-flex shrink-0 rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800 tabular-nums">#{row.inclusionNumber}</span>
                         <div className="min-w-0">
-                          <span className="block font-semibold text-slate-800 truncate" title={fnName}>{fnName}</span>
-                          <span className="block text-[11px] text-slate-500 truncate" title={row.observations ?? undefined}>{row.observations || "Sem observações"}</span>
+                          <span className="block font-semibold text-slate-800 break-words" title={fnName}>{fnName}</span>
+                          <span className="block text-[11px] text-slate-500 line-clamp-2 break-words" title={row.observations ?? undefined}>{row.observations || "Sem observações"}</span>
                         </div>
                       </div>
                     </td>
                     {showEvent && (
                       <td className="px-2.5 py-2 align-middle max-w-[220px]">
-                        <span className="block truncate text-[13px] font-semibold text-slate-700" title={row.eventName ?? undefined}>
+                        <span className="block break-words text-[13px] font-semibold text-slate-700" title={row.eventName ?? undefined}>
                           {row.eventName ?? "Evento sem nome"}
                         </span>
                         <span className="block font-mono text-[11px] text-slate-500">{eventPeriodLabel(row) || "Sem período"}</span>
@@ -186,7 +185,6 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                       <span className="font-mono tabular-nums text-xs text-slate-700">{periodLabel(row)}</span>
                       <span className="ml-1.5 text-[11px] text-slate-500">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
                     </td>
-                    <td className="px-2.5 py-2 align-middle"><PendingDaysBadge row={row} approverNames={approvers} /></td>
                     <td className={cn("px-2.5 py-2 align-middle text-right", STICKY_TD, stickyBg)}>
                       {canAct ? (
                         <span className="inline-flex items-center gap-1.5">
@@ -198,7 +196,7 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                           </Button>
                         </span>
                       ) : (
-                        <span className="inline-block max-w-[220px] truncate text-[11px] text-slate-500" title={lockReason}>{lockReason}</span>
+                        <span className="inline-block max-w-[220px] line-clamp-2 text-[11px] text-slate-500" title={lockReason}>{lockReason}</span>
                       )}
                     </td>
                   </tr>
@@ -236,7 +234,6 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                   <span className="font-mono text-[11px] text-slate-500 tabular-nums">#{row.inclusionNumber}</span>
                   <span className="font-semibold text-slate-800 truncate">{functionNameById.get(row.functionId) ?? "Sem função"}</span>
                   {row.eventName && <span className="text-slate-500 truncate">· {row.eventName}</span>}
-                  <span className="ml-auto shrink-0 text-[11px] text-slate-500">{row.daysPending} {row.daysPending === 1 ? "dia" : "dias"}</span>
                 </li>
               ))}
             </ul>
@@ -251,7 +248,7 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                     "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap",
                     unica.daysPending >= DANGER_DAYS ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200",
                   )}>
-                    <Clock className="w-3 h-3" aria-hidden="true" /> parada há {unica.daysPending} {unica.daysPending === 1 ? "dia" : "dias"}
+                    <Clock className="w-3 h-3" aria-hidden="true" /> sem validação da área
                   </span>
                 }
                 nota="A área nunca validou esta vaga."

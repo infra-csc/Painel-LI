@@ -300,7 +300,6 @@ export function AwaitingApproval({
                 {showEvent && <th scope="col" className={cn(TH, "min-w-[170px]")}>Evento</th>}
                 <th scope="col" className={TH}>Período / diárias</th>
                 <th scope="col" className={TH}>Validada por</th>
-                <th scope="col" className={TH}>Aguardando</th>
                 <th scope="col" className={cn(TH, "text-center")}>Logística</th>
                 <th scope="col" className={cn(TH, STICKY_TH, "text-right min-w-[210px]")}>Decisão</th>
               </tr>
@@ -329,8 +328,8 @@ export function AwaitingApproval({
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="inline-flex shrink-0 rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800 tabular-nums">#{row.inclusionNumber}</span>
                         <div className="min-w-0">
-                          <span className="block font-semibold text-slate-800 truncate" title={fnName}>{fnName}</span>
-                          <span className="block text-[11px] text-slate-500 truncate" title={row.observations ?? undefined}>
+                          <span className="block font-semibold text-slate-800 break-words" title={fnName}>{fnName}</span>
+                          <span className="block text-[11px] text-slate-500 line-clamp-2 break-words" title={row.observations ?? undefined}>
                             {row.area ?? "Sem área"}{row.observations ? ` · ${row.observations}` : ""}
                           </span>
                         </div>
@@ -338,7 +337,7 @@ export function AwaitingApproval({
                     </td>
                     {showEvent && (
                       <td className="px-2.5 py-2 align-middle max-w-[220px]">
-                        <span className="block truncate text-[13px] font-semibold text-slate-700" title={row.eventName ?? undefined}>
+                        <span className="block break-words text-[13px] font-semibold text-slate-700" title={row.eventName ?? undefined}>
                           {row.eventName ?? "Evento sem nome"}
                         </span>
                         <span className="block font-mono text-[11px] text-slate-500">{eventPeriodLabel(row) || "Sem período"}</span>
@@ -349,7 +348,6 @@ export function AwaitingApproval({
                       <span className="ml-1.5 text-[11px] text-slate-500">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
                     </td>
                     <td className="px-2.5 py-2 align-middle"><ValidatedCell row={row} userNameById={userNameById} /></td>
-                    <td className="px-2.5 py-2 align-middle"><AwaitingBadge days={daysAwaiting(row)} /></td>
                     <td className="px-2.5 py-2 align-middle text-center"><TravelCell row={row} /></td>
                     <td className={cn("px-2.5 py-2 align-middle text-right", STICKY_TD, stickyBg)}>
                       {selectable ? (
@@ -378,7 +376,7 @@ export function AwaitingApproval({
                           </Button>
                         </span>
                       ) : (
-                        <span className="text-[11px] text-slate-500 truncate inline-block max-w-[200px]" title={lockReason}>{lockReason}</span>
+                        <span className="text-[11px] text-slate-500 inline-block max-w-[220px] line-clamp-2" title={lockReason}>{lockReason}</span>
                       )}
                     </td>
                   </tr>
@@ -406,12 +404,11 @@ export function AwaitingApproval({
                       <li key={r.id} className="space-y-1 px-3 py-2">
                         <div className="flex items-center gap-2">
                           <span className="rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800">#{r.inclusionNumber}</span>
-                          <span className="truncate font-semibold">{functionNameById.get(r.functionId) ?? "Sem função"}</span>
-                          <span className="truncate text-slate-500">{r.area || "Sem área"}</span>
+                          <span className="break-words font-semibold">{functionNameById.get(r.functionId) ?? "Sem função"}</span>
+                          <span className="break-words text-slate-500">{r.area || "Sem área"}</span>
                           {/* Lote de "todos os eventos" pode misturar eventos: o
                               aprovador precisa ver isso ANTES de confirmar. */}
-                          {showEvent && <span className="truncate text-slate-500">{r.eventName ?? "Sem evento"}</span>}
-                          <span className="ml-auto shrink-0"><AwaitingBadge days={daysAwaiting(r)} /></span>
+                          {showEvent && <span className="break-words text-slate-500">{r.eventName ?? "Sem evento"}</span>}
                         </div>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
                           <span className="font-mono tabular-nums text-slate-600">{periodLabel(r)}</span>
@@ -426,7 +423,7 @@ export function AwaitingApproval({
                             </>
                           ) : <span className="text-[11px] text-slate-500">Sem logística</span>}
                         </div>
-                        {r.observations && <p className="truncate text-[11px] italic text-slate-500" title={r.observations}>{r.observations}</p>}
+                        {r.observations && <p className="line-clamp-2 text-[11px] italic text-slate-500" title={r.observations}>{r.observations}</p>}
                       </li>
                     );
                   })}
@@ -484,7 +481,6 @@ export function AwaitingApproval({
               <VagaCard
                 row={decision.row}
                 functionName={functionNameById.get(decision.row.functionId)}
-                badge={<AwaitingBadge days={daysAwaiting(decision.row)} />}
                 nota={decision.row.validatedAt
                   ? `Validada por ${(decision.row.validatedBy && userNameById?.get(decision.row.validatedBy)) ?? "área responsável"} · ${formatDateBr(new Date(decision.row.validatedAt))}`
                   : "A área nunca validou esta vaga."}

@@ -667,8 +667,9 @@ export default function ScalingEventViewPage() {
     const never = counts.pendentes;
     if (!awaiting.length && !open.length && !never) return null;
     const parts: string[] = [];
-    if (awaiting.length) parts.push(`${plural(awaiting.length, "vaga validada espera", "vagas validadas esperam")} decisão do aprovador (a mais antiga ${ageLabel(awaiting.reduce((m, r) => Math.max(m, daysSince(r.validatedAt)), 0))})`);
-    if (open.length) parts.push(`${plural(open.length, "pedido em aberto", "pedidos em aberto")} (o mais antigo ${ageLabel(open.reduce((m, r) => Math.max(m, daysSince(r.createdAt)), 0))})`);
+    // Sem "a mais antiga há N dias" (pedido do dono, 04/09).
+    if (awaiting.length) parts.push(`${plural(awaiting.length, "vaga validada espera", "vagas validadas esperam")} decisão do aprovador`);
+    if (open.length) parts.push(plural(open.length, "pedido em aberto", "pedidos em aberto"));
     if (never) parts.push(`${plural(never, "vaga ainda não validada", "vagas ainda não validadas")} pela área`);
     return {
       title: awaiting.length || open.length ? "A escala está travada na aprovação" : "A escala está esperando a validação das áreas",

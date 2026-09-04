@@ -121,22 +121,22 @@ export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById,
                         type="button"
                         onClick={() => onOpen(r)}
                         aria-label={rowAriaLabel(r)}
-                        className="block max-w-full truncate text-left font-semibold text-slate-800 rounded-sm hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="block max-w-full break-words text-left font-semibold text-slate-800 rounded-sm hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         title={r.functionName ?? undefined}
                       >
                         {r.functionName ?? "Sem função"}
                       </button>
-                      <span className="block text-[11px] text-slate-500 truncate">
+                      <span className="block text-[11px] text-slate-500 break-words">
                         <span className="font-mono">{targetLabel(r)}{r.area ? ` · ${r.area}` : ""}</span>
                         <span title={r.requestedByName ?? undefined}> · por {r.requestedByName}</span>
                       </span>
                       {/* Motivo na 2ª linha da própria vaga: é dela que ele fala. */}
                       {r.reason
-                        ? <span className="mt-0.5 block text-xs text-slate-600 truncate" title={r.reason}>{r.reason}</span>
+                        ? <span className="mt-0.5 block text-xs text-slate-600 line-clamp-2 break-words" title={r.reason}>{r.reason}</span>
                         : <span className="mt-0.5 block text-xs text-slate-400" title="Sem motivo informado">—</span>}
                       {/* O QUE está sendo pedido, no de/para — o motivo sozinho
                           ("teste") obrigava a abrir cada pedido para descobrir. */}
-                      {resumo && <span className="mt-0.5 block text-[11px] text-slate-500 truncate" title={resumo}>{resumo}</span>}
+                      {resumo && <span className="mt-0.5 block text-[11px] text-slate-500 whitespace-normal break-words" title={resumo}>{resumo}</span>}
                       {pending && r.canDecide && <CanDecideBadge className="mt-1" />}
                     </td>
                     {/* A data embaixo do nome (04/09): "Night Run - Salvador" sem
@@ -144,16 +144,15 @@ export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById,
                         daqui a dois meses — e é isso que decide a pressa. */}
                     {showEvent && (
                       <td className="px-2.5 py-2 align-middle text-xs text-slate-600 max-w-[200px]">
-                        <span className="block truncate font-medium text-slate-700" title={r.eventName ?? undefined}>{r.eventName ?? "Sem evento"}</span>
+                        <span className="block break-words font-medium text-slate-700" title={r.eventName ?? undefined}>{r.eventName ?? "Sem evento"}</span>
                         {eventPeriodById?.get(r.eventId) && (
                           <span className="block font-mono text-[11px] text-slate-500 tabular-nums">{eventPeriodById.get(r.eventId)}</span>
                         )}
                       </td>
                     )}
                     <td className="px-2.5 py-2 align-middle whitespace-nowrap">
-                      {pending
-                        ? <RequestAgeBadge days={days} />
-                        : <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-500">{formatDateBr(r.createdAt ? new Date(r.createdAt) : null)}</span>}
+                      {/* Só a data de abertura — o "há N dias" saiu (04/09). */}
+                      <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-500">{formatDateBr(r.createdAt ? new Date(r.createdAt) : null)}</span>
                     </td>
                     {/* Sem o tinte de hover aqui: a célula grudada precisa de
                         fundo opaco, e o tinte translúcido deixaria as outras
@@ -215,7 +214,6 @@ export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById,
                   <RequestTypeBadge type={r.requestType} />
                   {isPostValidationInclusion(r.inclusionState) && <PostScalingBadge />}
                   <RequestStatusBadge status={r.status} />
-                  {pending && <RequestAgeBadge days={days} />}
                   {pending && r.canDecide && <CanDecideBadge />}
                 </div>
                 <Button type="button" size="sm" variant="ghost" className="h-8 rounded-lg text-primary shrink-0 -mr-1" onClick={() => onOpen(r)} aria-label={rowAriaLabel(r)}>

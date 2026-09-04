@@ -76,18 +76,18 @@ export function LogisticsPanel({ row, disabled, onChangeRow, workDays }: Logisti
           <div className="mt-1.5 flex flex-wrap items-end gap-2">
             <div>
               <Label htmlFor={f("modal-ida")} className={FIELD_LABEL}>Modal</Label>
-              <ModeSelect id={f("modal-ida")} value={row.transportModeIda} disabled={disabled} label={`Modal de ida — ${row.functionName}`} onChange={(v) => patch({ transportModeIda: v })} />
+              <ModeSelect id={f("modal-ida")} className="min-w-[150px]" value={row.transportModeIda} disabled={disabled} label={`Modal de ida — ${row.functionName}`} onChange={(v) => patch({ transportModeIda: v })} />
             </div>
             <div>
               <Label htmlFor={f("data-ida")} className={FIELD_LABEL}>Data</Label>
               <Input id={f("data-ida")} type="date" value={row.flightDepartureDate} disabled={disabled} aria-label={`Data de ida — ${row.functionName}`}
-                onChange={(e) => patch({ flightDepartureDate: e.target.value })} className={cn(inputCls(!!row.flightDepartureDate), "w-[132px]")} />
+                onChange={(e) => patch({ flightDepartureDate: e.target.value })} className={cn(inputCls(!!row.flightDepartureDate), "w-[140px]")} />
             </div>
             <div>
               <Label htmlFor={f("hora-ida")} className={FIELD_LABEL}>Desembarque (chegada)</Label>
               <Input id={f("hora-ida")} type="text" placeholder={TIME_PLACEHOLDER} title={disabled ? undefined : TIME_TITLE} maxLength={40}
                 value={row.flightArrivalSuggestedTime} disabled={disabled} aria-label={`Horário de desembarque — ${row.functionName}`}
-                onChange={(e) => patch({ flightArrivalSuggestedTime: e.target.value })} className={cn(inputCls(!!row.flightArrivalSuggestedTime), "w-[124px] tabular-nums")} />
+                onChange={(e) => patch({ flightArrivalSuggestedTime: e.target.value })} className={cn(inputCls(!!row.flightArrivalSuggestedTime), "w-[160px] tabular-nums")} />
             </div>
           </div>
         </fieldset>
@@ -97,20 +97,20 @@ export function LogisticsPanel({ row, disabled, onChangeRow, workDays }: Logisti
           <div className="mt-1.5 flex flex-wrap items-end gap-2">
             <div>
               <Label htmlFor={f("modal-volta")} className={FIELD_LABEL}>Modal</Label>
-              <ModeSelect id={f("modal-volta")} value={row.transportModeVolta} disabled={disabled} label={`Modal de volta — ${row.functionName}`} onChange={(v) => patch({ transportModeVolta: v })} />
+              <ModeSelect id={f("modal-volta")} className="min-w-[150px]" value={row.transportModeVolta} disabled={disabled} label={`Modal de volta — ${row.functionName}`} onChange={(v) => patch({ transportModeVolta: v })} />
             </div>
             <div>
               <Label htmlFor={f("data-volta")} className={FIELD_LABEL}>Data</Label>
               {/* min = data da ida: o seletor já não oferece volta antes da ida (data digitada continua validada pela regra). */}
               <Input id={f("data-volta")} type="date" value={row.flightReturnDate} disabled={disabled} aria-label={`Data de volta — ${row.functionName}`}
                 min={row.flightDepartureDate || undefined}
-                onChange={(e) => patch({ flightReturnDate: e.target.value })} className={cn(inputCls(!!row.flightReturnDate), "w-[132px]")} />
+                onChange={(e) => patch({ flightReturnDate: e.target.value })} className={cn(inputCls(!!row.flightReturnDate), "w-[140px]")} />
             </div>
             <div>
               <Label htmlFor={f("hora-volta")} className={FIELD_LABEL}>Embarque (saída)</Label>
               <Input id={f("hora-volta")} type="text" placeholder={TIME_PLACEHOLDER} title={disabled ? undefined : TIME_TITLE} maxLength={40}
                 value={row.flightReturnSuggestedTime} disabled={disabled} aria-label={`Horário de embarque da volta — ${row.functionName}`}
-                onChange={(e) => patch({ flightReturnSuggestedTime: e.target.value })} className={cn(inputCls(!!row.flightReturnSuggestedTime), "w-[124px] tabular-nums")} />
+                onChange={(e) => patch({ flightReturnSuggestedTime: e.target.value })} className={cn(inputCls(!!row.flightReturnSuggestedTime), "w-[160px] tabular-nums")} />
             </div>
           </div>
         </fieldset>

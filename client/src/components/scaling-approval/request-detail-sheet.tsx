@@ -68,7 +68,6 @@ export function RequestDetailDialog({ open, onOpenChange, request, inclusion, va
                     aparecer só na fila e sumir no detalhe. */}
                 {postScaling && <PostScalingBadge />}
                 <RequestStatusBadge status={r.status} />
-                {isPending && <RequestAgeBadge days={days} />}
                 {isPending && r.canDecide && <CanDecideBadge />}
               </div>
               <DialogTitle ref={titleRef} tabIndex={-1} className="text-base leading-tight outline-none">

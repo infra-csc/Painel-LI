@@ -1421,7 +1421,10 @@ export default function ScalingSuggestionPage() {
 
       {/* Adicionar função (multi-seleção) */}
       <Dialog open={showAddFunction} onOpenChange={(o) => { if (!o) setShowAddFunction(false); }}>
-        <DialogContent className="max-w-md p-0 overflow-hidden w-[calc(100%-2rem)] rounded-2xl sm:w-full">
+        {/* min-w-0 nos filhos do grid: o rodapé com três botões forçava a
+            largura mínima do diálogo além da caixa e o overflow-hidden cortava
+            descrição, badge e botão (04/09). */}
+        <DialogContent className="max-w-lg p-0 overflow-hidden w-[calc(100%-2rem)] rounded-2xl sm:w-full [&>*]:min-w-0">
           <DialogHeader className="px-5 pt-5 pb-3">
             <DialogTitle>Adicionar funções à grade</DialogTitle>
             <DialogDescription>Marque uma ou mais funções. A mesma função pode entrar mais de uma vez (ex.: turmas com dias de viagem diferentes).</DialogDescription>
@@ -1448,7 +1451,7 @@ export default function ScalingSuggestionPage() {
               </CommandGroup>
             </CommandList>
           </Command>
-          <DialogFooter className="px-5 py-3 border-t border-slate-100 sm:justify-between gap-2">
+          <DialogFooter className="flex flex-row flex-wrap items-center justify-end gap-2 px-5 py-3 border-t border-slate-100 sm:justify-between">
             {/* Com a contagem o botão diz o que vai acontecer; com 0 não há o que adicionar. */}
             <Button type="button" variant="ghost" size="sm" className="rounded-lg" disabled={missingFunctionsCount === 0} onClick={addAllFunctions}>
               Adicionar todas que faltam ({missingFunctionsCount})

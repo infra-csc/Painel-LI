@@ -647,7 +647,6 @@ export default function ScalingValidationPage() {
   ];
   /** Recortes de "Aguardando validação" — não somam com o funil. */
   const RECORTES: Kpi[] = [
-    { label: "Atrasadas", n: counts.atrasadas, cls: counts.atrasadas ? "text-red-600" : "text-slate-800", filtro: "atrasadas" },
     { label: "Minhas pendentes", n: counts.minhas, cls: "text-primary", filtro: "minhas" },
   ];
   const KPI_BOX = "rounded-xl border px-3 py-2 text-left";

@@ -555,27 +555,18 @@ export default function ScalingApprovalPage() {
       // O número é o que depende de VOCÊ; as dos outros aprovadores vão no contexto.
       n: awaitingMine.length,
       Icon: ShieldCheck,
-      // Vaga validada parada acende igual à pendente parada (mesma severidade).
-      tom: stalledAwaiting.count
-        ? (stalledAwaiting.severity === "danger" ? "text-red-600" : "text-amber-700")
-        : awaitingMine.length ? "text-sky-700" : "text-slate-800",
+      // Sem contagem de dias no cartão (pedido do dono, 04/09): "parada há N
+      // dias" virava alarme vermelho permanente sem mudar a decisão.
+      tom: awaitingMine.length ? "text-sky-700" : "text-slate-800",
       contexto: (
         <span>
-          {stalledAwaiting.count ? (
-            <span className={stalledAwaiting.severity === "danger" ? "text-red-600" : "text-amber-700"}>
-              {stalledAwaiting.count} {stalledAwaiting.count === 1 ? "parada" : "paradas"} há {stalledAwaiting.worst} {stalledAwaiting.worst === 1 ? "dia" : "dias"} ou mais
-            </span>
-          ) : (
-            <span>validadas pela área, esperando você</span>
-          )}
+          <span>validadas pela área, esperando você</span>
           {awaitingOthers > 0 ? <span> · <span className="tabular-nums">{awaitingOthers}</span> de outros aprovadores</span> : null}
         </span>
       ),
       active: tab === "aprovacao",
       onClick: () => switchTab("aprovacao"),
-      hint: stalledAwaiting.count
-        ? `${stalledAwaiting.count} vaga(s) parada(s) há ${STALLED_DAYS} dias ou mais esperando a sua decisão`
-        : "Vagas validadas pela área que dependem da sua decisão",
+      hint: "Vagas validadas pela área que dependem da sua decisão",
       // Nunca 0 enquanto carrega: o cartão mostra "…" (o 0 falso foi o achado do dono).
       loading: loadingAwaiting,
     }] : []),
@@ -587,10 +578,9 @@ export default function ScalingApprovalPage() {
       tom: "text-slate-800",
       contexto: (
         <span>
-          {showMineFilter ? <><span className="font-semibold text-primary tabular-nums">{counts.meus}</span> você decide · </> : null}
-          <span className={counts.atrasados ? "font-semibold text-red-600" : ""}>
-            <span className="tabular-nums">{counts.atrasados}</span> {counts.atrasados === 1 ? "atrasado" : "atrasados"}
-          </span>
+          {showMineFilter
+            ? <><span className="font-semibold text-primary tabular-nums">{counts.meus}</span> você decide</>
+            : <span>ajustes, inclusões e exclusões abertos</span>}
         </span>
       ),
       active: activeQuick === "pendentes" && !lateOnly && !mineOnly && tab === "fila",
@@ -604,7 +594,6 @@ export default function ScalingApprovalPage() {
     { key: "ajuste", label: "Ajustes", n: counts.ajuste, ponto: "bg-amber-500", active: activeQuick === "ajuste", onClick: () => applyQuick("ajuste"), hint: "Filtrar por ajustes pendentes" },
     { key: "inclusao", label: "Inclusões", n: counts.inclusao, ponto: "bg-emerald-500", active: activeQuick === "inclusao", onClick: () => applyQuick("inclusao"), hint: "Filtrar por inclusões pendentes" },
     { key: "exclusao", label: "Exclusões", n: counts.exclusao, ponto: "bg-red-500", active: activeQuick === "exclusao", onClick: () => applyQuick("exclusao"), hint: "Filtrar por exclusões pendentes" },
-    { key: "late", label: `Atrasados ≥${STALLED_DAYS}d`, n: counts.atrasados, ponto: "bg-red-600", active: lateOnly, onClick: toggleLate, hint: `Só pedidos aguardando há ${STALLED_DAYS} dias ou mais` },
     // "Posso decidir" saiu daqui (04/09): o mesmo filtro já existe na barra de
     // abas ("Só os que posso decidir") e o tile mostra a contagem — dois
     // controles para o mesmo estado confundiam mais do que ajudavam.
@@ -614,7 +603,7 @@ export default function ScalingApprovalPage() {
     switch (tab) {
       case "fila": return `${filtered.length} de ${items.length} pedido(s)`;
       case "aprovacao": return `${awaitingRows.length} vaga(s) validada(s) aguardando a sua decisão`;
-      case "paradas": return `${stalledRows.length} vaga(s) sem validação da área há ${STALLED_DAYS} dias ou mais`;
+      case "paradas": return `${stalledRows.length} ${stalledRows.length === 1 ? "vaga parada" : "vagas paradas"} na validação da área`;
       default: return null;
     }
   })();
@@ -813,20 +802,6 @@ export default function ScalingApprovalPage() {
               <ErrorState title="Não foi possível carregar as vagas" description={apiErrorMessage(suggestionsQuery.error, "Tente novamente.")} onRetry={() => suggestionsQuery.refetch()} />
             ) : (
               <>
-                {stalledAwaiting.count > 0 && (
-                  <p role="status" className={cn(
-                    "flex items-center gap-2 rounded-xl border px-3 py-2 text-xs",
-                    stalledAwaiting.severity === "danger"
-                      ? "border-red-200 bg-red-50 text-red-800"
-                      : "border-amber-200 bg-amber-50 text-amber-800",
-                  )}>
-                    <Clock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                    <span>
-                      <span className="font-semibold">{stalledAwaiting.count} vaga(s) validada(s) parada(s)</span> há {STALLED_DAYS} dias ou mais esperando a sua aprovação
-                      {stalledAwaiting.worst > 0 ? ` (a mais antiga há ${stalledAwaiting.worst} ${stalledAwaiting.worst === 1 ? "dia" : "dias"})` : ""} — a área já fez a parte dela.
-                    </span>
-                  </p>
-                )}
                 {awaitingRows.length === 0 && awaitingRowsAll.length > 0 ? (
                   <EmptyState
                     icon={CheckCircle2}
