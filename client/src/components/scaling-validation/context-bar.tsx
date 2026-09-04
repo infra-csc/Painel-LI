@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { memo, useId, useState, type Ref } from "react";
 import { CalendarDays, ChevronDown, ChevronUp, MessageSquare } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,12 +23,17 @@ export interface ContextBarProps {
   onEventPeriod: () => void;
   onShrink: () => void;
   canShrink: boolean;
+  /** Chip "+1 dia" — simétrico ao "−1 dia"; desabilitado no limite (margem do evento / teto de dias). */
+  onGrow: () => void;
+  canGrow: boolean;
   /** true = há erro de período (o texto fica inline, acima da grade). */
   periodInvalid: boolean;
   disabled?: boolean;
   observations: string;
   onObservationsChange: (v: string) => void;
   eventTestId?: string;
+  /** Ref do gatilho do seletor de evento (o estado vazio da página o abre por código). */
+  eventTriggerRef?: Ref<HTMLButtonElement>;
 }
 
 const CHIP_BTN = "inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-600 transition-colors hover:border-primary/30 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none";
@@ -38,15 +43,18 @@ const PERIOD_HINT = `A grade pode começar até ${PERIOD_MARGIN_DAYS} dias antes
  * Barra de contexto da Sugestão de Escala (substitui o cartão alto de evento/
  * período/comentários): uma linha com evento · período do evento · inputs da
  * GRADE · chips de atalho — e os comentários gerais num disclosure.
+ *
+ * `memo`: a página re-renderiza a cada tecla na grade e a barra não depende
+ * das linhas — sem o memo ela era redesenhada junto, à toa.
  */
-export function ContextBar({
+export const ContextBar = memo(function ContextBar({
   events, eventId, onEventChange, selectedEvent, periodStart, periodEnd, onPeriodChange, bounds,
-  daysCount, onEventPeriod, onShrink, canShrink, periodInvalid, disabled, observations, onObservationsChange,
-  eventTestId,
+  daysCount, onEventPeriod, onShrink, canShrink, onGrow, canGrow, periodInvalid, disabled, observations, onObservationsChange,
+  eventTestId, eventTriggerRef,
 }: ContextBarProps) {
   const [showComments, setShowComments] = useState(false);
   const obsId = useId();
-  const obsLen = observations.trim().length;
+  const obsFilled = observations.trim().length > 0;
   const periodDisabled = !eventId || disabled;
 
   return (
@@ -57,11 +65,15 @@ export function ContextBar({
             <CalendarDays className="w-4 h-4" />
           </span>
           <div className="w-[250px] max-w-full shrink-0">
+            {/* Travado durante o envio: trocar de evento no meio do POST fazia o
+                sucesso limpar o rascunho do evento errado. */}
             <EventCombobox
               events={events} value={eventId} showAllOption={false}
               onValueChange={(v) => onEventChange(v === "all" ? "" : v)}
               placeholder="Selecione um evento" testId={eventTestId}
               className="h-8 font-semibold"
+              disabled={disabled}
+              triggerRef={eventTriggerRef}
             />
           </div>
           {selectedEvent && (
@@ -104,9 +116,15 @@ export function ContextBar({
             title="Voltar a grade para o período do evento">
             Período do evento
           </button>
-          <button type="button" className={CHIP_BTN} disabled={periodDisabled || !canShrink} onClick={onShrink}
-            title="Tirar o último dia da grade">
-            Tirar último dia
+          {/* Par simétrico: tirar/acrescentar um dia no FIM da grade. */}
+          <button type="button" className={cn(CHIP_BTN, "tabular-nums")} disabled={periodDisabled || !canShrink} onClick={onShrink}
+            title="Tirar o último dia da grade" aria-label="Tirar o último dia da grade">
+            −1 dia
+          </button>
+          <button type="button" className={cn(CHIP_BTN, "tabular-nums")} disabled={periodDisabled || !canGrow} onClick={onGrow}
+            title={canGrow ? "Acrescentar um dia ao fim da grade" : `A grade já está no limite (${PERIOD_MARGIN_DAYS} dias depois do evento)`}
+            aria-label="Acrescentar um dia ao fim da grade">
+            +1 dia
           </button>
         </div>
 
@@ -119,8 +137,12 @@ export function ContextBar({
         >
           <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
           Recado para as áreas
-          {obsLen > 0 && (
-            <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-semibold text-primary tabular-nums">{obsLen}</span>
+          {/* Ponto = "tem recado". O número de caracteres não dizia nada a ninguém. */}
+          {obsFilled && (
+            <>
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
+              <span className="sr-only">(preenchido)</span>
+            </>
           )}
           {showComments
             ? <ChevronUp className="w-3 h-3 text-slate-400" aria-hidden="true" />
@@ -142,6 +164,6 @@ export function ContextBar({
       )}
     </section>
   );
-}
+});
 
 export default ContextBar;

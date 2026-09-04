@@ -2,13 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
-  AlertTriangle, CalendarDays, Check, CheckCircle2, ChevronRight, ClipboardPaste, ExternalLink, Eye, FolderInput,
-  ListPlus, Plus, Send, Save, Undo2, X,
+  AlertTriangle, CalendarDays, Check, CheckCircle2, ChevronRight, ClipboardPaste, ExternalLink, Eye, EyeOff, FolderInput,
+  Keyboard, ListPlus, Plus, Send, Save, Undo2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageContainer } from "@/components/common/page-container";
@@ -24,15 +28,15 @@ import { formatDayMonthBr } from "@/lib/dates";
 import { scalingHref, useScalingEvent } from "@/lib/use-scaling-event";
 import type { Event, Function as FunctionType } from "@shared/schema";
 import { TRANSPORT_MODE_LABELS, summarizeCancelableSuggestions } from "@shared/scaling-validation-rules";
-import { SuggestionGrid, rowDomId } from "@/components/scaling-validation/suggestion-grid";
+import { SuggestionGrid, LOGISTICS_PANEL_DOM_ID, rowDomId } from "@/components/scaling-validation/suggestion-grid";
 import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module-nav";
 import { ContextBar } from "@/components/scaling-validation/context-bar";
 import { StateBanner } from "@/components/scaling-validation/state-banner";
 import { ConfirmDialog } from "@/components/scaling-validation/confirm-dialog";
 import { CopyEventDialog } from "@/components/scaling-validation/copy-event-dialog";
 import {
-  buildDateList, countOutsidePeriod, decomposeGridRows, detectPasteFormat, emptyGridRow, expandPeriodForDates,
-  functionNameKey, mergePastedRows, parsePastedRows, pasteConflicts, periodBounds, periodProblem, PERIOD_MARGIN_DAYS,
+  addDaysYmd, buildDateList, countOutsidePeriod, decomposeGridRows, detectPasteFormat, emptyGridRow, expandPeriodForDates,
+  functionNameKey, MAX_GRID_DAYS, mergePastedRows, parsePastedRows, pasteConflicts, periodBounds, periodProblem, PERIOD_MARGIN_DAYS,
   PERIOD_PROBLEM_MESSAGES, PASTE_FORMAT_LABELS, reframeRows, sanitizeDraftRows, sortFunctionsByOrder, summarizeGrid, summarizePaste,
   validateGridRow,
   type CopyFromEventResult, type PasteFormat, type PeriodExpansion, type RowValidation, type SuggestionGridRow,
@@ -57,6 +61,18 @@ interface PendingPasteDates { dates: string[]; expansion: PeriodExpansion }
 interface SentInfo { created: number; eventId: string; eventName: string; byFunction: { name: string; count: number }[] }
 
 const DRAFT_TTL_MS = 7 * 24 * 3600_000; // rascunho por evento vale 7 dias
+/**
+ * Teto de vagas por envio — o MESMO do servidor (POST /bulk recusa acima
+ * disto). Guardado aqui só para a tela avisar ANTES do clique, em vez de
+ * deixar o usuário montar 600 vagas e descobrir no erro da API.
+ */
+const MAX_VAGAS = 500;
+/** A partir daqui o contador fica vermelho: está perto do teto. */
+const VAGAS_WARN = 450;
+/** Espera antes de anunciar a contagem ao leitor de tela (uma edição por tecla não pode virar um anúncio por tecla). */
+const LIVE_DEBOUNCE_MS = 800;
+/** Quantos itens o painel de revisão mostra antes do "Ver mais N". */
+const REVIEW_PREVIEW = 5;
 /** Valor sentinela do Select de mapeamento (Radix não aceita SelectItem com value ""). */
 const SKIP_FUNCTION = "__descartar__";
 const SECTION_TITLE = "text-[11px] font-bold uppercase tracking-wide text-slate-500";
@@ -119,6 +135,13 @@ export default function ScalingSuggestionPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   /** "HH:MM" do último auto-save do rascunho — o indicador da barra de contexto. */
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
+  /** Linha com o painel de logística aberto — mora na página para o "Corrigir" conseguir abri-lo. */
+  const [openRowId, setOpenRowId] = useState<string | null>(null);
+  /** Painel de revisão: mostra REVIEW_PREVIEW itens; "Ver mais N" abre o resto. */
+  const [showAllReview, setShowAllReview] = useState(false);
+  /** Texto anunciado ao leitor de tela (contagem da grade), atualizado com debounce. */
+  const [liveText, setLiveText] = useState("");
+  const eventTriggerRef = useRef<HTMLButtonElement>(null);
   const draftLoadedFor = useRef<string | null>(null);
   const loadedObsRef = useRef("");
   // Espelhos síncronos (callbacks estáveis leem daqui sem depender de `rows`/`applied`).
@@ -174,6 +197,10 @@ export default function ScalingSuggestionPage() {
   }, [eventId, periodStart, periodEnd, bounds]);
 
   const draftKey = eventId ? `scaling-suggestion-draft:${user?.id ?? "anon"}:${eventId}` : null;
+  // Espelho do evento atual para o onSuccess do envio comparar com o evento
+  // que foi ENVIADO (o combobox fica travado durante o POST, mas a URL não).
+  const eventIdRef = useRef(eventId);
+  eventIdRef.current = eventId;
 
   const loadPeriod = useCallback((start: string, end: string) => {
     appliedRef.current = { start, end };
@@ -189,6 +216,8 @@ export default function ScalingSuggestionPage() {
     setSent(null);
     setPreviewOpen(false);
     setDraftSavedAt(null);
+    setOpenRowId(null);
+    setShowAllReview(false);
 
     let restored = false;
     if (draftKey && !readOnly) {
@@ -252,10 +281,17 @@ export default function ScalingSuggestionPage() {
   useEffect(() => {
     const key = draftKey;
     const forEvent = eventId;
-    return () => {
+    const flush = () => {
       if (!key || readOnly || draftLoadedFor.current !== forEvent) return;
       const s = latestDraft.current;
       writeDraft(key, { rows: s.rows, periodStart: s.applied.start, periodEnd: s.applied.end, eventObservations: s.eventObservations }, s.hasContent);
+    };
+    // Fechar a aba / F5 no meio do debounce de 1,5s perdia a última edição:
+    // o unmount do React não roda nesse caso, só o beforeunload.
+    window.addEventListener("beforeunload", flush);
+    return () => {
+      window.removeEventListener("beforeunload", flush);
+      flush();
     };
   }, [draftKey, eventId, readOnly]);
 
@@ -286,11 +322,18 @@ export default function ScalingSuggestionPage() {
     if (!selectedEvent) return;
     requestPeriod(selectedEvent.startDate, selectedEvent.endDate);
   }, [selectedEvent, requestPeriod]);
-  /** Chip "Encolher 1 dia": tira o último dia da grade (com a confirmação de sempre se houver gente nele). */
+  /** Chip "−1 dia": tira o último dia da grade (com a confirmação de sempre se houver gente nele). */
   const shrinkOneDay = useCallback(() => {
     if (dates.length <= 1) return;
     requestPeriod(applied.start, dates[dates.length - 2]);
   }, [dates, applied.start, requestPeriod]);
+  /** Chip "+1 dia": acrescenta um dia ao FIM da grade — só até a margem do evento e o teto de dias. */
+  const nextDay = dates.length > 0 ? addDaysYmd(applied.end, 1) : "";
+  const canGrow = !!nextDay && dates.length < MAX_GRID_DAYS && (!bounds.max || nextDay <= bounds.max);
+  const growOneDay = useCallback(() => {
+    if (!canGrow) return;
+    requestPeriod(applied.start, nextDay);
+  }, [canGrow, applied.start, nextDay, requestPeriod]);
 
   // ── Edição da grade ──
   const changeRow = useCallback((rowId: string, patch: Partial<SuggestionGridRow>) => {
@@ -335,6 +378,8 @@ export default function ScalingSuggestionPage() {
   const rowToRemove = useMemo(() => rows.find((r) => r.rowId === confirmRemove), [rows, confirmRemove]);
 
   const presentFunctionIds = useMemo(() => new Set(rows.map((r) => r.functionId)), [rows]);
+  /** Quantas funções do catálogo ainda não estão na grade (rótulo do "Adicionar todas que faltam"). */
+  const missingFunctionsCount = useMemo(() => sortedFunctions.filter((f) => !presentFunctionIds.has(f.id)).length, [sortedFunctions, presentFunctionIds]);
   const toggleToAdd = (id: string) => setSelectedToAdd((prev) => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -401,24 +446,45 @@ export default function ScalingSuggestionPage() {
   /** Nomes a mapear: o que o resumo ao vivo achou (com o que `runPaste` apontou como reserva). */
   const unknownToMap = pastePreview ? pastePreview.unknownNames : unknownNames;
   const pasteApplyCount = pastePreview?.recognized ?? 0;
+  // Nomes ainda SEM decisão (nem função, nem "descartar"): enquanto houver um,
+  // o Aplicar não aplica — ele leva ao bloco âmbar. Antes o 1º clique virava um
+  // toast vermelho e o 2º descartava em silêncio o que não foi mapeado.
+  const pasteUndecided = useMemo(
+    () => unknownToMap.filter((n) => !(functionNameKey(n) in pasteNameMap)),
+    [unknownToMap, pasteNameMap],
+  );
+  const pasteUnknownRef = useRef<HTMLDivElement>(null);
+  const goToUnknownNames = () => {
+    pasteUnknownRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    pasteUnknownRef.current?.querySelector<HTMLElement>("button[role='combobox']")?.focus({ preventScroll: true });
+  };
   /** "Como vai entrar na grade": quantas linhas substituem funções já na grade × quantas são novas. */
   const pasteImpact = useMemo(() => {
     if (!pasteParsed) return { replaced: 0, added: 0 };
     const replaced = pasteParsed.rows.filter((r) => presentFunctionIds.has(r.functionId)).length;
     return { replaced, added: pasteParsed.rows.length - replaced };
   }, [pasteParsed, presentFunctionIds]);
-  /** Avisos do resumo: não impedem aplicar, mas o usuário precisa vê-los antes. */
+  /**
+   * Avisos do resumo: não impedem aplicar, mas o usuário precisa vê-los antes.
+   * `detail` traz QUAIS dias/linhas: com até 3 o chip mostra inline, com mais
+   * vai para o title — "2 dias fora do período" sem dizer quais não ajudava.
+   */
   const pasteWarnings = useMemo(() => {
     if (!pastePreview) return [];
-    const w: string[] = [];
-    if (pastePreview.unknownNames.length > 0) w.push(plural(pastePreview.unknownNames.length, "nome não reconhecido", "nomes não reconhecidos"));
-    if (pastePreview.outsideDays > 0) w.push(plural(pastePreview.outsideDays, "dia fora do período", "dias fora do período"));
-    if (pastePreview.rowsWithoutQty > 0) w.push(plural(pastePreview.rowsWithoutQty, "linha sem quantidade", "linhas sem quantidade"));
+    const w: { text: string; detail?: string[] }[] = [];
+    if (pastePreview.unknownNames.length > 0) w.push({ text: plural(pastePreview.unknownNames.length, "nome não reconhecido", "nomes não reconhecidos"), detail: pastePreview.unknownNames });
+    if (pastePreview.outsideDays > 0) {
+      w.push({ text: plural(pastePreview.outsideDays, "dia fora do período", "dias fora do período"), detail: (pasteParsed?.datesOutsideGrid ?? []).map((d) => formatDayMonthBr(d)) });
+    }
+    if (pastePreview.rowsWithoutQty > 0) {
+      const semQtd = (pasteParsed?.rows ?? []).filter((r) => !Object.values(r.quantities).some((q) => q > 0)).map((r) => r.functionName);
+      w.push({ text: plural(pastePreview.rowsWithoutQty, "linha sem quantidade", "linhas sem quantidade"), detail: semQtd });
+    }
     // Avisos do classificador de colunas (ex.: dias alinhados pelo período por
     // falta da linha de datas) — já vêm prontos em pt-BR do parser.
-    for (const msg of pastePreview.warnings ?? []) w.push(msg);
+    for (const msg of pastePreview.warnings ?? []) w.push({ text: msg });
     return w;
-  }, [pastePreview]);
+  }, [pastePreview, pasteParsed]);
   // O mapeamento manual de nomes é por usuário (o catálogo é o mesmo em todos os eventos).
   const nameMapKey = `scaling-suggestion-fnmap:${user?.id ?? "anon"}`;
   const readStoredNameMap = useCallback((): Record<string, string> => {
@@ -453,7 +519,7 @@ export default function ScalingSuggestionPage() {
     closePaste();
     toast({
       title: "Linhas coladas",
-      description: `${pasted.length} linha(s) aplicada(s)${replaced ? `, ${replaced} função(ões) substituída(s)` : ""}.${skippedNames.length ? ` Não encontradas: ${skippedNames.join(", ")}.` : ""}`,
+      description: `${plural(pasted.length, "linha aplicada", "linhas aplicadas")}${replaced ? `, ${plural(replaced, "função substituída", "funções substituídas")}` : ""}.${skippedNames.length ? ` Não encontradas: ${skippedNames.join(", ")}.` : ""}`,
       variant: skippedNames.length ? "destructive" : "default",
     });
   };
@@ -480,7 +546,7 @@ export default function ScalingSuggestionPage() {
       askedMappingRef.current = true;
       setUnknownNames(res.unknownNames);
       toast({
-        title: `${undecided.length} função(ões) não reconhecida(s)`,
+        title: plural(undecided.length, "função não reconhecida", "funções não reconhecidas"),
         description: "Escolha a função correspondente de cada nome abaixo e aplique de novo. O que ficar sem função é descartado.",
         variant: "destructive",
       });
@@ -566,19 +632,40 @@ export default function ScalingSuggestionPage() {
     }
     return m;
   }, [rows]);
+  // Função e problema separados desde a origem: o painel de revisão e os toasts
+  // montam "Função: problema" cada um do seu jeito, sem cortar string.
   const pendencias = useMemo(() => {
-    const errors: { rowId: string; text: string }[] = [];
-    const warnings: { rowId: string; text: string }[] = [];
+    const errors: { rowId: string; funcao: string; problema: string }[] = [];
+    const warnings: { rowId: string; funcao: string; problema: string }[] = [];
     for (const r of rows) {
       const v = issuesByRow.get(r.rowId);
       if (!v) continue;
-      for (const e of v.errors) errors.push({ rowId: r.rowId, text: `${r.functionName}: ${e}` });
-      for (const w of v.warnings) warnings.push({ rowId: r.rowId, text: `${r.functionName}: ${w}` });
+      for (const e of v.errors) errors.push({ rowId: r.rowId, funcao: r.functionName, problema: e });
+      for (const w of v.warnings) warnings.push({ rowId: r.rowId, funcao: r.functionName, problema: w });
     }
     return { errors, warnings };
   }, [rows, issuesByRow]);
-  const focusRow = (rowId: string) => {
+  /**
+   * Leva o usuário à linha. Tudo que `validateGridRow` aponta hoje é de
+   * LOGÍSTICA (horário, data de volta, passagem sem data) — então o "Corrigir"
+   * abre o painel de logística da linha e foca o primeiro campo; a célula de
+   * quantidade só recebe o foco quando o alvo é a grade em si.
+   */
+  const focusRow = (rowId: string, target: "qty" | "logistica" = "qty") => {
     const el = document.getElementById(rowDomId(rowId));
+    if (target === "logistica") {
+      setOpenRowId(rowId);
+      el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      // O cartão já pode estar aberto nesta mesma linha (a grade só foca ao
+      // MUDAR de linha): garante foco e rolagem no próximo frame, após o commit.
+      requestAnimationFrame(() => {
+        const panel = document.getElementById(LOGISTICS_PANEL_DOM_ID);
+        const first = panel?.querySelector<HTMLElement>("input, button, select");
+        first?.focus({ preventScroll: true });
+        panel?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      });
+      return;
+    }
     const input = el?.querySelector<HTMLInputElement>("input[data-qty-cell]");
     (input ?? el)?.scrollIntoView({ block: "center", behavior: "smooth" });
     input?.focus();
@@ -586,8 +673,11 @@ export default function ScalingSuggestionPage() {
 
   const records = useMemo(() => decomposeGridRows(rows, dates), [rows, dates]);
   const summary = useMemo(() => summarizeGrid(rows, dates), [rows, dates]);
+  // Só agrupa quando a prévia está aberta: a decomposição já roda a cada tecla,
+  // e o agrupamento por linha não precisa rodar junto para um painel fechado.
   const previewGroups = useMemo(() => {
     const groups: { key: string; functionName: string; records: typeof records }[] = [];
+    if (!previewOpen) return groups;
     const idx = new Map<string, number>();
     for (const rec of records) {
       const key = `${rec.functionId}-${rec.rowOrder}`;
@@ -596,10 +686,22 @@ export default function ScalingSuggestionPage() {
       groups[i].records.push(rec);
     }
     return groups;
-  }, [records]);
+  }, [records, previewOpen]);
+  // Prévia sem vagas não tem o que mostrar: fecha sozinha ao esvaziar a grade.
+  useEffect(() => { if (records.length === 0 && previewOpen) setPreviewOpen(false); }, [records.length, previewOpen]);
+  // Linha aberta no painel de logística foi removida: fecha o painel.
+  useEffect(() => { if (openRowId && !rows.some((r) => r.rowId === openRowId)) setOpenRowId(null); }, [rows, openRowId]);
 
   const sendMutation = useMutation({
     mutationFn: async () => {
+      // Cópias do que está sendo enviado: o onSuccess compara com o evento
+      // ATUAL e só limpa a grade/rascunho se ainda for o mesmo — trocar de
+      // evento durante o POST (pela URL) destruía o rascunho do evento novo.
+      const forEvent = eventId;
+      const forKey = draftKey;
+      const forName = selectedEvent?.name ?? "";
+      const sentRecords = records;
+      const sentObs = eventObservations;
       // Só envia os comentários se mudaram em relação ao evento carregado (undefined = servidor não mexe).
       const payload = {
         eventId,
@@ -620,7 +722,8 @@ export default function ScalingSuggestionPage() {
         })),
       };
       const res = await apiRequest("POST", "/api/scaling-suggestions/bulk", payload);
-      return (await res.json()) as { created: number };
+      const data = (await res.json()) as { created: number };
+      return { ...data, forEvent, forKey, forName, sentRecords, sentObs };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [SUGGESTIONS_QUERY_KEY] });
@@ -630,20 +733,25 @@ export default function ScalingSuggestionPage() {
       // Quebra por função para a faixa pós-envio (calculada antes de limpar a grade).
       const byFunction: SentInfo["byFunction"] = [];
       const byIdx = new Map<string, number>();
-      for (const r of records) {
+      for (const r of data.sentRecords) {
         const i = byIdx.get(r.functionName);
         if (i === undefined) { byIdx.set(r.functionName, byFunction.length); byFunction.push({ name: r.functionName, count: 1 }); }
         else byFunction[i].count++;
       }
-      // Comentários já foram gravados no evento: passam a ser a base "carregada".
-      loadedObsRef.current = eventObservations;
-      if (draftKey) localStorage.removeItem(draftKey);
-      setRows([]);
-      setPreviewOpen(false);
-      setDraftSavedAt(null);
+      // O rascunho do evento ENVIADO sai sempre; a grade em tela só é limpa se
+      // ainda é a desse evento.
+      if (data.forKey) localStorage.removeItem(data.forKey);
       setConfirmSend(false);
-      setSent({ created: data.created, eventId, eventName: selectedEvent?.name ?? "", byFunction });
-      toast({ title: "Escala enviada para validação", description: `${data.created} vaga(s) criada(s) e enviada(s) às áreas.` });
+      if (data.forEvent === eventIdRef.current) {
+        // Comentários já foram gravados no evento: passam a ser a base "carregada".
+        loadedObsRef.current = data.sentObs;
+        setRows([]);
+        setPreviewOpen(false);
+        setOpenRowId(null);
+        setDraftSavedAt(null);
+        setSent({ created: data.created, eventId: data.forEvent, eventName: data.forName, byFunction });
+      }
+      toast({ title: "Escala enviada para validação", description: `${plural(data.created, "vaga criada e enviada", "vagas criadas e enviadas")} às áreas${data.forName ? ` (${data.forName})` : ""}.` });
     },
     onError: (err: ApiError) => {
       setConfirmSend(false);
@@ -677,7 +785,7 @@ export default function ScalingSuggestionPage() {
       toast({
         title: data.removed > 0 ? "Envio cancelado" : "Nada para cancelar",
         description: data.removed > 0
-          ? `${data.removed} vaga(s) removida(s) da Validação${data.requestsCanceled > 0 ? ` e ${data.requestsCanceled} pedido(s) encerrado(s)` : ""}. Monte a grade de novo e envie quando quiser.`
+          ? `${plural(data.removed, "vaga removida", "vagas removidas")} da Validação${data.requestsCanceled > 0 ? ` e ${plural(data.requestsCanceled, "pedido encerrado", "pedidos encerrados")}` : ""}. Monte a grade de novo e envie quando quiser.`
           : "Este evento não tem mais vagas em validação — a lista já estava vazia.",
       });
     },
@@ -707,20 +815,40 @@ export default function ScalingSuggestionPage() {
       return;
     }
     if (records.length === 0) { toast({ title: "Grade vazia", description: "Informe ao menos uma quantidade na grade.", variant: "destructive" }); return; }
+    if (records.length > MAX_VAGAS) {
+      toast({ title: `Acima do limite de ${MAX_VAGAS} vagas`, description: `A grade tem ${records.length} vagas. Reduza as quantidades ou divida o envio.`, variant: "destructive" });
+      return;
+    }
     if (pendencias.errors.length > 0) {
-      const texts = pendencias.errors.map((e) => e.text);
+      const texts = pendencias.errors.map((e) => `${e.funcao}: ${e.problema}`);
       toast({ title: "Revise a grade", description: texts.slice(0, 3).join(" · ") + (texts.length > 3 ? ` (+${texts.length - 3})` : ""), variant: "destructive" });
-      focusRow(pendencias.errors[0].rowId);
+      focusRow(pendencias.errors[0].rowId, "logistica");
       return;
     }
     setConfirmSend(true);
   };
 
   const gridReady = !!eventId && dates.length > 0;
-  const vagasLabel = `${records.length} ${records.length === 1 ? "vaga" : "vagas"}`;
-  const focusEventPicker = () => {
-    document.querySelector<HTMLButtonElement>('[data-testid="scaling-suggestion-event"]')?.click();
-  };
+  const vagasLabel = plural(records.length, "vaga", "vagas");
+  const overLimit = records.length > MAX_VAGAS;
+  const nearLimit = records.length > VAGAS_WARN;
+  /** O estado vazio "escolha o evento" abre o seletor da barra pelo ref (sem querySelector). */
+  const focusEventPicker = () => { eventTriggerRef.current?.click(); };
+  // Grade de OUTRO evento ainda em memória (o usuário limpou o seletor): o
+  // nome vem do último evento carregado — o rascunho dele já foi gravado no flush.
+  const parkedEventName = !eventId && rows.length > 0
+    ? activeEvents.find((e) => e.id === draftLoadedFor.current)?.name ?? null
+    : null;
+
+  // Anúncio da contagem para leitor de tela, com debounce: a região visível
+  // era aria-live e cada tecla na grade virava um anúncio inteiro.
+  const liveSummary = eventId && rows.length > 0
+    ? `${plural(summary.funcoes, "linha", "linhas")}, ${summary.pessoasDia} pessoas-dia, ${vagasLabel}`
+    : "";
+  useEffect(() => {
+    const t = setTimeout(() => setLiveText(liveSummary), LIVE_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [liveSummary]);
 
   // ── UMA faixa de estado por vez (nunca três empilhadas) ──
   /** Envio somado ao que o evento já tinha: a faixa verde mostra o total real da Validação. */
@@ -744,8 +872,9 @@ export default function ScalingSuggestionPage() {
         : periodError ? "Corrija o período"
           : pendencias.errors.length > 0 ? "Revise para enviar"
             : records.length === 0 ? "Nada para enviar"
-              : `Enviar ${vagasLabel}`;
-  const sendDisabled = readOnly || records.length === 0 || busy || pendencias.errors.length > 0 || sendBlocked || !!periodError;
+              : overLimit ? `Acima do limite de ${MAX_VAGAS} vagas`
+                : `Enviar ${vagasLabel}`;
+  const sendDisabled = readOnly || records.length === 0 || busy || pendencias.errors.length > 0 || sendBlocked || !!periodError || overLimit;
 
   /**
    * Por que o envio está travado (ou o que merece um olhar antes dele).
@@ -761,9 +890,10 @@ export default function ScalingSuggestionPage() {
           : pendencias.errors.length > 0
             ? { tom: "erro", texto: `${plural(pendencias.errors.length, "linha impede", "linhas impedem")} o envio` }
             : records.length === 0 ? { tom: "info", texto: "Preencha ao menos uma quantidade" }
-              : pendencias.warnings.length > 0
-                ? { tom: "aviso", texto: `${plural(pendencias.warnings.length, "aviso", "avisos")} — não travam o envio` }
-                : null;
+              : overLimit ? { tom: "erro", texto: `${records.length} vagas — o envio aceita até ${MAX_VAGAS}` }
+                : pendencias.warnings.length > 0
+                  ? { tom: "aviso", texto: `${plural(pendencias.warnings.length, "aviso", "avisos")} — não travam o envio` }
+                  : null;
 
   // ── Render ──
   if (!canAccess) {
@@ -779,10 +909,11 @@ export default function ScalingSuggestionPage() {
 
   return (
     <PageContainer fluid>
+      {/* h1 = nome da tela (o mesmo do menu e da aba); "nova" é o que se faz nela, vai no subtítulo. */}
       <PageHeader
         icon={ListPlus}
-        title="Nova sugestão de escala"
-        subtitle="Monte a escala sugerida por função e dia e envie para as áreas validarem. Cada pessoa vira 1 vaga com seus dias de trabalho."
+        title="Sugestão de Escala"
+        subtitle="Nova sugestão: monte a escala por função e dia e envie para as áreas validarem. Cada pessoa vira 1 vaga com seus dias de trabalho."
         actions={<ScalingModuleNav current="suggestion" eventId={eventId} />}
       />
 
@@ -815,11 +946,14 @@ export default function ScalingSuggestionPage() {
             onEventPeriod={applyEventPeriod}
             onShrink={shrinkOneDay}
             canShrink={dates.length > 1}
+            onGrow={growOneDay}
+            canGrow={canGrow}
             periodInvalid={!!periodError}
             disabled={busy}
             observations={eventObservations}
             onObservationsChange={setEventObservations}
             eventTestId="scaling-suggestion-event"
+            eventTriggerRef={eventTriggerRef}
           />
 
           {/* Uma faixa de estado por vez */}
@@ -854,7 +988,7 @@ export default function ScalingSuggestionPage() {
           )}
           {banner === "sent" && sent && (
             <StateBanner
-              tone="emerald" icon={CheckCircle2} role="note"
+              tone="emerald" icon={CheckCircle2} role="status"
               title={`${sent.created} ${sent.created === 1 ? "vaga enviada" : "vagas enviadas"} — as áreas já veem tudo na Validação`}
               detail={
                 sent.byFunction.length > 0 || sentTotalExtra ? (
@@ -896,7 +1030,11 @@ export default function ScalingSuggestionPage() {
               title={`Este evento já tem ${sentSummary.total} ${sentSummary.total === 1 ? "vaga" : "vagas"} na Validação — enviar de novo soma às que já estão lá`}
               detail={
                 <span className="tabular-nums">
-                  {sentSummary.aguardando} aguardando · {sentSummary.validadas} {sentSummary.validadas === 1 ? "validada" : "validadas"} · {sentSummary.comPedido} com pedido. Se a grade subiu errada, cancele o envio e monte de novo.
+                  {sentSummary.aguardando} aguardando · {sentSummary.validadas} {sentSummary.validadas === 1 ? "validada" : "validadas"} · {sentSummary.comPedido} com pedido.{" "}
+                  {/* Em modo leitura a faixa "já enviado" substitui a de leitura — sem este sufixo o usuário não sabia por que nada era editável. */}
+                  {readOnly
+                    ? "Você está em modo leitura — só Produção e Admin montam e enviam."
+                    : "Se a grade subiu errada, cancele o envio e monte de novo."}
                 </span>
               }
               actions={
@@ -938,16 +1076,35 @@ export default function ScalingSuggestionPage() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2.5">
                 <h2 id="sug-grade" className={SECTION_TITLE}>Grade função × dia</h2>
-                {/* Única região aria-live da tela: resume o que muda a cada edição. */}
-                <div className="flex flex-wrap items-center gap-1.5" aria-live="polite" aria-atomic="true">
-                  {rows.length > 0 && (
-                    <>
-                      <span className={PILL}>{summary.funcoes} {summary.funcoes === 1 ? "linha" : "linhas"}</span>
-                      <span className={PILL}>{summary.pessoasDia} pessoas-dia</span>
-                      <span className={PILL_BRAND}>{vagasLabel}</span>
-                    </>
-                  )}
-                </div>
+                {/* Chips visuais só com evento escolhido (sem evento não há grade para contar).
+                    Ficam aria-hidden: o anúncio ao leitor de tela sai da região
+                    sr-only abaixo, com debounce — uma tecla, um anúncio, era demais. */}
+                {!!eventId && rows.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5" aria-hidden="true">
+                    <span className={PILL}>{plural(summary.funcoes, "linha", "linhas")}</span>
+                    <span className={PILL}>{summary.pessoasDia} pessoas-dia</span>
+                    <span className={cn(PILL_BRAND, overLimit && "bg-red-50 text-red-700")}>{vagasLabel}</span>
+                  </div>
+                )}
+                <span className="sr-only" aria-live="polite" aria-atomic="true">{liveText}</span>
+                {/* Atalhos do teclado: saíram do rodapé da grade (onde cortavam
+                    em telas estreitas) para um disclosure junto ao título. */}
+                {gridReady && (
+                  <details className="relative">
+                    <summary className="inline-flex h-6 cursor-pointer select-none items-center gap-1 rounded-full border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-600 transition-colors hover:border-primary/30 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
+                      <Keyboard className="h-3 w-3" aria-hidden="true" /> Atalhos
+                    </summary>
+                    <div className="absolute left-0 top-full z-30 mt-1 w-max rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-600 shadow-lg">
+                      <dl className="grid grid-cols-[auto_auto] gap-x-3 gap-y-1">
+                        <dt className="font-mono font-semibold text-slate-800">↑ / ↓</dt><dd>+1 / −1 na célula</dd>
+                        <dt className="font-mono font-semibold text-slate-800">← / →</dt><dd>célula ao lado</dd>
+                        <dt className="font-mono font-semibold text-slate-800">Enter</dt><dd>linha de baixo (Shift+Enter sobe)</dd>
+                        <dt className="font-mono font-semibold text-slate-800">Ctrl+↑ / ↓</dt><dd>linha acima / abaixo</dd>
+                        <dt className="font-mono font-semibold text-slate-800">Delete</dt><dd>zera a célula</dd>
+                      </dl>
+                    </div>
+                  </details>
+                )}
               </div>
               {/*
                 Quatro botões do mesmo peso não diziam por onde começar — e
@@ -967,12 +1124,14 @@ export default function ScalingSuggestionPage() {
                 <Button type="button" variant="outline" size="sm" className="rounded-lg h-8" disabled={!gridReady || busy || !!functionsError} onClick={openAddFunction}>
                   <Plus className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Adicionar função
                 </Button>
+                {/* Isolado dos botões de montar: no celular vai para uma linha
+                    própria (w-full) para não ficar colado em "Adicionar função". */}
                 {hasContent && !readOnly && (
                   <button
                     type="button"
                     disabled={busy}
                     onClick={() => setConfirmClear(true)}
-                    className="ml-auto rounded text-[12.5px] font-semibold text-slate-500 transition-colors hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:opacity-50"
+                    className="w-full text-left sm:w-auto sm:ml-auto sm:text-right rounded text-[12.5px] font-semibold text-slate-500 transition-colors hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:opacity-50"
                     data-testid="scaling-suggestion-clear"
                   >
                     Limpar grade
@@ -999,10 +1158,15 @@ export default function ScalingSuggestionPage() {
             */}
             {gridReady && (pendencias.errors.length > 0 || pendencias.warnings.length > 0) && (() => {
               const temErro = pendencias.errors.length > 0;
-              const itens = [
+              // Erros primeiro; a lista mostra REVIEW_PREVIEW itens e o resto
+              // atrás de "Ver mais N" — 40 avisos empilhados empurravam a grade
+              // para fora da tela.
+              const todos = [
                 ...pendencias.errors.map((e) => ({ ...e, tipo: "erro" as const })),
                 ...pendencias.warnings.map((w) => ({ ...w, tipo: "aviso" as const })),
               ];
+              const ocultos = Math.max(0, todos.length - REVIEW_PREVIEW);
+              const itens = showAllReview || ocultos === 0 ? todos : todos.slice(0, REVIEW_PREVIEW);
               return (
                 <section
                   aria-label="Pontos a revisar antes de enviar"
@@ -1028,23 +1192,20 @@ export default function ScalingSuggestionPage() {
                   </div>
                   <ul className="divide-y divide-white/70 border-t border-white/70">
                     {itens.map((item, i) => {
-                      // O texto vem como "Função: problema" — separar devolve
-                      // hierarquia ao nome, que é por onde se acha a linha.
-                      const corte = item.text.indexOf(": ");
-                      const funcao = corte > 0 ? item.text.slice(0, corte) : item.text;
-                      const problema = corte > 0 ? item.text.slice(corte + 2) : "";
                       const erro = item.tipo === "erro";
                       return (
                         <li key={`${item.tipo}-${item.rowId}-${i}`}>
+                          {/* Todo problema apontado é de logística: "Corrigir" abre o painel da linha, não a célula. */}
                           <button
                             type="button"
-                            onClick={() => focusRow(item.rowId)}
+                            onClick={() => focusRow(item.rowId, "logistica")}
+                            aria-label={`${erro ? "Corrigir" : "Revisar"} ${item.funcao}: ${item.problema}`}
                             className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left transition-colors hover:bg-white/70 focus-visible:outline-none focus-visible:bg-white/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
                           >
                             <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", erro ? "bg-red-500" : "bg-amber-500")} aria-hidden="true" />
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-[12.5px] font-semibold text-slate-800">{funcao}</span>
-                              {problema && <span className="block truncate text-[12px] text-slate-600">{problema}</span>}
+                              <span className="block truncate text-[12.5px] font-semibold text-slate-800">{item.funcao}</span>
+                              <span className="block truncate text-[12px] text-slate-600">{item.problema}</span>
                             </span>
                             <span className={cn("shrink-0 text-[12px] font-semibold", erro ? "text-red-700" : "text-amber-800")}>
                               {erro ? "Corrigir" : "Revisar"}
@@ -1055,6 +1216,18 @@ export default function ScalingSuggestionPage() {
                       );
                     })}
                   </ul>
+                  {ocultos > 0 && (
+                    <div className="border-t border-white/70 px-3.5 py-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setShowAllReview((v) => !v)}
+                        aria-expanded={showAllReview}
+                        className={cn("rounded text-[12px] font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40", temErro ? "text-red-700" : "text-amber-800")}
+                      >
+                        {showAllReview ? "Ver menos" : `Ver mais ${ocultos}`}
+                      </button>
+                    </div>
+                  )}
                 </section>
               );
             })()}
@@ -1069,6 +1242,13 @@ export default function ScalingSuggestionPage() {
                 <p className="mx-auto mt-1 max-w-md text-xs text-slate-500">
                   A grade cobre o período do evento (ajustável em até {PERIOD_MARGIN_DAYS} dias para cada lado) e o rascunho fica salvo neste navegador por 7 dias, separado por evento.
                 </p>
+                {/* Limpou o seletor com a grade montada: ela não sumiu — está guardada no rascunho do evento. */}
+                {parkedEventName && (
+                  <p className="mx-auto mt-2 inline-flex max-w-md items-center gap-1.5 rounded-lg bg-brand-soft px-2.5 py-1 text-xs font-medium text-primary">
+                    <Save className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    Sua grade de {parkedEventName} continua salva — selecione o evento para voltar a ela.
+                  </p>
+                )}
                 <div className="mt-4 flex flex-wrap justify-center gap-2">
                   <Button type="button" size="sm" className="rounded-lg bg-primary hover:bg-primary-hover" onClick={focusEventPicker}>
                     Selecionar evento
@@ -1087,18 +1267,34 @@ export default function ScalingSuggestionPage() {
                 )}
               </div>
             ) : dates.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">
-                Informe um período válido para a grade.
+              /* O motivo já está no alerta inline acima (periodError); aqui só a saída. */
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center">
+                <p className="text-sm text-slate-500">A grade só abre com um período válido.</p>
+                {selectedEvent && !readOnly && (
+                  <Button type="button" variant="outline" size="sm" className="mt-3 rounded-lg" onClick={applyEventPeriod}>
+                    <CalendarDays className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Usar o período do evento
+                  </Button>
+                )}
               </div>
             ) : (
-              /* Modo leitura desabilita a grade inteira. */
-              <div className={cn(readOnly && "opacity-75 pointer-events-none")} aria-disabled={readOnly || undefined}>
+              /* Modo leitura: a grade fica travada (disabled nos controles) e
+                 o rótulo diz isso em palavras — o "esmaecido" de antes parecia
+                 tela carregando. */
+              <div className="space-y-2" aria-disabled={readOnly || undefined}>
+                {readOnly && (
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                    <EyeOff className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    Grade em modo leitura — os campos não aceitam edição.
+                  </p>
+                )}
                 <SuggestionGrid
                   rows={rows} dates={dates} issuesByRow={issuesByRow} areaByFunctionId={areaByFunctionId}
                   onChangeRow={changeRow} onChangeQty={changeQty}
                   onDuplicateRow={duplicateRow} onRemoveRow={removeRow}
                   onPaste={openPaste} onAddFunction={openAddFunction}
                   disabled={busy}
+                  openRowId={openRowId} onOpenRowChange={setOpenRowId}
+                  vagasTotal={records.length}
                 />
               </div>
             )}
@@ -1148,13 +1344,19 @@ export default function ScalingSuggestionPage() {
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur px-4 py-3 shadow-lg">
+              {/* Abaixo de `sm` a barra compacta: some a 2ª linha, a prévia vira
+                  só ícone, o motivo do bloqueio ganha linha própria e o Enviar
+                  ocupa a largura toda — antes os três botões quebravam em
+                  escadinha e o Enviar ia parar fora da tela. */}
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur px-4 py-3 shadow-lg">
                 <div className="min-w-0">
                   <p className="text-sm text-slate-700">
-                    <span className="font-semibold text-slate-900 tabular-nums">{vagasLabel}</span>
-                    {records.length > 0 && <span className="text-slate-500"> · {summary.pessoasDia} pessoas-dia em {summary.funcoes} {summary.funcoes === 1 ? "linha" : "linhas"}</span>}
+                    {/* Vermelho a partir de VAGAS_WARN: aviso de que o teto de envio está perto. */}
+                    <span className={cn("font-semibold tabular-nums", overLimit ? "text-red-700" : nearLimit ? "text-red-600" : "text-slate-900")}>{vagasLabel}</span>
+                    {nearLimit && !overLimit && <span className="text-red-600"> (limite {MAX_VAGAS})</span>}
+                    {records.length > 0 && <span className="text-slate-500"> · {summary.pessoasDia} pessoas-dia em {plural(summary.funcoes, "linha", "linhas")}</span>}
                   </p>
-                  <p className={cn(HINT, "flex items-center gap-1.5 mt-0.5")}>
+                  <p className={cn(HINT, "hidden sm:flex items-center gap-1.5 mt-0.5")}>
                     {draftSavedAt
                       ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
                       : <Save className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
@@ -1164,45 +1366,48 @@ export default function ScalingSuggestionPage() {
                     </span>
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                {/*
+                  O motivo do bloqueio fica AO LADO do botão, não só dentro
+                  do rótulo dele: quem via "Revise para enviar" não sabia o
+                  que revisar sem procurar. Clicar leva à primeira linha.
+                */}
+                {motivoDoBloqueio && (
+                  <button
+                    type="button"
+                    onClick={() => { const alvo = pendencias.errors[0] ?? pendencias.warnings[0]; if (alvo) focusRow(alvo.rowId, "logistica"); }}
+                    disabled={!pendencias.errors.length && !pendencias.warnings.length}
+                    className={cn(
+                      "order-2 inline-flex h-9 w-full items-center gap-1.5 rounded-lg border px-2.5 text-[12px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:cursor-default sm:order-none sm:w-auto sm:max-w-[280px]",
+                      motivoDoBloqueio.tom === "erro"
+                        ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100 focus-visible:ring-red-400"
+                        : motivoDoBloqueio.tom === "aviso"
+                          ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-400"
+                          : "border-slate-200 bg-slate-50 text-slate-600 focus-visible:ring-slate-400",
+                    )}
+                    data-testid="scaling-suggestion-motivo"
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span className="truncate">{motivoDoBloqueio.texto}</span>
+                  </button>
+                )}
+                {/* No celular: motivo (order-2) acima, botões (order-3) por último, largura toda. */}
+                <div className="order-3 flex w-full items-center gap-2 sm:order-none sm:w-auto">
                   <Button
-                    type="button" variant="outline" size="sm" className="rounded-lg h-9"
+                    type="button" variant="outline" size="sm" className="rounded-lg h-9 shrink-0 px-2.5 sm:px-3"
                     disabled={records.length === 0}
                     aria-expanded={previewOpen} aria-controls="sug-previa"
+                    aria-label={previewOpen ? "Fechar prévia das vagas" : "Ver prévia das vagas"}
+                    title={previewOpen ? "Fechar prévia das vagas" : "Ver prévia das vagas"}
                     onClick={() => setPreviewOpen((v) => !v)}
                   >
-                    <Eye className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-                    {previewOpen ? "Fechar prévia" : "Ver prévia das vagas"}
+                    <Eye className="w-3.5 h-3.5 sm:mr-1.5" aria-hidden="true" />
+                    <span className="hidden sm:inline">{previewOpen ? "Fechar prévia" : "Ver prévia das vagas"}</span>
                   </Button>
-                  {/*
-                    O motivo do bloqueio fica AO LADO do botão, não só dentro
-                    do rótulo dele: quem via "Revise para enviar" não sabia o
-                    que revisar sem procurar. Clicar leva à primeira linha.
-                  */}
-                  {motivoDoBloqueio && (
-                    <button
-                      type="button"
-                      onClick={() => { const alvo = pendencias.errors[0] ?? pendencias.warnings[0]; if (alvo) focusRow(alvo.rowId); }}
-                      disabled={!pendencias.errors.length && !pendencias.warnings.length}
-                      className={cn(
-                        "inline-flex h-9 max-w-[280px] items-center gap-1.5 rounded-lg border px-2.5 text-[12px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:cursor-default",
-                        motivoDoBloqueio.tom === "erro"
-                          ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100 focus-visible:ring-red-400"
-                          : motivoDoBloqueio.tom === "aviso"
-                            ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-400"
-                            : "border-slate-200 bg-slate-50 text-slate-600 focus-visible:ring-slate-400",
-                      )}
-                      data-testid="scaling-suggestion-motivo"
-                    >
-                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                      <span className="truncate">{motivoDoBloqueio.texto}</span>
-                    </button>
-                  )}
                   <Button
                     type="button" onClick={openConfirmSend}
                     disabled={sendDisabled}
                     title={sentCheckFailed ? "Bloqueado: não foi possível verificar as vagas já enviadas deste evento." : undefined}
-                    className="rounded-xl bg-primary hover:bg-primary-hover"
+                    className="rounded-xl bg-primary hover:bg-primary-hover w-full sm:w-auto"
                   >
                     <Send className="w-4 h-4 mr-2" aria-hidden="true" />
                     {sendLabel}
@@ -1216,7 +1421,7 @@ export default function ScalingSuggestionPage() {
 
       {/* Adicionar função (multi-seleção) */}
       <Dialog open={showAddFunction} onOpenChange={(o) => { if (!o) setShowAddFunction(false); }}>
-        <DialogContent className="max-w-md p-0 overflow-hidden">
+        <DialogContent className="max-w-md p-0 overflow-hidden w-[calc(100%-2rem)] rounded-2xl sm:w-full">
           <DialogHeader className="px-5 pt-5 pb-3">
             <DialogTitle>Adicionar funções à grade</DialogTitle>
             <DialogDescription>Marque uma ou mais funções. A mesma função pode entrar mais de uma vez (ex.: turmas com dias de viagem diferentes).</DialogDescription>
@@ -1234,7 +1439,8 @@ export default function ScalingSuggestionPage() {
                         {checked && <Check className="h-3 w-3" />}
                       </span>
                       <span className="flex-1 truncate">{f.name}</span>
-                      {presentFunctionIds.has(f.id) && <span className="text-xs text-slate-500 shrink-0">na grade</span>}
+                      {/* Badge, não texto solto: "na grade" lia como parte do nome da função. */}
+                      {presentFunctionIds.has(f.id) && <span className="shrink-0 rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-semibold text-primary">já na grade</span>}
                       {f.responsibleArea && <span className="text-xs text-slate-500 shrink-0">{f.responsibleArea}</span>}
                     </CommandItem>
                   );
@@ -1243,7 +1449,10 @@ export default function ScalingSuggestionPage() {
             </CommandList>
           </Command>
           <DialogFooter className="px-5 py-3 border-t border-slate-100 sm:justify-between gap-2">
-            <Button type="button" variant="ghost" size="sm" className="rounded-lg" onClick={addAllFunctions}>Adicionar todas que faltam</Button>
+            {/* Com a contagem o botão diz o que vai acontecer; com 0 não há o que adicionar. */}
+            <Button type="button" variant="ghost" size="sm" className="rounded-lg" disabled={missingFunctionsCount === 0} onClick={addAllFunctions}>
+              Adicionar todas que faltam ({missingFunctionsCount})
+            </Button>
             <div className="flex gap-2">
               <Button type="button" variant="outline" size="sm" className="rounded-lg" onClick={() => setShowAddFunction(false)}>Cancelar</Button>
               <Button type="button" size="sm" className="rounded-lg bg-primary hover:bg-primary-hover" disabled={selectedToAdd.size === 0} onClick={addSelectedFunctions}>
@@ -1269,7 +1478,7 @@ export default function ScalingSuggestionPage() {
 
       {/* Colar da planilha: decidir antes de aplicar */}
       <Dialog open={showPaste} onOpenChange={(o) => { if (!o) closePaste(); }}>
-        <DialogContent className="max-w-[680px] max-h-[90vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)_auto]">
+        <DialogContent className="max-w-[680px] max-h-[90vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)_auto] w-[calc(100%-2rem)] rounded-2xl sm:w-full">
           <DialogHeader className="px-4 sm:px-5 pt-5 pb-3 pr-12">
             <DialogTitle>Colar da planilha</DialogTitle>
             <DialogDescription>Copie as linhas no Excel e cole aqui — o formato é reconhecido sozinho e nada entra na grade antes do "Aplicar".</DialogDescription>
@@ -1298,11 +1507,16 @@ export default function ScalingSuggestionPage() {
                       {plural(pastePreview.recognized, "função reconhecida", "funções reconhecidas")}
                     </span>
                     <span className={PILL}>{plural(pastePreview.mappedDays, "dia mapeado", "dias mapeados")}</span>
-                    {pasteWarnings.map((w, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
-                        <AlertTriangle className="w-3 h-3 text-amber-600" aria-hidden="true" /> {w}
-                      </span>
-                    ))}
+                    {pasteWarnings.map((w, i) => {
+                      const inline = w.detail && w.detail.length > 0 && w.detail.length <= 3 ? w.detail.join(", ") : "";
+                      const title = w.detail && w.detail.length > 3 ? w.detail.join(", ") : undefined;
+                      return (
+                        <span key={i} title={title} className="inline-flex max-w-full items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                          <AlertTriangle className="w-3 h-3 shrink-0 text-amber-600" aria-hidden="true" />
+                          <span className="truncate">{w.text}{inline ? `: ${inline}` : ""}</span>
+                        </span>
+                      );
+                    })}
                   </div>
                   {pastePreview.recognized === 0 && (
                     <p className="text-xs text-amber-900">
@@ -1328,12 +1542,24 @@ export default function ScalingSuggestionPage() {
 
             {/* 3. Nomes que o catálogo não reconheceu: apontar a função certa (ou descartar) antes de aplicar */}
             {unknownToMap.length > 0 && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
-                <div>
-                  <p className="text-xs font-semibold text-amber-900">
-                    {plural(unknownToMap.length, "nome não reconhecido", "nomes não reconhecidos")}
-                  </p>
-                  <p className="text-[11px] text-amber-800 mt-0.5">Escolha a função equivalente ou descarte a linha. As escolhas ficam salvas neste navegador.</p>
+              <div ref={pasteUnknownRef} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-semibold text-amber-900">
+                      {plural(unknownToMap.length, "nome não reconhecido", "nomes não reconhecidos")}
+                    </p>
+                    <p className="text-[11px] text-amber-800 mt-0.5">Escolha a função equivalente ou descarte a linha. As escolhas ficam salvas neste navegador.</p>
+                  </div>
+                  {/* Atalho para quem só quer as linhas conhecidas: decide "descartar" para todas as pendentes de uma vez. */}
+                  {pasteUndecided.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setPasteNameMap((prev) => { const next = { ...prev }; for (const n of pasteUndecided) next[functionNameKey(n)] = SKIP_FUNCTION; return next; })}
+                      className="rounded text-[11px] font-semibold text-amber-900 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                    >
+                      Descartar {pasteUndecided.length === 1 ? "a pendente" : `as ${pasteUndecided.length} pendentes`}
+                    </button>
+                  )}
                 </div>
                 <ul className="space-y-1.5 max-h-44 overflow-y-auto">
                   {unknownToMap.map((name) => {
@@ -1342,8 +1568,13 @@ export default function ScalingSuggestionPage() {
                       <li key={key} className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-xs text-slate-700 truncate max-w-[180px]" title={name}>{name}</span>
                         <span aria-hidden="true" className="text-amber-700 text-xs">→</span>
-                        <Select value={pasteNameMap[key] ?? SKIP_FUNCTION} onValueChange={(v) => mapUnknownName(name, v)}>
-                          <SelectTrigger aria-label={`Função para ${name}`} className="h-8 w-[260px] max-w-full text-xs rounded-lg bg-white"><SelectValue /></SelectTrigger>
+                        {/* Sem decisão o Select fica VAZIO (placeholder): com "Descartar linha"
+                            pré-selecionado, escolher "descartar" não disparava onValueChange
+                            e o nome nunca contava como decidido. */}
+                        <Select value={pasteNameMap[key] ?? ""} onValueChange={(v) => mapUnknownName(name, v)}>
+                          <SelectTrigger aria-label={`Função para ${name}`} className={cn("h-8 w-[260px] max-w-full text-xs rounded-lg bg-white", !(key in pasteNameMap) && "border-amber-400")}>
+                            <SelectValue placeholder="Escolher função…" />
+                          </SelectTrigger>
                           <SelectContent>
                             <SelectItem value={SKIP_FUNCTION}>Descartar linha</SelectItem>
                             {sortedFunctions.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
@@ -1442,9 +1673,21 @@ export default function ScalingSuggestionPage() {
 
           <DialogFooter className="px-4 sm:px-5 py-3 border-t border-slate-200 bg-slate-50/60 gap-2">
             <Button type="button" variant="outline" className="rounded-lg" onClick={closePaste}>Cancelar</Button>
-            <Button type="button" onClick={applyPaste} disabled={pasteApplyCount === 0} className="rounded-lg bg-primary hover:bg-primary-hover">
-              {pasteApplyCount > 0 ? `Aplicar ${plural(pasteApplyCount, "linha", "linhas")}` : "Aplicar na grade"}
-            </Button>
+            {/* Com nome sem decisão o botão não aplica: fica "aparentemente desabilitado"
+                (aria-disabled) e o clique leva ao bloco âmbar — um disabled de verdade
+                não receberia o clique nem explicaria o porquê. */}
+            {pasteUndecided.length > 0 && pasteApplyCount > 0 ? (
+              <Button
+                type="button" aria-disabled="true" onClick={goToUnknownNames}
+                className="rounded-lg bg-primary/50 text-primary-foreground hover:bg-primary/60"
+              >
+                Defina {pasteUndecided.length === 1 ? "a função acima" : `as ${pasteUndecided.length} funções acima`}
+              </Button>
+            ) : (
+              <Button type="button" onClick={applyPaste} disabled={pasteApplyCount === 0} className="rounded-lg bg-primary hover:bg-primary-hover">
+                {pasteApplyCount > 0 ? `Aplicar ${plural(pasteApplyCount, "linha", "linhas")}` : "Aplicar na grade"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1480,34 +1723,54 @@ export default function ScalingSuggestionPage() {
         </p>
       </ConfirmDialog>
 
-      {/* Colagem: a planilha tem dias fora do período da grade */}
-      <ConfirmDialog
-        open={!!pendingPasteDates}
-        onOpenChange={(o) => { if (!o) setPendingPasteDates(null); }}
-        title={`A planilha tem ${pendingPasteDates?.dates.length} ${pendingPasteDates?.dates.length === 1 ? "dia" : "dias"} fora do período da grade`}
-        cancelLabel="Manter período e ignorar"
-        onCancel={rejectPasteExpansion}
-        confirmLabel={pendingPasteDates?.expansion.changed ? "Ajustar o período" : undefined}
-        onConfirm={acceptPasteExpansion}
-      >
-        {pendingPasteDates && (
-          <p>
-            A grade cobre {formatDateRange(applied.start, applied.end)} e a planilha traz quantidades em{" "}
-            <strong>{pendingPasteDates.dates.map((d) => formatDayMonthBr(d)).join(", ")}</strong>.{" "}
-            {pendingPasteDates.expansion.changed ? (
-              <>Posso ajustar o período para {formatDateRange(pendingPasteDates.expansion.start, pendingPasteDates.expansion.end)} e colar tudo.{" "}
-                {pendingPasteDates.expansion.ignored.length > 0 && (
-                  <>Mesmo assim, {pendingPasteDates.expansion.ignored.map((d) => formatDayMonthBr(d)).join(", ")} continuam de fora
-                    (a grade só vai até {PERIOD_MARGIN_DAYS} dias antes/depois do evento).{" "}</>
+      {/* Colagem: a planilha tem dias fora do período da grade.
+          Três saídas nomeadas pela CONSEQUÊNCIA — antes o "Cancelar" (que o Esc
+          também disparava) colava assim mesmo, ignorando dias em silêncio.
+          Agora: Voltar (e Esc) não fazem nada; as duas ações são explícitas. */}
+      <AlertDialog open={!!pendingPasteDates} onOpenChange={(o) => { if (!o) setPendingPasteDates(null); }}>
+        <AlertDialogContent className="rounded-2xl w-[calc(100%-2rem)] sm:w-full">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              A planilha tem {plural(pendingPasteDates?.dates.length ?? 0, "dia", "dias")} fora do período da grade
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                {pendingPasteDates && (
+                  <p>
+                    A grade cobre {formatDateRange(applied.start, applied.end)} e a planilha traz quantidades em{" "}
+                    <strong>{pendingPasteDates.dates.map((d) => formatDayMonthBr(d)).join(", ")}</strong>.{" "}
+                    {pendingPasteDates.expansion.changed ? (
+                      <>Dá para ampliar o período para {formatDateRange(pendingPasteDates.expansion.start, pendingPasteDates.expansion.end)} e colar tudo.{" "}
+                        {pendingPasteDates.expansion.ignored.length > 0 && (
+                          <>Mesmo assim, {pendingPasteDates.expansion.ignored.map((d) => formatDayMonthBr(d)).join(", ")} continuam de fora
+                            (a grade só vai até {PERIOD_MARGIN_DAYS} dias antes/depois do evento).{" "}</>
+                        )}
+                      </>
+                    ) : (
+                      <>Não dá para ampliar a grade até esses dias (limite de {PERIOD_MARGIN_DAYS} dias antes/depois do evento).{" "}</>
+                    )}
+                    Colando só os dias da grade, as quantidades desses dias são descartadas.
+                  </p>
                 )}
-              </>
-            ) : (
-              <>Não dá para ampliar a grade até esses dias (limite de {PERIOD_MARGIN_DAYS} dias antes/depois do evento). Colando assim, eles são ignorados.{" "}</>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <AlertDialogCancel className="rounded-lg sm:mr-auto">Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); rejectPasteExpansion(); }}
+              className="rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+            >
+              Colar só os dias da grade
+            </AlertDialogAction>
+            {pendingPasteDates?.expansion.changed && (
+              <AlertDialogAction onClick={(e) => { e.preventDefault(); acceptPasteExpansion(); }} className="rounded-lg bg-primary hover:bg-primary-hover">
+                Ampliar o período e colar tudo
+              </AlertDialogAction>
             )}
-            Mantendo o período, as quantidades desses dias são descartadas.
-          </p>
-        )}
-      </ConfirmDialog>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Encolher período com quantidades fora */}
       <ConfirmDialog
@@ -1551,8 +1814,8 @@ export default function ScalingSuggestionPage() {
         onConfirm={() => sendMutation.mutate()}
       >
         <p>
-          Serão criadas <strong>{records.length}</strong> vaga(s) sugerida(s) para <strong>{selectedEvent?.name}</strong> e as áreas responsáveis passam a vê-las na Validação de Escala. A operação é única: ou todas entram, ou nenhuma.
-          {pendencias.warnings.length > 0 && <> Há {pendencias.warnings.length} {pendencias.warnings.length === 1 ? "aviso" : "avisos"} na grade (passagem sem datas) — o envio segue mesmo assim.</>}
+          {records.length === 1 ? "Será criada " : "Serão criadas "}<strong>{plural(records.length, "vaga sugerida", "vagas sugeridas")}</strong> para <strong>{selectedEvent?.name}</strong> e as áreas responsáveis passam a vê-las na Validação de Escala. A operação é única: ou todas entram, ou nenhuma.
+          {pendencias.warnings.length > 0 && <> Há {plural(pendencias.warnings.length, "aviso", "avisos")} na grade (passagem sem datas) — o envio segue mesmo assim.</>}
         </p>
       </ConfirmDialog>
 

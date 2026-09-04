@@ -93,7 +93,8 @@ export function CopyEventDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="max-w-[560px] max-h-[90vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)_auto]">
+      {/* Abaixo de `sm` o diálogo respira 1rem de cada lado e arredonda (o padrão do shadcn só arredonda a partir de sm). */}
+      <DialogContent className="max-w-[560px] max-h-[90vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)_auto] w-[calc(100%-2rem)] rounded-2xl sm:w-full">
         <DialogHeader className="px-5 pt-5 pb-3 pr-12">
           <DialogTitle className="flex items-center gap-2">
             <FolderInput className="w-4 h-4 text-primary" aria-hidden="true" /> Copiar de outro evento

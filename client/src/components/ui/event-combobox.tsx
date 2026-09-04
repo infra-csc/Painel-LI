@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type Ref } from "react";
 import { Search, ChevronDown, X, Calendar } from "lucide-react";
 import {
   Popover,
@@ -28,6 +28,14 @@ interface EventComboboxProps {
   showAllOption?: boolean;
   /** Classes extras do botão (ex.: `h-8 font-semibold` na barra de contexto da Sugestão). */
   className?: string;
+  /**
+   * Trava o gatilho (e o "limpar"). A Sugestão de Escala usa isto durante o
+   * envio: trocar de evento no meio do POST fazia o `onSuccess` limpar o
+   * rascunho do evento ERRADO. Opcional — as outras telas não mudam.
+   */
+  disabled?: boolean;
+  /** Ref do botão gatilho, para quem precisa abrir/focar o seletor por código (sem `querySelector`). */
+  triggerRef?: Ref<HTMLButtonElement>;
 }
 
 export default function EventCombobox({
@@ -38,6 +46,8 @@ export default function EventCombobox({
   testId = "event-combobox",
   showAllOption = true,
   className,
+  disabled,
+  triggerRef,
 }: EventComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -71,13 +81,17 @@ export default function EventCombobox({
       <div className="relative w-full">
         <PopoverTrigger asChild>
           <button
+            ref={triggerRef}
             data-testid={testId}
             type="button"
+            disabled={disabled}
             // O nome do evento é longo e o gatilho é estreito: sem o `title`,
             // "CIRCUITO DAS ESTAÇÕES - Outono - BRASÍLIA - 2026" virava
             // "CIRCUITO DAS ESTAÇÕES - Outo…" e não havia como ler o resto.
             title={displayValue}
-            className={cn("w-full h-9 flex items-center justify-between pl-3 pr-9 border border-slate-200 rounded-lg bg-white text-sm text-slate-700 cursor-pointer hover:border-blue-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-200", className)}
+            // Azul da marca (tokens), não `blue-*` cru: o hover/foco precisa ser
+            // o MESMO azul dos outros controles da tela.
+            className={cn("w-full h-9 flex items-center justify-between pl-3 pr-9 border border-slate-200 rounded-lg bg-white text-sm text-slate-700 cursor-pointer hover:border-primary/40 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-60", className)}
           >
             <span className="flex-1 text-left truncate text-slate-700">
               {displayValue}
@@ -88,8 +102,9 @@ export default function EventCombobox({
           <button
             type="button"
             aria-label="Limpar evento selecionado"
+            disabled={disabled}
             onClick={e => { e.stopPropagation(); onValueChange("all"); }}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 rounded"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded disabled:pointer-events-none disabled:opacity-50"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -132,8 +147,8 @@ export default function EventCombobox({
             <div
               className={`px-3 py-2.5 text-[13px] font-medium border-b border-slate-100 cursor-pointer transition-colors ${
                 value === "all"
-                  ? "bg-blue-50 text-blue-700"
-                  : "text-slate-400 hover:bg-blue-50 hover:text-blue-700"
+                  ? "bg-brand-soft text-primary"
+                  : "text-slate-400 hover:bg-brand-soft hover:text-primary"
               }`}
               onClick={() => { onValueChange("all"); close(); }}
             >
@@ -154,19 +169,19 @@ export default function EventCombobox({
                   key={event.id}
                   className={`flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-colors border-b border-slate-50 last:border-0 ${
                     isSelected
-                      ? "bg-blue-50 text-blue-700"
-                      : "text-slate-700 hover:bg-blue-50 hover:text-blue-700"
+                      ? "bg-brand-soft text-primary"
+                      : "text-slate-700 hover:bg-brand-soft hover:text-primary"
                   }`}
                   onClick={() => { onValueChange(event.id); close(); }}
                 >
-                  <Calendar className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? "text-blue-500" : "text-slate-400"}`} />
+                  <Calendar className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? "text-primary" : "text-slate-400"}`} />
                   <div className="flex-1 min-w-0">
                     <div className={`text-[13px] whitespace-normal break-words ${isSelected ? "font-semibold" : ""}`}>{event.name}</div>
                     {dateLabel && (
-                      <div className={`text-[11px] mt-0.5 ${isSelected ? "text-blue-400" : "text-slate-400"}`}>{dateLabel}</div>
+                      <div className={`text-[11px] mt-0.5 ${isSelected ? "text-primary/70" : "text-slate-400"}`}>{dateLabel}</div>
                     )}
                   </div>
-                  {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />}
+                  {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />}
                 </div>
               );
             })
