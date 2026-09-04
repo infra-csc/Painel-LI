@@ -34,6 +34,16 @@ describe("blocos da fila de trabalho", () => {
     expect(teste(vaga({ collaboratorId: "c1" }))).toBe(false);
   });
 
+  it('"Escalar + confirmar" soma vaga sem nome e vaga com nome ainda não confirmada', () => {
+    const teste = testeDaFila("trabalho", ctx());
+    expect(teste(vaga())).toBe(true);                                                  // sem nome
+    expect(teste(vaga({ collaboratorId: "c1", status: "pendente" }))).toBe(true);      // com nome, sem confirmar
+    expect(teste(vaga({ status: "cancelado" }))).toBe(false);
+    // Confirmada e sem bloqueio nenhum: não é mais trabalho de quem escala.
+    const bloqueia = ctx({ bloqueioParaConfirmar: () => "já confirmada" });
+    expect(testeDaFila("trabalho", bloqueia)(vaga({ collaboratorId: "c1", status: "escalado" }))).toBe(false);
+  });
+
   it('"Escalar" ignora a cancelada — não há o que escalar nela', () => {
     expect(testeDaFila("escalar", ctx())(vaga({ status: "cancelado" }))).toBe(false);
   });

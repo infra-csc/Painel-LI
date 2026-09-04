@@ -33,9 +33,13 @@ export interface QueueContext {
   ehCenoEmpreita: (i: TeamInclusion) => boolean;
 }
 
-export type QueueKey = "escalar" | "gestor" | "troca" | "prontas";
+export type QueueKey = "trabalho" | "escalar" | "gestor" | "troca" | "prontas";
 
 export const QUEUE_META: { key: QueueKey; label: string; sub: string }[] = [
+  // Bloco duplo (04/09): tudo que é trabalho de quem escala — vaga sem nome
+  // OU com nome sem confirmar. É o que a tela abre ligado; os dois blocos
+  // individuais continuam existindo para quem quer só um recorte.
+  { key: "trabalho", label: "Escalar + confirmar", sub: "sem nome ou sem confirmar" },
   { key: "escalar", label: "Escalar", sub: "vagas sem nome" },
   { key: "gestor", label: "Com o gestor", sub: "aguardando aprovação" },
   { key: "troca", label: "Em análise", sub: "trocas e ajustes" },
@@ -47,6 +51,11 @@ export function testeDaFila(key: QueueKey, ctx: QueueContext): (i: TeamInclusion
     // "Vaga aberta" é sobre NOME, não sobre o status gravado: uma linha marcada
     // como escalada sem colaborador continua sendo trabalho a fazer.
     case "escalar": return (i) => !ctx.temNome(i) && i.status !== "cancelado";
+    case "trabalho": {
+      const escalar = testeDaFila("escalar", ctx);
+      const prontas = testeDaFila("prontas", ctx);
+      return (i) => i.status !== "cancelado" && (escalar(i) || prontas(i));
+    }
     case "gestor": return (i) => i.status === "aguardando_producao";
     case "troca": return (i) => ctx.temTroca(i) || ctx.temPedido(i);
     case "prontas": return (i) => !ctx.bloqueioParaConfirmar(i);

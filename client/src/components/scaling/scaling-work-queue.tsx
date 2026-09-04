@@ -8,10 +8,11 @@
  * Cada bloco é um botão que FILTRA a lista. É a diferença entre um aviso — que
  * só informa — e uma fila, que leva ao trabalho.
  */
-import { UserPlus, Gavel, ArrowLeftRight, CheckCircle2 } from "lucide-react";
+import { UserPlus, Gavel, ArrowLeftRight, CheckCircle2, ListChecks } from "lucide-react";
 import { QUEUE_META, type QueueKey } from "./scaling-queue";
 
 const ICONE: Record<QueueKey, typeof UserPlus> = {
+  trabalho: ListChecks,
   escalar: UserPlus,
   gestor: Gavel,
   troca: ArrowLeftRight,
@@ -20,20 +21,27 @@ const ICONE: Record<QueueKey, typeof UserPlus> = {
 
 /** Uma cor por significado — a mesma da pílula de situação correspondente. */
 const COR: Record<QueueKey, string> = {
+  trabalho: "#0033CC",
   escalar: "#D97706",
   gestor: "#EF4444",
   troca: "#A855F7",
   prontas: "#10B981",
 };
 
-export default function ScalingWorkQueue({ contagens, ativa, onEscolher }: {
+export default function ScalingWorkQueue({ contagens, ativa, onEscolher, mostrarGestor = true }: {
   contagens: Record<QueueKey, number>;
   ativa: QueueKey | null;
   onEscolher: (k: QueueKey | null) => void;
+  /**
+   * "Com o gestor" só para quem está no fluxo de aprovação da cenotécnica
+   * (04/09): para os demais é um bloco que nunca é trabalho deles.
+   */
+  mostrarGestor?: boolean;
 }) {
+  const blocos = QUEUE_META.filter((q) => mostrarGestor || q.key !== "gestor");
   return (
     <section aria-label="Fila de trabalho da escalação" className="flex rounded-xl border border-border bg-card overflow-hidden">
-      {QUEUE_META.map(({ key, label, sub }) => {
+      {blocos.map(({ key, label, sub }) => {
         const Icone = ICONE[key];
         const n = contagens[key];
         const on = ativa === key;

@@ -83,7 +83,12 @@ export default function Scaling() {
   // persistido faz o usuário abrir a tela filtrado sem perceber. A ABA também
   // não persiste — quem abre a Escalação vem trabalhar na fila.
   const [aba, setAba] = useState<"fila" | "analises" | "escala">("fila");
-  const [fila, setFila] = useState<QueueKey | null>(null);
+  /**
+   * Bloco da fila ligado. Nasce em "Escalar + confirmar" (04/09): é o
+   * trabalho de quem abre a tela — vaga sem nome ou com nome sem confirmar.
+   * "Limpar filtros" desliga (lista inteira).
+   */
+  const [fila, setFila] = useState<QueueKey | null>("trabalho");
   const [busca, setBusca] = useState("");
   const [eventos, setEventos] = useState<Record<string, boolean>>({});
   const [periodo, setPeriodo] = useState<PeriodConfig>(DEFAULT_PERIOD);
@@ -784,7 +789,7 @@ export default function Scaling() {
             />
           ) : (
             <>
-              <ScalingWorkQueue contagens={contagensDaFila} ativa={fila} onEscolher={setFila} />
+              <ScalingWorkQueue contagens={contagensDaFila} ativa={fila} onEscolher={setFila} mostrarGestor={canApproveProduction} />
 
               {/* A faixa de recarga fica ACIMA dos filtros e não os
                   substitui: o toggle que disparou a busca precisa continuar
