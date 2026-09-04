@@ -1250,6 +1250,16 @@ describe("rowsFromSuggestions (Copiar de evento)", () => {
     expect(back.map((r) => r.workDays)).toEqual([["2026-09-10", "2026-09-11"], ["2026-09-11"]]);
   });
 
+  it("copiar de outro evento leva a faixa do horário como está (04/09)", () => {
+    const res = rowsFromSuggestions(
+      [{ functionId: "f1", workDays: ["2026-09-10"], transportModeIda: "aereo", flightDepartureDate: "2026-09-09",
+        flightArrivalSuggestedTime: "8-14h", transportModeVolta: "aereo", flightReturnDate: "2026-09-12", flightReturnSuggestedTime: "20h+" }],
+      FUNCS, DATES,
+    );
+    expect(res.rows[0].flightArrivalSuggestedTime).toBe("8-14h");
+    expect(res.rows[0].flightReturnSuggestedTime).toBe("20h+");
+  });
+
   it("dias fora do período atual não entram na grade e voltam em outsideDays", () => {
     const res = rowsFromSuggestions(
       [{ functionId: "f1", workDays: ["2026-09-09", "2026-09-10", "2026-09-20"] }],

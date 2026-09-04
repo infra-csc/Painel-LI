@@ -335,6 +335,20 @@ export const ymdSchema = ymd;
 export const hhmmSchema = hhmm;
 
 /**
+ * Horário SUGERIDO de ida/volta é texto, não hora exata (04/09): a área
+ * escreve janelas — "8-14h", "20h+", "8h às 10h" — e é a janela que Compras
+ * usa para escolher o voo. O schema HH:MM rejeitava tudo isso na gravação
+ * (Sugestão e pedido de ajuste), e a faixa se perdia antes de chegar ao banco.
+ * Regra: até 40 caracteres, com pelo menos um dígito; se PARECE uma hora
+ * ("HH:MM"), ela tem de existir ("24:00" continua inválido).
+ */
+export const horarioSugeridoSchema = z.string()
+  .trim()
+  .max(40, "Horário muito longo (até 40 caracteres)")
+  .refine((v) => /[0-9]/.test(v), "Horário inválido (ex.: 11:00, 22h ou 8-14h)")
+  .refine((v) => !/^\d{1,2}:\d{2}$/.test(v) || isValidHhmm(v.padStart(5, "0")), "Horário inexistente (use HH:MM entre 00:00 e 23:59)");
+
+/**
  * A vaga mudou de estado entre a leitura e a gravação (decisão concorrente
  * venceu a corrida). O servidor devolve 409 com esta mensagem — o cliente
  * recarrega a lista.
@@ -346,10 +360,10 @@ export const proposedChangesSchema = z.object({
   workDays: z.array(ymd).min(1, "Informe ao menos um dia de trabalho").optional(),
   dailyRates: z.number().int("Diárias devem ser um número inteiro").min(0, "Diárias não podem ser negativas").optional(),
   flightDepartureDate: ymd.nullable().optional(),
-  flightDepartureSuggestedTime: hhmm.nullable().optional(),
-  flightArrivalSuggestedTime: hhmm.nullable().optional(),
+  flightDepartureSuggestedTime: horarioSugeridoSchema.nullable().optional(),
+  flightArrivalSuggestedTime: horarioSugeridoSchema.nullable().optional(),
   flightReturnDate: ymd.nullable().optional(),
-  flightReturnSuggestedTime: hhmm.nullable().optional(),
+  flightReturnSuggestedTime: horarioSugeridoSchema.nullable().optional(),
   transportModeIda: transportMode.nullable().optional(),
   transportModeVolta: transportMode.nullable().optional(),
   needsTicket: z.boolean().optional(),

@@ -1585,9 +1585,14 @@ const copyYmd = (v: string | Date | null | undefined): string => {
   const s = String(v).slice(0, 10);
   return YMD_RE.test(s) ? s : "";
 };
+// Copiar de outro evento/linha leva o horário COMO ESTÁ (04/09): "8-14h" e
+// "20h+" são a informação; antes só "HH:MM" sobrevivia e a faixa sumia na
+// cópia. "HH:MM:SS" continua virando "HH:MM"; sem nenhum dígito, vazio.
 const copyTime = (v: string | null | undefined): string => {
-  const m = /^(\d{2}:\d{2})/.exec((v ?? "").trim());
-  return m ? m[1] : "";
+  const t = (v ?? "").trim();
+  const m = /^(\d{2}:\d{2})(?::\d{2})?$/.exec(t);
+  if (m) return m[1];
+  return /[0-9]/.test(t) ? t.slice(0, 40) : "";
 };
 const copyMode = (v: string | null | undefined): TransportMode | "" =>
   v && TRANSPORT_MODE_SET.has(v) ? (v as TransportMode) : "";

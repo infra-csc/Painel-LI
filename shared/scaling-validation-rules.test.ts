@@ -765,6 +765,13 @@ describe("parseProposedChanges — datas/horários reais e tetos de entrada", ()
     expect(() => parseProposedChanges({ v: 1, flightDepartureSuggestedTime: "24:00" }, "ajuste"))
       .toThrow(/Horário inexistente/);
   });
+  it("horário sugerido aceita faixa/janela como a área escreve; sem dígito é inválido (04/09)", () => {
+    expect(parseProposedChanges({ v: 1, flightReturnSuggestedTime: "8-14h" }, "ajuste").flightReturnSuggestedTime).toBe("8-14h");
+    expect(parseProposedChanges({ v: 1, flightArrivalSuggestedTime: "20h+" }, "ajuste").flightArrivalSuggestedTime).toBe("20h+");
+    expect(parseProposedChanges({ v: 1, flightArrivalSuggestedTime: "8h às 10h" }, "ajuste").flightArrivalSuggestedTime).toBe("8h às 10h");
+    expect(() => parseProposedChanges({ v: 1, flightArrivalSuggestedTime: "manhã" }, "ajuste")).toThrow(/Horário inválido/);
+    expect(() => parseProposedChanges({ v: 1, flightArrivalSuggestedTime: "x".repeat(30) + "1234567890123" }, "ajuste")).toThrow(/muito longo/);
+  });
   it("quantity tem teto de 50 vagas por pedido", () => {
     expect(() => parseProposedChanges({ v: 1, workDays: ["2026-06-01"], quantity: 51 }, "inclusao"))
       .toThrow(/máxima é 50/);

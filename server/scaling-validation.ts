@@ -94,8 +94,7 @@ import {
   type ChangeRequestStatus,
   type LastDecisionInfo,
   type LastVagaDecisionInfo,
-  type VagaDecisionResult,
-} from "@shared/scaling-validation-rules";
+  type VagaDecisionResult, horarioSugeridoSchema } from "@shared/scaling-validation-rules";
 import { changeRequestWindow, type ChangeWindow } from "@shared/scaling-change-window";
 import { normalizeRole, type CanonicalRole } from "@shared/roles";
 import {
@@ -561,10 +560,11 @@ const suggestionRowSchema = z.object({
   scheduleStartDate: ymd.nullish(),
   scheduleEndDate: ymd.nullish(),
   flightDepartureDate: ymd.nullish(),
-  flightDepartureSuggestedTime: hhmm.nullish(),
-  flightArrivalSuggestedTime: hhmm.nullish(),
+  // Texto com faixa, não HH:MM (04/09) — a mesma regra do shared.
+  flightDepartureSuggestedTime: horarioSugeridoSchema.nullish(),
+  flightArrivalSuggestedTime: horarioSugeridoSchema.nullish(),
   flightReturnDate: ymd.nullish(),
-  flightReturnSuggestedTime: hhmm.nullish(),
+  flightReturnSuggestedTime: horarioSugeridoSchema.nullish(),
   city: z.string().max(1000, "Cidade pode ter no máximo 1000 caracteres").nullish(),
   observations: z.string().max(1000, "Observações podem ter no máximo 1000 caracteres").nullish(),
 });
