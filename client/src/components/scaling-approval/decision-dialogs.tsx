@@ -30,7 +30,8 @@ interface ApproveDialogProps {
   onConfirm: () => void;
 }
 
-function approveConsequence(type: ChangeRequestType, qty: number, postScaling = false): string {
+/** Exportada: o detalhe do pedido mostra a MESMA frase acima do botão "Aprovar como veio". */
+export function approveConsequence(type: ChangeRequestType, qty: number, postScaling = false): string {
   // Vaga já escalada: aprovar NÃO devolve a vaga para a fila — aplica no lugar.
   if (postScaling && type === "ajuste") {
     return "As alterações são aplicadas na escalação atual. A pessoa continua escalada; passagem e hospedagem seguem com a logística.";
@@ -63,6 +64,16 @@ export function ApproveRequestDialog({ open, onOpenChange, request, pending, onC
               {request && type === "ajuste" && <DiffTable diff={request.diff} />}
               {request && type === "inclusao" && <ProposedList proposed={request.proposed} />}
               <p className="text-xs text-slate-600">{approveConsequence(type, request?.proposed?.quantity ?? 1, isPostValidationInclusion(request?.inclusionState))}</p>
+              {/* O caminho de volta, dito antes do clique (04/09) — a mesma
+                  linha do diálogo de aprovar vagas validadas. Na vaga já
+                  escalada não existe fila para onde voltar: aplica no lugar. */}
+              <p className="text-[11px] text-slate-500">
+                {isPostValidationInclusion(request?.inclusionState)
+                  ? "Aplicado direto na escalação — a pessoa continua escalada e a mudança vale na hora."
+                  : type === "exclusao"
+                    ? "Depois de aprovar, a vaga fica negada — para voltar à escala, a área precisa sugerir de novo."
+                    : "Depois de aprovar, a alteração só é possível na Escalação — voltar exige pedido de ajuste da área."}
+              </p>
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>

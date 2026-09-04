@@ -4,11 +4,15 @@ import { PROPOSED_FIELD_LABELS, type InclusionDiffEntry, type ProposedChanges, t
 import { formatProposedValue } from "./request-badges";
 import type { TeamInclusion } from "@shared/schema";
 import { draftFromProposed, fullFromDraft } from "./proposed-changes-form";
+import { SECTION } from "./tokens";
+
+/** `th` do de/para no mesmo micro-rótulo das outras tabelas do módulo. */
+const DIFF_TH = `px-3 py-2 text-left ${SECTION}`;
 
 /** Tabela "de → para" (pedido de AJUSTE) a partir do `diff` que o servidor devolve. */
 export function DiffTable({ diff, className, tom = "resultado" }: { diff: InclusionDiffEntry[]; className?: string; tom?: "resultado" | "pedido" }) {
   if (diff.length === 0) {
-    return <p className={cn("text-xs text-slate-400 rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center", className)}>Nenhuma diferença em relação à vaga atual.</p>;
+    return <p className={cn("text-xs text-slate-500 rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center", className)}>Nenhuma diferença em relação à vaga atual.</p>;
   }
   return (
     <div className={cn("rounded-xl border border-slate-200 overflow-hidden", className)}>
@@ -16,16 +20,17 @@ export function DiffTable({ diff, className, tom = "resultado" }: { diff: Inclus
         <caption className="sr-only">Alterações pedidas (de / para)</caption>
         <thead className="bg-slate-50 border-b border-slate-200">
           <tr>
-            <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-[10px] text-slate-400">Campo</th>
-            <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-[10px] text-slate-400">De</th>
-            <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-[10px] text-slate-400">Para</th>
+            <th scope="col" className={DIFF_TH}>Campo</th>
+            <th scope="col" className={DIFF_TH}>De</th>
+            <th scope="col" className={DIFF_TH}>Para</th>
           </tr>
         </thead>
         <tbody>
           {diff.map((d) => (
             <tr key={d.field} className="border-b border-slate-100 last:border-b-0 align-top">
               <td className="px-3 py-2 font-semibold text-slate-700 whitespace-nowrap">{d.label || PROPOSED_FIELD_LABELS[d.field] || d.field}</td>
-              <td className="px-3 py-2 text-slate-400 line-through break-words">{formatProposedValue(d.field, d.from)}</td>
+              {/* O valor antigo é informação, não decoração: slate-500 ainda lê no riscado. */}
+              <td className="px-3 py-2 text-slate-500 line-through break-words">{formatProposedValue(d.field, d.from)}</td>
               <td className={cn("px-3 py-2 font-medium break-words", tom === "pedido" ? "text-primary" : "text-emerald-800")}>{formatProposedValue(d.field, d.to)}</td>
             </tr>
           ))}
@@ -37,7 +42,7 @@ export function DiffTable({ diff, className, tom = "resultado" }: { diff: Inclus
 
 /** Lista completa dos campos propostos (pedido de INCLUSÃO) + quantidade. */
 export function ProposedList({ proposed, className, semQuantidade = false }: { proposed: ProposedChanges | null; className?: string; semQuantidade?: boolean }) {
-  if (!proposed) return <p className={cn("text-xs text-slate-400", className)}>Sem detalhes da vaga proposta.</p>;
+  if (!proposed) return <p className={cn("text-xs text-slate-500", className)}>Sem detalhes da vaga proposta.</p>;
   const fields = (Object.keys(PROPOSED_FIELD_LABELS) as ProposedField[]).filter((f) => proposed[f] !== undefined);
   return (
     <dl className={cn("rounded-xl border border-slate-200 divide-y divide-slate-100 text-xs", className)}>
@@ -95,7 +100,8 @@ export function VagaCompleta({ inclusion, falhou, className }: { inclusion: Team
     const v = completa[f];
     const vazio = v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
     return vazio
-      ? <span className="text-slate-300" title="não definido">—</span>
+      // O "—" de vazio fica claro de propósito (com `title`): é ausência, não valor.
+      ? <span className="text-slate-400" title="não definido">—</span>
       : <span className="text-slate-700">{formatProposedValue(f, v)}</span>;
   };
   const blocos: { titulo: string; campos: [ProposedField, string][] }[] = [
@@ -110,7 +116,7 @@ export function VagaCompleta({ inclusion, falhou, className }: { inclusion: Team
       <div className="grid grid-cols-2 gap-px md:grid-cols-4">
         {blocos.map((bl) => (
           <section key={bl.titulo} className="min-w-0 bg-white px-3 py-2.5" aria-label={bl.titulo}>
-            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">{bl.titulo}</p>
+            <p className={cn("mb-1.5", SECTION)}>{bl.titulo}</p>
             <dl className="space-y-1.5">
               {bl.campos.map(([f, rotulo]) => (
                 <div key={f} className="min-w-0">
@@ -124,7 +130,7 @@ export function VagaCompleta({ inclusion, falhou, className }: { inclusion: Team
       </div>
       {obs && (
         <section className="border-t border-slate-100 bg-white px-3 py-2.5" aria-label="Observações">
-          <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">Observações</p>
+          <p className={cn("mb-1", SECTION)}>Observações</p>
           <p className="text-[13px] text-slate-700 whitespace-pre-wrap break-words">{obs}</p>
         </section>
       )}

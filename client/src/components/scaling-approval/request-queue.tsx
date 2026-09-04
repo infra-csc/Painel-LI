@@ -8,6 +8,7 @@ import { CHANGE_REQUEST_STATUS, CHANGE_REQUEST_TYPE_LABELS, daysPending, type Ch
 import type { ChangeRequestItem } from "./types";
 import { CanDecideBadge, PostScalingBadge, RequestAgeBadge, RequestStatusBadge, RequestTypeBadge, changeSummary } from "./request-badges";
 import { isPostValidationInclusion } from "@shared/scaling-change-window";
+import { STICKY_TD, STICKY_TH, TH } from "./tokens";
 
 interface RequestQueueProps {
   items: ChangeRequestItem[];
@@ -23,7 +24,6 @@ interface RequestQueueProps {
   busy?: boolean;
 }
 
-const TH = "px-2.5 py-2 text-left text-[11px] uppercase tracking-[0.06em] text-slate-500 font-semibold whitespace-nowrap border-b border-slate-200";
 const ICON_BTN = "h-7 w-7 p-0 rounded-lg";
 
 /** Faixa colorida da linha, por tipo de pedido — a mesma leitura de cor dos badges. */
@@ -56,6 +56,15 @@ function isInnerControlClick(e: MouseEvent<HTMLTableRowElement>): boolean {
   return !!(e.target as HTMLElement).closest('button, a, input, [role="checkbox"]');
 }
 
+/**
+ * Selecionar texto de um motivo para copiar (arrastar o mouse) termina com um
+ * mouseup na linha — e a linha abria o pedido em cima da seleção. Com texto
+ * selecionado, o clique é da seleção, não da linha.
+ */
+function hasTextSelection(): boolean {
+  return (window.getSelection?.()?.toString() ?? "") !== "";
+}
+
 /** Nível 1 — fila de pedidos (tabela ≥ md, cards < md). Decisão na própria linha ou pelo detalhe. */
 export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById, onApprove, onReajustar, onNegar, busy }: RequestQueueProps) {
   const canAct = !!(onApprove && onReajustar && onNegar);
@@ -63,17 +72,19 @@ export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById,
     <>
       <div className="hidden md:block rounded-2xl border border-slate-200 bg-white overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px] text-[13px]">
+          {/* min-w menor (04/09): o motivo saiu da coluna própria e foi para a
+              2ª linha de "Função / vaga" — eram 240px de coluna para um texto
+              que já era truncado. */}
+          <table className="w-full min-w-[860px] text-[13px]">
             <caption className="sr-only">Pedidos de ajuste, inclusão e exclusão</caption>
             <thead className="bg-slate-50">
               <tr>
                 <th scope="col" className={cn(TH, "w-9 px-0 pl-3")}><span className="sr-only">Tipo (faixa)</span></th>
                 <th scope="col" className={TH}>Pedido</th>
-                <th scope="col" className={TH}>Função / vaga</th>
+                <th scope="col" className={cn(TH, "min-w-[280px]")}>Função / vaga / motivo</th>
                 {showEvent && <th scope="col" className={TH}>Evento</th>}
-                <th scope="col" className={cn(TH, "min-w-[240px]")}>Motivo</th>
                 <th scope="col" className={TH}>Aberto</th>
-                <th scope="col" className={cn(TH, "text-right", canAct ? "min-w-[230px]" : "min-w-[60px]")}>Decisão</th>
+                <th scope="col" className={cn(TH, STICKY_TH, "text-right", canAct ? "min-w-[230px]" : "min-w-[60px]")}>Decisão</th>
               </tr>
             </thead>
             <tbody>
@@ -81,14 +92,16 @@ export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById,
                 const pending = r.status === CHANGE_REQUEST_STATUS.PENDENTE;
                 const days = daysPending(r.createdAt);
                 const decidable = pending && r.canDecide && canAct;
+                const resumo = changeSummary(r);
+                // A célula grudada precisa do MESMO fundo da linha, senão a zebra
+                // aparece por trás dela quando a tabela rola.
+                const rowBg = i % 2 === 1 ? "bg-slate-50/50" : "bg-white";
+                const stickyBg = i % 2 === 1 ? "bg-slate-50" : "bg-white";
                 return (
                   <tr
                     key={r.id}
-                    onClick={(e) => { if (!isInnerControlClick(e)) onOpen(r); }}
-                    className={cn(
-                      "border-b border-slate-100 cursor-pointer transition-colors hover:bg-brand-soft/30",
-                      i % 2 === 1 ? "bg-slate-50/50" : "bg-white",
-                    )}
+                    onClick={(e) => { if (!isInnerControlClick(e) && !hasTextSelection()) onOpen(r); }}
+                    className={cn("border-b border-slate-100 cursor-pointer transition-colors hover:bg-brand-soft/30", rowBg)}
                   >
                     <td className="w-9 p-0">
                       <span className={cn("block w-1 h-12 ml-3 rounded-full", RAIL_CLASS[r.requestType as ChangeRequestType] ?? "bg-slate-300")} aria-hidden="true" />
@@ -100,7 +113,10 @@ export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById,
                         <RequestStatusBadge status={r.status} />
                       </div>
                     </td>
-                    <td className="px-2.5 py-2 align-middle max-w-[240px]">
+                    <td className="px-2.5 py-2 align-middle min-w-[280px] max-w-[380px]">
+                      {/* O nome é o ÚNICO botão de abrir na linha (04/09): o
+                          chevron à direita repetia o mesmo destino com o mesmo
+                          rótulo, e era mais um tab stop por pedido. */}
                       <button
                         type="button"
                         onClick={() => onOpen(r)}
@@ -110,8 +126,18 @@ export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById,
                       >
                         {r.functionName ?? "Sem função"}
                       </button>
-                      <span className="block text-[11px] text-slate-400 font-mono">{targetLabel(r)}{r.area ? ` · ${r.area}` : ""}</span>
-                      <span className="block text-[11px] text-slate-400 truncate" title={r.requestedByName ?? undefined}>por {r.requestedByName}</span>
+                      <span className="block text-[11px] text-slate-500 truncate">
+                        <span className="font-mono">{targetLabel(r)}{r.area ? ` · ${r.area}` : ""}</span>
+                        <span title={r.requestedByName ?? undefined}> · por {r.requestedByName}</span>
+                      </span>
+                      {/* Motivo na 2ª linha da própria vaga: é dela que ele fala. */}
+                      {r.reason
+                        ? <span className="mt-0.5 block text-xs text-slate-600 truncate" title={r.reason}>{r.reason}</span>
+                        : <span className="mt-0.5 block text-xs text-slate-400" title="Sem motivo informado">—</span>}
+                      {/* O QUE está sendo pedido, no de/para — o motivo sozinho
+                          ("teste") obrigava a abrir cada pedido para descobrir. */}
+                      {resumo && <span className="mt-0.5 block text-[11px] text-slate-500 truncate" title={resumo}>{resumo}</span>}
+                      {pending && r.canDecide && <CanDecideBadge className="mt-1" />}
                     </td>
                     {/* A data embaixo do nome (04/09): "Night Run - Salvador" sem
                         a data não diz se o pedido é para semana que vem ou para
@@ -120,30 +146,19 @@ export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById,
                       <td className="px-2.5 py-2 align-middle text-xs text-slate-600 max-w-[200px]">
                         <span className="block truncate font-medium text-slate-700" title={r.eventName ?? undefined}>{r.eventName ?? "Sem evento"}</span>
                         {eventPeriodById?.get(r.eventId) && (
-                          <span className="block font-mono text-[11px] text-slate-400 tabular-nums">{eventPeriodById.get(r.eventId)}</span>
+                          <span className="block font-mono text-[11px] text-slate-500 tabular-nums">{eventPeriodById.get(r.eventId)}</span>
                         )}
                       </td>
                     )}
-                    <td className="px-2.5 py-2 align-middle min-w-[240px] max-w-[340px]">
-                      {r.reason
-                        ? <span className="block text-xs text-slate-600 truncate" title={r.reason}>{r.reason}</span>
-                        : <span className="block text-xs text-slate-300">—</span>}
-                      {/* O QUE está sendo pedido, no de/para — o motivo sozinho
-                          ("teste") obrigava a abrir cada pedido para descobrir. */}
-                      {(() => {
-                        const resumo = changeSummary(r);
-                        return resumo
-                          ? <span className="mt-0.5 block text-[11px] text-slate-500 truncate" title={resumo}>{resumo}</span>
-                          : null;
-                      })()}
-                      {pending && r.canDecide && <CanDecideBadge className="mt-1" />}
-                    </td>
                     <td className="px-2.5 py-2 align-middle whitespace-nowrap">
                       {pending
                         ? <RequestAgeBadge days={days} />
-                        : <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-400">{formatDateBr(r.createdAt ? new Date(r.createdAt) : null)}</span>}
+                        : <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-500">{formatDateBr(r.createdAt ? new Date(r.createdAt) : null)}</span>}
                     </td>
-                    <td className="px-2.5 py-2 align-middle text-right">
+                    {/* Sem o tinte de hover aqui: a célula grudada precisa de
+                        fundo opaco, e o tinte translúcido deixaria as outras
+                        colunas aparecerem por trás dela durante a rolagem. */}
+                    <td className={cn("px-2.5 py-2 align-middle text-right", STICKY_TD, stickyBg)}>
                       <span className="inline-flex items-center gap-1.5">
                         {decidable && (
                           <>
@@ -172,16 +187,12 @@ export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById,
                           </>
                         )}
                         {pending && !r.canDecide && (
-                          <span className="text-[11px] text-slate-400">Aprovador da função decide</span>
+                          <span className="text-[11px] text-slate-500">Aprovador da função decide</span>
                         )}
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button type="button" size="sm" variant="outline" className={cn(ICON_BTN, "text-primary")} onClick={() => onOpen(r)} aria-label={rowAriaLabel(r)}>
-                              <ChevronRight className="w-4 h-4" aria-hidden="true" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="text-xs">Abrir pedido</TooltipContent>
-                        </Tooltip>
+                        {!pending && (
+                          // Decidido: nada a fazer aqui; a seta só sinaliza que a linha abre.
+                          <ChevronRight className="w-4 h-4 text-slate-400" aria-hidden="true" />
+                        )}
                       </span>
                     </td>
                   </tr>
@@ -196,6 +207,7 @@ export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById,
         {items.map((r) => {
           const pending = r.status === CHANGE_REQUEST_STATUS.PENDENTE;
           const days = daysPending(r.createdAt);
+          const decidable = pending && r.canDecide && canAct;
           return (
             <li key={r.id} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
               <div className="flex items-start justify-between gap-2">
@@ -211,11 +223,30 @@ export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById,
                 </Button>
               </div>
               <p className="text-sm font-semibold text-slate-800 leading-tight">
-                {r.functionName ?? "Sem função"} <span className="font-mono text-xs text-slate-400 font-normal">· {targetLabel(r)}</span>
+                {r.functionName ?? "Sem função"} <span className="font-mono text-xs text-slate-500 font-normal">· {targetLabel(r)}</span>
               </p>
               <p className="text-[11px] text-slate-500">{showEvent && r.eventName ? `${r.eventName}${eventPeriodById?.get(r.eventId) ? ` (${eventPeriodById.get(r.eventId)})` : ""} · ` : ""}por {r.requestedByName}{!pending && r.createdAt ? ` · ${formatDateBr(new Date(r.createdAt))}` : ""}</p>
               {r.reason && <p className="text-xs text-slate-600 line-clamp-2" title={r.reason}>{r.reason}</p>}
               {changeSummary(r) && <p className="text-[11px] text-slate-500 line-clamp-2">{changeSummary(r)}</p>}
+              {/* No celular a decisão também é da fila (04/09): antes o card
+                  só abria o detalhe e o aprovador fazia dois toques a mais por
+                  pedido. Mesmo trio da tabela, com o Aprovar em destaque. */}
+              {decidable && (
+                <div className="flex items-center gap-1.5 pt-1" role="group" aria-label={`Decidir o pedido de ${r.functionName ?? "função"}`}>
+                  <Button type="button" size="sm" variant="outline" className="h-8 flex-1 rounded-lg text-xs text-red-700 border-red-200 hover:bg-red-50" disabled={busy} onClick={() => onNegar!(r)}>
+                    <XCircle className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Negar
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" className="h-8 flex-1 rounded-lg text-xs" disabled={busy} onClick={() => onReajustar!(r)}>
+                    <PencilLine className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Reajustar
+                  </Button>
+                  <Button type="button" size="sm" className="h-8 flex-1 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-700 text-white" disabled={busy} onClick={() => onApprove!(r)}>
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Aprovar
+                  </Button>
+                </div>
+              )}
+              {pending && !r.canDecide && (
+                <p className="text-[11px] text-slate-500">Aprovador da função decide</p>
+              )}
             </li>
           );
         })}

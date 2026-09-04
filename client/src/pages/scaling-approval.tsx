@@ -4,6 +4,7 @@ import { formatDateRange } from "@/lib/dates";
 import { useLocation, useSearch } from "wouter";
 import { CalendarDays, CheckCircle2, CheckSquare, Clock, EyeOff, Inbox, Search, ShieldCheck, Square } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -27,13 +28,14 @@ import type { Event, TeamInclusion, User as UserType } from "@shared/schema";
 import {
   ALL_EVENTS_ROW_LIMIT,
   CHANGE_REQUEST_STATUS, CHANGE_REQUEST_STATUS_LABELS, CHANGE_REQUEST_STATUS_VALUES,
-  CHANGE_REQUEST_TYPES, CHANGE_REQUEST_TYPE_LABELS, STALLED_DAYS, SUGESTAO_STATUS, daysPending,
+  STALLED_DAYS, SUGESTAO_STATUS, daysPending,
   pendingSeverity, type ChangeRequestType,
 } from "@shared/scaling-validation-rules";
 import { SUGGESTIONS_QUERY_KEY, type ApiError, type FunctionWithManagers } from "@/components/scaling-validation/types";
 import { APPROVAL_QUERY_KEYS, type ChangeRequestItem, type ReviewBody, type StalledRow } from "@/components/scaling-approval/types";
+import { SECTION } from "@/components/scaling-approval/tokens";
 import { RequestQueue } from "@/components/scaling-approval/request-queue";
-import { RequestDetailSheet } from "@/components/scaling-approval/request-detail-sheet";
+import { RequestDetailDialog } from "@/components/scaling-approval/request-detail-sheet";
 import { ApproveRequestDialog, ReviewRequestDialog } from "@/components/scaling-approval/decision-dialogs";
 import { StalledSuggestions } from "@/components/scaling-approval/stalled-suggestions";
 import { AwaitingApproval, daysAwaiting } from "@/components/scaling-approval/awaiting-approval";
@@ -215,8 +217,14 @@ export default function ScalingApprovalPage() {
   // Sugestões do evento (para "Vagas paradas" e para o formulário editável do ajuste).
   const openId = overlay.id;
   const openRequest = useMemo(() => items.find((r) => r.id === openId) ?? pendingItems.find((r) => r.id === openId) ?? null, [items, pendingItems, openId]);
-  /** Evento da vaga que o Sheet aberto precisa (formulário editável do ajuste). */
-  const sheetEventId = openRequest?.requestType === "ajuste" && openRequest.teamInclusionId ? openRequest.eventId : "";
+  /**
+   * O pedido aberto age sobre uma vaga que EXISTE (ajuste ou exclusão)? Aí o
+   * detalhe precisa dela inteira. A exclusão entrou em 04/09: o aprovador
+   * tirava da escala uma vaga que nunca tinha visto — só "#12" e um motivo.
+   */
+  const pedidoSobreVaga = !!openRequest && (openRequest.requestType === "ajuste" || openRequest.requestType === "exclusao") && !!openRequest.teamInclusionId;
+  /** Evento da vaga que o detalhe aberto precisa (vaga inteira / formulário editável do ajuste). */
+  const sheetEventId = pedidoSobreVaga ? openRequest.eventId : "";
   /**
    * Quem DECIDE carrega as vagas SEMPRE — com evento escolhido ou em "Todos os
    * eventos" (aí o servidor devolve as vagas em validação de todos, com teto).
@@ -262,8 +270,7 @@ export default function ScalingApprovalPage() {
    * "aguarde a vaga carregar" para sempre, e o aprovador não conseguia editar.
    * Quando a lista não tem a vaga, ela é buscada pelo id.
    */
-  const idDaVagaFaltante = openRequest?.requestType === "ajuste" && openRequest.teamInclusionId && !openInclusion
-    ? openRequest.teamInclusionId : null;
+  const idDaVagaFaltante = pedidoSobreVaga && !openInclusion ? openRequest.teamInclusionId : null;
   const vagaPorIdQuery = useQuery<TeamInclusion>({
     queryKey: [APPROVAL_QUERY_KEYS.teamInclusions, "uma", idDaVagaFaltante],
     queryFn: async () => (await apiRequest("GET", `${APPROVAL_QUERY_KEYS.teamInclusions}/${idDaVagaFaltante}`)).json(),
@@ -300,21 +307,29 @@ export default function ScalingApprovalPage() {
       .sort((a, b) => daysAwaiting(b) - daysAwaiting(a) || (a.inclusionNumber ?? 0) - (b.inclusionNumber ?? 0)),
     [suggestionsQuery.data],
   );
+  /**
+   * As que dependem de VOCÊ (`canDecide` por linha vem do servidor; admin
+   * decide todas). O tile diz "aguardando SUA aprovação" — contar as dos
+   * outros aprovadores ali era prometer 15 decisões a quem tinha 3.
+   */
+  const awaitingMine = useMemo(() => awaitingRowsAll.filter((s) => s.canDecide === true), [awaitingRowsAll]);
+  const awaitingOthers = awaitingRowsAll.length - awaitingMine.length;
   const awaitingRows = useMemo(
-    () => (showOnlyMineStalled && onlyMineAwaiting ? awaitingRowsAll.filter((s) => s.canDecide === true) : awaitingRowsAll),
-    [awaitingRowsAll, showOnlyMineStalled, onlyMineAwaiting],
+    () => (showOnlyMineStalled && onlyMineAwaiting ? awaitingMine : awaitingRowsAll),
+    [awaitingRowsAll, awaitingMine, showOnlyMineStalled, onlyMineAwaiting],
   );
   /**
    * "Parada" não é só das pendentes: desde 19/08 a fila que trava a escala é a
    * das VALIDADAS esperando o aprovador. Mesmo limiar e mesma severidade das
    * "Vagas paradas" (STALLED_DAYS / pendingSeverity), só que contando de
    * `validatedAt` — sem isto uma vaga validada nunca alertava ninguém.
+   * Conta só as SUAS: é o alerta do tile "aguardando sua aprovação".
    */
   const stalledAwaiting = useMemo(() => {
-    const days = awaitingRowsAll.map(daysAwaiting).filter((d) => d >= STALLED_DAYS);
+    const days = awaitingMine.map(daysAwaiting).filter((d) => d >= STALLED_DAYS);
     const worst = days.length ? Math.max(...days) : 0;
     return { count: days.length, worst, severity: pendingSeverity(worst) };
-  }, [awaitingRowsAll]);
+  }, [awaitingMine]);
 
   /**
    * Aba padrão: com vagas aguardando aprovação, é ali que o aprovador precisa
@@ -362,10 +377,18 @@ export default function ScalingApprovalPage() {
     atrasados: pendingItems.filter((r) => daysPending(r.createdAt) >= STALLED_DAYS).length,
     meus: pendingItems.filter((r) => r.canDecide).length,
   }), [pendingItems]);
+  /**
+   * O chip de tipo acompanha o filtro de tipo em QUALQUER status (04/09): com
+   * "Ajustes" marcado e o status em "Todos", o chip apagava e a lista continuava
+   * recortada — a pessoa não via por que só tinha ajustes. Só "pendentes"
+   * (o tile) exige o status pendente.
+   */
   const activeQuick: QuickFilter | null =
-    statusFilter !== CHANGE_REQUEST_STATUS.PENDENTE ? null
-      : typeFilter === ALL ? "pendentes"
-        : (typeFilter as QuickFilter);
+    typeFilter === ALL
+      ? (statusFilter === CHANGE_REQUEST_STATUS.PENDENTE ? "pendentes" : null)
+      : (typeFilter as QuickFilter);
+  /** Os chips recortam os PENDENTES; com outro status escolhido eles ficam atenuados e, ao clicar, voltam ao pendente. */
+  const recortesForaDoEscopo = statusFilter !== CHANGE_REQUEST_STATUS.PENDENTE;
   /** Trocar de aba por ação do usuário (aba ou tile) — congela o padrão automático. */
   const switchTab = (t: ApprovalTab) => { tabPickedByUser.current = true; setTab(t); };
   /**
@@ -388,7 +411,6 @@ export default function ScalingApprovalPage() {
     setTypeFilter(q === "pendentes" ? ALL : q);
   };
   const toggleLate = () => { switchTab("fila"); setStatusFilter(CHANGE_REQUEST_STATUS.PENDENTE); setLateOnly((v) => !v); };
-  const toggleMine = () => { switchTab("fila"); setStatusFilter(CHANGE_REQUEST_STATUS.PENDENTE); setMineOnly((v) => !v); };
 
   // ── Deep-link ?request= ──
   // Link de pedido manda para a Fila: o padrão automático da aba "aguardando
@@ -398,6 +420,20 @@ export default function ScalingApprovalPage() {
     tabPickedByUser.current = true;
     setTab("fila");
   }, [deepLinkId, canAccess]);
+  /**
+   * Status que estava escolhido antes de o deep-link ampliar para "todos"
+   * (04/09). O link de um pedido já decidido abria o detalhe e deixava a fila
+   * em "Todos os status" para sempre — ao fechar, a pessoa via decididos
+   * misturados aos pendentes sem ter pedido isso. Devolvido quando o detalhe
+   * fecha (não antes: o pedido aberto vem da lista ampliada).
+   */
+  const statusAntesDoDeepLink = useRef<StatusFilter | null>(null);
+  const restaurarStatusDoDeepLink = () => {
+    const anterior = statusAntesDoDeepLink.current;
+    if (anterior === null) return;
+    statusAntesDoDeepLink.current = null;
+    setStatusFilter(anterior);
+  };
   useEffect(() => {
     if (!deepLinkId || !canAccess || pendingQuery.isLoading) return;
     const finish = () => {
@@ -406,15 +442,18 @@ export default function ScalingApprovalPage() {
     };
     if (pendingItems.some((r) => r.id === deepLinkId)) { dispatch({ type: "open", id: deepLinkId }); finish(); return; }
     // Não está pendente: amplia o filtro para "todos os status" e espera a lista.
-    if (statusFilter !== ALL) { setStatusFilter(ALL); return; }
+    if (statusFilter !== ALL) { statusAntesDoDeepLink.current = statusFilter; setStatusFilter(ALL); return; }
     if (listQuery.isLoading) return;
     if (items.some((r) => r.id === deepLinkId)) dispatch({ type: "open", id: deepLinkId });
-    else toast({ title: "Pedido não encontrado", description: "O pedido do link não existe mais ou não está neste evento.", variant: "destructive" });
+    else {
+      toast({ title: "Pedido não encontrado", description: "O pedido do link não existe mais ou não está neste evento.", variant: "destructive" });
+      restaurarStatusDoDeepLink();
+    }
     finish();
-  }, [deepLinkId, canAccess, pendingQuery.isLoading, pendingItems, statusFilter, listQuery.isLoading, items, eventId, setLocation, toast]);
+  }, [deepLinkId, canAccess, pendingQuery.isLoading, pendingItems, statusFilter, listQuery.isLoading, items, eventId, setLocation, toast]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Decisões ──
-  const closeAll = () => dispatch({ type: "close" });
+  const closeAll = () => { dispatch({ type: "close" }); restaurarStatusDoDeepLink(); };
   const openDetail = (r: ChangeRequestItem) => dispatch({ type: "open", id: r.id });
   /** Abre o pedido já no diálogo pedido (ações da própria linha da fila). */
   const openDetailWithMode = (r: ChangeRequestItem, mode: Exclude<OverlayMode, "closed">) => {
@@ -445,8 +484,14 @@ export default function ScalingApprovalPage() {
       );
     },
   });
-  const busy = approve.isPending || review.isPending || bypass.isPending;
-  /** As decisões sobre a VAGA têm o próprio "ocupado" — não travam a fila de pedidos. */
+  /**
+   * Um "ocupado" por fila (04/09): decidir uma vaga parada travava os botões
+   * da fila de pedidos, e o lote de bypass (`bypassMany`) não travava nada —
+   * dava para abrir um segundo lote com o primeiro ainda rodando.
+   */
+  const busyPedidos = approve.isPending || review.isPending;
+  const busyParadas = bypass.isPending || bypassMany.isPending;
+  /** As decisões sobre a VAGA validada têm o próprio "ocupado" — não travam a fila de pedidos. */
   const busyVagas = approveVagas.isPending || decideVaga.isPending;
 
   const reviewKind = overlay.mode === "reajustar" || overlay.mode === "negar" ? overlay.mode : null;
@@ -457,12 +502,21 @@ export default function ScalingApprovalPage() {
 
   // ── Render ──
   if (!canAccess) {
+    // Dentro do shell da tela (04/09): o bloco solto "Acesso negado" parecia
+    // um erro do sistema. Com cabeçalho e estado vazio a pessoa sabe ONDE está
+    // e o que fazer a seguir.
     return (
-      <PageContainer>
-        <div className="bg-card rounded-2xl border border-border p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-2">Acesso negado</h3>
-          <p className="text-muted-foreground text-sm">Você não tem permissão para acessar a Aprovação de Escala.</p>
-        </div>
+      <PageContainer fluid>
+        <PageHeader
+          icon={ShieldCheck}
+          title="Aprovação de Escala"
+          subtitle="O aprovador de cada função aprova as vagas já validadas pelas áreas e decide os pedidos de ajuste, inclusão e exclusão abertos na Validação de Escala."
+        />
+        <EmptyState
+          icon={ShieldCheck}
+          title="Você não tem acesso à Aprovação de Escala"
+          description="Esta tela é dos aprovadores de função e dos perfis de decisão. Se você deveria decidir pedidos ou vagas de alguma função, fale com o administrador."
+        />
       </PageContainer>
     );
   }
@@ -497,27 +551,31 @@ export default function ScalingApprovalPage() {
   }[] = [
     ...(isApprover ? [{
       key: "aguardando",
-      titulo: awaitingRowsAll.length === 1 ? "vaga aguardando sua aprovação" : "vagas aguardando sua aprovação",
-      n: awaitingRowsAll.length,
+      titulo: awaitingMine.length === 1 ? "vaga aguardando sua aprovação" : "vagas aguardando sua aprovação",
+      // O número é o que depende de VOCÊ; as dos outros aprovadores vão no contexto.
+      n: awaitingMine.length,
       Icon: ShieldCheck,
       // Vaga validada parada acende igual à pendente parada (mesma severidade).
       tom: stalledAwaiting.count
         ? (stalledAwaiting.severity === "danger" ? "text-red-600" : "text-amber-700")
-        : awaitingRowsAll.length ? "text-sky-700" : "text-slate-800",
-      contexto: stalledAwaiting.count ? (
-        <span className={stalledAwaiting.severity === "danger" ? "text-red-600" : "text-amber-700"}>
-          {stalledAwaiting.count} {stalledAwaiting.count === 1 ? "parada" : "paradas"} há {stalledAwaiting.worst} {stalledAwaiting.worst === 1 ? "dia" : "dias"} ou mais
+        : awaitingMine.length ? "text-sky-700" : "text-slate-800",
+      contexto: (
+        <span>
+          {stalledAwaiting.count ? (
+            <span className={stalledAwaiting.severity === "danger" ? "text-red-600" : "text-amber-700"}>
+              {stalledAwaiting.count} {stalledAwaiting.count === 1 ? "parada" : "paradas"} há {stalledAwaiting.worst} {stalledAwaiting.worst === 1 ? "dia" : "dias"} ou mais
+            </span>
+          ) : (
+            <span>validadas pela área, esperando você</span>
+          )}
+          {awaitingOthers > 0 ? <span> · <span className="tabular-nums">{awaitingOthers}</span> de outros aprovadores</span> : null}
         </span>
-      ) : (
-        <span>{eventId ? "validadas pela área, esperando você" : "de todos os eventos, esperando você"}</span>
       ),
       active: tab === "aprovacao",
       onClick: () => switchTab("aprovacao"),
       hint: stalledAwaiting.count
         ? `${stalledAwaiting.count} vaga(s) parada(s) há ${STALLED_DAYS} dias ou mais esperando a sua decisão`
-        : eventId
-          ? "Vagas validadas pela área que dependem da sua decisão"
-          : "Vagas validadas pela área, de todos os eventos, que dependem da sua decisão",
+        : "Vagas validadas pela área que dependem da sua decisão",
       // Nunca 0 enquanto carrega: o cartão mostra "…" (o 0 falso foi o achado do dono).
       loading: loadingAwaiting,
     }] : []),
@@ -547,8 +605,19 @@ export default function ScalingApprovalPage() {
     { key: "inclusao", label: "Inclusões", n: counts.inclusao, ponto: "bg-emerald-500", active: activeQuick === "inclusao", onClick: () => applyQuick("inclusao"), hint: "Filtrar por inclusões pendentes" },
     { key: "exclusao", label: "Exclusões", n: counts.exclusao, ponto: "bg-red-500", active: activeQuick === "exclusao", onClick: () => applyQuick("exclusao"), hint: "Filtrar por exclusões pendentes" },
     { key: "late", label: `Atrasados ≥${STALLED_DAYS}d`, n: counts.atrasados, ponto: "bg-red-600", active: lateOnly, onClick: toggleLate, hint: `Só pedidos aguardando há ${STALLED_DAYS} dias ou mais` },
-    ...(showMineFilter ? [{ key: "mine", label: "Posso decidir", n: counts.meus, ponto: "bg-primary", active: mineOnly, onClick: toggleMine, hint: "Só os pedidos em que você é o aprovador" }] : []),
+    // "Posso decidir" saiu daqui (04/09): o mesmo filtro já existe na barra de
+    // abas ("Só os que posso decidir") e o tile mostra a contagem — dois
+    // controles para o mesmo estado confundiam mais do que ajudavam.
   ];
+  /** Contagem da aba aberta — a única região aria-live da tela. "Decididas" tem a própria nota de rodapé. */
+  const contagemDaAba: string | null = (() => {
+    switch (tab) {
+      case "fila": return `${filtered.length} de ${items.length} pedido(s)`;
+      case "aprovacao": return `${awaitingRows.length} vaga(s) validada(s) aguardando a sua decisão`;
+      case "paradas": return `${stalledRows.length} vaga(s) sem validação da área há ${STALLED_DAYS} dias ou mais`;
+      default: return null;
+    }
+  })();
 
   return (
     <PageContainer fluid>
@@ -574,14 +643,8 @@ export default function ScalingApprovalPage() {
               </div>
             )}
           </div>
-          <Label htmlFor="apr-type" className="sr-only">Tipo</Label>
-          <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TypeFilter)}>
-            <SelectTrigger id="apr-type" className="h-8 min-w-[150px] w-auto rounded-lg text-[13px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todos os tipos</SelectItem>
-              {CHANGE_REQUEST_TYPES.map((t) => <SelectItem key={t} value={t}>{CHANGE_REQUEST_TYPE_LABELS[t]}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          {/* O select de Tipo saiu (04/09): os chips de recorte já filtram por
+              tipo, com contagem — eram dois controles para o mesmo filtro. */}
           <Label htmlFor="apr-status" className="sr-only">Status</Label>
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
             <SelectTrigger id="apr-status" className="h-8 min-w-[150px] w-auto rounded-lg text-[13px]"><SelectValue /></SelectTrigger>
@@ -647,20 +710,24 @@ export default function ScalingApprovalPage() {
           ))}
         </div>
 
-        {/* Recortes: filtros da fila, em chips — peso de filtro, não de indicador. */}
+        {/* Recortes: filtros da fila, em chips — peso de filtro, não de indicador.
+            O escopo vai no rótulo (04/09): as contagens são dos PENDENTES, e
+            com o status em "Todos" os números não batiam com a lista. */}
         {!erroFila && (
-        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Recortes da fila">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Recortes</span>
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Recortes dos pendentes">
+          <span className={SECTION}>Recortes dos pendentes</span>
           {recortes.map((r) => (
             <button
               key={r.key}
               type="button"
               onClick={r.onClick}
               aria-pressed={r.active}
-              title={r.hint}
+              title={recortesForaDoEscopo ? `${r.hint} (volta a lista para os pendentes)` : r.hint}
               className={cn(
                 "inline-flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 r.active ? "border-primary bg-brand-soft text-primary" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+                // Fora do escopo (outro status escolhido) os chips ficam atenuados: continuam clicáveis, mas dizem que não recortam a lista atual.
+                recortesForaDoEscopo && "opacity-60 hover:opacity-100",
               )}
             >
               <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", r.ponto)} aria-hidden="true" />
@@ -681,15 +748,29 @@ export default function ScalingApprovalPage() {
 
       <Tabs value={tab} onValueChange={(v) => (v === "fila" ? openFilaTab() : switchTab(v as ApprovalTab))} className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <TabsList className="h-auto rounded-xl bg-slate-100 p-[3px]">
+          {/* Quebra linha em vez de vazar (04/09): com quatro abas o TabsList
+              passava de 100% no celular e cortava "Decididas". Abaixo de sm os
+              rótulos encurtam — o contexto já está no tile e no cabeçalho. */}
+          <TabsList className="h-auto max-w-full flex-wrap justify-start rounded-xl bg-slate-100 p-[3px]">
             {/* Caminho normal do fluxo desde 19/08: validar não aprova — a vaga passa por aqui. */}
             {isApprover && (
               <TabsTrigger value="aprovacao" className={TAB_TRIGGER}>
-                Vagas aguardando aprovação{awaitingRowsAll.length > 0 ? ` (${awaitingRowsAll.length})` : ""}
+                <span className="sm:hidden">Aguardando</span>
+                <span className="hidden sm:inline">Vagas aguardando aprovação</span>
+                {awaitingRows.length > 0 ? ` (${awaitingRows.length})` : ""}
               </TabsTrigger>
             )}
-            <TabsTrigger value="fila" className={TAB_TRIGGER}>Fila de pedidos</TabsTrigger>
-            {isApprover && <TabsTrigger value="paradas" className={TAB_TRIGGER}>Vagas paradas{stalledRows.length > 0 ? ` (${stalledRows.length})` : ""}</TabsTrigger>}
+            <TabsTrigger value="fila" className={TAB_TRIGGER}>
+              <span className="sm:hidden">Pedidos</span>
+              <span className="hidden sm:inline">Fila de pedidos</span>
+            </TabsTrigger>
+            {isApprover && (
+              <TabsTrigger value="paradas" className={TAB_TRIGGER}>
+                <span className="sm:hidden">Paradas</span>
+                <span className="hidden sm:inline">Vagas paradas</span>
+                {stalledRows.length > 0 ? ` (${stalledRows.length})` : ""}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="decididas" className={TAB_TRIGGER}>Decididas</TabsTrigger>
           </TabsList>
           <div className="flex flex-wrap items-center gap-3">
@@ -714,14 +795,11 @@ export default function ScalingApprovalPage() {
                 label={`Só as minhas funções${onlyMineStalled && stalledRows.length !== stalledRowsAll.length ? ` (${stalledRowsAll.length - stalledRows.length} oculta(s))` : ""}`}
               />
             )}
-            {/* Única região aria-live da tela — a contagem da aba aberta. */}
-            <p className="text-xs text-slate-500" aria-live="polite">
-              {tab === "fila"
-                ? `${filtered.length} de ${items.length} pedido(s)`
-                : tab === "aprovacao"
-                  ? `${awaitingRows.length} vaga(s) validada(s) aguardando a sua decisão${!eventId && eventsInSuggestions > 1 ? ` · ${eventsInSuggestions} eventos` : ""}`
-                  : `${stalledRows.length} vaga(s) sem validação da área há ${STALLED_DAYS} dias ou mais`}
-            </p>
+            {/* Única região aria-live da tela — a contagem da aba aberta. Em
+                "Decididas" some: o texto das paradas ali era um rótulo errado. */}
+            {contagemDaAba !== null && (
+              <p className="text-xs text-slate-500" aria-live="polite">{contagemDaAba}</p>
+            )}
           </div>
         </div>
 
@@ -744,7 +822,7 @@ export default function ScalingApprovalPage() {
                   )}>
                     <Clock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                     <span>
-                      <span className="font-semibold">{stalledAwaiting.count} vaga(s) validada(s) parada(s)</span> há {STALLED_DAYS} dias ou mais esperando aprovação
+                      <span className="font-semibold">{stalledAwaiting.count} vaga(s) validada(s) parada(s)</span> há {STALLED_DAYS} dias ou mais esperando a sua aprovação
                       {stalledAwaiting.worst > 0 ? ` (a mais antiga há ${stalledAwaiting.worst} ${stalledAwaiting.worst === 1 ? "dia" : "dias"})` : ""} — a área já fez a parte dela.
                     </span>
                   </p>
@@ -763,9 +841,9 @@ export default function ScalingApprovalPage() {
                     approverNamesFor={(row) => approverNamesByFunctionId.get(row.functionId) ?? []}
                     showEvent={!eventId}
                     busy={busyVagas}
-                    onApprove={(selectedRows) => approveVagas.mutate({ ids: selectedRows.map((r) => r.id) })}
-                    // mutateAsync: o diálogo de reprovar/devolver só fecha (e só
-                    // joga fora o comentário) quando o servidor confirma.
+                    // mutateAsync nos dois: os diálogos só fecham (e só jogam
+                    // fora o comentário) quando o servidor confirma.
+                    onApprove={(selectedRows) => approveVagas.mutateAsync({ ids: selectedRows.map((r) => r.id) })}
                     onDecide={(row, kind, comment) => decideVaga.mutateAsync({ inclusionId: row.id, kind, comment })}
                   />
                 )}
@@ -790,7 +868,24 @@ export default function ScalingApprovalPage() {
             />
           ) : filtered.length === 0 ? (
             hasActiveFilters || items.length > 0 ? (
-              <EmptyState variant="filtered" title="Nenhum pedido com esses filtros" onClearFilters={clearFilters} />
+              // O botão diz o que faz (04/09): `clearFilters` não limpa tudo —
+              // volta ao padrão da tela, que é "pendentes". "Limpar filtros"
+              // prometia uma lista sem recorte e entregava outra.
+              <EmptyState
+                variant="filtered"
+                title="Nenhum pedido com esses filtros"
+                description="Nenhum pedido bate com a busca e os recortes escolhidos."
+                action={<Button type="button" variant="outline" size="sm" onClick={clearFilters}>Voltar aos pendentes</Button>}
+              />
+            ) : awaitingMine.length > 0 ? (
+              // Fila vazia MAS com vagas esperando o aprovador: "bom trabalho"
+              // aqui era mentira — a outra fila dele estava cheia.
+              <EmptyState
+                icon={ShieldCheck}
+                title="Nenhum pedido pendente"
+                description={`Mas há ${awaitingMine.length} ${awaitingMine.length === 1 ? "vaga aguardando" : "vagas aguardando"} a sua aprovação.`}
+                action={<Button type="button" size="sm" className="rounded-lg" onClick={() => switchTab("aprovacao")}>Ver vagas aguardando aprovação</Button>}
+              />
             ) : (
               <EmptyState icon={CheckCircle2} title="Nenhum pedido pendente" description={eventId ? "Não há pedidos aguardando decisão neste evento." : "Não há pedidos aguardando decisão. Bom trabalho!"} />
             )
@@ -800,7 +895,7 @@ export default function ScalingApprovalPage() {
               onOpen={openDetail}
               showEvent={!eventId}
               eventPeriodById={eventPeriodById}
-              busy={busy}
+              busy={busyPedidos}
               // Decidir direto da fila: abre o pedido e já vai para o diálogo —
               // "Cancelar"/"Voltar" cai no detalhe, o mesmo caminho do Sheet.
               onApprove={(r) => openDetailWithMode(r, "approve")}
@@ -832,8 +927,9 @@ export default function ScalingApprovalPage() {
                     canActOn={(row) => row.canDecide === true}
                     approverNamesFor={(row) => approverNamesByFunctionId.get(row.functionId) ?? []}
                     showEvent={!eventId}
-                    busy={busy}
-                    onDecide={(row, kind, comment) => bypass.mutate({ inclusionId: row.id, kind, comment })}
+                    busy={busyParadas}
+                    // mutateAsync: o diálogo de bypass só fecha quando o servidor responde.
+                    onDecide={(row, kind, comment) => bypass.mutateAsync({ inclusionId: row.id, kind, comment })}
                     onDecideMany={(rows, kind, comment) => bypassMany.mutateAsync({ ids: rows.map((r) => r.id), kind, comment })}
                   />
                 )}
@@ -843,13 +939,13 @@ export default function ScalingApprovalPage() {
         )}
 
         {/* Histórico do que o aprovador já decidiu (28/08) — leitura pura. */}
-        <TabsContent value="decididas" className="mt-0">
+        <TabsContent value="decididas" className="mt-0 space-y-3">
           <DecidedPanel eventId={eventId} functionNameById={functionNameById} />
         </TabsContent>
       </Tabs>
 
       {/* Nível 2 — detalhe */}
-      <RequestDetailSheet
+      <RequestDetailDialog
         // Um overlay por vez: com um diálogo de decisão aberto, o detalhe sai
         // de cena (o diálogo já mostra o de/para e a consequência).
         open={overlay.mode === "sheet"}
@@ -858,7 +954,7 @@ export default function ScalingApprovalPage() {
         inclusion={vagaDoPedido}
         vagaFalhou={vagaFalhou}
         eventPeriod={openRequest ? eventPeriodById.get(openRequest.eventId) ?? null : null}
-        busy={busy}
+        busy={busyPedidos}
         onApprove={() => dispatch({ type: "mode", mode: "approve", origin: "detalhe" })}
         onReajustar={() => dispatch({ type: "mode", mode: "reajustar", origin: "detalhe" })}
         onNegar={() => dispatch({ type: "mode", mode: "negar", origin: "detalhe" })}

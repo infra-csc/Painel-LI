@@ -13,6 +13,8 @@ import { cn, formatDiarias } from "@/lib/utils";
 import { PendingDaysBadge, eventPeriodLabel, periodLabel, workDaysOf } from "@/components/scaling-validation/suggestions-list";
 import { VagaCard, pessoasDiaDaVaga } from "@/components/scaling-validation/vaga-card";
 import { DANGER_DAYS, STALLED_DAYS } from "@shared/scaling-validation-rules";
+import { isStaleDecisionError } from "./use-decisions";
+import { STICKY_TD, STICKY_TH, TH } from "./tokens";
 import type { StalledRow as SuggestionRow } from "./types";
 
 interface StalledSuggestionsProps {
@@ -34,10 +36,12 @@ interface StalledSuggestionsProps {
   /** Decidir VÁRIAS de uma vez (lote) — mesma decisão, mesmo comentário. */
   onDecideMany?: (rows: SuggestionRow[], kind: "approve" | "reject", comment?: string) => Promise<unknown> | void;
   busy?: boolean;
-  onDecide: (row: SuggestionRow, kind: "approve" | "reject", comment?: string) => void;
+  /**
+   * Devolva a Promise da mutation (`mutateAsync`): o diálogo só fecha quando o
+   * servidor confirma — num 500 o comentário continua ali para reenviar.
+   */
+  onDecide: (row: SuggestionRow, kind: "approve" | "reject", comment?: string) => void | Promise<unknown>;
 }
-
-const TH = "px-2.5 py-2 text-left text-[11px] uppercase tracking-[0.06em] text-slate-500 font-semibold whitespace-nowrap border-b border-slate-200";
 
 /**
  * "Vagas paradas": sugestões que a área nunca validou (sugestao_pendente, sem
@@ -55,18 +59,35 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
   const alternarTodas = () => setSelected(todasMarcadas ? new Set() : new Set(selecionaveis.map((r) => r.id)));
   const openConfirm = (row: SuggestionRow, kind: "approve" | "reject") => { setComment(""); setConfirm({ rows: [row], kind }); };
   const openConfirmMany = (kind: "approve" | "reject") => { if (selecionadas.length) { setComment(""); setConfirm({ rows: selecionadas, kind }); } };
-  const doConfirm = () => {
+  /**
+   * Fecha SÓ no sucesso (04/09, mesmo padrão de "Vagas aguardando aprovação"):
+   * fechar no clique jogava fora o comentário num 500 e deixava o aprovador sem
+   * saber se a decisão entrou. A exceção é o item que mudou por baixo (404/409):
+   * a vaga saiu da lista, então o diálogo fecha — o toast vem da mutation.
+   */
+  const doConfirm = async () => {
     if (!confirm) return;
     const texto = comment.trim() || undefined;
-    if (confirm.rows.length === 1 || !onDecideMany) {
-      for (const row of confirm.rows) onDecide(row, confirm.kind, texto);
-    } else {
-      void onDecideMany(confirm.rows, confirm.kind, texto);
+    try {
+      if (confirm.rows.length === 1 || !onDecideMany) {
+        for (const row of confirm.rows) await onDecide(row, confirm.kind, texto);
+      } else {
+        await onDecideMany(confirm.rows, confirm.kind, texto);
+      }
+      setSelected(new Set());
+      setConfirm(null);
+    } catch (err) {
+      if (isStaleDecisionError(err)) { setSelected(new Set()); setConfirm(null); }
     }
-    setSelected(new Set());
-    setConfirm(null);
   };
   const unica = confirm && confirm.rows.length === 1 ? confirm.rows[0] : null;
+  const nConfirm = confirm?.rows.length ?? 0;
+  /** O botão declara o destino da vaga — como no diálogo de reajustar/negar da fila. */
+  const rotuloAcao = busy
+    ? "Decidindo…"
+    : confirm?.kind === "approve"
+      ? `Aprovar direto${nConfirm > 1 ? ` (${nConfirm})` : ""} · vira Inclusão`
+      : `Reprovar${nConfirm > 1 ? ` (${nConfirm})` : ""} · fica negada`;
 
   if (rows.length === 0) {
     return (
@@ -123,7 +144,7 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                 <th scope="col" className={TH}>Área</th>
                 <th scope="col" className={TH}>Período / diárias</th>
                 <th scope="col" className={TH}>Parada há</th>
-                <th scope="col" className={cn(TH, "text-right min-w-[250px]")}>Ações</th>
+                <th scope="col" className={cn(TH, STICKY_TH, "text-right min-w-[250px]")}>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -133,6 +154,9 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                 const approvers = approverNamesFor?.(row) ?? [];
                 const lockReason = approvers.length ? `Aprovador: ${approvers.join(", ")}` : "Você não é aprovador desta função";
                 const fnName = functionNameById.get(row.functionId) ?? "Sem função";
+                // A célula grudada precisa de fundo OPACO igual ao da linha: as
+                // outras colunas passam por baixo dela quando a tabela rola.
+                const stickyBg = selected.has(row.id) ? "bg-brand-soft" : i % 2 === 1 ? "bg-slate-50" : "bg-white";
                 return (
                   <tr key={row.id} className={cn("border-b border-slate-100", selected.has(row.id) ? "bg-brand-soft/40" : i % 2 === 1 ? "bg-slate-50/50" : "bg-white")}>
                     {onDecideMany && (
@@ -145,7 +169,7 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                         <span className="inline-flex shrink-0 rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800 tabular-nums">#{row.inclusionNumber}</span>
                         <div className="min-w-0">
                           <span className="block font-semibold text-slate-800 truncate" title={fnName}>{fnName}</span>
-                          <span className="block text-[11px] text-slate-400 truncate" title={row.observations ?? undefined}>{row.observations || "Sem observações"}</span>
+                          <span className="block text-[11px] text-slate-500 truncate" title={row.observations ?? undefined}>{row.observations || "Sem observações"}</span>
                         </div>
                       </div>
                     </td>
@@ -154,16 +178,16 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                         <span className="block truncate text-[13px] font-semibold text-slate-700" title={row.eventName ?? undefined}>
                           {row.eventName ?? "Evento sem nome"}
                         </span>
-                        <span className="block font-mono text-[11px] text-slate-400">{eventPeriodLabel(row) || "Sem período"}</span>
+                        <span className="block font-mono text-[11px] text-slate-500">{eventPeriodLabel(row) || "Sem período"}</span>
                       </td>
                     )}
                     <td className="px-2.5 py-2 align-middle text-xs text-slate-600">{row.area ?? "Sem área"}</td>
                     <td className="px-2.5 py-2 align-middle whitespace-nowrap">
                       <span className="font-mono tabular-nums text-xs text-slate-700">{periodLabel(row)}</span>
-                      <span className="ml-1.5 text-[11px] text-slate-400">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
+                      <span className="ml-1.5 text-[11px] text-slate-500">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
                     </td>
                     <td className="px-2.5 py-2 align-middle"><PendingDaysBadge row={row} approverNames={approvers} /></td>
-                    <td className="px-2.5 py-2 align-middle text-right">
+                    <td className={cn("px-2.5 py-2 align-middle text-right", STICKY_TD, stickyBg)}>
                       {canAct ? (
                         <span className="inline-flex items-center gap-1.5">
                           <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg px-2.5 text-xs text-red-700 border-red-200 hover:bg-red-50" disabled={busy} onClick={() => openConfirm(row, "reject")}>
@@ -174,7 +198,7 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                           </Button>
                         </span>
                       ) : (
-                        <span className="inline-block max-w-[220px] truncate text-[11px] text-slate-400" title={lockReason}>{lockReason}</span>
+                        <span className="inline-block max-w-[220px] truncate text-[11px] text-slate-500" title={lockReason}>{lockReason}</span>
                       )}
                     </td>
                   </tr>
@@ -185,7 +209,9 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
         </div>
       </div>
 
-      <AlertDialog open={!!confirm} onOpenChange={(o) => { if (!o) setConfirm(null); }}>
+      {/* Enquanto decide, o diálogo não fecha por Esc/clique fora: fechar no
+          meio deixaria a decisão em curso sem feedback. */}
+      <AlertDialog open={!!confirm} onOpenChange={(o) => { if (!o && !busy) setConfirm(null); }}>
         <AlertDialogContent className="!max-w-[560px] max-h-[88vh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -268,12 +294,16 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
           <div className="space-y-1">
             <Label htmlFor="bypass-comment" className="text-xs text-slate-600">Comentário (opcional)</Label>
             <Textarea id="bypass-comment" rows={2} maxLength={500} value={comment} onChange={(e) => setComment(e.target.value)} className="rounded-lg text-sm bg-white" placeholder="Fica registrado no histórico da vaga." />
-            <p className="text-[11px] text-slate-400">Fica registrado no histórico da vaga.</p>
+            <p className="text-[11px] text-slate-500">Fica registrado no histórico da vaga.</p>
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>Voltar</AlertDialogCancel>
-            <AlertDialogAction onClick={(e) => { e.preventDefault(); doConfirm(); }} className={confirm?.kind === "approve" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700"}>
-              {confirm?.kind === "approve" ? "Aprovar direto" : "Reprovar"}
+            <AlertDialogCancel disabled={busy}>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); void doConfirm(); }}
+              disabled={busy}
+              className={cn("min-w-[180px]", confirm?.kind === "approve" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700")}
+            >
+              {rotuloAcao}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

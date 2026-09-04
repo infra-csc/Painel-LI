@@ -51,7 +51,8 @@ export function BudgetChat({
   const { user } = useAuth();
   const qc = useQueryClient();
   const [text, setText] = useState("");
-  const bottomRef = useRef<HTMLDivElement>(null);
+  /** O contêiner que rola (a lista de mensagens) — é ELE que vai ao fim, não a página. */
+  const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const inputId = `budget-chat-${entityType}-${entityId}`;
@@ -107,7 +108,11 @@ export function BudgetChat({
   });
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Rola SÓ a lista de mensagens (04/09). `scrollIntoView` no marcador do fim
+    // rolava também os ancestrais: dentro de um modal, abrir o pedido puxava
+    // o corpo inteiro do diálogo para a conversa e escondia o de/para e o motivo.
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [allNotes.length]);
 
   const send = () => {
@@ -139,7 +144,7 @@ export function BudgetChat({
       </div>
 
       {/* Message list */}
-      <div className="mx-5 mb-3 rounded-xl border border-slate-200 bg-slate-50/60 max-h-48 overflow-y-auto" aria-live="polite">
+      <div ref={listRef} className="mx-5 mb-3 rounded-xl border border-slate-200 bg-slate-50/60 max-h-48 overflow-y-auto" aria-live="polite">
         {isLoading ? (
           <div className="flex items-center justify-center py-6">
             <Loader2 className="w-4 h-4 text-primary/60 animate-spin" aria-label="Carregando mensagens" />
@@ -152,7 +157,7 @@ export function BudgetChat({
         ) : allNotes.length === 0 ? (
           <div className="text-center py-6">
             <MessageSquare className="w-5 h-5 text-slate-300 mx-auto mb-1" aria-hidden="true" />
-            <p className="text-[11px] text-slate-400">Nenhuma mensagem ainda</p>
+            <p className="text-[11px] text-slate-500">Nenhuma mensagem ainda</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -160,17 +165,18 @@ export function BudgetChat({
               const isMe = note.authorId === user?.id;
               return (
                 <div key={note.id} className={`px-3 py-2.5 flex gap-2.5 ${isMe ? "bg-primary/5" : ""}`}>
-                  <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-white text-[9px] font-bold mt-0.5 ${avatarColor(note.authorName)}`}>
+                  <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-white text-[10px] font-bold mt-0.5 ${avatarColor(note.authorName)}`}>
                     {initials(note.authorName)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-1.5 mb-0.5 flex-wrap">
                       <span className="text-[11px] font-semibold text-slate-700 truncate">{note.authorName}</span>
-                      <span className="text-[9px] text-slate-400 flex-shrink-0">
+                      {/* 9px era ilegível em qualquer tela — 10px é o mínimo do módulo. */}
+                      <span className="text-[10px] text-slate-500 flex-shrink-0">
                         {formatDateTime(note.createdAt!)}
                       </span>
                       {note.isLinked && (
-                        <span className="text-[9px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                        <span className="text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
                           Planejado
                         </span>
                       )}
@@ -180,7 +186,6 @@ export function BudgetChat({
                 </div>
               );
             })}
-            <div ref={bottomRef} />
           </div>
         )}
       </div>
@@ -226,7 +231,7 @@ export function BudgetChat({
           </button>
         </div>
         {!submitOnEnter && (
-          <p id={`${inputId}-hint`} className="mt-1 text-[10px] text-slate-400">Ctrl+Enter envia · Enter quebra linha</p>
+          <p id={`${inputId}-hint`} className="mt-1 text-[10px] text-slate-500">Ctrl+Enter envia · Enter quebra linha</p>
         )}
         {createMutation.isError && (
           <p role="alert" className="mt-1 text-[11px] text-red-700">
