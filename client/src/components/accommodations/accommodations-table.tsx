@@ -81,7 +81,7 @@ export default function AccommodationsTable({
         .hospedagem-cartao tbody,
         .hospedagem-cartao tr,
         .hospedagem-cartao td { display: block; width: 100%; }
-        .hospedagem-cartao tr { padding: 6px 0 12px; border-bottom: 1px solid hsl(var(--border)); }
+        .hospedagem-cartao tr { padding: 6px 0 12px; border-bottom: 1px solid var(--border); }
         .hospedagem-cartao td { padding: 4px 14px; text-align: left !important; }
         .hospedagem-cartao td[data-rotulo]::before {
           content: attr(data-rotulo);

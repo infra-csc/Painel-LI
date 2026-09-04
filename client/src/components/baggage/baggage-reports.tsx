@@ -35,7 +35,7 @@ function EstiloCartao({ classe }: { classe: string }) {
       .${classe} thead { display: none; }
       .${classe} table, .${classe} tbody, .${classe} tfoot, .${classe} tr, .${classe} td { display: block; width: 100%; }
       .${classe} table { min-width: 0 !important; }
-      .${classe} tr { padding: 8px 0; border-bottom: 1px solid hsl(var(--border)); }
+      .${classe} tr { padding: 8px 0; border-bottom: 1px solid var(--border); }
       .${classe} td { padding: 3px 16px; text-align: left !important; }
       .${classe} td[data-rotulo]::before {
         content: attr(data-rotulo);

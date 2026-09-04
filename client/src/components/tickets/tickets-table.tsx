@@ -108,7 +108,7 @@ export default function TicketsTable({
         .passagens-cartao td { display: block; width: 100%; }
         .passagens-cartao tr {
           padding: 4px 0 10px;
-          border-bottom: 1px solid hsl(var(--border));
+          border-bottom: 1px solid var(--border);
         }
         .passagens-cartao td { padding: 4px 14px; text-align: left !important; }
         .passagens-cartao td[data-rotulo]::before {

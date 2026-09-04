@@ -1056,7 +1056,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                           <Button
                             onClick={onConfirm}
                             disabled={isSaving || !!confirmReason}
-                            style={{ background: "hsl(var(--primary))" }}
+                            style={{ background: "var(--primary)" }}
                             className="flex items-center gap-2 text-white rounded-xl px-6 py-2 h-10 text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
                             data-testid="button-confirm-scaling"
                           >
