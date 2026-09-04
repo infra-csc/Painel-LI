@@ -8,6 +8,7 @@ import type { TeamInclusion } from "@shared/schema";
 import { DayLabel } from "./logistics-chips";
 import { ModeSelect } from "./mode-select";
 import { ymd } from "./types";
+import { avisosDeViagem } from "./travel-warnings";
 
 /** Campos de viagem/logística editáveis nos pedidos (ajuste e inclusão). */
 export interface TravelDraft {
@@ -65,7 +66,15 @@ interface TravelFieldsProps {
    * "empilhado" (padrão) é o que cabe na coluna estreita do pedido de ajuste.
    */
   layout?: "linha" | "empilhado";
+  /**
+   * Dias de trabalho da vaga ("AAAA-MM-DD"). Com eles, o cartão AVISA quando
+   * ida/volta não batem com as diárias (04/09) — sem travar: viajar na véspera
+   * é normal, mas ida depois do primeiro dia ou volta antes do último quase
+   * sempre é engano, e a pessoa precisa ver isso antes de enviar.
+   */
+  workDays?: string[];
 }
+
 
 const GROUP_TITLE = "flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400";
 const FIELD_LABEL = "text-[11px] font-normal text-slate-500";
@@ -94,13 +103,18 @@ function FieldLabel({ htmlFor, text, date }: { htmlFor: string; text: string; da
   );
 }
 
-/** Hora opcional: vazio mostra "--:--" e o `title` avisa que dá para deixar em branco. */
+/**
+ * Horário sugerido é TEXTO, não hora exata (04/09): a área escreve faixas
+ * ("8-14h", "22h", "depois das 18h") e é isso que Compras precisa. O campo era
+ * `type="time"`: não mostrava "8-14h" (parecia zerado) e obrigava quem
+ * pedia ajuste a inventar um "07:00" que não existia.
+ */
 function TimeField({ id, label, value, disabled, onChange }: { id: string; label: string; value: string; disabled?: boolean; onChange: (v: string) => void }) {
   return (
     <div className="space-y-1 min-w-0">
       <FieldLabel htmlFor={id} text={label} />
-      <Input id={id} type="time" value={value} disabled={disabled} placeholder="--:--"
-        title={disabled ? undefined : "Opcional — deixe em branco se ainda não sabe o horário"}
+      <Input id={id} type="text" value={value} disabled={disabled} placeholder="ex.: 8-14h, 22h" maxLength={40}
+        title={disabled ? undefined : "Opcional — pode ser uma faixa (8-14h) ou uma hora (22h)"}
         onChange={(e) => onChange(e.target.value)} className={cn(CONTROL, "tabular-nums")} />
     </div>
   );
@@ -111,8 +125,9 @@ function TimeField({ id, label, value, disabled, onChange }: { id: string; label
  * pedido: um cartão só, com IDA e VOLTA espelhadas (uma embaixo da outra, mesma
  * grade) e "Precisa de" em linha própria, largura total, no rodapé do cartão.
  */
-export function TravelFields({ value, onChange, disabled, idPrefix: p, titulo, layout = "empilhado" }: TravelFieldsProps) {
+export function TravelFields({ value, onChange, disabled, idPrefix: p, titulo, layout = "empilhado", workDays }: TravelFieldsProps) {
   const emLinha = layout === "linha";
+  const avisos = avisosDeViagem(value, workDays);
   // Régua de 1px entre os grupos: no layout em linha ela é o que separa ida de
   // volta sem gastar altura com mais um título.
   const regua = emLinha ? "sm:border-l sm:border-slate-100 sm:pl-5" : "";
@@ -179,6 +194,12 @@ export function TravelFields({ value, onChange, disabled, idPrefix: p, titulo, l
         </div>
       </fieldset>
       </div>
+
+      {avisos.length > 0 && (
+        <ul className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800 space-y-0.5" role="status" data-testid={`${p}-avisos-viagem`}>
+          {avisos.map((a) => <li key={a}>⚠ {a} Só um aviso — dá para enviar assim mesmo.</li>)}
+        </ul>
+      )}
 
       {/* A dica segue os toggles: sem passagem e sem hotel, data e horário não
           viram compra nenhuma, e dizer isso evita o preenchimento por hábito. */}

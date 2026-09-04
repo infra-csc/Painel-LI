@@ -401,7 +401,10 @@ export function parseTimeHHMM(raw: string): string {
   const s = raw.trim().toLowerCase().replace(/\s+/g, "");
   if (!s) return "";
   const m = /^(\d{1,2})(?:[:h](\d{0,2}))?$/.exec(s) ?? /^(\d{2})(\d{2})$/.exec(s);
-  if (!m) return "";
+  // Não é UMA hora ("8-14h", "20h+", "depois das 18h"): fica o texto, não
+  // some (04/09). O horário sugerido é uma janela para Compras, e a faixa é a
+  // informação — reduzir a uma hora ou descartar era perder o que a área disse.
+  if (!m) return /\d/.test(s) ? raw.trim() : "";
   const hh = Number(m[1]);
   const mm = m[2] ? Number(m[2].padEnd(2, "0")) : 0;
   if (hh > 23 || mm > 59) return "";
@@ -409,26 +412,15 @@ export function parseTimeHHMM(raw: string): string {
 }
 
 /**
- * Horário como a logística escreve → "HH:MM".
+ * Horário como a logística escreve.
  *
- * Além do que `parseTimeHHMM` já entende ("14h30", "14:30", "1430", "9"), aceita
- * as formas soltas da planilha e sempre fica com a PRIMEIRA hora citada, porque
- * as duas colunas de horário são limites de início:
- * - "23h" → 23:00 · "11h" → 11:00
- * - "20h+" → 20:00 (a partir das 20h)
- * - "14-18h" → 14:00 (a partir das 14h; o 18h é só o fim da janela)
- * - "8h às 10h" → 08:00
+ * Uma hora só ("14h30", "14:30", "1430", "9", "23h") vira "HH:MM". Faixa ou
+ * janela ("20h+", "14-18h", "8h às 10h") fica COMO ESTÁ (04/09): antes virava a
+ * primeira hora citada e a área perdia o "até 18h" — e Compras precisa da
+ * janela inteira para escolher o voo. Sem nenhum dígito, é vazio.
  */
 export function parsePtBrTime(raw: string): string {
-  const strict = parseTimeHHMM(raw);
-  if (strict) return strict;
-  const s = normalizeStr(raw).replace(/\s+/g, "");
-  const m = /^(\d{1,2})(?:[h:](\d{2}))?/.exec(s);
-  if (!m) return "";
-  const hh = Number(m[1]);
-  const mm = m[2] ? Number(m[2]) : 0;
-  if (hh > 23 || mm > 59) return "";
-  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+  return parseTimeHHMM(raw);
 }
 
 const MODE_ALIASES: Record<string, TransportMode> = {
@@ -1712,8 +1704,11 @@ export function validateGridRow(row: SuggestionGridRow): RowValidation {
   const errors: string[] = [];
   const warnings: string[] = [];
   const hhmm = /^\d{2}:\d{2}$/;
-  if (row.flightArrivalSuggestedTime && !hhmm.test(row.flightArrivalSuggestedTime)) errors.push("horário de desembarque inválido (HH:MM)");
-  if (row.flightReturnSuggestedTime && !hhmm.test(row.flightReturnSuggestedTime)) errors.push("horário de embarque inválido (HH:MM)");
+  // Horário sugerido é texto livre com faixa (04/09): "8-14h", "20h+" valem.
+  // Só é erro quando não tem nenhum dígito (não dá para Compras usar).
+  const horarioOk = (v: string) => /[0-9]/.test(v) && v.trim().length <= 40;
+  if (row.flightArrivalSuggestedTime && !horarioOk(row.flightArrivalSuggestedTime)) errors.push("horário de desembarque inválido (ex.: 11:00 ou 8-14h)");
+  if (row.flightReturnSuggestedTime && !horarioOk(row.flightReturnSuggestedTime)) errors.push("horário de embarque inválido (ex.: 11:00 ou 8-14h)");
   if (row.flightDepartureDate && row.flightReturnDate && row.flightReturnDate < row.flightDepartureDate) errors.push("data de volta anterior à data de ida");
   if (row.needsTicket && (!row.flightDepartureDate || !row.flightReturnDate)) warnings.push("passagem marcada sem data de ida/volta");
   if (errors.length === 0 && warnings.length === 0) return NO_ISSUES;

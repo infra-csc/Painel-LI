@@ -252,7 +252,7 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
           </div>
           </div>
 
-          <TravelFields idPrefix="adj" value={travel} disabled={mutation.isPending} onChange={(p) => setTravel((t) => ({ ...t, ...p }))} />
+          <TravelFields idPrefix="adj" value={travel} workDays={workDays} disabled={mutation.isPending} onChange={(p) => setTravel((t) => ({ ...t, ...p }))} />
           </div>
 
           {/* O bloco fica sempre visível: sumir quando nada mudou faz parecer
@@ -501,7 +501,7 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
             </div>
           </div>
 
-          <TravelFields idPrefix="inc" titulo="Logística sugerida" layout="linha" value={travel} disabled={mutation.isPending} onChange={(p) => setTravel((t) => ({ ...t, ...p }))} />
+          <TravelFields idPrefix="inc" titulo="Logística sugerida" layout="linha" value={travel} workDays={workDays} disabled={mutation.isPending} onChange={(p) => setTravel((t) => ({ ...t, ...p }))} />
         </div>
 
         <div className={DIALOG_STICKY}>

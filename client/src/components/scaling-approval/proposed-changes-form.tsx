@@ -194,7 +194,7 @@ export function ProposedChangesForm({ type, value, onChange, event, disabled, id
           <Textarea id={`${idPrefix}-obs`} rows={2} maxLength={500} value={value.observations} disabled={disabled} onChange={(e) => set({ observations: e.target.value })} className="rounded-lg text-sm" />
         </div>
       </div>
-      <TravelFields idPrefix={idPrefix} value={value.travel} disabled={disabled} onChange={(p) => set({ travel: { ...value.travel, ...p } })} />
+      <TravelFields idPrefix={idPrefix} value={value.travel} workDays={value.workDays} disabled={disabled} onChange={(p) => set({ travel: { ...value.travel, ...p } })} />
     </div>
   );
 }

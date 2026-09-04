@@ -176,6 +176,7 @@ describe("parsers de colagem", () => {
     expect(parseTimeHHMM("1430")).toBe("14:30");
     expect(parseTimeHHMM("9")).toBe("09:00");
     expect(parseTimeHHMM("25:00")).toBe("");
+    expect(parseTimeHHMM("8-14h")).toBe("8-14h");
   });
   it("parseTransportMode aceita rótulos e sinônimos", () => {
     expect(parseTransportMode("Aéreo")).toBe("aereo");
@@ -347,11 +348,14 @@ describe("validateGridRow", () => {
     expect(validateGridRow(row)).toEqual({ errors: [], warnings: [] });
     row.quantities["2026-09-10"] = 1;
     row.needsTicket = true;
-    row.flightArrivalSuggestedTime = "14h";
+    // Faixa/texto com dígito vale (04/09): "14h", "8-14h". Sem dígito é erro.
+    row.flightArrivalSuggestedTime = "manhã";
     const v = validateGridRow(row);
     expect(v.warnings.some((i) => i.includes("passagem"))).toBe(true);
     expect(v.errors.some((i) => i.includes("passagem"))).toBe(false);
     expect(v.errors.some((i) => i.includes("desembarque"))).toBe(true);
+    row.flightArrivalSuggestedTime = "8-14h";
+    expect(validateGridRow(row).errors.some((i) => i.includes("desembarque"))).toBe(false);
   });
   it("data de volta antes da ida é erro", () => {
     const row = emptyGridRow("f1", "Kit", DATES, "r1");
@@ -391,12 +395,14 @@ describe("datas e horários da planilha da logística", () => {
     expect(parseSheetDate("10/set", "2026")).toBe("2026-09-10");
     expect(parseSheetDate("  ", "2026")).toBe("");
   });
-  it("parsePtBrTime: '23h', '20h+' e o intervalo '14-18h' viram a hora de INÍCIO", () => {
+  it("parsePtBrTime: hora única normaliza; faixa/janela fica como a área escreveu", () => {
     expect(parsePtBrTime("23h")).toBe("23:00");
     expect(parsePtBrTime("11h")).toBe("11:00");
-    expect(parsePtBrTime("20h+")).toBe("20:00");
-    expect(parsePtBrTime("14-18h")).toBe("14:00");
-    expect(parsePtBrTime("8h às 10h")).toBe("08:00");
+    // Janelas preservadas (04/09): Compras precisa do "até" e do "a partir de".
+    expect(parsePtBrTime("20h+")).toBe("20h+");
+    expect(parsePtBrTime("14-18h")).toBe("14-18h");
+    expect(parsePtBrTime("8h às 10h")).toBe("8h às 10h");
+    expect(parsePtBrTime("manhã")).toBe("");
   });
   it("parsePtBrTime mantém o que parseTimeHHMM já aceitava", () => {
     expect(parsePtBrTime("14h30")).toBe("14:30");
@@ -577,10 +583,10 @@ describe("colagem no formato da logística", () => {
     expect(prod.flightDepartureDate).toBe("2026-09-09");
     expect(prod.flightArrivalSuggestedTime).toBe("23:00");
     expect(prod.flightReturnDate).toBe("2026-09-13");
-    expect(prod.flightReturnSuggestedTime).toBe("20:00"); // "20h+"
+    expect(prod.flightReturnSuggestedTime).toBe("20h+"); // "20h+"
     const atend = byName(res, "Atendimento");
     expect(atend.flightDepartureDate).toBe("2026-09-11");
-    expect(atend.flightReturnSuggestedTime).toBe("14:00"); // "14-18h" → a partir das 14h
+    expect(atend.flightReturnSuggestedTime).toBe("14-18h"); // "14-18h" → a partir das 14h
     const perc = byName(res, "Percurso");
     expect(perc.flightDepartureDate).toBe("2026-09-12");
     expect(perc.flightArrivalSuggestedTime).toBe("11:00");
@@ -674,7 +680,7 @@ describe("colagem da logística SEM a linha de cabeçalho (só as linhas de dado
     expect(r.flightDepartureDate).toBe("2026-09-11");
     expect(r.flightArrivalSuggestedTime).toBe("23:00");
     expect(r.flightReturnDate).toBe("2026-09-13");
-    expect(r.flightReturnSuggestedTime).toBe("14:00");
+    expect(r.flightReturnSuggestedTime).toBe("14-18h");
     expect(Object.entries(r.quantities).filter(([, q]) => q > 0)).toEqual([["2026-09-12", 1], ["2026-09-13", 1]]);
   });
 
@@ -723,12 +729,12 @@ describe("colagem da logística SEM a linha de cabeçalho (só as linhas de dado
     expect(prod.flightDepartureDate).toBe("2026-09-09");
     expect(prod.flightArrivalSuggestedTime).toBe("23:00");
     expect(prod.flightReturnDate).toBe("2026-09-13");
-    expect(prod.flightReturnSuggestedTime).toBe("20:00"); // "20h+"
+    expect(prod.flightReturnSuggestedTime).toBe("20h+"); // "20h+"
     const atend = byName(res, "Atendimento");
     expect(atend.flightDepartureDate).toBe("2026-09-11");
     expect(atend.flightArrivalSuggestedTime).toBe("23:00");
     expect(atend.flightReturnDate).toBe("2026-09-13");
-    expect(atend.flightReturnSuggestedTime).toBe("14:00"); // "14-18h"
+    expect(atend.flightReturnSuggestedTime).toBe("14-18h"); // "14-18h"
     expect(byName(res, "Kit").flightArrivalSuggestedTime).toBe("11:00");
     expect(byName(res, "Percurso").flightArrivalSuggestedTime).toBe("11:00");
   });
@@ -854,11 +860,11 @@ describe("colagem da logística com cabeçalho em DUAS linhas (datas e rótulos 
     expect(atend.flightDepartureDate).toBe("2026-10-16");
     expect(atend.flightArrivalSuggestedTime).toBe("11:00");
     expect(atend.flightReturnDate).toBe("2026-10-18");
-    expect(atend.flightReturnSuggestedTime).toBe("14:00");
+    expect(atend.flightReturnSuggestedTime).toBe("14-18h");
     const prod = byName(res, "Produção");
     expect(prod.flightDepartureDate).toBe("2026-10-14");
     expect(prod.flightArrivalSuggestedTime).toBe("23:00");
-    expect(prod.flightReturnSuggestedTime).toBe("20:00");
+    expect(prod.flightReturnSuggestedTime).toBe("20h+");
     expect(byName(res, "Produção Local").needsTicket).toBe(false);
     for (const row of res.rows) expect(validateGridRow(row), row.functionName).toEqual({ errors: [], warnings: [] });
   });

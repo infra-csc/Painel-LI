@@ -60,7 +60,7 @@ export function LogisticsPanel({ row, disabled, onChangeRow }: LogisticsPanelPro
           </div>
           <div>
             <span className={FIELD_LABEL}>Desembarque até</span>
-            <Input type="time" value={row.flightArrivalSuggestedTime} disabled={disabled} aria-label={`Horário de desembarque — ${row.functionName}`}
+            <Input type="text" placeholder="ex.: 8-14h" maxLength={40} value={row.flightArrivalSuggestedTime} disabled={disabled} aria-label={`Horário de desembarque — ${row.functionName}`}
               onChange={(e) => patch({ flightArrivalSuggestedTime: e.target.value })} className={cn(inputCls(!!row.flightArrivalSuggestedTime), "w-[96px]")} />
           </div>
         </div>
@@ -80,7 +80,7 @@ export function LogisticsPanel({ row, disabled, onChangeRow }: LogisticsPanelPro
           </div>
           <div>
             <span className={FIELD_LABEL}>Embarque a partir</span>
-            <Input type="time" value={row.flightReturnSuggestedTime} disabled={disabled} aria-label={`Horário de embarque da volta — ${row.functionName}`}
+            <Input type="text" placeholder="ex.: 8-14h" maxLength={40} value={row.flightReturnSuggestedTime} disabled={disabled} aria-label={`Horário de embarque da volta — ${row.functionName}`}
               onChange={(e) => patch({ flightReturnSuggestedTime: e.target.value })} className={cn(inputCls(!!row.flightReturnSuggestedTime), "w-[96px]")} />
           </div>
         </div>
