@@ -39,7 +39,7 @@ export const QUEUE_META: { key: QueueKey; label: string; sub: string }[] = [
   { key: "escalar", label: "Escalar", sub: "vagas sem nome" },
   { key: "gestor", label: "Com o gestor", sub: "aguardando aprovação" },
   { key: "troca", label: "Em análise", sub: "trocas e ajustes" },
-  { key: "prontas", label: "Prontas", sub: "pode confirmar" },
+  { key: "prontas", label: "Falta confirmar", sub: "com nome, sem confirmar" },
 ];
 
 export function testeDaFila(key: QueueKey, ctx: QueueContext): (i: TeamInclusion) => boolean {

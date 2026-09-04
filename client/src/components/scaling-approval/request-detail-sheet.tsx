@@ -78,7 +78,7 @@ export function RequestDetailSheet({ open, onOpenChange, request, inclusion, vag
 
                 {type === "ajuste" && (
                   <section className="space-y-2" aria-labelledby="det-vaga">
-                    <h3 id="det-vaga" className={SECTION}>A vaga hoje — completa</h3>
+                    <h3 id="det-vaga" className={SECTION}>A vaga hoje</h3>
                     <VagaCompleta inclusion={inclusion} falhou={vagaFalhou} />
                   </section>
                 )}

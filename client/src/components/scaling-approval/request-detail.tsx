@@ -71,41 +71,61 @@ export function VagaCompleta({ inclusion, falhou, className }: { inclusion: Team
   // escalada); se essa busca falhar, "Carregando…" para sempre esconderia o
   // problema — a pessoa precisa saber que a lista abaixo não veio.
   if (!inclusion && falhou) return <p className={cn("text-xs text-red-600", className)}>Não foi possível carregar a vaga — recarregue a página para tentar de novo.</p>;
-  if (!inclusion) return <p className={cn("text-xs text-slate-400", className)}>Carregando a vaga…</p>;
+  if (!inclusion) {
+    return (
+      <div className={cn("overflow-hidden rounded-xl border border-slate-200 bg-slate-100", className)} role="status" aria-label="Carregando a vaga">
+        <div className="grid grid-cols-2 gap-px md:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="space-y-2 bg-white px-3 py-2.5">
+              <div className="h-2 w-12 animate-pulse rounded bg-slate-200" />
+              <div className="h-3 w-20 animate-pulse rounded bg-slate-100" />
+              <div className="h-3 w-16 animate-pulse rounded bg-slate-100" />
+            </div>
+          ))}
+        </div>
+        <span className="sr-only">Carregando a vaga…</span>
+      </div>
+    );
+  }
   const completa = fullFromDraft(draftFromProposed(null, inclusion));
-  // Blocos em vez de uma lista de treze linhas (04/09, "o design está
-  // péssimo"): a perna vira o título do bloco e o rótulo perde o prefixo.
+  // Um card só, em quatro colunas, rótulo em cima e valor embaixo — o mesmo
+  // desenho do card "Período de trabalho" do modal da Escalação (04/09). No
+  // resumo, vazio é "—": "não definido" repetido quatro vezes era só ruído.
   const valor = (f: ProposedField) => {
     const v = completa[f];
     const vazio = v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
-    return <span className={vazio ? "text-slate-400" : "text-slate-800 font-medium"}>{formatProposedValue(f, v)}</span>;
+    return vazio
+      ? <span className="text-slate-300" title="não definido">—</span>
+      : <span className="text-slate-700">{formatProposedValue(f, v)}</span>;
   };
   const blocos: { titulo: string; campos: [ProposedField, string][] }[] = [
     { titulo: "Trabalho", campos: [["workDays", "Dias"], ["dailyRates", "Diárias"]] },
-    { titulo: "Ida", campos: [["flightDepartureDate", "Data"], ["flightDepartureSuggestedTime", "Saída sugerida"], ["flightArrivalSuggestedTime", "Chegar até"], ["transportModeIda", "Transporte"]] },
+    { titulo: "Ida", campos: [["flightDepartureDate", "Data"], ["flightArrivalSuggestedTime", "Chegar até"], ["flightDepartureSuggestedTime", "Saída sugerida"], ["transportModeIda", "Transporte"]] },
     { titulo: "Volta", campos: [["flightReturnDate", "Data"], ["flightReturnSuggestedTime", "Sair após"], ["transportModeVolta", "Transporte"]] },
     { titulo: "Logística", campos: [["needsTicket", "Passagem"], ["needsAccommodation", "Hospedagem"]] },
   ];
   const obs = String(completa.observations ?? "").trim();
   return (
-    <div className={cn("grid grid-cols-2 gap-2 text-xs", className)} data-testid="vaga-completa">
-      {blocos.map((bl) => (
-        <section key={bl.titulo} className="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2" aria-label={bl.titulo}>
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-400">{bl.titulo}</p>
-          <dl className="space-y-0.5">
-            {bl.campos.map(([f, rotulo]) => (
-              <div key={f} className="flex items-baseline justify-between gap-3">
-                <dt className="text-slate-500 shrink-0">{rotulo}</dt>
-                <dd className="text-right break-words min-w-0">{valor(f)}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      ))}
+    <div className={cn("overflow-hidden rounded-xl border border-slate-200 bg-slate-100 text-xs", className)} data-testid="vaga-completa">
+      <div className="grid grid-cols-2 gap-px md:grid-cols-4">
+        {blocos.map((bl) => (
+          <section key={bl.titulo} className="min-w-0 bg-white px-3 py-2.5" aria-label={bl.titulo}>
+            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">{bl.titulo}</p>
+            <dl className="space-y-1.5">
+              {bl.campos.map(([f, rotulo]) => (
+                <div key={f} className="min-w-0">
+                  <dt className="text-[11px] text-slate-500">{rotulo}</dt>
+                  <dd className="text-[13px] font-semibold leading-snug break-words">{valor(f)}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        ))}
+      </div>
       {obs && (
-        <section className="col-span-2 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2" aria-label="Observações">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-400">Observações</p>
-          <p className="text-slate-800 whitespace-pre-wrap break-words">{obs}</p>
+        <section className="border-t border-slate-100 bg-white px-3 py-2.5" aria-label="Observações">
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">Observações</p>
+          <p className="text-[13px] text-slate-700 whitespace-pre-wrap break-words">{obs}</p>
         </section>
       )}
     </div>
