@@ -164,7 +164,7 @@ function diaMes(valor: string | Date | null | undefined): string | null {
 export function detalheDaSituacao(
   inclusion: TeamInclusion,
   opts: { swap?: NormalizedSwap; pedido?: PendingChangeRequest },
-): { texto: string; titulo: string; tom: "troca" | "pedido" | "neutro" } | null {
+): { texto: string; sufixo?: string; titulo: string; tom: "troca" | "pedido" | "neutro" } | null {
   if (opts.swap) {
     const nome = opts.swap.newCollaboratorName?.trim();
     const texto = nome ? `Troca para ${nome} em análise` : "Troca em análise";
@@ -184,10 +184,12 @@ export function detalheDaSituacao(
     const quando = diaMes(opts.pedido.createdAt);
     // Curto para caber numa linha do chip (04/09: três linhas na coluna
     // Situação ficavam pesadas); o texto inteiro vai no tooltip.
-    const texto = `${tipo === "exclusão" ? "Exclusão" : "Ajuste"} c/ aprovador${quando ? ` · ${quando}` : ""}`;
+    const texto = `${tipo === "exclusão" ? "Exclusão" : "Ajuste"} c/ aprovador`;
+    const sufixo = quando ? `desde ${quando}` : undefined;
     const completo = `Pedido de ${tipo} com o aprovador${quando ? ` desde ${quando}` : ""}`;
     return {
       texto,
+      sufixo,
       titulo: [completo, opts.pedido.requestedByName ? `por ${opts.pedido.requestedByName}` : null, opts.pedido.reason || null]
         .filter(Boolean).join(" · "),
       tom: "pedido",
@@ -347,7 +349,7 @@ export default function ScalingTable({
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="table-fixed w-full min-w-[1180px]">
+        <table className={`table-fixed w-full ${onConfirmarRapido ? "min-w-[1300px]" : "min-w-[1180px]"}`}>
           <colgroup>
             <col style={{ width: "44px" }} />
             <col style={{ width: "84px" }} />
@@ -356,7 +358,9 @@ export default function ScalingTable({
             <col style={{ width: "148px" }} />
             <col style={{ width: "250px" }} />
             <col style={{ width: "168px" }} />
-            <col style={{ width: "86px" }} />
+            {/* Com o "Confirmar" rápido a coluna de ações precisa de ~200px:
+                86px cabia só os dois ícones e o botão invadia o vizinho (04/09). */}
+            <col style={{ width: onConfirmarRapido ? "200px" : "86px" }} />
           </colgroup>
           <thead>
             <tr className="h-[34px] bg-background border-b border-border">
@@ -537,13 +541,14 @@ export default function ScalingTable({
                           âmbar, com ícone, que quebra linha em vez de cortar. */}
                       {detalhe && detalhe.tom === "pedido" ? (
                         <span
-                          className="inline-flex max-w-full items-center gap-1 rounded-md border px-[7px] py-[2px] text-[11px] font-semibold leading-tight whitespace-nowrap"
+                          className="inline-flex max-w-full flex-wrap items-center gap-x-1 gap-y-0 rounded-md border px-[7px] py-[2px] text-[11px] font-semibold leading-tight"
                           style={{ background: "#FEF3C7", color: "#92400E", borderColor: "#FDE68A" }}
                           title={detalhe.titulo}
                           data-testid={`detalhe-situacao-${inclusion.id}`}
                         >
                           <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
-                          <span>{detalhe.texto}</span>
+                          <span className="whitespace-nowrap">{detalhe.texto}</span>
+                          {detalhe.sufixo && <span className="whitespace-nowrap font-normal opacity-80">{detalhe.sufixo}</span>}
                         </span>
                       ) : detalhe && (
                         <span
