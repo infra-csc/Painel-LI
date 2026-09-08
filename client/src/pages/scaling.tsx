@@ -84,11 +84,11 @@ export default function Scaling() {
   // não persiste — quem abre a Escalação vem trabalhar na fila.
   const [aba, setAba] = useState<"fila" | "analises" | "escala">("fila");
   /**
-   * Bloco da fila ligado. Nasce em "Escalar + confirmar" (04/09): é o
-   * trabalho de quem abre a tela — vaga sem nome ou com nome sem confirmar.
-   * "Limpar filtros" desliga (lista inteira).
+   * Bloco da fila ligado. Nasce em "Todas" (null) — decisão do dono (04/09):
+   * quem abre a tela vê o recorte inteiro e escolhe um bloco para trabalhar.
+   * "Limpar filtros" também volta para "Todas".
    */
-  const [fila, setFila] = useState<QueueKey | null>("trabalho");
+  const [fila, setFila] = useState<QueueKey | null>(null);
   const [busca, setBusca] = useState("");
   const [eventos, setEventos] = useState<Record<string, boolean>>({});
   const [periodo, setPeriodo] = useState<PeriodConfig>(DEFAULT_PERIOD);
@@ -799,7 +799,7 @@ export default function Scaling() {
             />
           ) : (
             <>
-              <ScalingWorkQueue contagens={contagensDaFila} ativa={fila} onEscolher={setFila} mostrarGestor={canApproveProduction} />
+              <ScalingWorkQueue contagens={contagensDaFila} total={comPeriodo.length} ativa={fila} onEscolher={setFila} mostrarGestor={canApproveProduction} />
 
               {/* A faixa de recarga fica ACIMA dos filtros e não os
                   substitui: o toggle que disparou a busca precisa continuar
