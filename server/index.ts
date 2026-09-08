@@ -316,10 +316,6 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Antes de aceitar tráfego: repõe a estrutura que um db:push a partir de
-  // um checkout antigo já apagou do banco (ver server/ensure-schema.ts).
-  await garantirEstrutura();
-
   const server = await registerRoutes(app);
 
   app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
@@ -356,5 +352,18 @@ app.use((req, res, next) => {
     ...(process.platform === "linux" ? { reusePort: true } : {}),
   }, () => {
     log(`serving on port ${port}`);
+
+    // A manutenção idempotente do schema não pode bloquear a abertura da porta.
+    // Em produção, uma conexão lenta ou um lock de DDL fazia o boot ultrapassar
+    // o prazo do healthcheck; o Autoscale reiniciava a instância repetidamente
+    // e o domínio acabava respondendo "Rate exceeded." antes de chegar ao app.
+    // As rotas já toleram temporariamente o schema atrasado enquanto estes
+    // comandos terminam (ver módulos *-compat).
+    void garantirEstrutura().catch((erro) => {
+      console.error(
+        "[estrutura] falha inesperada na manutenção assíncrona —",
+        erro instanceof Error ? erro.message : erro,
+      );
+    });
   });
 })();
