@@ -173,6 +173,21 @@ export function fazTesteDeRealizados(hoje: Date): (row: PeriodRow) => boolean {
   return fazTesteDePeriodo({ ...DEFAULT_PERIOD, preset: "realizados" }, hoje);
 }
 
+/**
+ * Recorte de eventos da Escalação (04/09): "futuros" é o padrão — quem abre
+ * a tela quer o que ainda vai acontecer (ou está acontecendo); "realizados"
+ * é o que já terminou; "todos" tira o recorte. Vaga sem data conta como
+ * futura: ela ainda precisa de gente.
+ */
+export type RecorteDeEventos = "futuros" | "todos" | "realizados";
+export const RECORTE_EVENTOS_LABEL: Record<RecorteDeEventos, string> = { futuros: "Futuros", todos: "Todos", realizados: "Realizados" };
+export function fazTesteDeRecorte(recorte: RecorteDeEventos, hoje: Date): (row: PeriodRow) => boolean {
+  if (recorte === "todos") return () => true;
+  const realizada = fazTesteDeRealizados(hoje);
+  const jaPassou = (row: PeriodRow) => !!periodoDaLinha(row) && realizada(row);
+  return recorte === "realizados" ? jaPassou : (row) => !jaPassou(row);
+}
+
 export function temRecorteDePeriodo(cfg: PeriodConfig): boolean {
   if (cfg.semana !== "todos" || cfg.inicioFds) return true;
   if (cfg.preset === "todos") return false;

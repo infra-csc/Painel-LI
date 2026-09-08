@@ -15,7 +15,7 @@ import { Check, ChevronDown, CalendarDays, Search, SlidersHorizontal } from "luc
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { TeamInclusion } from "@shared/schema";
 import ScalingPeriodFilter from "./scaling-period-filter";
-import { PRESETS_SEM_REALIZADOS, type PeriodConfig } from "./scaling-period";
+import { PRESETS_SEM_REALIZADOS, RECORTE_EVENTOS_LABEL, type PeriodConfig, type RecorteDeEventos } from "./scaling-period";
 import {
   FLAG_GROUPS, contadoresDasFlags, contarFlagsAtivas, normalizarBusca,
   type FlagKey, type QueueContext,
@@ -45,11 +45,11 @@ interface Props {
 
   verExcluidos: boolean;
   onVerExcluidos: (v: boolean) => void;
-  /** Só eventos já realizados (fim antes de hoje) — switch próprio, fora do popover de período (04/09). */
-  soRealizados: boolean;
-  onSoRealizados: (v: boolean) => void;
-  /** Quantas linhas o switch deixaria (base: tudo aplicado menos ele). */
-  contagemRealizados: number;
+  /** Recorte de eventos — Futuros (padrão) · Todos · Realizados (04/09). */
+  recorteEventos: RecorteDeEventos;
+  onRecorteEventos: (v: RecorteDeEventos) => void;
+  /** Quantas linhas cada posição deixaria (base: tudo aplicado menos ela). */
+  contagemPorRecorte: Record<RecorteDeEventos, number>;
 
   /** "10 vagas" ou "6 de 10 vagas" quando há recorte. */
   contagem: string;
@@ -286,26 +286,30 @@ export default function ScalingFilterBar(p: Props) {
         Excluídas
       </button>
 
-      <button
-        type="button"
-        role="switch"
-        aria-checked={p.soRealizados}
-        onClick={() => p.onSoRealizados(!p.soRealizados)}
-        title={`Só eventos que já terminaram (${p.contagemRealizados} ${p.contagemRealizados === 1 ? "vaga" : "vagas"})`}
-        data-testid="toggle-realizados"
-        className={`inline-flex items-center gap-2 h-[34px] pl-2.5 pr-3 rounded-lg border text-[13px] font-medium shrink-0 transition-colors ${
-          p.soRealizados ? "border-[rgba(0,51,204,0.35)] bg-brand-soft text-primary" : "border-border bg-card text-slate-700 hover:bg-slate-100"
-        }`}
-      >
-        <span className={`relative inline-flex items-center w-8 h-[18px] rounded-full shrink-0 transition-colors ${p.soRealizados ? "bg-primary" : "bg-slate-300"}`}>
-          <span
-            className="absolute left-0.5 h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform"
-            style={{ transform: `translateX(${p.soRealizados ? "14px" : "0"})` }}
-          />
-        </span>
-        Realizados
-        <span className="text-[11px] text-muted-foreground tabular-nums">{p.contagemRealizados}</span>
-      </button>
+      {/* Recorte de eventos (04/09): a tela abre em "Futuros"; "Todos" tira o
+          recorte e "Realizados" mostra só o que já terminou. */}
+      <div role="radiogroup" aria-label="Recorte de eventos" className="inline-flex h-[34px] shrink-0 items-center rounded-lg border border-border bg-card p-0.5" data-testid="recorte-eventos">
+        {(["futuros", "todos", "realizados"] as RecorteDeEventos[]).map((k) => {
+          const on = p.recorteEventos === k;
+          return (
+            <button
+              key={k}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => p.onRecorteEventos(k)}
+              data-testid={`recorte-eventos-${k}`}
+              title={k === "futuros" ? "Eventos que ainda vão acontecer ou estão acontecendo (vaga sem data conta como futura)" : k === "realizados" ? "Só eventos que já terminaram" : "Sem recorte de evento"}
+              className={`inline-flex h-[28px] items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                on ? "bg-brand-soft text-primary" : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              {RECORTE_EVENTOS_LABEL[k]}
+              <span className="text-[11px] tabular-nums text-muted-foreground">{p.contagemPorRecorte[k]}</span>
+            </button>
+          );
+        })}
+      </div>
 
       <span className="ml-auto text-[12px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0" data-testid="contagem-vagas">
         {p.contagem}

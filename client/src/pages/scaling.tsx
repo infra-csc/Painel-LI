@@ -49,7 +49,7 @@ import { exportScalingPdf, exportScalingXlsxColunas } from "@/components/scaling
 import { ExportColumnsDialog, type ExportScope } from "@/components/scaling/export-columns-dialog";
 import { getSaveBlockReason, getConfirmBlockReason, getBulkConfirmBlockReason } from "@/components/scaling/scaling-validation";
 import { describeLoadError, modalDataFromInclusion, type ModalData, isEscalated, isCityFromSP } from "@/components/scaling/scaling-utils";
-import { DEFAULT_PERIOD, fazTesteDePeriodo, rotuloDoPeriodo, temRecorteDePeriodo, type PeriodConfig, fazTesteDeRealizados } from "@/components/scaling/scaling-period";
+import { DEFAULT_PERIOD, fazTesteDePeriodo, rotuloDoPeriodo, temRecorteDePeriodo, type PeriodConfig, fazTesteDeRecorte, type RecorteDeEventos } from "@/components/scaling/scaling-period";
 import { ordenarEscalacoes } from "@/components/scaling/scaling-sort";
 import { getScalingStatusLabel } from "@/components/scaling/scaling-status";
 import {
@@ -94,8 +94,8 @@ export default function Scaling() {
   const [periodo, setPeriodo] = useState<PeriodConfig>(DEFAULT_PERIOD);
   const [flags, setFlags] = useState<Record<string, boolean>>({});
   const [verExcluidos, setVerExcluidos] = useState(false);
-  /** Só eventos realizados — switch próprio na barra (04/09), fora do popover de período. */
-  const [soRealizados, setSoRealizados] = useState(false);
+  /** Recorte de eventos — nasce em "Futuros" (dono, 04/09); "Todos" tira o recorte. */
+  const [recorteEventos, setRecorteEventos] = useState<RecorteDeEventos>("futuros");
   const [sortConfig, setSortConfig] = useState<SortConfig | null>({ field: "id", direction: "desc" });
 
   // Modal de detalhes
@@ -212,13 +212,17 @@ export default function Scaling() {
   // Cada uma serve de base ao contador do filtro seguinte: o número ao lado de
   // uma opção responde "quantas sobram se eu marcar ISTO mantendo o resto".
   const testePeriodo = useMemo(() => fazTesteDePeriodo(periodo, hoje), [periodo, hoje]);
-  const testeRealizados = useMemo(() => fazTesteDeRealizados(hoje), [hoje]);
+  const testeRecorte = useMemo(() => fazTesteDeRecorte(recorteEventos, hoje), [recorteEventos, hoje]);
   const comPeriodo = useMemo(
-    () => scalingInclusions.filter((i) => testePeriodo(i) && (!soRealizados || testeRealizados(i))),
-    [scalingInclusions, testePeriodo, soRealizados, testeRealizados],
+    () => scalingInclusions.filter((i) => testePeriodo(i) && testeRecorte(i)),
+    [scalingInclusions, testePeriodo, testeRecorte],
   );
-  // Contador do switch: tudo aplicado menos ele.
-  const contagemRealizados = useMemo(() => scalingInclusions.filter((i) => testePeriodo(i) && testeRealizados(i)).length, [scalingInclusions, testePeriodo, testeRealizados]);
+  // Contador de cada posição do recorte: tudo aplicado menos ele.
+  const contagemPorRecorte = useMemo<Record<RecorteDeEventos, number>>(() => {
+    const base = scalingInclusions.filter(testePeriodo);
+    const t = { futuros: fazTesteDeRecorte("futuros", hoje), realizados: fazTesteDeRecorte("realizados", hoje) };
+    return { futuros: base.filter(t.futuros).length, realizados: base.filter(t.realizados).length, todos: base.length };
+  }, [scalingInclusions, testePeriodo, hoje]);
 
   const comBusca = useMemo(() => {
     const q = normalizarBusca(busca.replace(/#/g, ""));
@@ -268,7 +272,7 @@ export default function Scaling() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.filteredTeamInclusions, verExcluidos, data.eventById]);
 
-  const temRecorte = eventosMarcados.length > 0 || temRecorteDePeriodo(periodo) || contarFlagsAtivas(flags) > 0 || busca.trim() !== "" || !!fila || soRealizados;
+  const temRecorte = eventosMarcados.length > 0 || temRecorteDePeriodo(periodo) || contarFlagsAtivas(flags) > 0 || busca.trim() !== "" || !!fila || recorteEventos !== "futuros";
 
   // Seleção: descarta IDs que saíram da lista ou deixaram de ser elegíveis
   useEffect(() => {
@@ -287,7 +291,7 @@ export default function Scaling() {
   };
 
   const limpaFiltros = () => {
-    setBusca(""); setEventos({}); setPeriodo(DEFAULT_PERIOD); setFlags({}); setFila(null); setSoRealizados(false);
+    setBusca(""); setEventos({}); setPeriodo(DEFAULT_PERIOD); setFlags({}); setFila(null); setRecorteEventos("futuros");
   };
 
   // ── Modal: abrir / navegar ──────────────────────────────────────────────
@@ -613,7 +617,7 @@ export default function Scaling() {
     busca.trim() ? `busca “${busca.trim()}”` : null,
     contarFlagsAtivas(flags) ? FLAG_GROUPS.flatMap(g => g.opcoes).filter(o => flags[o.key]).map(o => o.label).join(", ") : null,
     verExcluidos ? "incluindo excluídas" : null,
-    soRealizados ? "só eventos realizados" : null,
+    recorteEventos === "realizados" ? "só eventos realizados" : recorteEventos === "todos" ? "eventos passados incluídos" : null,
   ].filter(Boolean).join(" · ");
 
   /**
@@ -766,7 +770,7 @@ export default function Scaling() {
               periodo={periodo} onPeriodo={setPeriodo} linhasSemPeriodo={scalingInclusions} hoje={hoje}
               flags={flags} onFlags={setFlags} linhasSemFlags={comBusca} queueContext={queueContext}
               verExcluidos={verExcluidos} onVerExcluidos={setVerExcluidos}
-              soRealizados={soRealizados} onSoRealizados={setSoRealizados} contagemRealizados={contagemRealizados}
+              recorteEventos={recorteEventos} onRecorteEventos={setRecorteEventos} contagemPorRecorte={contagemPorRecorte}
               contagem={contagem}
             />
 
