@@ -4,7 +4,7 @@
  * fictícios — o resto do texto é exatamente o que sai dos PDFs.
  */
 import { describe, it, expect } from "vitest";
-import { lerVoucher, dataSemAno, dataComAno, valorBr } from "./voucher-parse";
+import { lerVoucher, dataSemAno, dataComAno, valorBr, juntarLinhasQuebradas } from "./voucher-parse";
 
 const PASSAGEM = `SÃO PAULO - JOINVILLE - SÃO PAULO LOCALIZADOR: IJQZNW BILHETE: 1272307948235 15/jul/2026
 Cia Voo Classe Assento Origem / Destino Partida / Chegada
@@ -87,6 +87,55 @@ describe("voucher de passagem (formato das agências)", () => {
   it("identifica o passageiro e não inventa avisos", () => {
     expect(r.pessoa).toBe("FULANO DE TAL SOBRENOME");
     expect(r.avisos).toEqual([]);
+  });
+});
+
+const ROTEIRO_DOIS_BILHETES = `SÃO PAULO - TERESINA LOCALIZADOR: LFNARU BILHETE: 9572300471038 08/set/2026
+Cia Voo Classe Assento Origem / Destino Partida / Chegada
+LA 3842 A Aeroporto Internacional de São Paulo-
+Guarulhos (GRU)
+07/out 06:50
+LATAM AIRLINES GROUP Escalas 0 Teresina (THE) 07/out 10:00
+Localizador Cia: LFNARU
+Data Emissão: 08/set/2026 Valor: BRL 549,81 Taxas + Repasse: BRL 35,75 + BRL 0,00 Total: BRL 585,56
+TERESINA - SÃO PAULO LOCALIZADOR: LIBSYW BILHETE: 1272311400685 08/set/2026
+Cia Voo Classe Assento Origem / Destino Partida / Chegada
+G3 1649 B Teresina (THE) 12/out 03:45
+GOL Escalas 0 Aeroporto Internacional de São Paulo-
+Guarulhos (GRU)
+12/out 07:00
+Data Emissão: 08/set/2026 Valor: BRL 713,80 Taxas + Repasse: BRL 50,65 + BRL 0,00 Total: BRL 764,45
+TOTAL TRECHOS AÉREOS: BRL
+1.350,01
+FULANO DE TAL DA SILVA O.S. 14
+Agência:NORTHTUR VIAGENS Solicitante: BELTRANO
+ROTEIRO DA VIAGEM`;
+
+describe("roteiro da Northtur/Flytour — aeroporto quebrado em três linhas e dois bilhetes (08/09)", () => {
+  const leitura = lerVoucher(ROTEIRO_DOIS_BILHETES);
+  it("junta as linhas quebradas e acha os quatro trechos", () => {
+    expect(leitura.trechoUnico).toBe(false);
+    expect(leitura.campos.departureAirport).toBe("GRU");
+    expect(leitura.campos.destinationAirport).toBe("THE");
+    expect(leitura.campos.actualDepartureDate).toBe("2026-10-07");
+    expect(leitura.campos.actualDepartureTime).toBe("06:50");
+    expect(leitura.campos.actualArrivalTime).toBe("10:00");
+    expect(leitura.campos.returnOriginAirport).toBe("THE");
+    expect(leitura.campos.returnDestinationAirport).toBe("GRU");
+    expect(leitura.campos.actualReturnDate).toBe("2026-10-12");
+    expect(leitura.campos.actualReturnTime).toBe("03:45");
+    expect(leitura.campos.returnArrivalTime).toBe("07:00");
+  });
+  it("o valor é o total dos dois bilhetes, e as cidades vêm do roteiro", () => {
+    expect(leitura.campos.value).toBe("1.350,01");
+    expect(leitura.campos.purchaseOrderNumber).toBe("LFNARU / LIBSYW");
+    expect(leitura.campos.departureCityOrigin).toBe("São Paulo");
+    expect(leitura.campos.departureCityDestination).toBe("Teresina");
+    expect(leitura.pessoa).toBe("FULANO DE TAL DA SILVA");
+  });
+  it("juntarLinhasQuebradas não mexe em linha já completa", () => {
+    expect(juntarLinhasQuebradas(["G3 1202 O Congonhas (CGH) 19/ago 19:55", "GOL Escalas 0 Joinville (JOI) 19/ago 21:05"]))
+      .toEqual(["G3 1202 O Congonhas (CGH) 19/ago 19:55", "GOL Escalas 0 Joinville (JOI) 19/ago 21:05"]);
   });
 });
 

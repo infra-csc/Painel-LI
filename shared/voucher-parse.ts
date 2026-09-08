@@ -116,7 +116,34 @@ function capitalizar(nome: string): string {
     .join(" ");
 }
 
-function lerTrechos(linhas: string[]): Trecho[] {
+/**
+ * Roteiros da Northtur/Flytour (08/09) quebram o nome longo do aeroporto em
+ * até três linhas — "Aeroporto Internacional de São Paulo-" / "Guarulhos
+ * (GRU)" / "07/out 06:50" — e o trecho deixava de existir para o leitor:
+ * sobrava só o lado de Teresina, e a leitura virava "THE → THE". Antes de
+ * procurar os pares, junta: linha terminada em "-" com a seguinte, e linha
+ * com a sigla do aeroporto mas sem data/hora com a linha "dd/mmm hh:mm" que
+ * vem logo abaixo.
+ */
+const SO_DATA_HORA = /^\s*\d{1,2}\/[a-zç]{3}\s+\d{1,2}:\d{2}\s*$/i;
+const TEM_DATA_HORA = /\d{1,2}\/[a-zç]{3}\s+\d{1,2}:\d{2}/i;
+export function juntarLinhasQuebradas(linhas: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < linhas.length; i++) {
+    let atual = linhas[i].trim();
+    while (i + 1 < linhas.length) {
+      const proxima = linhas[i + 1].trim();
+      if (atual.endsWith("-")) { atual = atual + " " + proxima; i++; continue; }
+      if (/\([A-Z]{3}\)/.test(atual) && !TEM_DATA_HORA.test(atual) && SO_DATA_HORA.test(proxima)) { atual = atual + " " + proxima; i++; continue; }
+      break;
+    }
+    out.push(atual);
+  }
+  return out;
+}
+
+function lerTrechos(linhasBrutas: string[]): Trecho[] {
+  const linhas = juntarLinhasQuebradas(linhasBrutas);
   const achados: Trecho[] = [];
   for (const linha of linhas) {
     const m = linha.match(LINHA_TRECHO);
@@ -162,8 +189,10 @@ export function lerVoucherPassagem(texto: string): VoucherLeitura | null {
   const avisos: string[] = [];
   const campos: Record<string, string> = { transportType: "aereo" };
 
-  const loc = texto.match(/LOCALIZADOR:\s*([A-Z0-9]{5,8})/i);
-  if (loc) campos.purchaseOrderNumber = loc[1].toUpperCase();
+  // Roteiro com dois bilhetes traz dois localizadores (08/09): os dois
+  // entram no campo, separados por " / ", para a busca achar qualquer um.
+  const locs = Array.from(texto.matchAll(/LOCALIZADOR:\s*([A-Z0-9]{5,8})/gi)).map((m) => m[1].toUpperCase());
+  if (locs.length) campos.purchaseOrderNumber = Array.from(new Set(locs)).join(" / ");
 
   const emissaoLinha = texto.match(/Data\s+Emiss[ãa]o:\s*(\d{1,2}\/[a-zç]{3}\/\d{4})/i);
   const emissao = emissaoLinha ? dataComAno(emissaoLinha[1]) : null;
@@ -172,11 +201,21 @@ export function lerVoucherPassagem(texto: string): VoucherLeitura | null {
   // Decisão do dono (28/08): o valor da passagem é o TOTAL do voucher, que
   // já inclui taxas e repasse ("Total: BRL 675,39"). A tarifa isolada só
   // serve de reserva para vouchers que não estampam o total.
-  const total = texto.match(/Total:\s*(BRL\s*[\d.]+,\d{2})/i);
+  // Roteiro com DOIS bilhetes (ida e volta emitidas à parte, 08/09): cada um
+  // tem o seu "Total:", e o arquivo fecha com "TOTAL TRECHOS AÉREOS". O valor
+  // da passagem é a viagem inteira — o total geral quando existe, senão a
+  // soma dos totais de cada bilhete.
+  const totalGeral = texto.match(/TOTAL\s+TRECHOS\s+A[ÉE]REOS:?\s*(BRL\s*[\d.]+,\d{2})/i);
+  const totais = Array.from(texto.matchAll(/Total:\s*(BRL\s*[\d.]+,\d{2})/gi)).map((m) => valorBr(m[1])).filter((v): v is string => !!v);
   const tarifa = texto.match(/Valor:\s*(BRL\s*[\d.]+,\d{2})/i);
-  const valor = total ? valorBr(total[1]) : tarifa ? valorBr(tarifa[1]) : null;
+  const total = totais.length > 0 ? totais[0] : null;
+  const somaDosTotais = totais.length > 1
+    ? totais.reduce((acc, v) => acc + Number(v.replace(/\./g, "").replace(",", ".")), 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : null;
+  const valor = totalGeral ? valorBr(totalGeral[1]) : somaDosTotais ?? total ?? (tarifa ? valorBr(tarifa[1]) : null);
   if (valor) campos.value = valor;
   else avisos.push("Não achei o valor no voucher — preencha o Valor da Passagem à mão.");
+  if (!totalGeral && totais.length > 1) avisos.push(`Dois bilhetes no mesmo roteiro — o valor é a soma dos totais (${totais.join(" + ")}).`);
   if (!total && tarifa) avisos.push("O voucher não traz o total; usei a tarifa sem as taxas — confira.");
 
   const trechos = lerTrechos(linhas);
