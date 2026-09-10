@@ -39,9 +39,37 @@ import { isCenotecnicaFunction } from "@shared/alimentacao";
 import {
   isCenoFreelaTipo,
   CENO_EMPREITA_SETTING_KEYS,
-  cenoEmpreitaDefaultsMap,
-} from "@shared/cenotecnica-empreita";
+  cenoEmpreitaDefaultsMap, validarEmpreita } from "@shared/cenotecnica-empreita";
 import { nextStatusOnConfirm } from "@shared/scaling-rules";
+
+/**
+ * Empreita por EMPRESA (dono, 10/09) — mesma normalização no PATCH e no
+ * /confirm. Devolve a mensagem de erro (400) ou null. Fora de cenotécnica os
+ * campos são zerados; com empresa informada, a vaga fica SEM colaborador e
+ * sem passagem/hospedagem (a empresa se vira), e o tipo de freela não se
+ * aplica (o valor é o da empreita).
+ */
+function normalizarEmpreita(updates: Record<string, any>, atual: Record<string, any>, cenotecnica: boolean): string | null {
+  const chaves = ["empreitaEmpresa", "empreitaPessoas", "empreitaValor"] as const;
+  const tocou = chaves.some((k) => updates[k] !== undefined);
+  const limpar = () => { for (const k of chaves) updates[k] = null; };
+  if (!cenotecnica) { if (tocou) limpar(); return null; }
+  const empresa = updates.empreitaEmpresa !== undefined ? updates.empreitaEmpresa : atual.empreitaEmpresa;
+  if (!tocou && !empresa) return null;
+  if (!empresa || String(empresa).trim() === "") { limpar(); return null; }
+  const pessoas = updates.empreitaPessoas !== undefined ? updates.empreitaPessoas : atual.empreitaPessoas;
+  const valor = updates.empreitaValor !== undefined ? updates.empreitaValor : atual.empreitaValor;
+  const erro = validarEmpreita({ empresa: String(empresa), pessoas: Number(pessoas), valorCents: Number(valor) });
+  if (erro) return erro;
+  updates.empreitaEmpresa = String(empresa).trim();
+  updates.empreitaPessoas = Number(pessoas);
+  updates.empreitaValor = Number(valor);
+  updates.collaboratorId = null;
+  updates.needsTicket = false;
+  updates.needsAccommodation = false;
+  updates.cenoFreelaTipo = null;
+  return null;
+}
 import { isSuggestionInclusion, SUGESTAO_PHASE } from "@shared/scaling-validation-rules";
 import { safeSyncFlashFromComparison, safeReverseFlashFromComparison, type FlashSyncActor } from "./flash-credit";
 import { isAutomaticFlashMovement } from "@shared/flash-rules";
@@ -2234,9 +2262,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // VALIDAÇÃO: Bloquear alteração direta de colaborador em escalações confirmadas
       // A única forma permitida de trocar colaborador após confirmação é via solicitação de troca (swap request)
       const confirmedStatuses = ['aguardando_producao', 'escalado', 'passagem', 'passagem_comprada', 'hospedagem', 'hospedagem_comprada', 'aprovacao', 'aprovado', 'concluido'];
+      // "" e null são a mesma coisa (vaga por empreita não tem colaborador e o
+      // modal manda "" — sem isto, editar a observação de uma empreita
+      // confirmada cairia nesta trava).
       if (
         bodyData.collaboratorId !== undefined &&
-        bodyData.collaboratorId !== currentInclusion.collaboratorId &&
+        (bodyData.collaboratorId || null) !== (currentInclusion.collaboratorId || null) &&
         confirmedStatuses.includes(currentInclusion.status)
       ) {
         return res.status(403).json({
@@ -2275,7 +2306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'needsTicket', 'needsAccommodation', 'dailyRates', 'workDays', 'dailyValue',
         'actualDailyRates', 'observations', 'actualObservations', 'emergencyRecord',
         'city', 'status', 'previousStatus', 'phase', 'atendimentoTipo', 'percurseiroTipo',
-        'cenoFreelaTipo',
+        'cenoFreelaTipo', 'empreitaEmpresa', 'empreitaPessoas', 'empreitaValor',
       ]);
       const updates: Record<string, any> = { updatedBy: userId };
       for (const [k, v] of Object.entries(bodyData)) {
@@ -2318,6 +2349,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else if (updates.cenoFreelaTipo !== undefined) {
         updates.cenoFreelaTipo = null;
       }
+
+      const erroEmpreita = normalizarEmpreita(updates, currentInclusion as any, isCenotecnicaFunction(func?.name ?? ""));
+      if (erroEmpreita) return res.status(400).json({ message: erroEmpreita });
 
       const inclusion = await storage.updateTeamInclusion(id, updates);
       await createAuditLog('update', 'team_inclusion', id, inclusion, userId, user?.name || 'Sistema', currentInclusion, req);
@@ -2368,22 +2402,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const body = (req.body ?? {}) as Record<string, any>;
-      const collaboratorId: string | undefined = body.collaboratorId || currentInclusion.collaboratorId || undefined;
-      if (!collaboratorId) {
-        return res.status(400).json({ message: "Selecione um colaborador antes de confirmar." });
+      // Empreita por empresa (10/09): a vaga confirma SEM colaborador.
+      const empreitaNoPedido = body.empreitaEmpresa !== undefined
+        ? !!(body.empreitaEmpresa && String(body.empreitaEmpresa).trim())
+        : !!(currentInclusion as any).empreitaEmpresa;
+      const collaboratorId: string | undefined = empreitaNoPedido ? undefined : (body.collaboratorId || currentInclusion.collaboratorId || undefined);
+      if (!collaboratorId && !empreitaNoPedido) {
+        return res.status(400).json({ message: "Selecione um colaborador (ou informe a empreita) antes de confirmar." });
       }
 
       // Mesma trava do PATCH: colaborador de escalação já confirmada só muda via troca
       const confirmedStatuses = ['aguardando_producao', 'escalado', 'passagem', 'passagem_comprada', 'hospedagem', 'hospedagem_comprada', 'aprovacao', 'aprovado', 'concluido'];
-      if (collaboratorId !== currentInclusion.collaboratorId && confirmedStatuses.includes(currentInclusion.status)) {
+      if ((collaboratorId ?? null) !== (currentInclusion.collaboratorId ?? null) && confirmedStatuses.includes(currentInclusion.status)) {
         return res.status(403).json({
           message: "Não é possível alterar o colaborador diretamente após a escalação ser confirmada. Use o fluxo de Solicitação de Troca."
         });
       }
 
       // Só os campos que o Confirmar da tela envia
-      const CONFIRM_FIELDS = new Set(['observations', 'city', 'atendimentoTipo', 'percurseiroTipo', 'cenoFreelaTipo', 'dailyValue', 'emitsNf', 'needsTicket', 'needsAccommodation']);
-      const updates: Record<string, any> = { updatedBy: userId, collaboratorId };
+      const CONFIRM_FIELDS = new Set(['observations', 'city', 'atendimentoTipo', 'percurseiroTipo', 'cenoFreelaTipo', 'dailyValue', 'emitsNf', 'needsTicket', 'needsAccommodation', 'empreitaEmpresa', 'empreitaPessoas', 'empreitaValor']);
+      const updates: Record<string, any> = { updatedBy: userId, collaboratorId: collaboratorId ?? null };
       for (const [k, v] of Object.entries(body)) {
         if (CONFIRM_FIELDS.has(k) && v !== undefined) updates[k] = v;
       }
@@ -2419,6 +2457,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else if (updates.cenoFreelaTipo !== undefined) {
         updates.cenoFreelaTipo = null;
       }
+
+      const erroEmpreita = normalizarEmpreita(updates, currentInclusion as any, isCenotecnicaFunction(func.name));
+      if (erroEmpreita) return res.status(400).json({ message: erroEmpreita });
 
       const next = nextStatusOnConfirm({
         functionName: func.name,

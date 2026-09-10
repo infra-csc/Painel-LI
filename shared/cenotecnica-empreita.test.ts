@@ -8,8 +8,7 @@ import {
   cenoEmpreitaSettingKey,
   cenoEmpreitaTotalCents,
   isCenoFreelaTipo,
-  usaEmpreitaCenotecnica,
-} from "./cenotecnica-empreita";
+  usaEmpreitaCenotecnica, vagaComEmpreita, validarEmpreita, rotuloEmpreita } from "./cenotecnica-empreita";
 
 const total = (tipo: any, dias: number, settings?: Record<string, number | string | undefined>) =>
   cenoEmpreitaTotalCents(tipo, dias, settings);
@@ -151,5 +150,26 @@ describe("usaEmpreitaCenotecnica — casa (CLT) não entra na empreita", () => {
   it("função que não é cenotécnica → false", () => {
     expect(usaEmpreitaCenotecnica(false, "freela")).toBe(false);
     expect(usaEmpreitaCenotecnica(false, "casa")).toBe(false);
+  });
+});
+
+describe("empreita por empresa (dono, 10/09)", () => {
+  it("vaga com empresa conta como preenchida; vazio ou só espaço não", () => {
+    expect(vagaComEmpreita({ empreitaEmpresa: "Cenotech" })).toBe(true);
+    expect(vagaComEmpreita({ empreitaEmpresa: "   " })).toBe(false);
+    expect(vagaComEmpreita({ empreitaEmpresa: null })).toBe(false);
+    expect(vagaComEmpreita(null)).toBe(false);
+  });
+  it("valida empresa, pessoas e valor sem centavos", () => {
+    expect(validarEmpreita({ empresa: "Cenotech", pessoas: 4, valorCents: 800000 })).toBeNull();
+    expect(validarEmpreita({ empresa: "C", pessoas: 4, valorCents: 800000 })).toMatch(/empresa/);
+    expect(validarEmpreita({ empresa: "Cenotech", pessoas: 0, valorCents: 800000 })).toMatch(/pessoas/);
+    expect(validarEmpreita({ empresa: "Cenotech", pessoas: 2.5, valorCents: 800000 })).toMatch(/pessoas/);
+    expect(validarEmpreita({ empresa: "Cenotech", pessoas: 4, valorCents: 800050 })).toMatch(/sem centavos/);
+    expect(validarEmpreita({ empresa: "Cenotech", pessoas: 4, valorCents: -1 })).toMatch(/valor/);
+  });
+  it("rótulo curto para as listas", () => {
+    expect(rotuloEmpreita({ empreitaEmpresa: "Cenotech", empreitaPessoas: 4 })).toBe("Empreita · Cenotech (4 pessoas)");
+    expect(rotuloEmpreita({ empreitaEmpresa: "Cenotech", empreitaPessoas: 1 })).toBe("Empreita · Cenotech (1 pessoa)");
   });
 });

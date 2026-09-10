@@ -18,6 +18,7 @@
  *   a coluna congelada ficava sem fundo próprio.
  */
 import { useEffect, useState } from "react";
+import { rotuloEmpreita, vagaComEmpreita } from "@shared/cenotecnica-empreita";
 import { AlertTriangle, Check } from "lucide-react";
 import type { ReactNode } from "react";
 import {
@@ -411,7 +412,8 @@ export default function ScalingTable({
               const cancelada = inclusion.status === "cancelado";
               const eventoTravado = isEventLocked?.(inclusion) ?? false;
               const podeGerir = canManageFunction(inclusion.functionId) && !readOnly && !eventoTravado;
-              const vazia = !inclusion.collaboratorId && !cancelada;
+              const empreita = vagaComEmpreita(inclusion as any);
+              const vazia = !inclusion.collaboratorId && !empreita && !cancelada;
               const needs = needsDaLinha(inclusion, {
                 ticket, funcao,
                 passagemComprada: temPassagemComprada?.(inclusion) ?? !!ticket?.purchaseDate,
@@ -475,7 +477,18 @@ export default function ScalingTable({
                   </td>
 
                   <td className="px-3.5 min-w-0">
-                    {inclusion.collaboratorId ? (
+                    {empreita ? (
+                      <>
+                        <div className="text-[13px] font-medium text-slate-900 break-words" title={rotuloEmpreita(inclusion as any)}>
+                          <span className="mr-1.5 inline-flex items-center rounded-md border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700">Empreita</span>
+                          {(inclusion as any).empreitaEmpresa}
+                        </div>
+                        <div className="text-[12px] text-muted-foreground">
+                          {(inclusion as any).empreitaPessoas ?? 0} {Number((inclusion as any).empreitaPessoas) === 1 ? "pessoa" : "pessoas"}
+                          {(inclusion as any).empreitaValor != null ? ` · ${(Number((inclusion as any).empreitaValor) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}` : ""}
+                        </div>
+                      </>
+                    ) : inclusion.collaboratorId ? (
                       <>
                         <div className="text-[13px] font-medium text-slate-900 truncate" title={nomeDoColaborador}>{nomeDoColaborador}</div>
                         {city && <div className="text-[12px] text-muted-foreground truncate" title={city}>{city}</div>}

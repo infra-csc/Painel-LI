@@ -19,7 +19,7 @@ import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, Budge
 import { isAtendimentoFunction, atendimentoDailyCents, mobilidadeTrechoCents, mobilidadeTrechoComLocalCents, mobilidadeSemVooCents, isTransporteTerrestre, ATENDIMENTO_TIPOS, type AtendimentoTipo } from "@shared/atendimento";
 import { calcDeflatedDailies, deflationFactorsFromSettings, freelaDailyCents, casaDailyCents, diasComDiaria as calcDiasComDiaria, diasEmpreita, regraDiariaPorTipo, isPercursoFunction, percurseiroDiariaCents, diasPercurseiro, PERCURSEIRO_TIPOS, isFuncaoLocal, FUNCAO_LOCAL_RAZAO, type DeflationSegment, type RegraDiaria, type PercurseiroTipo, type PercurseiroDiaria } from "@shared/calculation-rules";
 import { calcAlimentacao, refeicaoCents, refeicaoCentsDia, refeicaoPerfil, isCenotecnicaFunction } from "@shared/alimentacao";
-import { cenoEmpreitaTotalCents, usaEmpreitaCenotecnica, CENO_FREELA_TIPO_LABELS, type CenoFreelaTipo, type CenoEmpreitaValor } from "@shared/cenotecnica-empreita";
+import { cenoEmpreitaTotalCents, usaEmpreitaCenotecnica, CENO_FREELA_TIPO_LABELS, type CenoFreelaTipo, type CenoEmpreitaValor, vagaComEmpreita } from "@shared/cenotecnica-empreita";
 import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
@@ -1109,6 +1109,12 @@ export default function BudgetPlannedPage() {
     if (!id) return "Não definido";
     return collaboratorNamesById.get(id) || "Não definido";
   };
+  /** Nome que a linha mostra: colaborador, ou a empresa da empreita (10/09). */
+  const nomeDaVaga = (i: TeamInclusion): string => {
+    const empresa = (i as any).empreitaEmpresa as string | null | undefined;
+    if (empresa) return `Empreita · ${empresa}${(i as any).empreitaPessoas ? ` (${(i as any).empreitaPessoas} pessoas)` : ""}`;
+    return getCollaboratorName(i.collaboratorId);
+  };
 
   const getFunctionName = (id?: string | null) => {
     if (!id) return "-";
@@ -1255,6 +1261,9 @@ export default function BudgetPlannedPage() {
       // shared/calculation-rules (isFuncaoLocal). O override manual continua
       // valendo — a regra só define o VALOR DE SISTEMA.
       const funcaoLocal = isFuncaoLocal(getFunctionName(inclusion.functionId));
+      // Empreita por EMPRESA (dono, 10/09): custo fechado da vaga — sem diária
+      // por pessoa, sem alimentação e sem mobilidade (a empresa se vira).
+      const empreita = vagaComEmpreita(inclusion as any);
       const percurseiroTipo = ((inclusion as any).percurseiroTipo ?? null) as PercurseiroTipo | null;
       const percurseiroTipoEfetivo: PercurseiroTipo | null = isPercurso ? (percurseiroTipo ?? "tipo_1") : null;
       const percurseiro = isPercurso ? percurseiroDiariaCents(percurseiroTipoEfetivo, ss) : null;
@@ -1279,7 +1288,7 @@ export default function BudgetPlannedPage() {
       // mobilidade NÃO entram no valor fechado: seguem as regras normais.
       // Sem tipo definido → `cenoEmpreita` é null e o cálculo segue o padrão
       // (a tela mostra o badge "definir tipo na Escalação").
-      const cenoEmpreitaVaga = usaEmpreitaCenotecnica(isCenotecnicaFunction(fnName), collab?.type);
+      const cenoEmpreitaVaga = usaEmpreitaCenotecnica(isCenotecnicaFunction(fnName), collab?.type) || empreita;
       const cenoFreelaTipo = ((inclusion as any).cenoFreelaTipo ?? null) as CenoFreelaTipo | null;
       // Os dias da EMPREITA vêm de `diasEmpreita` (shared/calculation-rules) —
       // a MESMA função que a Escalação usa no card "Tipo de freela". Antes esta
@@ -1289,7 +1298,9 @@ export default function BudgetPlannedPage() {
       // `diasComDiaria` continua mandando no RESTO da tela (contagem exibida,
       // rateio útil/fds, dailyQuantity persistido) — aqui só o valor fechado.
       const diasEmpreitaVaga = cenoEmpreitaVaga ? diasEmpreita(inclusion) : 0;
-      const cenoEmpreita = cenoEmpreitaVaga ? cenoEmpreitaTotalCents(cenoFreelaTipo, diasEmpreitaVaga, ss) : null;
+      const cenoEmpreita: CenoEmpreitaValor | null = empreita
+        ? { tipo: (cenoFreelaTipo ?? "viagem") as CenoFreelaTipo, dias: Math.max(1, diasEmpreitaVaga), totalCents: Number((inclusion as any).empreitaValor ?? 0), extrapolado: false, incrementoCents: 0 }
+        : cenoEmpreitaVaga ? cenoEmpreitaTotalCents(cenoFreelaTipo, diasEmpreitaVaga, ss) : null;
       // Diária "equivalente" só para manter os campos existentes coerentes — o
       // TOTAL é sempre o valor fechado (ver `deflated` abaixo).
       const cenoEmpreitaDiaria = cenoEmpreita && diasEmpreitaVaga > 0
@@ -1372,7 +1383,7 @@ export default function BudgetPlannedPage() {
       // Quem NÃO voa (17/08): evento fora de SP → R$29 por trecho; em SP → 0.
       // Percurso: mobilidade já está no pacote → 0.
       // Função LOCAL: contratado na cidade do evento → sem mobilidade (0).
-      const semVoo = !voa && !isPercurso && !funcaoLocal ? mobilidadeSemVooCents(selectedEvent?.location) : null;
+      const semVoo = !voa && !isPercurso && !funcaoLocal && !empreita ? mobilidadeSemVooCents(selectedEvent?.location) : null;
       // Terrestre se a passagem registrada é rodoviário/van OU se QUALQUER texto
       // sugerido da escalação (ida/chegada/volta) menciona van/ônibus/carro —
       // "van - 10h" na ida vale para a viagem toda (a chegada sugerida sem a
@@ -1384,8 +1395,8 @@ export default function BudgetPlannedPage() {
       // para todo mundo, inclusive para quem tem passagem marcada. Antes ela só
       // valia para quem não voava, e um evento na própria cidade pagava
       // traslado por causa de um needsTicket marcado.
-      const sysMobIda = (isPercurso || funcaoLocal) ? 0 : mobilidadeTrechoComLocalCents(selectedEvent?.location, { voa, partida: vooPartidaIda, chegada: vooChegadaIda, trecho: 'ida', terrestre });
-      const sysMobVolta = (isPercurso || funcaoLocal) ? 0 : mobilidadeTrechoComLocalCents(selectedEvent?.location, { voa, partida: vooPartidaVolta, chegada: vooChegadaVolta, trecho: 'volta', terrestre });
+      const sysMobIda = (isPercurso || funcaoLocal || empreita) ? 0 : mobilidadeTrechoComLocalCents(selectedEvent?.location, { voa, partida: vooPartidaIda, chegada: vooChegadaIda, trecho: 'ida', terrestre });
+      const sysMobVolta = (isPercurso || funcaoLocal || empreita) ? 0 : mobilidadeTrechoComLocalCents(selectedEvent?.location, { voa, partida: vooPartidaVolta, chegada: vooChegadaVolta, trecho: 'volta', terrestre });
       const sysMob = sysMobIda + sysMobVolta;
       const mobilidade = override?.mobilidade ?? sysMob;
       const mobilidadeIda = override?.mobilidadeIda ?? sysMobIda;
@@ -1405,7 +1416,7 @@ export default function BudgetPlannedPage() {
       const refFds = refeicaoCentsDia(perfil, ss, { tipoColaborador: collab?.type, isWeekend: true });
       // Percurso: alimentação no pacote → sem dias
       const alim = calcAlimentacao({
-        workDays: (isPercurso || funcaoLocal) ? [] : diasPeriodo, voa,
+        workDays: (isPercurso || funcaoLocal || empreita) ? [] : diasPeriodo, voa,
         chegadaIda: vooChegadaIda, partidaVolta: vooPartidaVolta,
         almocoCents, jantarCents,
         terrestre, // van saindo ≥ 20h no retorno já paga jantar
@@ -1421,15 +1432,15 @@ export default function BudgetPlannedPage() {
       }
       // Sem intervalo completo de datas (diasPeriodo vazio) mas com dias
       // contados: assume dia cheio na proporção útil/fds já conhecida
-      if (!isPercurso && !funcaoLocal && diasPeriodo.length === 0 && (weekdays + weekends) > 0) {
+      if (!isPercurso && !funcaoLocal && !empreita && diasPeriodo.length === 0 && (weekdays + weekends) > 0) {
         calcAlmSem = weekdays * refUtil.almocoCents; calcJanSem = weekdays * refUtil.jantarCents;
         calcAlmFds = weekends * refFds.almocoCents; calcJanFds = weekends * refFds.jantarCents;
       }
       // Função LOCAL: sem refeição — o cachê da diária já cobre. Zera o valor de
       // SISTEMA (o override manual, aplicado logo abaixo, continua mandando).
-      if (funcaoLocal) { calcAlmSem = 0; calcJanSem = 0; calcAlmFds = 0; calcJanFds = 0; }
+      if (funcaoLocal || empreita) { calcAlmSem = 0; calcJanSem = 0; calcAlmFds = 0; calcJanFds = 0; }
       // Percurso / função local: alimentação não é calculada — nada a "estimar"
-      const alimEstimada = voa && !isPercurso && !funcaoLocal && (fonteVoo !== 'passagem' || alim.estimado);
+      const alimEstimada = voa && !isPercurso && !funcaoLocal && !empreita && (fonteVoo !== 'passagem' || alim.estimado);
       // Mesmo zeroing EFETIVO do modal: bucket com 0 dias conta 0 — mesmo que
       // um override (ex.: rascunho ou lote antigo) tenha valor gravado nele.
       const almocoSemana = weekdays === 0 ? 0 : (override?.almocoSemana ?? calcAlmSem);
@@ -1645,7 +1656,7 @@ export default function BudgetPlannedPage() {
     const period = startDate && endDate ? `${formatDate(startDate)} a ${formatDate(endDate)}` : '-';
     
     setEditingBudgetInfo({
-      name: getCollaboratorName(budget.inclusion.collaboratorId),
+      name: nomeDaVaga(budget.inclusion),
       functionName: getFunctionName(budget.inclusion.functionId),
       type: budget.collaborator?.type === 'casa' || budget.collaborator?.type === 'local' ? 'Casa' : 'Freela',
       weekdays: budget.weekdays,
@@ -2699,7 +2710,7 @@ export default function BudgetPlannedPage() {
                   const isSelected = selectedIds.has(budget.inclusion.id);
                   const isCollapsed = collapsedCards.has(budget.inclusion.id);
                   const isCasa = budget.collaborator?.type === 'casa' || budget.collaborator?.type === 'local';
-                  const name = getCollaboratorName(budget.inclusion.collaboratorId);
+                  const name = nomeDaVaga(budget.inclusion);
                   const initials = name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase();
                   const collabFuncKey = `${budget.inclusion.collaboratorId}|${budget.inclusion.functionId}`;
                   const planRecord = plannedByCollabFunc.get(collabFuncKey);
@@ -3427,7 +3438,7 @@ export default function BudgetPlannedPage() {
                             <SheetRow
                               key={sid}
                               budget={budget}
-                              name={getCollaboratorName(budget.inclusion.collaboratorId)}
+                              name={nomeDaVaga(budget.inclusion)}
                               funcName={getFunctionName(budget.inclusion.functionId)}
                               isSent={sentToActual.has(sid)}
                               isNotAttended={isCardNotAttended(budget)}

@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { formatDiarias, fixEncoding } from "@/lib/utils";
+import { rotuloEmpreita, vagaComEmpreita } from "@shared/cenotecnica-empreita";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Edit, MessageCircle, Check, X, Trash2, Copy, Ban, LayoutGrid, Save, ArrowLeftRight, AlertCircle, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -540,8 +541,8 @@ export default function TeamInclusionTable() {
       if (filters.escalationStatus.length > 0) {
         const isCanceled = inclusion.status === "cancelado";
         const matches = filters.escalationStatus.some((v) =>
-          v === "pending" ? (!inclusion.collaboratorId && !isCanceled)
-          : v === "escalated" ? (!!inclusion.collaboratorId && !isCanceled)
+          v === "pending" ? (!inclusion.collaboratorId && !vagaComEmpreita(inclusion as any) && !isCanceled)
+          : v === "escalated" ? ((!!inclusion.collaboratorId || vagaComEmpreita(inclusion as any)) && !isCanceled)
           : v === "cancelado" ? isCanceled
           : false,
         );
@@ -633,8 +634,8 @@ export default function TeamInclusionTable() {
   // menor do que a quantidade de linhas exibidas ao clicar nele.
   const totals = {
     incluidos: totalsBase.length,
-    pendentes: totalsBase.filter(i => !i.collaboratorId && i.status !== 'cancelado').length,
-    escalados: totalsBase.filter(i => i.collaboratorId && i.status !== 'cancelado').length,
+    pendentes: totalsBase.filter(i => !i.collaboratorId && !vagaComEmpreita(i as any) && i.status !== 'cancelado').length,
+    escalados: totalsBase.filter(i => (i.collaboratorId || vagaComEmpreita(i as any)) && i.status !== 'cancelado').length,
     aguardando_passagem: totalsBase.filter(i => i.status === 'passagem').length,
     hospedagem: totalsBase.filter(i => i.status === 'hospedagem').length,
     passagem_comprada: totalsBase.filter(i => i.status === 'passagem_comprada').length,
@@ -932,6 +933,11 @@ export default function TeamInclusionTable() {
                           title={toTitleCase(getCollaboratorName(inclusion.collaboratorId) || "")}
                         >
                           {toTitleCase(getCollaboratorName(inclusion.collaboratorId) || "")}
+                        </div>
+                      ) : vagaComEmpreita(inclusion as any) ? (
+                        <div className="text-sm text-slate-800 font-medium whitespace-normal break-words leading-snug" title={rotuloEmpreita(inclusion as any)}>
+                          <span className="mr-1.5 inline-flex items-center rounded-md border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700">Empreita</span>
+                          {(inclusion as any).empreitaEmpresa}
                         </div>
                       ) : (
                         <span className="inline-flex items-center text-[11px] font-medium bg-slate-100 text-slate-400 rounded-full px-2 py-0.5">Não escalado</span>

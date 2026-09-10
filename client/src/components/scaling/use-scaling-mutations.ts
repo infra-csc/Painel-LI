@@ -14,6 +14,10 @@ export type ScalingSaveAction = "save" | "confirm";
 /** Payload do Salvar (PATCH) e do Confirmar (POST /confirm). */
 export interface InclusionSavePayload {
   collaboratorId: string;
+  /** Empreita por empresa (10/09) — null limpa. */
+  empreitaEmpresa?: string | null;
+  empreitaPessoas?: number | null;
+  empreitaValor?: number | null;
   observations: string;
   city: string;
   atendimentoTipo: string | null;

@@ -3,6 +3,7 @@
  * Extraídos de pages/scaling.tsx — comportamento preservado.
  */
 import { parseISO } from "date-fns";
+import { vagaComEmpreita } from "@shared/cenotecnica-empreita";
 import type { TeamInclusion, SwapRequest } from "@shared/schema";
 import { CENO_FREELA_TIPO_LABELS } from "@shared/cenotecnica-empreita";
 
@@ -58,12 +59,13 @@ export const describeLoadError = (err: any): string => {
 };
 
 /** Escalação concluída (colaborador + status pós-confirmação). */
+// Empreita por empresa (10/09) preenche a vaga sem colaborador.
 export const isEscalated = (inclusion: TeamInclusion): boolean =>
-  !!inclusion.collaboratorId && ESCALATED_STATUSES.has(inclusion.status);
+  (!!inclusion.collaboratorId || vagaComEmpreita(inclusion as any)) && ESCALATED_STATUSES.has(inclusion.status);
 
 /** Escalação confirmada (igual a isEscalated, mas SEM aguardando_producao). */
 export const isEscalationConfirmed = (inclusion: TeamInclusion): boolean =>
-  !!inclusion.collaboratorId &&
+  (!!inclusion.collaboratorId || vagaComEmpreita(inclusion as any)) &&
   inclusion.status !== "aguardando_producao" &&
   ESCALATED_STATUSES.has(inclusion.status);
 
@@ -234,6 +236,11 @@ export interface ModalData {
   departureFromSP: boolean;
   atendimentoTipo: string;
   percurseiroTipo: string;
+  /** Empreita por empresa (10/09): modo ligado + os três campos (valor em reais, sem centavos). */
+  empreitaModo: boolean;
+  empreitaEmpresa: string;
+  empreitaPessoas: string;
+  empreitaValor: string;
 }
 
 export const modalDataFromInclusion = (inclusion: TeamInclusion): ModalData => {
@@ -242,6 +249,10 @@ export const modalDataFromInclusion = (inclusion: TeamInclusion): ModalData => {
     collaboratorId: inclusion.collaboratorId || "",
     observations: inclusion.observations || "",
     dailyValue: 0,
+    empreitaModo: vagaComEmpreita(inclusion as any),
+    empreitaEmpresa: (inclusion as any).empreitaEmpresa ?? "",
+    empreitaPessoas: (inclusion as any).empreitaPessoas != null ? String((inclusion as any).empreitaPessoas) : "",
+    empreitaValor: (inclusion as any).empreitaValor != null ? String(Math.round(Number((inclusion as any).empreitaValor) / 100)) : "",
     city,
     departureFromSP: isCityFromSP(city),
     atendimentoTipo: (inclusion as any).atendimentoTipo || "",

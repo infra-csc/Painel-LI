@@ -5,6 +5,7 @@
  * checagem como trava de segurança (toast fica para erro de servidor).
  */
 import type { TeamInclusion } from "@shared/schema";
+import { vagaComEmpreita, validarEmpreita } from "@shared/cenotecnica-empreita";
 // `isCenotecnicaFunction` (alimentacao) exclui "sup ceno", que é produtor — não
 // confundir com o homônimo de use-scaling-data, que inclui (aprovação do gestor).
 import { isCenotecnicaFunction as isCenoEmpreitaFunction } from "@shared/alimentacao";
@@ -17,6 +18,11 @@ export interface ValidationValues {
   collaboratorId: string;
   atendimentoTipo: string;
   percurseiroTipo: string;
+  /** Empreita por empresa (10/09) — opcionais; só o modal preenche. */
+  empreitaModo?: boolean;
+  empreitaEmpresa?: string;
+  empreitaPessoas?: string;
+  empreitaValor?: string;
 }
 
 type Rules = Pick<
@@ -85,6 +91,16 @@ export const getSaveBlockReason = (inclusion: TeamInclusion | null, values: Vali
   } else if (!rules.canConfirmEscalation(inclusion)) {
     return "Apenas o responsável pela função pode salvar alterações.";
   }
+  if (values.empreitaModo) {
+    // Empreita por empresa (10/09): o servidor recusa os três campos incompletos
+    // também no Salvar — espelhar aqui evita o 400.
+    const erro = validarEmpreita({
+      empresa: values.empreitaEmpresa ?? "",
+      pessoas: Number(values.empreitaPessoas ?? ""),
+      valorCents: Math.round(Number(values.empreitaValor ?? "") * 100),
+    });
+    if (erro) return erro;
+  }
   if (isAtendimentoMissing(inclusion, values, rules)) return ATENDIMENTO_MISSING_MSG;
   if (isPercurseiroMissing(inclusion, values, rules)) return PERCURSEIRO_MISSING_MSG;
   return null;
@@ -95,6 +111,14 @@ export const getConfirmBlockReason = (inclusion: TeamInclusion | null, values: V
   if (rules.isEventLocked(inclusion)) return PAST_EVENT_BLOCK_MSG;
   if (inclusion.status === "cancelado") return "Escalação cancelada — reative para confirmar.";
   if (!rules.canConfirmEscalation(inclusion)) return "Apenas o responsável pela função pode confirmar escalações.";
+  if (values.empreitaModo) {
+    // Empreita por empresa (10/09): confirma sem colaborador, com os três campos.
+    return validarEmpreita({
+      empresa: values.empreitaEmpresa ?? "",
+      pessoas: Number(values.empreitaPessoas ?? ""),
+      valorCents: Math.round(Number(values.empreitaValor ?? "") * 100),
+    });
+  }
   if (!values.collaboratorId) return "Selecione um colaborador antes de confirmar.";
   if (isAtendimentoMissing(inclusion, values, rules)) return ATENDIMENTO_MISSING_MSG;
   if (isPercurseiroMissing(inclusion, values, rules)) return PERCURSEIRO_MISSING_MSG;
@@ -112,10 +136,10 @@ export const getBulkConfirmBlockReason = (inclusion: TeamInclusion, rules: Rules
   if (inclusion.status === "cancelado") return "Escalação cancelada";
   if (isEscalated(inclusion)) return "Já confirmada";
   if (!rules.canConfirmEscalation(inclusion)) return "Sem permissão (apenas o responsável pela função)";
-  if (!inclusion.collaboratorId) return "Sem colaborador";
+  if (!inclusion.collaboratorId && !vagaComEmpreita(inclusion as any)) return "Sem colaborador";
   const values = valuesFromInclusion(inclusion);
   if (isAtendimentoMissing(inclusion, values, rules)) return "Sem tipo de atendimento";
   if (isPercurseiroMissing(inclusion, values, rules)) return PERCURSEIRO_MISSING_MSG;
-  if (getCollaboratorConflictSummary(inclusion, inclusion.collaboratorId, rules)) return "Conflito de datas do colaborador";
+  if (inclusion.collaboratorId && getCollaboratorConflictSummary(inclusion, inclusion.collaboratorId, rules)) return "Conflito de datas do colaborador";
   return null;
 };

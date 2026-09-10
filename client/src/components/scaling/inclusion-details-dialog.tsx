@@ -32,8 +32,7 @@ import { PERCURSEIRO_TIPOS, percurseiroDiariaCents, diasEmpreita } from "@shared
 // é produtor; NÃO usar o `isCenotecnicaFunction` de use-scaling-data, que inclui.
 import { isCenotecnicaFunction as isCenoEmpreitaFunction } from "@shared/alimentacao";
 import {
-  CENO_FREELA_TIPOS, CENO_FREELA_TIPO_LABELS, cenoEmpreitaTotalCents, type CenoFreelaTipo,
-} from "@shared/cenotecnica-empreita";
+  CENO_FREELA_TIPOS, CENO_FREELA_TIPO_LABELS, cenoEmpreitaTotalCents, type CenoFreelaTipo, validarEmpreita } from "@shared/cenotecnica-empreita";
 import type { TeamInclusion } from "@shared/schema";
 import { getStatusBadge } from "./scaling-table";
 import ConfirmDialog from "./confirm-dialog";
@@ -109,6 +108,50 @@ const brl = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "c
  * Planejado. Este alias existe só para não espalhar o import pelo arquivo.
  */
 export const cenoDiasTrabalhados = (inclusion: TeamInclusion): number => diasEmpreita(inclusion);
+
+/**
+ * Campos da empreita por empresa (dono, 10/09): empresa, quantidade de
+ * pessoas (só informativa) e valor total sem centavos. Substituem a escolha
+ * de colaborador quando o modo "Empreita" está ligado.
+ */
+function EmpreitaCampos({ modalData, setModalData, disabled }: {
+  modalData: ModalData;
+  setModalData: React.Dispatch<React.SetStateAction<ModalData>>;
+  disabled?: boolean;
+}) {
+  const campo = "w-full px-3 py-2 text-[13px] border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-60";
+  const rotulo = "text-[11px] font-semibold text-slate-600";
+  const erro = validarEmpreita({
+    empresa: modalData.empreitaEmpresa,
+    pessoas: Number(modalData.empreitaPessoas || ""),
+    valorCents: Math.round(Number(modalData.empreitaValor || "") * 100),
+  });
+  return (
+    <div className="space-y-2.5 rounded-xl border border-violet-200 bg-violet-50/40 p-3" data-testid="empreita-campos">
+      <div className="space-y-1">
+        <label htmlFor="empreita-empresa" className={rotulo}>Empresa <span className="text-red-500">*</span></label>
+        <input id="empreita-empresa" type="text" maxLength={120} value={modalData.empreitaEmpresa} disabled={disabled}
+          placeholder="Nome da empresa que fornece a equipe"
+          onChange={(e) => setModalData(prev => ({ ...prev, empreitaEmpresa: e.target.value }))} className={campo} data-testid="input-empreita-empresa" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <label htmlFor="empreita-pessoas" className={rotulo}>Pessoas <span className="text-red-500">*</span></label>
+          <input id="empreita-pessoas" type="number" min={1} step={1} inputMode="numeric" value={modalData.empreitaPessoas} disabled={disabled}
+            onChange={(e) => setModalData(prev => ({ ...prev, empreitaPessoas: e.target.value }))} className={campo} data-testid="input-empreita-pessoas" />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="empreita-valor" className={rotulo}>Valor total (R$) <span className="text-red-500">*</span></label>
+          <input id="empreita-valor" type="number" min={0} step={1} inputMode="numeric" value={modalData.empreitaValor} disabled={disabled}
+            placeholder="sem centavos"
+            onChange={(e) => setModalData(prev => ({ ...prev, empreitaValor: e.target.value }))} className={`${campo} tabular-nums`} data-testid="input-empreita-valor" />
+        </div>
+      </div>
+      <p className="text-[11px] text-slate-500">Sem passagem e hospedagem — a empresa se vira. O valor entra no Planejado como custo fechado da vaga; a quantidade de pessoas é só informativa.</p>
+      {erro && <p className="text-[11px] text-amber-700" role="status" data-testid="empreita-erro">{erro}</p>}
+    </div>
+  );
+}
 
 /**
  * Modalidade de EMPREITA do cenotécnico (Freela Viagem / SP / Local A / Local B).
@@ -395,7 +438,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
           {inclusion && getStatusBadge(inclusion, "sm")}
           <div className="flex-1 min-w-0">
             <DialogTitle className="text-[17px] font-semibold text-slate-900 leading-tight m-0 p-0 truncate">
-              {inclusion?.collaboratorId ? getCollaboratorName(inclusion.collaboratorId) : "Vaga sem nome"}
+              {inclusion?.collaboratorId ? getCollaboratorName(inclusion.collaboratorId) : (inclusion as any)?.empreitaEmpresa ? `Empreita · ${(inclusion as any).empreitaEmpresa}` : "Vaga sem nome"}
             </DialogTitle>
             <span className="sr-only">Detalhes da escalação</span>
           </div>
@@ -595,7 +638,11 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                         {(!canEditCollaborator(inclusion) || isEscalationConfirmed(inclusion)) ? (
                           <div className="space-y-2">
                             <div className="border border-slate-200 rounded-xl bg-white px-3 py-2.5">
-                              <div className="text-sm font-medium text-slate-700">{getCollaboratorName(modalData.collaboratorId)}</div>
+                              <div className="text-sm font-medium text-slate-700">
+                                {(inclusion as any).empreitaEmpresa
+                                  ? `Empreita · ${(inclusion as any).empreitaEmpresa} · ${(inclusion as any).empreitaPessoas ?? 0} pessoas · ${(Number((inclusion as any).empreitaValor ?? 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}`
+                                  : getCollaboratorName(modalData.collaboratorId)}
+                              </div>
                               {(() => {
                                 const city = modalData.city || getCollaboratorCity(modalData.collaboratorId);
                                 if (!city) return null;
@@ -625,7 +672,28 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                           </div>
                         ) : (
                           <div className="space-y-2">
-                            {/* Marcação inline: colaborador é obrigatório para confirmar */}
+                            {/* Empreita por empresa (dono, 10/09): só cenotécnica. Em vez de
+                                um nome, a empresa que manda as pessoas. */}
+                            {isCenoEmpreitaInclusion && (
+                              <div role="radiogroup" aria-label="Quem preenche a vaga" className="inline-flex rounded-lg border border-border bg-slate-50 p-0.5" data-testid="toggle-empreita">
+                                {([["colaborador", "Colaborador"], ["empreita", "Empreita (empresa)"]] as const).map(([k, label]) => {
+                                  const on = (k === "empreita") === !!modalData.empreitaModo;
+                                  return (
+                                    <button
+                                      key={k} type="button" role="radio" aria-checked={on} disabled={!!requestLockReason}
+                                      onClick={() => setModalData(prev => ({ ...prev, empreitaModo: k === "empreita" }))}
+                                      data-testid={`toggle-empreita-${k}`}
+                                      className={`rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${on ? "bg-white text-primary shadow-sm" : "text-slate-600 hover:bg-white/60"}`}
+                                    >
+                                      {label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {modalData.empreitaModo ? (
+                              <EmpreitaCampos modalData={modalData} setModalData={setModalData} disabled={!!requestLockReason} />
+                            ) : (
                             <div className={!modalData.collaboratorId && !isEscalated(inclusion) ? "rounded-lg ring-1 ring-amber-300" : ""}>
                               {escolhendoColaborador ? (
                                 <EscolherColaborador
@@ -671,7 +739,8 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                 </div>
                               )}
                             </div>
-                            {!modalData.collaboratorId && !isEscalated(inclusion) && (
+                            )}
+                            {!modalData.empreitaModo && !modalData.collaboratorId && !isEscalated(inclusion) && (
                               <p className="text-[10px] text-amber-600 flex items-center gap-1" data-testid="hint-collaborator-required">
                                 <AlertCircle className="w-3 h-3 shrink-0" />Obrigatório para confirmar a escalação.
                               </p>
@@ -865,7 +934,8 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                   {/* Tipo de freela da cenotécnica (empreita) — definido AQUI, na
                       Escalação, por pedido do usuário (19/08). Aparece também
                       depois de confirmada (só leitura quando sem permissão). */}
-                  {isCenoEmpreitaInclusion && (
+                  {/* Com empreita por empresa o valor é o da empreita — o tipo de freela não se aplica. */}
+                  {isCenoEmpreitaInclusion && !modalData.empreitaModo && !(inclusion as any).empreitaEmpresa && (
                     <CenoFreelaTipoCard
                       inclusion={inclusion}
                       systemSettings={systemSettings}

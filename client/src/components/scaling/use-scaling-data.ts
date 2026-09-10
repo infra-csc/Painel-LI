@@ -424,7 +424,8 @@ export function useScalingData(opts: {
       }
 
       if (!q) return true;
-      const collaboratorName = inclusion.collaboratorId ? getCollaboratorName(inclusion.collaboratorId).toLowerCase() : "";
+      // Empreita por empresa (10/09): a busca acha pelo nome da empresa.
+      const collaboratorName = inclusion.collaboratorId ? getCollaboratorName(inclusion.collaboratorId).toLowerCase() : ((inclusion as any).empreitaEmpresa ?? "").toLowerCase();
       const city = (inclusion.city || getCollaboratorCity(inclusion.collaboratorId) || "").toLowerCase();
       return (
         String(inclusion.inclusionNumber ?? "").toLowerCase().includes(q) ||
@@ -478,10 +479,10 @@ export function useScalingData(opts: {
         // antes da direção, senão inverter a ordem traria as vazias para cima.
         case "collaborator":
           return filtered
-            .map((item, idx) => ({ item, idx, k: item.collaboratorId ? getCollaboratorName(item.collaboratorId) : "" }))
+            .map((item, idx) => ({ item, idx, k: item.collaboratorId ? getCollaboratorName(item.collaboratorId) : ((item as any).empreitaEmpresa ?? "") }))
             .sort((a, b) => {
-              const semA = a.item.collaboratorId ? 0 : 1;
-              const semB = b.item.collaboratorId ? 0 : 1;
+              const semA = a.k ? 0 : 1;
+              const semB = b.k ? 0 : 1;
               if (semA !== semB) return semA - semB;
               const r = COLLATOR.compare(a.k, b.k) * multiplier;
               return r !== 0 ? r : a.idx - b.idx;

@@ -138,3 +138,45 @@ export function usaEmpreitaCenotecnica(
 ): boolean {
   return cenotecnica && tipoColaborador !== "casa";
 }
+
+// ── Empreita por EMPRESA (dono, 10/09) ───────────────────────────────────────
+//
+// A vaga de cenotécnica pode ser preenchida por uma empresa que fornece as
+// pessoas, em vez de um colaborador: nome da empresa, quantidade de pessoas
+// (só informativa) e valor total (sem centavos). Decisões do dono:
+//   1. vai para o gestor como toda cenotécnica;
+//   2. sem passagem e sem hospedagem — a empresa se vira;
+//   3. no Planejado/Realizado o valor é o custo fechado da vaga (sem diária,
+//      alimentação ou mobilidade por pessoa);
+//   4. a quantidade de pessoas não multiplica nada.
+
+export interface VagaComEmpreita {
+  empreitaEmpresa?: string | null;
+  empreitaPessoas?: number | null;
+  empreitaValor?: number | null;
+}
+
+/** A vaga está preenchida por empreita (empresa)? */
+export function vagaComEmpreita(i: VagaComEmpreita | null | undefined): boolean {
+  return !!i?.empreitaEmpresa && i.empreitaEmpresa.trim().length > 0;
+}
+
+export const EMPREITA_MAX_PESSOAS = 500;
+
+/** Mensagem de erro (pt-BR) ou null quando os três campos estão válidos. */
+export function validarEmpreita(e: { empresa: string; pessoas: number; valorCents: number }): string | null {
+  const empresa = (e.empresa ?? "").trim();
+  if (empresa.length < 2) return "Informe o nome da empresa da empreita.";
+  if (empresa.length > 120) return "Nome da empresa muito longo (até 120 caracteres).";
+  if (!Number.isInteger(e.pessoas) || e.pessoas < 1) return "Informe quantas pessoas a empresa vai mandar (mínimo 1).";
+  if (e.pessoas > EMPREITA_MAX_PESSOAS) return `Quantidade de pessoas acima do limite (${EMPREITA_MAX_PESSOAS}).`;
+  if (!Number.isInteger(e.valorCents) || e.valorCents < 0) return "Informe o valor da empreita (em reais, sem centavos).";
+  if (e.valorCents % 100 !== 0) return "O valor da empreita é sem centavos.";
+  return null;
+}
+
+/** Rótulo curto para listas: "Empreita · Cenotech (4 pessoas)". */
+export function rotuloEmpreita(i: VagaComEmpreita): string {
+  const n = i.empreitaPessoas ?? 0;
+  return `Empreita · ${(i.empreitaEmpresa ?? "").trim()}${n > 0 ? ` (${n} ${n === 1 ? "pessoa" : "pessoas"})` : ""}`;
+}

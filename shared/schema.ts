@@ -146,6 +146,13 @@ export const teamInclusions = pgTable("team_inclusions", {
   // escalação ao atribuir o colaborador. null nas demais funções.
   // Ver shared/cenotecnica-empreita.ts (CENO_FREELA_TIPOS).
   cenoFreelaTipo: text("ceno_freela_tipo"), // 'viagem' | 'sp' | 'local_a' | 'local_b'
+  // Empreita por EMPRESA (dono, 10/09): em vez de um colaborador, uma empresa
+  // fornece as pessoas da vaga. Só cenotécnica. Preenchida, a vaga conta como
+  // escalada SEM colaborador, sem passagem/hospedagem, e o valor é o custo
+  // fechado no Planejado. Ver shared/cenotecnica-empreita.ts (validarEmpreita).
+  empreitaEmpresa: text("empreita_empresa"),
+  empreitaPessoas: integer("empreita_pessoas"),
+  empreitaValor: integer("empreita_valor"), // centavos (a entrada é sem centavos)
   rowOrder: integer("row_order"), // posição da linha na planilha para templates
   scheduleStartDate: date("schedule_start_date"),
   scheduleEndDate: date("schedule_end_date"),

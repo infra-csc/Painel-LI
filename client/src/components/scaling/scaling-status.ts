@@ -33,13 +33,14 @@ const ESCALATED_STATUSES = new Set([
 ]);
 
 export function getScalingStatusKey(
-  inclusion: Pick<TeamInclusion, "status" | "collaboratorId">,
+  inclusion: Pick<TeamInclusion, "status" | "collaboratorId"> & { empreitaEmpresa?: string | null },
 ): ScalingStatusKey {
   const status = inclusion.status ?? "";
   if (status === "cancelado") return "cancelado";
   if (status === "aguardando_producao") return "aguardando_producao";
   // Sem colaborador nunca é "escalado", independentemente do status gravado
-  if (!inclusion.collaboratorId) return "pendente";
+  // (empreita por empresa, 10/09, também preenche a vaga).
+  if (!inclusion.collaboratorId && !inclusion.empreitaEmpresa) return "pendente";
   if (status === "aprovado" || status === "concluido") return "aprovado";
   if (status === "aprovacao") return "em_aprovacao";
   if (ESCALATED_STATUSES.has(status)) return "escalado";
@@ -67,7 +68,7 @@ export const STATUS_META: Record<ScalingStatusKey, StatusMeta> = {
 };
 
 export function getScalingStatusLabel(
-  inclusion: Pick<TeamInclusion, "status" | "collaboratorId">,
+  inclusion: Pick<TeamInclusion, "status" | "collaboratorId"> & { empreitaEmpresa?: string | null },
 ): string {
   return STATUS_META[getScalingStatusKey(inclusion)].label;
 }

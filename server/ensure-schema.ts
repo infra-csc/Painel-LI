@@ -63,6 +63,21 @@ const PASSOS: Passo[] = [
     descricao: "hotel_room_group_members.check_out_date (estadia por pessoa)",
     sql: `ALTER TABLE hotel_room_group_members ADD COLUMN IF NOT EXISTS check_out_date date`,
   },
+  // 10/09 — empreita por EMPRESA na vaga de cenotécnica (nome, pessoas, valor
+  // em centavos). O `select` explícito do storage lista estas colunas: sem
+  // elas, toda a listagem de inclusões cai. Nulas e aditivas — seguras em prod.
+  {
+    descricao: "team_inclusions.empreita_empresa (empresa que fornece a equipe)",
+    sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS empreita_empresa text`,
+  },
+  {
+    descricao: "team_inclusions.empreita_pessoas (quantidade — só informativa)",
+    sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS empreita_pessoas integer`,
+  },
+  {
+    descricao: "team_inclusions.empreita_valor (valor fechado, em centavos)",
+    sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS empreita_valor integer`,
+  },
 ];
 
 /**

@@ -17,6 +17,7 @@
  * Análises em scaling-analytics-data.
  */
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { vagaComEmpreita } from "@shared/cenotecnica-empreita";
 import { markSwapSeen, getSeenState } from "@/lib/seenSwaps";
 import { AlertTriangle, CalendarDays, CloudOff, Download, FilterX, List, Lock, TrendingUp, Users } from "lucide-react";
 import { ScheduleBoard } from "@/components/scaling-validation/schedule-board";
@@ -58,7 +59,7 @@ import {
 } from "@/components/scaling/scaling-queue";
 import type { AnalyticsContext } from "@/components/scaling/scaling-analytics-data";
 
-const EMPTY_MODAL: ModalData = { collaboratorId: "", observations: "", dailyValue: 0, city: "", departureFromSP: true, atendimentoTipo: "", percurseiroTipo: "" };
+const EMPTY_MODAL: ModalData = { collaboratorId: "", observations: "", dailyValue: 0, city: "", departureFromSP: true, atendimentoTipo: "", percurseiroTipo: "", empreitaModo: false, empreitaEmpresa: "", empreitaPessoas: "", empreitaValor: "" };
 
 /** Um estado vazio da página, sempre com a causa e o que fazer a seguir. */
 function EstadoVazio({ icone, titulo, texto, acao }: {
@@ -189,7 +190,7 @@ export default function Scaling() {
   );
 
   const queueContext = useMemo<QueueContext>(() => ({
-    temNome: (i) => !!i.collaboratorId,
+    temNome: (i) => !!i.collaboratorId || vagaComEmpreita(i as any),
     temTroca: (i) => pendingSwapByInclusion.has(i.id),
     temPedido: (i) => !!data.pendingChangeByInclusion?.get(i.id),
     bloqueioParaConfirmar: getSelectBlockReason,
@@ -412,6 +413,20 @@ export default function Scaling() {
       needsTicket: inclusion.needsTicket,
       needsAccommodation: inclusion.needsAccommodation,
     };
+    // Empreita por empresa (10/09): sem colaborador, sem passagem/hospedagem;
+    // valor entra em centavos. Desligar o modo limpa os três campos.
+    if (modalData.empreitaModo) {
+      payload.collaboratorId = "";
+      payload.empreitaEmpresa = modalData.empreitaEmpresa.trim();
+      payload.empreitaPessoas = Number(modalData.empreitaPessoas);
+      payload.empreitaValor = Math.round(Number(modalData.empreitaValor) * 100);
+      payload.needsTicket = false;
+      payload.needsAccommodation = false;
+    } else if ((inclusion as any).empreitaEmpresa) {
+      payload.empreitaEmpresa = null;
+      payload.empreitaPessoas = null;
+      payload.empreitaValor = null;
+    }
     if (modalData.dailyValue && modalData.dailyValue > 0) payload.dailyValue = Math.round(modalData.dailyValue * 100);
     return payload;
   };
@@ -553,7 +568,7 @@ export default function Scaling() {
   // números diferentes na mesma tela para o mesmo recorte.
   const resumoTopo = (() => {
     if (comPeriodo.length === 0) return "nenhuma vaga no recorte";
-    const semNome = comPeriodo.filter(i => !i.collaboratorId && i.status !== "cancelado").length;
+    const semNome = comPeriodo.filter(i => !i.collaboratorId && !vagaComEmpreita(i as any) && i.status !== "cancelado").length;
     const nEventos = new Set(comPeriodo.map(i => i.eventId)).size;
     return [
       `${comPeriodo.length} ${comPeriodo.length === 1 ? "vaga" : "vagas"} em ${nEventos} ${nEventos === 1 ? "evento" : "eventos"}`,
@@ -628,7 +643,7 @@ export default function Scaling() {
    */
   const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
   const podeConfirmarRapido = (i: TeamInclusion) =>
-    !!i.collaboratorId && !isEscalated(i) && i.status !== "cancelado" && !queueContext.bloqueioParaConfirmar(i);
+    (!!i.collaboratorId || vagaComEmpreita(i as any)) && !isEscalated(i) && i.status !== "cancelado" && !queueContext.bloqueioParaConfirmar(i);
   const confirmarRapido = async (e: React.MouseEvent, inclusion: TeamInclusion) => {
     e.stopPropagation();
     if (confirmandoId) return;

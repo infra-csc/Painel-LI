@@ -238,7 +238,7 @@ export function gargalos(linhas: TeamInclusion[], ctx: AnalyticsContext, hoje: D
     const comum = {
       inclusion: i,
       id: `#${i.inclusionNumber ?? ""}`,
-      nome: ctx.temNome(i) ? ctx.getCollaboratorName(i.collaboratorId) : "Vaga sem nome",
+      nome: (i as any).empreitaEmpresa ? `Empreita · ${(i as any).empreitaEmpresa}` : ctx.temNome(i) ? ctx.getCollaboratorName(i.collaboratorId) : "Vaga sem nome",
       funcao: ctx.getFunctionName(i.functionId),
     };
     if (i.status === "aguardando_producao") {

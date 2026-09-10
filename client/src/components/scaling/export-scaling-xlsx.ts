@@ -111,7 +111,7 @@ export function buildScalingExportRows(input: ExportScalingInput): Record<string
       "Fim do Evento": event?.endDate ? formatDate(event.endDate) : "N/A",
       "Função": func?.name || "N/A",
       "Área": inclusion.area || "N/A",
-      "Colaborador": fixEncoding(collaborator?.fullName) || "Não escalado",
+      "Colaborador": fixEncoding(collaborator?.fullName) || ((inclusion as any).empreitaEmpresa ? `Empreita · ${(inclusion as any).empreitaEmpresa}` : "Não escalado"),
       "Tipo": collaborator?.type ? (collaborator.type === "local" ? "CASA" : collaborator.type.toUpperCase()) : "N/A",
       "CPF Colaborador": cpfColaborador,
       "Data Nascimento": collaborator?.birthDate ? formatDate(collaborator.birthDate) : "N/A",
