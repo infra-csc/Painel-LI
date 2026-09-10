@@ -16,24 +16,24 @@ const total = (tipo: any, dias: number, settings?: Record<string, number | strin
 
 describe("tabela do slide (19/08) — valor FECHADO por nº de dias", () => {
   it("Freela Viagem: 2 dias = R$ 890,13 e 6 dias = R$ 2.360,13", () => {
-    expect(total("viagem", 2)?.totalCents).toBe(89013);
-    expect(total("viagem", 6)?.totalCents).toBe(236013);
+    expect(total("viagem", 2)?.totalCents).toBe(89000); // 890,13 → 890 (sem centavos, dono 10/09)
+    expect(total("viagem", 6)?.totalCents).toBe(236000);
   });
   it("Freela SP: 2 dias = R$ 700,35 e 6 dias = R$ 2.101,05", () => {
-    expect(total("sp", 2)?.totalCents).toBe(70035);
-    expect(total("sp", 6)?.totalCents).toBe(210105);
+    expect(total("sp", 2)?.totalCents).toBe(70000);
+    expect(total("sp", 6)?.totalCents).toBe(210100);
   });
   it("Freela Local (A): 2 dias = R$ 677,25", () => {
-    expect(total("local_a", 2)?.totalCents).toBe(67725);
+    expect(total("local_a", 2)?.totalCents).toBe(67700);
   });
   it("Freela Local (B): 6 dias = R$ 1.537,50", () => {
-    expect(total("local_b", 6)?.totalCents).toBe(153750);
+    expect(total("local_b", 6)?.totalCents).toBe(153800); // 1.537,50 → 1.538
   });
   it("dias de 2 a 6 nunca são marcados como extrapolados e batem com a tabela", () => {
     for (const tipo of CENO_FREELA_TIPOS) {
       for (const d of [2, 3, 4, 5, 6] as const) {
         const r = total(tipo, d);
-        expect(r?.totalCents).toBe(CENO_EMPREITA_DEFAULTS[tipo][d]);
+        expect(r?.totalCents).toBe(Math.round(CENO_EMPREITA_DEFAULTS[tipo][d] / 100) * 100);
         expect(r?.extrapolado).toBe(false);
       }
     }
@@ -47,18 +47,18 @@ describe("extrapolação fora da faixa 2..6 dias", () => {
   it("Viagem 7 dias = 6 dias + incremento (367,50)", () => {
     const r = total("viagem", 7)!;
     expect(r.incrementoCents).toBe(36750);
-    expect(r.totalCents).toBe(236013 + 36750);
+    expect(r.totalCents).toBe(272800); // 2.727,63 → 2.728
     expect(r.extrapolado).toBe(true);
   });
   it("SP 7 dias = 6 dias + incremento arredondado (350,18)", () => {
     const r = total("sp", 7)!;
     expect(r.incrementoCents).toBe(35018); // (210105 − 70035) / 4 = 35017,5 → 35018
-    expect(r.totalCents).toBe(210105 + 35018);
+    expect(r.totalCents).toBe(245100); // 2.451,23 → 2.451
     expect(r.extrapolado).toBe(true);
   });
   it("1 dia = base de 2 dias − incremento", () => {
     const r = total("viagem", 1)!;
-    expect(r.totalCents).toBe(89013 - 36750);
+    expect(r.totalCents).toBe(52300); // 522,63 → 523
     expect(r.extrapolado).toBe(true);
     expect(total("local_b", 1)!.totalCents).toBe(53750 - 25000);
   });
@@ -70,7 +70,7 @@ describe("extrapolação fora da faixa 2..6 dias", () => {
     expect(r.extrapolado).toBe(true);
   });
   it("dias fracionados são arredondados para o dia mais próximo", () => {
-    expect(total("local_a", 3.4)!.totalCents).toBe(99225);
+    expect(total("local_a", 3.4)!.totalCents).toBe(99200);
     expect(total("local_a", 3.4)!.extrapolado).toBe(false);
   });
 });
@@ -94,16 +94,16 @@ describe("entradas inválidas → null (nada a pagar)", () => {
 
 describe("Valores Padrão vencem a tabela default", () => {
   it("chave editada substitui a célula (número ou string)", () => {
-    expect(total("sp", 3, { ceno_empreita_sp_3d: 99999 })!.totalCents).toBe(99999);
+    expect(total("sp", 3, { ceno_empreita_sp_3d: 100000 })!.totalCents).toBe(99999);
     expect(total("sp", 3, { ceno_empreita_sp_3d: "88888" })!.totalCents).toBe(88888);
   });
   it("valor inválido ou negativo cai no default", () => {
-    expect(total("sp", 3, { ceno_empreita_sp_3d: "abc" })!.totalCents).toBe(105053);
+    expect(total("sp", 3, { ceno_empreita_sp_3d: "abc" })!.totalCents).toBe(105100);
     expect(total("sp", 3, { ceno_empreita_sp_3d: -100 })!.totalCents).toBe(105053);
     expect(total("sp", 3, {})!.totalCents).toBe(105053);
   });
   it("chave de outra modalidade não contamina", () => {
-    expect(total("viagem", 3, { ceno_empreita_sp_3d: 1 })!.totalCents).toBe(125763);
+    expect(total("viagem", 3, { ceno_empreita_sp_3d: 1 })!.totalCents).toBe(125800);
   });
   it("cenoEmpreitaRow aplica as chaves editadas na linha inteira", () => {
     const row = cenoEmpreitaRow("local_b", { ceno_empreita_local_b_2d: 60000 });

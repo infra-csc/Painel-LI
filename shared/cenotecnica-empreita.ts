@@ -85,6 +85,16 @@ export function cenoEmpreitaRow(
   return out;
 }
 
+/**
+ * Freela cenotécnica não tem centavos (dono, 10/09): a tabela do slide traz
+ * R$ 890,13 / R$ 1.037,50, mas o que se paga é o valor cheio — arredondado
+ * ao real mais próximo (1.037,50 → 1.038). Vale para a tabela e para a
+ * extrapolação; os Valores Padrão continuam guardados como vieram.
+ */
+export function arredondarReais(cents: number): number {
+  return Math.round(cents / 100) * 100;
+}
+
 export interface CenoEmpreitaValor {
   tipo: CenoFreelaTipo;
   dias: number;
@@ -111,10 +121,10 @@ export function cenoEmpreitaTotalCents(
   const incremento = Math.round((row[6] - row[2]) / 4);
   const d = Math.round(dias);
   if (d >= 2 && d <= 6) {
-    return { tipo, dias: d, totalCents: row[d as CenoEmpreitaTableDay], extrapolado: false, incrementoCents: incremento };
+    return { tipo, dias: d, totalCents: arredondarReais(row[d as CenoEmpreitaTableDay]), extrapolado: false, incrementoCents: incremento };
   }
   const base = d < 2 ? row[2] + incremento * (d - 2) : row[6] + incremento * (d - 6);
-  return { tipo, dias: d, totalCents: Math.max(0, Math.round(base)), extrapolado: true, incrementoCents: incremento };
+  return { tipo, dias: d, totalCents: arredondarReais(Math.max(0, Math.round(base))), extrapolado: true, incrementoCents: incremento };
 }
 
 /**

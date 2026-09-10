@@ -314,7 +314,7 @@ describe("diasEmpreita (contagem ÚNICA da empreita cenotécnica)", () => {
     };
     // Antes: a Escalação anunciava 3 dias (R$ 1.050,53) e o Planejado pagava
     // 5 dias (R$ 1.750,88) para a MESMA vaga de Freela SP.
-    expect(cenoEmpreitaTotalCents("sp", diasEmpreita(incl))?.totalCents).toBe(105053);
+    expect(cenoEmpreitaTotalCents("sp", diasEmpreita(incl))?.totalCents).toBe(105100);
     expect(cenoEmpreitaTotalCents("sp", diasComDiaria("freela", 3, 2))?.totalCents).toBe(175088);
   });
 });
