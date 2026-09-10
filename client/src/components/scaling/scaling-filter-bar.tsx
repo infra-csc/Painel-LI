@@ -11,7 +11,7 @@
  * é sempre a lista SEM o filtro em questão.
  */
 import { forwardRef, useMemo, useState, Fragment } from "react";
-import { Check, ChevronDown, CalendarDays, Search, SlidersHorizontal } from "lucide-react";
+import { Briefcase, Check, ChevronDown, CalendarDays, Search, SlidersHorizontal, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { TeamInclusion } from "@shared/schema";
 import ScalingPeriodFilter from "./scaling-period-filter";
@@ -30,6 +30,12 @@ interface Props {
   onEventos: (v: Record<string, boolean>) => void;
   /** Todos os eventos com vaga, já com a contagem de linhas de cada um. */
   opcoesDeEvento: { id: string; nome: string; n: number }[];
+
+  /** Funções marcadas, por id (10/09). Vazio = todas. */
+  funcoes: Record<string, boolean>;
+  onFuncoes: (v: Record<string, boolean>) => void;
+  /** Funções com vaga no recorte, já com a contagem de cada uma. */
+  opcoesDeFuncao: { id: string; nome: string; n: number }[];
 
   periodo: PeriodConfig;
   onPeriodo: (v: PeriodConfig) => void;
@@ -98,8 +104,126 @@ function Caixa({ on }: { on: boolean }) {
   );
 }
 
+/**
+ * Popover de marcação múltipla com busca — o mesmo para Evento e Função.
+ * O rótulo do botão diz o que está marcado; a lista de chips abaixo da barra
+ * (`ChipsDaSelecao`) é onde cada marcação fica visível e pode ser tirada uma
+ * a uma: com dois eventos marcados o botão só dizia "2 eventos", e o usuário
+ * não achava como desmarcar um (10/09).
+ */
+function PopoverDeMarcacao({ icone, rotulo, vazio, placeholder, testid, marcados, onMarcados, opcoes }: {
+  icone: React.ReactNode;
+  rotulo: string;
+  vazio: string;
+  placeholder: string;
+  testid: string;
+  marcados: Record<string, boolean>;
+  onMarcados: (v: Record<string, boolean>) => void;
+  opcoes: { id: string; nome: string; n: number }[];
+}) {
+  const [busca, setBusca] = useState("");
+  const ids = Object.keys(marcados).filter((k) => marcados[k]);
+  const texto = ids.length === 0 ? vazio
+    : ids.length === 1 ? (opcoes.find((o) => o.id === ids[0])?.nome ?? `1 ${rotulo}`)
+    : `${ids.length} ${rotulo}s`;
+  const lista = useMemo(() => {
+    const q = normalizarBusca(busca);
+    const ordenada = [...opcoes].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    return q ? ordenada.filter((o) => normalizarBusca(o.nome).includes(q)) : ordenada;
+  }, [opcoes, busca]);
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <BotaoFiltro ativo={ids.length > 0} icone={icone} texto={texto} testid={`button-filtro-${testid}`} />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[420px] p-0 rounded-xl overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-100 bg-background">
+          <Search className="w-4 h-4 text-slate-400 shrink-0" aria-hidden="true" />
+          <input
+            type="text"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder={placeholder}
+            aria-label={placeholder.replace("…", "")}
+            data-testid={`input-busca-${testid}`}
+            className="flex-1 min-w-0 h-[26px] bg-transparent text-[13px] text-slate-900 outline-none"
+          />
+          {ids.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onMarcados({})}
+              className="h-6 px-2 rounded-md text-[12px] font-medium text-primary hover:bg-brand-soft shrink-0"
+              data-testid={`button-limpar-${testid}s`}
+            >
+              Limpar
+            </button>
+          )}
+        </div>
+        <div className="max-h-[240px] overflow-y-auto p-1.5">
+          {lista.map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              role="checkbox"
+              aria-checked={!!marcados[o.id]}
+              onClick={() => onMarcados({ ...marcados, [o.id]: !marcados[o.id] })}
+              className="flex items-center gap-2.5 w-full min-h-[32px] px-2 py-1.5 rounded-[7px] text-[13px] text-slate-700 text-left hover:bg-slate-100"
+              data-testid={`opcao-${testid}-${o.id}`}
+            >
+              <Caixa on={!!marcados[o.id]} />
+              <span className="flex-1 min-w-0 truncate">{o.nome}</span>
+              <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">{o.n}</span>
+            </button>
+          ))}
+          {lista.length === 0 && (
+            <p className="px-2 py-3.5 text-center text-[12px] text-muted-foreground">{`Nenhum ${rotulo} com esse nome.`}</p>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** Um chip por marcação, com o "×" que a tira — o que faltava para ver e desfazer a seleção (10/09). */
+function ChipsDaSelecao({ grupo, marcados, onMarcados, opcoes, nomeFallback }: {
+  grupo: string;
+  marcados: Record<string, boolean>;
+  onMarcados: (v: Record<string, boolean>) => void;
+  opcoes: { id: string; nome: string }[];
+  nomeFallback: string;
+}) {
+  const ids = Object.keys(marcados).filter((k) => marcados[k]);
+  if (ids.length === 0) return null;
+  return (
+    <>
+      {ids.map((id) => {
+        const nome = opcoes.find((o) => o.id === id)?.nome ?? nomeFallback;
+        return (
+          <span
+            key={`${grupo}-${id}`}
+            className="inline-flex max-w-[360px] items-center gap-1 rounded-md border border-[rgba(0,51,204,0.25)] bg-brand-soft py-0.5 pl-2 pr-1 text-[12px] font-medium text-primary"
+            data-testid={`chip-${grupo}-${id}`}
+          >
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-primary/70">{grupo}</span>
+            <span className="truncate">{nome}</span>
+            <button
+              type="button"
+              onClick={() => { const next = { ...marcados }; delete next[id]; onMarcados(next); }}
+              aria-label={`Tirar ${grupo} ${nome} do filtro`}
+              title="Tirar do filtro"
+              className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-primary/15"
+              data-testid={`chip-remover-${grupo}-${id}`}
+            >
+              <X className="h-3 w-3" aria-hidden="true" />
+            </button>
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
 export default function ScalingFilterBar(p: Props) {
-  const [buscaEvento, setBuscaEvento] = useState("");
   /**
    * Os contadores só existem enquanto o popover está aberto — e são
    * calculados de uma vez, não uma varredura por opção. Com a lista inteira
@@ -112,23 +236,13 @@ export default function ScalingFilterBar(p: Props) {
     [filtrosAberto, p.linhasSemFlags, p.flags, p.queueContext],
   );
 
-  const eventosMarcados = Object.keys(p.eventos).filter((k) => p.eventos[k]);
-  const rotuloEvento = eventosMarcados.length === 0
-    ? "Todos os eventos"
-    : eventosMarcados.length === 1
-      ? (p.opcoesDeEvento.find((e) => e.id === eventosMarcados[0])?.nome ?? "1 evento")
-      : `${eventosMarcados.length} eventos`;
-
-  const listaDeEventos = useMemo(() => {
-    const q = normalizarBusca(buscaEvento);
-    const ordenada = [...p.opcoesDeEvento].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-    return q ? ordenada.filter((e) => normalizarBusca(e.nome).includes(q)) : ordenada;
-  }, [p.opcoesDeEvento, buscaEvento]);
+  const temMarcacao = Object.values(p.eventos).some(Boolean) || Object.values(p.funcoes).some(Boolean);
 
   const nFlags = contarFlagsAtivas(p.flags);
   const alternaFlag = (key: FlagKey) => p.onFlags({ ...p.flags, [key]: !p.flags[key] });
 
   return (
+    <div className="space-y-2">
     <div className="flex items-center gap-2 flex-wrap">
       <div className="relative flex-[1_1_260px] max-w-[320px]">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" aria-hidden="true" />
@@ -143,60 +257,18 @@ export default function ScalingFilterBar(p: Props) {
         />
       </div>
 
-      <Popover>
-        <PopoverTrigger asChild>
-          <BotaoFiltro
-            ativo={eventosMarcados.length > 0}
-            icone={<CalendarDays className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />}
-            texto={rotuloEvento}
-            testid="button-filtro-evento"
-          />
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-[420px] p-0 rounded-xl overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-100 bg-background">
-            <Search className="w-4 h-4 text-slate-400 shrink-0" aria-hidden="true" />
-            <input
-              type="text"
-              value={buscaEvento}
-              onChange={(e) => setBuscaEvento(e.target.value)}
-              placeholder="Buscar evento…"
-              aria-label="Buscar evento"
-              data-testid="input-busca-evento"
-              className="flex-1 min-w-0 h-[26px] bg-transparent text-[13px] text-slate-900 outline-none"
-            />
-            {eventosMarcados.length > 0 && (
-              <button
-                type="button"
-                onClick={() => p.onEventos({})}
-                className="h-6 px-2 rounded-md text-[12px] font-medium text-primary hover:bg-brand-soft shrink-0"
-                data-testid="button-limpar-eventos"
-              >
-                Limpar
-              </button>
-            )}
-          </div>
-          <div className="max-h-[240px] overflow-y-auto p-1.5">
-            {listaDeEventos.map((e) => (
-              <button
-                key={e.id}
-                type="button"
-                role="checkbox"
-                aria-checked={!!p.eventos[e.id]}
-                onClick={() => p.onEventos({ ...p.eventos, [e.id]: !p.eventos[e.id] })}
-                className="flex items-center gap-2.5 w-full min-h-[32px] px-2 py-1.5 rounded-[7px] text-[13px] text-slate-700 text-left hover:bg-slate-100"
-                data-testid={`opcao-evento-${e.id}`}
-              >
-                <Caixa on={!!p.eventos[e.id]} />
-                <span className="flex-1 min-w-0 truncate">{e.nome}</span>
-                <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">{e.n}</span>
-              </button>
-            ))}
-            {listaDeEventos.length === 0 && (
-              <p className="px-2 py-3.5 text-center text-[12px] text-muted-foreground">Nenhum evento com esse nome.</p>
-            )}
-          </div>
-        </PopoverContent>
-      </Popover>
+      <PopoverDeMarcacao
+        icone={<CalendarDays className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />}
+        rotulo="evento" vazio="Todos os eventos" placeholder="Buscar evento…" testid="evento"
+        marcados={p.eventos} onMarcados={p.onEventos} opcoes={p.opcoesDeEvento}
+      />
+
+      {/* Função (dono, 10/09): o mesmo popover do evento. */}
+      <PopoverDeMarcacao
+        icone={<Briefcase className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />}
+        rotulo="função" vazio="Todas as funções" placeholder="Buscar função…" testid="funcao"
+        marcados={p.funcoes} onMarcados={p.onFuncoes} opcoes={p.opcoesDeFuncao}
+      />
 
       <ScalingPeriodFilter valor={p.periodo} onChange={p.onPeriodo} linhas={p.linhasSemPeriodo} hoje={p.hoje} presets={PRESETS_SEM_REALIZADOS} />
 
@@ -314,6 +386,24 @@ export default function ScalingFilterBar(p: Props) {
       <span className="ml-auto text-[12px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0" data-testid="contagem-vagas">
         {p.contagem}
       </span>
+    </div>
+
+    {/* Marcações visíveis, uma a uma, com o "×" — sem isto o botão dizia
+        "2 eventos" e não havia como tirar só um (10/09). */}
+    {temMarcacao && (
+      <div className="flex flex-wrap items-center gap-1.5" data-testid="chips-selecao">
+        <ChipsDaSelecao grupo="evento" marcados={p.eventos} onMarcados={p.onEventos} opcoes={p.opcoesDeEvento} nomeFallback="Evento" />
+        <ChipsDaSelecao grupo="função" marcados={p.funcoes} onMarcados={p.onFuncoes} opcoes={p.opcoesDeFuncao} nomeFallback="Função" />
+        <button
+          type="button"
+          onClick={() => { p.onEventos({}); p.onFuncoes({}); }}
+          className="h-6 px-2 rounded-md text-[12px] font-medium text-slate-600 hover:bg-slate-100"
+          data-testid="button-limpar-marcacoes"
+        >
+          Limpar marcações
+        </button>
+      </div>
+    )}
     </div>
   );
 }

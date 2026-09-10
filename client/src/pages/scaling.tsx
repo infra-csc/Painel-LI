@@ -92,6 +92,8 @@ export default function Scaling() {
   const [fila, setFila] = useState<QueueKey | null>(null);
   const [busca, setBusca] = useState("");
   const [eventos, setEventos] = useState<Record<string, boolean>>({});
+  /** Funções marcadas, por id (dono, 10/09). Vazio = todas. */
+  const [funcoes, setFuncoes] = useState<Record<string, boolean>>({});
   const [periodo, setPeriodo] = useState<PeriodConfig>(DEFAULT_PERIOD);
   const [flags, setFlags] = useState<Record<string, boolean>>({});
   const [verExcluidos, setVerExcluidos] = useState(false);
@@ -214,16 +216,34 @@ export default function Scaling() {
   // uma opção responde "quantas sobram se eu marcar ISTO mantendo o resto".
   const testePeriodo = useMemo(() => fazTesteDePeriodo(periodo, hoje), [periodo, hoje]);
   const testeRecorte = useMemo(() => fazTesteDeRecorte(recorteEventos, hoje), [recorteEventos, hoje]);
+  // Função entra na mesma camada do evento/período: é recorte "do que existe",
+  // não filtro de trabalho — a fila e os contadores contam sobre ela.
+  const funcoesMarcadas = useMemo(() => Object.keys(funcoes).filter((k) => funcoes[k]), [funcoes]);
+  const testeFuncao = useMemo(() => {
+    if (funcoesMarcadas.length === 0) return () => true;
+    const set = new Set(funcoesMarcadas);
+    return (i: TeamInclusion) => set.has(i.functionId);
+  }, [funcoesMarcadas]);
   const comPeriodo = useMemo(
-    () => scalingInclusions.filter((i) => testePeriodo(i) && testeRecorte(i)),
-    [scalingInclusions, testePeriodo, testeRecorte],
+    () => scalingInclusions.filter((i) => testePeriodo(i) && testeRecorte(i) && testeFuncao(i)),
+    [scalingInclusions, testePeriodo, testeRecorte, testeFuncao],
   );
+  // Opções de função: base com tudo aplicado menos a própria função.
+  const opcoesDeFuncao = useMemo(() => {
+    const conta = new Map<string, number>();
+    for (const i of scalingInclusions) {
+      if (!testePeriodo(i) || !testeRecorte(i)) continue;
+      conta.set(i.functionId, (conta.get(i.functionId) ?? 0) + 1);
+    }
+    return Array.from(conta.entries()).map(([id, n]) => ({ id, nome: getFunctionName(id), n }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scalingInclusions, testePeriodo, testeRecorte, data.functionById]);
   // Contador de cada posição do recorte: tudo aplicado menos ele.
   const contagemPorRecorte = useMemo<Record<RecorteDeEventos, number>>(() => {
-    const base = scalingInclusions.filter(testePeriodo);
+    const base = scalingInclusions.filter((i) => testePeriodo(i) && testeFuncao(i));
     const t = { futuros: fazTesteDeRecorte("futuros", hoje), realizados: fazTesteDeRecorte("realizados", hoje) };
     return { futuros: base.filter(t.futuros).length, realizados: base.filter(t.realizados).length, todos: base.length };
-  }, [scalingInclusions, testePeriodo, hoje]);
+  }, [scalingInclusions, testePeriodo, testeFuncao, hoje]);
 
   const comBusca = useMemo(() => {
     const q = normalizarBusca(busca.replace(/#/g, ""));
@@ -273,7 +293,7 @@ export default function Scaling() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.filteredTeamInclusions, verExcluidos, data.eventById]);
 
-  const temRecorte = eventosMarcados.length > 0 || temRecorteDePeriodo(periodo) || contarFlagsAtivas(flags) > 0 || busca.trim() !== "" || !!fila || recorteEventos !== "futuros";
+  const temRecorte = eventosMarcados.length > 0 || funcoesMarcadas.length > 0 || temRecorteDePeriodo(periodo) || contarFlagsAtivas(flags) > 0 || busca.trim() !== "" || !!fila || recorteEventos !== "futuros";
 
   // Seleção: descarta IDs que saíram da lista ou deixaram de ser elegíveis
   useEffect(() => {
@@ -292,7 +312,7 @@ export default function Scaling() {
   };
 
   const limpaFiltros = () => {
-    setBusca(""); setEventos({}); setPeriodo(DEFAULT_PERIOD); setFlags({}); setFila(null); setRecorteEventos("futuros");
+    setBusca(""); setEventos({}); setFuncoes({}); setPeriodo(DEFAULT_PERIOD); setFlags({}); setFila(null); setRecorteEventos("futuros");
   };
 
   // ── Modal: abrir / navegar ──────────────────────────────────────────────
@@ -614,6 +634,7 @@ export default function Scaling() {
   const nomesDosFiltrosAtivos = [
     busca.trim() ? `“${busca.trim()}”` : null,
     eventosMarcados.length ? `${eventosMarcados.length} ${eventosMarcados.length === 1 ? "evento" : "eventos"}` : null,
+    funcoesMarcadas.length ? `${funcoesMarcadas.length} ${funcoesMarcadas.length === 1 ? "função" : "funções"}` : null,
     temRecorteDePeriodo(periodo) ? "período" : null,
     contarFlagsAtivas(flags) ? FLAG_GROUPS.flatMap(g => g.opcoes).filter(o => flags[o.key]).map(o => o.label).join(", ") : null,
     fila ? QUEUE_META.find(q => q.key === fila)?.label.toLowerCase() ?? null : null,
@@ -628,6 +649,7 @@ export default function Scaling() {
    */
   const nomesDosFiltrosDoRecorte = [
     eventosMarcados.length ? `${eventosMarcados.length} ${eventosMarcados.length === 1 ? "evento" : "eventos"}` : null,
+    funcoesMarcadas.length ? `funções: ${funcoesMarcadas.map((id) => getFunctionName(id)).join(", ")}` : null,
     temRecorteDePeriodo(periodo) ? rotuloDoPeriodo(periodo) : null,
     busca.trim() ? `busca “${busca.trim()}”` : null,
     contarFlagsAtivas(flags) ? FLAG_GROUPS.flatMap(g => g.opcoes).filter(o => flags[o.key]).map(o => o.label).join(", ") : null,
@@ -782,6 +804,7 @@ export default function Scaling() {
             <ScalingFilterBar
               busca={busca} onBusca={setBusca}
               eventos={eventos} onEventos={setEventos} opcoesDeEvento={opcoesDeEvento}
+              funcoes={funcoes} onFuncoes={setFuncoes} opcoesDeFuncao={opcoesDeFuncao}
               periodo={periodo} onPeriodo={setPeriodo} linhasSemPeriodo={scalingInclusions} hoje={hoje}
               flags={flags} onFlags={setFlags} linhasSemFlags={comBusca} queueContext={queueContext}
               verExcluidos={verExcluidos} onVerExcluidos={setVerExcluidos}
