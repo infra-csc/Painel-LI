@@ -60,7 +60,7 @@ describe("extrapolação fora da faixa 2..6 dias", () => {
     const r = total("viagem", 1)!;
     expect(r.totalCents).toBe(52300); // 522,63 → 523
     expect(r.extrapolado).toBe(true);
-    expect(total("local_b", 1)!.totalCents).toBe(53750 - 25000);
+    expect(total("local_b", 1)!.totalCents).toBe(28800);
   });
   it("nunca negativo: incremento maior que a base de 2 dias → 0", () => {
     const settings = { ceno_empreita_viagem_2d: 1000, ceno_empreita_viagem_6d: 401000 };
@@ -94,13 +94,13 @@ describe("entradas inválidas → null (nada a pagar)", () => {
 
 describe("Valores Padrão vencem a tabela default", () => {
   it("chave editada substitui a célula (número ou string)", () => {
-    expect(total("sp", 3, { ceno_empreita_sp_3d: 100000 })!.totalCents).toBe(99999);
-    expect(total("sp", 3, { ceno_empreita_sp_3d: "88888" })!.totalCents).toBe(88888);
+    expect(total("sp", 3, { ceno_empreita_sp_3d: 100000 })!.totalCents).toBe(100000);
+    expect(total("sp", 3, { ceno_empreita_sp_3d: "88888" })!.totalCents).toBe(88900);
   });
   it("valor inválido ou negativo cai no default", () => {
     expect(total("sp", 3, { ceno_empreita_sp_3d: "abc" })!.totalCents).toBe(105100);
-    expect(total("sp", 3, { ceno_empreita_sp_3d: -100 })!.totalCents).toBe(105053);
-    expect(total("sp", 3, {})!.totalCents).toBe(105053);
+    expect(total("sp", 3, { ceno_empreita_sp_3d: -100 })!.totalCents).toBe(105100);
+    expect(total("sp", 3, {})!.totalCents).toBe(105100);
   });
   it("chave de outra modalidade não contamina", () => {
     expect(total("viagem", 3, { ceno_empreita_sp_3d: 1 })!.totalCents).toBe(125800);
