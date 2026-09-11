@@ -614,6 +614,16 @@ export default function ScalingSuggestionPage() {
     const key = functionNameKey(name);
     setPasteNameMap((prev) => ({ ...prev, [key]: value }));
   };
+  /**
+   * Desfazer um mapeamento salvo (11/09). "ceno" entrava como "Montagem" e o
+   * dono não achava por quê: um mapa antigo, invisível, mandava em toda
+   * colagem. Grava na hora — senão o mapa velho voltava ao reabrir o diálogo.
+   */
+  const removerMapeamento = (key: string) => {
+    setPasteNameMap((prev) => { const next = { ...prev }; delete next[key]; storeNameMap(next); return next; });
+  };
+  const limparMapeamentos = () => { setPasteNameMap({}); storeNameMap({}); };
+  const nomeDoMapeamento = (id: string) => (id === SKIP_FUNCTION ? "Descartar linha" : (functions ?? []).find((f) => f.id === id)?.name ?? "função que não existe mais");
 
   const clearGrid = () => {
     setRows([]);
@@ -1588,6 +1598,35 @@ export default function ScalingSuggestionPage() {
                   })}
                 </ul>
               </div>
+            )}
+
+            {/* 3b. Mapeamentos salvos (11/09): o que este navegador já decidiu para
+                nomes não reconhecidos — visível e desfazível, porque um mapa antigo
+                errado ("ceno" → "Montagem") mandava em toda colagem sem avisar. */}
+            {Object.keys(pasteNameMap).length > 0 && (
+              <details className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs" data-testid="mapeamentos-salvos">
+                <summary className="cursor-pointer font-semibold text-slate-700">
+                  Nomes que você já mapeou ({Object.keys(pasteNameMap).length}) — valem para toda colagem neste navegador
+                </summary>
+                <p className="mt-1 text-[11px] text-slate-500">Se um nome está entrando na função errada, desfaça aqui e escolha de novo.</p>
+                <ul className="mt-2 space-y-1">
+                  {Object.entries(pasteNameMap).map(([key, id]) => (
+                    <li key={key} className="flex flex-wrap items-center gap-2" data-testid={`mapeamento-${key}`}>
+                      <span className="font-mono text-slate-700">{key}</span>
+                      <span aria-hidden="true" className="text-slate-400">→</span>
+                      <span className={cn("font-medium", id === SKIP_FUNCTION ? "text-slate-500" : "text-slate-800")}>{nomeDoMapeamento(id)}</span>
+                      <button type="button" onClick={() => removerMapeamento(key)}
+                        className="ml-auto rounded text-[11px] font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        Desfazer
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <button type="button" onClick={limparMapeamentos}
+                  className="mt-2 rounded text-[11px] font-semibold text-slate-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  Desfazer todos
+                </button>
+              </details>
             )}
 
             {/* 4. Como vai entrar na grade: prévia por função + substituídas × novas */}

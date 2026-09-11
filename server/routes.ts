@@ -2205,6 +2205,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Descarta campos de identidade que o client legado ainda possa enviar
       const { _userId, ...bodyData } = req.body;
+
+      // Troca de FUNÇÃO (dono, 11/09: "tento trocar e ele não muda"). O
+      // formulário de Inclusões sempre mandou functionId, mas a allowlist
+      // descartava em silêncio — a tela dizia "salvo" e a função ficava a
+      // mesma. Regras: só admin/produção/compras trocam; vaga já escalada
+      // (com colaborador) só o administrador, porque a função define as
+      // regras de diária e alimentação de quem já foi confirmado.
+      let funcAlvo = func;
+      if (bodyData.functionId !== undefined && bodyData.functionId !== currentInclusion.functionId) {
+        if (!isAdmin && !isProductionOrPurchasing) {
+          return res.status(403).json({ message: "Só administrador, produção ou compras trocam a função de uma vaga." });
+        }
+        if (currentInclusion.collaboratorId && !isAdmin) {
+          return res.status(400).json({ message: "Vaga já escalada — tire o colaborador antes de trocar a função, ou peça ao administrador." });
+        }
+        const nova = await storage.getFunction(String(bodyData.functionId));
+        if (!nova) return res.status(404).json({ message: "Função não encontrada." });
+        funcAlvo = nova;
+      }
       
       // Auto-recalculate workDays when schedule dates change (skip if workDays explicitly provided)
       const newStartDate = bodyData.scheduleStartDate || currentInclusion.scheduleStartDate;
@@ -2284,7 +2303,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isConfirmingEscalation) {
         // `func` já foi carregado na checagem de permissão desta mesma rota —
         // recarregar a tabela inteira de funções aqui era puro desperdício.
-        const funcName = func?.name?.toLowerCase() || '';
+        const funcName = funcAlvo?.name?.toLowerCase() || '';
         if (funcName.includes('cenotecnica') || funcName.includes('cenotécnica') || funcName.includes('sup ceno')) {
           console.log("🎭 [CENOTECNICA OVERRIDE] Forcing aguardando_producao for function:", func?.name);
           bodyData.status = 'aguardando_producao';
@@ -2299,7 +2318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Antes o corpo cru era espalhado — um responsável de função gravava
       // approvedByProduction/deletedAt direto e pulava as rotas dedicadas.
       const EDITABLE_INCLUSION_FIELDS = new Set([
-        'collaboratorId', 'area', 'emitsNf', 'rowOrder',
+        'collaboratorId', 'functionId', 'area', 'emitsNf', 'rowOrder',
         'scheduleStartDate', 'scheduleEndDate', 'actualStartDate', 'actualEndDate',
         'flightDepartureDate', 'flightDepartureSuggestedTime', 'flightArrivalSuggestedTime',
         'flightReturnDate', 'flightReturnSuggestedTime',
@@ -2315,7 +2334,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Atendimento: ao ter colaborador atribuído, o tipo (Key Account /
       // Executivo de Contas) é obrigatório — define a tarifa da diária.
-      if (isAtendimentoFunction(func.name)) {
+      // (As regras abaixo olham a função ALVO — a nova, quando trocada.)
+      if (isAtendimentoFunction(funcAlvo.name)) {
         const effColab = updates.collaboratorId !== undefined ? updates.collaboratorId : currentInclusion.collaboratorId;
         const effTipo = updates.atendimentoTipo !== undefined ? updates.atendimentoTipo : (currentInclusion as any).atendimentoTipo;
         if (effColab && !effTipo) {
@@ -2329,7 +2349,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Percurso (motoqueiro): o tipo (Tipo 1 / Tipo 2) define o pacote fechado
       // da diária, mas por decisão do usuário (17/08) é definido NO PLANEJADO —
       // a escalação NÃO exige o tipo (só valida o valor se vier).
-      if (isPercursoFunction(func.name)) {
+      if (isPercursoFunction(funcAlvo.name)) {
         const effTipo = updates.percurseiroTipo !== undefined ? updates.percurseiroTipo : (currentInclusion as any).percurseiroTipo;
         if (effTipo != null && effTipo !== 'tipo_1' && effTipo !== 'tipo_2') {
           return res.status(400).json({ message: "Tipo de percurseiro inválido — use Tipo 1 ou Tipo 2." });
@@ -2341,7 +2361,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Cenotécnica (empreita): a modalidade (Freela Viagem / SP / Local A / B)
       // define o valor FECHADO por nº de dias (regra 19/08). Não é obrigatória
       // ao escalar — só valida o valor quando vier; fora de cenotécnica, limpa.
-      if (isCenotecnicaFunction(func.name)) {
+      if (isCenotecnicaFunction(funcAlvo.name)) {
         const effTipo = updates.cenoFreelaTipo !== undefined ? updates.cenoFreelaTipo : (currentInclusion as any).cenoFreelaTipo;
         if (effTipo != null && !isCenoFreelaTipo(effTipo)) {
           return res.status(400).json({ message: "Tipo de freela cenotécnica inválido — use Freela Viagem, Freela SP, Freela Local (A) ou Freela Local (B)." });
@@ -2350,7 +2370,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updates.cenoFreelaTipo = null;
       }
 
-      const erroEmpreita = normalizarEmpreita(updates, currentInclusion as any, isCenotecnicaFunction(func?.name ?? ""));
+      const erroEmpreita = normalizarEmpreita(updates, currentInclusion as any, isCenotecnicaFunction(funcAlvo?.name ?? ""));
       if (erroEmpreita) return res.status(400).json({ message: erroEmpreita });
 
       const inclusion = await storage.updateTeamInclusion(id, updates);
