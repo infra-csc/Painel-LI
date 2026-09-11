@@ -187,6 +187,45 @@ export function useDecisionMutations(opts: DecisionOptions = {}) {
       fail(vars.kind === "reprovar" ? "Não foi possível reprovar a vaga" : "Não foi possível devolver a vaga")(err),
   });
 
+  /**
+   * Devolver / reprovar em LOTE (dono, 11/09: "o devolver para a área não
+   * está dando em lote, tem que conseguir, com um comentário único"). Mesmo
+   * desenho do bypassMany: sequencial, cada PATCH é uma decisão auditada com o
+   * nome do aprovador e o MESMO comentário; o que falhar volta em `skipped`.
+   */
+  const decideVagasMany = useMutation({
+    mutationFn: async (vars: { ids: string[]; kind: VagaDecisionKind; comment: string }): Promise<BatchResult> => {
+      const ok: string[] = [];
+      const skipped: { id: string; reason: string }[] = [];
+      for (const id of vars.ids) {
+        try {
+          await apiRequest("PATCH", `${APPROVAL_QUERY_KEYS.suggestions}/${id}/${vars.kind}`, { comment: vars.comment });
+          ok.push(id);
+        } catch (err) {
+          skipped.push({ id, reason: apiErrorMessage(err as ApiError, "falha ao decidir") });
+        }
+      }
+      return { ok, skipped };
+    },
+    onSuccess: (res, vars) => {
+      invalidateAll();
+      const okN = res.ok.length;
+      if (okN > 0) {
+        toast({
+          title: vars.kind === "reprovar" ? `${okN} vaga(s) reprovada(s)` : `${okN} vaga(s) devolvida(s) para a área`,
+          description: vars.kind === "reprovar"
+            ? "Saem da escala e ficam registradas como negadas."
+            : "Voltaram para a validação da área com o seu comentário.",
+        });
+      }
+      if (res.skipped.length > 0) {
+        const reasons = Array.from(new Set(res.skipped.map((s) => s.reason))).slice(0, 3).join(" · ");
+        toast({ title: `${res.skipped.length} vaga(s) não decidida(s)`, description: reasons, variant: "destructive" });
+      }
+    },
+    onError: (err: ApiError, vars) => fail(vars.kind === "reprovar" ? "Não foi possível reprovar as vagas" : "Não foi possível devolver as vagas")(err),
+  });
+
   const bypass = useMutation({
     mutationFn: async (vars: { inclusionId: string; kind: "approve" | "reject"; comment?: string }) =>
       (await apiRequest("PATCH", `${APPROVAL_QUERY_KEYS.suggestions}/${vars.inclusionId}/bypass-${vars.kind}`, vars.comment ? { comment: vars.comment } : {})).json(),
@@ -237,5 +276,5 @@ export function useDecisionMutations(opts: DecisionOptions = {}) {
     onError: fail("Não foi possível decidir as vagas"),
   });
 
-  return { approve, review, approveVagas, decideVaga, bypass, bypassMany, invalidateAll };
+  return { approve, review, approveVagas, decideVaga, decideVagasMany, bypass, bypassMany, invalidateAll };
 }

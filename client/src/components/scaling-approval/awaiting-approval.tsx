@@ -46,6 +46,11 @@ interface AwaitingApprovalProps {
    * comentário quando ela RESOLVE — num 500 o texto continua ali para reenviar.
    */
   onDecide: (row: SuggestionRow, kind: VagaDecisionKind, comment: string) => void | Promise<unknown>;
+  /**
+   * Reprovar / devolver em LOTE com um comentário único (11/09). Sem esta
+   * prop os botões da barra voltam a exigir uma vaga só.
+   */
+  onDecideMany?: (rows: SuggestionRow[], kind: VagaDecisionKind, comment: string) => void | Promise<unknown>;
 }
 
 const BADGE = "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap";
@@ -162,12 +167,13 @@ const DECISION_COPY: Record<VagaDecisionKind, { title: string; help: string; act
  * últimas com comentário obrigatório, uma vaga por vez.
  */
 export function AwaitingApproval({
-  rows, functionNameById, userNameById, approverNamesFor, showEvent = false, busy, onApprove, onDecide,
+  rows, functionNameById, userNameById, approverNamesFor, showEvent = false, busy, onApprove, onDecide, onDecideMany,
 }: AwaitingApprovalProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   /** Vagas do diálogo de aprovação — o da barra (seleção) e o do botão da linha usam o mesmo. */
   const [confirmRows, setConfirmRows] = useState<SuggestionRow[] | null>(null);
-  const [decision, setDecision] = useState<{ kind: VagaDecisionKind; row: SuggestionRow } | null>(null);
+  /** Uma vaga (botão da linha) ou o lote selecionado (barra) — um comentário para todas. */
+  const [decision, setDecision] = useState<{ kind: VagaDecisionKind; rows: SuggestionRow[] } | null>(null);
   const [comment, setComment] = useState("");
 
   const selectableIds = useMemo(() => new Set(rows.filter((r) => r.canDecide === true).map((r) => r.id)), [rows]);
@@ -186,7 +192,10 @@ export function AwaitingApproval({
   const toggle = (id: string) => setSelected((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(selectableIds));
 
-  const openDecision = (kind: VagaDecisionKind, row: SuggestionRow) => { setComment(""); setDecision({ kind, row }); };
+  const openDecision = (kind: VagaDecisionKind, row: SuggestionRow) => { setComment(""); setDecision({ kind, rows: [row] }); };
+  const openDecisionMany = (kind: VagaDecisionKind) => { if (selectedRows.length === 0) return; setComment(""); setDecision({ kind, rows: selectedRows }); };
+  /** A barra decide em lote quando a página deu o `onDecideMany`; senão, só com uma vaga marcada. */
+  const podeLote = !!onDecideMany;
   /**
    * Fecha e limpa SÓ no sucesso: fechar antes da resposta fazia o aprovador
    * redigitar o comentário obrigatório inteiro num 500. A exceção é o item que
@@ -197,7 +206,8 @@ export function AwaitingApproval({
     const text = comment.trim();
     if (!decision || !text) return;
     try {
-      await onDecide(decision.row, decision.kind, text);
+      if (decision.rows.length === 1 || !onDecideMany) await onDecide(decision.rows[0], decision.kind, text);
+      else await onDecideMany(decision.rows, decision.kind, text);
       setDecision(null);
       setComment("");
     } catch (err) {
@@ -216,6 +226,11 @@ export function AwaitingApproval({
   };
 
   const copy = decision ? DECISION_COPY[decision.kind] : null;
+  /** A vaga única do diálogo de decisão (lote → null: o diálogo lista as marcadas). */
+  const decisionRow = decision && decision.rows.length === 1 ? decision.rows[0] : null;
+  const nDec = decision?.rows.length ?? 0;
+  const pessoasDiaDoLote = (decision?.rows ?? []).reduce((soma, r) => soma + pessoasDiaDaVaga(r), 0);
+  const comprasDoLote = (decision?.rows ?? []).filter((r) => r.needsTicket || r.needsAccommodation).length;
   const nConfirm = confirmRows?.length ?? 0;
   /**
    * O lote somado: o que o aprovador leva para Compras e para a produção.
@@ -256,7 +271,9 @@ export function AwaitingApproval({
                 com 2+ selecionadas é ESTA linha, visível — os botões apontam
                 para ela por aria-describedby, e o wrapper não é mais tab stop. */}
             <span id="awaiting-uma-por-vez" className="block text-[11px] text-slate-500">
-              Reprovar e devolver: uma vaga por vez{nSel > 1 ? " — deixe só uma marcada para usar esses botões." : "."}
+              {podeLote
+                ? "Devolver e reprovar em lote usam um comentário só, para todas as marcadas."
+                : `Reprovar e devolver: uma vaga por vez${nSel > 1 ? " — deixe só uma marcada para usar esses botões." : "."}`}
             </span>
           </div>
           <Button type="button" size="sm" variant="ghost" className={cn(ICON_BTN, "text-slate-500")} onClick={() => setSelected(new Set())} aria-label="Limpar seleção">
@@ -265,22 +282,22 @@ export function AwaitingApproval({
           <Tooltip>
             <TooltipTrigger asChild>
               <span tabIndex={-1} className="inline-flex">
-                <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg text-xs" disabled={!single || busy} aria-describedby="awaiting-uma-por-vez" onClick={() => single && openDecision("devolver", single)}>
-                  <Undo2 className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Devolver para a área
+                <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg text-xs" disabled={(!podeLote && !single) || busy} aria-describedby="awaiting-uma-por-vez" onClick={() => (podeLote ? openDecisionMany("devolver") : single && openDecision("devolver", single))}>
+                  <Undo2 className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Devolver para a área{podeLote && nSel > 1 ? ` (${nSel})` : ""}
                 </Button>
               </span>
             </TooltipTrigger>
-            {!single && <TooltipContent side="top" className="text-xs">Selecione apenas uma vaga para devolver</TooltipContent>}
+            {!podeLote && !single && <TooltipContent side="top" className="text-xs">Selecione apenas uma vaga para devolver</TooltipContent>}
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <span tabIndex={-1} className="inline-flex">
-                <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg text-xs text-red-700 border-red-200 hover:bg-red-50" disabled={!single || busy} aria-describedby="awaiting-uma-por-vez" onClick={() => single && openDecision("reprovar", single)}>
-                  <XCircle className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Reprovar
+                <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg text-xs text-red-700 border-red-200 hover:bg-red-50" disabled={(!podeLote && !single) || busy} aria-describedby="awaiting-uma-por-vez" onClick={() => (podeLote ? openDecisionMany("reprovar") : single && openDecision("reprovar", single))}>
+                  <XCircle className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Reprovar{podeLote && nSel > 1 ? ` (${nSel})` : ""}
                 </Button>
               </span>
             </TooltipTrigger>
-            {!single && <TooltipContent side="top" className="text-xs">Selecione apenas uma vaga para reprovar</TooltipContent>}
+            {!podeLote && !single && <TooltipContent side="top" className="text-xs">Selecione apenas uma vaga para reprovar</TooltipContent>}
           </Tooltip>
           <Button type="button" size="sm" className="h-7 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-700 text-white" disabled={busy} onClick={() => setConfirmRows(selectedRows)}>
             <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Aprovar ({nSel})
@@ -478,18 +495,34 @@ export function AwaitingApproval({
       <AlertDialog open={decision !== null} onOpenChange={(o) => { if (!o && !busy) setDecision(null); }}>
         <AlertDialogContent className="!max-w-[560px] max-h-[88vh] overflow-y-auto">
           <AlertDialogHeader>
-            <AlertDialogTitle>{copy?.title}</AlertDialogTitle>
-            <AlertDialogDescription>{copy?.help}</AlertDialogDescription>
+            <AlertDialogTitle>{nDec > 1 ? (decision?.kind === "reprovar" ? `Reprovar ${nDec} vagas?` : `Devolver ${nDec} vagas para a área?`) : copy?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{nDec > 1 ? `${copy?.help ?? ""} O mesmo comentário vai para todas as ${nDec} vagas.` : copy?.help}</AlertDialogDescription>
           </AlertDialogHeader>
           {/* A vaga se apresenta antes do botão: decidir por "#128" sem ver
-              período, logística e quem validou é decidir no escuro. */}
-          {decision && (
+              período, logística e quem validou é decidir no escuro. No lote,
+              uma linha por vaga (as primeiras MAX_LISTED) — nunca às cegas. */}
+          {decision && nDec > 1 && (
+            <ul className="rounded-lg border border-slate-200 bg-white divide-y divide-slate-100 text-xs text-slate-700" data-testid="decisao-lote-lista">
+              {decision.rows.slice(0, MAX_LISTED).map((r) => (
+                <li key={r.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-3 py-1.5">
+                  <span className="rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800">#{r.inclusionNumber}</span>
+                  <span className="break-words font-semibold">{functionNameById.get(r.functionId) ?? "Sem função"}</span>
+                  {showEvent && <span className="break-words text-slate-500">{r.eventName ?? "Sem evento"}</span>}
+                  <span className="font-mono tabular-nums text-[11px] text-slate-500">{periodLabel(r)}</span>
+                </li>
+              ))}
+              {nDec > MAX_LISTED && (
+                <li className="px-3 py-1.5 text-slate-500">… e mais {nDec - MAX_LISTED} {nDec - MAX_LISTED === 1 ? "vaga" : "vagas"}</li>
+              )}
+            </ul>
+          )}
+          {decision && decisionRow && (
             <>
               <VagaCard
-                row={decision.row}
-                functionName={functionNameById.get(decision.row.functionId)}
-                nota={decision.row.validatedAt
-                  ? `Validada por ${(decision.row.validatedBy && userNameById?.get(decision.row.validatedBy)) ?? "área responsável"} · ${formatDateBr(new Date(decision.row.validatedAt))}`
+                row={decisionRow}
+                functionName={functionNameById.get(decisionRow.functionId)}
+                nota={decisionRow.validatedAt
+                  ? `Validada por ${(decisionRow.validatedBy && userNameById?.get(decisionRow.validatedBy)) ?? "área responsável"} · ${formatDateBr(new Date(decisionRow.validatedAt))}`
                   : "A área nunca validou esta vaga."}
               />
               <section
@@ -504,12 +537,12 @@ export function AwaitingApproval({
                     <>
                       <li>A vaga sai da escala e fica registrada como negada.</li>
                       <li>
-                        Saem <span className="font-semibold tabular-nums">{pessoasDiaDaVaga(decision.row)}</span>{" "}
-                        {pessoasDiaDaVaga(decision.row) === 1 ? "pessoa-dia" : "pessoas-dia"} do total do evento.
+                        Saem <span className="font-semibold tabular-nums">{pessoasDiaDaVaga(decisionRow)}</span>{" "}
+                        {pessoasDiaDaVaga(decisionRow) === 1 ? "pessoa-dia" : "pessoas-dia"} do total do evento.
                       </li>
                       <li>
-                        {decision.row.needsTicket || decision.row.needsAccommodation
-                          ? <>Compras deixa de comprar {[decision.row.needsTicket ? "passagem" : null, decision.row.needsAccommodation ? "hospedagem" : null].filter(Boolean).join(" e ")}.</>
+                        {decisionRow.needsTicket || decisionRow.needsAccommodation
+                          ? <>Compras deixa de comprar {[decisionRow.needsTicket ? "passagem" : null, decisionRow.needsAccommodation ? "hospedagem" : null].filter(Boolean).join(" e ")}.</>
                           : <>Nenhuma compra é afetada.</>}
                       </li>
                       <li>A validação da área é desfeita — para a vaga voltar, a área precisa sugerir de novo.</li>
@@ -527,6 +560,34 @@ export function AwaitingApproval({
               </section>
             </>
           )}
+          {/* Consequências do LOTE, somadas — o que muda para a produção e para Compras. */}
+          {decision && nDec > 1 && (
+            <section
+              className={cn("rounded-2xl border p-3 space-y-1.5", decision.kind === "reprovar" ? "border-red-200 bg-red-50/60" : "border-amber-200 bg-amber-50/60")}
+              aria-labelledby="vagas-depois"
+            >
+              <p id="vagas-depois" className={cn("text-[11px] font-bold uppercase tracking-wide", decision.kind === "reprovar" ? "text-red-700" : "text-amber-700")}>
+                O que acontece depois
+              </p>
+              <ul className="list-disc space-y-1 pl-4 text-xs text-slate-700">
+                {decision.kind === "reprovar" ? (
+                  <>
+                    <li>As {nDec} vagas saem da escala e ficam registradas como negadas.</li>
+                    <li>Saem <span className="font-semibold tabular-nums">{pessoasDiaDoLote}</span> {pessoasDiaDoLote === 1 ? "pessoa-dia" : "pessoas-dia"} do total.</li>
+                    <li>{comprasDoLote > 0 ? `Compras deixa de comprar passagem/hospedagem de ${comprasDoLote} ${comprasDoLote === 1 ? "vaga" : "vagas"}.` : "Nenhuma compra é afetada."}</li>
+                  </>
+                ) : (
+                  <>
+                    <li>As {nDec} vagas voltam para “aguardando validação da área”, com os dados como estão.</li>
+                    <li>O contador de atraso de cada uma recomeça do zero; a área precisa validar de novo.</li>
+                    <li>Nada é apagado — nenhum dado das vagas se perde ao devolver.</li>
+                  </>
+                )}
+                <li>O mesmo comentário fica no histórico de cada vaga e é o que a área lê.</li>
+                <li>Uma decisão por vaga, em sequência: se alguma falhar, as outras continuam e o aviso diz quais ficaram.</li>
+              </ul>
+            </section>
+          )}
           <div className="space-y-1">
             <Label htmlFor="vaga-decision-comment" className="text-xs text-slate-600">Comentário para a área (obrigatório)</Label>
             <Textarea
@@ -543,7 +604,7 @@ export function AwaitingApproval({
               disabled={busy || comment.trim() === ""}
               onClick={(e) => { e.preventDefault(); void submitDecision(); }}
             >
-              {busy ? "Decidindo…" : copy?.action}
+              {busy ? "Decidindo…" : nDec > 1 ? `${copy?.action} (${nDec})` : copy?.action}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

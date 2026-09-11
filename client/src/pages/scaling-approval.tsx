@@ -467,7 +467,7 @@ export default function ScalingApprovalPage() {
     filtered.find((r) => r.id !== id && r.status === CHANGE_REQUEST_STATUS.PENDENTE && r.canDecide)
       ?? filtered.find((r) => r.id !== id && r.status === CHANGE_REQUEST_STATUS.PENDENTE)
       ?? null;
-  const { approve, review, approveVagas, decideVaga, bypass, bypassMany } = useDecisionMutations({
+  const { approve, review, approveVagas, decideVaga, decideVagasMany, bypass, bypassMany } = useDecisionMutations({
     onSettledRequest: closeAll,
     onStale: closeAll,
     successAction: () => {
@@ -492,7 +492,7 @@ export default function ScalingApprovalPage() {
   const busyPedidos = approve.isPending || review.isPending;
   const busyParadas = bypass.isPending || bypassMany.isPending;
   /** As decisões sobre a VAGA validada têm o próprio "ocupado" — não travam a fila de pedidos. */
-  const busyVagas = approveVagas.isPending || decideVaga.isPending;
+  const busyVagas = approveVagas.isPending || decideVaga.isPending || decideVagasMany.isPending;
 
   const reviewKind = overlay.mode === "reajustar" || overlay.mode === "negar" ? overlay.mode : null;
   const submitReview = (body: ReviewBody) => {
@@ -820,6 +820,7 @@ export default function ScalingApprovalPage() {
                     // fora o comentário) quando o servidor confirma.
                     onApprove={(selectedRows) => approveVagas.mutateAsync({ ids: selectedRows.map((r) => r.id) })}
                     onDecide={(row, kind, comment) => decideVaga.mutateAsync({ inclusionId: row.id, kind, comment })}
+                    onDecideMany={(rows, kind, comment) => decideVagasMany.mutateAsync({ ids: rows.map((r) => r.id), kind, comment })}
                   />
                 )}
               </>
