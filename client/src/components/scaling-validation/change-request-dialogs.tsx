@@ -58,15 +58,30 @@ const DIALOG_STICKY = "shrink-0 border-t border-slate-200 bg-slate-50/60 px-6 py
 const passoCls = "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[11px] font-bold text-white";
 
 /** Título de um passo: bolinha numerada + texto (+ asterisco quando obrigatório). */
-function Passo({ n, id, obrigatorio, children }: { n: number; id?: string; obrigatorio?: boolean; children: ReactNode }) {
+function Passo({ n, id, obrigatorio, dica, children }: { n: number; id?: string; obrigatorio?: boolean; dica?: ReactNode; children: ReactNode }) {
   return (
-    <h3 id={id} className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-      <span className={passoCls} aria-hidden="true">{n}</span>
-      <span className="sr-only">Passo {n}: </span>
-      <span>{children}{obrigatorio && <span className="ml-1 text-red-500" aria-hidden="true">*</span>}</span>
-    </h3>
+    <div className="space-y-0.5">
+      <h3 id={id} className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+        <span className={passoCls} aria-hidden="true">{n}</span>
+        <span className="sr-only">Passo {n}: </span>
+        <span>{children}{obrigatorio && <span className="ml-1 text-red-500" aria-hidden="true">*</span>}</span>
+      </h3>
+      {dica && <p className="pl-8 text-[11px] leading-snug text-slate-500">{dica}</p>}
+    </div>
   );
 }
+
+/**
+ * Diárias × Viagem (dono, 11/09: "algumas pessoas estão confundindo"). As duas
+ * seções pedem datas e a diferença tem que estar escrita no título de cada uma:
+ * diária é dia TRABALHADO; viagem é o deslocamento sugerido para Compras.
+ */
+const DICA_DIARIAS = (
+  <>Os dias em que a pessoa <span className="font-medium text-slate-700">trabalha no evento</span> — cada dia marcado é uma diária. Não é a data da viagem.</>
+);
+const DICA_VIAGEM = (
+  <>Só a <span className="font-medium text-slate-700">sugestão de deslocamento</span> para Compras: quando a pessoa chega (ida) e quando sai (volta). Não conta diária — pode ser a véspera ou o dia seguinte ao trabalho.</>
+);
 
 /** Qual campo do formulário está errado — é o que decide para onde vai o foco. */
 type CampoErro = "function" | "quantity" | "days" | "travel" | "reason" | "diff";
@@ -323,7 +338,7 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
             </section>
           )}
           <section className="space-y-2" aria-labelledby="adj-passo-1">
-            <Passo n={1} id="adj-passo-1" obrigatorio>Dias e diárias</Passo>
+            <Passo n={1} id="adj-passo-1" obrigatorio dica={DICA_DIARIAS}>Dias trabalhados (diárias)</Passo>
             <div id="adj-days" className={cn(error?.campo === "days" || error?.campo === "diff" ? BLOCO_INVALIDO : undefined)}
               aria-describedby={error?.campo === "days" || error?.campo === "diff" ? "adj-erro" : undefined}>
               <WorkDaysPicker rangeStart={event?.startDate ?? ""} rangeEnd={event?.endDate ?? ""} value={workDays} onChange={setWorkDays} disabled={mutation.isPending} />
@@ -339,7 +354,7 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
           </div>
 
           <section className="space-y-2" aria-labelledby="adj-passo-2">
-            <Passo n={2} id="adj-passo-2">Viagem</Passo>
+            <Passo n={2} id="adj-passo-2" dica={DICA_VIAGEM}>Viagem — ida e volta (não é diária)</Passo>
             <div className={cn(error?.campo === "travel" && BLOCO_INVALIDO)} aria-describedby={error?.campo === "travel" ? "adj-erro" : undefined}>
               <TravelFields idPrefix="adj" value={travel} workDays={workDays} disabled={mutation.isPending}
                 eventStartDate={event?.startDate} eventEndDate={event?.endDate}
@@ -618,7 +633,7 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
           </section>
 
           <section className="space-y-2" aria-labelledby="inc-passo-2">
-            <Passo n={2} id="inc-passo-2" obrigatorio>Dias</Passo>
+            <Passo n={2} id="inc-passo-2" obrigatorio dica={DICA_DIARIAS}>Dias trabalhados (diárias)</Passo>
             <div id="inc-days" className={cn(error?.campo === "days" && BLOCO_INVALIDO)} aria-describedby={error?.campo === "days" ? "inc-erro" : undefined}>
               <WorkDaysPicker rangeStart={event?.startDate ?? ""} rangeEnd={event?.endDate ?? ""} value={workDays}
                 onChange={(d) => { setWorkDays(d); if (error?.campo === "days" && d.length) setError(null); }} disabled={mutation.isPending} />
@@ -633,7 +648,7 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
           </section>
 
           <section className="space-y-2" aria-labelledby="inc-passo-3">
-            <Passo n={3} id="inc-passo-3">Viagem</Passo>
+            <Passo n={3} id="inc-passo-3" dica={DICA_VIAGEM}>Viagem — ida e volta (não é diária)</Passo>
             <div className={cn(error?.campo === "travel" && BLOCO_INVALIDO)} aria-describedby={error?.campo === "travel" ? "inc-erro" : undefined}>
               <TravelFields idPrefix="inc" layout="linha" value={travel} workDays={workDays} disabled={mutation.isPending}
                 eventStartDate={event?.startDate} eventEndDate={event?.endDate}

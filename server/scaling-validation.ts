@@ -481,6 +481,31 @@ export function commentFromLogDetails(details: string | null | undefined): strin
   return details.slice(at + LOG_COMMENT_MARK.length).trim() || null;
 }
 
+/**
+ * Logs que DECIDEM uma vaga — o que o histórico (event-view) mostra como
+ * "como foi decidida" (11/09): decisão da vaga validada, bypass das paradas e
+ * decisão de pedido (aprovado / reajustado / negado).
+ */
+export const DECISAO_DA_VAGA_LOG_ACTIONS = [
+  "suggestion_approved", "suggestion_rejected", "suggestion_returned",
+  "suggestion_bypass_approve", "suggestion_bypass_reject",
+  "change_request_approved", "change_request_reajustar", "change_request_negar",
+];
+export interface DecisaoDaVaga {
+  action: string;
+  /** O texto do log sem o comentário (ex.: "Pedido reajustado e aprovado direto pelo aprovador — vaga virou Inclusão"). */
+  resumo: string;
+  comment: string | null;
+  byName: string | null;
+  at: string | null;
+}
+/** `details` do log sem a parte do comentário. */
+export function resumoDoLogSemComentario(details: string | null | undefined): string {
+  if (!details) return "";
+  const at = details.indexOf(LOG_COMMENT_MARK);
+  return (at < 0 ? details : details.slice(0, at)).trim();
+}
+
 /** Ação do log → decisão da vaga exposta pela API. */
 const VAGA_DECISION_BY_LOG_ACTION = {
   suggestion_approved: "aprovada",
@@ -1863,11 +1888,34 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         list.push(r);
         requestsByInclusion.set(r.teamInclusionId, list);
       }
-      const withExtras = (i: TeamInclusion) => ({
-        ...i,
-        ...eventFieldsOf(eventById.get(i.eventId)),
-        requests: requestsByInclusion.get(i.id) ?? [],
-      });
+      // COMO cada vaga foi decidida (dono, 11/09: nas Decididas "está bem ruim
+      // para saber o que aconteceu" — toda linha dizia só "Aprovada"). O log
+      // mais recente entre os que decidem a vaga: aprovação/reprovação/
+      // devolução, bypass e decisão de pedido. Uma consulta para a lista toda.
+      const logsDecisao = await storage.getTeamInclusionLogsByInclusionIds(rows.map((i) => i.id), DECISAO_DA_VAGA_LOG_ACTIONS);
+      const decisaoPorVaga = new Map<string, DecisaoDaVaga & { ms: number }>();
+      for (const log of logsDecisao) {
+        const ms = toMs(log.createdAt);
+        const atual = decisaoPorVaga.get(log.teamInclusionId);
+        if (atual && atual.ms >= ms) continue;
+        decisaoPorVaga.set(log.teamInclusionId, {
+          ms,
+          action: log.action,
+          resumo: resumoDoLogSemComentario(log.details),
+          comment: commentFromLogDetails(log.details),
+          byName: log.userName ?? null,
+          at: toIso(log.createdAt),
+        });
+      }
+      const withExtras = (i: TeamInclusion) => {
+        const d = decisaoPorVaga.get(i.id);
+        return {
+          ...i,
+          ...eventFieldsOf(eventById.get(i.eventId)),
+          requests: requestsByInclusion.get(i.id) ?? [],
+          decisao: d ? { action: d.action, resumo: d.resumo, comment: d.comment, byName: d.byName, at: d.at } : null,
+        };
+      };
       res.set("Cache-Control", "no-store");
       res.json({
         suggestions: rows.filter((i) => isSuggestionInclusion(i)).map(withExtras),

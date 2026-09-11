@@ -13,6 +13,9 @@ interface ErrorBoundaryProps {
 
 interface ErrorBoundaryState {
   hasError: boolean;
+  /** O erro capturado, para a tela mostrar o texto técnico (11/09). */
+  error: Error | null;
+  componentStack: string | null;
 }
 
 // Flag anti-loop: se recarregarmos por causa de um chunk quebrado e a página
@@ -37,11 +40,11 @@ export class ErrorBoundary extends React.Component<
 > {
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, error: null, componentStack: null };
   }
 
-  static getDerivedStateFromError(): ErrorBoundaryState {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
@@ -58,7 +61,27 @@ export class ErrorBoundary extends React.Component<
       }
     }
     console.error("ErrorBoundary capturou um erro:", error, errorInfo);
+    // Guardado para a tela: "Algo deu errado" sem o erro não dá para
+    // investigar — o usuário via a página e não tinha o que mandar (11/09).
+    this.setState({ error, componentStack: errorInfo.componentStack ?? null });
   }
+
+  /** Texto técnico pronto para copiar e mandar para o suporte. */
+  detalheTecnico(): string {
+    const { error, componentStack } = this.state;
+    const linhas = [
+      `Página: ${window.location.pathname}${window.location.search}`,
+      `Quando: ${new Date().toISOString()}`,
+      `Erro: ${error?.name ?? "Error"}: ${error?.message ?? "(sem mensagem)"}`,
+      error?.stack ? `Stack:\n${error.stack.split("\n").slice(0, 8).join("\n")}` : null,
+      componentStack ? `Componentes:\n${componentStack.split("\n").filter(Boolean).slice(0, 8).join("\n")}` : null,
+    ].filter(Boolean);
+    return linhas.join("\n");
+  }
+
+  handleCopy = async () => {
+    try { await navigator.clipboard.writeText(this.detalheTecnico()); } catch { /* sem clipboard: o texto está na tela */ }
+  };
 
   handleReload = () => {
     // Limpa a flag para permitir um novo reload automático futuro.
@@ -85,6 +108,15 @@ export class ErrorBoundary extends React.Component<
             {isContent ? " ou abra outra página pelo menu" : ""}.
           </p>
           <Button onClick={this.handleReload}>Recarregar</Button>
+          {/* O erro em si, para o usuário mandar ao suporte (11/09). Aberto por
+              padrão: quem chega aqui quer saber O QUE deu errado. */}
+          <details open className="w-full max-w-2xl text-left">
+            <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">Detalhes técnicos (copie e envie ao suporte)</summary>
+            <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-muted/40 p-3 text-[11px] leading-snug text-foreground" data-testid="erro-detalhe">
+              {this.detalheTecnico()}
+            </pre>
+            <Button variant="outline" size="sm" className="mt-2" onClick={this.handleCopy}>Copiar detalhes</Button>
+          </details>
         </div>
       );
     }

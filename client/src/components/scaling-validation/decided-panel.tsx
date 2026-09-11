@@ -23,8 +23,36 @@ import { periodLabel } from "./suggestions-list";
 import { SuggestionDetailDrawer } from "./suggestion-detail-drawer";
 import { SUGGESTIONS_QUERY_KEY, type SuggestionRow } from "./types";
 
-/** Linha do event-view (vaga + evento anexado + pedidos da vaga). */
-type EventViewRow = SuggestionRow & { requests?: { id: string }[] };
+/** Como a vaga foi decidida — o servidor lê do log mais recente que decide a vaga (11/09). */
+interface DecisaoDaVaga {
+  action: string;
+  resumo: string;
+  comment: string | null;
+  byName: string | null;
+  at: string | null;
+}
+/** Linha do event-view (vaga + evento anexado + pedidos da vaga + decisão). */
+type EventViewRow = SuggestionRow & { requests?: { id: string }[]; decisao?: DecisaoDaVaga | null };
+
+/** O que a barra de filtros da página aplica aqui (busca, função, área, "minhas funções"). */
+export interface FiltroDasDecididas {
+  busca: string;
+  functionId: string | null;
+  area: string | null;
+  soMinhas: ((r: SuggestionRow) => boolean) | null;
+}
+
+/** Rótulo curto do caminho da decisão, pelo log (o "resumo" completo vai no título). */
+const CAMINHO_POR_ACAO: Record<string, string> = {
+  suggestion_approved: "aprovada pelo aprovador após a validação da área",
+  suggestion_rejected: "reprovada pelo aprovador",
+  suggestion_returned: "devolvida pelo aprovador para a área",
+  suggestion_bypass_approve: "aprovada direto, sem validação da área (vaga parada)",
+  suggestion_bypass_reject: "reprovada direto, sem validação da área (vaga parada)",
+  change_request_approved: "pedido aprovado como foi enviado",
+  change_request_reajustar: "pedido reajustado pelo aprovador",
+  change_request_negar: "pedido negado pelo aprovador",
+};
 
 interface EventViewResponse {
   suggestions: EventViewRow[];
@@ -33,10 +61,11 @@ interface EventViewResponse {
 
 const MAX_LINHAS = 100;
 
-export function DecidedPanel({ eventId, functionNameById }: {
+export function DecidedPanel({ eventId, functionNameById, filtro }: {
   /** Evento filtrado na tela ("" = todos os eventos). */
   eventId: string;
   functionNameById: Map<string, string>;
+  filtro?: FiltroDasDecididas;
 }) {
   const query = useQuery<EventViewResponse>({
     queryKey: [`${SUGGESTIONS_QUERY_KEY}/event-view`, eventId || "__todos__"],
@@ -64,16 +93,34 @@ export function DecidedPanel({ eventId, functionNameById }: {
     const negadas = (query.data?.suggestions ?? [])
       .filter((i) => i.status === SUGESTAO_STATUS.NEGADA)
       .map((i) => ({ row: i, decisao: "negada" as const }));
+    const q = (filtro?.busca ?? "").trim().toLowerCase();
+    const qNum = q.replace(/^#/, "");
+    const passa = ({ row }: { row: EventViewRow }) => {
+      if (filtro?.functionId && row.functionId !== filtro.functionId) return false;
+      if (filtro?.area && row.area !== filtro.area) return false;
+      if (filtro?.soMinhas && !filtro.soMinhas(row)) return false;
+      if (!q) return true;
+      const nome = (functionNameById.get(row.functionId) ?? "").toLowerCase();
+      return nome.includes(q) || (qNum !== "" && String(row.inclusionNumber).includes(qNum))
+        || (row.area ?? "").toLowerCase().includes(q) || (row.observations ?? "").toLowerCase().includes(q)
+        || (row.eventName ?? "").toLowerCase().includes(q) || (row.decisao?.byName ?? "").toLowerCase().includes(q);
+    };
+    const quando = (r: { row: EventViewRow }) => String(r.row.decisao?.at ?? r.row.updatedAt ?? "");
     return [...aprovadas, ...negadas]
-      .sort((a, b) => String(b.row.updatedAt ?? "").localeCompare(String(a.row.updatedAt ?? "")))
+      .filter(passa)
+      .sort((a, b) => quando(b).localeCompare(quando(a)))
       .slice(0, MAX_LINHAS);
-  }, [query.data]);
+  }, [query.data, filtro, functionNameById]);
+  const temFiltro = !!filtro && (filtro.busca.trim() !== "" || !!filtro.functionId || !!filtro.area || !!filtro.soMinhas);
 
   const detailRow = rows.find((r) => r.row.id === detailId)?.row ?? null;
 
   if (query.isLoading) return <LoadingState label="Carregando as vagas decididas…" />;
   if (query.isError) {
     return <EmptyState title="Não foi possível carregar" description="Tente recarregar a página." />;
+  }
+  if (rows.length === 0 && temFiltro) {
+    return <EmptyState variant="filtered" title="Nenhuma vaga decidida com esses filtros" description="Os filtros da barra acima valem aqui também." />;
   }
   if (rows.length === 0) {
     return (
@@ -93,7 +140,7 @@ export function DecidedPanel({ eventId, functionNameById }: {
           <caption className="sr-only">Vagas já decididas pelo aprovador</caption>
           <thead className="bg-slate-50">
             <tr>
-              {["Vaga", "Evento", "Período / diárias", "Decisão", "Quando"].map((h) => (
+              {["Vaga", "Evento", "Período / diárias", "Decisão · como · quem", "Quando"].map((h) => (
                 <th key={h} scope="col" className="border-b border-slate-200 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 whitespace-nowrap">{h}</th>
               ))}
               <th scope="col" className="w-10 border-b border-slate-200 px-2 py-2"><span className="sr-only">Detalhes</span></th>
@@ -115,7 +162,7 @@ export function DecidedPanel({ eventId, functionNameById }: {
                 </td>
                 <td className="max-w-[260px] whitespace-normal break-words px-3 py-2 text-slate-600" title={row.eventName ?? undefined}>{row.eventName ?? "Sem evento"}</td>
                 <td className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums text-slate-700">{periodLabel(row)}</td>
-                <td className="px-3 py-2">
+                <td className="max-w-[420px] px-3 py-2">
                   {decisao === "aprovada" ? (
                     <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
                       <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> Aprovada — virou Inclusão
@@ -125,8 +172,22 @@ export function DecidedPanel({ eventId, functionNameById }: {
                       <XCircle className="h-3 w-3" aria-hidden="true" /> Negada
                     </span>
                   )}
+                  {/* Como e por quem (11/09): sem isto toda linha dizia a mesma coisa. */}
+                  {row.decisao ? (
+                    <div className="mt-1 space-y-0.5 text-[12px] leading-snug text-slate-600" title={row.decisao.resumo || undefined}>
+                      <p className="break-words">
+                        {CAMINHO_POR_ACAO[row.decisao.action] ?? row.decisao.resumo}
+                        {row.decisao.byName ? <> · por <span className="font-medium text-slate-800">{row.decisao.byName}</span></> : null}
+                      </p>
+                      {row.decisao.comment && (
+                        <p className="break-words italic text-slate-500">“{row.decisao.comment}”</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-[12px] text-slate-400">Sem registro de quem decidiu.</p>
+                  )}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-500">{row.updatedAt ? formatDateBr(row.updatedAt) : "Sem data"}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-500">{formatDateBr(row.decisao?.at ?? row.updatedAt) || "Sem data"}</td>
                 <td className="px-2 py-2 text-right">
                   <button
                     type="button"

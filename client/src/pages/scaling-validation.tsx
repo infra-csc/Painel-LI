@@ -272,6 +272,22 @@ export default function ScalingValidationPage() {
   };
   const functionNameById = useMemo(() => new Map((functions ?? []).map((f) => [f.id, f.name])), [functions]);
 
+  /**
+   * Funções em que o usuário está CADASTRADO como validador — admin incluído
+   * (o cadastro é o que ele quer ver quando liga "Só as minhas funções").
+   * Base do filtro (11/09): antes o filtro usava canActOn, que é "posso agir
+   * AGORA" — escondia as vagas já validadas das minhas funções e, para admin
+   * (canEdit em tudo), não filtrava nada. O dono: "não está funcionando".
+   */
+  const minhasFuncoesIds = useMemo(
+    () => new Set((functions ?? []).filter((f) => f.managers?.some((m) => m.userId === user?.id && m.role === "validador")).map((f) => f.id)),
+    [functions, user?.id],
+  );
+  /** A vaga é de uma das minhas funções? Sem cadastro, vale o canEdit do servidor. */
+  const daMinhaFuncao = useCallback(
+    (r: SuggestionRow) => (minhasFuncoesIds.size > 0 ? minhasFuncoesIds.has(r.functionId) : r.canEdit),
+    [minhasFuncoesIds],
+  );
   /** Funções em que o usuário é validador (ou todas, se admin) — para "Incluir escalação". */
   const requestableFunctions = useMemo(() => {
     const list = functions ?? [];
@@ -346,9 +362,10 @@ export default function ScalingValidationPage() {
     const list = rows
       .filter((r) => functionFilter === ALL || r.functionId === functionFilter)
       .filter((r) => areaFilter === ALL || r.area === areaFilter)
-      // "Só as minhas funções" = tudo em que o usuário PODE AGIR (validar OU
-      // pedir ajuste/exclusão) — o mesmo conjunto das linhas selecionáveis.
-      .filter((r) => !onlyMine || canActOn(r))
+      // "Só as minhas funções" = vagas das funções em que sou validador, em
+      // QUALQUER situação (validada, com pedido…). O recorte por situação é
+      // dos cards do resumo, não deste botão.
+      .filter((r) => !onlyMine || daMinhaFuncao(r))
       .filter((r) => !kpiFiltro || KPI_MATCH[kpiFiltro](r))
       .filter((r) => {
         if (!q) return true;
@@ -363,12 +380,19 @@ export default function ScalingValidationPage() {
       period: (a, b) => periodKey(a).localeCompare(periodKey(b)) || byDefault(a, b),
     };
     return list.sort((a, b) => dir * cmp[sortConfig.field](a, b));
-  }, [rows, functionFilter, areaFilter, onlyMine, kpiFiltro, deferredSearch, functionNameById, sortConfig]);
+  }, [rows, functionFilter, areaFilter, onlyMine, daMinhaFuncao, kpiFiltro, deferredSearch, functionNameById, sortConfig]);
 
   const onSort = (field: SuggestionSortField) =>
     setSortConfig((prev) => (prev?.field === field ? (prev.direction === "asc" ? { field, direction: "desc" } : null) : { field, direction: "asc" }));
 
   const hasActiveFilters = search.trim() !== "" || functionFilter !== ALL || areaFilter !== ALL || onlyMine || kpiFiltro !== null;
+  /** O que a aba Decididas aplica da barra: busca, função, área e "minhas funções" (os cards de situação não valem lá). */
+  const filtroDasDecididas = useMemo(() => ({
+    busca: deferredSearch,
+    functionId: functionFilter === ALL ? null : functionFilter,
+    area: areaFilter === ALL ? null : areaFilter,
+    soMinhas: onlyMine ? daMinhaFuncao : null,
+  }), [deferredSearch, functionFilter, areaFilter, onlyMine, daMinhaFuncao]);
   const clearFilters = () => { setSearch(""); setFunctionFilter(ALL); setAreaFilter(ALL); setOnlyMine(false); setKpiFiltro(null); };
 
   // ── Seleção ──
@@ -633,32 +657,47 @@ export default function ScalingValidationPage() {
     // O número conta o que FALTA validar; o clique liga o filtro "Só as
     // minhas funções" — o mesmo conjunto (regra de 26/08: validada não aceita
     // mais nada da área).
-    "Minhas pendentes": "Vagas que você pode validar agora (sem pedido pendente). Clique para filtrar a lista pelas suas funções.",
+    "Minhas pendentes": "Das suas funções, as que você pode validar agora (sem pedido pendente). Clique para ver só elas.",
     "Com pedido": "Vagas com pedido de ajuste/exclusão aguardando o aprovador.",
     "Aguardando aprovação": `Vagas que a área já validou e agora aguardam a decisão do aprovador. ${AFTER_VALIDATE_MSG}`,
   };
-  type Kpi = { label: string; n: number; cls: string; filtro?: KpiFiltro | "minhas" };
-  /** O funil: da vaga sugerida à decisão do aprovador. */
+  type Kpi = { label: string; n: number; cls: string; filtro?: KpiFiltro | "minhas"; hint: string };
+  /**
+   * O funil: da vaga sugerida à decisão do aprovador. Cada card diz em UMA
+   * linha o que o número significa (dono, 11/09: "parece que tudo diz a mesma
+   * coisa") — os três do meio somam o total.
+   */
   const FUNIL: Kpi[] = [
-    { label: "Vagas", n: counts.total, cls: "text-slate-800" },
-    { label: "Aguardando validação", n: counts.pendentes, cls: "text-amber-700", filtro: "pendentes" },
-    { label: "Aguardando aprovação", n: counts.aguardandoAprovacao, cls: "text-sky-700", filtro: "aguardandoAprovacao" },
-    { label: "Com pedido", n: counts.comPedido, cls: "text-violet-700", filtro: "comPedido" },
+    { label: "Vagas", n: counts.total, cls: "text-slate-800", hint: "todas em validação, somando as três situações abaixo" },
+    { label: "Aguardando validação", n: counts.pendentes, cls: "text-amber-700", filtro: "pendentes", hint: "a área ainda não validou — é o trabalho desta tela" },
+    { label: "Aguardando aprovação", n: counts.aguardandoAprovacao, cls: "text-sky-700", filtro: "aguardandoAprovacao", hint: "já validadas pela área; na mesa do aprovador" },
+    { label: "Com pedido", n: counts.comPedido, cls: "text-violet-700", filtro: "comPedido", hint: "com ajuste ou exclusão pedidos; o aprovador decide" },
   ];
-  /** Recortes de "Aguardando validação" — não somam com o funil. */
-  const RECORTES: Kpi[] = [
-    { label: "Minhas pendentes", n: counts.minhas, cls: "text-primary", filtro: "minhas" },
-  ];
+  /**
+   * Recorte de "Aguardando validação" pelas MINHAS funções. Só existe quando
+   * o recorte diz algo diferente do card ao lado: admin sem cadastro de
+   * validador via o mesmo 22 nos dois cards (11/09).
+   */
+  const RECORTES: Kpi[] = minhasFuncoesIds.size > 0 || !isAdmin
+    ? [{ label: "Minhas pendentes", n: counts.minhas, cls: "text-primary", filtro: "minhas", hint: "das suas funções, prontas para você validar" }]
+    : [];
   const KPI_BOX = "rounded-xl border px-3 py-2 text-left";
-  const renderKpi = ({ label, n, cls, filtro }: Kpi) => {
+  const renderKpi = ({ label, n, cls, filtro, hint }: Kpi) => {
     const tip = KPI_TOOLTIPS[label];
     // "Vagas" é o total — não há o que recortar. "Minhas pendentes"
     // liga o filtro "Só as minhas funções" (como sempre); os demais
     // recortam por status, um de cada vez.
-    const ativo = filtro === "minhas" ? onlyMine : filtro !== undefined && kpiFiltro === filtro;
+    // "Minhas pendentes" liga os DOIS recortes (minhas funções + aguardando
+    // validação): é o que o número conta. Clicar de novo desliga os dois.
+    const ativo = filtro === "minhas" ? onlyMine && kpiFiltro === "pendentes" : filtro !== undefined && kpiFiltro === filtro;
     const clickable = filtro === "minhas" ? anyEditable : filtro !== undefined && (n > 0 || ativo);
     const alternar = () => {
-      if (filtro === "minhas") { setOnlyMine((v) => !v); return; }
+      if (filtro === "minhas") {
+        const ligar = !(onlyMine && kpiFiltro === "pendentes");
+        setOnlyMine(ligar);
+        setKpiFiltro(ligar ? "pendentes" : null);
+        return;
+      }
       if (filtro) setKpiFiltro((atual) => (atual === filtro ? null : filtro));
     };
     const box = (
@@ -675,6 +714,7 @@ export default function ScalingValidationPage() {
         </dt>
         <dd className={cn("mt-0.5 text-xl font-bold tabular-nums", cls)}>
           {n}
+          <span className="mt-0.5 block text-[10px] font-normal leading-tight text-slate-500">{hint}</span>
           {/* Botão em cima do cartão inteiro: mantém o clique no KPI sem
               quebrar o par <dt>/<dd> (botão não pode conter dt/dd). */}
           {clickable && (
@@ -708,6 +748,64 @@ export default function ScalingValidationPage() {
         return "Decisões já tomadas pelo aprovador (somente leitura)";
     }
   })();
+
+  /**
+   * Barra de filtros — a mesma na Lista e nas Decididas (11/09): quem valida
+   * quer ver as decididas das SUAS funções, e a barra só existia na Lista.
+   */
+  const barraDeFiltros = (
+    <>
+      {/* Filtros */}
+      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 flex flex-wrap items-center gap-2.5">
+        <div className="relative flex-1 min-w-[240px]">
+          <Label htmlFor="val-search" className="sr-only">Buscar vaga</Label>
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+          <Input id="val-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Função, #ID, área ou observação" className="h-9 pl-8 rounded-lg bg-slate-50" />
+        </div>
+        <div className="w-[180px]">
+          <Label htmlFor="val-function" className="sr-only">Função</Label>
+          <Select value={functionFilter} onValueChange={setFunctionFilter}>
+            <SelectTrigger id="val-function" className="h-9 rounded-lg"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todas as funções</SelectItem>
+              {functionsInEvent.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-[160px]">
+          <Label htmlFor="val-area" className="sr-only">Área</Label>
+          <Select value={areaFilter} onValueChange={setAreaFilter}>
+            <SelectTrigger id="val-area" className="h-9 rounded-lg"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todas as áreas</SelectItem>
+              {areas.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        {/* Sem cadastro de validador o admin veria tudo de qualquer jeito — o botão sumiria sem função. */}
+        {anyEditable && (minhasFuncoesIds.size > 0 || !isAdmin) && (
+          <button
+            type="button" aria-pressed={onlyMine} onClick={() => setOnlyMine((v) => !v)}
+            title="Só as vagas das funções em que você é validador, em qualquer situação"
+            className={cn(CHIP_BTN, onlyMine ? "border-primary/30 bg-brand-soft text-primary" : "border-slate-200 bg-white text-slate-600 hover:border-primary/30 hover:text-primary")}
+          >
+            {onlyMine ? <CheckSquare className="w-4 h-4" aria-hidden="true" /> : <Square className="w-4 h-4" aria-hidden="true" />}
+            Só as minhas funções
+          </button>
+        )}
+        {/* O ÚNICO "Limpar filtros" da barra (04/09) — o estado vazio
+            filtrado tem o dele; o aviso de seleção oculta, logo abaixo,
+            já não repete o botão. */}
+        {hasActiveFilters && (
+          <button type="button" onClick={clearFilters}
+            className="h-9 rounded-lg px-2 text-xs font-medium text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            Limpar filtros
+          </button>
+        )}
+      </div>
+
+    </>
+  );
 
   return (
     <PageContainer fluid className="pb-24">
@@ -832,12 +930,14 @@ export default function ScalingValidationPage() {
             <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Funil das vagas">
               {FUNIL.map(renderKpi)}
             </dl>
+            {RECORTES.length > 0 && (
             <div className="space-y-1.5 border-t border-slate-200 pt-3 xl:border-l xl:border-t-0 xl:pl-3 xl:pt-0">
-              <p className={SECTION_TITLE}>Recortes de “Aguardando validação”</p>
-              <dl className="grid grid-cols-2 gap-2 xl:grid-cols-[repeat(2,minmax(150px,1fr))]" aria-label="Recortes de aguardando validação">
+              <p className={SECTION_TITLE}>Recorte de “Aguardando validação”</p>
+              <dl className="grid grid-cols-2 gap-2 xl:grid-cols-[repeat(1,minmax(180px,1fr))]" aria-label="Recorte de aguardando validação">
                 {RECORTES.map(renderKpi)}
               </dl>
             </div>
+            )}
           </div>
         </section>
       )}
@@ -910,52 +1010,7 @@ export default function ScalingValidationPage() {
           </div>
 
           <TabsContent value="lista" className="space-y-3 mt-0">
-            {/* Filtros */}
-            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 flex flex-wrap items-center gap-2.5">
-              <div className="relative flex-1 min-w-[240px]">
-                <Label htmlFor="val-search" className="sr-only">Buscar vaga</Label>
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                <Input id="val-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Função, #ID, área ou observação" className="h-9 pl-8 rounded-lg bg-slate-50" />
-              </div>
-              <div className="w-[180px]">
-                <Label htmlFor="val-function" className="sr-only">Função</Label>
-                <Select value={functionFilter} onValueChange={setFunctionFilter}>
-                  <SelectTrigger id="val-function" className="h-9 rounded-lg"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>Todas as funções</SelectItem>
-                    {functionsInEvent.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="w-[160px]">
-                <Label htmlFor="val-area" className="sr-only">Área</Label>
-                <Select value={areaFilter} onValueChange={setAreaFilter}>
-                  <SelectTrigger id="val-area" className="h-9 rounded-lg"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>Todas as áreas</SelectItem>
-                    {areas.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              {anyEditable && (
-                <button
-                  type="button" aria-pressed={onlyMine} onClick={() => setOnlyMine((v) => !v)}
-                  className={cn(CHIP_BTN, onlyMine ? "border-primary/30 bg-brand-soft text-primary" : "border-slate-200 bg-white text-slate-600 hover:border-primary/30 hover:text-primary")}
-                >
-                  {onlyMine ? <CheckSquare className="w-4 h-4" aria-hidden="true" /> : <Square className="w-4 h-4" aria-hidden="true" />}
-                  Só as minhas funções
-                </button>
-              )}
-              {/* O ÚNICO "Limpar filtros" da barra (04/09) — o estado vazio
-                  filtrado tem o dele; o aviso de seleção oculta, logo abaixo,
-                  já não repete o botão. */}
-              {hasActiveFilters && (
-                <button type="button" onClick={clearFilters}
-                  className="h-9 rounded-lg px-2 text-xs font-medium text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  Limpar filtros
-                </button>
-              )}
-            </div>
+            {barraDeFiltros}
 
             {hiddenSelectedCount > 0 && (
               <p role="status" className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -1007,8 +1062,9 @@ export default function ScalingValidationPage() {
 
           {/* Histórico do que já foi decidido (28/08): a vaga aprovada sumia da
               tela e a área não sabia se tinha dado certo. Leitura pura. */}
-          <TabsContent value="decididas" className="mt-0">
-            <DecidedPanel eventId={eventId} functionNameById={functionNameById} />
+          <TabsContent value="decididas" className="mt-0 space-y-3">
+            {barraDeFiltros}
+            <DecidedPanel eventId={eventId} functionNameById={functionNameById} filtro={filtroDasDecididas} />
           </TabsContent>
         </Tabs>
       )}
