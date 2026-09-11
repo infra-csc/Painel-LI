@@ -215,6 +215,25 @@ export function AwaitingApproval({
     }
   };
 
+  const copy = decision ? DECISION_COPY[decision.kind] : null;
+  const nConfirm = confirmRows?.length ?? 0;
+  /**
+   * O lote somado: o que o aprovador leva para Compras e para a produção.
+   * FICA ANTES do retorno de lista vazia (11/09): este useMemo estava depois
+   * dele, e quando o lote aprovava TODAS as vagas a lista esvaziava, o
+   * componente retornava cedo com um hook a menos e o React derrubava a
+   * página inteira ("Algo deu errado") logo após a aprovação em lote.
+   */
+  const resumoLote = useMemo(() => {
+    const linhas = confirmRows ?? [];
+    return {
+      pessoasDia: linhas.reduce((soma, r) => soma + pessoasDiaDaVaga(r), 0),
+      comPassagem: linhas.filter((r) => r.needsTicket).length,
+      comHotel: linhas.filter((r) => r.needsAccommodation).length,
+      esperaMaisLonga: linhas.reduce((maior, r) => Math.max(maior, daysAwaiting(r)), 0),
+    };
+  }, [confirmRows]);
+
   if (rows.length === 0) {
     return (
       <EmptyState
@@ -225,18 +244,6 @@ export function AwaitingApproval({
     );
   }
 
-  const copy = decision ? DECISION_COPY[decision.kind] : null;
-  const nConfirm = confirmRows?.length ?? 0;
-  /** O lote somado: o que o aprovador leva para Compras e para a produção. */
-  const resumoLote = useMemo(() => {
-    const linhas = confirmRows ?? [];
-    return {
-      pessoasDia: linhas.reduce((soma, r) => soma + pessoasDiaDaVaga(r), 0),
-      comPassagem: linhas.filter((r) => r.needsTicket).length,
-      comHotel: linhas.filter((r) => r.needsAccommodation).length,
-      esperaMaisLonga: linhas.reduce((maior, r) => Math.max(maior, daysAwaiting(r)), 0),
-    };
-  }, [confirmRows]);
 
   return (
     <>
