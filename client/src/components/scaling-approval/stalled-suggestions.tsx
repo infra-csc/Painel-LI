@@ -93,23 +93,31 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
     return (
       <EmptyState
         icon={CheckCircle2}
-        title="Nenhuma vaga parada"
+        title="Nenhuma vaga parada na área"
         description={showEvent
-          ? `Nenhum evento tem vaga esperando validação da área há ${STALLED_DAYS} dias ou mais sem pedido aberto.`
-          : `Todas as vagas pendentes deste evento têm menos de ${STALLED_DAYS} dias ou já estão com pedido aberto.`}
+          ? `Vaga parada é a que a área responsável não validou há ${STALLED_DAYS} dias ou mais. Hoje nenhum evento tem uma assim.`
+          : `Vaga parada é a que a área responsável não validou há ${STALLED_DAYS} dias ou mais. Neste evento todas as pendentes são mais recentes ou já têm pedido aberto.`}
       />
     );
   }
 
   return (
     <>
-      <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-        <Timer className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
-        <span>
-          <span className="font-semibold">Vagas que a área nunca validou há {STALLED_DAYS} dias ou mais.</span>{" "}
-          Você pode aprovar direto ou reprovar sem a validação da área — a decisão fica registrada no histórico da vaga.
-        </span>
-      </p>
+      {/* O que é uma vaga "parada" e o que o aprovador faz com ela, em três
+          frases (dono, 11/09: "está estranho, não dá para entender o que é"). */}
+      <section className="space-y-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900" aria-labelledby="paradas-o-que-e" data-testid="paradas-explicacao">
+        <p id="paradas-o-que-e" className="flex items-center gap-1.5 font-semibold">
+          <Timer className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> O que é uma vaga parada
+        </p>
+        <p>
+          A Logística sugeriu a vaga, mas a <span className="font-semibold">área responsável não validou nem pediu ajuste há {STALLED_DAYS} dias ou mais</span>.
+          Enquanto isso ela não chega em você pelo caminho normal — e a escala do evento fica travada.
+        </p>
+        <p>
+          <span className="font-semibold">O que você pode fazer:</span> destravar por cima da área — <span className="font-semibold">Aprovar direto</span> (a vaga vira Inclusão sem a validação da área)
+          ou <span className="font-semibold">Reprovar</span> (fica registrada como negada). Se preferir esperar a área validar, não faça nada aqui. A decisão fica no histórico da vaga.
+        </p>
+      </section>
 
       {/* Barra de lote (04/09): decidir 17 vagas paradas uma a uma era 17
           confirmações iguais. A seleção só existe para quem pode decidir. */}
@@ -141,7 +149,6 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                 )}
                 <th scope="col" className={TH}>Vaga</th>
                 {showEvent && <th scope="col" className={cn(TH, "min-w-[170px]")}>Evento</th>}
-                <th scope="col" className={TH}>Área</th>
                 <th scope="col" className={TH}>Período / diárias</th>
                 <th scope="col" className={cn(TH, STICKY_TH, "text-right min-w-[250px]")}>Ações</th>
               </tr>
@@ -180,7 +187,6 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                         <span className="block font-mono text-[11px] text-slate-500">{eventPeriodLabel(row) || "Sem período"}</span>
                       </td>
                     )}
-                    <td className="px-2.5 py-2 align-middle text-xs text-slate-600">{row.area ?? "Sem área"}</td>
                     <td className="px-2.5 py-2 align-middle whitespace-nowrap">
                       <span className="font-mono tabular-nums text-xs text-slate-700">{periodLabel(row)}</span>
                       <span className="ml-1.5 text-[11px] text-slate-500">· {formatDiarias(days.length || row.dailyRates || 0)}</span>

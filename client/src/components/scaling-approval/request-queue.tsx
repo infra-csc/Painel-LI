@@ -127,7 +127,7 @@ export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById,
                         {r.functionName ?? "Sem função"}
                       </button>
                       <span className="block text-[11px] text-slate-500 break-words">
-                        <span className="font-mono">{targetLabel(r)}{r.area ? ` · ${r.area}` : ""}</span>
+                        <span className="font-mono">{targetLabel(r)}</span>
                         <span title={r.requestedByName ?? undefined}> · por {r.requestedByName}</span>
                       </span>
                       {/* Motivo na 2ª linha da própria vaga: é dela que ele fala. */}

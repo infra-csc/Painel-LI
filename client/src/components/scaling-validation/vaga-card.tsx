@@ -65,7 +65,6 @@ export function VagaCard({ row, functionName, rotuloLogistica = "Logística", ba
           #{row.inclusionNumber}
         </span>
         <span className="truncate text-sm font-semibold text-slate-800">{functionName ?? "Sem função"}</span>
-        <span className="truncate text-xs text-slate-500">{row.area || "Sem área"}</span>
         {badge ? <span className="ml-auto shrink-0">{badge}</span> : null}
       </div>
 

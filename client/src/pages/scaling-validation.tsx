@@ -154,7 +154,6 @@ export default function ScalingValidationPage() {
    */
   const deferredSearch = useDeferredValue(search);
   const [functionFilter, setFunctionFilter] = useState(ALL);
-  const [areaFilter, setAreaFilter] = useState(ALL);
   const [onlyMine, setOnlyMine] = useState(false);
   /**
    * Card do resumo que está filtrando a lista (04/09). Antes só "Minhas
@@ -319,7 +318,6 @@ export default function ScalingValidationPage() {
   }, [readOnlyMode, isAdmin, requestableFunctions]);
 
   // ── Filtros ──
-  const areas = useMemo(() => Array.from(new Set(rows.map((r) => r.area).filter((a): a is string => !!a))).sort((a, b) => a.localeCompare(b, "pt-BR")), [rows]);
   const functionsInEvent = useMemo(() => {
     const ids = new Set(rows.map((r) => r.functionId));
     return (functions ?? []).filter((f) => ids.has(f.id)).sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
@@ -361,7 +359,6 @@ export default function ScalingValidationPage() {
     const periodKey = (r: SuggestionRow) => workDaysOf(r)[0] ?? String(r.scheduleStartDate ?? "").slice(0, 10) ?? "";
     const list = rows
       .filter((r) => functionFilter === ALL || r.functionId === functionFilter)
-      .filter((r) => areaFilter === ALL || r.area === areaFilter)
       // "Só as minhas funções" = vagas das funções em que sou validador, em
       // QUALQUER situação (validada, com pedido…). O recorte por situação é
       // dos cards do resumo, não deste botão.
@@ -369,7 +366,7 @@ export default function ScalingValidationPage() {
       .filter((r) => !kpiFiltro || KPI_MATCH[kpiFiltro](r))
       .filter((r) => {
         if (!q) return true;
-        return nameOf(r).toLowerCase().includes(q) || (qNum !== "" && String(r.inclusionNumber).includes(qNum)) || (r.area ?? "").toLowerCase().includes(q) || (r.observations ?? "").toLowerCase().includes(q);
+        return nameOf(r).toLowerCase().includes(q) || (qNum !== "" && String(r.inclusionNumber).includes(qNum)) || (r.observations ?? "").toLowerCase().includes(q);
       });
     const byDefault = (a: SuggestionRow, b: SuggestionRow) => nameOf(a).localeCompare(nameOf(b), "pt-BR") || (a.inclusionNumber ?? 0) - (b.inclusionNumber ?? 0);
     if (!sortConfig) return list.sort(byDefault);
@@ -380,20 +377,19 @@ export default function ScalingValidationPage() {
       period: (a, b) => periodKey(a).localeCompare(periodKey(b)) || byDefault(a, b),
     };
     return list.sort((a, b) => dir * cmp[sortConfig.field](a, b));
-  }, [rows, functionFilter, areaFilter, onlyMine, daMinhaFuncao, kpiFiltro, deferredSearch, functionNameById, sortConfig]);
+  }, [rows, functionFilter, onlyMine, daMinhaFuncao, kpiFiltro, deferredSearch, functionNameById, sortConfig]);
 
   const onSort = (field: SuggestionSortField) =>
     setSortConfig((prev) => (prev?.field === field ? (prev.direction === "asc" ? { field, direction: "desc" } : null) : { field, direction: "asc" }));
 
-  const hasActiveFilters = search.trim() !== "" || functionFilter !== ALL || areaFilter !== ALL || onlyMine || kpiFiltro !== null;
-  /** O que a aba Decididas aplica da barra: busca, função, área e "minhas funções" (os cards de situação não valem lá). */
+  const hasActiveFilters = search.trim() !== "" || functionFilter !== ALL || onlyMine || kpiFiltro !== null;
+  /** O que a aba Decididas aplica da barra: busca, função e "minhas funções" (os cards de situação não valem lá). */
   const filtroDasDecididas = useMemo(() => ({
     busca: deferredSearch,
     functionId: functionFilter === ALL ? null : functionFilter,
-    area: areaFilter === ALL ? null : areaFilter,
     soMinhas: onlyMine ? daMinhaFuncao : null,
-  }), [deferredSearch, functionFilter, areaFilter, onlyMine, daMinhaFuncao]);
-  const clearFilters = () => { setSearch(""); setFunctionFilter(ALL); setAreaFilter(ALL); setOnlyMine(false); setKpiFiltro(null); };
+  }), [deferredSearch, functionFilter, onlyMine, daMinhaFuncao]);
+  const clearFilters = () => { setSearch(""); setFunctionFilter(ALL); setOnlyMine(false); setKpiFiltro(null); };
 
   // ── Seleção ──
   // Selecionáveis no evento inteiro (a seleção sobrevive ao filtro) e só as
@@ -760,7 +756,7 @@ export default function ScalingValidationPage() {
         <div className="relative flex-1 min-w-[240px]">
           <Label htmlFor="val-search" className="sr-only">Buscar vaga</Label>
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-          <Input id="val-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Função, #ID, área ou observação" className="h-9 pl-8 rounded-lg bg-slate-50" />
+          <Input id="val-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Função, #ID ou observação" className="h-9 pl-8 rounded-lg bg-slate-50" />
         </div>
         <div className="w-[180px]">
           <Label htmlFor="val-function" className="sr-only">Função</Label>
@@ -769,16 +765,6 @@ export default function ScalingValidationPage() {
             <SelectContent>
               <SelectItem value={ALL}>Todas as funções</SelectItem>
               {functionsInEvent.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="w-[160px]">
-          <Label htmlFor="val-area" className="sr-only">Área</Label>
-          <Select value={areaFilter} onValueChange={setAreaFilter}>
-            <SelectTrigger id="val-area" className="h-9 rounded-lg"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todas as áreas</SelectItem>
-              {areas.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>

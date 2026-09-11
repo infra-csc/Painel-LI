@@ -373,7 +373,7 @@ export function SuggestionDetailDrawer({
                 )}
               </DialogTitle>
               <DialogDescription className="text-xs text-slate-500">
-                {event?.name ?? "Evento"}{row.area ? ` · ${row.area}` : ""}
+                {event?.name ?? "Evento"}
                 {row.canEdit ? " · você valida esta função" : " · somente leitura"}
               </DialogDescription>
               <StatusCell row={row} approverNames={approverNames} />

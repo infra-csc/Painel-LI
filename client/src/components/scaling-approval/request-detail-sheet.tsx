@@ -75,7 +75,7 @@ export function RequestDetailDialog({ open, onOpenChange, request, inclusion, va
                 <span className="font-mono text-[13px] text-slate-500 font-normal"> · {targetLabel(r)}</span>
               </DialogTitle>
               <DialogDescription className="text-xs">
-                {r.eventName ?? "Evento"}{eventPeriod ? <span className="font-mono tabular-nums"> · {eventPeriod}</span> : null}{r.area ? ` · ${r.area}` : ""} · pedido por <span className="font-semibold text-slate-700">{r.requestedByName}</span> em {formatDateTimeBr(r.createdAt)}
+                {r.eventName ?? "Evento"}{eventPeriod ? <span className="font-mono tabular-nums"> · {eventPeriod}</span> : null} · pedido por <span className="font-semibold text-slate-700">{r.requestedByName}</span> em {formatDateTimeBr(r.createdAt)}
               </DialogDescription>
             </DialogHeader>
 

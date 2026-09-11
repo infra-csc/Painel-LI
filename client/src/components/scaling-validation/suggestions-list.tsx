@@ -579,8 +579,8 @@ function AreaLine({ row }: { row: SuggestionRow }) {
   const obs = row.observations?.trim();
   return (
     <span className="flex items-start gap-1.5 min-w-0">
-      <span className={cn(CHIP_NEUTRAL, "shrink-0")}>{row.area ?? "Sem área"}</span>
-      {obs && <span className="line-clamp-2 text-[11px] leading-4 text-slate-500" title={obs}>{obs}</span>}
+      {/* Área saiu da tela (dono, 11/09) — a função basta. */}
+      {obs ? <span className="line-clamp-2 text-[11px] leading-4 text-slate-500" title={obs}>{obs}</span> : <span className="text-[11px] leading-4 text-slate-400">Sem observações</span>}
     </span>
   );
 }

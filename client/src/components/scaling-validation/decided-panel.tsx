@@ -38,7 +38,6 @@ type EventViewRow = SuggestionRow & { requests?: { id: string }[]; decisao?: Dec
 export interface FiltroDasDecididas {
   busca: string;
   functionId: string | null;
-  area: string | null;
   soMinhas: ((r: SuggestionRow) => boolean) | null;
 }
 
@@ -97,12 +96,11 @@ export function DecidedPanel({ eventId, functionNameById, filtro }: {
     const qNum = q.replace(/^#/, "");
     const passa = ({ row }: { row: EventViewRow }) => {
       if (filtro?.functionId && row.functionId !== filtro.functionId) return false;
-      if (filtro?.area && row.area !== filtro.area) return false;
       if (filtro?.soMinhas && !filtro.soMinhas(row)) return false;
       if (!q) return true;
       const nome = (functionNameById.get(row.functionId) ?? "").toLowerCase();
       return nome.includes(q) || (qNum !== "" && String(row.inclusionNumber).includes(qNum))
-        || (row.area ?? "").toLowerCase().includes(q) || (row.observations ?? "").toLowerCase().includes(q)
+        || (row.observations ?? "").toLowerCase().includes(q)
         || (row.eventName ?? "").toLowerCase().includes(q) || (row.decisao?.byName ?? "").toLowerCase().includes(q);
     };
     const quando = (r: { row: EventViewRow }) => String(r.row.decisao?.at ?? r.row.updatedAt ?? "");
@@ -111,7 +109,7 @@ export function DecidedPanel({ eventId, functionNameById, filtro }: {
       .sort((a, b) => quando(b).localeCompare(quando(a)))
       .slice(0, MAX_LINHAS);
   }, [query.data, filtro, functionNameById]);
-  const temFiltro = !!filtro && (filtro.busca.trim() !== "" || !!filtro.functionId || !!filtro.area || !!filtro.soMinhas);
+  const temFiltro = !!filtro && (filtro.busca.trim() !== "" || !!filtro.functionId || !!filtro.soMinhas);
 
   const detailRow = rows.find((r) => r.row.id === detailId)?.row ?? null;
 

@@ -354,7 +354,7 @@ export function AwaitingApproval({
                         <div className="min-w-0">
                           <span className="block font-semibold text-slate-800 break-words" title={fnName}>{fnName}</span>
                           <span className="block text-[11px] text-slate-500 line-clamp-2 break-words" title={row.observations ?? undefined}>
-                            {row.area ?? "Sem área"}{row.observations ? ` · ${row.observations}` : ""}
+                            {row.observations || "Sem observações"}
                           </span>
                         </div>
                       </div>
@@ -429,7 +429,6 @@ export function AwaitingApproval({
                         <div className="flex items-center gap-2">
                           <span className="rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800">#{r.inclusionNumber}</span>
                           <span className="break-words font-semibold">{functionNameById.get(r.functionId) ?? "Sem função"}</span>
-                          <span className="break-words text-slate-500">{r.area || "Sem área"}</span>
                           {/* Lote de "todos os eventos" pode misturar eventos: o
                               aprovador precisa ver isso ANTES de confirmar. */}
                           {showEvent && <span className="break-words text-slate-500">{r.eventName ?? "Sem evento"}</span>}

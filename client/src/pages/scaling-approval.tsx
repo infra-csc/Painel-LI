@@ -603,7 +603,7 @@ export default function ScalingApprovalPage() {
     switch (tab) {
       case "fila": return `${filtered.length} de ${items.length} pedido(s)`;
       case "aprovacao": return `${awaitingRows.length} vaga(s) validada(s) aguardando a sua decisão`;
-      case "paradas": return `${stalledRows.length} ${stalledRows.length === 1 ? "vaga parada" : "vagas paradas"} na validação da área`;
+      case "paradas": return `${stalledRows.length} ${stalledRows.length === 1 ? "vaga que a área não validou" : "vagas que a área não validou"} há ${STALLED_DAYS}+ dias`;
       default: return null;
     }
   })();
@@ -756,7 +756,7 @@ export default function ScalingApprovalPage() {
             {isApprover && (
               <TabsTrigger value="paradas" className={TAB_TRIGGER}>
                 <span className="sm:hidden">Paradas</span>
-                <span className="hidden sm:inline">Vagas paradas</span>
+                <span className="hidden sm:inline">Paradas na área</span>
                 {stalledRows.length > 0 ? ` (${stalledRows.length})` : ""}
               </TabsTrigger>
             )}

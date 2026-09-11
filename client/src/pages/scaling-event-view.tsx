@@ -548,7 +548,7 @@ export default function ScalingEventViewPage() {
     for (const r of requests) {
       const tipo = CHANGE_REQUEST_TYPE_LABELS[r.requestType as ChangeRequestType] ?? r.requestType;
       const alvo = r.teamInclusionId ? `vaga #${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "?"}` : "vaga nova";
-      const where = `${fnName(r.functionId)} · ${alvo}${r.area ? ` · ${r.area}` : ""}`;
+      const where = `${fnName(r.functionId)} · ${alvo}`;
       // O link leva ao evento DO PEDIDO (no modo "todos", `eventId` é vazio).
       const href = canOpenApproval ? scalingHref("/scaling-approval", eventId || r.eventId, { request: r.id }) : undefined;
       const created = toDate(r.createdAt);
@@ -1280,7 +1280,7 @@ export default function ScalingEventViewPage() {
                                     <span className={cn("truncate text-[13px] font-semibold transition-colors group-hover:text-primary", dim ? "text-slate-500 line-through" : "text-slate-800")}>{fnName}</span>
                                   </button>
                                   <span className="mt-0.5 block truncate text-[11px] text-slate-500" title={row.observations ?? undefined}>
-                                    {row.area ?? "Sem área"}{row.observations ? ` · ${row.observations}` : ""}
+                                    {row.observations || "Sem observações"}
                                   </span>
                                 </div>
                               </td>
@@ -1349,7 +1349,6 @@ export default function ScalingEventViewPage() {
                           </button>
                           <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
                         </div>
-                        <p className={LABEL}>{row.area ?? "Sem área"}</p>
                         {!eventId && <p className={cn(LABEL, "truncate font-semibold text-slate-600")}>{eventNameOf(row)}</p>}
                         <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                           <dt className="text-slate-500">Período</dt><dd className="font-mono text-slate-700">{periodLabel(row)} · {formatDiarias(days.length || row.dailyRates || 0)}</dd>
@@ -1417,7 +1416,6 @@ export default function ScalingEventViewPage() {
                 <li key={l.functionId} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-slate-800">{l.name}</p>
-                    {l.area && <p className="truncate text-xs text-slate-500">{l.area}</p>}
                   </div>
                   <dl className="flex shrink-0 gap-3 text-right">
                     <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Vagas</dt><dd className="text-sm font-bold tabular-nums text-slate-800">{l.vagas}</dd></div>
@@ -1517,7 +1515,7 @@ export default function ScalingEventViewPage() {
                                   {/* Sem filtro de evento, o pedido precisa dizer de qual ele é. */}
                                   {!eventId && <span className="block truncate text-[11px] font-semibold text-slate-500" title={eventNameOf(r)}>{eventNameOf(r)}</span>}
                                   <span className="block font-mono text-[11px] text-slate-500">
-                                    {r.teamInclusionId ? `vaga #${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "?"}` : "vaga nova"}{r.area ? ` · ${r.area}` : ""}
+                                    {r.teamInclusionId ? `vaga #${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "?"}` : "vaga nova"}
                                   </span>
                                   {r.reason && <span className="mt-0.5 block text-xs text-slate-600 line-clamp-2" title={r.reason}>{r.reason}</span>}
                                 </td>
