@@ -115,3 +115,12 @@ describe("transferência no histórico (14/09)", () => {
     expect(origem.find((e) => e.titulo === "Transferência aprovada")!.detalhe).toBe("Gleicy sai desta vaga e vai para a vaga #10 · Evento X · esta vaga fica aberta");
   });
 });
+
+describe("criação da vaga no histórico (14/09)", () => {
+  it("diz quem criou e por onde", () => {
+    const h = montarHistoricoDaVaga(vazio({ vaga: { id: "v1", createdAt: "2026-09-01T10:00:00.000Z", criadaPor: "Agatha", criadaOnde: "tela Inclusão de Equipe" } }));
+    const c = h.find((e) => e.id === "vaga-criada")!;
+    expect(c.autor).toBe("Agatha");
+    expect(c.detalhe).toBe("Pela tela Inclusão de Equipe");
+  });
+});

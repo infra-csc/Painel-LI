@@ -43,6 +43,9 @@ export interface FontesDoHistorico {
     validatedAt?: Quando;
     validatedByName?: string | null;
     deletedAt?: Quando;
+    /** Quem criou e por onde (14/09) — ver shared/criacao-da-vaga.ts. */
+    criadaPor?: string | null;
+    criadaOnde?: string | null;
   };
   logs: { id: string; action: string; details: string | null; previousValue: string | null; newValue: string | null; userName: string | null; createdAt: Quando }[];
   passagens: {
@@ -196,7 +199,7 @@ export function montarHistoricoDaVaga(f: FontesDoHistorico): EntradaDoHistorico[
   // 2) Vaga
   const criada = toIso(f.vaga.createdAt);
   if (criada && !f.logs.some((l) => ["created", "create", "created_from_change_request"].includes(l.action))) {
-    add({ id: "vaga-criada", at: criada, diaFixo: null, categoria: "vaga", titulo: "Vaga criada", detalhe: null, autor: null, comentario: null });
+    add({ id: "vaga-criada", at: criada, diaFixo: null, categoria: "vaga", titulo: "Vaga criada", detalhe: f.vaga.criadaOnde ? `Pela ${f.vaga.criadaOnde}` : null, autor: f.vaga.criadaPor ?? null, comentario: null });
   }
   const enviada = toIso(f.vaga.suggestionSentAt);
   if (enviada && !temLogPerto(["suggestion_sent", "suggestion_returned", "change_request_reajustar", "change_request_negar"], enviada)) {

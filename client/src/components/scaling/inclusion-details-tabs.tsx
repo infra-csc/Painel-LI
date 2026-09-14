@@ -245,6 +245,36 @@ function rotuloDoDia(dia: string): string {
  * destaque, separado) e quem fez. Rola dentro da coluna — nada fica escondido
  * atrás de "Ver todos".
  */
+/**
+ * Quem criou a vaga, por onde e quando (dono, 14/09) — fixo no topo do
+ * Histórico. A criação é a entrada mais antiga e ficava no fim da rolagem;
+ * quem abre a aba quer essa resposta primeiro.
+ */
+function CriacaoDaVaga({ historico }: { historico: EntradaDoHistorico[] | undefined }) {
+  if (!historico || historico.length === 0) return null;
+  const e = historico.find((x) => x.id === "vaga-criada" || (x.categoria === "vaga" && x.titulo.startsWith("Vaga criada")));
+  if (!e) {
+    return (
+      <p className="mb-3 rounded-lg border border-dashed border-slate-200 px-3 py-2 text-[12px] text-slate-500" data-testid="historico-criacao">
+        A criação desta vaga não ficou registrada.
+      </p>
+    );
+  }
+  const quando = new Date(e.at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const onde = e.detalhe ? e.detalhe.replace(/^Pela\s+/i, "") : null;
+  return (
+    <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-600" data-testid="historico-criacao">
+      <p>
+        <span className="font-semibold text-slate-800">{e.titulo}</span> em{" "}
+        <span className="font-medium tabular-nums text-slate-700">{quando}</span>
+      </p>
+      <p className="mt-0.5 break-words">
+        {e.autor ? <>por <span className="font-medium text-slate-700">{e.autor}</span></> : "autor não registrado"}
+        {onde ? <> · pela <span className="font-medium text-slate-700">{onde}</span></> : null}
+      </p>
+    </div>
+  );
+}
 function HistoricoDaVaga({ historico, carregando }: { historico: EntradaDoHistorico[] | undefined; carregando: boolean }) {
   const grupos = (historico ?? []).reduce<{ dia: string; itens: EntradaDoHistorico[] }[]>((acc, e) => {
     const dia = e.diaFixo ?? ymdLocal(new Date(e.at));
@@ -262,6 +292,7 @@ function HistoricoDaVaga({ historico, carregando }: { historico: EntradaDoHistor
           <span className="text-[11px] text-muted-foreground">{historico.length} {historico.length === 1 ? "registro" : "registros"}</span>
         )}
       </div>
+      {!carregando && <CriacaoDaVaga historico={historico} />}
       {carregando ? (
         <EsqueletoHistorico linhas={4} />
       ) : !historico || historico.length === 0 ? (

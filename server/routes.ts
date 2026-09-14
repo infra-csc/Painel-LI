@@ -43,6 +43,7 @@ import {
 import { nextStatusOnConfirm } from "@shared/scaling-rules";
 import { montarHistoricoDaVaga } from "@shared/inclusion-timeline";
 import { trocaNaVisaoDaVaga } from "@shared/swap-permuta";
+import { ONDE_A_VAGA_NASCEU, origemDaCriacao } from "@shared/criacao-da-vaga";
 import { validarSaiDe } from "@shared/swap-sai-de";
 
 /**
@@ -2101,6 +2102,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ]);
       const nomeDoUsuario = new Map(usuarios.map((u) => [u.id, u.name]));
       const trocas = (((trocasRes as any).rows ?? trocasRes) as any[]).map((r) => trocaNaVisaoDaVaga(r, id));
+      // Quem criou a vaga, por onde e quando (dono, 14/09). A vaga não guarda o
+      // autor: vem do registro da vaga (pedido, sugestão, criação) ou da
+      // auditoria gravada na criação — a da grade antiga é UMA por lote, achada
+      // pela hora. A janela é calculada no próprio banco, com a hora da vaga,
+      // para não depender do fuso do servidor.
+      const auditoriasRes = await db.execute(drizzleSql`
+        SELECT entity_id, action, user_name, new_data, created_at FROM system_logs
+        WHERE entity_type = 'team_inclusion' AND action IN ('create', 'suggestion_sent')
+          AND (
+            entity_id = ${id}
+            OR created_at BETWEEN (SELECT created_at FROM team_inclusions WHERE id = ${id}) - interval '2 minutes'
+                              AND (SELECT created_at FROM team_inclusions WHERE id = ${id}) + interval '2 minutes'
+          )
+        ORDER BY created_at ASC
+        LIMIT 50
+      `);
+      const criacao = origemDaCriacao({
+        vagaId: id,
+        createdAt: vaga.createdAt,
+        logs,
+        auditorias: (((auditoriasRes as any).rows ?? auditoriasRes) as any[]).map((a) => ({
+          entityId: String(a.entity_id),
+          action: String(a.action),
+          userName: a.user_name ?? null,
+          newData: a.new_data ?? null,
+          createdAt: a.created_at,
+        })),
+      });
       const historico = montarHistoricoDaVaga({
         vaga: {
           id: vaga.id,
@@ -2109,6 +2138,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           validatedAt: (vaga as any).validatedAt,
           validatedByName: (vaga as any).validatedBy ? nomeDoUsuario.get((vaga as any).validatedBy) ?? null : null,
           deletedAt: (vaga as any).deletedAt,
+          criadaPor: criacao.por,
+          criadaOnde: criacao.onde,
         },
         logs,
         passagens: passagens.map((t) => ({
@@ -2166,6 +2197,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const actorId = req.session?.userId;
       const actor = actorId ? await storage.getUser(actorId) : null;
       await createAuditLog('create', 'team_inclusion', inclusion.id, inclusion, actorId, actor?.name || 'Sistema', undefined, req);
+      // Criação registrada na PRÓPRIA vaga (14/09): quem e por onde, para o
+      // Histórico. Esta rota só é chamada pela escalação de emergência.
+      await storage.createTeamInclusionLog({
+        teamInclusionId: inclusion.id,
+        action: 'created',
+        details: "Pela " + ONDE_A_VAGA_NASCEU.emergencia,
+        previousValue: null,
+        newValue: inclusion.status,
+        userId: creatorActor.id,
+        userName: creatorActor.name ?? 'Usuário',
+      });
       res.json(inclusion);
     } catch (error) {
       console.error("Error creating team inclusion:", error);
@@ -2197,6 +2239,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const created = await storage.createTeamInclusionsBatch(rows);
       await createAuditLog('create', 'team_inclusion', created[0]?.id ?? 'bulk', { count: created.length }, actor.id, actor.name, undefined, req);
+      // A auditoria acima é UMA por lote; o Histórico de cada vaga precisa
+      // saber quem a criou e por onde (14/09) — um registro por vaga.
+      for (const c of created) {
+        await storage.createTeamInclusionLog({
+          teamInclusionId: c.id,
+          action: 'created',
+          details: "Pela " + ONDE_A_VAGA_NASCEU.inclusao,
+          previousValue: null,
+          newValue: c.status,
+          userId: actor.id,
+          userName: actor.name ?? 'Usuário',
+        });
+      }
       res.status(201).json({ created: created.length, items: created });
     } catch (error) {
       console.error("Error creating team inclusions batch:", error);
