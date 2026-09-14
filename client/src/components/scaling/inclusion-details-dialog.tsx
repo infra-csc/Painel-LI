@@ -336,7 +336,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
   const requestLockReason = pendingRequestLock(changeWindow.data);
   /** Um motivo só para os cartões internos: pedido em análise vence evento encerrado. */
   const actionLockReason = requestLockReason ?? eventLockReason;
-  const { comments, inclusionLogs, pendingSwap, latestSwap, users } = details;
+  const { comments, historico, pendingSwap, latestSwap, users } = details;
 
   const getUserName = (userId: string): string => {
     if (user?.id === userId) return "Você";
@@ -425,7 +425,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
     <Dialog open={open} onOpenChange={onOpenChange} modal={modal}>
       {/* 980px no lugar de 1180: em duas colunas o conteúdo respira, e a
           terceira coluna do layout antigo só existia porque a largura sobrava. */}
-      <DialogContent ref={contentRef} className="!max-w-[980px] w-[95vw] max-h-[calc(100dvh-48px)] !rounded-[14px] !flex !flex-col p-0 gap-0 overflow-hidden">
+      <DialogContent ref={contentRef} className="!max-w-[1120px] w-[95vw] max-h-[calc(100dvh-48px)] !rounded-[14px] !flex !flex-col p-0 gap-0 overflow-hidden">
         {/* ── Cabeçalho ──
             O gradiente e o quadrado azul de 44px com sombra ocupavam a linha
             inteira para dizer "Detalhes da Escalação", que é o que o próprio
@@ -1018,7 +1018,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                 <HospedagemTab inclusion={inclusion} accommodation={accommodation} renderAttachments={renderAttachments} />
                 <ComentariosTab
                   comments={comments}
-                  inclusionLogs={inclusionLogs}
+                  historico={historico}
                   getUserName={getUserName}
                   newComment={newComment}
                   setNewComment={setNewComment}

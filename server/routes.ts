@@ -41,6 +41,7 @@ import {
   CENO_EMPREITA_SETTING_KEYS,
   cenoEmpreitaDefaultsMap, validarEmpreita } from "@shared/cenotecnica-empreita";
 import { nextStatusOnConfirm } from "@shared/scaling-rules";
+import { montarHistoricoDaVaga } from "@shared/inclusion-timeline";
 import { validarSaiDe } from "@shared/swap-sai-de";
 
 /**
@@ -2064,6 +2065,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Erro ao buscar a vaga:", error);
       res.status(500).json({ message: "Erro ao buscar a vaga" });
+    }
+  });
+
+  // Histórico COMPLETO da vaga (dono, 14/09): junta os registros da vaga com
+  // o que nunca gravou neles — criação, envio/validação, passagem, hospedagem,
+  // trocas e pedidos — numa linha do tempo sem duplicatas. Só leitura.
+  app.get("/api/team-inclusions/:id/timeline", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    try {
+      const { id } = req.params;
+      const vaga = await storage.getTeamInclusion(id);
+      if (!vaga) return res.status(404).json({ message: "Vaga não encontrada" });
+      const [logs, passagens, hospedagens, pedidos, usuarios, trocasRes] = await Promise.all([
+        storage.getTeamInclusionLogs(id),
+        storage.getTicketsByInclusionId(id),
+        storage.getAccommodationsByInclusionId(id),
+        storage.getScalingChangeRequestsByInclusion(id),
+        storage.getUsers(),
+        db.execute(drizzleSql`
+          SELECT sr.*, cc.full_name AS current_collaborator_name, nc.full_name AS new_collaborator_name
+          FROM swap_requests sr
+          LEFT JOIN collaborators cc ON sr.current_collaborator_id = cc.id
+          LEFT JOIN collaborators nc ON sr.new_collaborator_id = nc.id
+          WHERE sr.team_inclusion_id = ${id}
+        `),
+      ]);
+      const nomeDoUsuario = new Map(usuarios.map((u) => [u.id, u.name]));
+      const trocas = (((trocasRes as any).rows ?? trocasRes) as any[]).map((r) => ({
+        id: String(r.id),
+        createdAt: r.created_at,
+        requestedByName: r.requested_by_name ?? null,
+        currentCollaboratorName: r.current_collaborator_name ?? null,
+        newCollaboratorName: r.new_collaborator_name ?? null,
+        newCity: r.new_city ?? null,
+        reason: r.reason ?? null,
+        status: String(r.status ?? "pendente"),
+        reviewedAt: r.reviewed_at,
+        reviewedByName: r.reviewed_by_name ?? null,
+        reviewComment: r.review_comment ?? null,
+      }));
+      const historico = montarHistoricoDaVaga({
+        vaga: {
+          id: vaga.id,
+          createdAt: vaga.createdAt,
+          suggestionSentAt: (vaga as any).suggestionSentAt,
+          validatedAt: (vaga as any).validatedAt,
+          validatedByName: (vaga as any).validatedBy ? nomeDoUsuario.get((vaga as any).validatedBy) ?? null : null,
+          deletedAt: (vaga as any).deletedAt,
+        },
+        logs,
+        passagens: passagens.map((t) => ({
+          id: t.id, createdAt: t.createdAt, purchaseDate: t.purchaseDate, emittedAt: t.emittedAt,
+          emittedByName: t.emittedBy ? nomeDoUsuario.get(t.emittedBy) ?? null : null,
+          ticketStatus: t.ticketStatus, transportType: t.transportType,
+          departureCityOrigin: t.departureCityOrigin, departureCityDestination: t.departureCityDestination,
+        })),
+        hospedagens: hospedagens.map((h) => ({
+          id: h.id, createdAt: h.createdAt, hotelName: h.hotelName, checkInDate: h.checkInDate, checkOutDate: h.checkOutDate, hotelStatus: h.hotelStatus,
+        })),
+        trocas,
+        pedidos: pedidos.map((p) => ({
+          id: p.id, createdAt: p.createdAt, requestType: p.requestType, requestedByName: p.requestedByName, reason: p.reason,
+          status: p.status, reviewedAt: p.reviewedAt, reviewedByName: p.reviewedByName, reviewComment: p.reviewComment,
+        })),
+      });
+      res.set("Cache-Control", "no-store");
+      res.json(historico);
+    } catch (error) {
+      console.error("Error building inclusion timeline:", error);
+      res.status(500).json({ message: "Erro ao montar o histórico da vaga" });
     }
   });
 

@@ -3,6 +3,7 @@
  * Extraído de pages/scaling.tsx — regra de negócio preservada.
  */
 import { useMemo } from "react";
+import type { EntradaDoHistorico } from "@shared/inclusion-timeline";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { SortConfig } from "@/components/common/sortable-header";
 import { apiRequest } from "@/lib/queryClient";
@@ -619,8 +620,10 @@ export function useInclusionDetails(inclusionId: string | undefined) {
     enabled,
   });
 
-  const { data: inclusionLogs, isLoading: isLoadingLogs } = useQuery<TeamInclusionLog[]>({
-    queryKey: ["/api/team-inclusions", inclusionId, "logs"],
+  // Linha do tempo montada no servidor com TODAS as fontes (14/09) — a lista
+  // crua de logs deixava de fora passagem, hospedagem, troca e criação.
+  const { data: historico, isLoading: isLoadingLogs } = useQuery<EntradaDoHistorico[]>({
+    queryKey: ["/api/team-inclusions", inclusionId, "timeline"],
     enabled,
   });
 
@@ -656,7 +659,7 @@ export function useInclusionDetails(inclusionId: string | undefined) {
    */
   const isLoadingHistorico = enabled && (isLoadingComments || isLoadingLogs);
 
-  return { comments, inclusionLogs, swapRequests, pendingSwap, latestSwap, users, refetchUsers, isLoadingHistorico };
+  return { comments, historico, swapRequests, pendingSwap, latestSwap, users, refetchUsers, isLoadingHistorico };
 }
 
 export type InclusionDetails = ReturnType<typeof useInclusionDetails>;

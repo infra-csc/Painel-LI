@@ -22,7 +22,8 @@ import { Plane, MessageSquare, History, Bed } from "lucide-react";
 import { TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { TeamInclusion, Ticket, Accommodation, Comment, TeamInclusionLog } from "@shared/schema";
+import type { TeamInclusion, Ticket, Accommodation, Comment } from "@shared/schema";
+import type { CategoriaDoHistorico, EntradaDoHistorico } from "@shared/inclusion-timeline";
 import {
   formatDate, formatDateWithWeekday, formatSuggestionDate, formatDateTime,
   extractTravelInfoFromObservations, getPhaseLabel,
@@ -31,43 +32,6 @@ import type { ScalingMutations } from "./use-scaling-mutations";
 
 const lbl = "text-[11px] text-muted-foreground font-medium mb-1";
 const val = "text-[13px] font-semibold text-slate-700";
-
-const LOG_ACTION_LABELS: Record<string, string> = {
-  status_changed: "🔄 Status Alterado",
-  collaborator_changed: "👤 Colaborador Alterado",
-  dates_changed: "📅 Período Alterado",
-  travel_dates_changed: "✈️ Datas de Viagem",
-  observations_changed: "📝 Observações",
-  created: "✨ Criado",
-  confirmed: "✅ Confirmado",
-  reopened: "🔓 Reaberto",
-  approve_production: "✅ Aprovado pelo gestor",
-  reject_production: "❌ Reprovado pelo gestor",
-  daily_rates_changed: "📊 Diárias Alteradas",
-  daily_value_changed: "💰 Valor da Diária Alterado",
-  work_days_changed: "📅 Diárias Editadas",
-  city_changed: "📍 Cidade Alterada",
-  create: "✨ Criado",
-  update: "📝 Atualizado",
-  delete: "🗑️ Excluído",
-  deleted: "🗑️ Excluído",
-  reactivate: "🔓 Reativado",
-  // ── Validação / Aprovação de Escala (server/scaling-validation.ts) ──
-  // Sem estes rótulos o histórico da Escalação mostrava a chave crua
-  // ("suggestion_approved") para todo mundo.
-  suggestion_sent: "📤 Escala Sugerida Enviada",
-  suggestion_validated: "☑️ Validada pela Área",
-  suggestion_approved: "✅ Aprovada pelo Aprovador",
-  suggestion_rejected: "❌ Reprovada pelo Aprovador",
-  suggestion_returned: "↩️ Devolvida para a Área",
-  suggestion_change_requested: "📝 Pedido Aberto pela Área",
-  created_from_change_request: "✨ Criada por Pedido de Inclusão",
-  change_request_approved: "✅ Pedido Aprovado",
-  change_request_reajustar: "🛠️ Pedido Reajustado",
-  change_request_negar: "🚫 Pedido Negado",
-  suggestion_bypass_approve: "⚡ Aprovada sem Validação da Área",
-  suggestion_bypass_reject: "⛔ Reprovada sem Validação da Área",
-};
 
 type RenderAttachments = (ids: string[] | null | undefined, label: string) => ReactNode;
 
@@ -248,18 +212,116 @@ function EsqueletoHistorico({ linhas = 3 }: { linhas?: number }) {
   );
 }
 
+// ══ Linha do tempo da vaga (14/09) ══
+
+/** Uma cor por categoria — a pílula diz DE ONDE veio o acontecimento. */
+const CATEGORIA_META: Record<CategoriaDoHistorico, { rotulo: string; ponto: string; chip: string }> = {
+  vaga: { rotulo: "Vaga", ponto: "bg-slate-400", chip: "bg-slate-100 text-slate-600" },
+  escala: { rotulo: "Escala", ponto: "bg-blue-500", chip: "bg-blue-50 text-blue-700" },
+  aprovacao: { rotulo: "Aprovação", ponto: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700" },
+  passagem: { rotulo: "Passagem", ponto: "bg-violet-500", chip: "bg-violet-50 text-violet-700" },
+  hospedagem: { rotulo: "Hospedagem", ponto: "bg-sky-500", chip: "bg-sky-50 text-sky-700" },
+  troca: { rotulo: "Troca", ponto: "bg-amber-500", chip: "bg-amber-50 text-amber-800" },
+  pedido: { rotulo: "Pedido", ponto: "bg-fuchsia-500", chip: "bg-fuchsia-50 text-fuchsia-700" },
+  alteracao: { rotulo: "Alteração", ponto: "bg-slate-300", chip: "bg-slate-100 text-slate-600" },
+};
+
+const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const DIA_DA_SEMANA = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+
+/** "Hoje", "Ontem" ou "25/09/2026 · quinta". */
+function rotuloDoDia(dia: string): string {
+  const hoje = new Date();
+  const ontem = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - 1);
+  if (dia === ymdLocal(hoje)) return "Hoje";
+  if (dia === ymdLocal(ontem)) return "Ontem";
+  const [a, m, d] = dia.split("-").map(Number);
+  return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${a} · ${DIA_DA_SEMANA[new Date(a, m - 1, d).getDay()]}`;
+}
+
+/**
+ * O que aconteceu com a vaga, do mais recente para o mais antigo, agrupado por
+ * dia. Cada entrada: categoria, o que aconteceu, o detalhe, o comentário (em
+ * destaque, separado) e quem fez. Rola dentro da coluna — nada fica escondido
+ * atrás de "Ver todos".
+ */
+function HistoricoDaVaga({ historico, carregando }: { historico: EntradaDoHistorico[] | undefined; carregando: boolean }) {
+  const grupos = (historico ?? []).reduce<{ dia: string; itens: EntradaDoHistorico[] }[]>((acc, e) => {
+    const dia = e.diaFixo ?? ymdLocal(new Date(e.at));
+    const ultimo = acc[acc.length - 1];
+    if (ultimo && ultimo.dia === dia) ultimo.itens.push(e);
+    else acc.push({ dia, itens: [e] });
+    return acc;
+  }, []);
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <History className="w-4 h-4 text-slate-400" aria-hidden="true" />
+        <span className="text-[12px] font-semibold text-slate-600 uppercase tracking-[0.06em]">Histórico</span>
+        {historico && historico.length > 0 && (
+          <span className="text-[11px] text-muted-foreground">{historico.length} {historico.length === 1 ? "registro" : "registros"}</span>
+        )}
+      </div>
+      {carregando ? (
+        <EsqueletoHistorico linhas={4} />
+      ) : !historico || historico.length === 0 ? (
+        <div className="bg-background rounded-lg border border-dashed border-border text-center py-8">
+          <History className="w-6 h-6 text-slate-200 mx-auto mb-2" aria-hidden="true" />
+          <div className="text-[12px] text-muted-foreground">Nenhum registro desta vaga.</div>
+        </div>
+      ) : (
+        <ol className="max-h-[480px] overflow-y-auto pr-1 space-y-4" aria-label="Histórico da vaga" data-testid="historico-da-vaga">
+          {grupos.map((g) => (
+            <li key={g.dia}>
+              <p className="sticky top-0 z-10 bg-background/95 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">{rotuloDoDia(g.dia)}</p>
+              <ol className="mt-1 space-y-1.5 border-l border-slate-200 ml-1.5 pl-3.5">
+                {g.itens.map((e) => {
+                  const meta = CATEGORIA_META[e.categoria] ?? CATEGORIA_META.alteracao;
+                  const hora = e.diaFixo ? null : new Date(e.at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+                  return (
+                    <li key={e.id} className="relative rounded-lg border border-slate-100 bg-card px-3 py-2" data-testid={`historico-${e.id}`}>
+                      <span className={`absolute -left-[19px] top-3 h-2 w-2 rounded-full ring-2 ring-white ${meta.ponto}`} aria-hidden="true" />
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span className={`rounded px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide ${meta.chip}`}>{meta.rotulo}</span>
+                        <span className="text-[12px] font-semibold text-slate-800 break-words">{e.titulo}</span>
+                        <span className="ml-auto text-[11px] tabular-nums text-slate-500 whitespace-nowrap">{hora ?? "dia"}</span>
+                      </div>
+                      {e.detalhe && <p className="mt-0.5 text-[11px] text-slate-600 break-words">{e.detalhe}</p>}
+                      {e.linhas.length > 0 && (
+                        <ul className="mt-0.5 space-y-0.5 text-[11px] text-slate-600">
+                          {e.linhas.map((l) => <li key={l} className="break-words">{l}</li>)}
+                        </ul>
+                      )}
+                      {e.comentario && (
+                        <p className="mt-1 rounded-md border-l-2 border-slate-300 bg-slate-50 px-2 py-1 text-[11px] italic text-slate-600 break-words">“{e.comentario}”</p>
+                      )}
+                      {e.autor && <p className="mt-1 text-[11px] text-slate-500">por <span className="font-medium text-slate-700">{e.autor}</span></p>}
+                    </li>
+                  );
+                })}
+              </ol>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
 // ══ ABA: HISTÓRICO ══
 export function ComentariosTab({
-  comments, inclusionLogs, getUserName, newComment, setNewComment, showAllLogs, setShowAllLogs,
+  comments, historico, getUserName, newComment, setNewComment,
   addComment, canComment, canSend, carregando = false,
 }: {
   comments: Comment[] | undefined;
-  inclusionLogs: TeamInclusionLog[] | undefined;
+  /** Linha do tempo completa da vaga (GET /api/team-inclusions/:id/timeline). */
+  historico: EntradaDoHistorico[] | undefined;
   getUserName: (userId: string) => string;
   newComment: string;
   setNewComment: (v: string) => void;
-  showAllLogs: boolean;
-  setShowAllLogs: (v: boolean) => void;
+  /** Não usados desde 14/09 (a linha do tempo mostra tudo, rolando). */
+  showAllLogs?: boolean;
+  setShowAllLogs?: (v: boolean) => void;
   addComment: ScalingMutations["addComment"];
   /** Pode escrever (não é read-only e é responsável pela função) */
   canComment: boolean;
@@ -273,7 +335,9 @@ export function ComentariosTab({
 }) {
   return (
         <TabsContent value="comentarios" className="m-0 p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Histórico com mais largura que os comentários (14/09): é onde está a
+              linha do tempo inteira da vaga. */}
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-6">
             <div className="space-y-3">
               <div className="flex items-center gap-2 mb-1">
                 <MessageSquare className="w-4 h-4 text-slate-400" aria-hidden="true" />
@@ -336,50 +400,7 @@ export function ComentariosTab({
               </div>
             </div>
 
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <History className="w-4 h-4 text-slate-400" aria-hidden="true" />
-                <span className="text-[12px] font-semibold text-slate-600 uppercase tracking-[0.06em]">Histórico</span>
-                {inclusionLogs && inclusionLogs.length > 0 && (
-                  <span className="text-[11px] text-muted-foreground">{inclusionLogs.length} entradas</span>
-                )}
-              </div>
-              {carregando ? (
-                <EsqueletoHistorico linhas={4} />
-              ) : !inclusionLogs || inclusionLogs.length === 0 ? (
-                <div className="bg-background rounded-lg border border-dashed border-border text-center py-8">
-                  <History className="w-6 h-6 text-slate-200 mx-auto mb-2" aria-hidden="true" />
-                  <div className="text-[12px] text-muted-foreground">Nenhum histórico encontrado.</div>
-                </div>
-              ) : (
-                <div>
-                  <div className="border-l-2 border-slate-100 ml-3 pl-4 space-y-2 max-h-72 overflow-y-auto">
-                    {/* cópia antes do sort: .sort() mutaria o array do cache do React Query */}
-                    {[...inclusionLogs]
-                      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-                      .slice(0, showAllLogs ? undefined : 5)
-                      .map((log) => (
-                        <div key={log.id} className="flex gap-3">
-                          <div className="w-[9px] h-[9px] bg-primary rounded-full -ml-[1.31rem] mt-2.5 flex-shrink-0 ring-4 ring-white" aria-hidden="true" />
-                          <div className="flex-1 min-w-0 bg-card border border-slate-100 rounded-lg px-3 py-2">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="text-[11px] font-semibold text-slate-700">{LOG_ACTION_LABELS[log.action] || log.action}</div>
-                              <div className="text-[11px] text-muted-foreground whitespace-nowrap flex-shrink-0">{log.createdAt && formatDateTime(log.createdAt)}</div>
-                            </div>
-                            {log.details && <div className="text-[11px] text-muted-foreground mt-0.5">{log.details}</div>}
-                            <div className="text-[11px] font-medium mt-1 text-primary">↳ {log.userName}</div>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                  {!showAllLogs && inclusionLogs.length > 5 && (
-                    <button onClick={() => setShowAllLogs(true)} className="text-xs font-medium mt-2 ml-7 text-primary hover:underline">
-                      Ver todos ({inclusionLogs.length - 5} mais)
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+            <HistoricoDaVaga historico={historico} carregando={carregando} />
           </div>
         </TabsContent>
   );
