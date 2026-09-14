@@ -100,12 +100,28 @@ const CARD = "mt-5 border rounded-2xl overflow-hidden";
 const HEAD = "border-b px-4 py-2.5 flex items-center gap-2 flex-wrap";
 const HEAD_LABEL = "text-[11px] font-black uppercase tracking-[0.12em]";
 
-export function AdjustRequestPanel({ inclusion, event, functionName }: {
+/**
+ * O ajuste pode ser pedido agora? Mesma leitura que decide o botão do cartão —
+ * o rodapé do modal usa isto para mostrar o seu "Pedir ajuste" (14/09).
+ */
+export function podePedirAjuste(w: ChangeWindowResponse | undefined): boolean {
+  return !!w && w.canRequest && w.allowed && !w.pendingRequest;
+}
+
+export function AdjustRequestPanel({ inclusion, event, functionName, aberto, onAberto }: {
   inclusion: TeamInclusion;
   event?: Event;
   functionName?: string;
+  /**
+   * Diálogo controlado de fora (14/09): o modal abre o MESMO pedido pelo botão
+   * do rodapé fixo — o cartão fica no fim do Resumo e muitos não rolavam até ele.
+   */
+  aberto?: boolean;
+  onAberto?: (v: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [openLocal, setOpenLocal] = useState(false);
+  const open = aberto ?? openLocal;
+  const setOpen = onAberto ?? setOpenLocal;
   const queryClient = useQueryClient();
   const { data, isLoading } = useChangeWindow(inclusion.id);
 

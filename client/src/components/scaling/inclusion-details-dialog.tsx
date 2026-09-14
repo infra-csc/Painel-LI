@@ -12,8 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 const SHOW_PERCURSEIRO_TIPO_NA_ESCALACAO = false;
 import {
   Eye, Save, Plane, Check, CalendarDays, Users, MessageSquare, FileText, File,
-  HelpCircle, ArrowLeftRight, AlertCircle, RotateCcw, MapPin, ChevronLeft, ChevronRight, Bike, Hammer,
-} from "lucide-react";
+  HelpCircle, ArrowLeftRight, AlertCircle, RotateCcw, MapPin, ChevronLeft, ChevronRight, Bike, Hammer, PencilLine } from "lucide-react";
 import { eachDayOfInterval, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,7 +36,7 @@ import type { TeamInclusion } from "@shared/schema";
 import { getStatusBadge } from "./scaling-table";
 import ConfirmDialog from "./confirm-dialog";
 import { SwapStatusCard, RequestSwapButton, SwapRequestDialog } from "./swap-request-panel";
-import { AdjustRequestPanel, pendingRequestLock, useChangeWindow } from "./adjust-request-panel";
+import { AdjustRequestPanel, pendingRequestLock, podePedirAjuste, useChangeWindow } from "./adjust-request-panel";
 import { ProductionApprovalCard } from "./production-approval-card";
 import { PassagemTab, HospedagemTab, ComentariosTab } from "./inclusion-details-tabs";
 import { parseDay, isEscalated, isEscalationConfirmed, isCityFromSP, formatDateWithWeekday, type ModalData } from "./scaling-utils";
@@ -334,6 +333,9 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
   // aprovador decidir (mesma consulta do painel "Precisa mudar algo?").
   const changeWindow = useChangeWindow(inclusion?.id, open && !!inclusion?.id);
   const requestLockReason = pendingRequestLock(changeWindow.data);
+  /** Diálogo "Pedir ajuste" — aberto pelo cartão do Resumo OU pelo rodapé fixo (14/09). */
+  const [pedirAjusteAberto, setPedirAjusteAberto] = useState(false);
+  const mostrarPedirAjusteNoRodape = podePedirAjuste(changeWindow.data);
   /** Um motivo só para os cartões internos: pedido em análise vence evento encerrado. */
   const actionLockReason = requestLockReason ?? eventLockReason;
   const { comments, historico, pendingSwap, latestSwap, users } = details;
@@ -929,6 +931,8 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                     inclusion={inclusion}
                     event={events?.find(e => e.id === inclusion.eventId)}
                     functionName={getFunctionName(inclusion.functionId)}
+                    aberto={pedirAjusteAberto}
+                    onAberto={setPedirAjusteAberto}
                   />
 
                   {/* Tipo de freela da cenotécnica (empreita) — definido AQUI, na
@@ -1079,6 +1083,21 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                       <AlertCircle className="w-3.5 h-3.5 shrink-0 text-slate-400" />
                       <span className="min-w-0">{warning}</span>
                     </p>
+                  )}
+                  {/* Pedir ajuste no rodapé FIXO (dono, 14/09: "muitos não estão
+                      vendo porque tem que descer o scroll"). Mesmas condições do
+                      cartão do Resumo, que continua lá com a explicação. */}
+                  {mostrarPedirAjusteNoRodape && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setPedirAjusteAberto(true)}
+                      className="flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-5 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+                      data-testid="button-pedir-ajuste-rodape"
+                    >
+                      <PencilLine className="w-4 h-4" aria-hidden="true" />
+                      Pedir ajuste
+                    </Button>
                   )}
                   <Button
                     variant="outline"
