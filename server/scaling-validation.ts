@@ -1821,6 +1821,40 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
   app.patch("/api/scaling-suggestions/:id/bypass-approve", bypassHandler("approve"));
   app.patch("/api/scaling-suggestions/:id/bypass-reject", bypassHandler("reject"));
 
+  // Limpar vagas NEGADAS (dono, 14/09: "quando negada, o admin poder excluir,
+  // meio que para limpar"). Só administrador e só vaga negada — nada que ainda
+  // tenha ação sai por aqui. Exclusão lógica (deleted_at): a vaga some das
+  // Decididas, não volta para a escala, e o registro fica no banco e no
+  // histórico. UPDATE guardado pelo status: o que não estiver negado é pulado.
+  app.post("/api/scaling-suggestions/limpar-negadas", async (req: Request, res: Response) => {
+    const actor = await getActor(req, res);
+    if (!actor) return;
+    if (!isAdmin(actor)) return res.status(403).json({ message: "Só o administrador exclui vagas negadas da lista." });
+    try {
+      const brutos = Array.isArray(req.body?.ids) ? (req.body.ids as unknown[]) : [];
+      const ids = Array.from(new Set(brutos.map((v) => String(v ?? "")).filter(Boolean)));
+      if (ids.length === 0) return res.status(400).json({ message: "Nenhuma vaga informada." });
+      if (ids.length > 500) return res.status(400).json({ message: "No máximo 500 vagas por vez." });
+      const ok: string[] = [];
+      const skipped: { id: string; reason: string }[] = [];
+      const agora = new Date();
+      for (const id of ids) {
+        const updated = await storage.updateTeamInclusionIfState(
+          id,
+          { deletedAt: agora, deletedBy: actor.id, updatedBy: actor.id } as Partial<InsertTeamInclusion>,
+          { phase: SUGESTAO_PHASE, statuses: [SUGESTAO_STATUS.NEGADA] },
+        );
+        if (!updated) { skipped.push({ id, reason: "a vaga não está negada ou já foi excluída" }); continue; }
+        ok.push(id);
+        await inclusionLog(id, "deleted", "Vaga negada excluída da lista pelo administrador (limpeza das Decididas)", SUGESTAO_STATUS.NEGADA, null, actor);
+        await createAuditLog("delete", "team_inclusion", id, updated, actor.id, actor.name, undefined, req);
+      }
+      res.json({ ok, skipped });
+    } catch (error) {
+      sendError(res, error, "erro ao limpar vagas negadas", "Erro ao excluir as vagas negadas");
+    }
+  });
+
   // GET /api/scaling-suggestions/event-view?eventId= — consulta histórica:
   // todas as sugestões (incl. aprovadas/negadas/excluídas) + inclusões já em
   // 'inclusao' que nasceram de sugestão (suggestionSentAt não nulo) + pedidos.

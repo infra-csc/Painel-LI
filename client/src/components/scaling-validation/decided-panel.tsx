@@ -10,9 +10,16 @@
  * pura — decisão continua nas abas de trabalho.
  */
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import { Link } from "wouter";
-import { CheckCircle2, ChevronRight, ExternalLink, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronRight, ExternalLink, Trash2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateBr } from "@/lib/dates";
 import { scalingHref } from "@/lib/use-scaling-event";
@@ -21,7 +28,7 @@ import { LoadingState } from "@/components/common/loading-state";
 import { EmptyState } from "@/components/common/empty-state";
 import { periodLabel } from "./suggestions-list";
 import { SuggestionDetailDrawer } from "./suggestion-detail-drawer";
-import { SUGGESTIONS_QUERY_KEY, type SuggestionRow } from "./types";
+import { SUGGESTIONS_QUERY_KEY, invalidateScalingQueries, type SuggestionRow } from "./types";
 
 /** Como a vaga foi decidida — o servidor lê do log mais recente que decide a vaga (11/09). */
 interface DecisaoDaVaga {
@@ -60,11 +67,13 @@ interface EventViewResponse {
 
 const MAX_LINHAS = 100;
 
-export function DecidedPanel({ eventId, functionNameById, filtro }: {
+export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = false }: {
   /** Evento filtrado na tela ("" = todos os eventos). */
   eventId: string;
   functionNameById: Map<string, string>;
   filtro?: FiltroDasDecididas;
+  /** Administrador (14/09): pode excluir da lista as vagas negadas, que não têm mais ação. */
+  podeLimpar?: boolean;
 }) {
   const query = useQuery<EventViewResponse>({
     queryKey: [`${SUGGESTIONS_QUERY_KEY}/event-view`, eventId || "__todos__"],
@@ -85,12 +94,36 @@ export function DecidedPanel({ eventId, functionNameById, filtro }: {
    */
   const [detailId, setDetailId] = useState<string | null>(null);
 
+  /** Vagas negadas a excluir da lista (uma ou todas as visíveis) — confirma antes. */
+  const [limpar, setLimpar] = useState<string[] | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const limparMutation = useMutation({
+    mutationFn: async (ids: string[]) =>
+      (await apiRequest("POST", SUGGESTIONS_QUERY_KEY + "/limpar-negadas", { ids })).json() as Promise<{ ok: string[]; skipped: { id: string; reason: string }[] }>,
+    onSuccess: (r) => {
+      invalidateScalingQueries(queryClient);
+      setLimpar(null);
+      if (r.ok.length > 0) {
+        toast({
+          title: r.ok.length === 1 ? "Vaga negada excluída da lista" : r.ok.length + " vagas negadas excluídas da lista",
+          description: "Saíram das Decididas. O registro continua no histórico.",
+        });
+      }
+      if (r.skipped.length > 0) {
+        toast({ title: r.skipped.length + " não excluída(s)", description: r.skipped[0].reason, variant: "destructive" });
+      }
+    },
+    onError: (err: { body?: { message?: string } }) =>
+      toast({ title: "Não foi possível excluir", description: err?.body?.message ?? "Tente novamente.", variant: "destructive" }),
+  });
+
   const rows = useMemo(() => {
     const aprovadas = (query.data?.inclusions ?? [])
       .filter((i) => i.status !== "cancelado")
       .map((i) => ({ row: i, decisao: "aprovada" as const }));
     const negadas = (query.data?.suggestions ?? [])
-      .filter((i) => i.status === SUGESTAO_STATUS.NEGADA)
+      .filter((i) => i.status === SUGESTAO_STATUS.NEGADA && !i.deletedAt)
       .map((i) => ({ row: i, decisao: "negada" as const }));
     const q = (filtro?.busca ?? "").trim().toLowerCase();
     const qNum = q.replace(/^#/, "");
@@ -112,6 +145,8 @@ export function DecidedPanel({ eventId, functionNameById, filtro }: {
   const temFiltro = !!filtro && (filtro.busca.trim() !== "" || !!filtro.functionId || !!filtro.soMinhas);
 
   const detailRow = rows.find((r) => r.row.id === detailId)?.row ?? null;
+  /** As negadas visíveis (com os filtros da barra) — alvo do "Excluir negadas da lista". */
+  const idsNegadas = rows.filter((r) => r.decisao === "negada").map((r) => r.row.id);
 
   if (query.isLoading) return <LoadingState label="Carregando as vagas decididas…" />;
   if (query.isError) {
@@ -133,6 +168,15 @@ export function DecidedPanel({ eventId, functionNameById, filtro }: {
 
   return (
     <div className="space-y-2">
+      {podeLimpar && idsNegadas.length > 0 && (
+        <div className="flex flex-wrap items-center justify-end gap-2" data-testid="limpar-negadas">
+          <span className="text-[11px] text-slate-500">Vagas negadas não têm mais ação. Você pode tirá-las desta lista.</span>
+          <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg border-red-200 text-red-700 hover:bg-red-50"
+            onClick={() => setLimpar(idsNegadas)} disabled={limparMutation.isPending} data-testid="button-limpar-negadas">
+            <Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Excluir negadas da lista ({idsNegadas.length})
+          </Button>
+        </div>
+      )}
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
         <table className="w-full min-w-[760px] text-[13px]">
           <caption className="sr-only">Vagas já decididas pelo aprovador</caption>
@@ -141,7 +185,7 @@ export function DecidedPanel({ eventId, functionNameById, filtro }: {
               {["Vaga", "Evento", "Período / diárias", "Decisão · como · quem", "Quando"].map((h) => (
                 <th key={h} scope="col" className="border-b border-slate-200 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 whitespace-nowrap">{h}</th>
               ))}
-              <th scope="col" className="w-10 border-b border-slate-200 px-2 py-2"><span className="sr-only">Detalhes</span></th>
+              <th scope="col" className={cn(podeLimpar ? "w-20" : "w-10", "border-b border-slate-200 px-2 py-2")}><span className="sr-only">Ações</span></th>
             </tr>
           </thead>
           <tbody>
@@ -186,7 +230,20 @@ export function DecidedPanel({ eventId, functionNameById, filtro }: {
                   )}
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-500">{formatDateBr(row.decisao?.at ?? row.updatedAt) || "Sem data"}</td>
-                <td className="px-2 py-2 text-right">
+                <td className="px-2 py-2 text-right whitespace-nowrap">
+                  {podeLimpar && decisao === "negada" && (
+                    <button
+                      type="button"
+                      onClick={() => setLimpar([row.id])}
+                      disabled={limparMutation.isPending}
+                      className="mr-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-red-600 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                      aria-label={"Excluir da lista a vaga negada #" + row.inclusionNumber}
+                      title="Excluir da lista"
+                      data-testid={"decidida-excluir-" + row.id}
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setDetailId(row.id)}
@@ -210,6 +267,29 @@ export function DecidedPanel({ eventId, functionNameById, filtro }: {
           Histórico da Escala <ExternalLink className="h-3 w-3" aria-hidden="true" />
         </Link>.
       </p>
+      <AlertDialog open={!!limpar} onOpenChange={(o) => { if (!o && !limparMutation.isPending) setLimpar(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {(limpar?.length ?? 0) === 1 ? "Excluir esta vaga negada da lista?" : "Excluir " + (limpar?.length ?? 0) + " vagas negadas da lista?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Elas saem das Decididas e não voltam para a escala. O registro continua no histórico, com quem negou, quando e o motivo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={limparMutation.isPending}>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={limparMutation.isPending}
+              onClick={(e) => { e.preventDefault(); if (limpar) limparMutation.mutate(limpar); }}
+              data-testid="button-confirmar-limpar-negadas"
+            >
+              {limparMutation.isPending ? "Excluindo…" : "Excluir da lista"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <SuggestionDetailDrawer
         open={!!detailRow}
         onOpenChange={(o) => { if (!o) setDetailId(null); }}

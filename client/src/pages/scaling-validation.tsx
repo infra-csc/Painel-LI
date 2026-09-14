@@ -979,7 +979,7 @@ export default function ScalingValidationPage() {
             <h3 className={cn("mb-2 flex items-center gap-1.5", SECTION_TITLE)}>
               <ClipboardCheck className="h-3.5 w-3.5" aria-hidden="true" /> Decididas
             </h3>
-            <DecidedPanel eventId={eventId} functionNameById={functionNameById} />
+            <DecidedPanel eventId={eventId} functionNameById={functionNameById} podeLimpar={isAdmin} />
           </div>
         </div>
       ) : (
@@ -1050,7 +1050,7 @@ export default function ScalingValidationPage() {
               tela e a área não sabia se tinha dado certo. Leitura pura. */}
           <TabsContent value="decididas" className="mt-0 space-y-3">
             {barraDeFiltros}
-            <DecidedPanel eventId={eventId} functionNameById={functionNameById} filtro={filtroDasDecididas} />
+            <DecidedPanel eventId={eventId} functionNameById={functionNameById} filtro={filtroDasDecididas} podeLimpar={isAdmin} />
           </TabsContent>
         </Tabs>
       )}

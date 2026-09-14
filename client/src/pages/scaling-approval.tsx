@@ -916,7 +916,7 @@ export default function ScalingApprovalPage() {
 
         {/* Histórico do que o aprovador já decidiu (28/08) — leitura pura. */}
         <TabsContent value="decididas" className="mt-0 space-y-3">
-          <DecidedPanel eventId={eventId} functionNameById={functionNameById} />
+          <DecidedPanel eventId={eventId} functionNameById={functionNameById} podeLimpar={isAdmin} />
         </TabsContent>
       </Tabs>
 
