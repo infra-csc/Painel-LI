@@ -33,32 +33,37 @@ export function saiDeInicial(cidade: string | null | undefined): { saiDeSP: bool
  * do modal da Escalação. Usado no pedido de troca e na aprovação (Escalação e
  * Hospedagem/Passagem): aprovada a troca, a vaga passa a sair desta cidade.
  */
-export function CampoSaiDe({ id, saiDeSP, cidade, onChange, forcarErro = false }: {
+export function CampoSaiDe({ id, saiDeSP, cidade, onChange, forcarErro = false, travado = false }: {
   id: string;
   saiDeSP: boolean;
   cidade: string;
   onChange: (saiDeSP: boolean, cidade: string) => void;
   /** Mostra o erro mesmo sem o usuário ter mexido (depois de tentar enviar/aprovar). */
   forcarErro?: boolean;
+  /**
+   * Ainda sem novo colaborador (14/09): o campo aparece, mas travado e dizendo
+   * o que falta — escondido, ninguém sabia que o pedido pedia o "Sai de".
+   */
+  travado?: boolean;
 }) {
   const erro = validarSaiDe(cidadeDeSaida(saiDeSP, cidade));
-  const mostrarErro = !!erro && forcarErro;
+  const mostrarErro = !travado && !!erro && forcarErro;
   const botao = (on: boolean) =>
-    `flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${on ? "bg-primary text-white border-primary" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`;
+    `flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50 ${on && !travado ? "bg-primary text-white border-primary" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`;
   return (
     <div className="space-y-1.5" data-testid={id}>
       <p id={`${id}-rotulo`} className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
         <MapPin className="h-3 w-3" aria-hidden="true" /> Novo colaborador sai de <span className="text-red-500">*</span>
       </p>
       <div role="radiogroup" aria-labelledby={`${id}-rotulo`} className="flex gap-1.5">
-        <button type="button" role="radio" aria-checked={saiDeSP} onClick={() => onChange(true, SAI_DE_SP)} className={botao(saiDeSP)} data-testid={`${id}-sp`}>
+        <button type="button" role="radio" aria-checked={!travado && saiDeSP} disabled={travado} onClick={() => onChange(true, SAI_DE_SP)} className={botao(saiDeSP)} data-testid={`${id}-sp`}>
           São Paulo - SP
         </button>
-        <button type="button" role="radio" aria-checked={!saiDeSP} onClick={() => onChange(false, saiDeSP ? "" : cidade)} className={botao(!saiDeSP)} data-testid={`${id}-outra`}>
+        <button type="button" role="radio" aria-checked={!travado && !saiDeSP} disabled={travado} onClick={() => onChange(false, saiDeSP ? "" : cidade)} className={botao(!saiDeSP)} data-testid={`${id}-outra`}>
           Outra cidade
         </button>
       </div>
-      {!saiDeSP && (
+      {!travado && !saiDeSP && (
         <input
           type="text"
           value={cidade}
@@ -72,7 +77,9 @@ export function CampoSaiDe({ id, saiDeSP, cidade, onChange, forcarErro = false }
         />
       )}
       <p className={`text-[10px] leading-snug ${mostrarErro ? "text-red-500" : "text-slate-500"}`}>
-        {mostrarErro ? erro : "Aprovada a troca, a vaga passa a sair desta cidade — é a origem da passagem."}
+        {travado
+          ? "Escolha o novo colaborador — a cidade dele entra aqui e dá para corrigir."
+          : mostrarErro ? erro : "Aprovada a troca, a vaga passa a sair desta cidade — é a origem da passagem."}
       </p>
     </div>
   );
@@ -529,21 +536,20 @@ export function SwapRequestDialog({
                 {(reasonEmpty || reasonTooShort)
                   ? <p className="text-[10px] text-red-500 mt-1">{reasonEmpty ? "Informe um motivo." : "Mínimo de 10 caracteres."}</p>
                   : <p className="text-[10px] text-slate-400 mt-1">Mínimo de 10 caracteres.</p>}
+                {/* "Sai de" do novo colaborador (dono, 14/09): sempre visível;
+                    travado até escolher quem assume, então vem com a cidade dele. */}
+                <div className="mt-4">
+                  <CampoSaiDe
+                    id="swap-sai-de-pedido"
+                    saiDeSP={saiDe.saiDeSP}
+                    cidade={saiDe.cidade}
+                    onChange={(sp, cidade) => { setSaiDe({ saiDeSP: sp, cidade }); setSubmitAttempted(false); }}
+                    forcarErro={submitAttempted}
+                    travado={!newCollaboratorId}
+                  />
+                </div>
               </div>
             </div>
-            {/* "Sai de" do novo colaborador (dono, 14/09): aparece ao escolher
-                quem assume, já com a cidade dele — dá para corrigir. */}
-            {newCollaboratorId && (
-              <div className="sm:max-w-[340px]">
-                <CampoSaiDe
-                  id="swap-sai-de-pedido"
-                  saiDeSP={saiDe.saiDeSP}
-                  cidade={saiDe.cidade}
-                  onChange={(sp, cidade) => { setSaiDe({ saiDeSP: sp, cidade }); setSubmitAttempted(false); }}
-                  forcarErro={submitAttempted}
-                />
-              </div>
-            )}
           </div>
 
           <div className="px-6 pb-5 pt-3 flex gap-3 border-t border-slate-100">
