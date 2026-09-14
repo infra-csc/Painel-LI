@@ -6043,11 +6043,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // request (subselect acima) — a guarda não relê a escalação.
       if (!await assertInclusionEventEditable(sr.team_inclusion_id, currentUser, res, { eventId: sr.inclusion_event_id ?? null })) return;
 
-      // "Sai de" (dono, 14/09): quem aprova confere a cidade pedida e pode
-      // corrigir. Solicitação antiga (sem cidade) só aprova informando uma.
-      const saiDe = String(req.body?.newCity ?? "").trim() || String(sr.new_city ?? "").trim();
+      // "Sai de" (dono, 14/09): quem APROVA não muda nada — só vê e decide.
+      // Vale a cidade do pedido; em solicitação antiga (feita antes do campo
+      // existir) vale a cidade do cadastro do novo colaborador. Qualquer
+      // cidade no corpo desta rota é ignorada.
+      let saiDe = String(sr.new_city ?? "").trim();
+      if (!saiDe && sr.new_collaborator_id) {
+        saiDe = String((await storage.getCollaborator(sr.new_collaborator_id))?.city ?? "").trim();
+      }
       const erroSaiDe = validarSaiDe(saiDe);
-      if (erroSaiDe) return res.status(400).json({ message: erroSaiDe });
+      if (erroSaiDe) return res.status(400).json({ message: "Solicitação sem cidade de saída do novo colaborador — recuse e peça de novo." });
 
       // Trocar colaborador E cidade de saída na vaga — a cidade é a origem da
       // passagem; ficar com a do colaborador antigo comprava do lugar errado.

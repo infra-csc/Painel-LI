@@ -118,8 +118,6 @@ export interface SwapStatusCardProps {
 
 export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdminOrPurchasing, getCollaboratorName, mutations, blockReason }: SwapStatusCardProps) {
   const [confirmAction, setConfirmAction] = useState<"approve" | "reject" | null>(null);
-  /** "Sai de" no diálogo de aprovação — nasce com a cidade pedida e pode ser corrigido. */
-  const [saiDeAprovacao, setSaiDeAprovacao] = useState(() => saiDeInicial(null));
   const [rejectReason, setRejectReason] = useState("");
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
@@ -134,8 +132,6 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
   const newCollabName = getCollaboratorName(swap.newCollaboratorId);
   const isResolved = swap.status === "aprovado" || swap.status === "rejeitado";
   const busy = approveSwap.isPending || rejectSwap.isPending;
-  const cidadeAprovacao = cidadeDeSaida(saiDeAprovacao.saiDeSP, saiDeAprovacao.cidade);
-  const erroSaiDeAprovacao = validarSaiDe(cidadeAprovacao);
 
   return (
     <>
@@ -214,7 +210,7 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
               <div className="flex gap-2 pt-1.5">
                 <button
                   type="button"
-                  onClick={() => { setSaiDeAprovacao(saiDeInicial(swap.newCity)); setConfirmAction("approve"); }}
+                  onClick={() => setConfirmAction("approve")}
                   disabled={busy}
                   className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
                   data-testid="button-approve-swap"
@@ -271,12 +267,11 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
         icon={CheckCheck}
         tone="emerald"
         title="Aprovar troca de colaborador?"
-        description="Ao confirmar, o novo colaborador assume a vaga e ela passa a sair da cidade abaixo."
+        description="Confira os dados do novo colaborador. Ao confirmar, ele assume a vaga e ela passa a sair da cidade informada no pedido."
         confirmLabel="Confirmar aprovação"
         pendingLabel="Aprovando..."
         isPending={approveSwap.isPending}
-        confirmDisabled={!!erroSaiDeAprovacao}
-        onConfirm={() => { if (pendingSwap && !erroSaiDeAprovacao) { approveSwap.mutate({ id: pendingSwap.id, newCity: cidadeAprovacao }); setConfirmAction(null); } }}
+        onConfirm={() => { if (pendingSwap) { approveSwap.mutate(pendingSwap.id); setConfirmAction(null); } }}
       >
         {pendingSwap && (
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 text-[12px]">
@@ -288,17 +283,15 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
               <span className="text-slate-400 font-medium shrink-0">Solicitado:</span>
               <span className="font-semibold text-blue-700">{getCollaboratorName(pendingSwap.newCollaboratorId)}</span>
             </div>
-          </div>
-        )}
-        {pendingSwap && (
-          <div className="mt-3">
-            <CampoSaiDe
-              id="swap-sai-de-aprovacao"
-              saiDeSP={saiDeAprovacao.saiDeSP}
-              cidade={saiDeAprovacao.cidade}
-              onChange={(sp, cidade) => setSaiDeAprovacao({ saiDeSP: sp, cidade })}
-              forcarErro
-            />
+            {/* Só leitura (dono, 14/09): o aprovador vê e decide, não muda nada. */}
+            <div className="flex items-start gap-2" data-testid="swap-sai-de-aprovacao">
+              <span className="text-slate-400 font-medium shrink-0">Sai de:</span>
+              <span className="font-semibold text-slate-700">{pendingSwap.newCity || "cidade do cadastro do novo colaborador (pedido antigo)"}</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-slate-400 font-medium shrink-0">Motivo:</span>
+              <span className="text-slate-600 leading-snug">{pendingSwap.reason}</span>
+            </div>
           </div>
         )}
       </ConfirmDialog>

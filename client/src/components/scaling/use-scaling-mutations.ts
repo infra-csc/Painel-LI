@@ -94,8 +94,8 @@ export function useScalingMutations(opts: {
   });
 
   const approveSwap = useMutation({
-    mutationFn: async ({ id, newCity }: { id: string; newCity: string }) => {
-      const r = await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, { newCity });
+    mutationFn: async (id: string) => {
+      const r = await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, {});
       return r.json();
     },
     onSuccess: () => {
