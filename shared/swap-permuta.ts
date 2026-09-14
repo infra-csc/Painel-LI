@@ -1,13 +1,18 @@
 /**
- * Permuta de colaboradores (dono, 14/09): "quando precisamos trocar dois
- * colaboradores que já estão escalados no mesmo fim de semana, em eventos
- * diferentes, não conseguimos". A Escalação barra quem já tem escalação no
- * mesmo período: A não entrava na vaga de B enquanto B estava na de A, e
- * vice-versa. A permuta é UM pedido, com o "Sai de" de cada um, aplicado nas
- * duas vagas de uma vez quando aprovado.
+ * Trocas que envolvem DUAS vagas (dono, 14/09). A Escalação barra quem já tem
+ * escalação no mesmo período, e dois casos reais ficavam sem saída:
+ *
+ *  - PERMUTA: "trocar dois colaboradores que já estão escalados no mesmo fim
+ *    de semana, em eventos diferentes" — A não entrava na vaga de B enquanto
+ *    B estava na de A, e vice-versa.
+ *  - TRANSFERÊNCIA: "casos que ainda não têm alguém escalado na vaga" — a
+ *    pessoa que se quer trazer já está escalada em outra vaga do período.
+ *
+ * Os dois viram UM pedido de troca, com o "Sai de" de quem se move, aplicado
+ * nas duas vagas de uma vez quando aprovado.
  */
 
-export type TipoDeTroca = "substituicao" | "permuta";
+export type TipoDeTroca = "substituicao" | "permuta" | "transferencia";
 
 type Dia = string | Date | null | undefined;
 const ymd = (d: Dia): string => (d ? (d instanceof Date ? d.toISOString() : String(d)).slice(0, 10) : "");
@@ -55,12 +60,16 @@ export interface TrocaCrua {
 
 /**
  * A troca contada do ponto de vista de UMA vaga, no formato do histórico.
- * Na permuta os papéis se invertem na vaga pareada: lá, quem sai é o "novo"
- * do pedido e quem chega é o "atual".
+ * Na vaga pareada os papéis se invertem: lá, quem sai é o "novo" do pedido e
+ * quem chega é o "atual" — na transferência, ninguém chega (a vaga fica aberta).
  */
 export function trocaNaVisaoDaVaga(r: TrocaCrua, vagaId: string) {
   const pareada = r.paired_inclusion_id === vagaId && r.team_inclusion_id !== vagaId;
   const permuta = r.swap_kind === "permuta";
+  const transferencia = r.swap_kind === "transferencia";
+  const outra = pareada
+    ? rotuloDaVaga(r.inclusion_number, r.event_name)
+    : rotuloDaVaga(r.paired_inclusion_number, r.paired_event_name);
   return {
     id: String(r.id),
     createdAt: r.created_at ?? null,
@@ -73,9 +82,9 @@ export function trocaNaVisaoDaVaga(r: TrocaCrua, vagaId: string) {
     reviewedAt: r.reviewed_at ?? null,
     reviewedByName: r.reviewed_by_name ?? null,
     reviewComment: r.review_comment ?? null,
-    permutaCom: permuta
-      ? (pareada ? rotuloDaVaga(r.inclusion_number, r.event_name) : rotuloDaVaga(r.paired_inclusion_number, r.paired_event_name))
-      : null,
+    permutaCom: permuta ? outra : null,
     saiDeOutro: permuta ? ((pareada ? r.new_city : r.paired_new_city) ?? null) : null,
+    transferencia,
+    outraVaga: transferencia ? outra : null,
   };
 }

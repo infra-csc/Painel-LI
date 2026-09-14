@@ -1,7 +1,7 @@
 /**
- * Permuta de colaboradores na Escalação (dono, 14/09) — as peças de tela:
- * escolher a OUTRA vaga (a do colaborador com quem se troca) e mostrar quem
- * vai para onde, saindo de onde. A regra pura está em shared/swap-permuta.ts.
+ * Trocas entre DUAS vagas na Escalação (dono, 14/09) — as peças de tela:
+ * escolher a outra vaga da permuta e mostrar quem vai para onde, saindo de
+ * onde (permuta e transferência). A regra pura está em shared/swap-permuta.ts.
  */
 import { useMemo, useState } from "react";
 import { ArrowRight, MapPin, Search } from "lucide-react";
@@ -84,7 +84,7 @@ export function EscolherVagaDaPermuta({ candidatas, getCollaboratorName, getEven
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar por colaborador, evento ou #vaga…"
-          aria-label="Buscar a vaga para permutar"
+          aria-label="Buscar a vaga do outro colaborador"
           data-testid="input-busca-vaga-permuta"
           className="min-w-0 flex-1 bg-transparent text-[13px] text-slate-700 outline-none placeholder:text-slate-400"
         />
@@ -158,5 +158,38 @@ export function LinhasDaPermuta({ swap, getCollaboratorName }: {
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * Transferência (14/09): de qual vaga a pessoa sai, para qual vai, de onde sai
+ * — e que a vaga de origem fica aberta. Mesmo texto nas duas vagas.
+ */
+export function LinhasDaTransferencia({ swap, getCollaboratorName }: {
+  swap: NormalizedSwap;
+  getCollaboratorName: (id?: string | null) => string;
+}) {
+  const origem = rotuloDaVaga(swap.pairedInclusionNumber, swap.pairedEventName)
+    + (swap.pairedFunctionName ? ` · ${swap.pairedFunctionName}` : "");
+  const destino = rotuloDaVaga(swap.inclusionNumber, swap.eventName);
+  return (
+    <div className="space-y-1 text-[11px]" data-testid="swap-transferencia-linhas">
+      <p className="flex items-start gap-1.5 text-slate-600">
+        <ArrowRight className="mt-0.5 h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />
+        <span className="min-w-0 break-words">
+          <span className="font-semibold text-slate-800">{getCollaboratorName(swap.newCollaboratorId) || "?"}</span> sai da{" "}
+          <span className="font-medium text-slate-700">{origem}</span> e vai para a{" "}
+          <span className="font-medium text-slate-700">{destino}</span>
+          {swap.newCity && (
+            <>
+              {" · "}
+              <MapPin className="inline h-2.5 w-2.5 -mt-0.5" aria-hidden="true" /> sai de{" "}
+              <span className="font-medium text-slate-700">{swap.newCity}</span>
+            </>
+          )}
+        </span>
+      </p>
+      <p className="pl-[18px] text-slate-500">A {origem.split(" · ")[0]} fica aberta — a área escala outra pessoa nela.</p>
+    </div>
   );
 }

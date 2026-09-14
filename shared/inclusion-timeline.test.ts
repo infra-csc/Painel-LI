@@ -98,7 +98,20 @@ describe("permuta no histórico (14/09)", () => {
     const h = montarHistoricoDaVaga(vazio({
       trocas: [{ id: "p1", createdAt: "2026-09-10T10:00:00.000Z", requestedByName: "Pedro", currentCollaboratorName: "Ana", newCollaboratorName: "Bia", newCity: "Salvador - BA", reason: "mudou a escala", status: "aprovado", reviewedAt: "2026-09-10T11:00:00.000Z", reviewedByName: "Compras", reviewComment: null, permutaCom: "vaga #12 · Circuitinho", saiDeOutro: "São Paulo - SP" }],
     }));
-    expect(h.find((e) => e.titulo === "Permuta de colaboradores pedida")!.detalhe).toBe("Ana → Bia · sai de Salvador - BA · Ana vai para vaga #12 · Circuitinho (sai de São Paulo - SP)");
-    expect(h.find((e) => e.titulo === "Permuta aprovada")!.detalhe).toBe("Agora: Bia · sai de Salvador - BA · Ana foi para vaga #12 · Circuitinho");
+    expect(h.find((e) => e.titulo === "Troca entre vagas pedida")!.detalhe).toBe("Ana → Bia · sai de Salvador - BA · Ana vai para vaga #12 · Circuitinho (sai de São Paulo - SP)");
+    expect(h.find((e) => e.titulo === "Troca entre vagas aprovada")!.detalhe).toBe("Agora: Bia · sai de Salvador - BA · Ana foi para vaga #12 · Circuitinho");
+  });
+});
+
+describe("transferência no histórico (14/09)", () => {
+  it("na vaga de destino: quem vem e de onde; na de origem: quem sai e que ela fica aberta", () => {
+    const destino = montarHistoricoDaVaga(vazio({
+      trocas: [{ id: "t1", createdAt: "2026-09-10T10:00:00.000Z", requestedByName: "Pedro", currentCollaboratorName: null, newCollaboratorName: "Gleicy", newCity: "Salvador - BA", reason: "remanejamento", status: "pendente", transferencia: true, outraVaga: "vaga #30 · Evento Y" }],
+    }));
+    expect(destino.find((e) => e.titulo === "Transferência de colaborador pedida")!.detalhe).toBe("Gleicy vem da vaga #30 · Evento Y · sai de Salvador - BA");
+    const origem = montarHistoricoDaVaga(vazio({
+      trocas: [{ id: "t1", createdAt: "2026-09-10T10:00:00.000Z", requestedByName: "Pedro", currentCollaboratorName: "Gleicy", newCollaboratorName: null, newCity: null, reason: "remanejamento", status: "aprovado", reviewedAt: "2026-09-10T11:00:00.000Z", reviewedByName: "Compras", transferencia: true, outraVaga: "vaga #10 · Evento X" }],
+    }));
+    expect(origem.find((e) => e.titulo === "Transferência aprovada")!.detalhe).toBe("Gleicy sai desta vaga e vai para a vaga #10 · Evento X · esta vaga fica aberta");
   });
 });

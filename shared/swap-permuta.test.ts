@@ -30,6 +30,7 @@ describe("permuta de colaboradores (14/09)", () => {
     expect(t.newCity).toBe("Salvador - BA");
     expect(t.permutaCom).toBe("vaga #20 · Evento Y");
     expect(t.saiDeOutro).toBe("São Paulo - SP");
+    expect(t.transferencia).toBe(false);
   });
 
   it("na vaga pareada os papéis se invertem", () => {
@@ -41,9 +42,39 @@ describe("permuta de colaboradores (14/09)", () => {
     expect(t.saiDeOutro).toBe("Salvador - BA");
   });
 
-  it("troca simples não vira permuta", () => {
+  it("troca simples não vira permuta nem transferência", () => {
     const t = trocaNaVisaoDaVaga({ ...permuta, swap_kind: "substituicao", paired_inclusion_id: null }, "X");
     expect(t.permutaCom).toBeNull();
     expect(t.saiDeOutro).toBeNull();
+    expect(t.transferencia).toBe(false);
+    expect(t.outraVaga).toBeNull();
+  });
+});
+
+describe("transferência para vaga aberta (14/09)", () => {
+  const transferencia: TrocaCrua = {
+    id: "t1", team_inclusion_id: "X", paired_inclusion_id: "Y", swap_kind: "transferencia",
+    current_collaborator_name: null, new_collaborator_name: "Gleicy",
+    new_city: "Salvador - BA", paired_new_city: null,
+    inclusion_number: 10, event_name: "Evento X", paired_inclusion_number: 30, paired_event_name: "Evento Y",
+    status: "pendente",
+  };
+
+  it("na vaga aberta (destino): Gleicy chega, vinda da vaga #30, saindo de Salvador", () => {
+    const t = trocaNaVisaoDaVaga(transferencia, "X");
+    expect(t.transferencia).toBe(true);
+    expect(t.currentCollaboratorName).toBeNull();
+    expect(t.newCollaboratorName).toBe("Gleicy");
+    expect(t.newCity).toBe("Salvador - BA");
+    expect(t.outraVaga).toBe("vaga #30 · Evento Y");
+    expect(t.permutaCom).toBeNull();
+  });
+
+  it("na vaga de origem: Gleicy sai e ninguém chega", () => {
+    const t = trocaNaVisaoDaVaga(transferencia, "Y");
+    expect(t.currentCollaboratorName).toBe("Gleicy");
+    expect(t.newCollaboratorName).toBeNull();
+    expect(t.newCity).toBeNull();
+    expect(t.outraVaga).toBe("vaga #10 · Evento X");
   });
 });

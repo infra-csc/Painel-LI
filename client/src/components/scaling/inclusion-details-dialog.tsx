@@ -36,6 +36,7 @@ import type { TeamInclusion } from "@shared/schema";
 import { getStatusBadge } from "./scaling-table";
 import ConfirmDialog from "./confirm-dialog";
 import { SwapStatusCard, RequestSwapButton, SwapRequestDialog } from "./swap-request-panel";
+import { TransferRequestDialog } from "./swap-transferencia";
 import { AdjustRequestPanel, pendingRequestLock, podePedirAjuste, useChangeWindow } from "./adjust-request-panel";
 import { ProductionApprovalCard } from "./production-approval-card";
 import { PassagemTab, HospedagemTab, ComentariosTab } from "./inclusion-details-tabs";
@@ -255,6 +256,8 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
   const [showAllLogs, setShowAllLogs] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [showSwapModal, setShowSwapModal] = useState(false);
+  /** Transferência (14/09): quem, escalado em outra vaga do período, é pedido para esta vaga aberta. */
+  const [transferirColaboradorId, setTransferirColaboradorId] = useState<string | null>(null);
   /**
    * A lista de nomes está aberta dentro do cartão. Nasce aberta quando a vaga
    * chegou vazia ou quando o clique veio do "Escalar alguém" da linha — nos
@@ -713,6 +716,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                     setEscolhendoColaborador(false);
                                   }}
                                   onCancelar={modalData.collaboratorId ? () => setEscolhendoColaborador(false) : undefined}
+                                  onPedirTransferencia={!inclusion.collaboratorId && !pendingSwap ? (id) => setTransferirColaboradorId(id) : undefined}
                                   disabled={!!requestLockReason}
                                   disabledReason={requestLockReason}
                                 />
@@ -865,6 +869,20 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                 />
                               )}
                             </div>
+                            {/* Transferência pedida para esta vaga aberta (14/09): o cartão
+                                com o pedido aparece aqui, porque a vaga ainda não tem
+                                colaborador e o cartão de troca só existia no outro ramo. */}
+                            {!inclusion.collaboratorId && (pendingSwap || latestSwap?.swapKind === "transferencia") && (
+                              <SwapStatusCard
+                                pendingSwap={pendingSwap}
+                                latestSwap={latestSwap}
+                                currentUserId={user?.id}
+                                isAdminOrPurchasing={isAdminOrPurchasing}
+                                getCollaboratorName={getCollaboratorName}
+                                mutations={mutations}
+                                blockReason={actionLockReason}
+                              />
+                            )}
                             {/* Bloqueio de conflito de datas */}
                             {(() => {
                               if (!modalData.collaboratorId) return null;
@@ -886,7 +904,17 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                         </p>
                                       );
                                     })}
-                                    <p className="text-red-500 mt-0.5">Só é possível escalar se o colaborador for inativado ou sair da outra prova.</p>
+                                    <p className="text-red-500 mt-0.5">Para trazer esta pessoa, peça a transferência: aprovada por Compras, ela sai da outra vaga e entra nesta.</p>
+                                    {!inclusion.collaboratorId && !pendingSwap && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setTransferirColaboradorId(modalData.collaboratorId)}
+                                        className="mt-1 inline-flex items-center rounded-md border border-red-300 bg-white px-2 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50"
+                                        data-testid="button-pedir-transferencia-conflito"
+                                      >
+                                        Pedir transferência
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -1160,6 +1188,25 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
               getCollaboratorConflicts={getCollaboratorConflicts}
               createSwapRequest={mutations.createSwapRequest}
               inclusions={data.teamInclusions}
+            />
+            {/* Transferência para esta vaga aberta (14/09) */}
+            <TransferRequestDialog
+              open={!!transferirColaboradorId}
+              onOpenChange={(o) => { if (!o) setTransferirColaboradorId(null); }}
+              inclusion={inclusion}
+              collaboratorId={transferirColaboradorId}
+              origens={transferirColaboradorId
+                ? (() => {
+                    const { sameEvent, dateOverlap } = getCollaboratorConflicts(transferirColaboradorId, inclusion);
+                    return [...sameEvent, ...dateOverlap].filter((v, i, a) => a.findIndex((x) => x.id === v.id) === i);
+                  })()
+                : []}
+              collaborators={collaborators}
+              getCollaboratorName={getCollaboratorName}
+              getEventName={getEventName}
+              getFunctionName={getFunctionName}
+              createSwapRequest={mutations.createSwapRequest}
+              onEnviado={() => setEscolhendoColaborador(false)}
             />
             <ConfirmDialog
               open={showReactivateConfirm}

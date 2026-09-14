@@ -18,7 +18,7 @@ import type { TeamInclusion, Collaborator } from "@shared/schema";
 import ConfirmDialog from "./confirm-dialog";
 import { formatShortDateTime, isCityFromSP, parseDay, type NormalizedSwap } from "./scaling-utils";
 import { SAI_DE_SP, cidadeDeSaida, validarSaiDe } from "@shared/swap-sai-de";
-import { EscolherVagaDaPermuta, LinhasDaPermuta, candidatasDaPermuta, periodoCurto } from "./swap-permuta";
+import { EscolherVagaDaPermuta, LinhasDaPermuta, LinhasDaTransferencia, candidatasDaPermuta, periodoCurto } from "./swap-permuta";
 
 // ── Campo "Sai de" do novo colaborador (14/09) ─────────────────────────────
 
@@ -150,6 +150,8 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
   const busy = approveSwap.isPending || rejectSwap.isPending;
   /** Permuta (14/09): dois escalados trocam de vaga — o cartão diz quem vai para onde. */
   const permuta = swap.swapKind === "permuta";
+  /** Transferência (14/09): alguém de outra vaga entra nesta, que estava aberta. */
+  const transferencia = swap.swapKind === "transferencia";
 
   return (
     <>
@@ -157,14 +159,14 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             {v.icon}
-            <span className="text-[12px] font-semibold text-slate-700">{permuta ? v.title.replace("Troca", "Permuta") : v.title}</span>
+            <span className="text-[12px] font-semibold text-slate-700">{permuta ? v.title.replace("Troca", "Troca entre vagas") : transferencia ? v.title.replace("Troca", "Transferência") : v.title}</span>
           </div>
           <span className={`text-[10px] font-medium border rounded-full px-2 py-px leading-tight ${v.badgeClass}`}>{v.badge}</span>
         </div>
 
         {isResolved ? (
           <div className="bg-white/70 rounded-lg border border-slate-100 p-2 space-y-1.5">
-            {permuta ? <LinhasDaPermuta swap={swap} getCollaboratorName={getCollaboratorName} /> : (<>
+            {permuta ? <LinhasDaPermuta swap={swap} getCollaboratorName={getCollaboratorName} /> : transferencia ? <LinhasDaTransferencia swap={swap} getCollaboratorName={getCollaboratorName} /> : (<>
             <div className="flex items-center gap-1.5 text-[11px]">
               <span className="text-slate-500 line-through">{currentCollabName || "—"}</span>
               <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
@@ -211,6 +213,8 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
             )}
             {permuta ? (
               <LinhasDaPermuta swap={swap} getCollaboratorName={getCollaboratorName} />
+            ) : transferencia ? (
+              <LinhasDaTransferencia swap={swap} getCollaboratorName={getCollaboratorName} />
             ) : (
               <>
             <div className="flex items-start gap-1.5 text-[11px]">
@@ -292,9 +296,11 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
         onOpenChange={(o) => { if (!o) setConfirmAction(null); }}
         icon={CheckCheck}
         tone="emerald"
-        title={pendingSwap?.swapKind === "permuta" ? "Aprovar permuta de colaboradores?" : "Aprovar troca de colaborador?"}
+        title={pendingSwap?.swapKind === "permuta" ? "Aprovar troca entre vagas?" : pendingSwap?.swapKind === "transferencia" ? "Aprovar transferência de colaborador?" : "Aprovar troca de colaborador?"}
         description={pendingSwap?.swapKind === "permuta"
           ? "Confira as duas vagas. Ao confirmar, os dois trocam de vaga ao mesmo tempo, cada um saindo da cidade informada no pedido."
+          : pendingSwap?.swapKind === "transferencia"
+          ? "Confira as duas vagas. Ao confirmar, a pessoa sai da vaga onde está, entra nesta saindo da cidade informada, e a vaga de origem fica aberta."
           : "Confira os dados do novo colaborador. Ao confirmar, ele assume a vaga e ela passa a sair da cidade informada no pedido."}
         confirmLabel="Confirmar aprovação"
         pendingLabel="Aprovando..."
@@ -308,9 +314,14 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
                 <LinhasDaPermuta swap={pendingSwap} getCollaboratorName={getCollaboratorName} />
               </div>
             )}
+            {pendingSwap.swapKind === "transferencia" && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-2" data-testid="swap-transferencia-aprovacao">
+                <LinhasDaTransferencia swap={pendingSwap} getCollaboratorName={getCollaboratorName} />
+              </div>
+            )}
             <div className="flex items-start gap-2">
               <span className="text-slate-400 font-medium shrink-0">Atual:</span>
-              <span className="font-semibold text-slate-700">{getCollaboratorName(pendingSwap.currentCollaboratorId)}</span>
+              <span className="font-semibold text-slate-700">{pendingSwap.currentCollaboratorId ? getCollaboratorName(pendingSwap.currentCollaboratorId) : "vaga aberta"}</span>
             </div>
             <div className="flex items-start gap-2">
               <span className="text-slate-400 font-medium shrink-0">Solicitado:</span>
@@ -516,8 +527,8 @@ export function SwapRequestDialog({
                 vaga acusava conflito com a outra. */}
             <div role="radiogroup" aria-label="Tipo de troca" className="grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="tipo-de-troca">
               {([
-                ["substituicao", "Trocar por outro colaborador", "Quem entra não está escalado no mesmo período."],
-                ["permuta", "Permutar com outra vaga", "Dois escalados trocam de vaga entre si — ex.: mesmo fim de semana, eventos diferentes."],
+                ["substituicao", "Colocar outro colaborador", "Quem entra ainda não está escalado no mesmo período."],
+                ["permuta", "Trocar com alguém de outra vaga", "Os dois já estão escalados e trocam de lugar — ex.: mesmo fim de semana, eventos diferentes."],
               ] as const).map(([k, titulo, desc]) => {
                 const on = modo === k;
                 return (
@@ -562,7 +573,7 @@ export function SwapRequestDialog({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {permuta ? (
               <div>
-                <label className="text-[10px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5 block">Vaga para permutar</label>
+                <label className="text-[10px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5 block">Vaga do outro colaborador</label>
                 {vagaPermuta ? (
                   <div className="rounded-lg border border-primary/30 bg-brand-soft px-3 py-2" data-testid="vaga-permuta-escolhida">
                     <div className="flex items-start justify-between gap-2">
@@ -599,9 +610,9 @@ export function SwapRequestDialog({
                     }}
                   />
                 )}
-                {submitAttempted && !vagaPermuta && <p className="text-[10px] text-red-500 mt-1">Escolha a vaga para permutar.</p>}
+                {submitAttempted && !vagaPermuta && <p className="text-[10px] text-red-500 mt-1">Escolha a vaga do outro colaborador.</p>}
                 <p className="mt-1.5 text-[10px] leading-snug text-slate-500">
-                  Aprovada a permuta, os dois trocam de vaga ao mesmo tempo — sem conflito de datas, porque ninguém fica em dois lugares.
+                  Aprovada a troca, os dois trocam de lugar ao mesmo tempo — sem conflito de datas, porque ninguém fica em dois lugares.
                 </p>
               </div>
               ) : (
@@ -662,7 +673,7 @@ export function SwapRequestDialog({
                   <CampoSaiDe
                     id="swap-sai-de-pedido"
                     rotulo={permuta && vagaPermuta ? `${getCollaboratorName(vagaPermuta.collaboratorId)} sai de (vem para esta vaga)` : "Novo colaborador sai de"}
-                    dicaTravado={permuta ? "Escolha a vaga para permutar — a cidade de cada um entra aqui e dá para corrigir." : "Escolha o novo colaborador — a cidade dele entra aqui e dá para corrigir."}
+                    dicaTravado={permuta ? "Escolha a vaga do outro colaborador — a cidade de cada um entra aqui e dá para corrigir." : "Escolha o novo colaborador — a cidade dele entra aqui e dá para corrigir."}
                     saiDeSP={saiDe.saiDeSP}
                     cidade={saiDe.cidade}
                     onChange={(sp, cidade) => { setSaiDe({ saiDeSP: sp, cidade }); setSubmitAttempted(false); }}
@@ -673,7 +684,7 @@ export function SwapRequestDialog({
                     <CampoSaiDe
                       id="swap-sai-de-outro"
                       rotulo={`${currentCollabName} sai de (vai para a outra vaga)`}
-                      dicaTravado="Escolha a vaga para permutar."
+                      dicaTravado="Escolha a vaga do outro colaborador."
                       saiDeSP={saiDeOutro.saiDeSP}
                       cidade={saiDeOutro.cidade}
                       onChange={(sp, cidade) => { setSaiDeOutro({ saiDeSP: sp, cidade }); setSubmitAttempted(false); }}
@@ -757,7 +768,7 @@ export function SwapRequestDialog({
             <div className="bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-2.5 mb-5">
               <p className="text-[11px] text-blue-800 leading-relaxed">
                 <span className="font-semibold">A escala continuará com o colaborador atual</span> até que a troca seja aprovada pelo time de Compras.
-                {permuta && vagaPermuta && <> Na permuta, {currentCollabName} vai para a vaga #{vagaPermuta.inclusionNumber} ({getEventName(vagaPermuta.eventId)}), saindo de {cidadeSaidaOutro}.</>}
+                {permuta && vagaPermuta && <> Na troca entre vagas, {currentCollabName} vai para a vaga #{vagaPermuta.inclusionNumber} ({getEventName(vagaPermuta.eventId)}), saindo de {cidadeSaidaOutro}.</>}
               </p>
             </div>
             <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 font-semibold text-[13px]" onClick={resetAndClose}>

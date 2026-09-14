@@ -56,6 +56,8 @@ export interface FontesDoHistorico {
     newCity?: string | null; reason?: string | null; status: string; reviewedAt?: Quando; reviewedByName?: string | null; reviewComment?: string | null;
     /** Permuta (14/09): a OUTRA vaga ("vaga #12 · Evento") e de onde sai quem vai para ela. */
     permutaCom?: string | null; saiDeOutro?: string | null;
+    /** Transferência (14/09): colaborador de outra vaga passa para uma vaga aberta; a outra vaga, rotulada. */
+    transferencia?: boolean; outraVaga?: string | null;
   }[];
   pedidos: {
     id: string; createdAt: Quando; requestType: string; requestedByName?: string | null; reason?: string | null;
@@ -239,15 +241,34 @@ export function montarHistoricoDaVaga(f: FontesDoHistorico): EntradaDoHistorico[
 
   // 5) Trocas de colaborador (a aprovação grava por SQL direto, sem log)
   for (const s of f.trocas) {
+    // Transferência (14/09): na vaga de destino, quem chega e de onde vem; na
+    // de origem, quem sai e que ela fica aberta.
+    if (s.transferencia) {
+      const quem = s.newCollaboratorName || s.currentCollaboratorName || "?";
+      const outra = s.outraVaga ?? "outra vaga";
+      const texto = s.newCollaboratorName
+        ? [`${quem} vem da ${outra}`, s.newCity ? `sai de ${s.newCity}` : null].filter(Boolean).join(" · ")
+        : `${quem} sai desta vaga e vai para a ${outra} · esta vaga fica aberta`;
+      const pedidaT = toIso(s.createdAt);
+      if (pedidaT) {
+        add({ id: `troca-${s.id}-pedida`, at: pedidaT, diaFixo: null, categoria: "troca", titulo: "Transferência de colaborador pedida", detalhe: texto, autor: s.requestedByName ?? null, comentario: s.reason || null });
+      }
+      const revistaT = toIso(s.reviewedAt);
+      if (revistaT && s.status !== "pendente") {
+        const tituloT = s.status === "aprovado" ? "Transferência aprovada" : s.status === "rejeitado" ? "Transferência recusada" : s.status === "cancelado" ? "Pedido de transferência cancelado" : `Transferência ${s.status}`;
+        add({ id: `troca-${s.id}-${s.status}`, at: revistaT, diaFixo: null, categoria: "troca", titulo: tituloT, detalhe: texto, autor: s.reviewedByName ?? null, comentario: s.reviewComment || null });
+      }
+      continue;
+    }
     const pedida = toIso(s.createdAt);
     const para = [s.currentCollaboratorName, s.newCollaboratorName].map((n) => n || "?").join(" → ");
     if (pedida) {
-      add({ id: `troca-${s.id}-pedida`, at: pedida, diaFixo: null, categoria: "troca", titulo: s.permutaCom ? "Permuta de colaboradores pedida" : "Troca de colaborador pedida",
+      add({ id: `troca-${s.id}-pedida`, at: pedida, diaFixo: null, categoria: "troca", titulo: s.permutaCom ? "Troca entre vagas pedida" : "Troca de colaborador pedida",
         detalhe: [para, s.newCity ? `sai de ${s.newCity}` : null, s.permutaCom ? `${s.currentCollaboratorName || "?"} vai para ${s.permutaCom}${s.saiDeOutro ? ` (sai de ${s.saiDeOutro})` : ""}` : null].filter(Boolean).join(" · "), autor: s.requestedByName ?? null, comentario: s.reason || null });
     }
     const revista = toIso(s.reviewedAt);
     if (revista && s.status !== "pendente") {
-      const titulo = s.status === "aprovado" ? (s.permutaCom ? "Permuta aprovada" : "Troca aprovada") : s.status === "rejeitado" ? (s.permutaCom ? "Permuta recusada" : "Troca recusada") : s.status === "cancelado" ? "Pedido de troca cancelado" : `Troca ${s.status}`;
+      const titulo = s.status === "aprovado" ? (s.permutaCom ? "Troca entre vagas aprovada" : "Troca aprovada") : s.status === "rejeitado" ? (s.permutaCom ? "Troca entre vagas recusada" : "Troca recusada") : s.status === "cancelado" ? "Pedido de troca cancelado" : `Troca ${s.status}`;
       add({ id: `troca-${s.id}-${s.status}`, at: revista, diaFixo: null, categoria: "troca", titulo,
         detalhe: s.status === "aprovado" ? [`Agora: ${s.newCollaboratorName || "?"}`, s.newCity ? `sai de ${s.newCity}` : null, s.permutaCom ? `${s.currentCollaboratorName || "?"} foi para ${s.permutaCom}` : null].filter(Boolean).join(" · ") : para,
         autor: s.reviewedByName ?? null, comentario: s.reviewComment || null });

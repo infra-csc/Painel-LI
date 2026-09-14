@@ -131,10 +131,19 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.08em] mb-0.5">Novo colaborador sai de</p>
             <p className="text-[11px] font-semibold text-slate-700">{saiDeDoPedido || "Não informado"}{!swap.newCity && saiDeDoPedido ? " (cadastro do colaborador)" : ""}</p>
           </div>
+          {/* Transferência (14/09): a pessoa sai de uma vaga e entra na outra, que estava aberta. */}
+          {swap.swapKind === "transferencia" && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2" data-testid="swap-transferencia-hosp">
+              <p className="text-[9px] font-bold text-amber-700 uppercase tracking-[0.08em] mb-0.5">Transferência entre vagas</p>
+              <p className="text-[11px] text-amber-900 leading-snug">
+                {swap.newCollaboratorName || "?"} sai da vaga #{swap.pairedInclusionNumber ?? "?"}{swap.pairedEventName ? " · " + swap.pairedEventName : ""} e vai para a vaga #{swap.inclusionNumber ?? "?"}{swap.eventName ? " · " + swap.eventName : ""}{swap.newCity ? ", saindo de " + swap.newCity : ""}. A vaga #{swap.pairedInclusionNumber ?? "?"} fica aberta.
+              </p>
+            </div>
+          )}
           {/* Permuta (14/09): os dois trocam de vaga ao aprovar — dito com as duas vagas. */}
           {swap.swapKind === "permuta" && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2" data-testid="swap-permuta-hosp">
-              <p className="text-[9px] font-bold text-amber-700 uppercase tracking-[0.08em] mb-0.5">Permuta entre duas vagas</p>
+              <p className="text-[9px] font-bold text-amber-700 uppercase tracking-[0.08em] mb-0.5">Troca entre vagas</p>
               <p className="text-[11px] text-amber-900 leading-snug">
                 {swap.newCollaboratorName || "?"} vai para a vaga #{swap.inclusionNumber ?? "?"}{swap.eventName ? " · " + swap.eventName : ""}{swap.newCity ? ", saindo de " + swap.newCity : ""}.
                 {" "}{swap.currentCollaboratorName || "?"} vai para a vaga #{swap.pairedInclusionNumber ?? "?"}{swap.pairedEventName ? " · " + swap.pairedEventName : ""}{swap.pairedNewCity ? ", saindo de " + swap.pairedNewCity : ""}.

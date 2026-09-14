@@ -65,7 +65,7 @@ export function useScalingMutations(opts: {
     mutationFn: async (data: {
       teamInclusionId: string; newCollaboratorId: string; reason: string; newCity: string;
       /** Permuta (14/09): a outra vaga e de onde sai quem vai para ela. */
-      kind?: "substituicao" | "permuta"; pairedInclusionId?: string; pairedNewCity?: string;
+      kind?: "substituicao" | "permuta" | "transferencia"; pairedInclusionId?: string; pairedNewCity?: string;
     }) => {
       const r = await apiRequest("POST", "/api/swap-requests", data);
       return r.json();

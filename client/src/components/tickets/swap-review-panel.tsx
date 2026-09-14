@@ -66,10 +66,19 @@ export default function SwapReviewPanel({
               <p className="text-[13px] text-slate-600 leading-snug">{swap.reason || "—"}</p>
             </div>
           </div>
+          {/* Transferência (14/09): a pessoa sai de uma vaga e entra na outra, que estava aberta. */}
+          {((swap as any).swap_kind ?? (swap as any).swapKind) === "transferencia" && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3" data-testid="swap-transferencia-passagem">
+              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-[0.08em] mb-1">Transferência entre vagas</p>
+              <p className="text-[12px] text-amber-900 leading-snug">
+                {(swap as any).new_collaborator_name || "?"} sai da vaga #{(swap as any).paired_inclusion_number ?? "?"}{(swap as any).paired_event_name ? " · " + (swap as any).paired_event_name : ""} e vai para a vaga #{(swap as any).inclusion_number ?? "?"}{(swap as any).event_name ? " · " + (swap as any).event_name : ""}{(swap as any).new_city ? ", saindo de " + (swap as any).new_city : ""}. A vaga #{(swap as any).paired_inclusion_number ?? "?"} fica aberta.
+              </p>
+            </div>
+          )}
           {/* Permuta (14/09): os dois trocam de vaga ao aprovar — dito com as duas vagas. */}
           {((swap as any).swap_kind ?? (swap as any).swapKind) === "permuta" && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3" data-testid="swap-permuta-passagem">
-              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-[0.08em] mb-1">Permuta entre duas vagas</p>
+              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-[0.08em] mb-1">Troca entre vagas</p>
               <p className="text-[12px] text-amber-900 leading-snug">
                 {(swap as any).new_collaborator_name || "?"} vai para a vaga #{(swap as any).inclusion_number ?? "?"}{(swap as any).event_name ? " · " + (swap as any).event_name : ""}{(swap as any).new_city ? ", saindo de " + (swap as any).new_city : ""}.
                 {" "}{(swap as any).current_collaborator_name || "?"} vai para a vaga #{(swap as any).paired_inclusion_number ?? "?"}{(swap as any).paired_event_name ? " · " + (swap as any).paired_event_name : ""}{(swap as any).paired_new_city ? ", saindo de " + (swap as any).paired_new_city : ""}.

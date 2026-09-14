@@ -39,6 +39,8 @@ export interface EscolherColaboradorProps {
   };
   getEventName: (eventId: string | null) => string;
   onEscolher: (collaboratorId: string) => void;
+  /** Conflito de agenda (14/09): em vez de só travar, oferece pedir a transferência para esta vaga. */
+  onPedirTransferencia?: (collaboratorId: string) => void;
   /** Fecha a escolha sem mexer em nada (só quando já havia alguém). */
   onCancelar?: () => void;
   disabled?: boolean;
@@ -46,7 +48,7 @@ export interface EscolherColaboradorProps {
 }
 
 export default function EscolherColaborador({
-  colaboradores, inclusion, getConflitos, getEventName, onEscolher, onCancelar,
+  colaboradores, inclusion, getConflitos, getEventName, onEscolher, onCancelar, onPedirTransferencia,
   disabled = false, disabledReason,
 }: EscolherColaboradorProps) {
   const [busca, setBusca] = useState("");
@@ -116,6 +118,32 @@ export default function EscolherColaborador({
             .join(" · ");
           const nome = fixEncoding(c.fullName);
           const tipo = COLLAB_TYPE[c.type ?? ""] ?? null;
+          // Conflito com saída (14/09): a pessoa está escalada em outra vaga do
+          // mesmo período — em vez de só travar, dá para pedir a transferência
+          // dela para esta vaga (quem oferece a ação é o modal, via prop).
+          if (conflito && onPedirTransferencia) {
+            return (
+              <li key={c.id}>
+                <div className="flex w-full items-center gap-2.5 bg-[#FFFBEB] px-3 py-2" data-testid={`opcao-colaborador-${c.id}`}>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] text-[#92400E]">{nome}</span>
+                    <span className="block truncate text-[11px] text-[#B45309]">
+                      {[c.city, tipo].filter(Boolean).join(" · ")}{ondeConflita ? `${c.city || tipo ? " · " : ""}escalado em ${ondeConflita}` : ""}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onPedirTransferencia(c.id)}
+                    title={`${nome} já tem escalação no mesmo período${ondeConflita ? ` (${ondeConflita})` : ""}. Peça a transferência para esta vaga.`}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-[#92400E] hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                    data-testid={`pedir-transferencia-${c.id}`}
+                  >
+                    <AlertTriangle className="w-3 h-3" aria-hidden="true" />Pedir transferência
+                  </button>
+                </div>
+              </li>
+            );
+          }
           return (
             <li key={c.id}>
               <button
