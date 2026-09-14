@@ -92,3 +92,13 @@ describe("histórico da vaga (14/09)", () => {
     expect(h[h.length - 1].titulo).toBe("Vaga criada");
   });
 });
+
+describe("permuta no histórico (14/09)", () => {
+  it("diz que é permuta e para onde foi quem saiu", () => {
+    const h = montarHistoricoDaVaga(vazio({
+      trocas: [{ id: "p1", createdAt: "2026-09-10T10:00:00.000Z", requestedByName: "Pedro", currentCollaboratorName: "Ana", newCollaboratorName: "Bia", newCity: "Salvador - BA", reason: "mudou a escala", status: "aprovado", reviewedAt: "2026-09-10T11:00:00.000Z", reviewedByName: "Compras", reviewComment: null, permutaCom: "vaga #12 · Circuitinho", saiDeOutro: "São Paulo - SP" }],
+    }));
+    expect(h.find((e) => e.titulo === "Permuta de colaboradores pedida")!.detalhe).toBe("Ana → Bia · sai de Salvador - BA · Ana vai para vaga #12 · Circuitinho (sai de São Paulo - SP)");
+    expect(h.find((e) => e.titulo === "Permuta aprovada")!.detalhe).toBe("Agora: Bia · sai de Salvador - BA · Ana foi para vaga #12 · Circuitinho");
+  });
+});

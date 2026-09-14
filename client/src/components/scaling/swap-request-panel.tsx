@@ -18,6 +18,7 @@ import type { TeamInclusion, Collaborator } from "@shared/schema";
 import ConfirmDialog from "./confirm-dialog";
 import { formatShortDateTime, isCityFromSP, parseDay, type NormalizedSwap } from "./scaling-utils";
 import { SAI_DE_SP, cidadeDeSaida, validarSaiDe } from "@shared/swap-sai-de";
+import { EscolherVagaDaPermuta, LinhasDaPermuta, candidatasDaPermuta, periodoCurto } from "./swap-permuta";
 
 // ── Campo "Sai de" do novo colaborador (14/09) ─────────────────────────────
 
@@ -33,7 +34,15 @@ export function saiDeInicial(cidade: string | null | undefined): { saiDeSP: bool
  * do modal da Escalação. Usado no pedido de troca e na aprovação (Escalação e
  * Hospedagem/Passagem): aprovada a troca, a vaga passa a sair desta cidade.
  */
-export function CampoSaiDe({ id, saiDeSP, cidade, onChange, forcarErro = false, travado = false }: {
+export function CampoSaiDe({
+  id, saiDeSP, cidade, onChange, forcarErro = false, travado = false,
+  rotulo = "Novo colaborador sai de",
+  dicaTravado = "Escolha o novo colaborador — a cidade dele entra aqui e dá para corrigir.",
+}: {
+  /** Rótulo do campo (na permuta são dois, um por colaborador). */
+  rotulo?: string;
+  /** Dica enquanto o campo está travado. */
+  dicaTravado?: string;
   id: string;
   saiDeSP: boolean;
   cidade: string;
@@ -53,7 +62,7 @@ export function CampoSaiDe({ id, saiDeSP, cidade, onChange, forcarErro = false, 
   return (
     <div className="space-y-1.5" data-testid={id}>
       <p id={`${id}-rotulo`} className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-        <MapPin className="h-3 w-3" aria-hidden="true" /> Novo colaborador sai de <span className="text-red-500">*</span>
+        <MapPin className="h-3 w-3" aria-hidden="true" /> {rotulo} <span className="text-red-500">*</span>
       </p>
       <div role="radiogroup" aria-labelledby={`${id}-rotulo`} className="flex gap-1.5">
         <button type="button" role="radio" aria-checked={!travado && saiDeSP} disabled={travado} onClick={() => onChange(true, SAI_DE_SP)} className={botao(saiDeSP)} data-testid={`${id}-sp`}>
@@ -78,7 +87,7 @@ export function CampoSaiDe({ id, saiDeSP, cidade, onChange, forcarErro = false, 
       )}
       <p className={`text-[10px] leading-snug ${mostrarErro ? "text-red-500" : "text-slate-500"}`}>
         {travado
-          ? "Escolha o novo colaborador — a cidade dele entra aqui e dá para corrigir."
+          ? dicaTravado
           : mostrarErro ? erro : "Aprovada a troca, a vaga passa a sair desta cidade — é a origem da passagem."}
       </p>
     </div>
@@ -139,6 +148,8 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
   const newCollabName = getCollaboratorName(swap.newCollaboratorId);
   const isResolved = swap.status === "aprovado" || swap.status === "rejeitado";
   const busy = approveSwap.isPending || rejectSwap.isPending;
+  /** Permuta (14/09): dois escalados trocam de vaga — o cartão diz quem vai para onde. */
+  const permuta = swap.swapKind === "permuta";
 
   return (
     <>
@@ -146,13 +157,14 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             {v.icon}
-            <span className="text-[12px] font-semibold text-slate-700">{v.title}</span>
+            <span className="text-[12px] font-semibold text-slate-700">{permuta ? v.title.replace("Troca", "Permuta") : v.title}</span>
           </div>
           <span className={`text-[10px] font-medium border rounded-full px-2 py-px leading-tight ${v.badgeClass}`}>{v.badge}</span>
         </div>
 
         {isResolved ? (
           <div className="bg-white/70 rounded-lg border border-slate-100 p-2 space-y-1.5">
+            {permuta ? <LinhasDaPermuta swap={swap} getCollaboratorName={getCollaboratorName} /> : (<>
             <div className="flex items-center gap-1.5 text-[11px]">
               <span className="text-slate-500 line-through">{currentCollabName || "—"}</span>
               <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
@@ -164,6 +176,7 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
                 <span>Sai de <span className="font-semibold text-slate-700">{swap.newCity}</span></span>
               </div>
             )}
+            </>)}
             {swap.requestedByName && (
               <div className="flex items-center gap-1 text-[10px] text-slate-400">
                 <ArrowLeftRight className="w-2.5 h-2.5 shrink-0" />
@@ -196,6 +209,10 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
                 <span>Solicitado por <span className="font-medium text-slate-600">{swap.requestedByName}</span>{swap.createdAt && <> · {formatShortDateTime(swap.createdAt)}</>}</span>
               </div>
             )}
+            {permuta ? (
+              <LinhasDaPermuta swap={swap} getCollaboratorName={getCollaboratorName} />
+            ) : (
+              <>
             <div className="flex items-start gap-1.5 text-[11px]">
               <span className="text-slate-400 shrink-0">Novo colaborador:</span>
               <span className="font-medium text-slate-700">{newCollabName}</span>
@@ -204,6 +221,8 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
               <span className="text-slate-400 shrink-0">Sai de:</span>
               <span className="font-medium text-slate-700">{swap.newCity || "não informado (pedido antigo)"}</span>
             </div>
+              </>
+            )}
             <div className="flex items-start gap-1.5 text-[11px]">
               <span className="text-slate-400 shrink-0">Motivo:</span>
               <span className="text-slate-600 leading-snug">{swap.reason}</span>
@@ -273,8 +292,10 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
         onOpenChange={(o) => { if (!o) setConfirmAction(null); }}
         icon={CheckCheck}
         tone="emerald"
-        title="Aprovar troca de colaborador?"
-        description="Confira os dados do novo colaborador. Ao confirmar, ele assume a vaga e ela passa a sair da cidade informada no pedido."
+        title={pendingSwap?.swapKind === "permuta" ? "Aprovar permuta de colaboradores?" : "Aprovar troca de colaborador?"}
+        description={pendingSwap?.swapKind === "permuta"
+          ? "Confira as duas vagas. Ao confirmar, os dois trocam de vaga ao mesmo tempo, cada um saindo da cidade informada no pedido."
+          : "Confira os dados do novo colaborador. Ao confirmar, ele assume a vaga e ela passa a sair da cidade informada no pedido."}
         confirmLabel="Confirmar aprovação"
         pendingLabel="Aprovando..."
         isPending={approveSwap.isPending}
@@ -282,6 +303,11 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
       >
         {pendingSwap && (
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 text-[12px]">
+            {pendingSwap.swapKind === "permuta" && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-2" data-testid="swap-permuta-aprovacao">
+                <LinhasDaPermuta swap={pendingSwap} getCollaboratorName={getCollaboratorName} />
+              </div>
+            )}
             <div className="flex items-start gap-2">
               <span className="text-slate-400 font-medium shrink-0">Atual:</span>
               <span className="font-semibold text-slate-700">{getCollaboratorName(pendingSwap.currentCollaboratorId)}</span>
@@ -384,22 +410,29 @@ export interface SwapRequestDialogProps {
   getFunctionName: (id: string | null) => string;
   getCollaboratorConflicts: (collaboratorId: string, ref: TeamInclusion | null | undefined) => { sameEvent: TeamInclusion[]; dateOverlap: TeamInclusion[] };
   createSwapRequest: ScalingMutations["createSwapRequest"];
+  /** Todas as vagas — candidatas da permuta (14/09). */
+  inclusions?: TeamInclusion[] | undefined;
 }
 
 export function SwapRequestDialog({
   open, onOpenChange, inclusion, collaborators, getCollaboratorName, getEventName, getFunctionName,
-  getCollaboratorConflicts, createSwapRequest,
+  getCollaboratorConflicts, createSwapRequest, inclusions,
 }: SwapRequestDialogProps) {
   const [newCollaboratorId, setNewCollaboratorId] = useState("");
   const [reason, setReason] = useState("");
   /** De onde o novo colaborador sai (14/09) — preenchido pela cidade dele ao escolher. */
   const [saiDe, setSaiDe] = useState(() => saiDeInicial(null));
+  /** Troca simples × permuta com o colaborador de outra vaga (14/09). */
+  const [modo, setModo] = useState<"substituicao" | "permuta">("substituicao");
+  const [vagaPermutaId, setVagaPermutaId] = useState("");
+  /** De onde o colaborador ATUAL sai para a outra vaga (só na permuta). */
+  const [saiDeOutro, setSaiDeOutro] = useState(() => saiDeInicial(null));
   const [success, setSuccess] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
   // Ao abrir, começa limpo (o botão "Solicitar troca" zerava os campos)
   useEffect(() => {
-    if (open) { setNewCollaboratorId(""); setReason(""); setSaiDe(saiDeInicial(null)); setSubmitAttempted(false); setSuccess(false); }
+    if (open) { setNewCollaboratorId(""); setReason(""); setSaiDe(saiDeInicial(null)); setModo("substituicao"); setVagaPermutaId(""); setSaiDeOutro(saiDeInicial(null)); setSubmitAttempted(false); setSuccess(false); }
   }, [open]);
 
   const resetAndClose = () => {
@@ -407,6 +440,9 @@ export function SwapRequestDialog({
     setNewCollaboratorId("");
     setReason("");
     setSaiDe(saiDeInicial(null));
+    setModo("substituicao");
+    setVagaPermutaId("");
+    setSaiDeOutro(saiDeInicial(null));
     setSubmitAttempted(false);
     onOpenChange(false);
   };
@@ -419,7 +455,13 @@ export function SwapRequestDialog({
   const collabEmpty = submitAttempted && !newCollaboratorId;
   const cidadeSaida = cidadeDeSaida(saiDe.saiDeSP, saiDe.cidade);
   const erroSaiDe = validarSaiDe(cidadeSaida);
-  const canSubmit = !!newCollaboratorId && !isSameCollab && reason.trim().length >= 10 && !erroSaiDe && !createSwapRequest.isPending;
+  const permuta = modo === "permuta";
+  const candidatasPermuta = permuta ? candidatasDaPermuta(inclusion, inclusions ?? []) : [];
+  const vagaPermuta = permuta ? (inclusions ?? []).find((i) => i.id === vagaPermutaId) ?? null : null;
+  const cidadeSaidaOutro = cidadeDeSaida(saiDeOutro.saiDeSP, saiDeOutro.cidade);
+  const erroSaiDeOutro = permuta ? validarSaiDe(cidadeSaidaOutro) : null;
+  const canSubmit = !!newCollaboratorId && !isSameCollab && reason.trim().length >= 10 && !erroSaiDe && !erroSaiDeOutro
+    && (!permuta || !!vagaPermuta) && !createSwapRequest.isPending;
 
   const statusLabel = STATUS_LABELS[inclusion.status] || inclusion.status;
   const startDay = parseDay(inclusion.scheduleStartDate);
@@ -435,7 +477,7 @@ export function SwapRequestDialog({
     <>
       {/* Formulário */}
       <Dialog open={open && !success} onOpenChange={(o) => { if (!o) resetAndClose(); }}>
-        <DialogContent className="max-w-[700px] p-0 gap-0 rounded-[14px] overflow-hidden">
+        <DialogContent className="max-w-[760px] p-0 gap-0 rounded-[14px] overflow-hidden">
           <div className="px-6 pt-5 pb-4 border-b border-slate-100" style={{ background: "linear-gradient(135deg, #f0f7ff 0%, #ffffff 55%)" }}>
             <div className="flex items-center gap-3 mb-3">
               <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0" style={{ boxShadow: "0 3px 10px #2563EB30" }}>
@@ -469,6 +511,38 @@ export function SwapRequestDialog({
           </div>
 
           <div className="px-6 py-4 space-y-3">
+            {/* Troca simples × permuta (dono, 14/09): dois colaboradores já
+                escalados no mesmo período não conseguiam trocar de vaga — cada
+                vaga acusava conflito com a outra. */}
+            <div role="radiogroup" aria-label="Tipo de troca" className="grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="tipo-de-troca">
+              {([
+                ["substituicao", "Trocar por outro colaborador", "Quem entra não está escalado no mesmo período."],
+                ["permuta", "Permutar com outra vaga", "Dois escalados trocam de vaga entre si — ex.: mesmo fim de semana, eventos diferentes."],
+              ] as const).map(([k, titulo, desc]) => {
+                const on = modo === k;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => {
+                      setModo(k);
+                      setNewCollaboratorId("");
+                      setVagaPermutaId("");
+                      setSaiDe(saiDeInicial(null));
+                      setSaiDeOutro(saiDeInicial(null));
+                      setSubmitAttempted(false);
+                    }}
+                    className={`rounded-xl border px-3 py-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${on ? "border-primary bg-brand-soft" : "border-slate-200 bg-white hover:border-slate-300"}`}
+                    data-testid={`tipo-de-troca-${k}`}
+                  >
+                    <span className={`block text-[12px] font-semibold ${on ? "text-primary" : "text-slate-700"}`}>{titulo}</span>
+                    <span className="block text-[11px] leading-snug text-slate-500">{desc}</span>
+                  </button>
+                );
+              })}
+            </div>
             <div className="flex items-center gap-3 bg-slate-50 rounded-xl border border-slate-200 px-4 py-3">
               <div className="flex-1 min-w-0">
                 <div className="text-[9px] uppercase tracking-wide font-semibold text-slate-400 mb-0.5">Colaborador atual</div>
@@ -486,6 +560,51 @@ export function SwapRequestDialog({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {permuta ? (
+              <div>
+                <label className="text-[10px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5 block">Vaga para permutar</label>
+                {vagaPermuta ? (
+                  <div className="rounded-lg border border-primary/30 bg-brand-soft px-3 py-2" data-testid="vaga-permuta-escolhida">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-semibold text-slate-900 break-words">{getCollaboratorName(vagaPermuta.collaboratorId)}</div>
+                        <div className="text-[11px] text-slate-600 break-words">
+                          #{vagaPermuta.inclusionNumber} · {getEventName(vagaPermuta.eventId)} · {getFunctionName(vagaPermuta.functionId)} · {periodoCurto(vagaPermuta)}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setVagaPermutaId(""); setNewCollaboratorId(""); setSaiDe(saiDeInicial(null)); setSaiDeOutro(saiDeInicial(null)); }}
+                        className="shrink-0 text-[11px] font-semibold text-primary hover:underline"
+                        data-testid="button-trocar-vaga-permuta"
+                      >
+                        Trocar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <EscolherVagaDaPermuta
+                    candidatas={candidatasPermuta}
+                    getCollaboratorName={getCollaboratorName}
+                    getEventName={getEventName}
+                    getFunctionName={getFunctionName}
+                    onEscolher={(v) => {
+                      setVagaPermutaId(v.id);
+                      setNewCollaboratorId(v.collaboratorId ?? "");
+                      // Cada um vem com a cidade de saída que já tem: quem chega,
+                      // a do cadastro; quem sai para a outra vaga, a desta vaga.
+                      setSaiDe(saiDeInicial((collaborators || []).find((c) => c.id === v.collaboratorId)?.city));
+                      setSaiDeOutro(saiDeInicial(inclusion.city || (collaborators || []).find((c) => c.id === inclusion.collaboratorId)?.city));
+                      setSubmitAttempted(false);
+                    }}
+                  />
+                )}
+                {submitAttempted && !vagaPermuta && <p className="text-[10px] text-red-500 mt-1">Escolha a vaga para permutar.</p>}
+                <p className="mt-1.5 text-[10px] leading-snug text-slate-500">
+                  Aprovada a permuta, os dois trocam de vaga ao mesmo tempo — sem conflito de datas, porque ninguém fica em dois lugares.
+                </p>
+              </div>
+              ) : (
               <div>
                 <label className="text-[10px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5 block">Novo colaborador</label>
                 {/* O conflito de agenda aparece NA LISTA, não depois de
@@ -519,6 +638,7 @@ export function SwapRequestDialog({
                   </div>
                 )}
               </div>
+              )}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label htmlFor="swap-reason" className="text-[10px] uppercase tracking-wide font-semibold text-slate-500">Motivo da troca <span className="text-red-500">*</span></label>
@@ -536,17 +656,31 @@ export function SwapRequestDialog({
                 {(reasonEmpty || reasonTooShort)
                   ? <p className="text-[10px] text-red-500 mt-1">{reasonEmpty ? "Informe um motivo." : "Mínimo de 10 caracteres."}</p>
                   : <p className="text-[10px] text-slate-400 mt-1">Mínimo de 10 caracteres.</p>}
-                {/* "Sai de" do novo colaborador (dono, 14/09): sempre visível;
-                    travado até escolher quem assume, então vem com a cidade dele. */}
-                <div className="mt-4">
+                {/* "Sai de" (dono, 14/09): sempre visível; travado até escolher.
+                    Na permuta são DOIS — um para quem chega, outro para quem vai. */}
+                <div className="mt-4 space-y-3">
                   <CampoSaiDe
                     id="swap-sai-de-pedido"
+                    rotulo={permuta && vagaPermuta ? `${getCollaboratorName(vagaPermuta.collaboratorId)} sai de (vem para esta vaga)` : "Novo colaborador sai de"}
+                    dicaTravado={permuta ? "Escolha a vaga para permutar — a cidade de cada um entra aqui e dá para corrigir." : "Escolha o novo colaborador — a cidade dele entra aqui e dá para corrigir."}
                     saiDeSP={saiDe.saiDeSP}
                     cidade={saiDe.cidade}
                     onChange={(sp, cidade) => { setSaiDe({ saiDeSP: sp, cidade }); setSubmitAttempted(false); }}
                     forcarErro={submitAttempted}
                     travado={!newCollaboratorId}
                   />
+                  {permuta && (
+                    <CampoSaiDe
+                      id="swap-sai-de-outro"
+                      rotulo={`${currentCollabName} sai de (vai para a outra vaga)`}
+                      dicaTravado="Escolha a vaga para permutar."
+                      saiDeSP={saiDeOutro.saiDeSP}
+                      cidade={saiDeOutro.cidade}
+                      onChange={(sp, cidade) => { setSaiDeOutro({ saiDeSP: sp, cidade }); setSubmitAttempted(false); }}
+                      forcarErro={submitAttempted}
+                      travado={!vagaPermuta}
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -568,7 +702,10 @@ export function SwapRequestDialog({
                 setSubmitAttempted(true);
                 if (!canSubmit) return;
                 createSwapRequest.mutate(
-                  { teamInclusionId: inclusion.id, newCollaboratorId, reason: reason.trim(), newCity: cidadeSaida },
+                  {
+                    teamInclusionId: inclusion.id, newCollaboratorId, reason: reason.trim(), newCity: cidadeSaida,
+                    ...(permuta && vagaPermuta ? { kind: "permuta" as const, pairedInclusionId: vagaPermuta.id, pairedNewCity: cidadeSaidaOutro } : {}),
+                  },
                   { onSuccess: () => setSuccess(true) },
                 );
               }}
@@ -620,6 +757,7 @@ export function SwapRequestDialog({
             <div className="bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-2.5 mb-5">
               <p className="text-[11px] text-blue-800 leading-relaxed">
                 <span className="font-semibold">A escala continuará com o colaborador atual</span> até que a troca seja aprovada pelo time de Compras.
+                {permuta && vagaPermuta && <> Na permuta, {currentCollabName} vai para a vaga #{vagaPermuta.inclusionNumber} ({getEventName(vagaPermuta.eventId)}), saindo de {cidadeSaidaOutro}.</>}
               </p>
             </div>
             <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 font-semibold text-[13px]" onClick={resetAndClose}>

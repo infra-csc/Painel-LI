@@ -54,6 +54,8 @@ export interface FontesDoHistorico {
   trocas: {
     id: string; createdAt: Quando; requestedByName?: string | null; currentCollaboratorName?: string | null; newCollaboratorName?: string | null;
     newCity?: string | null; reason?: string | null; status: string; reviewedAt?: Quando; reviewedByName?: string | null; reviewComment?: string | null;
+    /** Permuta (14/09): a OUTRA vaga ("vaga #12 · Evento") e de onde sai quem vai para ela. */
+    permutaCom?: string | null; saiDeOutro?: string | null;
   }[];
   pedidos: {
     id: string; createdAt: Quando; requestType: string; requestedByName?: string | null; reason?: string | null;
@@ -240,14 +242,14 @@ export function montarHistoricoDaVaga(f: FontesDoHistorico): EntradaDoHistorico[
     const pedida = toIso(s.createdAt);
     const para = [s.currentCollaboratorName, s.newCollaboratorName].map((n) => n || "?").join(" → ");
     if (pedida) {
-      add({ id: `troca-${s.id}-pedida`, at: pedida, diaFixo: null, categoria: "troca", titulo: "Troca de colaborador pedida",
-        detalhe: [para, s.newCity ? `sai de ${s.newCity}` : null].filter(Boolean).join(" · "), autor: s.requestedByName ?? null, comentario: s.reason || null });
+      add({ id: `troca-${s.id}-pedida`, at: pedida, diaFixo: null, categoria: "troca", titulo: s.permutaCom ? "Permuta de colaboradores pedida" : "Troca de colaborador pedida",
+        detalhe: [para, s.newCity ? `sai de ${s.newCity}` : null, s.permutaCom ? `${s.currentCollaboratorName || "?"} vai para ${s.permutaCom}${s.saiDeOutro ? ` (sai de ${s.saiDeOutro})` : ""}` : null].filter(Boolean).join(" · "), autor: s.requestedByName ?? null, comentario: s.reason || null });
     }
     const revista = toIso(s.reviewedAt);
     if (revista && s.status !== "pendente") {
-      const titulo = s.status === "aprovado" ? "Troca aprovada" : s.status === "rejeitado" ? "Troca recusada" : s.status === "cancelado" ? "Pedido de troca cancelado" : `Troca ${s.status}`;
+      const titulo = s.status === "aprovado" ? (s.permutaCom ? "Permuta aprovada" : "Troca aprovada") : s.status === "rejeitado" ? (s.permutaCom ? "Permuta recusada" : "Troca recusada") : s.status === "cancelado" ? "Pedido de troca cancelado" : `Troca ${s.status}`;
       add({ id: `troca-${s.id}-${s.status}`, at: revista, diaFixo: null, categoria: "troca", titulo,
-        detalhe: s.status === "aprovado" ? [`Agora: ${s.newCollaboratorName || "?"}`, s.newCity ? `sai de ${s.newCity}` : null].filter(Boolean).join(" · ") : para,
+        detalhe: s.status === "aprovado" ? [`Agora: ${s.newCollaboratorName || "?"}`, s.newCity ? `sai de ${s.newCity}` : null, s.permutaCom ? `${s.currentCollaboratorName || "?"} foi para ${s.permutaCom}` : null].filter(Boolean).join(" · ") : para,
         autor: s.reviewedByName ?? null, comentario: s.reviewComment || null });
     }
   }

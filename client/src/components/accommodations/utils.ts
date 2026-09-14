@@ -99,6 +99,12 @@ export function normalizeSwap(raw: RawSwap): NormalizedSwap {
     reviewComment: str(pick(raw, "review_comment", "reviewComment")),
     createdAt: str(pick(raw, "created_at", "createdAt")),
     newCity: str(pick(raw, "new_city", "newCity")),
+    swapKind: String(pick(raw, "swap_kind", "swapKind") ?? "substituicao"),
+    pairedNewCity: str(pick(raw, "paired_new_city", "pairedNewCity")),
+    inclusionNumber: pick(raw, "inclusion_number", "inclusionNumber") != null ? String(pick(raw, "inclusion_number", "inclusionNumber")) : null,
+    eventName: str(pick(raw, "event_name", "eventName")),
+    pairedInclusionNumber: pick(raw, "paired_inclusion_number", "pairedInclusionNumber") != null ? String(pick(raw, "paired_inclusion_number", "pairedInclusionNumber")) : null,
+    pairedEventName: str(pick(raw, "paired_event_name", "pairedEventName")),
   };
 }
 

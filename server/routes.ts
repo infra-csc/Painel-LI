@@ -42,6 +42,7 @@ import {
   cenoEmpreitaDefaultsMap, validarEmpreita } from "@shared/cenotecnica-empreita";
 import { nextStatusOnConfirm } from "@shared/scaling-rules";
 import { montarHistoricoDaVaga } from "@shared/inclusion-timeline";
+import { trocaNaVisaoDaVaga } from "@shared/swap-permuta";
 import { validarSaiDe } from "@shared/swap-sai-de";
 
 /**
@@ -2083,28 +2084,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         storage.getAccommodationsByInclusionId(id),
         storage.getScalingChangeRequestsByInclusion(id),
         storage.getUsers(),
+        // Permuta (14/09): o pedido entra no histórico das DUAS vagas.
         db.execute(drizzleSql`
-          SELECT sr.*, cc.full_name AS current_collaborator_name, nc.full_name AS new_collaborator_name
+          SELECT sr.*, cc.full_name AS current_collaborator_name, nc.full_name AS new_collaborator_name,
+                 ti.inclusion_number AS inclusion_number, me.name AS event_name,
+                 pti.inclusion_number AS paired_inclusion_number, pe.name AS paired_event_name
           FROM swap_requests sr
           LEFT JOIN collaborators cc ON sr.current_collaborator_id = cc.id
           LEFT JOIN collaborators nc ON sr.new_collaborator_id = nc.id
-          WHERE sr.team_inclusion_id = ${id}
+          LEFT JOIN team_inclusions ti ON sr.team_inclusion_id = ti.id
+          LEFT JOIN events me ON ti.event_id = me.id
+          LEFT JOIN team_inclusions pti ON sr.paired_inclusion_id = pti.id
+          LEFT JOIN events pe ON pti.event_id = pe.id
+          WHERE sr.team_inclusion_id = ${id} OR sr.paired_inclusion_id = ${id}
         `),
       ]);
       const nomeDoUsuario = new Map(usuarios.map((u) => [u.id, u.name]));
-      const trocas = (((trocasRes as any).rows ?? trocasRes) as any[]).map((r) => ({
-        id: String(r.id),
-        createdAt: r.created_at,
-        requestedByName: r.requested_by_name ?? null,
-        currentCollaboratorName: r.current_collaborator_name ?? null,
-        newCollaboratorName: r.new_collaborator_name ?? null,
-        newCity: r.new_city ?? null,
-        reason: r.reason ?? null,
-        status: String(r.status ?? "pendente"),
-        reviewedAt: r.reviewed_at,
-        reviewedByName: r.reviewed_by_name ?? null,
-        reviewComment: r.review_comment ?? null,
-      }));
+      const trocas = (((trocasRes as any).rows ?? trocasRes) as any[]).map((r) => trocaNaVisaoDaVaga(r, id));
       const historico = montarHistoricoDaVaga({
         vaga: {
           id: vaga.id,
@@ -5989,16 +5985,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/swap-requests", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
     try {
+      // Permuta (14/09): a linha traz também a OUTRA vaga (número, evento,
+      // função) — as telas mostram para onde vai cada colaborador.
       const rows = await db.execute(drizzleSql`
-        SELECT sr.*, 
+        SELECT sr.*,
                cc.full_name as current_collaborator_name,
                nc.full_name as new_collaborator_name,
                ti.status as inclusion_status,
-               ti.deleted_at as inclusion_deleted_at
+               ti.deleted_at as inclusion_deleted_at,
+               ti.inclusion_number as inclusion_number,
+               me.name as event_name,
+               pti.inclusion_number as paired_inclusion_number,
+               pe.name as paired_event_name,
+               pf.name as paired_function_name
         FROM swap_requests sr
         LEFT JOIN collaborators cc ON sr.current_collaborator_id = cc.id
         LEFT JOIN collaborators nc ON sr.new_collaborator_id = nc.id
         LEFT JOIN team_inclusions ti ON sr.team_inclusion_id = ti.id
+        LEFT JOIN events me ON ti.event_id = me.id
+        LEFT JOIN team_inclusions pti ON sr.paired_inclusion_id = pti.id
+        LEFT JOIN events pe ON pti.event_id = pe.id
+        LEFT JOIN functions pf ON pti.function_id = pf.id
         ORDER BY sr.created_at DESC
       `);
       // camelCase (teamInclusionId, newCollaboratorId, requestedByName...) +
@@ -6014,14 +6021,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
     const { teamInclusionId } = req.params;
     try {
+      // Permuta (14/09): o pedido aparece nas DUAS vagas — a do pedido e a
+      // pareada — com os dados da outra vaga para as telas dizerem quem vai
+      // para onde.
       const rows = await db.execute(drizzleSql`
-        SELECT sr.*, 
+        SELECT sr.*,
                cc.full_name as current_collaborator_name,
-               nc.full_name as new_collaborator_name
+               nc.full_name as new_collaborator_name,
+               ti.inclusion_number as inclusion_number,
+               me.name as event_name,
+               pti.inclusion_number as paired_inclusion_number,
+               pe.name as paired_event_name,
+               pf.name as paired_function_name
         FROM swap_requests sr
         LEFT JOIN collaborators cc ON sr.current_collaborator_id = cc.id
         LEFT JOIN collaborators nc ON sr.new_collaborator_id = nc.id
-        WHERE sr.team_inclusion_id = ${teamInclusionId}
+        LEFT JOIN team_inclusions ti ON sr.team_inclusion_id = ti.id
+        LEFT JOIN events me ON ti.event_id = me.id
+        LEFT JOIN team_inclusions pti ON sr.paired_inclusion_id = pti.id
+        LEFT JOIN events pe ON pti.event_id = pe.id
+        LEFT JOIN functions pf ON pti.function_id = pf.id
+        WHERE sr.team_inclusion_id = ${teamInclusionId} OR sr.paired_inclusion_id = ${teamInclusionId}
         ORDER BY sr.created_at DESC
       `);
       // camelCase + snake_case por compat — remover snake_case após migração dos clients.
@@ -6037,7 +6057,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const currentUser = await storage.getUser(req.session.userId);
     if (!currentUser) return res.status(401).json({ message: "Usuário não encontrado" });
 
-    const { teamInclusionId, newCollaboratorId, reason, newCity } = req.body;
+    const { teamInclusionId, newCollaboratorId, reason, newCity, kind, pairedInclusionId, pairedNewCity } = req.body;
     if (!teamInclusionId || !newCollaboratorId || !reason?.trim()) {
       return res.status(400).json({ message: "Campos obrigatórios: teamInclusionId, newCollaboratorId, reason" });
     }
@@ -6062,6 +6082,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const erroSaiDe = validarSaiDe(newCity);
     if (erroSaiDe) return res.status(400).json({ message: erroSaiDe });
 
+    // Permuta (dono, 14/09): dois colaboradores JÁ escalados trocam de vaga
+    // entre si — ex.: mesmo fim de semana, eventos diferentes. Cada vaga
+    // acusava conflito de datas com a outra e nenhuma confirmava; aqui é um
+    // pedido só, com o "Sai de" de cada um, aplicado nas duas vagas de uma
+    // vez na aprovação.
+    const permuta = kind === "permuta";
+    const pairedInclusion = permuta && pairedInclusionId ? await storage.getTeamInclusion(String(pairedInclusionId)) : undefined;
+    if (permuta) {
+      if (!pairedInclusionId || pairedInclusionId === teamInclusionId) {
+        return res.status(400).json({ message: "Escolha a outra vaga da permuta." });
+      }
+      if (!pairedInclusion || (pairedInclusion as any).deletedAt || pairedInclusion.status === "cancelado") {
+        return res.status(404).json({ message: "A outra vaga da permuta não existe mais ou foi cancelada." });
+      }
+      if (isSuggestionInclusion(pairedInclusion)) {
+        return res.status(400).json({ message: "A outra vaga ainda está em Validação de Escala." });
+      }
+      if (!pairedInclusion.collaboratorId) {
+        return res.status(400).json({ message: "A outra vaga não tem colaborador — use a troca simples." });
+      }
+      if (pairedInclusion.collaboratorId !== newCollaboratorId) {
+        return res.status(409).json({ message: "O colaborador da outra vaga mudou — abra o pedido de novo." });
+      }
+      if (!await assertEventEditable(pairedInclusion.eventId, currentUser, res)) return;
+      if (validarSaiDe(pairedNewCity)) {
+        return res.status(400).json({ message: "Informe de onde o colaborador atual sai para a outra vaga." });
+      }
+    }
+
     // O novo colaborador precisa existir, estar aprovado e ativo
     const newCollaborator = await storage.getCollaborator(newCollaboratorId);
     if (!newCollaborator) return res.status(404).json({ message: "Colaborador novo não encontrado" });
@@ -6069,19 +6118,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ message: "O colaborador escolhido não está aprovado/ativo." });
     }
 
-    // Verificar se já existe solicitação pendente para essa inclusão
+    // Pedido pendente em QUALQUER uma das vagas envolvidas (a pareada da
+    // permuta também conta): duas decisões sobre a mesma vaga se atropelariam.
+    const vagaOutra = pairedInclusion?.id ?? teamInclusionId;
     const existing = await db.execute(drizzleSql`
-      SELECT id FROM swap_requests WHERE team_inclusion_id = ${teamInclusionId} AND status = 'pendente'
+      SELECT id FROM swap_requests
+      WHERE status = 'pendente'
+        AND (team_inclusion_id IN (${teamInclusionId}, ${vagaOutra}) OR paired_inclusion_id IN (${teamInclusionId}, ${vagaOutra}))
     `);
     const existingRows = (existing as any).rows ?? existing;
     if (existingRows.length > 0) {
-      return res.status(409).json({ message: "Já existe uma solicitação de troca pendente para esta escalação" });
+      return res.status(409).json({
+        message: permuta
+          ? "Já existe uma solicitação de troca pendente nesta vaga ou na outra vaga da permuta."
+          : "Já existe uma solicitação de troca pendente para esta escalação",
+      });
     }
 
     try {
       const result = await db.execute(drizzleSql`
-        INSERT INTO swap_requests (team_inclusion_id, requested_by, requested_by_name, current_collaborator_id, new_collaborator_id, reason, status, new_city)
-        VALUES (${teamInclusionId}, ${currentUser.id}, ${currentUser.name}, ${currentCollaboratorId}, ${newCollaboratorId}, ${reason.trim()}, 'pendente', ${String(newCity).trim()})
+        INSERT INTO swap_requests (team_inclusion_id, requested_by, requested_by_name, current_collaborator_id, new_collaborator_id, reason, status, new_city, swap_kind, paired_inclusion_id, paired_new_city)
+        VALUES (${teamInclusionId}, ${currentUser.id}, ${currentUser.name}, ${currentCollaboratorId}, ${newCollaboratorId}, ${reason.trim()}, 'pendente', ${String(newCity).trim()}, ${permuta ? 'permuta' : 'substituicao'}, ${permuta && pairedInclusion ? pairedInclusion.id : null}, ${permuta ? String(pairedNewCity).trim() : null})
         RETURNING *
       `);
       const row = ((result as any).rows ?? result)[0];
@@ -6116,14 +6173,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // "Sai de" (dono, 14/09): quem APROVA não muda nada — só vê e decide.
       // Vale a cidade do pedido; em solicitação antiga (feita antes do campo
-      // existir) vale a cidade do cadastro do novo colaborador. Qualquer
-      // cidade no corpo desta rota é ignorada.
-      let saiDe = String(sr.new_city ?? "").trim();
-      if (!saiDe && sr.new_collaborator_id) {
-        saiDe = String((await storage.getCollaborator(sr.new_collaborator_id))?.city ?? "").trim();
-      }
+      // existir) vale a cidade do cadastro do colaborador. Qualquer cidade no
+      // corpo desta rota é ignorada.
+      const cidadeDoCadastro = async (collaboratorId: string | null | undefined) =>
+        collaboratorId ? String((await storage.getCollaborator(collaboratorId))?.city ?? "").trim() : "";
+      const saiDe = String(sr.new_city ?? "").trim() || await cidadeDoCadastro(sr.new_collaborator_id);
       const erroSaiDe = validarSaiDe(saiDe);
       if (erroSaiDe) return res.status(400).json({ message: "Solicitação sem cidade de saída do novo colaborador — recuse e peça de novo." });
+
+      if (sr.swap_kind === 'permuta') {
+        // Permuta (dono, 14/09): os DOIS trocam de vaga numa transação só —
+        // nunca fica um colaborador em duas vagas nem uma vaga vazia no meio.
+        // Se alguma vaga mudou desde o pedido, recusa em vez de aplicar sobre
+        // um estado que o solicitante não viu.
+        const [vagaDoPedido, vagaPareada] = await Promise.all([
+          storage.getTeamInclusion(sr.team_inclusion_id),
+          sr.paired_inclusion_id ? storage.getTeamInclusion(sr.paired_inclusion_id) : Promise.resolve(undefined),
+        ]);
+        if (!vagaDoPedido || !vagaPareada) {
+          return res.status(404).json({ message: "Uma das vagas da permuta não existe mais — recuse o pedido." });
+        }
+        if (vagaDoPedido.collaboratorId !== sr.current_collaborator_id || vagaPareada.collaboratorId !== sr.new_collaborator_id) {
+          return res.status(409).json({ message: "As vagas mudaram desde o pedido — recuse e peça a permuta de novo." });
+        }
+        if (!await assertInclusionEventEditable(vagaPareada.id, currentUser, res, { eventId: vagaPareada.eventId ?? null })) return;
+        const saiDeOutro = String(sr.paired_new_city ?? "").trim() || await cidadeDoCadastro(sr.current_collaborator_id);
+        if (validarSaiDe(saiDeOutro)) {
+          return res.status(400).json({ message: "Solicitação sem cidade de saída do colaborador que vai para a outra vaga — recuse e peça de novo." });
+        }
+        await db.transaction(async (tx) => {
+          await tx.execute(drizzleSql`
+            UPDATE team_inclusions SET collaborator_id = ${sr.new_collaborator_id}, city = ${saiDe}, updated_at = NOW() WHERE id = ${sr.team_inclusion_id}
+          `);
+          await tx.execute(drizzleSql`
+            UPDATE team_inclusions SET collaborator_id = ${sr.current_collaborator_id}, city = ${saiDeOutro}, updated_at = NOW() WHERE id = ${vagaPareada.id}
+          `);
+          await tx.execute(drizzleSql`
+            UPDATE swap_requests SET status = 'aprovado', new_city = ${saiDe}, paired_new_city = ${saiDeOutro}, reviewed_by = ${currentUser.id}, reviewed_by_name = ${currentUser.name}, review_comment = ${reviewComment ?? null}, reviewed_at = NOW()
+            WHERE id = ${id}
+          `);
+        });
+        return res.json({ message: "Permuta aprovada com sucesso" });
+      }
 
       // Trocar colaborador E cidade de saída na vaga — a cidade é a origem da
       // passagem; ficar com a do colaborador antigo comprava do lugar errado.

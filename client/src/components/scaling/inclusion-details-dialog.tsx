@@ -1159,6 +1159,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
               getFunctionName={getFunctionName}
               getCollaboratorConflicts={getCollaboratorConflicts}
               createSwapRequest={mutations.createSwapRequest}
+              inclusions={data.teamInclusions}
             />
             <ConfirmDialog
               open={showReactivateConfirm}

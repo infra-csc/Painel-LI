@@ -52,7 +52,8 @@ export function useScalingMutations(opts: {
   const { toast } = useToast();
 
   const invalidateInclusionSwaps = () => {
-    queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", selectedInclusionId] });
+    // Todas as vagas: a permuta (14/09) mexe em duas.
+    queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion"] });
     queryClient.invalidateQueries({ queryKey: ["/api/swap-requests"] });
   };
   const invalidateAndRefetchInclusions = () => {
@@ -61,7 +62,11 @@ export function useScalingMutations(opts: {
   };
 
   const createSwapRequest = useMutation({
-    mutationFn: async (data: { teamInclusionId: string; newCollaboratorId: string; reason: string; newCity: string }) => {
+    mutationFn: async (data: {
+      teamInclusionId: string; newCollaboratorId: string; reason: string; newCity: string;
+      /** Permuta (14/09): a outra vaga e de onde sai quem vai para ela. */
+      kind?: "substituicao" | "permuta"; pairedInclusionId?: string; pairedNewCity?: string;
+    }) => {
       const r = await apiRequest("POST", "/api/swap-requests", data);
       return r.json();
     },

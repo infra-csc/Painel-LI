@@ -248,6 +248,8 @@ export function useScalingData(opts: {
     const map = new Map<string, NormalizedSwap>();
     allSwapRequests.filter(s => s.status === "pendente").forEach(s => {
       if (s.teamInclusionId) map.set(s.teamInclusionId, s);
+      // Permuta (14/09): a vaga pareada também fica marcada.
+      if (s.pairedInclusionId) map.set(s.pairedInclusionId, s);
     });
     return map;
   }, [allSwapRequests]);
@@ -256,6 +258,7 @@ export function useScalingData(opts: {
     const ids = new Set<string>();
     allSwapRequests.filter(s => s.status === "aprovado").forEach(s => {
       if (s.teamInclusionId) ids.add(s.teamInclusionId);
+      if (s.pairedInclusionId) ids.add(s.pairedInclusionId);
     });
     return ids;
   }, [allSwapRequests]);

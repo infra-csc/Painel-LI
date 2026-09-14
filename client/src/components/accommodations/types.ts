@@ -92,6 +92,13 @@ export interface NormalizedSwap {
   createdAt: string | null;
   /** De onde o novo colaborador sai (14/09); nulo em pedidos antigos. */
   newCity: string | null;
+  /** 'substituicao' | 'permuta' (14/09) e os dados das duas vagas da permuta. */
+  swapKind: string;
+  pairedNewCity: string | null;
+  inclusionNumber: string | null;
+  eventName: string | null;
+  pairedInclusionNumber: string | null;
+  pairedEventName: string | null;
 }
 
 /** Só o que a tela usa de passagem e de usuário. */

@@ -206,6 +206,17 @@ export interface NormalizedSwap {
   createdAt: string | Date | null;
   /** De onde o novo colaborador sai (14/09); nulo em pedidos antigos. */
   newCity: string | null;
+  /** 'substituicao' (troca simples) | 'permuta' (dois escalados trocam de vaga, 14/09). */
+  swapKind: string;
+  /** Permuta: a outra vaga e de onde sai quem vai para ela. */
+  pairedInclusionId: string | null;
+  pairedNewCity: string | null;
+  /** Número/evento da vaga do pedido e da vaga pareada (vêm dos joins da API). */
+  inclusionNumber: number | null;
+  eventName: string | null;
+  pairedInclusionNumber: number | null;
+  pairedEventName: string | null;
+  pairedFunctionName: string | null;
 }
 
 export function normalizeSwap(raw: SwapRequest | Record<string, any>): NormalizedSwap {
@@ -227,6 +238,14 @@ export function normalizeSwap(raw: SwapRequest | Record<string, any>): Normalize
     reviewedAt: s.reviewed_at ?? s.reviewedAt ?? null,
     createdAt: s.created_at ?? s.createdAt ?? null,
     newCity: s.new_city ?? s.newCity ?? null,
+    swapKind: s.swap_kind ?? s.swapKind ?? "substituicao",
+    pairedInclusionId: s.paired_inclusion_id ?? s.pairedInclusionId ?? null,
+    pairedNewCity: s.paired_new_city ?? s.pairedNewCity ?? null,
+    inclusionNumber: s.inclusion_number ?? s.inclusionNumber ?? null,
+    eventName: s.event_name ?? s.eventName ?? null,
+    pairedInclusionNumber: s.paired_inclusion_number ?? s.pairedInclusionNumber ?? null,
+    pairedEventName: s.paired_event_name ?? s.pairedEventName ?? null,
+    pairedFunctionName: s.paired_function_name ?? s.pairedFunctionName ?? null,
   };
 }
 

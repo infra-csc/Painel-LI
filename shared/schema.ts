@@ -788,6 +788,11 @@ export const swapRequests = pgTable("swap_requests", {
   // conferido na aprovação e gravado na cidade da vaga quando a troca é
   // aprovada. Nulo só em solicitações antigas.
   newCity: text("new_city"),
+  // Permuta (dono, 14/09): dois colaboradores já escalados trocam de vaga.
+  // swap_kind 'permuta' + a outra vaga + de onde sai quem vai para ela.
+  swapKind: text("swap_kind").notNull().default("substituicao"), // 'substituicao' | 'permuta'
+  pairedInclusionId: varchar("paired_inclusion_id"),
+  pairedNewCity: text("paired_new_city"),
   status: text("status").notNull().default("pendente"), // pendente, aprovado, rejeitado
   reviewComment: text("review_comment"),
   reviewedBy: varchar("reviewed_by").references(() => users.id),

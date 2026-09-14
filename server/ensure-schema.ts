@@ -84,6 +84,20 @@ const PASSOS: Passo[] = [
     descricao: "swap_requests.new_city (de onde o novo colaborador sai)",
     sql: `ALTER TABLE swap_requests ADD COLUMN IF NOT EXISTS new_city text`,
   },
+  // 14/09 — permuta de colaboradores: tipo da troca, a outra vaga e o "Sai de"
+  // de quem vai para ela. O POST grava as três e as listagens as leem.
+  {
+    descricao: "swap_requests.swap_kind (substituicao | permuta)",
+    sql: `ALTER TABLE swap_requests ADD COLUMN IF NOT EXISTS swap_kind text NOT NULL DEFAULT 'substituicao'`,
+  },
+  {
+    descricao: "swap_requests.paired_inclusion_id (a outra vaga da permuta)",
+    sql: `ALTER TABLE swap_requests ADD COLUMN IF NOT EXISTS paired_inclusion_id varchar`,
+  },
+  {
+    descricao: "swap_requests.paired_new_city (de onde sai quem vai para a outra vaga)",
+    sql: `ALTER TABLE swap_requests ADD COLUMN IF NOT EXISTS paired_new_city text`,
+  },
 ];
 
 /**
