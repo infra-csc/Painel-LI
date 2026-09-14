@@ -7,7 +7,7 @@
  * Extraído de pages/scaling.tsx — comportamento preservado.
  */
 import { useEffect, useState, type ReactNode } from "react";
-import { Clock, Check, X, ArrowRight, ArrowLeftRight, CheckCheck, XCircle, AlertCircle } from "lucide-react";
+import { Clock, Check, X, ArrowRight, ArrowLeftRight, CheckCheck, XCircle, AlertCircle, MapPin } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -16,7 +16,67 @@ import { Textarea } from "@/components/ui/textarea";
 import EscolherColaborador from "./escolher-colaborador";
 import type { TeamInclusion, Collaborator } from "@shared/schema";
 import ConfirmDialog from "./confirm-dialog";
-import { formatShortDateTime, parseDay, type NormalizedSwap } from "./scaling-utils";
+import { formatShortDateTime, isCityFromSP, parseDay, type NormalizedSwap } from "./scaling-utils";
+import { SAI_DE_SP, cidadeDeSaida, validarSaiDe } from "@shared/swap-sai-de";
+
+// ── Campo "Sai de" do novo colaborador (14/09) ─────────────────────────────
+
+/** Estado inicial do "Sai de" a partir de uma cidade (a do colaborador ou a já pedida). */
+export function saiDeInicial(cidade: string | null | undefined): { saiDeSP: boolean; cidade: string } {
+  const c = String(cidade ?? "").trim();
+  if (!c) return { saiDeSP: false, cidade: "" };
+  return isCityFromSP(c) ? { saiDeSP: true, cidade: SAI_DE_SP } : { saiDeSP: false, cidade: c };
+}
+
+/**
+ * De onde o NOVO colaborador sai — o mesmo par "São Paulo - SP | Outra cidade"
+ * do modal da Escalação. Usado no pedido de troca e na aprovação (Escalação e
+ * Hospedagem/Passagem): aprovada a troca, a vaga passa a sair desta cidade.
+ */
+export function CampoSaiDe({ id, saiDeSP, cidade, onChange, forcarErro = false }: {
+  id: string;
+  saiDeSP: boolean;
+  cidade: string;
+  onChange: (saiDeSP: boolean, cidade: string) => void;
+  /** Mostra o erro mesmo sem o usuário ter mexido (depois de tentar enviar/aprovar). */
+  forcarErro?: boolean;
+}) {
+  const erro = validarSaiDe(cidadeDeSaida(saiDeSP, cidade));
+  const mostrarErro = !!erro && forcarErro;
+  const botao = (on: boolean) =>
+    `flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${on ? "bg-primary text-white border-primary" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`;
+  return (
+    <div className="space-y-1.5" data-testid={id}>
+      <p id={`${id}-rotulo`} className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+        <MapPin className="h-3 w-3" aria-hidden="true" /> Novo colaborador sai de <span className="text-red-500">*</span>
+      </p>
+      <div role="radiogroup" aria-labelledby={`${id}-rotulo`} className="flex gap-1.5">
+        <button type="button" role="radio" aria-checked={saiDeSP} onClick={() => onChange(true, SAI_DE_SP)} className={botao(saiDeSP)} data-testid={`${id}-sp`}>
+          São Paulo - SP
+        </button>
+        <button type="button" role="radio" aria-checked={!saiDeSP} onClick={() => onChange(false, saiDeSP ? "" : cidade)} className={botao(!saiDeSP)} data-testid={`${id}-outra`}>
+          Outra cidade
+        </button>
+      </div>
+      {!saiDeSP && (
+        <input
+          type="text"
+          value={cidade}
+          maxLength={120}
+          aria-label="Cidade de onde o novo colaborador sai"
+          aria-invalid={mostrarErro || undefined}
+          onChange={(e) => onChange(false, e.target.value)}
+          placeholder="Ex: Rio de Janeiro - RJ"
+          data-testid={`${id}-cidade`}
+          className={`w-full px-3 py-2 text-[13px] border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary ${mostrarErro ? "border-red-300" : "border-slate-200"}`}
+        />
+      )}
+      <p className={`text-[10px] leading-snug ${mostrarErro ? "text-red-500" : "text-slate-500"}`}>
+        {mostrarErro ? erro : "Aprovada a troca, a vaga passa a sair desta cidade — é a origem da passagem."}
+      </p>
+    </div>
+  );
+}
 import type { ScalingMutations } from "./use-scaling-mutations";
 
 // ── Card de status da troca ─────────────────────────────────────────────────
@@ -58,6 +118,8 @@ export interface SwapStatusCardProps {
 
 export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdminOrPurchasing, getCollaboratorName, mutations, blockReason }: SwapStatusCardProps) {
   const [confirmAction, setConfirmAction] = useState<"approve" | "reject" | null>(null);
+  /** "Sai de" no diálogo de aprovação — nasce com a cidade pedida e pode ser corrigido. */
+  const [saiDeAprovacao, setSaiDeAprovacao] = useState(() => saiDeInicial(null));
   const [rejectReason, setRejectReason] = useState("");
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
@@ -72,6 +134,8 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
   const newCollabName = getCollaboratorName(swap.newCollaboratorId);
   const isResolved = swap.status === "aprovado" || swap.status === "rejeitado";
   const busy = approveSwap.isPending || rejectSwap.isPending;
+  const cidadeAprovacao = cidadeDeSaida(saiDeAprovacao.saiDeSP, saiDeAprovacao.cidade);
+  const erroSaiDeAprovacao = validarSaiDe(cidadeAprovacao);
 
   return (
     <>
@@ -91,6 +155,12 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
               <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
               <span className={`font-semibold ${swap.status === "aprovado" ? "text-green-700" : "text-slate-500"}`}>{newCollabName || "—"}</span>
             </div>
+            {swap.newCity && (
+              <div className="flex items-center gap-1 text-[10px] text-slate-500" data-testid="swap-sai-de-resolvido">
+                <MapPin className="w-2.5 h-2.5 shrink-0" aria-hidden="true" />
+                <span>Sai de <span className="font-semibold text-slate-700">{swap.newCity}</span></span>
+              </div>
+            )}
             {swap.requestedByName && (
               <div className="flex items-center gap-1 text-[10px] text-slate-400">
                 <ArrowLeftRight className="w-2.5 h-2.5 shrink-0" />
@@ -127,6 +197,10 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
               <span className="text-slate-400 shrink-0">Novo colaborador:</span>
               <span className="font-medium text-slate-700">{newCollabName}</span>
             </div>
+            <div className="flex items-start gap-1.5 text-[11px]" data-testid="swap-sai-de-pendente">
+              <span className="text-slate-400 shrink-0">Sai de:</span>
+              <span className="font-medium text-slate-700">{swap.newCity || "não informado (pedido antigo)"}</span>
+            </div>
             <div className="flex items-start gap-1.5 text-[11px]">
               <span className="text-slate-400 shrink-0">Motivo:</span>
               <span className="text-slate-600 leading-snug">{swap.reason}</span>
@@ -140,7 +214,7 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
               <div className="flex gap-2 pt-1.5">
                 <button
                   type="button"
-                  onClick={() => setConfirmAction("approve")}
+                  onClick={() => { setSaiDeAprovacao(saiDeInicial(swap.newCity)); setConfirmAction("approve"); }}
                   disabled={busy}
                   className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
                   data-testid="button-approve-swap"
@@ -197,11 +271,12 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
         icon={CheckCheck}
         tone="emerald"
         title="Aprovar troca de colaborador?"
-        description="Ao confirmar, a alteração do colaborador será liberada para esta escala."
+        description="Ao confirmar, o novo colaborador assume a vaga e ela passa a sair da cidade abaixo."
         confirmLabel="Confirmar aprovação"
         pendingLabel="Aprovando..."
         isPending={approveSwap.isPending}
-        onConfirm={() => { if (pendingSwap) { approveSwap.mutate(pendingSwap.id); setConfirmAction(null); } }}
+        confirmDisabled={!!erroSaiDeAprovacao}
+        onConfirm={() => { if (pendingSwap && !erroSaiDeAprovacao) { approveSwap.mutate({ id: pendingSwap.id, newCity: cidadeAprovacao }); setConfirmAction(null); } }}
       >
         {pendingSwap && (
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 text-[12px]">
@@ -213,6 +288,17 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
               <span className="text-slate-400 font-medium shrink-0">Solicitado:</span>
               <span className="font-semibold text-blue-700">{getCollaboratorName(pendingSwap.newCollaboratorId)}</span>
             </div>
+          </div>
+        )}
+        {pendingSwap && (
+          <div className="mt-3">
+            <CampoSaiDe
+              id="swap-sai-de-aprovacao"
+              saiDeSP={saiDeAprovacao.saiDeSP}
+              cidade={saiDeAprovacao.cidade}
+              onChange={(sp, cidade) => setSaiDeAprovacao({ saiDeSP: sp, cidade })}
+              forcarErro
+            />
           </div>
         )}
       </ConfirmDialog>
@@ -306,18 +392,21 @@ export function SwapRequestDialog({
 }: SwapRequestDialogProps) {
   const [newCollaboratorId, setNewCollaboratorId] = useState("");
   const [reason, setReason] = useState("");
+  /** De onde o novo colaborador sai (14/09) — preenchido pela cidade dele ao escolher. */
+  const [saiDe, setSaiDe] = useState(() => saiDeInicial(null));
   const [success, setSuccess] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
   // Ao abrir, começa limpo (o botão "Solicitar troca" zerava os campos)
   useEffect(() => {
-    if (open) { setNewCollaboratorId(""); setReason(""); setSubmitAttempted(false); setSuccess(false); }
+    if (open) { setNewCollaboratorId(""); setReason(""); setSaiDe(saiDeInicial(null)); setSubmitAttempted(false); setSuccess(false); }
   }, [open]);
 
   const resetAndClose = () => {
     setSuccess(false);
     setNewCollaboratorId("");
     setReason("");
+    setSaiDe(saiDeInicial(null));
     setSubmitAttempted(false);
     onOpenChange(false);
   };
@@ -328,7 +417,9 @@ export function SwapRequestDialog({
   const reasonTooShort = reason.trim().length > 0 && reason.trim().length < 10;
   const reasonEmpty = submitAttempted && !reason.trim();
   const collabEmpty = submitAttempted && !newCollaboratorId;
-  const canSubmit = !!newCollaboratorId && !isSameCollab && reason.trim().length >= 10 && !createSwapRequest.isPending;
+  const cidadeSaida = cidadeDeSaida(saiDe.saiDeSP, saiDe.cidade);
+  const erroSaiDe = validarSaiDe(cidadeSaida);
+  const canSubmit = !!newCollaboratorId && !isSameCollab && reason.trim().length >= 10 && !erroSaiDe && !createSwapRequest.isPending;
 
   const statusLabel = STATUS_LABELS[inclusion.status] || inclusion.status;
   const startDay = parseDay(inclusion.scheduleStartDate);
@@ -405,7 +496,13 @@ export function SwapRequestDialog({
                   inclusion={inclusion}
                   getConflitos={getCollaboratorConflicts}
                   getEventName={getEventName}
-                  onEscolher={(v) => { setNewCollaboratorId(v); setSubmitAttempted(false); }}
+                  onEscolher={(v) => {
+                    setNewCollaboratorId(v);
+                    // Mesma regra do modal: a cidade de saída acompanha o
+                    // colaborador escolhido (quem é de SP já vem com SP marcado).
+                    setSaiDe(saiDeInicial((collaborators || []).find((c) => c.id === v)?.city));
+                    setSubmitAttempted(false);
+                  }}
                 />
                 {collabEmpty && <p className="text-[10px] text-red-500 mt-1">Selecione um novo colaborador.</p>}
                 {isSameCollab && <p className="text-[10px] text-red-500 mt-1">Precisa ser diferente do atual.</p>}
@@ -441,6 +538,19 @@ export function SwapRequestDialog({
                   : <p className="text-[10px] text-slate-400 mt-1">Mínimo de 10 caracteres.</p>}
               </div>
             </div>
+            {/* "Sai de" do novo colaborador (dono, 14/09): aparece ao escolher
+                quem assume, já com a cidade dele — dá para corrigir. */}
+            {newCollaboratorId && (
+              <div className="sm:max-w-[340px]">
+                <CampoSaiDe
+                  id="swap-sai-de-pedido"
+                  saiDeSP={saiDe.saiDeSP}
+                  cidade={saiDe.cidade}
+                  onChange={(sp, cidade) => { setSaiDe({ saiDeSP: sp, cidade }); setSubmitAttempted(false); }}
+                  forcarErro={submitAttempted}
+                />
+              </div>
+            )}
           </div>
 
           <div className="px-6 pb-5 pt-3 flex gap-3 border-t border-slate-100">
@@ -459,7 +569,7 @@ export function SwapRequestDialog({
                 setSubmitAttempted(true);
                 if (!canSubmit) return;
                 createSwapRequest.mutate(
-                  { teamInclusionId: inclusion.id, newCollaboratorId, reason: reason.trim() },
+                  { teamInclusionId: inclusion.id, newCollaboratorId, reason: reason.trim(), newCity: cidadeSaida },
                   { onSuccess: () => setSuccess(true) },
                 );
               }}
@@ -504,6 +614,7 @@ export function SwapRequestDialog({
                 <div className="flex-1 min-w-0 text-right">
                   <div className="text-[9px] uppercase tracking-wide font-semibold text-slate-400 mb-0.5">Colaborador solicitado</div>
                   <div className="text-[12px] font-semibold text-blue-600 leading-snug">{newCollabName || "—"}</div>
+                  {cidadeSaida && <div className="text-[10px] text-slate-500 leading-snug">Sai de {cidadeSaida}</div>}
                 </div>
               </div>
             </div>

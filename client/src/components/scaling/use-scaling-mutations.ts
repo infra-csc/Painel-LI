@@ -61,7 +61,7 @@ export function useScalingMutations(opts: {
   };
 
   const createSwapRequest = useMutation({
-    mutationFn: async (data: { teamInclusionId: string; newCollaboratorId: string; reason: string }) => {
+    mutationFn: async (data: { teamInclusionId: string; newCollaboratorId: string; reason: string; newCity: string }) => {
       const r = await apiRequest("POST", "/api/swap-requests", data);
       return r.json();
     },
@@ -94,12 +94,12 @@ export function useScalingMutations(opts: {
   });
 
   const approveSwap = useMutation({
-    mutationFn: async (id: string) => {
-      const r = await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, {});
+    mutationFn: async ({ id, newCity }: { id: string; newCity: string }) => {
+      const r = await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, { newCity });
       return r.json();
     },
     onSuccess: () => {
-      toast({ title: "Troca aprovada", description: "O colaborador foi atualizado na escalação." });
+      toast({ title: "Troca aprovada", description: "O colaborador e a cidade de saída foram atualizados na escalação." });
       invalidateInclusionSwaps();
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },

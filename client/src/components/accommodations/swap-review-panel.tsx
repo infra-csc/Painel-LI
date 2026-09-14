@@ -8,6 +8,8 @@ import { fixEncoding } from "@/lib/utils";
 import type { Collaborator, TeamInclusion } from "@shared/schema";
 import type { ApiError, NormalizedSwap } from "./types";
 import { formatDateTime, toTitleCase } from "./utils";
+import { CampoSaiDe, saiDeInicial } from "@/components/scaling/swap-request-panel";
+import { cidadeDeSaida, validarSaiDe } from "@shared/swap-sai-de";
 
 export interface SwapReviewPanelProps {
   inclusion: TeamInclusion;
@@ -27,6 +29,8 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
   const queryClient = useQueryClient();
   const [confirmAction, setConfirmAction] = useState<null | "approve" | "reject">(null);
   const [rejectReason, setRejectReason] = useState("");
+  /** "Sai de" na aprovação (14/09) — nasce com a cidade pedida. */
+  const [saiDeAprovacao, setSaiDeAprovacao] = useState(() => saiDeInicial(null));
 
   const pendingSwap = swaps?.find((s) => s.status === "pendente");
   const latestSwap = swaps?.find((s) => ["aprovado", "rejeitado"].includes(s.status));
@@ -39,8 +43,8 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
   };
 
   const approveMutation = useMutation({
-    mutationFn: async (id: string) => (await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, {})).json(),
-    onSuccess: () => { toast({ title: "Troca aprovada", description: "O colaborador foi atualizado na escalação." }); invalidate(); },
+    mutationFn: async ({ id, newCity }: { id: string; newCity: string }) => (await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, { newCity })).json(),
+    onSuccess: () => { toast({ title: "Troca aprovada", description: "O colaborador e a cidade de saída foram atualizados na escalação." }); invalidate(); },
     onError: (err: ApiError) => toast({ title: "Erro", description: err?.body?.message || "Erro ao aprovar troca", variant: "destructive" }),
   });
   const rejectMutation = useMutation({
@@ -92,6 +96,8 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
   );
 
   if (swap.status !== "pendente") return null;
+  const cidadeAprovacao = cidadeDeSaida(saiDeAprovacao.saiDeSP, saiDeAprovacao.cidade);
+  const erroSaiDeAprovacao = validarSaiDe(cidadeAprovacao);
 
   return (
     <>
@@ -123,6 +129,10 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
             </div>
           </div>
           <div className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2">
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.08em] mb-0.5">Novo colaborador sai de</p>
+            <p className="text-[11px] font-semibold text-slate-700">{swap.newCity || "Não informado (pedido antigo)"}</p>
+          </div>
+          <div className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2">
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.08em] mb-0.5">Motivo da solicitação</p>
             <p className="text-[11px] text-slate-600 leading-snug">{swap.reason || "—"}</p>
           </div>
@@ -134,7 +144,7 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
             <div className="space-y-1.5 pt-0.5">
               <p className="text-[10px] text-slate-400 text-center">A aprovação libera a alteração do colaborador nesta escala.</p>
               <div className="flex gap-2">
-                <button type="button" onClick={() => setConfirmAction("approve")} disabled={busy} data-testid="button-approve-swap"
+                <button type="button" onClick={() => { setSaiDeAprovacao(saiDeInicial(swap.newCity ?? (swap.newCollaboratorId ? collaboratorById.get(swap.newCollaboratorId)?.city : null))); setConfirmAction("approve"); }} disabled={busy} data-testid="button-approve-swap"
                   className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold py-1.5 rounded-lg transition-colors disabled:opacity-50">
                   <CheckCheck className="w-3.5 h-3.5" />Aprovar troca
                 </button>
@@ -155,7 +165,7 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
             <DialogHeader>
               <DialogTitle className="text-[16px] font-bold text-slate-800">Aprovar troca de colaborador?</DialogTitle>
             </DialogHeader>
-            <p className="text-[13px] text-slate-600">Ao confirmar, a alteração do colaborador será liberada para esta escala.</p>
+            <p className="text-[13px] text-slate-600">Ao confirmar, o novo colaborador assume a vaga e ela passa a sair da cidade abaixo.</p>
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 text-[12px]">
               <div className="flex items-start gap-2">
                 <span className="text-slate-400 font-medium shrink-0">Colaborador atual:</span>
@@ -166,11 +176,18 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
                 <span className="font-semibold text-primary">{requestedName}</span>
               </div>
             </div>
+            <CampoSaiDe
+              id="swap-sai-de-aprovacao-hosp"
+              saiDeSP={saiDeAprovacao.saiDeSP}
+              cidade={saiDeAprovacao.cidade}
+              onChange={(sp, cidade) => setSaiDeAprovacao({ saiDeSP: sp, cidade })}
+              forcarErro
+            />
             <div className="flex gap-2 justify-end">
               <button type="button" onClick={() => setConfirmAction(null)} className="px-4 py-2 text-[12px] font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
               <button type="button"
-                onClick={() => { approveMutation.mutate(swap.id); setConfirmAction(null); }}
-                disabled={approveMutation.isPending}
+                onClick={() => { if (erroSaiDeAprovacao) return; approveMutation.mutate({ id: swap.id, newCity: cidadeAprovacao }); setConfirmAction(null); }}
+                disabled={approveMutation.isPending || !!erroSaiDeAprovacao}
                 className="px-4 py-2 text-[12px] font-semibold bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
               >Confirmar aprovação</button>
             </div>

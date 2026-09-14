@@ -204,6 +204,8 @@ export interface NormalizedSwap {
   reviewedByName: string | null;
   reviewedAt: string | Date | null;
   createdAt: string | Date | null;
+  /** De onde o novo colaborador sai (14/09); nulo em pedidos antigos. */
+  newCity: string | null;
 }
 
 export function normalizeSwap(raw: SwapRequest | Record<string, any>): NormalizedSwap {
@@ -224,6 +226,7 @@ export function normalizeSwap(raw: SwapRequest | Record<string, any>): Normalize
     reviewedByName: s.reviewed_by_name ?? s.reviewedByName ?? null,
     reviewedAt: s.reviewed_at ?? s.reviewedAt ?? null,
     createdAt: s.created_at ?? s.createdAt ?? null,
+    newCity: s.new_city ?? s.newCity ?? null,
   };
 }
 

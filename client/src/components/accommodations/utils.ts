@@ -98,6 +98,7 @@ export function normalizeSwap(raw: RawSwap): NormalizedSwap {
     reason: str(pick(raw, "reason")),
     reviewComment: str(pick(raw, "review_comment", "reviewComment")),
     createdAt: str(pick(raw, "created_at", "createdAt")),
+    newCity: str(pick(raw, "new_city", "newCity")),
   };
 }
 

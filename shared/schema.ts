@@ -784,6 +784,10 @@ export const swapRequests = pgTable("swap_requests", {
   currentCollaboratorId: varchar("current_collaborator_id").references(() => collaborators.id),
   newCollaboratorId: varchar("new_collaborator_id").references(() => collaborators.id),
   reason: text("reason").notNull(),
+  // De onde o NOVO colaborador sai (dono, 14/09). Pedido na solicitação,
+  // conferido na aprovação e gravado na cidade da vaga quando a troca é
+  // aprovada. Nulo só em solicitações antigas.
+  newCity: text("new_city"),
   status: text("status").notNull().default("pendente"), // pendente, aprovado, rejeitado
   reviewComment: text("review_comment"),
   reviewedBy: varchar("reviewed_by").references(() => users.id),

@@ -41,6 +41,7 @@ import {
   CENO_EMPREITA_SETTING_KEYS,
   cenoEmpreitaDefaultsMap, validarEmpreita } from "@shared/cenotecnica-empreita";
 import { nextStatusOnConfirm } from "@shared/scaling-rules";
+import { validarSaiDe } from "@shared/swap-sai-de";
 
 /**
  * Empreita por EMPRESA (dono, 10/09) — mesma normalização no PATCH e no
@@ -5965,7 +5966,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const currentUser = await storage.getUser(req.session.userId);
     if (!currentUser) return res.status(401).json({ message: "Usuário não encontrado" });
 
-    const { teamInclusionId, newCollaboratorId, reason } = req.body;
+    const { teamInclusionId, newCollaboratorId, reason, newCity } = req.body;
     if (!teamInclusionId || !newCollaboratorId || !reason?.trim()) {
       return res.status(400).json({ message: "Campos obrigatórios: teamInclusionId, newCollaboratorId, reason" });
     }
@@ -5986,6 +5987,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (newCollaboratorId === currentCollaboratorId) {
       return res.status(400).json({ message: "O novo colaborador é o mesmo que já está escalado." });
     }
+    // "Sai de" do novo colaborador (dono, 14/09): obrigatório no pedido.
+    const erroSaiDe = validarSaiDe(newCity);
+    if (erroSaiDe) return res.status(400).json({ message: erroSaiDe });
 
     // O novo colaborador precisa existir, estar aprovado e ativo
     const newCollaborator = await storage.getCollaborator(newCollaboratorId);
@@ -6005,8 +6009,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     try {
       const result = await db.execute(drizzleSql`
-        INSERT INTO swap_requests (team_inclusion_id, requested_by, requested_by_name, current_collaborator_id, new_collaborator_id, reason, status)
-        VALUES (${teamInclusionId}, ${currentUser.id}, ${currentUser.name}, ${currentCollaboratorId}, ${newCollaboratorId}, ${reason.trim()}, 'pendente')
+        INSERT INTO swap_requests (team_inclusion_id, requested_by, requested_by_name, current_collaborator_id, new_collaborator_id, reason, status, new_city)
+        VALUES (${teamInclusionId}, ${currentUser.id}, ${currentUser.name}, ${currentCollaboratorId}, ${newCollaboratorId}, ${reason.trim()}, 'pendente', ${String(newCity).trim()})
         RETURNING *
       `);
       const row = ((result as any).rows ?? result)[0];
@@ -6039,14 +6043,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // request (subselect acima) — a guarda não relê a escalação.
       if (!await assertInclusionEventEditable(sr.team_inclusion_id, currentUser, res, { eventId: sr.inclusion_event_id ?? null })) return;
 
-      // Atualizar colaborador na team_inclusion
+      // "Sai de" (dono, 14/09): quem aprova confere a cidade pedida e pode
+      // corrigir. Solicitação antiga (sem cidade) só aprova informando uma.
+      const saiDe = String(req.body?.newCity ?? "").trim() || String(sr.new_city ?? "").trim();
+      const erroSaiDe = validarSaiDe(saiDe);
+      if (erroSaiDe) return res.status(400).json({ message: erroSaiDe });
+
+      // Trocar colaborador E cidade de saída na vaga — a cidade é a origem da
+      // passagem; ficar com a do colaborador antigo comprava do lugar errado.
       await db.execute(drizzleSql`
-        UPDATE team_inclusions SET collaborator_id = ${sr.new_collaborator_id}, updated_at = NOW() WHERE id = ${sr.team_inclusion_id}
+        UPDATE team_inclusions SET collaborator_id = ${sr.new_collaborator_id}, city = ${saiDe}, updated_at = NOW() WHERE id = ${sr.team_inclusion_id}
       `);
 
-      // Marcar swap request como aprovado
+      // Marcar swap request como aprovado (com a cidade que valeu)
       await db.execute(drizzleSql`
-        UPDATE swap_requests SET status = 'aprovado', reviewed_by = ${currentUser.id}, reviewed_by_name = ${currentUser.name}, review_comment = ${reviewComment ?? null}, reviewed_at = NOW()
+        UPDATE swap_requests SET status = 'aprovado', new_city = ${saiDe}, reviewed_by = ${currentUser.id}, reviewed_by_name = ${currentUser.name}, review_comment = ${reviewComment ?? null}, reviewed_at = NOW()
         WHERE id = ${id}
       `);
 

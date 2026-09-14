@@ -78,6 +78,12 @@ const PASSOS: Passo[] = [
     descricao: "team_inclusions.empreita_valor (valor fechado, em centavos)",
     sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS empreita_valor integer`,
   },
+  // 14/09 — "Sai de" do novo colaborador na troca. O POST grava a coluna e as
+  // listagens fazem `SELECT sr.*`: sem ela, pedir troca cai.
+  {
+    descricao: "swap_requests.new_city (de onde o novo colaborador sai)",
+    sql: `ALTER TABLE swap_requests ADD COLUMN IF NOT EXISTS new_city text`,
+  },
 ];
 
 /**

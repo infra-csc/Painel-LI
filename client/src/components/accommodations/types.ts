@@ -90,6 +90,8 @@ export interface NormalizedSwap {
   reason: string | null;
   reviewComment: string | null;
   createdAt: string | null;
+  /** De onde o novo colaborador sai (14/09); nulo em pedidos antigos. */
+  newCity: string | null;
 }
 
 /** Só o que a tela usa de passagem e de usuário. */
