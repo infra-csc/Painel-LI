@@ -69,6 +69,7 @@ export function useShellData() {
   const { user } = useAuth();
   const isPurchasing = !!user?.role && ["admin", "administrator", "administrador", "purchasing"].includes(user.role);
   const canSeeApprovals = hasPermission(user, "canAccessScalingApproval");
+  const canSeeValidation = hasPermission(user, "canAccessScalingValidation");
 
   // ── Trocas (mesma consulta que o menu já usava) ──
   const [seenState, setSeenState] = useState<Record<string, any>>(() => (user ? getSeenState(user.id) : {}));
@@ -183,13 +184,25 @@ export function useShellData() {
   );
 
   /**
+   * Pedidos que este usuário PODE decidir (inclui o admin) — é o contador da
+   * barra lateral (dono, 15/09: "no sidebar tem que aparecer o que tem
+   * pendente para o aprovador, para quem aprova troca e tudo mais; aparecia
+   * antes, agora sumiu"). O aviso do sininho continua só para o aprovador de
+   * fato (`myPendingRequests`); o contador do menu mostra tudo que dá para resolver.
+   */
+  const pedidosQuePodeDecidir = useMemo(
+    () => (pendingRequests ?? []).filter((r) => r.canDecide === true),
+    [pendingRequests],
+  );
+
+  /**
    * Vagas validadas pela área esperando a decisão DESTE aprovador (04/09).
    * O badge da Aprovação contava só pedidos de ajuste/inclusão/exclusão; as
    * vagas "aguardando sua aprovação" — a fila principal da tela — ficavam de
    * fora, e o menu mostrava "3" com 22 vagas paradas esperando a pessoa.
    * Mesma fonte e mesma regra da tela (status validada + canDecide).
    */
-  const { data: suggestionsForBadge } = useQuery<{ status?: string; canDecide?: boolean; eAprovador?: boolean }[]>({
+  const { data: suggestionsForBadge } = useQuery<{ status?: string; canDecide?: boolean; eAprovador?: boolean; canEdit?: boolean; pendingRequest?: unknown }[]>({
     queryKey: ["shell", "awaiting-approval"],
     queryFn: async () => {
       const r = await fetch("/api/scaling-suggestions", { credentials: "include" });
@@ -197,12 +210,27 @@ export function useShellData() {
       const data = await r.json();
       return Array.isArray(data) ? data : [];
     },
-    enabled: !!user && canSeeApprovals,
+    // Mesma lista serve à Validação (vagas esperando a área validar).
+    enabled: !!user && (canSeeApprovals || canSeeValidation),
     staleTime: 60_000,
   });
   const myAwaitingApprovalCount = useMemo(
-    () => (suggestionsForBadge ?? []).filter((s) => s.status === SUGESTAO_STATUS.VALIDADA && s.eAprovador === true).length,
+    // Contador do menu: tudo que a pessoa pode decidir (canDecide inclui o admin).
+    () => (suggestionsForBadge ?? []).filter((s) => s.status === SUGESTAO_STATUS.VALIDADA && s.canDecide === true).length,
     [suggestionsForBadge],
+  );
+
+  /**
+   * Vagas esperando a área validar que ESTE usuário pode validar (dono, 15/09:
+   * "todo mundo que tem que tomar alguma ação tem que ter um sinalizador no
+   * menu, e o admin tem que ver tudo"). canEdit = admin ou validador da função;
+   * vaga com pedido pendente está na mesa do aprovador, não conta aqui.
+   */
+  const myAwaitingValidationCount = useMemo(
+    () => canSeeValidation
+      ? (suggestionsForBadge ?? []).filter((s) => s.status === SUGESTAO_STATUS.PENDENTE && s.canEdit === true && !s.pendingRequest).length
+      : 0,
+    [suggestionsForBadge, canSeeValidation],
   );
 
   // ── Vistos (só apagam o ponto de "novo"; nunca mudam a contagem real) ──
@@ -280,7 +308,8 @@ export function useShellData() {
     accommodations: accommodationSwapCount,
     scaling: isPurchasing ? scalingSwapCount : myScalingSwapsCount,
     // Tudo que espera ação do aprovador: pedidos + vagas validadas aguardando ele.
-    "scaling-approval": myPendingRequests.length + myAwaitingApprovalCount,
+    "scaling-approval": canSeeApprovals ? pedidosQuePodeDecidir.length + myAwaitingApprovalCount : 0,
+    "scaling-validation": myAwaitingValidationCount,
   };
 
   return { tabBadgeCount, notifications, pendingTotal, hasUnseen: notifications.some((n) => n.isNew), markAllSeen };

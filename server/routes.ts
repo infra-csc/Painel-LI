@@ -44,6 +44,7 @@ import { nextStatusOnConfirm } from "@shared/scaling-rules";
 import { montarHistoricoDaVaga } from "@shared/inclusion-timeline";
 import { trocaNaVisaoDaVaga } from "@shared/swap-permuta";
 import { ONDE_A_VAGA_NASCEU, origemDaCriacao } from "@shared/criacao-da-vaga";
+import { corrigirTextoDeNome } from "@shared/texto-nome";
 import { validarSaiDe } from "@shared/swap-sai-de";
 
 /**
@@ -1780,6 +1781,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validar dados do colaborador
       // (não logar o corpo: contém CPF/telefone do colaborador)
       let collaboratorData: any = insertCollaboratorSchema.parse(bodyData);
+      // Nome e cidade limpos ao gravar (15/09): planilha colada com a
+      // codificação trocada deixava "SILVAÂ", "GONÃALVES", espaços sobrando.
+      if (typeof collaboratorData.fullName === "string") collaboratorData.fullName = corrigirTextoDeNome(collaboratorData.fullName);
+      if (typeof collaboratorData.city === "string") collaboratorData.city = corrigirTextoDeNome(collaboratorData.city);
       // Aprovação só pelo fluxo dedicado (ou pela regra de auto-aprovação abaixo)
       delete collaboratorData.status;
       delete collaboratorData.approvedBy;
@@ -1946,6 +1951,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // corpo — o client mandava ISO string e o schema (timestamp) recusava com 400.
       const { approvedBy: _ab, approvedAt: _aa, ...body } = req.body ?? {};
       const collaboratorData: any = insertCollaboratorSchema.partial().parse(body);
+      // Nome e cidade limpos ao gravar (15/09) — mesma regra do cadastro.
+      if (typeof collaboratorData.fullName === "string") collaboratorData.fullName = corrigirTextoDeNome(collaboratorData.fullName);
+      if (typeof collaboratorData.city === "string") collaboratorData.city = corrigirTextoDeNome(collaboratorData.city);
       // Campos de inativação só podem ser alterados pelas rotas dedicadas
       // (/inactivate e /reactivate), que aplicam a checagem de permissão e o
       // motivo obrigatório. Removemos aqui para evitar burlar essas regras.

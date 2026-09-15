@@ -1,4 +1,5 @@
 import { clsx, type ClassValue } from "clsx"
+import { corrigirTextoDeNome } from "@shared/texto-nome";
 import { twMerge } from "tailwind-merge"
 
 export function cn(...inputs: ClassValue[]) {
@@ -7,7 +8,9 @@ export function cn(...inputs: ClassValue[]) {
 
 export function fixEncoding(str: string | null | undefined): string {
   if (!str) return str || '';
-  return str
+  // Depois das trocas antigas, a regra completa (15/09): pares quebrados, "Â"
+  // sobrando do espaço especial, "ÇÃO" sem Ç, espaços repetidos e nas pontas.
+  return corrigirTextoDeNome(str
     // Minúsculas (byte range A0-BF → Latin-1 printable → match direto)
     .replace(/Ã§/g, 'ç').replace(/Ã£/g, 'ã').replace(/Ãµ/g, 'õ')
     .replace(/Ã©/g, 'é').replace(/Ã¡/g, 'á').replace(/Ã­/g, 'í')
@@ -19,7 +22,7 @@ export function fixEncoding(str: string | null | undefined): string {
     // Maiúsculas — versão Windows-1252 (caso o BD tenha convertido C1→printable)
     .replace(/Ã‡/g, 'Ç').replace(/Ãƒ/g, 'Ã')
     .replace(/Ã‰/g, 'É').replace(/Ã"/g, 'Ó').replace(/Ã•/g, 'Õ')
-    .replace(/Ã‚/g, 'Â').replace(/Ãâ/g, 'Â').replace(/â€™/g, "'");
+    .replace(/Ã‚/g, 'Â').replace(/Ãâ/g, 'Â').replace(/â€™/g, "'"));
 }
 
 export function normalizeId(val: string | number | null | undefined): string {
