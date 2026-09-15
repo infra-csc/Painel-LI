@@ -150,6 +150,12 @@ export function shouldShowPendingSwapBadge(
   return noLogistics;
 }
 
+/** "VINICIUS JOSE CAMPOS" → "Vinicius". Cabe na linha de detalhe; o nome inteiro vai no title. */
+function primeiroNome(nome: string): string {
+  const p = nome.trim().split(/s+/)[0] ?? "";
+  return p.charAt(0).toLocaleUpperCase("pt-BR") + p.slice(1).toLocaleLowerCase("pt-BR");
+}
+
 /** "2026-07-22T…" → "22/07". Data curta, para caber na linha de detalhe. */
 function diaMes(valor: string | Date | null | undefined): string | null {
   if (!valor) return null;
@@ -170,7 +176,12 @@ export function detalheDaSituacao(
     const nome = opts.swap.newCollaboratorName?.trim();
     // "Em análise" na frente (15/09): no fim, a linha cortava e a troca
     // pendente parecia decidida ao lado da pílula "Aprovado" (que é da vaga).
-    const texto = nome ? `Troca em análise → ${nome}` : "Troca em análise";
+    // A pílula da linha já diz "Troca em análise" (15/09); aqui vai quem sai e
+    // quem entra, sem repetir.
+    const atual = opts.swap.currentCollaboratorName?.trim();
+    const texto = nome
+      ? (atual ? `${primeiroNome(atual)} → ${primeiroNome(nome)}` : `Entra ${nome}`)
+      : "Troca em análise";
     // O título carrega quem pediu e por quê: a linha tem espaço para a frase
     // curta, mas essa informação não pode sumir da lista — era o que o antigo
     // badge "Troca pendente" guardava no hover.
@@ -548,7 +559,18 @@ export default function ScalingTable({
 
                   <td className="px-3.5">
                     <div className="flex flex-col gap-[3px] min-w-0">
-                      {getStatusBadge(inclusion, "sm")}
+                      {/* Troca pendente manda na pílula (dono, 15/09: "esse aprovado
+                          não faz sentido nenhum"): o status guardado da vaga
+                          ("Aprovado") só volta a valer depois da decisão. */}
+                      {detalhe?.tom === "troca" ? (
+                        <span
+                          className={`inline-flex w-fit items-center rounded-md font-semibold shrink-0 ${SIZE_CLS.sm} bg-purple-50 text-[#7E22CE]`}
+                          data-testid="scaling-status-troca-em-analise"
+                        >
+                          <span className="w-[5px] h-[5px] rounded-full bg-[#A855F7]" aria-hidden="true" />
+                          Troca em análise
+                        </span>
+                      ) : getStatusBadge(inclusion, "sm")}
                       {/* Pedido de ajuste/exclusão em aberto TRAVA a vaga (regra do
                           dono, 26/08): não dá para escalar, comprar nem confirmar até o
                           aprovador decidir. Um texto de 11px cortado em "Pedido de
