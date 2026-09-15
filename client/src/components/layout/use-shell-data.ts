@@ -70,6 +70,8 @@ export function useShellData() {
   const isPurchasing = !!user?.role && ["admin", "administrator", "administrador", "purchasing"].includes(user.role);
   const canSeeApprovals = hasPermission(user, "canAccessScalingApproval");
   const canSeeValidation = hasPermission(user, "canAccessScalingValidation");
+  // Gestor da cenotécnica (dono, 15/09): mesma regra da tela de Escalação.
+  const aprovaCenotecnica = !!(user as any)?.canApproveCenotecnica || user?.role === "admin" || user?.role === "administrator" || user?.role === "administrador";
 
   // ── Trocas (mesma consulta que o menu já usava) ──
   const [seenState, setSeenState] = useState<Record<string, any>>(() => (user ? getSeenState(user.id) : {}));
@@ -92,7 +94,7 @@ export function useShellData() {
 
   const { data: teamInclusions } = useQuery<any[]>({
     queryKey: ["/api/team-inclusions"],
-    enabled: !!isPurchasing,
+    enabled: !!isPurchasing || aprovaCenotecnica,
   });
 
   // Mapa teamInclusionId → status (fallback; o status já vem embutido no swap).
@@ -158,6 +160,12 @@ export function useShellData() {
     });
     return count;
   }, [swapRequests, user, isPurchasing, seenState]);
+
+  /** Vagas de cenotécnica esperando o gestor aprovar ("Aguardando Gestor"). */
+  const aguardandoGestorCount = useMemo(() => {
+    if (!aprovaCenotecnica) return 0;
+    return (teamInclusions ?? []).filter((ti) => ti.status === "aguardando_producao" && !ti.deletedAt && !ti.deleted_at).length;
+  }, [teamInclusions, aprovaCenotecnica]);
 
   // ── Pedidos de ajuste pendentes ──
   // Chave própria (não a da tela de Aprovação): lá o erro precisa aparecer para
@@ -270,7 +278,7 @@ export function useShellData() {
     // quando ele muda, o aviso volta a ser "novo".
     const swapEntry = (count: number, screen: string, href: string, icon: string, text: string) => {
       if (count <= 0) return;
-      const id = `swap:${href}:${count}`;
+      const id = `swap:${href}:${icon}:${count}`;
       list.push({
         id,
         icon,
@@ -292,21 +300,24 @@ export function useShellData() {
       swapEntry(myScalingSwapsCount, "Escalação", "/scaling", "swap_horiz", "Pedidos de troca que você abriu");
     }
 
+    swapEntry(aguardandoGestorCount, "Escalação", "/scaling", "engineering", "Cenotécnica aguardando a aprovação do gestor");
+
     return list;
-  }, [myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount]);
+  }, [aguardandoGestorCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount]);
 
   const markAllSeen = useCallback(() => {
     markNotificationsSeen(user?.id, notifications.map((n) => n.id));
   }, [user?.id, notifications]);
 
   /** Badge do sino: total de pendências REAIS (nunca "novidades não vistas"). */
-  const pendingTotal = myPendingRequests.length + swapTotal;
+  const pendingTotal = myPendingRequests.length + swapTotal + aguardandoGestorCount;
 
   /** id da tela → badge. Item sem contador confiável simplesmente não aparece aqui. */
   const tabBadgeCount: Record<string, number> = {
     tickets: ticketSwapCount,
     accommodations: accommodationSwapCount,
-    scaling: isPurchasing ? scalingSwapCount : myScalingSwapsCount,
+    // Trocas + cenotécnica aguardando o gestor (15/09).
+    scaling: (isPurchasing ? scalingSwapCount : myScalingSwapsCount) + aguardandoGestorCount,
     // Tudo que espera ação do aprovador: pedidos + vagas validadas aguardando ele.
     "scaling-approval": canSeeApprovals ? pedidosQuePodeDecidir.length + myAwaitingApprovalCount : 0,
     "scaling-validation": myAwaitingValidationCount,
