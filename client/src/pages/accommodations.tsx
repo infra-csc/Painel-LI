@@ -83,7 +83,7 @@ export default function Accommodations() {
     teamInclusions, events, functions, collaborators, tickets, users,
     isLoading, loadError,
     accommodationMap, eventById, functionById, collaboratorById,
-    pendingSwapByInclusion, filteredData, selectableInclusionIds,
+    pendingSwapByInclusion, approvedSwapInclusionIds, filteredData, selectableInclusionIds,
     teamInclusionsWithAccommodation,
   } = useAccommodationsData({ filters, sortConfig, showOnlyPendingSwaps: false });
 
@@ -460,6 +460,7 @@ export default function Accommodations() {
         rows={linhasVisiveis}
         accommodationMap={accommodationMap} eventById={eventById} functionById={functionById} collaboratorById={collaboratorById}
         pendingSwapByInclusion={pendingSwapByInclusion}
+        approvedSwapInclusionIds={approvedSwapInclusionIds}
         sortConfig={sortConfig} onSort={handleSort}
         selectedIds={selectedForBatch} selectableIds={selectableAtivos} allSelectableSelected={allSelectableSelected}
         onToggleRow={toggleRowSelection} onToggleAll={toggleAllSelection}

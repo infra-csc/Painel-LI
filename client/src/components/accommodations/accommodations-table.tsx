@@ -11,7 +11,7 @@
  * check-in e check-out com hora, hotel e localização, situação, troca pendente
  * e as ações de ver e registrar.
  */
-import { Hotel, Eye, BedDouble, ArrowDown, ArrowUp } from "lucide-react";
+import { Hotel, Eye, BedDouble, ArrowDown, ArrowUp, ArrowLeftRight } from "lucide-react";
 import SortableHeader from "@/components/common/sortable-header";
 import { Button } from "@/components/ui/button";
 import { useLarguraUtil } from "@/components/common/use-largura-util";
@@ -26,6 +26,8 @@ export interface AccommodationsTableProps {
   functionById: Map<string, Function>;
   collaboratorById: Map<string, Collaborator>;
   pendingSwapByInclusion: Set<string>;
+  /** Vagas com troca de colaborador aprovada — etiqueta para Compras (15/09). */
+  approvedSwapInclusionIds?: Set<string>;
   sortConfig: AccSortConfig | null;
   onSort: (field: AccSortField) => void;
   selectedIds: string[];
@@ -59,7 +61,7 @@ const CAIXA = "w-4 h-4 cursor-pointer accent-primary";
 const PILULA = "inline-flex items-center gap-1.5 h-[22px] px-[7px] rounded-md text-[11px] font-medium whitespace-nowrap";
 
 export default function AccommodationsTable({
-  rows, accommodationMap, eventById, functionById, collaboratorById, pendingSwapByInclusion,
+  rows, accommodationMap, eventById, functionById, collaboratorById, pendingSwapByInclusion, approvedSwapInclusionIds,
   sortConfig, onSort, selectedIds, selectableIds, allSelectableSelected, onToggleRow, onToggleAll,
   canEdit, onOpen, hasActiveFilters, onClearFilters, total, ordenacao,
 }: AccommodationsTableProps) {
@@ -148,6 +150,7 @@ export default function AccommodationsTable({
               const isCanceled = inclusion.status === "cancelado";
               const displayName = toTitleCase(collaborator?.fullName);
               const hasPendingSwap = pendingSwapByInclusion.has(inclusion.id);
+              const hasApprovedSwap = !hasPendingSwap && !!approvedSwapInclusionIds?.has(inclusion.id);
               const isSelected = selecionadas.has(inclusion.id);
               const canSelect = selectableIds.has(inclusion.id);
               const nomeDoEvento = event?.name || "—";
@@ -287,6 +290,15 @@ export default function AccommodationsTable({
                           data-testid={`badge-swap-pending-${inclusion.inclusionNumber}`}
                         >
                           <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B] shrink-0 animate-pulse" aria-hidden="true" />Troca pendente
+                        </span>
+                      )}
+                      {hasApprovedSwap && !isCanceled && (
+                        <span
+                          className={`${PILULA} bg-[#ECFDF5] text-[#047857]`}
+                          title="Esta vaga teve uma troca de colaborador aprovada — confira a hospedagem"
+                          data-testid={`badge-swap-approved-${inclusion.inclusionNumber}`}
+                        >
+                          <ArrowLeftRight className="w-3 h-3 shrink-0" aria-hidden="true" />Troca aprovada
                         </span>
                       )}
                     </div>

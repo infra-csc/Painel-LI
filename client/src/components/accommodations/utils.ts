@@ -100,6 +100,7 @@ export function normalizeSwap(raw: RawSwap): NormalizedSwap {
     createdAt: str(pick(raw, "created_at", "createdAt")),
     newCity: str(pick(raw, "new_city", "newCity")),
     swapKind: String(pick(raw, "swap_kind", "swapKind") ?? "substituicao"),
+    pairedInclusionId: str(pick(raw, "paired_inclusion_id", "pairedInclusionId")),
     pairedNewCity: str(pick(raw, "paired_new_city", "pairedNewCity")),
     inclusionNumber: pick(raw, "inclusion_number", "inclusionNumber") != null ? String(pick(raw, "inclusion_number", "inclusionNumber")) : null,
     eventName: str(pick(raw, "event_name", "eventName")),

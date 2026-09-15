@@ -19,7 +19,7 @@
  */
 import { useEffect, useState } from "react";
 import { rotuloEmpreita, vagaComEmpreita } from "@shared/cenotecnica-empreita";
-import { AlertTriangle, Check } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Check } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   MessageSquare, ChevronRight, ChevronUp, ChevronDown, ChevronsUpDown, Lock, UserPlus,
@@ -600,8 +600,17 @@ export default function ScalingTable({
                           {detalhe.texto}
                         </span>
                       )}
-                      {!detalhe && approvedSwapInclusionIds.has(inclusion.id) && (
-                        <span className="text-[11px] text-[#047857] truncate">Troca aprovada</span>
+                      {/* Etiqueta para Compras (dono, 15/09): a vaga teve troca de
+                          colaborador aprovada. Antes era um texto pequeno que sumia
+                          sempre que a linha tinha outro detalhe ("Falta confirmar"…). */}
+                      {approvedSwapInclusionIds.has(inclusion.id) && detalhe?.tom !== "troca" && (
+                        <span
+                          className="inline-flex w-fit items-center gap-1 whitespace-nowrap rounded-md bg-[#ECFDF5] px-[7px] py-[2px] text-[11px] font-semibold text-[#047857]"
+                          title="Esta vaga teve uma troca de colaborador aprovada — confira passagem e hospedagem"
+                          data-testid={`tag-troca-aprovada-${inclusion.id}`}
+                        >
+                          <ArrowLeftRight className="h-3 w-3 shrink-0" aria-hidden="true" />Troca aprovada
+                        </span>
                       )}
                     </div>
                   </td>

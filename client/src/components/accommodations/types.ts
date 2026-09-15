@@ -94,6 +94,8 @@ export interface NormalizedSwap {
   newCity: string | null;
   /** 'substituicao' | 'permuta' (14/09) e os dados das duas vagas da permuta. */
   swapKind: string;
+  /** A outra vaga da permuta/transferência — também recebe a etiqueta de troca (15/09). */
+  pairedInclusionId: string | null;
   pairedNewCity: string | null;
   inclusionNumber: string | null;
   eventName: string | null;

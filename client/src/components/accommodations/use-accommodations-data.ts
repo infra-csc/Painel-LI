@@ -49,6 +49,17 @@ export function useAccommodationsData({ filters, sortConfig, showOnlyPendingSwap
     return set;
   }, [allSwapRequests]);
 
+  /** Vagas com troca de colaborador APROVADA (15/09) — etiqueta para Compras. */
+  const approvedSwapInclusionIds = useMemo(() => {
+    const set = new Set<string>();
+    allSwapRequests?.forEach((s) => {
+      if (s.status !== "aprovado") return;
+      if (s.teamInclusionId) set.add(s.teamInclusionId);
+      if (s.pairedInclusionId) set.add(s.pairedInclusionId);
+    });
+    return set;
+  }, [allSwapRequests]);
+
   // Havendo mais de um registro para a mesma inclusão, o ÚLTIMO vence
   // (semântica original; representa a hospedagem mais recente).
   const accommodationMap = useMemo(() => {
@@ -139,6 +150,6 @@ export function useAccommodationsData({ filters, sortConfig, showOnlyPendingSwap
     teamInclusionsWithAccommodation,
     isLoading, loadError,
     accommodationMap, eventById, functionById, collaboratorById,
-    pendingSwapByInclusion, filteredData, selectableInclusionIds,
+    pendingSwapByInclusion, approvedSwapInclusionIds, filteredData, selectableInclusionIds,
   };
 }
