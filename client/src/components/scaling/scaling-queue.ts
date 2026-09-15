@@ -67,7 +67,7 @@ export function testeDaFila(key: QueueKey, ctx: QueueContext): (i: TeamInclusion
 // ── Filtros por grupo ───────────────────────────────────────────────────────
 
 export type FlagKey =
-  | "sit:aberta" | "sit:gestor" | "sit:escalado" | "sit:aprovado" | "sit:cancelada"
+  | "sit:aberta" | "sit:gestor" | "sit:escalado" | "sit:salvo" | "sit:cancelada"
   | "pass:precisa" | "pass:nao-precisa" | "pass:comprada" | "pass:nao-comprada"
   | "hosp:precisa" | "hosp:nao-precisa" | "hosp:reservada" | "hosp:nao-reservada"
   | "anal:troca" | "anal:ajuste"
@@ -91,9 +91,9 @@ export const FLAG_GROUPS: FlagGroup[] = [
   {
     id: "sit", titulo: "Situação", opcoes: [
       { key: "sit:aberta", label: "Vaga aberta" },
+      { key: "sit:salvo", label: "Salvo · falta confirmar" },
       { key: "sit:gestor", label: "Aguardando gestor" },
       { key: "sit:escalado", label: "Escalado" },
-      { key: "sit:aprovado", label: "Aprovado" },
       { key: "sit:cancelada", label: "Cancelada" },
     ],
   },
@@ -132,8 +132,8 @@ function testeDaFlag(key: FlagKey, ctx: QueueContext): (i: TeamInclusion) => boo
   switch (key) {
     case "sit:aberta": return (i) => !ctx.temNome(i) && i.status !== "cancelado";
     case "sit:gestor": return (i) => i.status === "aguardando_producao";
-    case "sit:escalado": return (i) => getScalingStatusKey(i) === "escalado" || getScalingStatusKey(i) === "em_aprovacao";
-    case "sit:aprovado": return (i) => getScalingStatusKey(i) === "aprovado";
+    case "sit:escalado": return (i) => getScalingStatusKey(i) === "escalado";
+    case "sit:salvo": return (i) => ctx.temNome(i) && getScalingStatusKey(i) === "salvo";
     case "sit:cancelada": return (i) => i.status === "cancelado";
 
     case "pass:precisa": return (i) => !!i.needsTicket;

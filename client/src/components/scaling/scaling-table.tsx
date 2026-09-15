@@ -217,7 +217,7 @@ export function detalheDaSituacao(
     return { texto, titulo: texto, tom: "neutro" };
   }
   const aprovado = diaMes(inclusion.approvedByProductionAt);
-  if (aprovado && getScalingStatusKey(inclusion) === "aprovado") {
+  if (aprovado && getScalingStatusKey(inclusion) === "escalado") {
     const texto = `Aprovada pelo gestor em ${aprovado}`;
     return { texto, titulo: texto, tom: "neutro" };
   }

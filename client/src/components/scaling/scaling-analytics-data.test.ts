@@ -83,7 +83,9 @@ describe("buckets da barra", () => {
     expect(bucketDaLinha(vaga({ collaboratorId: "c1", status: "aguardando_producao" }), c)).toBe("gestor");
     expect(bucketDaLinha(vaga({ collaboratorId: "c1", status: "escalado" }), c)).toBe("escalado");
     expect(bucketDaLinha(vaga({ collaboratorId: "c1", status: "aprovacao" }), c)).toBe("escalado");
-    expect(bucketDaLinha(vaga({ collaboratorId: "c1", status: "aprovado" }), c)).toBe("aprovado");
+    // Sem "Aprovado" na Escalação (15/09): aprovado conta como Escalado; nome sem confirmar é Salvo.
+    expect(bucketDaLinha(vaga({ collaboratorId: "c1", status: "aprovado" }), c)).toBe("escalado");
+    expect(bucketDaLinha(vaga({ collaboratorId: "c1", status: "planejado" }), c)).toBe("salvo");
   });
 
   it("sem nome é vaga aberta, qualquer que seja o status gravado", () => {

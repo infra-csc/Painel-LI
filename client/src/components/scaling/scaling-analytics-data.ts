@@ -36,15 +36,16 @@ export interface AnalyticsContext {
   getEventDates?: (eventId: string | null) => { startDate?: string | null; endDate?: string | null } | undefined;
 }
 
-export type BucketKey = "aprovado" | "escalado" | "gestor" | "vaga";
+export type BucketKey = "escalado" | "salvo" | "gestor" | "vaga";
 
 /**
  * A ordem é de RESOLVIDO para PENDENTE — a barra se lê da esquerda como
  * progresso. Mesma ordem no empilhamento e na legenda.
  */
 export const BUCKETS: { key: BucketKey; label: string; cor: string }[] = [
-  { key: "aprovado", label: "Aprovado", cor: "#10B981" },
-  { key: "escalado", label: "Escalado", cor: "#0033CC" },
+  // Sem "Aprovado" (15/09): confirmada é Escalado; com nome sem confirmar é Salvo.
+  { key: "escalado", label: "Escalado", cor: "#10B981" },
+  { key: "salvo", label: "Salvo · falta confirmar", cor: "#6366F1" },
   { key: "gestor", label: "Com o gestor", cor: "#EF4444" },
   { key: "vaga", label: "Vaga aberta", cor: "#FBBF24" },
 ];
@@ -53,8 +54,8 @@ export function bucketDaLinha(i: TeamInclusion, ctx: AnalyticsContext): BucketKe
   if (!ctx.temNome(i)) return "vaga";
   if (i.status === "aguardando_producao") return "gestor";
   const key = getScalingStatusKey(i);
-  if (key === "aprovado") return "aprovado";
-  if (key === "escalado" || key === "em_aprovacao") return "escalado";
+  if (key === "escalado") return "escalado";
+  if (key === "salvo") return "salvo";
   return "vaga";
 }
 
