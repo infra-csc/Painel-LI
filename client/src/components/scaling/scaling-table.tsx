@@ -57,7 +57,7 @@ export function getStatusBadge(
   const meta = STATUS_META[key];
   return (
     <span
-      className={`inline-flex w-fit items-center rounded-md font-semibold shrink-0 ${SIZE_CLS[size]} ${meta.wrap}`}
+      className={`inline-flex w-fit items-center whitespace-nowrap rounded-md font-semibold shrink-0 ${SIZE_CLS[size]} ${meta.wrap}`}
       data-testid={`scaling-status-${key}`}
     >
       <span className={`w-[5px] h-[5px] rounded-full ${meta.dot}`} aria-hidden="true" />
@@ -215,6 +215,10 @@ export function detalheDaSituacao(
     const quando = diaMes(inclusion.updatedAt);
     const texto = quando ? `Enviada ao gestor em ${quando}` : "Enviada ao gestor";
     return { texto, titulo: texto, tom: "neutro" };
+  }
+  // "Salvo" na pílula; aqui fica claro o que falta (dono, 15/09).
+  if (getScalingStatusKey(inclusion) === "salvo") {
+    return { texto: "Falta confirmar a escalação", titulo: "Colaborador salvo, mas a escalação ainda não foi confirmada", tom: "neutro" };
   }
   const aprovado = diaMes(inclusion.approvedByProductionAt);
   if (aprovado && getScalingStatusKey(inclusion) === "escalado") {

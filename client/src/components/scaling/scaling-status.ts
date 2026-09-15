@@ -71,7 +71,8 @@ export interface StatusMeta {
  */
 export const STATUS_META: Record<ScalingStatusKey, StatusMeta> = {
   pendente: { label: "Vaga aberta", wrap: "bg-[#FEF3C7] text-[#92400E]", dot: "bg-[#D97706]" },
-  salvo: { label: "Salvo · falta confirmar", wrap: "bg-[#EEF2FF] text-[#3730A3]", dot: "bg-[#6366F1]" },
+  // Pílula curta (cabe numa linha); o "falta confirmar" vai no detalhe embaixo.
+  salvo: { label: "Salvo", wrap: "bg-[#EEF2FF] text-[#3730A3]", dot: "bg-[#6366F1]" },
   aguardando_producao: { label: "Aguardando gestor", wrap: "bg-[#FEF2F2] text-[#B91C1C]", dot: "bg-[#EF4444]" },
   escalado: { label: "Escalado", wrap: "bg-[#ECFDF5] text-[#047857]", dot: "bg-[#10B981]" },
   cancelado: { label: "Cancelada", wrap: "bg-[#F1F5F9] text-[#64748B]", dot: "bg-[#94A3B8]" },
