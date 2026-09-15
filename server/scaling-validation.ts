@@ -773,7 +773,8 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
               limit: ALL_EVENTS_ROW_LIMIT + 1,
             }),
         storage.getUserManagedFunctionIds(actor.id, "validador"),
-        admin ? Promise.resolve([] as string[]) : storage.getUserManagedFunctionIds(actor.id, "aprovador"),
+        // Também para o admin (15/09): `eAprovador` precisa do cadastro real.
+        storage.getUserManagedFunctionIds(actor.id, "aprovador"),
         isDefaultApprover(actor),
       ]);
       // TODO MUNDO VÊ A ESCALA INTEIRA; quem MEXE é quem tem permissão (regra
@@ -825,6 +826,8 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           // O CADASTRO manda: aprovador da função decide, qualquer que seja o
           // papel — e o APROVADOR PADRÃO do sistema decide em qualquer função.
           canDecide: admin || approves.has(i.functionId) || defaultApprover,
+          // Notificação (15/09): aprovador da função ou padrão, sem o "admin decide tudo".
+          eAprovador: approves.has(i.functionId) || defaultApprover,
           daysPending: daysPending(i.suggestionSentAt, now),
           pendingRequest: pendingByInclusion.get(i.id) ?? null,
           lastDecision: pickLastDecision(i, requests),
@@ -1367,8 +1370,11 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         functionIds = await storage.getUserManagedFunctionIds(actor.id, "aprovador");
         orRequestedBy = actor.id;
       }
+      // Aprovador DE FATO (cadastro da função), calculado também para o admin:
+      // `eAprovador` (15/09) separa "pode decidir" (o admin decide tudo) de "é
+      // aprovador" — só este vira notificação.
       const approverIds = new Set(
-        admin || defaultApprover ? [] : (functionIds ?? await storage.getUserManagedFunctionIds(actor.id, "aprovador")),
+        defaultApprover ? [] : (functionIds ?? await storage.getUserManagedFunctionIds(actor.id, "aprovador")),
       );
 
       // Só o que os pedidos listados precisam: vagas (inArray de
@@ -1401,6 +1407,9 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           // O CADASTRO manda: aprovador da função decide, qualquer que seja o
           // papel — e o APROVADOR PADRÃO do sistema decide em qualquer função.
           canDecide: admin || defaultApprover || approverIds.has(r.functionId),
+          // Notificação (dono, 15/09): só aprovador da função ou o padrão — o admin
+          // que aprova troca de colaborador não recebe aviso do aprovador de escala.
+          eAprovador: defaultApprover || approverIds.has(r.functionId),
         };
       });
       res.set("Cache-Control", "no-store");

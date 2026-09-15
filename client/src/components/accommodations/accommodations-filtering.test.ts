@@ -67,8 +67,11 @@ describe("quem pertence à tela de Hospedagem", () => {
     ]);
     expect(precisaDeHospedagem(vaga({ collaboratorId: null, status: "escalado" }), EVENTOS)).toBe(true);
     expect(precisaDeHospedagem(vaga({ collaboratorId: null, status: "planejado" }), EVENTOS)).toBe(false);
-    // Com colaborador, o status não importa.
-    expect(precisaDeHospedagem(vaga({ status: "planejado" }), EVENTOS)).toBe(true);
+    // Só escalação CONFIRMADA (15/09): salvar com colaborador não basta.
+    expect(precisaDeHospedagem(vaga({ status: "planejado" }), EVENTOS)).toBe(false);
+    expect(precisaDeHospedagem(vaga({ status: "aguardando_producao" }), EVENTOS)).toBe(false);
+    // Hospedagem já registrada continua na lista.
+    expect(precisaDeHospedagem(vaga({ status: "planejado" }), EVENTOS, true)).toBe(true);
   });
 });
 

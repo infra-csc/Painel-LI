@@ -79,8 +79,8 @@ export function useAccommodationsData({ filters, sortConfig, showOnlyPendingSwap
   // qualquer filtro. Sai daqui para fora também, porque os contadores dos
   // popovers contam sobre ela.
   const teamInclusionsWithAccommodation = useMemo(
-    () => (teamInclusions ?? []).filter((inclusion) => precisaDeHospedagem(inclusion, eventById)),
-    [teamInclusions, eventById],
+    () => (teamInclusions ?? []).filter((inclusion) => precisaDeHospedagem(inclusion, eventById, accommodationMap.has(inclusion.id))),
+    [teamInclusions, eventById, accommodationMap],
   );
 
   const filteredData = useMemo(() => {

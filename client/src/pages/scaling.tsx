@@ -841,7 +841,7 @@ export default function Scaling() {
             />
           ) : (
             <>
-              <ScalingWorkQueue contagens={contagensDaFila} total={comPeriodo.length} ativa={fila} onEscolher={setFila} mostrarGestor={canApproveProduction} />
+              <ScalingWorkQueue contagens={contagensDaFila} total={comPeriodo.length} ativa={fila} onEscolher={setFila} mostrarGestor={canApproveProduction} mostrarTrocas={isAdminOrPurchasing} />
 
               {/* A faixa de recarga fica ACIMA dos filtros e não os
                   substitui: o toggle que disparou a busca precisa continuar

@@ -33,6 +33,8 @@ interface PendingChangeRequest {
   eventName?: string | null;
   inclusionNumber?: number | null;
   canDecide?: boolean;
+  /** É aprovador da função ou o padrão (15/09) — o que vira aviso; `canDecide` inclui o admin. */
+  eAprovador?: boolean;
 }
 
 export interface ShellNotification {
@@ -174,7 +176,9 @@ export function useShellData() {
 
   /** Pedidos que ESTE usuário pode decidir — é o que vira badge e aviso. */
   const myPendingRequests = useMemo(
-    () => (pendingRequests ?? []).filter((r) => r.canDecide),
+    // eAprovador, não canDecide (dono, 15/09): o admin que aprova troca de
+    // colaborador pode decidir tudo, mas o aviso é do aprovador de escala.
+    () => (pendingRequests ?? []).filter((r) => r.eAprovador === true),
     [pendingRequests],
   );
 
@@ -185,7 +189,7 @@ export function useShellData() {
    * fora, e o menu mostrava "3" com 22 vagas paradas esperando a pessoa.
    * Mesma fonte e mesma regra da tela (status validada + canDecide).
    */
-  const { data: suggestionsForBadge } = useQuery<{ status?: string; canDecide?: boolean }[]>({
+  const { data: suggestionsForBadge } = useQuery<{ status?: string; canDecide?: boolean; eAprovador?: boolean }[]>({
     queryKey: ["shell", "awaiting-approval"],
     queryFn: async () => {
       const r = await fetch("/api/scaling-suggestions", { credentials: "include" });
@@ -197,7 +201,7 @@ export function useShellData() {
     staleTime: 60_000,
   });
   const myAwaitingApprovalCount = useMemo(
-    () => (suggestionsForBadge ?? []).filter((s) => s.status === SUGESTAO_STATUS.VALIDADA && s.canDecide === true).length,
+    () => (suggestionsForBadge ?? []).filter((s) => s.status === SUGESTAO_STATUS.VALIDADA && s.eAprovador === true).length,
     [suggestionsForBadge],
   );
 

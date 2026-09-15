@@ -42,7 +42,7 @@ export const QUEUE_META: { key: QueueKey; label: string; sub: string }[] = [
   { key: "trabalho", label: "Escalar + confirmar", sub: "sem nome ou sem confirmar" },
   { key: "escalar", label: "Escalar", sub: "vagas sem nome" },
   { key: "gestor", label: "Com o gestor", sub: "aguardando aprovação" },
-  { key: "troca", label: "Em análise", sub: "trocas e ajustes" },
+  { key: "troca", label: "Em análise", sub: "trocas de colaborador" },
   { key: "prontas", label: "Falta confirmar", sub: "com nome, sem confirmar" },
 ];
 
@@ -57,7 +57,9 @@ export function testeDaFila(key: QueueKey, ctx: QueueContext): (i: TeamInclusion
       return (i) => i.status !== "cancelado" && (escalar(i) || prontas(i));
     }
     case "gestor": return (i) => i.status === "aguardando_producao";
-    case "troca": return (i) => ctx.temTroca(i) || ctx.temPedido(i);
+    // Só trocas de colaborador (dono, 15/09): o ajuste pendente é do aprovador
+    // de escala e já aparece na Aprovação de Escala.
+    case "troca": return (i) => ctx.temTroca(i);
     case "prontas": return (i) => !ctx.bloqueioParaConfirmar(i);
   }
 }

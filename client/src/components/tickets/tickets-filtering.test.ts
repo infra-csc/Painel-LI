@@ -82,8 +82,11 @@ describe("quem entra na lista de Passagens", () => {
     ]);
     expect(passaNosFiltrosBase(vaga({ collaboratorId: null, status: "escalado" }), filtros(), ctx)).toBe(true);
     expect(passaNosFiltrosBase(vaga({ collaboratorId: null, status: "planejado" }), filtros(), ctx)).toBe(false);
-    // Com colaborador, o status não importa.
-    expect(passaNosFiltrosBase(vaga({ status: "planejado" }), filtros(), ctx)).toBe(true);
+    // Só escalação CONFIRMADA (15/09): salvar com colaborador não basta.
+    expect(passaNosFiltrosBase(vaga({ status: "planejado" }), filtros(), ctx)).toBe(false);
+    expect(passaNosFiltrosBase(vaga({ status: "aguardando_producao" }), filtros(), ctx)).toBe(false);
+    // Passagem já registrada continua na lista.
+    expect(passaNosFiltrosBase(vaga({ status: "planejado" }), filtros(), { ...ctx, temPassagem: () => true })).toBe(true);
   });
 });
 

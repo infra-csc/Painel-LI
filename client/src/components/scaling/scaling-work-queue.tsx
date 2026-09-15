@@ -28,7 +28,7 @@ const COR: Record<QueueKey, string> = {
   prontas: "#10B981",
 };
 
-export default function ScalingWorkQueue({ contagens, total, ativa, onEscolher, mostrarGestor = true }: {
+export default function ScalingWorkQueue({ contagens, total, ativa, onEscolher, mostrarGestor = true, mostrarTrocas = true }: {
   contagens: Record<QueueKey, number>;
   /** Todas as vagas do recorte (evento/período/excluídas) — o bloco "Todas". */
   total: number;
@@ -39,8 +39,10 @@ export default function ScalingWorkQueue({ contagens, total, ativa, onEscolher, 
    * (04/09): para os demais é um bloco que nunca é trabalho deles.
    */
   mostrarGestor?: boolean;
+  /** "Em análise" só para quem aprova troca de colaborador (dono, 15/09). */
+  mostrarTrocas?: boolean;
 }) {
-  const blocos = QUEUE_META.filter((q) => mostrarGestor || q.key !== "gestor");
+  const blocos = QUEUE_META.filter((q) => (mostrarGestor || q.key !== "gestor") && (mostrarTrocas || q.key !== "troca"));
   return (
     <section aria-label="Fila de trabalho da escalação" className="flex rounded-xl border border-border bg-card overflow-hidden">
       {/* "Todas" (04/09): com um bloco ligado por padrão, quem filtrava um

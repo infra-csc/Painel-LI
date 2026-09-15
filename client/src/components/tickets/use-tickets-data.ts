@@ -210,7 +210,10 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
   // "Hoje" fixo por montagem: o filtro de período compara contra ele e o
   // contador do popover precisa da MESMA base que a lista.
   const hoje = useMemo(() => new Date(), []);
-  const contextoDosFiltros = useMemo(() => ({ eventById, collaboratorById, hoje }), [eventById, collaboratorById, hoje]);
+  const contextoDosFiltros = useMemo(
+    () => ({ eventById, collaboratorById, hoje, temPassagem: (id: string) => ticketByInclusion.has(id) }),
+    [eventById, collaboratorById, hoje, ticketByInclusion],
+  );
   const ticketInclusions = useMemo(
     () => teamInclusions?.filter(inclusion => passaNosFiltrosBase(inclusion, filters, contextoDosFiltros)) || [],
     [teamInclusions, contextoDosFiltros, filters.eventId, filters.functionId, filters.collaboratorId, filters.searchId, filters.inclusionStatus, filters.periodo], // eslint-disable-line react-hooks/exhaustive-deps

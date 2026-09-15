@@ -24,6 +24,18 @@ export const VALID_STATUSES_WITHOUT_COLLABORATOR = [
   "aprovado", "cancelado",
 ];
 
+/**
+ * Status de escalação JÁ CONFIRMADA (dono, 15/09: "quem não tem a escalação
+ * confirmada não deve aparecer, apenas se confirmar — não apenas salvar"). Fica
+ * de fora o que foi só salvo (planejado, pendente, reaberto, escalacao) e a
+ * cenotécnica ainda com o gestor (aguardando_producao).
+ */
+export const STATUS_ESCALACAO_CONFIRMADA = [
+  "escalado", "aguardando_passagem", "aguardando_hospedagem",
+  "passagem", "passagem_comprada", "hospedagem", "hospedagem_comprada", "hospedagem_passagem_comprada",
+  "aprovado", "concluido",
+];
+
 export interface ContextoDaLista {
   eventById: Map<string, Event>;
   collaboratorById: Map<string, Collaborator>;
@@ -40,14 +52,17 @@ export interface ContextoDaLista {
  * Canceladas ficam: quem decide é o filtro "Status Inclusão" (senão a opção
  * "Canceladas" seria sempre vazia).
  */
-export function precisaDeHospedagem(inclusion: TeamInclusion, eventById: Map<string, Event>): boolean {
+export function precisaDeHospedagem(inclusion: TeamInclusion, eventById: Map<string, Event>, temHospedagem = false): boolean {
   if (inclusion.needsAccommodation !== true) return false;
   // Evento excluído leva junto a escalação dele (regra do dono, 26/08).
   const evento = eventById.get(inclusion.eventId);
   if (!evento || evento.status === "excluído" || evento.status === "excluido") return false;
-  // Com colaborador escalado, aparece independente do status (workflow flexível).
-  if (inclusion.collaboratorId) return true;
-  return VALID_STATUSES_WITHOUT_COLLABORATOR.includes(inclusion.status);
+  // Só escalação CONFIRMADA vai para Compras (dono, 15/09): salvar com
+  // colaborador não basta. Hospedagem já registrada continua na lista; cancelada
+  // fica para o filtro "Status Inclusão" decidir.
+  if (temHospedagem) return true;
+  if (inclusion.status === "cancelado") return true;
+  return STATUS_ESCALACAO_CONFIRMADA.includes(inclusion.status);
 }
 
 /** A inclusão passa pelo recorte atual? Assume que já passou por `precisaDeHospedagem`. */

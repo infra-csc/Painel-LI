@@ -22,11 +22,25 @@ export const VALID_STATUSES_WITHOUT_COLLABORATOR = [
   "aprovado", "passagem_comprada", "hospedagem_passagem_comprada",
 ];
 
+/**
+ * Status de escalação JÁ CONFIRMADA (dono, 15/09: "quem não tem a escalação
+ * confirmada não deve aparecer, apenas se confirmar — não apenas salvar"). Fica
+ * de fora o que foi só salvo (planejado, pendente, reaberto, escalacao) e a
+ * cenotécnica ainda com o gestor (aguardando_producao).
+ */
+export const STATUS_ESCALACAO_CONFIRMADA = [
+  "escalado", "aguardando_passagem", "aguardando_hospedagem",
+  "passagem", "passagem_comprada", "hospedagem", "hospedagem_comprada", "hospedagem_passagem_comprada",
+  "aprovado", "concluido",
+];
+
 export interface ContextoDosFiltros {
   eventById: Map<string, Event>;
   collaboratorById: Map<string, Collaborator>;
   /** Base do filtro de período; sem ele, agora. */
   hoje?: Date;
+  /** A vaga já tem passagem registrada? Então continua na lista (15/09). */
+  temPassagem?: (inclusionId: string) => boolean;
 }
 
 /**
@@ -47,8 +61,13 @@ export function passaNosFiltrosBase(
   if (!eventoDaVaga || eventoDaVaga.status === "excluído" || eventoDaVaga.status === "excluido") return false;
   // Canceladas só somem no filtro "Inclusões ativas".
   if (inclusion.status === "cancelado" && filters.inclusionStatus === "active") return false;
-  // Com colaborador aparece independente do status; sem colaborador só nos status previstos.
-  if (!inclusion.collaboratorId && !VALID_STATUSES_WITHOUT_COLLABORATOR.includes(inclusion.status)) return false;
+  // Só escalação CONFIRMADA vai para Compras (dono, 15/09): salvar com
+  // colaborador não basta. Passagem já registrada continua (não some o que já
+  // foi comprado); cancelada fica para o filtro de situação decidir.
+  const temPassagem = !!ctx.temPassagem?.(inclusion.id);
+  const confirmada = STATUS_ESCALACAO_CONFIRMADA.includes(inclusion.status);
+  const canceladaComNome = inclusion.status === "cancelado" && !!inclusion.collaboratorId;
+  if (!confirmada && !canceladaComNome && !temPassagem) return false;
 
   if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
   if (filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;

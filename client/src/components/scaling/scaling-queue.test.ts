@@ -53,9 +53,9 @@ describe("blocos da fila de trabalho", () => {
     expect(testeDaFila("escalar", comEscolhido)(vaga())).toBe(false);
   });
 
-  it('"Em análise" junta troca e pedido de ajuste', () => {
+  it('"Em análise" é só troca de colaborador — ajuste fica na Aprovação de Escala (15/09)', () => {
     expect(testeDaFila("troca", ctx({ temTroca: () => true }))(vaga())).toBe(true);
-    expect(testeDaFila("troca", ctx({ temPedido: () => true }))(vaga())).toBe(true);
+    expect(testeDaFila("troca", ctx({ temPedido: () => true }))(vaga())).toBe(false);
     expect(testeDaFila("troca", ctx())(vaga())).toBe(false);
   });
 
