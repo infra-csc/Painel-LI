@@ -20,6 +20,7 @@ import { fixEncoding } from "@/lib/utils";
 import type { TicketFormValues } from "@/lib/ticket-form";
 import type { TeamInclusion } from "@shared/schema";
 import { casarVaga } from "./voucher-match";
+import { juntarIdaEVolta, type IdaEVoltaJuntas } from "./juntar-trechos";
 import VagaCombobox, { type VagaOpcao } from "./vaga-combobox";
 
 interface LeituraDoServidor {
@@ -30,6 +31,8 @@ interface LeituraDoServidor {
   pessoa?: string;
   /** Voucher de grupo: o mesmo arquivo é o bilhete de várias pessoas. */
   pessoas?: string[];
+  /** O voucher traz um trecho só (ida OU volta). */
+  trechoUnico?: boolean;
   avisos: string[];
 }
 
@@ -41,7 +44,7 @@ interface Linha extends LeituraDoServidor {
 }
 
 export default function VoucherLoteDialog({
-  open, onOpenChange, inclusions, getCollaboratorName, getEventName, onRegistrar, registrando,
+  open, onOpenChange, inclusions, getCollaboratorName, getEventName, onRegistrar, registrando, getPassagemAtual,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -52,6 +55,8 @@ export default function VoucherLoteDialog({
   /** Grava uma vaga; devolve erro em texto se falhar. */
   onRegistrar: (inclusion: TeamInclusion, form: TicketFormValues) => Promise<void>;
   registrando: boolean;
+  /** Passagem já gravada da vaga, no formato do formulário — para completar ida/volta. */
+  getPassagemAtual?: (inclusionId: string) => Record<string, any> | null;
 }) {
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -112,19 +117,53 @@ export default function VoucherLoteDialog({
     [linhas],
   );
 
+  /** Quantas linhas de passagem apontam para cada vaga — 2+ com trecho único viram ida e volta. */
+  const vezesNaVaga = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of linhas) if (l.tipo === "passagem" && l.inclusionId) m.set(l.inclusionId, (m.get(l.inclusionId) ?? 0) + 1);
+    return m;
+  }, [linhas]);
+
+  /**
+   * Grava por VAGA, não por arquivo (15/09): dois vouchers da mesma pessoa —
+   * ida num, volta no outro — antes gravavam um por cima do outro. Agora os
+   * trechos se juntam, os valores somam e sai UMA passagem. A vaga que já tem
+   * um trecho gravado também é completada em vez de sobrescrita.
+   */
   const registrarTudo = async () => {
     setGravando(true);
     const atualizadas = [...linhas];
-    for (let i = 0; i < atualizadas.length; i++) {
-      const linha = atualizadas[i];
-      if (linha.tipo !== "passagem" || !linha.inclusionId || linha.resultado === "ok") continue;
-      const vaga = vagaById.get(linha.inclusionId);
+    const grupos = new Map<string, number[]>();
+    atualizadas.forEach((linha, i) => {
+      if (linha.tipo !== "passagem" || !linha.inclusionId || linha.resultado === "ok") return;
+      grupos.set(linha.inclusionId, [...(grupos.get(linha.inclusionId) ?? []), i]);
+    });
+    for (const [vagaId, indices] of Array.from(grupos.entries())) {
+      const vaga = vagaById.get(vagaId);
       if (!vaga) continue;
+      const gravada = getPassagemAtual?.(vagaId) ?? null;
+      let form: Record<string, any> | null = null;
+      const resumos: string[] = [];
+      for (const i of indices) {
+        const linha = atualizadas[i];
+        const base: Record<string, any> | null = form ?? gravada;
+        const junto: IdaEVoltaJuntas | null = base ? juntarIdaEVolta(base, { campos: linha.campos, trechoUnico: linha.trechoUnico }) : null;
+        if (junto) {
+          form = { ...base, ...junto.campos };
+          resumos.push(junto.resumo);
+        } else {
+          form = { ...linha.campos };
+        }
+      }
       try {
-        await onRegistrar(vaga, linha.campos as TicketFormValues);
-        atualizadas[i] = { ...linha, resultado: "ok", mensagem: "Passagem registrada" };
+        await onRegistrar(vaga, form as TicketFormValues);
+        for (const i of indices) {
+          atualizadas[i] = { ...atualizadas[i], resultado: "ok", mensagem: resumos.length ? resumos[resumos.length - 1] : "Passagem registrada" };
+        }
       } catch (e) {
-        atualizadas[i] = { ...linha, resultado: "erro", mensagem: (e as Error)?.message || "Falhou ao registrar" };
+        for (const i of indices) {
+          atualizadas[i] = { ...atualizadas[i], resultado: "erro", mensagem: (e as Error)?.message || "Falhou ao registrar" };
+        }
       }
       setLinhas([...atualizadas]);
     }
@@ -133,7 +172,7 @@ export default function VoucherLoteDialog({
     const falhas = atualizadas.filter((l) => l.resultado === "erro").length;
     toast({
       title: falhas ? "Lote concluído com pendências" : "Lote concluído",
-      description: `${ok} passagem(ns) registrada(s)${falhas ? ` · ${falhas} com erro — veja a lista` : ""}.`,
+      description: `${ok} voucher(s) registrado(s)${falhas ? ` · ${falhas} com erro — veja a lista` : ""}.`,
       variant: falhas ? "destructive" : undefined,
     });
   };
@@ -211,6 +250,11 @@ export default function VoucherLoteDialog({
                               {l.pessoa ? <>Passageiro: <strong>{l.pessoa}</strong> · </> : null}
                               {resumoCampos(l.campos)}
                             </p>
+                            {l.trechoUnico && !l.resultado && l.inclusionId && (vezesNaVaga.get(l.inclusionId) ?? 0) > 1 && (
+                              <p className="mt-1 text-[11px] font-medium text-primary">
+                                Outro voucher desta vaga: ida e volta serão juntadas numa passagem e os valores somados.
+                              </p>
+                            )}
                             <div className="mt-2 flex items-center gap-2">
                               <span className="text-[11px] text-slate-500 shrink-0">Vaga:</span>
                               <VagaCombobox

@@ -142,7 +142,8 @@ export default function TicketModal({
   const voucher = useVoucherFill({
     colaborador: inclusion?.collaboratorId ? data.getCollaboratorName(inclusion.collaboratorId) : undefined,
     trecho: form.isReturnOnly ? "so_volta" : form.isOneWay ? "so_ida" : "ida_volta",
-    onPreencher: (campos: Record<string, string>) => {
+    atual: form,
+    onPreencher: (campos: Record<string, any>) => {
       if (inclusion) handlers.onPatch(inclusion.id, campos);
     },
   });

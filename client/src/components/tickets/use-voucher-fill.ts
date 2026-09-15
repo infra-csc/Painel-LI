@@ -12,6 +12,7 @@
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { pontuarSemelhanca } from "./voucher-match";
+import { juntarIdaEVolta } from "./juntar-trechos";
 
 /** Abaixo disto, tratamos como pessoa diferente e não preenchemos nada. */
 const LIMIAR_MESMA_PESSOA = 0.34;
@@ -47,7 +48,7 @@ const PARA_VOLTA: Record<string, string> = {
   actualArrivalTime: "returnArrivalTime",
 };
 
-export function useVoucherFill({ colaborador, trecho, para = "passagem", onPreencher }: {
+export function useVoucherFill({ colaborador, trecho, para = "passagem", atual, onPreencher }: {
   /** Nome de quem está escalado nesta vaga — confere com o voucher. */
   colaborador?: string;
   /** Recorte escolhido no formulário: decide onde um voucher de um trecho entra. */
@@ -57,7 +58,12 @@ export function useVoucherFill({ colaborador, trecho, para = "passagem", onPreen
    * muda é qual tipo de voucher preenche e qual apenas fica anexado.
    */
   para?: "passagem" | "hospedagem";
-  onPreencher: (campos: Record<string, string>) => void;
+  /**
+   * O que o formulário já tem (15/09). Com um trecho preenchido e um voucher
+   * de outro trecho, os dois viram ida e volta e os valores somam.
+   */
+  atual?: Record<string, any>;
+  onPreencher: (campos: Record<string, any>) => void;
 }) {
   const { toast } = useToast();
   const [lendo, setLendo] = useState(false);
@@ -127,6 +133,17 @@ export function useVoucherFill({ colaborador, trecho, para = "passagem", onPreen
         campos = minha.campos;
         avisos.length = 0;
         avisos.push(...minha.avisos);
+      }
+
+      // Ida e volta em vouchers diferentes (15/09): o formulário já tem um
+      // trecho e este PDF traz o outro → junta, soma o valor e os LOCs.
+      if (para === "passagem") {
+        const junto = juntarIdaEVolta(atual, { campos, trechoUnico: leitura.trechoUnico });
+        if (junto) {
+          onPreencher(junto.campos);
+          toast({ title: "Ida e volta juntadas", description: `${junto.resumo} Confira antes de registrar.` });
+          return;
+        }
       }
 
       // Voucher com um trecho só + formulário em "só volta": o que o leitor

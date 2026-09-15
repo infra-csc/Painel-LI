@@ -634,6 +634,7 @@ export default function Tickets() {
         inclusions={ticketInclusions}
         getCollaboratorName={getCollaboratorName}
         getEventName={getEventName}
+        getPassagemAtual={(id) => { const t = getTicket(id); return t ? ticketToFormValues(t as any) : null; }}
         onRegistrar={async (inclusion, form) => { await upsertTicketForInclusion(inclusion, form); }}
         registrando={isSubmitting}
       />
