@@ -45,6 +45,7 @@ const ScalingValidationPage  = lazy(() => import("@/pages/scaling-validation"));
 const ScalingApprovalPage    = lazy(() => import("@/pages/scaling-approval"));
 const ScalingEventViewPage   = lazy(() => import("@/pages/scaling-event-view"));
 const SimulationPage         = lazy(() => import("@/pages/simulation"));
+const PendenciasPage         = lazy(() => import("@/pages/pendencias"));
 
 import ProtectedRoute from "@/components/layout/protected-route";
 import { useAuth } from "@/hooks/use-auth";
@@ -297,6 +298,8 @@ function Router() {
               </ProtectedRoute>
             </Route>
             <Route path="/calendar" component={CalendarPage} />
+            {/* Todas as pendências do usuário (15/09) — cada item já respeita a permissão. */}
+            <Route path="/pendencias" component={PendenciasPage} />
             <Route component={NotFound} />
           </Switch>
           </ErrorBoundary>

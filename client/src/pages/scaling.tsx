@@ -17,6 +17,7 @@
  * Análises em scaling-analytics-data.
  */
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useSearch } from "wouter";
 import { vagaComEmpreita } from "@shared/cenotecnica-empreita";
 import { markSwapSeen, getSeenState } from "@/lib/seenSwaps";
 import { AlertTriangle, CalendarDays, CloudOff, Download, FilterX, List, Lock, TrendingUp, Users } from "lucide-react";
@@ -96,6 +97,16 @@ export default function Scaling() {
   const [funcoes, setFuncoes] = useState<Record<string, boolean>>({});
   const [periodo, setPeriodo] = useState<PeriodConfig>(DEFAULT_PERIOD);
   const [flags, setFlags] = useState<Record<string, boolean>>({});
+  // Aviso do sininho abre direto o bloco (15/09): /scaling?fila=troca. O "t" do
+  // link muda a cada clique, então funciona mesmo já estando na tela.
+  const buscaDaUrl = useSearch();
+  useEffect(() => {
+    const alvo = new URLSearchParams(buscaDaUrl).get("fila");
+    const validas: string[] = ["trabalho", "escalar", "gestor", "troca", "prontas"];
+    if (alvo && validas.includes(alvo)) {
+      setAba("fila"); setFlags({}); setBusca(""); setFila(alvo as QueueKey);
+    }
+  }, [buscaDaUrl]);
   const [verExcluidos, setVerExcluidos] = useState(false);
   /** Recorte de eventos — nasce em "Futuros" (dono, 04/09); "Todos" tira o recorte. */
   const [recorteEventos, setRecorteEventos] = useState<RecorteDeEventos>("futuros");

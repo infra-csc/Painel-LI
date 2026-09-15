@@ -8,20 +8,22 @@
  * continua sendo a realidade do servidor.
  */
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { useAuth } from "@/hooks/use-auth";
-import { hasPermission } from "@/lib/role-utils";
 import { cn } from "@/lib/utils";
 import { MI } from "./mi";
 import { useShellData } from "./use-shell-data";
 
 export default function NotificationsMenu() {
   const [open, setOpen] = useState(false);
-  const { user } = useAuth();
   const { notifications, pendingTotal, hasUnseen, markAllSeen } = useShellData();
-  const canOpenApprovals = hasPermission(user, "canAccessScalingApproval");
+  const [, navegar] = useLocation();
+  /** Navega com um carimbo novo: clicar de novo (ou já estando na tela) reabre o recorte. */
+  const abrir = (href: string) => {
+    setOpen(false);
+    navegar(`${href}${href.includes("?") ? "&" : "?"}t=${Date.now()}`);
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -72,7 +74,7 @@ export default function NotificationsMenu() {
             <Link
               key={n.id}
               href={n.href}
-              onClick={() => setOpen(false)}
+              onClick={(e) => { e.preventDefault(); abrir(n.href); }}
               className={cn(
                 "flex gap-2.5 px-3.5 py-2.5 border-b border-slate-100 no-underline transition-colors hover:bg-slate-50",
                 "outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
@@ -92,17 +94,16 @@ export default function NotificationsMenu() {
           ))}
         </div>
 
-        {canOpenApprovals && (
-          <div className="px-3.5 py-2.5 bg-background/60 border-t border-slate-100">
-            <Link
-              href="/scaling-approval"
-              onClick={() => setOpen(false)}
-              className="text-xs font-medium text-primary hover:underline outline-none focus-visible:ring-2 focus-visible:ring-ring/40 rounded"
-            >
-              Ver todas as pendências do módulo de Escala
-            </Link>
-          </div>
-        )}
+        {/* Página geral (dono, 15/09): todas as pendências do sistema, não só da Escala. */}
+        <div className="px-3.5 py-2.5 bg-background/60 border-t border-slate-100">
+          <Link
+            href="/pendencias"
+            onClick={() => setOpen(false)}
+            className="text-xs font-medium text-primary hover:underline outline-none focus-visible:ring-2 focus-visible:ring-ring/40 rounded"
+          >
+            Ver todas as pendências
+          </Link>
+        </div>
       </PopoverContent>
     </Popover>
   );

@@ -256,6 +256,12 @@ export function useShellData() {
     [suggestionsForBadge, canSeeValidation],
   );
 
+  /** Aviso do sininho de vagas esperando aprovação: só o aprovador de fato (eAprovador, 15/09). */
+  const avisoVagasAprovacao = useMemo(
+    () => (suggestionsForBadge ?? []).filter((s) => s.status === SUGESTAO_STATUS.VALIDADA && s.eAprovador === true).length,
+    [suggestionsForBadge],
+  );
+
   // ── Vistos (só apagam o ponto de "novo"; nunca mudam a contagem real) ──
   const [seenIds, setSeenIds] = useState<string[]>(() => getSeenNotifications(user?.id));
   useEffect(() => {
@@ -289,43 +295,39 @@ export function useShellData() {
       });
     }
 
-    // Trocas: uma linha por tela, com a contagem real. O id carrega o número —
-    // quando ele muda, o aviso volta a ser "novo".
-    const swapEntry = (count: number, screen: string, href: string, icon: string, text: string) => {
+    // Uma linha por pendência agregada, com a contagem real. O id carrega o
+    // número — quando ele muda, o aviso volta a ser "novo". O href leva direto
+    // ao recorte que resolve (dono, 15/09: "clico e não aparece nada" — ia para
+    // /scaling sem abrir a fila, e na própria tela o clique não fazia nada).
+    const entrada = (count: number, chave: string, title: string, text: string, screen: string, href: string, icon: string, iconClass: string) => {
       if (count <= 0) return;
-      const id = `swap:${href}:${icon}:${count}`;
-      list.push({
-        id,
-        icon,
-        iconClass: "bg-amber-50 text-amber-700",
-        title: `${count} ${count === 1 ? "troca pendente" : "trocas pendentes"} em ${screen}`,
-        text,
-        when: "",
-        screen,
-        href,
-        isNew: !seen.has(id),
-      });
+      const id = `${chave}:${count}`;
+      list.push({ id, icon, iconClass, title, text, when: "", screen, href, isNew: !seen.has(id) });
     };
+    const trocas = (n: number) => `${n} ${n === 1 ? "troca pendente" : "trocas pendentes"}`;
+    const vagas = (n: number) => `${n} ${n === 1 ? "vaga" : "vagas"}`;
+    const AMBAR = "bg-amber-50 text-amber-700";
 
     if (isPurchasing) {
-      swapEntry(ticketSwapCount, "Passagens", "/tickets", "swap_horiz", "Compras precisa confirmar a substituição");
-      swapEntry(accommodationSwapCount, "Hospedagem", "/accommodations", "swap_horiz", "Compras precisa confirmar a substituição");
-      swapEntry(scalingSwapCount, "Escalação", "/scaling", "swap_horiz", "Trocas sem passagem ou hospedagem tratadas");
+      entrada(ticketSwapCount, "swap:/tickets", `${trocas(ticketSwapCount)} em Passagens`, "Compras precisa confirmar a substituição", "Passagens", "/tickets", "swap_horiz", AMBAR);
+      entrada(accommodationSwapCount, "swap:/accommodations", `${trocas(accommodationSwapCount)} em Hospedagem`, "Compras precisa confirmar a substituição", "Hospedagem", "/accommodations", "swap_horiz", AMBAR);
+      entrada(scalingSwapCount, "swap:/scaling", `${trocas(scalingSwapCount)} em Escalação`, "Trocas de colaborador esperando análise", "Escalação", "/scaling?fila=troca", "swap_horiz", AMBAR);
     } else {
-      swapEntry(myScalingSwapsCount, "Escalação", "/scaling", "swap_horiz", "Pedidos de troca que você abriu");
+      entrada(myScalingSwapsCount, "swap:/scaling", `${trocas(myScalingSwapsCount)} em Escalação`, "Pedidos de troca que você abriu", "Escalação", "/scaling?fila=troca", "swap_horiz", AMBAR);
     }
-
-    swapEntry(aguardandoGestorCount, "Escalação", "/scaling", "engineering", "Cenotécnica aguardando a aprovação do gestor");
+    entrada(aguardandoGestorCount, "gestor", `${vagas(aguardandoGestorCount)} aguardando o gestor`, "Cenotécnica esperando a sua aprovação", "Escalação", "/scaling?fila=gestor", "engineering", "bg-red-50 text-red-700");
+    entrada(avisoVagasAprovacao, "aprovacao", `${vagas(avisoVagasAprovacao)} aguardando sua aprovação`, "Validadas pela área, esperando decisão", "Aprovação de Escala", "/scaling-approval", "approval", "bg-brand-soft text-primary");
+    entrada(myAwaitingValidationCount, "validacao", `${vagas(myAwaitingValidationCount)} aguardando validação`, "Sugestões de escala para a área validar", "Validação de Escala", "/scaling-validation", "fact_check", "bg-brand-soft text-primary");
 
     return list;
-  }, [aguardandoGestorCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount]);
+  }, [aguardandoGestorCount, avisoVagasAprovacao, myAwaitingValidationCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount]);
 
   const markAllSeen = useCallback(() => {
     markNotificationsSeen(user?.id, notifications.map((n) => n.id));
   }, [user?.id, notifications]);
 
   /** Badge do sino: total de pendências REAIS (nunca "novidades não vistas"). */
-  const pendingTotal = myPendingRequests.length + swapTotal + aguardandoGestorCount;
+  const pendingTotal = myPendingRequests.length + swapTotal + aguardandoGestorCount + avisoVagasAprovacao + myAwaitingValidationCount;
 
   /** id da tela → badge. Item sem contador confiável simplesmente não aparece aqui. */
   const tabBadgeCount: Record<string, number> = {
