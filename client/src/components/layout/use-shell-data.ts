@@ -15,7 +15,6 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SUGESTAO_STATUS } from "@shared/scaling-validation-rules";
-import { isEventPast } from "@shared/event-window";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
@@ -93,28 +92,14 @@ export function useShellData() {
     refetchInterval: 30000,
   });
 
-  const { data: teamInclusions } = useQuery<any[]>({
-    queryKey: ["/api/team-inclusions"],
-    enabled: !!isPurchasing || aprovaCenotecnica,
-  });
-
-  // Mapa teamInclusionId → status (fallback; o status já vem embutido no swap).
-  const inclusionStatusMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    (teamInclusions ?? []).forEach((ti) => { map[ti.id] = ti.status; });
-    return map;
-  }, [teamInclusions]);
-
-  // Status da inclusão do swap: prioriza o status embutido na resposta da API
-  // (/api/swap-requests já faz JOIN com team_inclusions). Cai para o mapa só se
-  // o backend antigo não tiver enviado. Swaps de inclusões excluídas são ignorados.
+  // Status da inclusão do swap: vem embutido na resposta de /api/swap-requests
+  // (JOIN com team_inclusions). A casca NÃO baixa mais a lista inteira de vagas
+  // (~6,5 MB) como fallback — era o que travava a troca de tela (15/09).
+  // Swaps de inclusões excluídas são ignorados.
   const getSwapInclusionStatus = useCallback((s: any): string | undefined => {
     if (s.inclusion_deleted_at || s.inclusionDeletedAt) return undefined;
-    const embedded = s.inclusion_status || s.inclusionStatus;
-    if (embedded) return embedded;
-    const inclId = s.team_inclusion_id || s.teamInclusionId;
-    return inclusionStatusMap[inclId];
-  }, [inclusionStatusMap]);
+    return s.inclusion_status || s.inclusionStatus || undefined;
+  }, []);
 
   // Passagens: swaps de inclusões com passagem comprada (com ou sem hospedagem)
   const ticketSwapCount = useMemo(() => {
@@ -162,25 +147,22 @@ export function useShellData() {
     return count;
   }, [swapRequests, user, isPurchasing, seenState]);
 
-  // Mesma chave da tela de Escalação (cache compartilhado).
-  const { data: events } = useQuery<{ id: string; endDate?: string | null }[]>({
-    queryKey: ["/api/events"], staleTime: 300_000, enabled: aprovaCenotecnica,
-  });
-
   /**
-   * Vagas de cenotécnica esperando o gestor aprovar ("Aguardando Gestor"), só de
-   * eventos que ainda não terminaram — igual ao card "Com o gestor" da tela em
-   * "Futuros" (dono, 15/09: menu mostrava 3 com 1 em análise; os outros 2 eram
-   * de eventos já encerrados).
+   * Vagas de cenotécnica esperando o gestor, só de eventos que ainda não
+   * terminaram — igual ao card "Com o gestor" em "Futuros". Contado no
+   * servidor: antes a casca baixava todas as vagas em toda tela (15/09).
    */
-  const aguardandoGestorCount = useMemo(() => {
-    if (!aprovaCenotecnica || !events) return 0;
-    const fimDoEvento = new Map(events.map((e) => [e.id, e.endDate]));
-    return (teamInclusions ?? []).filter((ti) =>
-      ti.status === "aguardando_producao" && !ti.deletedAt && !ti.deleted_at
-      && fimDoEvento.has(ti.eventId) && !isEventPast(fimDoEvento.get(ti.eventId)),
-    ).length;
-  }, [teamInclusions, events, aprovaCenotecnica]);
+  const { data: gestorData } = useQuery<{ count: number }>({
+    queryKey: ["shell", "aguardando-gestor"],
+    queryFn: async () => {
+      const r = await fetch("/api/shell/aguardando-gestor", { credentials: "include" });
+      if (!r.ok) return { count: 0 };
+      return r.json();
+    },
+    enabled: aprovaCenotecnica,
+    staleTime: 60_000,
+  });
+  const aguardandoGestorCount = aprovaCenotecnica ? (gestorData?.count ?? 0) : 0;
 
   // ── Pedidos de ajuste pendentes ──
   // Chave própria (não a da tela de Aprovação): lá o erro precisa aparecer para

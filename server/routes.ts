@@ -6063,6 +6063,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ─── Swap Requests (Solicitações de Troca de Colaborador) ─────────────────
 
   // Criar tabela se não existir (migration inline)
+  /**
+   * Contador do menu (15/09): vagas de cenotécnica aguardando o gestor, só de
+   * eventos que ainda não terminaram. Existe para a casca do app NÃO baixar a
+   * lista inteira de vagas (~6,5 MB) em toda troca de tela só para contar.
+   */
+  app.get("/api/shell/aguardando-gestor", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    try {
+      const user = await storage.getUser(req.session.userId);
+      const pode = !!user && (normalizeRole(user.role) === "admin" || user.canApproveCenotecnica === true);
+      if (!pode) return res.json({ count: 0 });
+      const rows = await db.execute(drizzleSql`
+        SELECT count(*)::int AS n
+        FROM team_inclusions ti
+        JOIN events e ON e.id = ti.event_id
+        WHERE ti.deleted_at IS NULL
+          AND ti.status = 'aguardando_producao'
+          AND e.end_date >= (now() AT TIME ZONE 'America/Sao_Paulo')::date
+      `);
+      const n = Number((rows as any).rows?.[0]?.n ?? 0);
+      res.json({ count: n });
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao contar vagas aguardando o gestor" });
+    }
+  });
+
   app.get("/api/swap-requests", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
     try {
