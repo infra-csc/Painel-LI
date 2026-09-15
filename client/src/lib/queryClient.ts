@@ -110,3 +110,16 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+/**
+ * Listas GRANDES (15/09: "às vezes quando troco de página sinto umas
+ * travadas"). Vagas ~4.500 linhas / ~6,5 MB de JSON, passagens ~1,6 MB,
+ * colaboradores ~0,6 MB. Com o padrão de 60s, voltar a uma tela depois de um
+ * minuto — ou só voltar para a janela — baixava e reprocessava tudo de novo
+ * no meio da navegação. Aqui: 5 min de frescor e sem refetch ao focar.
+ * Continua atualizado: toda ação do app invalida essas chaves na hora, e a
+ * tela que precisar de outro tempo ainda pode passar o seu `staleTime`.
+ */
+for (const chave of ["/api/team-inclusions", "/api/tickets", "/api/collaborators"]) {
+  queryClient.setQueryDefaults([chave], { staleTime: 5 * 60_000, refetchOnWindowFocus: false });
+}
