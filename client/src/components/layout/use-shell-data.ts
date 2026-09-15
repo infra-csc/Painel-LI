@@ -15,6 +15,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SUGESTAO_STATUS } from "@shared/scaling-validation-rules";
+import { isEventPast } from "@shared/event-window";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
@@ -161,11 +162,25 @@ export function useShellData() {
     return count;
   }, [swapRequests, user, isPurchasing, seenState]);
 
-  /** Vagas de cenotécnica esperando o gestor aprovar ("Aguardando Gestor"). */
+  // Mesma chave da tela de Escalação (cache compartilhado).
+  const { data: events } = useQuery<{ id: string; endDate?: string | null }[]>({
+    queryKey: ["/api/events"], staleTime: 300_000, enabled: aprovaCenotecnica,
+  });
+
+  /**
+   * Vagas de cenotécnica esperando o gestor aprovar ("Aguardando Gestor"), só de
+   * eventos que ainda não terminaram — igual ao card "Com o gestor" da tela em
+   * "Futuros" (dono, 15/09: menu mostrava 3 com 1 em análise; os outros 2 eram
+   * de eventos já encerrados).
+   */
   const aguardandoGestorCount = useMemo(() => {
-    if (!aprovaCenotecnica) return 0;
-    return (teamInclusions ?? []).filter((ti) => ti.status === "aguardando_producao" && !ti.deletedAt && !ti.deleted_at).length;
-  }, [teamInclusions, aprovaCenotecnica]);
+    if (!aprovaCenotecnica || !events) return 0;
+    const fimDoEvento = new Map(events.map((e) => [e.id, e.endDate]));
+    return (teamInclusions ?? []).filter((ti) =>
+      ti.status === "aguardando_producao" && !ti.deletedAt && !ti.deleted_at
+      && fimDoEvento.has(ti.eventId) && !isEventPast(fimDoEvento.get(ti.eventId)),
+    ).length;
+  }, [teamInclusions, events, aprovaCenotecnica]);
 
   // ── Pedidos de ajuste pendentes ──
   // Chave própria (não a da tela de Aprovação): lá o erro precisa aparecer para

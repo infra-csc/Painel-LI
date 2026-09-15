@@ -168,7 +168,9 @@ export function detalheDaSituacao(
 ): { texto: string; sufixo?: string; titulo: string; tom: "troca" | "pedido" | "neutro" } | null {
   if (opts.swap) {
     const nome = opts.swap.newCollaboratorName?.trim();
-    const texto = nome ? `Troca para ${nome} em análise` : "Troca em análise";
+    // "Em análise" na frente (15/09): no fim, a linha cortava e a troca
+    // pendente parecia decidida ao lado da pílula "Aprovado" (que é da vaga).
+    const texto = nome ? `Troca em análise → ${nome}` : "Troca em análise";
     // O título carrega quem pediu e por quê: a linha tem espaço para a frase
     // curta, mas essa informação não pode sumir da lista — era o que o antigo
     // badge "Troca pendente" guardava no hover.
