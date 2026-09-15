@@ -44,7 +44,8 @@ type EventViewRow = SuggestionRow & { requests?: { id: string }[]; decisao?: Dec
 /** O que a barra de filtros da página aplica aqui (busca, função, área, "minhas funções"). */
 export interface FiltroDasDecididas {
   busca: string;
-  functionId: string | null;
+  /** Funções marcadas na barra (15/09: seleção múltipla); null = todas. */
+  functionIds: ReadonlySet<string> | null;
   soMinhas: ((r: SuggestionRow) => boolean) | null;
 }
 
@@ -128,7 +129,7 @@ export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = f
     const q = (filtro?.busca ?? "").trim().toLowerCase();
     const qNum = q.replace(/^#/, "");
     const passa = ({ row }: { row: EventViewRow }) => {
-      if (filtro?.functionId && row.functionId !== filtro.functionId) return false;
+      if (filtro?.functionIds && !filtro.functionIds.has(row.functionId)) return false;
       if (filtro?.soMinhas && !filtro.soMinhas(row)) return false;
       if (!q) return true;
       const nome = (functionNameById.get(row.functionId) ?? "").toLowerCase();
@@ -142,7 +143,7 @@ export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = f
       .sort((a, b) => quando(b).localeCompare(quando(a)))
       .slice(0, MAX_LINHAS);
   }, [query.data, filtro, functionNameById]);
-  const temFiltro = !!filtro && (filtro.busca.trim() !== "" || !!filtro.functionId || !!filtro.soMinhas);
+  const temFiltro = !!filtro && (filtro.busca.trim() !== "" || !!filtro.functionIds || !!filtro.soMinhas);
 
   const detailRow = rows.find((r) => r.row.id === detailId)?.row ?? null;
   /** As negadas visíveis (com os filtros da barra) — alvo do "Excluir negadas da lista". */

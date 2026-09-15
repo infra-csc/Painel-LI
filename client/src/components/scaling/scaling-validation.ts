@@ -23,12 +23,29 @@ export interface ValidationValues {
   empreitaEmpresa?: string;
   empreitaPessoas?: string;
   empreitaValor?: string;
+  /** "Sai de" (15/09) — o modal manda a cidade e o SP marcado; a vaga gravada, só a cidade. */
+  city?: string;
+  departureFromSP?: boolean;
 }
+
+export const SAI_DE_MISSING_MSG = "Informe de onde o colaborador sai (Sai de) antes de confirmar.";
+
+/**
+ * "Sai de" obrigatório para confirmar (dono, 15/09). Vazio no formulário, vale
+ * a cidade do cadastro do colaborador — é o que a tela mostra e o que o
+ * servidor grava; só falta quando não existe nenhuma.
+ */
+export const isSaiDeMissing = (values: ValidationValues, rules: Rules): boolean => {
+  if (!values.collaboratorId) return false;
+  if (values.departureFromSP) return false;
+  const cidade = (values.city ?? "").trim() || (rules.getCollaboratorCity(values.collaboratorId) ?? "").trim();
+  return !cidade;
+};
 
 type Rules = Pick<
   ScalingData,
   "isAtendimentoInclusion" | "isPercursoInclusion" | "getCollaboratorConflicts" | "getCollaboratorName" | "getEventName" |
-  "getFunctionName" | "canEditCollaborator" | "canConfirmEscalation" | "isEventLocked"
+  "getFunctionName" | "canEditCollaborator" | "canConfirmEscalation" | "isEventLocked" | "getCollaboratorCity"
 >;
 
 export const ATENDIMENTO_MISSING_MSG = "Selecione o tipo de atendimento (Key Account ou Executivo de Contas).";
@@ -68,6 +85,7 @@ export const valuesFromInclusion = (inclusion: TeamInclusion): ValidationValues 
   collaboratorId: inclusion.collaboratorId || "",
   atendimentoTipo: (inclusion as any).atendimentoTipo || "",
   percurseiroTipo: (inclusion as any).percurseiroTipo || "",
+  city: inclusion.city ?? "",
 });
 
 export const getCollaboratorConflictSummary = (inclusion: TeamInclusion, collaboratorId: string, rules: Rules): string | null => {
@@ -120,6 +138,7 @@ export const getConfirmBlockReason = (inclusion: TeamInclusion | null, values: V
     });
   }
   if (!values.collaboratorId) return "Selecione um colaborador antes de confirmar.";
+  if (isSaiDeMissing(values, rules)) return SAI_DE_MISSING_MSG;
   if (isAtendimentoMissing(inclusion, values, rules)) return ATENDIMENTO_MISSING_MSG;
   if (isPercurseiroMissing(inclusion, values, rules)) return PERCURSEIRO_MISSING_MSG;
   const conflict = getCollaboratorConflictSummary(inclusion, values.collaboratorId, rules);
@@ -138,6 +157,7 @@ export const getBulkConfirmBlockReason = (inclusion: TeamInclusion, rules: Rules
   if (!rules.canConfirmEscalation(inclusion)) return "Sem permissão (apenas o responsável pela função)";
   if (!inclusion.collaboratorId && !vagaComEmpreita(inclusion as any)) return "Sem colaborador";
   const values = valuesFromInclusion(inclusion);
+  if (isSaiDeMissing(values, rules)) return "Sem cidade de saída (Sai de)";
   if (isAtendimentoMissing(inclusion, values, rules)) return "Sem tipo de atendimento";
   if (isPercurseiroMissing(inclusion, values, rules)) return PERCURSEIRO_MISSING_MSG;
   if (inclusion.collaboratorId && getCollaboratorConflictSummary(inclusion, inclusion.collaboratorId, rules)) return "Conflito de datas do colaborador";

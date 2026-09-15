@@ -2569,6 +2569,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (CONFIRM_FIELDS.has(k) && v !== undefined) updates[k] = v;
       }
 
+      // "Sai de" obrigatório para confirmar (dono, 15/09). É a origem da
+      // passagem: vazio, Compras não sabe de onde comprar. Sem cidade no pedido,
+      // vale a do cadastro do colaborador — a mesma que a tela mostra quando o
+      // campo está vazio; sem nenhuma, recusa. Empreita por empresa não tem
+      // colaborador e fica fora da regra.
+      if (collaboratorId) {
+        const cidadeInformada = updates.city !== undefined
+          ? String(updates.city ?? "").trim()
+          : String(currentInclusion.city ?? "").trim();
+        if (!cidadeInformada) {
+          const cidadeDoCadastro = String((await storage.getCollaborator(collaboratorId))?.city ?? "").trim();
+          if (!cidadeDoCadastro) {
+            return res.status(400).json({ message: "Informe de onde o colaborador sai (Sai de) antes de confirmar." });
+          }
+          updates.city = cidadeDoCadastro;
+        }
+      }
+
       // Atendimento: tipo obrigatório ao escalar (define a tarifa da diária)
       if (isAtendimentoFunction(func.name)) {
         const effTipo = updates.atendimentoTipo !== undefined ? updates.atendimentoTipo : (currentInclusion as any).atendimentoTipo;

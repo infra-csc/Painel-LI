@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToastAction } from "@/components/ui/toast";
@@ -153,7 +154,8 @@ export default function ScalingValidationPage() {
    * sem isso cada tecla travava o campo por um instante.
    */
   const deferredSearch = useDeferredValue(search);
-  const [functionFilter, setFunctionFilter] = useState(ALL);
+  /** Funções marcadas (15/09: seleção múltipla). Vazio = todas. */
+  const [functionFilter, setFunctionFilter] = useState<Set<string>>(() => new Set());
   const [onlyMine, setOnlyMine] = useState(false);
   /**
    * Card do resumo que está filtrando a lista (04/09). Antes só "Minhas
@@ -358,7 +360,7 @@ export default function ScalingValidationPage() {
     const nameOf = (r: SuggestionRow) => functionNameById.get(r.functionId) ?? "";
     const periodKey = (r: SuggestionRow) => workDaysOf(r)[0] ?? String(r.scheduleStartDate ?? "").slice(0, 10) ?? "";
     const list = rows
-      .filter((r) => functionFilter === ALL || r.functionId === functionFilter)
+      .filter((r) => functionFilter.size === 0 || functionFilter.has(r.functionId))
       // "Só as minhas funções" = vagas das funções em que sou validador, em
       // QUALQUER situação (validada, com pedido…). O recorte por situação é
       // dos cards do resumo, não deste botão.
@@ -382,14 +384,14 @@ export default function ScalingValidationPage() {
   const onSort = (field: SuggestionSortField) =>
     setSortConfig((prev) => (prev?.field === field ? (prev.direction === "asc" ? { field, direction: "desc" } : null) : { field, direction: "asc" }));
 
-  const hasActiveFilters = search.trim() !== "" || functionFilter !== ALL || onlyMine || kpiFiltro !== null;
+  const hasActiveFilters = search.trim() !== "" || functionFilter.size > 0 || onlyMine || kpiFiltro !== null;
   /** O que a aba Decididas aplica da barra: busca, função e "minhas funções" (os cards de situação não valem lá). */
   const filtroDasDecididas = useMemo(() => ({
     busca: deferredSearch,
-    functionId: functionFilter === ALL ? null : functionFilter,
+    functionIds: functionFilter.size > 0 ? functionFilter : null,
     soMinhas: onlyMine ? daMinhaFuncao : null,
   }), [deferredSearch, functionFilter, onlyMine, daMinhaFuncao]);
-  const clearFilters = () => { setSearch(""); setFunctionFilter(ALL); setOnlyMine(false); setKpiFiltro(null); };
+  const clearFilters = () => { setSearch(""); setFunctionFilter(new Set()); setOnlyMine(false); setKpiFiltro(null); };
 
   // ── Seleção ──
   // Selecionáveis no evento inteiro (a seleção sobrevive ao filtro) e só as
@@ -758,15 +760,62 @@ export default function ScalingValidationPage() {
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
           <Input id="val-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Função, #ID ou observação" className="h-9 pl-8 rounded-lg bg-slate-50" />
         </div>
-        <div className="w-[180px]">
-          <Label htmlFor="val-function" className="sr-only">Função</Label>
-          <Select value={functionFilter} onValueChange={setFunctionFilter}>
-            <SelectTrigger id="val-function" className="h-9 rounded-lg"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todas as funções</SelectItem>
-              {functionsInEvent.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
+        {/* Funções em seleção múltipla (dono, 15/09): marcar várias de uma vez. */}
+        <div className="w-[220px]">
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label="Filtrar por função"
+                className={cn(
+                  "flex h-9 w-full items-center justify-between gap-2 rounded-lg border bg-white px-3 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  functionFilter.size > 0 ? "border-primary/40 font-medium text-primary" : "border-input text-slate-700",
+                )}
+                data-testid="filtro-funcoes-validacao"
+              >
+                <span className="truncate">
+                  {functionFilter.size === 0
+                    ? "Todas as funções"
+                    : functionFilter.size === 1
+                      ? (functionNameById.get(Array.from(functionFilter)[0]) ?? "1 função")
+                      : functionFilter.size + " funções"}
+                </span>
+                <ChevronDown className="h-4 w-4 shrink-0 opacity-60" aria-hidden="true" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[260px] p-1.5">
+              <div className="flex items-center justify-between px-2 py-1">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Funções</span>
+                {functionFilter.size > 0 && (
+                  <button type="button" onClick={() => setFunctionFilter(new Set())} className="text-[12px] font-medium text-primary hover:underline" data-testid="limpar-funcoes-validacao">
+                    Limpar
+                  </button>
+                )}
+              </div>
+              <div className="max-h-[300px] overflow-y-auto" role="group" aria-label="Funções">
+                {functionsInEvent.map((f) => {
+                  const on = functionFilter.has(f.id);
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      role="checkbox"
+                      aria-checked={on}
+                      onClick={() => setFunctionFilter((prev) => { const n = new Set(prev); if (n.has(f.id)) n.delete(f.id); else n.add(f.id); return n; })}
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-slate-700 hover:bg-slate-100"
+                      data-testid={"filtro-funcao-" + f.id}
+                    >
+                      {on
+                        ? <CheckSquare className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                        : <Square className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />}
+                      <span className="min-w-0 break-words">{f.name}</span>
+                    </button>
+                  );
+                })}
+                {functionsInEvent.length === 0 && <p className="px-2 py-2 text-[12px] text-slate-500">Nenhuma função neste recorte.</p>}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
         {/* Sem cadastro de validador o admin veria tudo de qualquer jeito — o botão sumiria sem função. */}
         {anyEditable && (minhasFuncoesIds.size > 0 || !isAdmin) && (
