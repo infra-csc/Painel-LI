@@ -11,6 +11,8 @@ import { Clock, Check, X, ArrowRight, ArrowLeftRight, CheckCheck, XCircle, Alert
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { ExplicacaoDaTroca } from "./swap-explicacao";
+import { explicarTroca, type TrocaParaExplicar } from "@shared/swap-explicacao";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import EscolherColaborador from "./escolher-colaborador";
@@ -152,6 +154,12 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
   const permuta = swap.swapKind === "permuta";
   /** Transferência (14/09): alguém de outra vaga entra nesta, que estava aberta. */
   const transferencia = swap.swapKind === "transferencia";
+  /** O que muda ao aprovar (16/09) — mesmo texto no cartão e nas confirmações. */
+  const trocaExplicada: TrocaParaExplicar = {
+    ...swap,
+    currentCollaboratorName: swap.currentCollaboratorId ? currentCollabName : null,
+    newCollaboratorName: newCollabName || swap.newCollaboratorName,
+  };
 
   return (
     <>
@@ -211,22 +219,7 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
                 <span>Solicitado por <span className="font-medium text-slate-600">{swap.requestedByName}</span>{swap.createdAt && <> · {formatShortDateTime(swap.createdAt)}</>}</span>
               </div>
             )}
-            {permuta ? (
-              <LinhasDaPermuta swap={swap} getCollaboratorName={getCollaboratorName} />
-            ) : transferencia ? (
-              <LinhasDaTransferencia swap={swap} getCollaboratorName={getCollaboratorName} />
-            ) : (
-              <>
-            <div className="flex items-start gap-1.5 text-[11px]">
-              <span className="text-slate-400 shrink-0">Novo colaborador:</span>
-              <span className="font-medium text-slate-700">{newCollabName}</span>
-            </div>
-            <div className="flex items-start gap-1.5 text-[11px]" data-testid="swap-sai-de-pendente">
-              <span className="text-slate-400 shrink-0">Sai de:</span>
-              <span className="font-medium text-slate-700">{swap.newCity || "não informado (pedido antigo)"}</span>
-            </div>
-              </>
-            )}
+            <ExplicacaoDaTroca troca={trocaExplicada} titulo="Se for aprovada" />
             <div className="flex items-start gap-1.5 text-[11px]">
               <span className="text-slate-400 shrink-0">Motivo:</span>
               <span className="text-slate-600 leading-snug">{swap.reason}</span>
@@ -297,11 +290,7 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
         icon={CheckCheck}
         tone="emerald"
         title={pendingSwap?.swapKind === "permuta" ? "Aprovar troca entre vagas?" : pendingSwap?.swapKind === "transferencia" ? "Aprovar transferência de colaborador?" : "Aprovar troca de colaborador?"}
-        description={pendingSwap?.swapKind === "permuta"
-          ? "Confira as duas vagas. Ao confirmar, os dois trocam de vaga ao mesmo tempo, cada um saindo da cidade informada no pedido."
-          : pendingSwap?.swapKind === "transferencia"
-          ? "Confira as duas vagas. Ao confirmar, a pessoa sai da vaga onde está, entra nesta saindo da cidade informada, e a vaga de origem fica aberta."
-          : "Confira os dados do novo colaborador. Ao confirmar, ele assume a vaga e ela passa a sair da cidade informada no pedido."}
+        description="Confira abaixo exatamente o que muda. Ao confirmar, a mudança é aplicada na hora."
         confirmLabel="Confirmar aprovação"
         pendingLabel="Aprovando..."
         isPending={approveSwap.isPending}
@@ -309,29 +298,7 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
       >
         {pendingSwap && (
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 text-[12px]">
-            {pendingSwap.swapKind === "permuta" && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-2" data-testid="swap-permuta-aprovacao">
-                <LinhasDaPermuta swap={pendingSwap} getCollaboratorName={getCollaboratorName} />
-              </div>
-            )}
-            {pendingSwap.swapKind === "transferencia" && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-2" data-testid="swap-transferencia-aprovacao">
-                <LinhasDaTransferencia swap={pendingSwap} getCollaboratorName={getCollaboratorName} />
-              </div>
-            )}
-            <div className="flex items-start gap-2">
-              <span className="text-slate-400 font-medium shrink-0">Atual:</span>
-              <span className="font-semibold text-slate-700">{pendingSwap.currentCollaboratorId ? getCollaboratorName(pendingSwap.currentCollaboratorId) : "vaga aberta"}</span>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="text-slate-400 font-medium shrink-0">Solicitado:</span>
-              <span className="font-semibold text-blue-700">{getCollaboratorName(pendingSwap.newCollaboratorId)}</span>
-            </div>
-            {/* Só leitura (dono, 14/09): o aprovador vê e decide, não muda nada. */}
-            <div className="flex items-start gap-2" data-testid="swap-sai-de-aprovacao">
-              <span className="text-slate-400 font-medium shrink-0">Sai de:</span>
-              <span className="font-semibold text-slate-700">{pendingSwap.newCity || "cidade do cadastro do novo colaborador (pedido antigo)"}</span>
-            </div>
+            <ExplicacaoDaTroca troca={trocaExplicada} />
             <div className="flex items-start gap-2">
               <span className="text-slate-400 font-medium shrink-0">Motivo:</span>
               <span className="text-slate-600 leading-snug">{pendingSwap.reason}</span>
@@ -346,8 +313,8 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
         onOpenChange={(o) => { if (!o) { setConfirmAction(null); setRejectReason(""); } }}
         icon={XCircle}
         tone="red"
-        title="Recusar troca de colaborador?"
-        description="A solicitação será recusada e a escala continuará com o colaborador atual."
+        title={permuta ? "Recusar troca entre vagas?" : transferencia ? "Recusar transferência?" : "Recusar troca de colaborador?"}
+        description={explicarTroca(trocaExplicada).recusa}
         confirmLabel="Confirmar recusa"
         pendingLabel="Recusando..."
         isPending={rejectSwap.isPending}
@@ -698,6 +665,24 @@ export function SwapRequestDialog({
                 </div>
               </div>
             </div>
+            {/* Antes de enviar (16/09): o mesmo quadro que Compras vai ler. */}
+            {newCollaboratorId && (
+              <ExplicacaoDaTroca
+                titulo="Se for aprovada"
+                troca={{
+                  swapKind: permuta ? "permuta" : "substituicao",
+                  inclusionNumber: inclusion.inclusionNumber ?? null,
+                  eventName: getEventName(inclusion.eventId),
+                  pairedInclusionNumber: vagaPermuta?.inclusionNumber ?? null,
+                  pairedEventName: vagaPermuta ? getEventName(vagaPermuta.eventId) : null,
+                  pairedFunctionName: vagaPermuta ? getFunctionName(vagaPermuta.functionId) : null,
+                  currentCollaboratorName: currentCollabName,
+                  newCollaboratorName: newCollabName,
+                  newCity: cidadeSaida || null,
+                  pairedNewCity: permuta ? cidadeSaidaOutro || null : null,
+                }}
+              />
+            )}
           </div>
 
           <div className="shrink-0 px-6 pb-5 pt-3 flex gap-3 border-t border-slate-100">

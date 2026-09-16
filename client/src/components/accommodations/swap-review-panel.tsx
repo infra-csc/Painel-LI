@@ -8,6 +8,8 @@ import { fixEncoding } from "@/lib/utils";
 import type { Collaborator, TeamInclusion } from "@shared/schema";
 import type { ApiError, NormalizedSwap } from "./types";
 import { formatDateTime, toTitleCase } from "./utils";
+import { ExplicacaoDaTroca } from "@/components/scaling/swap-explicacao";
+import { explicarTroca, type TrocaParaExplicar } from "@shared/swap-explicacao";
 
 
 export interface SwapReviewPanelProps {
@@ -97,6 +99,13 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
   const saiDeDoPedido = swap.newCity
     || (swap.newCollaboratorId ? collaboratorById.get(swap.newCollaboratorId)?.city : null)
     || null;
+  /** O que muda ao aprovar (16/09) — o mesmo texto da Escalação. */
+  const trocaExplicada: TrocaParaExplicar = {
+    ...swap,
+    currentCollaboratorName: swap.swapKind === "transferencia" ? null : currentName,
+    newCollaboratorName: requestedName,
+    newCity: saiDeDoPedido,
+  };
 
   return (
     <>
@@ -131,25 +140,7 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.08em] mb-0.5">Novo colaborador sai de</p>
             <p className="text-[11px] font-semibold text-slate-700">{saiDeDoPedido || "Não informado"}{!swap.newCity && saiDeDoPedido ? " (cadastro do colaborador)" : ""}</p>
           </div>
-          {/* Transferência (14/09): a pessoa sai de uma vaga e entra na outra, que estava aberta. */}
-          {swap.swapKind === "transferencia" && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2" data-testid="swap-transferencia-hosp">
-              <p className="text-[9px] font-bold text-amber-700 uppercase tracking-[0.08em] mb-0.5">Transferência entre vagas</p>
-              <p className="text-[11px] text-amber-900 leading-snug">
-                {swap.newCollaboratorName || "?"} sai da vaga #{swap.pairedInclusionNumber ?? "?"}{swap.pairedEventName ? " · " + swap.pairedEventName : ""} e vai para a vaga #{swap.inclusionNumber ?? "?"}{swap.eventName ? " · " + swap.eventName : ""}{swap.newCity ? ", saindo de " + swap.newCity : ""}. A vaga #{swap.pairedInclusionNumber ?? "?"} fica aberta.
-              </p>
-            </div>
-          )}
-          {/* Permuta (14/09): os dois trocam de vaga ao aprovar — dito com as duas vagas. */}
-          {swap.swapKind === "permuta" && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2" data-testid="swap-permuta-hosp">
-              <p className="text-[9px] font-bold text-amber-700 uppercase tracking-[0.08em] mb-0.5">Troca entre vagas</p>
-              <p className="text-[11px] text-amber-900 leading-snug">
-                {swap.newCollaboratorName || "?"} vai para a vaga #{swap.inclusionNumber ?? "?"}{swap.eventName ? " · " + swap.eventName : ""}{swap.newCity ? ", saindo de " + swap.newCity : ""}.
-                {" "}{swap.currentCollaboratorName || "?"} vai para a vaga #{swap.pairedInclusionNumber ?? "?"}{swap.pairedEventName ? " · " + swap.pairedEventName : ""}{swap.pairedNewCity ? ", saindo de " + swap.pairedNewCity : ""}.
-              </p>
-            </div>
-          )}
+          <ExplicacaoDaTroca troca={trocaExplicada} titulo="Se for aprovada" />
           <div className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2">
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.08em] mb-0.5">Motivo da solicitação</p>
             <p className="text-[11px] text-slate-600 leading-snug">{swap.reason || "—"}</p>
@@ -160,7 +151,6 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
           </div>
           {canReview && (
             <div className="space-y-1.5 pt-0.5">
-              <p className="text-[10px] text-slate-400 text-center">A aprovação libera a alteração do colaborador nesta escala.</p>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setConfirmAction("approve")} disabled={busy} data-testid="button-approve-swap"
                   className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold py-1.5 rounded-lg transition-colors disabled:opacity-50">
@@ -179,26 +169,12 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
       {/* Confirmação — Aprovar */}
       {confirmAction === "approve" && (
         <Dialog open onOpenChange={() => setConfirmAction(null)}>
-          <DialogContent className="max-w-[400px] gap-4">
+          <DialogContent className="max-w-[520px] gap-4">
             <DialogHeader>
               <DialogTitle className="text-[16px] font-bold text-slate-800">Aprovar troca de colaborador?</DialogTitle>
             </DialogHeader>
-            <p className="text-[13px] text-slate-600">Confira os dados do novo colaborador. Ao confirmar, ele assume a vaga e ela passa a sair da cidade informada no pedido.</p>
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 text-[12px]">
-              <div className="flex items-start gap-2">
-                <span className="text-slate-400 font-medium shrink-0">Colaborador atual:</span>
-                <span className="font-semibold text-slate-700">{currentName}</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-slate-400 font-medium shrink-0">Colaborador solicitado:</span>
-                <span className="font-semibold text-primary">{requestedName}</span>
-              </div>
-              {/* Só leitura (dono, 14/09): o aprovador vê e decide, não muda nada. */}
-              <div className="flex items-start gap-2" data-testid="swap-sai-de-aprovacao-hosp">
-                <span className="text-slate-400 font-medium shrink-0">Sai de:</span>
-                <span className="font-semibold text-slate-700">{saiDeDoPedido || "Não informado"}</span>
-              </div>
-            </div>
+            <p className="text-[13px] text-slate-600">Confira abaixo exatamente o que muda. Ao confirmar, a mudança é aplicada na hora.</p>
+            <ExplicacaoDaTroca troca={trocaExplicada} />
             <div className="flex gap-2 justify-end">
               <button type="button" onClick={() => setConfirmAction(null)} className="px-4 py-2 text-[12px] font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
               <button type="button"
@@ -214,11 +190,11 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
       {/* Confirmação — Rejeitar */}
       {confirmAction === "reject" && (
         <Dialog open onOpenChange={() => { setConfirmAction(null); setRejectReason(""); }}>
-          <DialogContent className="max-w-[400px] gap-4">
+          <DialogContent className="max-w-[520px] gap-4">
             <DialogHeader>
               <DialogTitle className="text-[16px] font-bold text-slate-800">Rejeitar troca de colaborador?</DialogTitle>
             </DialogHeader>
-            <p className="text-[13px] text-slate-600">A solicitação será recusada e a escala continuará com o colaborador atual.</p>
+            <p className="text-[13px] text-slate-600">{explicarTroca(trocaExplicada).recusa}</p>
             <div>
               <label htmlFor="swap-reject-reason" className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Motivo da rejeição <span className="text-red-400">*</span></label>
               <textarea

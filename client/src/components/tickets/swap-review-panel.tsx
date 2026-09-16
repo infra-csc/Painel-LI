@@ -5,6 +5,9 @@ import { ArrowLeftRight, ArrowRight, AlertCircle, CheckCheck, XCircle } from "lu
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { TeamInclusion } from "@shared/schema";
 import type { SwapRequestRow } from "./use-tickets-data";
+import { normalizeSwap } from "@/components/scaling/scaling-utils";
+import { ExplicacaoDaTroca } from "@/components/scaling/swap-explicacao";
+import { explicarTroca, type TrocaParaExplicar } from "@shared/swap-explicacao";
 
 interface SwapReviewPanelProps {
   swap: SwapRequestRow;
@@ -33,6 +36,12 @@ export default function SwapReviewPanel({
   const requestedByName = swap.requested_by_name || swap.requestedByName || "—";
   const hasTicketPurchased = ["passagem_comprada", "hospedagem_passagem_comprada"].includes(inclusion.status);
   const closeConfirm = () => { setConfirmAction(null); setRejectReason(""); };
+  /** O que muda ao aprovar (16/09) — o mesmo texto da Escalação. */
+  const trocaExplicada: TrocaParaExplicar = {
+    ...normalizeSwap(swap as Record<string, any>),
+    currentCollaboratorName: currentCollabName,
+    newCollaboratorName: requestedCollabName,
+  };
 
   return (
     <>
@@ -66,25 +75,7 @@ export default function SwapReviewPanel({
               <p className="text-[13px] text-slate-600 leading-snug">{swap.reason || "—"}</p>
             </div>
           </div>
-          {/* Transferência (14/09): a pessoa sai de uma vaga e entra na outra, que estava aberta. */}
-          {((swap as any).swap_kind ?? (swap as any).swapKind) === "transferencia" && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3" data-testid="swap-transferencia-passagem">
-              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-[0.08em] mb-1">Transferência entre vagas</p>
-              <p className="text-[12px] text-amber-900 leading-snug">
-                {(swap as any).new_collaborator_name || "?"} sai da vaga #{(swap as any).paired_inclusion_number ?? "?"}{(swap as any).paired_event_name ? " · " + (swap as any).paired_event_name : ""} e vai para a vaga #{(swap as any).inclusion_number ?? "?"}{(swap as any).event_name ? " · " + (swap as any).event_name : ""}{(swap as any).new_city ? ", saindo de " + (swap as any).new_city : ""}. A vaga #{(swap as any).paired_inclusion_number ?? "?"} fica aberta.
-              </p>
-            </div>
-          )}
-          {/* Permuta (14/09): os dois trocam de vaga ao aprovar — dito com as duas vagas. */}
-          {((swap as any).swap_kind ?? (swap as any).swapKind) === "permuta" && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3" data-testid="swap-permuta-passagem">
-              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-[0.08em] mb-1">Troca entre vagas</p>
-              <p className="text-[12px] text-amber-900 leading-snug">
-                {(swap as any).new_collaborator_name || "?"} vai para a vaga #{(swap as any).inclusion_number ?? "?"}{(swap as any).event_name ? " · " + (swap as any).event_name : ""}{(swap as any).new_city ? ", saindo de " + (swap as any).new_city : ""}.
-                {" "}{(swap as any).current_collaborator_name || "?"} vai para a vaga #{(swap as any).paired_inclusion_number ?? "?"}{(swap as any).paired_event_name ? " · " + (swap as any).paired_event_name : ""}{(swap as any).paired_new_city ? ", saindo de " + (swap as any).paired_new_city : ""}.
-              </p>
-            </div>
-          )}
+          <ExplicacaoDaTroca troca={trocaExplicada} titulo="Se for aprovada" />
           <div className="flex items-center gap-4 flex-wrap">
             {hasTicketPurchased && (
               <div className="flex items-center gap-2 flex-1 min-w-0 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
@@ -94,7 +85,6 @@ export default function SwapReviewPanel({
             )}
             {isPurchasingRole && (
               <div className="flex flex-col items-start gap-1.5 shrink-0">
-                <p className="text-[10px] text-slate-400">A aprovação libera a alteração do colaborador nesta escala.</p>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setConfirmAction("approve")}
@@ -120,21 +110,12 @@ export default function SwapReviewPanel({
       {/* Confirmação — Aprovar */}
       {confirmAction === "approve" && (
         <Dialog open onOpenChange={closeConfirm}>
-          <DialogContent className="max-w-[400px] gap-4">
+          <DialogContent className="max-w-[520px] gap-4">
             <DialogHeader>
               <DialogTitle className="text-[16px] font-bold text-slate-800">Aprovar troca de colaborador?</DialogTitle>
             </DialogHeader>
-            <p className="text-[13px] text-slate-600">Ao confirmar, a alteração do colaborador será liberada para esta escala.</p>
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 text-[12px]">
-              <div className="flex items-start gap-2">
-                <span className="text-slate-400 font-medium shrink-0">Colaborador atual:</span>
-                <span className="font-semibold text-slate-700">{currentCollabName}</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-slate-400 font-medium shrink-0">Colaborador solicitado:</span>
-                <span className="font-semibold text-blue-700">{requestedCollabName}</span>
-              </div>
-            </div>
+            <p className="text-[13px] text-slate-600">Confira abaixo exatamente o que muda. Ao confirmar, a mudança é aplicada na hora.</p>
+            <ExplicacaoDaTroca troca={trocaExplicada} />
             <div className="flex gap-2 justify-end">
               <button onClick={closeConfirm} className="px-4 py-2 text-[12px] font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
               <button
@@ -150,11 +131,11 @@ export default function SwapReviewPanel({
       {/* Confirmação — Rejeitar */}
       {confirmAction === "reject" && (
         <Dialog open onOpenChange={closeConfirm}>
-          <DialogContent className="max-w-[400px] gap-4">
+          <DialogContent className="max-w-[520px] gap-4">
             <DialogHeader>
               <DialogTitle className="text-[16px] font-bold text-slate-800">Rejeitar troca de colaborador?</DialogTitle>
             </DialogHeader>
-            <p className="text-[13px] text-slate-600">A solicitação será recusada e a escala continuará com o colaborador atual.</p>
+            <p className="text-[13px] text-slate-600">{explicarTroca(trocaExplicada).recusa}</p>
             <div>
               <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Motivo da rejeição <span className="text-red-400">*</span></label>
               <textarea
