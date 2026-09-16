@@ -488,8 +488,11 @@ export function SwapRequestDialog({
     <>
       {/* Formulário */}
       <Dialog open={open && !success} onOpenChange={(o) => { if (!o) resetAndClose(); }}>
-        <DialogContent className="max-w-[760px] p-0 gap-0 rounded-[14px] overflow-hidden">
-          <div className="px-6 pt-5 pb-4 border-b border-slate-100" style={{ background: "linear-gradient(135deg, #f0f7ff 0%, #ffffff 55%)" }}>
+        {/* Altura limitada (dono, 16/09: "o modal está cortando"): cabeçalho e
+            botões fixos, só o miolo rola — em tela baixa o "Enviar para
+            aprovação" sumia para fora da janela. */}
+        <DialogContent className="max-w-[760px] max-h-[92vh] flex flex-col p-0 gap-0 rounded-[14px] overflow-hidden">
+          <div className="shrink-0 px-6 pt-5 pb-4 border-b border-slate-100" style={{ background: "linear-gradient(135deg, #f0f7ff 0%, #ffffff 55%)" }}>
             <div className="flex items-center gap-3 mb-3">
               <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0" style={{ boxShadow: "0 3px 10px #2563EB30" }}>
                 <ArrowLeftRight style={{ width: 17, height: 17, color: "#fff" }} />
@@ -521,7 +524,7 @@ export function SwapRequestDialog({
             </div>
           </div>
 
-          <div className="px-6 py-4 space-y-3">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-3">
             {/* Troca simples × permuta (dono, 14/09): dois colaboradores já
                 escalados no mesmo período não conseguiam trocar de vaga — cada
                 vaga acusava conflito com a outra. */}
@@ -697,7 +700,7 @@ export function SwapRequestDialog({
             </div>
           </div>
 
-          <div className="px-6 pb-5 pt-3 flex gap-3 border-t border-slate-100">
+          <div className="shrink-0 px-6 pb-5 pt-3 flex gap-3 border-t border-slate-100">
             <Button
               variant="outline"
               className="flex-1 rounded-xl h-10 text-[13px] font-medium"

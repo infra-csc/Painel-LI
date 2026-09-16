@@ -132,8 +132,9 @@ export interface ScalingTableProps {
 /**
  * Regra ÚNICA do aviso de troca pendente (antes cada aba tinha a sua):
  * - o solicitante vê a própria troca até abrir o registro;
- * - Compras/admin vê em escalações SEM passagem/hospedagem (as demais são
- *   analisadas nas telas de Passagem/Hospedagem);
+ * - Compras/admin vê SEMPRE (16/09): antes só em vaga sem passagem/hotel, e a
+ *   troca de vaga com logística ainda não comprada entrava no menu e na fila
+ *   "Em análise" sem nada na linha que dissesse o porquê;
  * - os demais papéis não veem.
  */
 export function shouldShowPendingSwapBadge(
@@ -145,9 +146,7 @@ export function shouldShowPendingSwapBadge(
   if (opts.seenSwapIds.has(swap.id)) return false;
   const isRequester = !!opts.currentUserId && swap.requestedBy === opts.currentUserId;
   if (isRequester) return true;
-  if (!opts.isAdminOrPurchasing) return false;
-  const noLogistics = !inclusion.needsTicket && !inclusion.needsAccommodation;
-  return noLogistics;
+  return opts.isAdminOrPurchasing;
 }
 
 /** "VINICIUS JOSE CAMPOS" → "Vinicius". Cabe na linha de detalhe; o nome inteiro vai no title. */

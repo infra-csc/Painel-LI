@@ -26,6 +26,9 @@ export type SwapRequestRow = SwapRequest & {
 export type UserName = Pick<User, "id" | "name">;
 
 const swapInclusionId = (s: SwapRequestRow) => s.team_inclusion_id || s.teamInclusionId;
+/** As vagas da troca: a do pedido e, na permuta/transferência, a outra (16/09). */
+const vagasDaTroca = (s: SwapRequestRow): string[] =>
+  [swapInclusionId(s), (s as any).paired_inclusion_id || (s as any).pairedInclusionId].filter((id): id is string => !!id);
 
 
 const STATUS_PRIORITY: Record<string, number> = {
@@ -168,8 +171,7 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
   const pendingSwapByInclusion = useMemo(() => {
     const set = new Set<string>();
     allSwapRequests?.filter(s => s.status === "pendente").forEach(s => {
-      const id = swapInclusionId(s);
-      if (id) set.add(id);
+      vagasDaTroca(s).forEach((id) => set.add(id));
     });
     return set;
   }, [allSwapRequests]);
@@ -177,8 +179,7 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
   const approvedSwapInclusionIds = useMemo(() => {
     const ids = new Set<string>();
     allSwapRequests?.filter(s => s.status === "aprovado").forEach(s => {
-      const id = swapInclusionId(s);
-      if (id) ids.add(id);
+      vagasDaTroca(s).forEach((id) => ids.add(id));
     });
     return ids;
   }, [allSwapRequests]);

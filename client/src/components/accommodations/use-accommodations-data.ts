@@ -45,7 +45,12 @@ export function useAccommodationsData({ filters, sortConfig, showOnlyPendingSwap
 
   const pendingSwapByInclusion = useMemo(() => {
     const set = new Set<string>();
-    allSwapRequests?.forEach((s) => { if (s.status === "pendente" && s.teamInclusionId) set.add(s.teamInclusionId); });
+    // A outra vaga da permuta/transferência também está em troca (16/09).
+    allSwapRequests?.forEach((s) => {
+      if (s.status !== "pendente") return;
+      if (s.teamInclusionId) set.add(s.teamInclusionId);
+      if (s.pairedInclusionId) set.add(s.pairedInclusionId);
+    });
     return set;
   }, [allSwapRequests]);
 
