@@ -175,6 +175,13 @@ export const ROTULO_DO_CAMPO: Record<string, string> = {
   default_weekend_lunch: "Almoço padrão (fim de semana)", default_weekend_dinner: "Jantar padrão (fim de semana)",
   default_weekday_lunch_freela: "Almoço padrão do freela (dia útil)", default_weekday_dinner_freela: "Jantar padrão do freela (dia útil)",
   default_weekend_lunch_freela: "Almoço padrão do freela (fim de semana)", default_weekend_dinner_freela: "Jantar padrão do freela (fim de semana)",
+  // prazos das etapas da vaga (dias antes do evento)
+  prazo_dias_registro: "Prazo dos registros (dias antes do evento)",
+  prazo_dias_validacao: "Prazo da validação (dias antes do evento)",
+  prazo_dias_aprovacao: "Prazo da aprovação (dias antes do evento)",
+  prazo_dias_escalacao: "Prazo da escalação (dias antes do evento)",
+  prazo_dias_escalado: "Prazo do escalado (dias antes do evento)",
+  prazo_dias_passagem: "Prazo da passagem emitida (dias antes do evento)",
 };
 
 /** Campo que ainda não tem nome: "Outro campo", nunca o código em inglês (18/09). */

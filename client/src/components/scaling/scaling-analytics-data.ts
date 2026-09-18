@@ -205,6 +205,8 @@ export interface EventoAnalisado {
   completaPct: number;
   /** Passagens e hotéis deste evento (18/09). */
   logistica: Logistica;
+  /** Data do EVENTO (não da escala) — base dos prazos de cada etapa. */
+  dataEvento: string | null;
 }
 
 /** Abaixo disto, com vaga aberta, o evento entra em alerta. */
@@ -252,6 +254,7 @@ export function analisarPorEvento(linhas: TeamInclusion[], ctx: AnalyticsContext
       critico: (abertas > 0 || etapas.validacao + etapas.aprovacao > 0 || passagensFaltando > 0) && !jaTerminou && prazoDias !== null && prazoDias <= DIAS_PRAZO_CRITICO,
       etapas,
       logistica,
+      dataEvento: ctx.getEventDates?.(eventId)?.startDate ?? null,
       naEscalacao: { semNome: quantos("vaga"), salvo: quantos("salvo"), gestor: quantos("gestor") },
       completaPct: Math.round((etapas.completa / doEvento.length) * 100),
       segmentos: BUCKETS.map((b) => {

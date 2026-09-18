@@ -46,6 +46,7 @@ import { trocaNaVisaoDaVaga } from "@shared/swap-permuta";
 import { ONDE_A_VAGA_NASCEU, origemDaCriacao } from "@shared/criacao-da-vaga";
 import { corrigirTextoDeNome } from "@shared/texto-nome";
 import { moduloDe, resumoParaGravar } from "@shared/log-auditoria";
+import { CHAVE_DO_PRAZO, ETAPAS_COM_PRAZO, lerDiasDosPrazos, validarDiasDosPrazos } from "@shared/prazos-da-escala";
 import { validarSaiDe } from "@shared/swap-sai-de";
 
 /**
@@ -5192,6 +5193,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ─── System Settings ──────────────────────────────────────────────
+  // ── Prazos das etapas da vaga (18/09) ──────────────────────────────────
+  // "Dias antes do evento" de cada etapa (registro, validação, aprovação,
+  // escalação, escalado, passagem). Todo usuário logado LÊ — o Quadro das
+  // Análises mostra a data limite de cada etapa —; só o administrador GRAVA.
+  // Ficam em system_settings, fora da rota do Financeiro (que exige acesso
+  // financeiro para ler).
+  app.get("/api/escala/prazos", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    try {
+      const linhas = await storage.getSystemSettings();
+      res.json({ dias: lerDiasDosPrazos(linhas) });
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao ler os prazos" });
+    }
+  });
+
+  app.put("/api/escala/prazos", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    const user = await storage.getUser(req.session.userId);
+    if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
+    if (normalizeRole(user.role) !== "admin") return res.status(403).json({ message: "Só o administrador altera os prazos." });
+    const r = validarDiasDosPrazos(req.body ?? {});
+    if ("erro" in r) return res.status(400).json({ message: r.erro });
+    try {
+      const antes = lerDiasDosPrazos(await storage.getSystemSettings());
+      const anterior: Record<string, number> = {};
+      const novo: Record<string, number> = {};
+      for (const etapa of ETAPAS_COM_PRAZO) {
+        const valor = r.dias[etapa];
+        if (valor === undefined) continue;
+        await storage.upsertSystemSetting(CHAVE_DO_PRAZO[etapa], String(valor), user.id);
+        anterior[CHAVE_DO_PRAZO[etapa]] = antes[etapa];
+        novo[CHAVE_DO_PRAZO[etapa]] = valor;
+      }
+      await createAuditLog("update", "system_settings", "prazos-escala", novo, user.id, user.name || "Administrador", anterior, req);
+      res.json({ dias: lerDiasDosPrazos(await storage.getSystemSettings()) });
+    } catch (error) {
+      console.error("Erro ao salvar prazos:", error);
+      res.status(500).json({ message: "Erro ao salvar os prazos" });
+    }
+  });
+
   app.get("/api/system-settings", async (req, res) => {
     if (!requireFinSession(req, res)) return;
     try {

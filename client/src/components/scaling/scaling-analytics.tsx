@@ -14,6 +14,8 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { BedDouble, Plane } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { QuadroDePrazos, useDiasDosPrazos } from "./scaling-analytics-quadro";
 import type { TeamInclusion } from "@shared/schema";
 import {
   BUCKETS, DIAS_ESPERA_ATRASADA, analisarPorEvento, calcularKpis, funcoesDescobertas,
@@ -111,6 +113,11 @@ export default function ScalingAnalytics({ linhas, sugestoes = [], ctx, hoje, on
   const maiorFalta = useMemo(() => Math.max(1, ...funcoes.map((f) => f.abertas)), [funcoes]);
   const hojeBr = `${String(hoje.getDate()).padStart(2, "0")}/${String(hoje.getMonth() + 1).padStart(2, "0")}`;
   const [quantosEventos, setQuantosEventos] = useState(EVENTOS_POR_VEZ);
+  // Quadro (planilha do time, 18/09) ou Barras; o quadro abre primeiro.
+  const [visao, setVisao] = useState<"quadro" | "barras">("quadro");
+  const dias = useDiasDosPrazos();
+  const { user } = useAuth();
+  const ehAdmin = ["admin", "administrator", "administrador"].includes(String(user?.role ?? ""));
   const eventosVisiveis = eventos.slice(0, quantosEventos);
 
   return (
@@ -181,7 +188,22 @@ export default function ScalingAnalytics({ linhas, sugestoes = [], ctx, hoje, on
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-slate-100 px-4 py-3">
           <p className="text-[14px] font-semibold text-slate-900">Por evento</p>
           <p className="text-[12px] text-muted-foreground">Prazos contados de {hojeBr}</p>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:ml-auto">
+          <div role="tablist" aria-label="Forma de ver" className="inline-flex rounded-lg border border-border bg-background p-0.5">
+            {([["quadro", "Quadro"], ["barras", "Barras"]] as const).map(([k, rotulo]) => (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={visao === k}
+                onClick={() => setVisao(k)}
+                className={`h-7 rounded-md px-2.5 text-[12px] font-medium ${visao === k ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-slate-700"}`}
+                data-testid={`visao-${k}`}
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
+          <div className={`flex-wrap items-center gap-x-3 gap-y-1 sm:ml-auto ${visao === "barras" ? "flex" : "hidden"}`}>
             {BUCKETS.map((b) => (
               <span key={b.key} className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <span aria-hidden="true" className="h-2 w-2 rounded-[2px]" style={{ background: b.cor }} />
@@ -191,7 +213,15 @@ export default function ScalingAnalytics({ linhas, sugestoes = [], ctx, hoje, on
           </div>
         </div>
 
-        {eventosVisiveis.map((e) => {
+        {visao === "quadro" ? (
+          <QuadroDePrazos
+            eventos={eventosVisiveis}
+            hoje={hoje}
+            dias={dias}
+            podeEditar={ehAdmin}
+            onVerVagasDoEvento={onVerVagasDoEvento}
+          />
+        ) : eventosVisiveis.map((e) => {
           const naEscalacao = e.etapas.escalacao + e.etapas.completa;
           return (
             <div
