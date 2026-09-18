@@ -62,12 +62,14 @@ export default function ScalingCoverageDialog({ open, onOpenChange, linhas, ctx,
     URL.revokeObjectURL(url);
   };
 
-  const nEventos = new Set([...rel.comVagaAberta, ...rel.disponiveis, ...rel.comFaltaConfirmar].map((e) => e.eventId)).size;
+  const nEventos = new Set([...rel.comVagaAberta, ...rel.disponiveis, ...rel.comFaltaConfirmar, ...rel.comValidacao, ...rel.comAprovacao].map((e) => e.eventId)).size;
   // O que falta: vaga sem nome E nome salvo por confirmar (18/09).
   const partes = [
+    rel.totalValidacao > 0 ? `${rel.totalValidacao} em validação` : null,
+    rel.totalAprovacao > 0 ? `${rel.totalAprovacao} em aprovação` : null,
     rel.totalAbertas > 0 ? `${rel.totalAbertas} ${rel.totalAbertas === 1 ? "vaga aberta" : "vagas abertas"}` : null,
     rel.totalAConfirmar > 0 ? `${rel.totalAConfirmar} ${rel.totalAConfirmar === 1 ? "falta confirmar" : "faltam confirmar"}` : null,
-  ].filter(Boolean);
+  ].filter(Boolean) as string[];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -77,7 +79,7 @@ export default function ScalingCoverageDialog({ open, onOpenChange, linhas, ctx,
           <DialogDescription>
             {partes.length === 0
               ? "Nada falta escalar nem confirmar neste recorte."
-              : `${partes.join(" e ")} em ${nEventos} ${nEventos === 1 ? "evento" : "eventos"}. Copie e mande para quem escala.`}
+              : `${partes.length > 1 ? `${partes.slice(0, -1).join(", ")} e ${partes[partes.length - 1]}` : partes[0]} em ${nEventos} ${nEventos === 1 ? "evento" : "eventos"}. Copie e mande para quem escala.`}
           </DialogDescription>
         </DialogHeader>
 

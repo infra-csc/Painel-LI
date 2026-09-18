@@ -268,9 +268,12 @@ export interface Gargalo {
   id: string;
   nome: string;
   funcao: string;
-  /** O que está travando: "com o gestor", "troca de colaborador", "pedido de ajuste". */
+  /** O que está travando: "com o gestor", "troca de colaborador", "pedido de ajuste", "esperando a área validar"… */
   oque: string;
-  tipo: "gestor" | "analise";
+  tipo: "gestor" | "analise" | "validacao" | "aprovacao";
+  /** Validação/aprovação vêm agrupadas por evento (18/09): o evento e quantas vagas. */
+  eventId?: string;
+  quantidade?: number;
   /** Dias parados. null quando não há data de referência. */
   diasParado: number | null;
 }
@@ -309,6 +312,37 @@ export function gargalos(linhas: TeamInclusion[], ctx: AnalyticsContext, hoje: D
       out.push({ ...comum, oque: "pedido de ajuste", tipo: "analise", diasParado: dias(i.updatedAt) });
     }
   }
+
+  // Validação e aprovação (18/09): uma linha por evento e etapa — por vaga
+  // seriam dezenas de linhas iguais. Os dias vêm da vaga mais antiga: é ela
+  // que diz há quanto tempo o evento está esperando.
+  const grupos = new Map<string, { etapa: "validacao" | "aprovacao"; eventId: string; linhas: TeamInclusion[] }>();
+  for (const i of vagasVivas(linhas)) {
+    if (!ehSugestao(i)) continue;
+    const etapa = i.status === "sugestao_validada" ? "aprovacao" : "validacao";
+    const chave = `${etapa}:${i.eventId}`;
+    const g = grupos.get(chave) ?? { etapa, eventId: i.eventId, linhas: [] };
+    g.linhas.push(i);
+    grupos.set(chave, g);
+  }
+  grupos.forEach((g) => {
+    const desde = (i: TeamInclusion) =>
+      dias(g.etapa === "aprovacao" ? ((i as any).validatedAt ?? (i as any).suggestionSentAt ?? i.updatedAt) : ((i as any).suggestionSentAt ?? i.updatedAt));
+    const diasList = g.linhas.map(desde).filter((d): d is number => d !== null);
+    const funcoes = Array.from(new Set(g.linhas.map((i) => ctx.getFunctionName(i.functionId))));
+    const n = g.linhas.length;
+    out.push({
+      inclusion: g.linhas[0],
+      id: `${n}`,
+      nome: ctx.getEventName(g.eventId),
+      funcao: `${n} ${n === 1 ? "vaga" : "vagas"} · ${funcoes.slice(0, 3).join(", ")}${funcoes.length > 3 ? ` +${funcoes.length - 3}` : ""}`,
+      oque: g.etapa === "validacao" ? "esperando a área validar" : "esperando o aprovador",
+      tipo: g.etapa,
+      diasParado: diasList.length ? Math.max(...diasList) : null,
+      eventId: g.eventId,
+      quantidade: n,
+    });
+  });
   return out.sort((a, b) => (b.diasParado ?? -1) - (a.diasParado ?? -1));
 }
 

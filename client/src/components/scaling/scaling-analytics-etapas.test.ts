@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { TeamInclusion } from "@shared/schema";
-import { analisarPorEvento, calcularKpis, funcoesDescobertas, type AnalyticsContext } from "./scaling-analytics-data";
+import { analisarPorEvento, calcularKpis, funcoesDescobertas, gargalos, type AnalyticsContext } from "./scaling-analytics-data";
+import { montarRelatorioDeCobertura, textoDoRelatorio } from "./scaling-coverage-report";
 
 const HOJE = new Date(2026, 8, 18);
 const ctx: AnalyticsContext = {
@@ -53,6 +54,32 @@ describe("Análises com o caminho inteiro da vaga (18/09)", () => {
 
   it("“Onde falta gente” continua falando só da escalação", () => {
     expect(funcoesDescobertas(linhas, ctx)).toEqual([{ functionId: "prod", nome: "prod", abertas: 2, total: 8 }]);
+  });
+
+  it("“Esperando alguém decidir”: validação e aprovação agrupadas por evento, com os dias da mais antiga", () => {
+    const antigas = [
+      vaga({ phase: "sugestao", status: "sugestao_pendente", suggestionSentAt: "2026-09-10T12:00:00Z" } as any),
+      vaga({ phase: "sugestao", status: "sugestao_pendente", suggestionSentAt: "2026-09-16T12:00:00Z" } as any),
+      vaga({ phase: "sugestao", status: "sugestao_validada", validatedAt: "2026-09-17T12:00:00Z" } as any),
+    ];
+    const g = gargalos(antigas, ctx, HOJE);
+    expect(g.map((x) => [x.tipo, x.quantidade, x.diasParado, x.oque])).toEqual([
+      ["validacao", 2, 8, "esperando a área validar"],
+      ["aprovacao", 1, 1, "esperando o aprovador"],
+    ]);
+    expect(g[0].eventId).toBe("foz");
+  });
+
+  it("relatório “O que falta” traz validação e aprovação por função, sem confundir com vaga sem nome", () => {
+    const rel = montarRelatorioDeCobertura(linhas, ctx, HOJE);
+    expect(rel.totalValidacao).toBe(2);
+    expect(rel.totalAprovacao).toBe(2);
+    expect(rel.totalAbertas).toBe(2);
+    const txt = textoDoRelatorio(rel, HOJE);
+    expect(txt).toContain("2 em validação · 2 em aprovação · 2 vagas abertas · 1 falta confirmar · de 12");
+    expect(txt).toContain("EM VALIDAÇÃO (esperando a área validar)");
+    expect(txt).toContain("EM APROVAÇÃO (validadas, esperando o aprovador)");
+    expect(txt).toContain("   · 2 prod");
   });
 
   it("prazo curto com vaga ainda em validação conta como crítico", () => {

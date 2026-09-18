@@ -22,7 +22,7 @@
  */
 import type { TeamInclusion } from "@shared/schema";
 import { diaLocal, inicioDoDia } from "./scaling-period";
-import { vagasVivas, type AnalyticsContext } from "./scaling-analytics-data";
+import { ehSugestao, vagasVivas, type AnalyticsContext } from "./scaling-analytics-data";
 import { getScalingStatusKey } from "./scaling-status";
 
 export interface FuncaoFaltando {
@@ -64,6 +64,11 @@ export interface EventoNoRelatorio {
   aConfirmar: number;
   /** As funções dessas vagas, com os nomes. */
   funcoesAConfirmar: FuncaoAConfirmar[];
+  /** Ainda na Validação de Escala (esperando a área) e na Aprovação (18/09). */
+  emValidacao: number;
+  funcoesEmValidacao: FuncaoFaltando[];
+  emAprovacao: number;
+  funcoesEmAprovacao: FuncaoFaltando[];
 }
 
 export interface RelatorioDeCobertura {
@@ -71,8 +76,13 @@ export interface RelatorioDeCobertura {
   disponiveis: EventoNoRelatorio[];
   /** Eventos com nome salvo por confirmar (18/09). */
   comFaltaConfirmar: EventoNoRelatorio[];
+  /** Eventos com vaga ainda na validação / na aprovação (18/09). */
+  comValidacao: EventoNoRelatorio[];
+  comAprovacao: EventoNoRelatorio[];
   totalAbertas: number;
   totalAConfirmar: number;
+  totalValidacao: number;
+  totalAprovacao: number;
   totalVagas: number;
   /**
    * Eventos com vaga aberta que JÁ ACONTECERAM. Ficam fora da lista — ninguém
@@ -103,10 +113,20 @@ export function montarRelatorioDeCobertura(
 
   const eventos: EventoNoRelatorio[] = [];
   porEvento.forEach((doEvento, eventId) => {
-    const abertas = doEvento.filter((i) => !ctx.temNome(i));
+    // Sugestão (validação/aprovação) não é "vaga sem nome" da escalação (18/09).
+    const naEscalacao = doEvento.filter((i) => !ehSugestao(i));
+    const abertas = naEscalacao.filter((i) => !ctx.temNome(i));
     // Nome salvo, escalação não confirmada (18/09).
-    const salvas = doEvento.filter((i) => ctx.temNome(i) && getScalingStatusKey(i as any) === "salvo");
-    if (abertas.length === 0 && salvas.length === 0) return; // nada falta neste evento
+    const salvas = naEscalacao.filter((i) => ctx.temNome(i) && getScalingStatusKey(i as any) === "salvo");
+    const validacao = doEvento.filter((i) => ehSugestao(i) && i.status !== "sugestao_validada");
+    const aprovacao = doEvento.filter((i) => i.status === "sugestao_validada");
+    if (abertas.length === 0 && salvas.length === 0 && validacao.length === 0 && aprovacao.length === 0) return; // nada falta neste evento
+    const contaPorFuncao = (lista: TeamInclusion[]): FuncaoFaltando[] => {
+      const m = new Map<string, number>();
+      for (const i of lista) { const nome = ctx.getFunctionName(i.functionId); m.set(nome, (m.get(nome) ?? 0) + 1); }
+      return Array.from(m.entries()).map(([nome, abertas]) => ({ nome, abertas }))
+        .sort((a, b) => b.abertas - a.abertas || a.nome.localeCompare(b.nome, "pt-BR"));
+    };
 
     const porFuncao = new Map<string, number>();
     for (const i of abertas) {
@@ -147,7 +167,11 @@ export function montarRelatorioDeCobertura(
       funcoes: Array.from(porFuncao.entries())
         .map(([nome, n]) => ({ nome, abertas: n }))
         .sort((a, b) => b.abertas - a.abertas || a.nome.localeCompare(b.nome, "pt-BR")),
-      intocado: abertas.length === doEvento.length,
+      intocado: abertas.length > 0 && abertas.length === naEscalacao.length,
+      emValidacao: validacao.length,
+      funcoesEmValidacao: contaPorFuncao(validacao),
+      emAprovacao: aprovacao.length,
+      funcoesEmAprovacao: contaPorFuncao(aprovacao),
       aConfirmar: salvas.length,
       funcoesAConfirmar: Array.from(aConfirmarPorFuncao.entries())
         .map(([nome, pessoas]) => ({ nome, pessoas: pessoas.sort((a, b) => a.localeCompare(b, "pt-BR")) }))
@@ -171,8 +195,12 @@ export function montarRelatorioDeCobertura(
     comVagaAberta: atuais.filter((e) => e.abertas > 0 && !e.intocado).sort(porData),
     disponiveis: atuais.filter((e) => e.abertas > 0 && e.intocado).sort(porData),
     comFaltaConfirmar: atuais.filter((e) => e.aConfirmar > 0).sort(porData),
+    comValidacao: atuais.filter((e) => e.emValidacao > 0).sort(porData),
+    comAprovacao: atuais.filter((e) => e.emAprovacao > 0).sort(porData),
     totalAbertas: atuais.reduce((s, e) => s + e.abertas, 0),
     totalAConfirmar: atuais.reduce((s, e) => s + e.aConfirmar, 0),
+    totalValidacao: atuais.reduce((s, e) => s + e.emValidacao, 0),
+    totalAprovacao: atuais.reduce((s, e) => s + e.emAprovacao, 0),
     totalVagas: vivas.length,
     jaPassaram: passados.length,
     vagasQueJaPassaram: passados.reduce((s, e) => s + e.abertas, 0),
@@ -197,9 +225,14 @@ export function textoDoRelatorio(rel: RelatorioDeCobertura, hoje: Date, recorte?
   const confirmarTxt = `${rel.totalAConfirmar} ${rel.totalAConfirmar === 1 ? "falta confirmar" : "faltam confirmar"}`;
 
   linhas.push("ESCALAÇÃO — O QUE FALTA");
+  // Validação/aprovação no cabeçalho só quando existem (18/09).
+  const antes = [
+    rel.totalValidacao > 0 ? `${rel.totalValidacao} em validação` : "",
+    rel.totalAprovacao > 0 ? `${rel.totalAprovacao} em aprovação` : "",
+  ].filter(Boolean);
   linhas.push(
-    rel.totalAConfirmar > 0
-      ? `${abertasTxt} · ${confirmarTxt} · de ${rel.totalVagas} · ${dataHoje}`
+    rel.totalAConfirmar > 0 || antes.length > 0
+      ? [...antes, abertasTxt, ...(rel.totalAConfirmar > 0 ? [confirmarTxt] : []), `de ${rel.totalVagas}`, dataHoje].join(" · ")
       : `${abertasTxt} de ${rel.totalVagas} · ${dataHoje}`,
   );
   if (recorte) linhas.push(recorte);
@@ -235,7 +268,20 @@ export function textoDoRelatorio(rel: RelatorioDeCobertura, hoje: Date, recorte?
     linhas.push("");
   }
 
-  if (rel.comVagaAberta.length === 0 && rel.disponiveis.length === 0 && rel.comFaltaConfirmar.length === 0) {
+  // Antes da escalação (18/09): o que ainda está com a área ou com o aprovador.
+  const etapa = (titulo: string, eventos: EventoNoRelatorio[], n: (e: EventoNoRelatorio) => number, f: (e: EventoNoRelatorio) => FuncaoFaltando[]) => {
+    if (eventos.length === 0) return;
+    linhas.push(titulo);
+    for (const e of eventos) {
+      linhas.push(`• ${e.nome} — ${periodo(e)} · ${n(e)} ${n(e) === 1 ? "vaga" : "vagas"}`);
+      for (const x of f(e)) linhas.push(`   · ${x.abertas} ${x.nome}`);
+    }
+    linhas.push("");
+  };
+  etapa("EM VALIDAÇÃO (esperando a área validar)", rel.comValidacao, (e) => e.emValidacao, (e) => e.funcoesEmValidacao);
+  etapa("EM APROVAÇÃO (validadas, esperando o aprovador)", rel.comAprovacao, (e) => e.emAprovacao, (e) => e.funcoesEmAprovacao);
+
+  if (rel.comVagaAberta.length === 0 && rel.disponiveis.length === 0 && rel.comFaltaConfirmar.length === 0 && rel.comValidacao.length === 0 && rel.comAprovacao.length === 0) {
     linhas.push("Nada falta escalar nem confirmar em evento que ainda vai acontecer.");
   }
 

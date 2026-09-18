@@ -1,33 +1,45 @@
 /**
- * Aba Análises da Escalação (01/09).
+ * Aba Análises da Escalação (01/09; revisão 18/09 — "deixe 10/10").
  *
- * A tela contava pendência de LINHA e não contava COBERTURA: quantas vagas de
- * cada evento ainda estão sem nome, e com quanto prazo. Esta aba responde isso
- * e devolve o usuário para a fila já filtrada — ver o problema e ir trabalhar
- * nele são o mesmo gesto.
+ * Responde "como estão os eventos" pelo caminho INTEIRO da vaga: em validação
+ * (com a área) → em aprovação (com o aprovador) → em escalação (sem nome, salvo
+ * ou com o gestor) → escalação completa. Cada evento escreve as quantidades (a
+ * barra sozinha não dizia quantas) e leva ao lugar onde se resolve: Escalação,
+ * Validação ou Aprovação, já filtradas pelo evento.
  *
  * Os números vêm de scaling-analytics-data.ts, que lê a base do recorte de
  * evento/período/excluídas e NÃO dos filtros de situação: "quantas faltam
  * escalar" não pode ser respondido por uma lista já filtrada por "vaga aberta".
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { Link } from "wouter";
 import type { TeamInclusion } from "@shared/schema";
 import {
   BUCKETS, DIAS_ESPERA_ATRASADA, analisarPorEvento, calcularKpis, funcoesDescobertas,
-  gargalos, textoDeFimDeSemana, textoDePrazo, type AnalyticsContext,
+  gargalos, textoDeFimDeSemana, textoDePrazo, type AnalyticsContext, type Gargalo,
 } from "./scaling-analytics-data";
 
 /**
- * Quantos eventos a lista mostra antes de pedir "mostrar mais". O protótipo
- * tinha quatro eventos de amostra; a base real tem duzentos, e sem corte o
- * cartão empurrava "Onde falta gente" e "Esperando alguém decidir" para fora
- * de qualquer tela. Como a ordem já é a de trabalho, os primeiros são os que
- * importam.
+ * Quantos eventos a lista mostra antes de pedir "mostrar mais". A base real tem
+ * duzentos, e sem corte o cartão empurrava "Onde falta gente" e "Esperando
+ * alguém decidir" para fora de qualquer tela. A ordem já é a de trabalho.
  */
 const EVENTOS_POR_VEZ = 12;
 
 const dm = (d: Date | null) =>
   d ? `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}` : "—";
+
+const COR = Object.fromEntries(BUCKETS.map((b) => [b.key, b.cor])) as Record<string, string>;
+
+/** Cor do marcador de cada tipo de espera — a mesma da barra quando existe. */
+const COR_DA_ESPERA: Record<Gargalo["tipo"], string> = {
+  gestor: "#EF4444",
+  analise: "#A855F7",
+  validacao: COR.validacao,
+  aprovacao: COR.aprovacao,
+};
+
+const BOTAO = "inline-flex h-[30px] shrink-0 items-center rounded-lg border border-border bg-card px-2.5 text-[12px] font-medium text-primary no-underline hover:border-primary hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40";
 
 interface Props {
   linhas: TeamInclusion[];
@@ -48,10 +60,10 @@ interface Props {
 
 function Kpi({ rotulo, valor, sub, cor }: { rotulo: string; valor: string; sub: string; cor: string }) {
   return (
-    <div className="flex-1 min-w-0 px-4 py-3.5 border-l border-slate-100 first:border-l-0">
+    <div className="min-w-0 bg-card px-4 py-3.5">
       <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{rotulo}</p>
-      <p className="mt-1 text-[22px] font-semibold tabular-nums leading-none" style={{ color: cor }}>{valor}</p>
-      <p className="mt-1.5 text-[12px] text-muted-foreground truncate">{sub}</p>
+      <p className="mt-1 text-[22px] font-semibold leading-none tabular-nums" style={{ color: cor }}>{valor}</p>
+      <p className="mt-1.5 truncate text-[12px] text-muted-foreground" title={sub}>{sub}</p>
     </div>
   );
 }
@@ -68,22 +80,28 @@ function Contagem({ n, texto, cor, detalhe }: { n: number; texto: string; cor: s
   );
 }
 
-const COR = Object.fromEntries(BUCKETS.map((b) => [b.key, b.cor])) as Record<string, string>;
+const linkDaEtapa = (etapa: "validacao" | "aprovacao", eventId: string) =>
+  `${etapa === "validacao" ? "/scaling-validation" : "/scaling-approval"}?eventId=${encodeURIComponent(eventId)}`;
 
 export default function ScalingAnalytics({ linhas, sugestoes = [], ctx, hoje, onVerVagasDoEvento, onVerFuncao, onAbrirLinha }: Props) {
   // O caminho inteiro da vaga: validação → aprovação → escalação → completa.
-  const todas = sugestoes.length ? [...linhas, ...sugestoes] : linhas;
-  const kpis = calcularKpis(todas, ctx, hoje);
-  const eventos = analisarPorEvento(todas, ctx, hoje);
-  const funcoes = funcoesDescobertas(linhas, ctx);
-  const travas = gargalos(linhas, ctx, hoje);
+  // Tudo memoizado (18/09): antes os quatro cálculos rodavam a cada render —
+  // inclusive ao clicar em "Mostrar mais", que não muda nenhum número.
+  const todas = useMemo(() => (sugestoes.length ? [...linhas, ...sugestoes] : linhas), [linhas, sugestoes]);
+  const kpis = useMemo(() => calcularKpis(todas, ctx, hoje), [todas, ctx, hoje]);
+  const eventos = useMemo(() => analisarPorEvento(todas, ctx, hoje), [todas, ctx, hoje]);
+  const funcoes = useMemo(() => funcoesDescobertas(linhas, ctx), [linhas, ctx]);
+  const travas = useMemo(() => gargalos(todas, ctx, hoje), [todas, ctx, hoje]);
+  const maiorFalta = useMemo(() => Math.max(1, ...funcoes.map((f) => f.abertas)), [funcoes]);
   const hojeBr = `${String(hoje.getDate()).padStart(2, "0")}/${String(hoje.getMonth() + 1).padStart(2, "0")}`;
   const [quantosEventos, setQuantosEventos] = useState(EVENTOS_POR_VEZ);
   const eventosVisiveis = eventos.slice(0, quantosEventos);
 
   return (
     <div className="flex flex-col gap-4" data-testid="aba-analises">
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 rounded-xl border border-border bg-card overflow-hidden [&>*]:border-b [&>*]:border-slate-100">
+      {/* O caminho da vaga, da esquerda para a direita. */}
+      {/* 1px de fundo entre os cartões = divisória que fecha em 2, 3 ou 6 colunas. */}
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-slate-100 sm:grid-cols-3 xl:grid-cols-6">
         <Kpi
           rotulo="Em validação"
           valor={String(kpis.emValidacao)}
@@ -122,94 +140,107 @@ export default function ScalingAnalytics({ linhas, sugestoes = [], ctx, hoje, on
         />
       </div>
 
-      <section aria-label="Cobertura por evento" className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100">
+      <section aria-label="Cobertura por evento" className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-slate-100 px-4 py-3">
           <p className="text-[14px] font-semibold text-slate-900">Por evento</p>
           <p className="text-[12px] text-muted-foreground">Prazos contados de {hojeBr}</p>
-          <div className="ml-auto flex items-center gap-3 flex-wrap">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:ml-auto">
             {BUCKETS.map((b) => (
               <span key={b.key} className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <span aria-hidden="true" className="w-2 h-2 rounded-[2px]" style={{ background: b.cor }} />
+                <span aria-hidden="true" className="h-2 w-2 rounded-[2px]" style={{ background: b.cor }} />
                 {b.label}
               </span>
             ))}
           </div>
         </div>
 
-        {eventosVisiveis.map((e) => (
-          <div key={e.eventId} className={`flex items-center gap-4 px-4 py-[13px] border-b border-slate-50 last:border-b-0 hover:bg-[#FBFCFE] ${e.jaTerminou ? "opacity-65" : ""}`}>
-            <div className="flex-[1_1_40%] min-w-0">
-              <p className="text-[13px] font-semibold text-slate-900 truncate">{e.nome}</p>
-              <p className="text-[12px] text-muted-foreground truncate">
-                {dm(e.ini)} – {dm(e.fim)} ·{" "}
-                <span
-                  className={e.critico ? "rounded px-1 py-px font-medium text-[#B45309] bg-[#FFFBEB]" : ""}
-                  data-testid={e.critico ? `prazo-critico-${e.eventId}` : undefined}
-                >
-                  {textoDePrazo(e.prazoDias)}
-                </span>
-                {" · "}{textoDeFimDeSemana(e.noFimDeSemana, e.total)}
-              </p>
-            </div>
-
-            <div className="flex-[1_1_34%] min-w-[160px]">
-              <div className="flex h-2 rounded-full bg-slate-100 overflow-hidden" role="img" aria-label={`Cobertura de ${e.nome}`}>
-                {e.segmentos.map((s) => (
-                  <span key={s.key} title={`${s.label}: ${s.n}`} style={{ width: `${s.pct}%`, background: s.cor }} />
-                ))}
+        {eventosVisiveis.map((e) => {
+          const naEscalacao = e.etapas.escalacao + e.etapas.completa;
+          return (
+            <div
+              key={e.eventId}
+              className={`flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-50 px-4 py-[13px] last:border-b-0 hover:bg-[#FBFCFE] ${e.jaTerminou ? "opacity-65" : ""}`}
+            >
+              <div className="min-w-0 basis-full sm:basis-auto sm:flex-[1_1_32%]">
+                <p className="truncate text-[13px] font-semibold text-slate-900" title={e.nome}>{e.nome}</p>
+                <p className="truncate text-[12px] text-muted-foreground">
+                  {dm(e.ini)} – {dm(e.fim)} ·{" "}
+                  <span
+                    className={e.critico ? "rounded bg-[#FFFBEB] px-1 py-px font-medium text-[#B45309]" : ""}
+                    data-testid={e.critico ? `prazo-critico-${e.eventId}` : undefined}
+                  >
+                    {textoDePrazo(e.prazoDias)}
+                  </span>
+                  {" · "}{textoDeFimDeSemana(e.noFimDeSemana, e.total)}
+                </p>
               </div>
-              {/* Os números de cada etapa (18/09: "só sei pelo gráfico, não tenho a quantidade"). */}
-              <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-600" data-testid={`etapas-${e.eventId}`}>
-                <Contagem n={e.etapas.validacao} texto="em validação" cor={COR.validacao} />
-                <Contagem n={e.etapas.aprovacao} texto="em aprovação" cor={COR.aprovacao} />
-                <Contagem
-                  n={e.etapas.escalacao}
-                  texto="em escalação"
-                  cor={COR.vaga}
-                  detalhe={[
-                    e.naEscalacao.semNome ? `${e.naEscalacao.semNome} sem nome` : "",
-                    e.naEscalacao.salvo ? `${e.naEscalacao.salvo} salvo` : "",
-                    e.naEscalacao.gestor ? `${e.naEscalacao.gestor} com o gestor` : "",
-                  ].filter(Boolean).join(" · ") || undefined}
-                />
-                <Contagem n={e.etapas.completa} texto="escalação completa" cor={COR.escalado} />
-                <span className="text-muted-foreground tabular-nums">· {e.total} {e.total === 1 ? "vaga" : "vagas"}</span>
-              </p>
-            </div>
 
-            <span
-              className="w-16 shrink-0 text-right leading-tight"
-              title="Escalação completa (confirmada) sobre o total de vagas do evento"
-            >
-              <span
-                className="block text-[17px] font-semibold tabular-nums"
-                style={{ color: e.completaPct === 100 ? "#047857" : e.critico ? "#B45309" : "#0F172A" }}
-              >
-                {e.completaPct}%
+              <div className="min-w-0 basis-full sm:basis-auto sm:min-w-[220px] sm:flex-[1_1_42%]">
+                <div className="flex h-2 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={`Andamento de ${e.nome}`}>
+                  {e.segmentos.map((s) => (
+                    <span key={s.key} title={`${s.label}: ${s.n}`} style={{ width: `${s.pct}%`, background: s.cor }} />
+                  ))}
+                </div>
+                {/* Os números de cada etapa (18/09: "só sei pelo gráfico, não tenho a quantidade"). */}
+                <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-600" data-testid={`etapas-${e.eventId}`}>
+                  <Contagem n={e.etapas.validacao} texto="em validação" cor={COR.validacao} />
+                  <Contagem n={e.etapas.aprovacao} texto="em aprovação" cor={COR.aprovacao} />
+                  <Contagem
+                    n={e.etapas.escalacao}
+                    texto="em escalação"
+                    cor={COR.vaga}
+                    detalhe={[
+                      e.naEscalacao.semNome ? `${e.naEscalacao.semNome} sem nome` : "",
+                      e.naEscalacao.salvo ? `${e.naEscalacao.salvo} salvo` : "",
+                      e.naEscalacao.gestor ? `${e.naEscalacao.gestor} com o gestor` : "",
+                    ].filter(Boolean).join(" · ") || undefined}
+                  />
+                  <Contagem n={e.etapas.completa} texto="escalação completa" cor={COR.escalado} />
+                  <span className="tabular-nums text-muted-foreground">· {e.total} {e.total === 1 ? "vaga" : "vagas"}</span>
+                </p>
+              </div>
+
+              <span className="w-16 shrink-0 text-right leading-tight" title="Escalação completa (confirmada) sobre o total de vagas do evento">
+                <span
+                  className="block text-[17px] font-semibold tabular-nums"
+                  style={{ color: e.completaPct === 100 ? "#047857" : e.critico ? "#B45309" : "#0F172A" }}
+                >
+                  {e.completaPct}%
+                </span>
+                <span className="block text-[10px] text-muted-foreground">completa</span>
               </span>
-              <span className="block text-[10px] text-muted-foreground">completa</span>
-            </span>
 
-            <button
-              type="button"
-              onClick={() => onVerVagasDoEvento(e.eventId)}
-              className="shrink-0 h-[30px] px-2.5 rounded-lg border border-border bg-card text-[12px] font-medium text-primary hover:border-primary hover:bg-brand-soft"
-              data-testid={`button-ver-vagas-${e.eventId}`}
-            >
-              Ver vagas
-            </button>
-          </div>
-        ))}
+              {/* Cada botão leva ao lugar onde a etapa se resolve, já no evento. */}
+              <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
+                {e.etapas.validacao > 0 && (
+                  <Link href={linkDaEtapa("validacao", e.eventId)} className={BOTAO} data-testid={`link-validacao-${e.eventId}`}>
+                    Validação
+                  </Link>
+                )}
+                {e.etapas.aprovacao > 0 && (
+                  <Link href={linkDaEtapa("aprovacao", e.eventId)} className={BOTAO} data-testid={`link-aprovacao-${e.eventId}`}>
+                    Aprovação
+                  </Link>
+                )}
+                {naEscalacao > 0 && (
+                  <button type="button" onClick={() => onVerVagasDoEvento(e.eventId)} className={BOTAO} data-testid={`button-ver-vagas-${e.eventId}`}>
+                    Ver vagas
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
 
         {eventos.length > quantosEventos && (
-          <div className="flex items-center gap-3 px-4 py-2.5 bg-background border-t border-border">
-            <span className="text-[12px] text-[#475569] tabular-nums">
+          <div className="flex flex-wrap items-center gap-3 border-t border-border bg-background px-4 py-2.5">
+            <span className="text-[12px] tabular-nums text-[#475569]">
               Mostrando {eventosVisiveis.length} de {eventos.length} eventos · os mais urgentes primeiro
             </span>
             <button
               type="button"
               onClick={() => setQuantosEventos((n) => n + EVENTOS_POR_VEZ)}
-              className="h-[26px] px-2.5 rounded-[7px] border border-border bg-card text-[12px] font-medium text-primary hover:border-primary hover:bg-brand-soft"
+              className="h-[26px] rounded-[7px] border border-border bg-card px-2.5 text-[12px] font-medium text-primary hover:border-primary hover:bg-brand-soft"
               data-testid="button-mais-eventos"
             >
               Mostrar mais {Math.min(EVENTOS_POR_VEZ, eventos.length - quantosEventos)}
@@ -217,7 +248,7 @@ export default function ScalingAnalytics({ linhas, sugestoes = [], ctx, hoje, on
             <button
               type="button"
               onClick={() => setQuantosEventos(eventos.length)}
-              className="h-[26px] px-2 rounded-[7px] text-[12px] font-medium text-muted-foreground hover:text-primary"
+              className="h-[26px] rounded-[7px] px-2 text-[12px] font-medium text-muted-foreground hover:text-primary"
               data-testid="button-todos-eventos"
             >
               Mostrar todos
@@ -232,76 +263,73 @@ export default function ScalingAnalytics({ linhas, sugestoes = [], ctx, hoje, on
         )}
       </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <section aria-label="Funções descobertas" className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <section aria-label="Funções descobertas" className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="border-b border-slate-100 px-4 py-3">
             <p className="text-[14px] font-semibold text-slate-900">Onde falta gente</p>
-            <p className="mt-0.5 text-[12px] text-muted-foreground">Funções com vaga sem nome, da mais descoberta para a menos.</p>
+            <p className="mt-0.5 text-[12px] text-muted-foreground">Funções com vaga sem nome na escalação, da mais descoberta para a menos.</p>
           </div>
           <div className="max-h-[420px] overflow-y-auto">
-          {funcoes.map((f) => (
-            <button
-              key={f.functionId}
-              type="button"
-              onClick={() => onVerFuncao(f.nome)}
-              className="flex items-center gap-3 w-full px-4 py-[11px] border-b border-slate-50 last:border-b-0 text-left hover:bg-[#FBFCFE] focus-visible:outline-none focus-visible:bg-brand-soft"
-              data-testid={`button-funcao-descoberta-${f.functionId}`}
-            >
-              <span className="w-[116px] shrink-0 text-[13px] text-slate-700 truncate">{f.nome}</span>
-              <span className="flex-1 min-w-0 h-2 rounded-full bg-slate-100 overflow-hidden">
-                <span
-                  className="block h-2 rounded-full bg-[#FBBF24]"
-                  style={{ width: `${(f.abertas / Math.max(...funcoes.map((x) => x.abertas))) * 100}%` }}
-                />
-              </span>
-              <span className="shrink-0 text-[13px] font-semibold tabular-nums text-[#B45309]">{f.abertas}</span>
-              <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">de {f.total}</span>
-            </button>
-          ))}
+            {funcoes.map((f) => (
+              <button
+                key={f.functionId}
+                type="button"
+                onClick={() => onVerFuncao(f.nome)}
+                className="flex w-full items-center gap-3 border-b border-slate-50 px-4 py-[11px] text-left last:border-b-0 hover:bg-[#FBFCFE] focus-visible:bg-brand-soft focus-visible:outline-none"
+                data-testid={`button-funcao-descoberta-${f.functionId}`}
+              >
+                <span className="w-[116px] shrink-0 truncate text-[13px] text-slate-700" title={f.nome}>{f.nome}</span>
+                <span className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-100">
+                  <span className="block h-2 rounded-full bg-[#FBBF24]" style={{ width: `${(f.abertas / maiorFalta) * 100}%` }} />
+                </span>
+                <span className="shrink-0 text-[13px] font-semibold tabular-nums text-[#B45309]">{f.abertas}</span>
+                <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">de {f.total}</span>
+              </button>
+            ))}
           </div>
           {funcoes.length === 0 && (
-            <p className="px-4 py-8 text-center text-[13px] text-[#047857]">Todas as vagas deste recorte já têm nome.</p>
+            <p className="px-4 py-8 text-center text-[13px] text-[#047857]">Todas as vagas da escalação deste recorte já têm nome.</p>
           )}
         </section>
 
-        <section aria-label="Escalações travadas" className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100">
+        <section aria-label="Escalações travadas" className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="border-b border-slate-100 px-4 py-3">
             <p className="text-[14px] font-semibold text-slate-900">Esperando alguém decidir</p>
-            <p className="mt-0.5 text-[12px] text-muted-foreground">Aprovação do gestor, troca e pedido de ajuste travam a compra.</p>
+            <p className="mt-0.5 text-[12px] text-muted-foreground">Validação, aprovação, gestor, troca e pedido de ajuste — o que está parado há mais tempo primeiro.</p>
           </div>
           <div className="max-h-[420px] overflow-y-auto">
-          {travas.map((g) => (
-            <button
-              key={g.inclusion.id}
-              type="button"
-              onClick={() => onAbrirLinha(g.inclusion)}
-              className="flex items-center gap-2.5 w-full px-4 py-[11px] border-b border-slate-50 last:border-b-0 text-left hover:bg-[#FBFCFE]"
-              data-testid={`button-gargalo-${g.inclusion.id}`}
-            >
-              <span
-                aria-hidden="true"
-                className="w-[3px] h-[26px] rounded-full shrink-0"
-                style={{ background: g.tipo === "gestor" ? "#EF4444" : "#A855F7" }}
-              />
-              <span className="w-[46px] shrink-0 font-mono text-[12px] text-muted-foreground">{g.id}</span>
-              <span className="flex-1 min-w-0">
-                <span className="block text-[13px] text-slate-900 truncate">{g.nome}</span>
-                <span className="block text-[11px] text-muted-foreground truncate">{g.funcao} · {g.oque}</span>
-              </span>
-              {g.diasParado !== null && (
-                <span
-                  className={`shrink-0 text-[12px] whitespace-nowrap ${
-                    g.diasParado >= DIAS_ESPERA_ATRASADA ? "font-semibold text-[#B91C1C]" : "text-muted-foreground"
-                  }`}
-                >
-                  {g.diasParado === 0 ? "hoje" : `há ${g.diasParado} ${g.diasParado === 1 ? "dia" : "dias"}`}
-                </span>
-              )}
-            </button>
-          ))}
+            {travas.map((g) => {
+              const etapa = g.tipo === "validacao" || g.tipo === "aprovacao" ? g.tipo : null;
+              const conteudo = (
+                <>
+                  <span aria-hidden="true" className="h-[26px] w-[3px] shrink-0 rounded-full" style={{ background: COR_DA_ESPERA[g.tipo] }} />
+                  <span className="w-[46px] shrink-0 font-mono text-[12px] text-muted-foreground">{etapa ? `×${g.quantidade}` : g.id}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] text-slate-900" title={g.nome}>{g.nome}</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">{g.funcao} · {g.oque}</span>
+                  </span>
+                  {g.diasParado !== null && (
+                    <span className={`shrink-0 whitespace-nowrap text-[12px] ${g.diasParado >= DIAS_ESPERA_ATRASADA ? "font-semibold text-[#B91C1C]" : "text-muted-foreground"}`}>
+                      {g.diasParado === 0 ? "hoje" : `há ${g.diasParado} ${g.diasParado === 1 ? "dia" : "dias"}`}
+                    </span>
+                  )}
+                </>
+              );
+              const cls = "flex w-full items-center gap-2.5 border-b border-slate-50 px-4 py-[11px] text-left no-underline last:border-b-0 hover:bg-[#FBFCFE] focus-visible:bg-brand-soft focus-visible:outline-none";
+              // Validação/aprovação resolvem-se em outra tela — o link já leva ao evento.
+              return etapa && g.eventId ? (
+                <Link key={`${etapa}-${g.eventId}`} href={linkDaEtapa(etapa, g.eventId)} className={cls} data-testid={`link-espera-${etapa}-${g.eventId}`}>
+                  {conteudo}
+                </Link>
+              ) : (
+                <button key={g.inclusion.id} type="button" onClick={() => onAbrirLinha(g.inclusion)} className={cls} data-testid={`button-gargalo-${g.inclusion.id}`}>
+                  {conteudo}
+                </button>
+              );
+            })}
           </div>
           {travas.length === 0 && (
-            <p className="px-4 py-8 text-center text-[13px] text-[#047857]">Nada travado neste recorte.</p>
+            <p className="px-4 py-8 text-center text-[13px] text-[#047857]">Nada esperando decisão neste recorte.</p>
           )}
         </section>
       </div>

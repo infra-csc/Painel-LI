@@ -292,6 +292,15 @@ export default function Scaling() {
 
   const testeFlags = useMemo(() => fazTesteDeFlags(flags, queueContext), [flags, queueContext]);
   const comFlags = useMemo(() => comBusca.filter(testeFlags), [comBusca, testeFlags]);
+  /**
+   * Relatório "O que falta" (18/09): sem filtro de situação, entra também o que
+   * está na validação e na aprovação; com filtro (ex.: "Salvo · falta
+   * confirmar"), segue o filtro. Memoizado: o diálogo recalcula a cada troca.
+   */
+  const linhasDoRelatorio = useMemo(
+    () => (Object.values(flags).some(Boolean) ? comFlags : [...comFlags, ...sugestoesDoRecorte]),
+    [flags, comFlags, sugestoesDoRecorte],
+  );
 
   const contagensDaFila = useMemo(() => {
     const out = {} as Record<QueueKey, number>;
@@ -975,7 +984,7 @@ export default function Scaling() {
       <ScalingCoverageDialog
         open={coberturaOpen}
         onOpenChange={setCoberturaOpen}
-        linhas={comFlags}
+        linhas={linhasDoRelatorio}
         ctx={analyticsContext}
         hoje={hoje}
         recorte={nomesDosFiltrosDoRecorte}
