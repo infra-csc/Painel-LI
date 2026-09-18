@@ -62,17 +62,22 @@ export default function ScalingCoverageDialog({ open, onOpenChange, linhas, ctx,
     URL.revokeObjectURL(url);
   };
 
-  const nEventos = rel.comVagaAberta.length + rel.disponiveis.length;
+  const nEventos = new Set([...rel.comVagaAberta, ...rel.disponiveis, ...rel.comFaltaConfirmar].map((e) => e.eventId)).size;
+  // O que falta: vaga sem nome E nome salvo por confirmar (18/09).
+  const partes = [
+    rel.totalAbertas > 0 ? `${rel.totalAbertas} ${rel.totalAbertas === 1 ? "vaga aberta" : "vagas abertas"}` : null,
+    rel.totalAConfirmar > 0 ? `${rel.totalAConfirmar} ${rel.totalAConfirmar === 1 ? "falta confirmar" : "faltam confirmar"}` : null,
+  ].filter(Boolean);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="!max-w-[720px] w-[95vw] max-h-[88vh] !rounded-[14px] !flex !flex-col p-0 gap-0 overflow-hidden">
         <DialogHeader className="shrink-0 border-b border-slate-100 px-6 pt-6 pb-3 pr-12 text-left">
-          <DialogTitle>O que falta escalar</DialogTitle>
+          <DialogTitle>O que falta escalar e confirmar</DialogTitle>
           <DialogDescription>
-            {rel.totalAbertas === 0
-              ? "Nenhuma vaga aberta neste recorte."
-              : `${rel.totalAbertas} ${rel.totalAbertas === 1 ? "vaga aberta" : "vagas abertas"} em ${nEventos} ${nEventos === 1 ? "evento" : "eventos"}. Copie e mande para quem escala.`}
+            {partes.length === 0
+              ? "Nada falta escalar nem confirmar neste recorte."
+              : `${partes.join(" e ")} em ${nEventos} ${nEventos === 1 ? "evento" : "eventos"}. Copie e mande para quem escala.`}
           </DialogDescription>
         </DialogHeader>
 

@@ -9,20 +9,31 @@
  * A saída é texto para colar em WhatsApp ou e-mail, porque é assim que esse
  * pedido circula.
  *
- * **Dois grupos, e o critério vai escrito no relatório:**
+ * **Três grupos, e o critério vai escrito no relatório:**
  * - *Eventos com vaga aberta*: já tem gente escalada e falta completar. Lista
  *   função por função, porque é isso que se pede.
  * - *Disponível para escalação*: NENHUMA vaga preenchida. Listar função por
  *   função aqui seria repetir o evento inteiro; o que importa é "este ainda
  *   não foi tocado".
+ * - *Falta confirmar* (18/09): nome salvo, escalação não confirmada. Antes o
+ *   relatório só contava vaga sem nome — com o filtro "Salvo · falta
+ *   confirmar" a tela mostrava 42 vagas e o texto dizia "0" (dono: "só para
+ *   enviar para os caras"). Sai com os nomes, por função: é o que se cobra.
  */
 import type { TeamInclusion } from "@shared/schema";
 import { diaLocal, inicioDoDia } from "./scaling-period";
 import { vagasVivas, type AnalyticsContext } from "./scaling-analytics-data";
+import { getScalingStatusKey } from "./scaling-status";
 
 export interface FuncaoFaltando {
   nome: string;
   abertas: number;
+}
+
+/** Função com gente salva e escalação por confirmar — com os nomes. */
+export interface FuncaoAConfirmar {
+  nome: string;
+  pessoas: string[];
 }
 
 export interface EventoNoRelatorio {
@@ -49,12 +60,19 @@ export interface EventoNoRelatorio {
   intocado: boolean;
   /** A última escala do evento já passou. */
   jaTerminou: boolean;
+  /** Vagas com nome salvo e escalação não confirmada. */
+  aConfirmar: number;
+  /** As funções dessas vagas, com os nomes. */
+  funcoesAConfirmar: FuncaoAConfirmar[];
 }
 
 export interface RelatorioDeCobertura {
   comVagaAberta: EventoNoRelatorio[];
   disponiveis: EventoNoRelatorio[];
+  /** Eventos com nome salvo por confirmar (18/09). */
+  comFaltaConfirmar: EventoNoRelatorio[];
   totalAbertas: number;
+  totalAConfirmar: number;
   totalVagas: number;
   /**
    * Eventos com vaga aberta que JÁ ACONTECERAM. Ficam fora da lista — ninguém
@@ -86,12 +104,21 @@ export function montarRelatorioDeCobertura(
   const eventos: EventoNoRelatorio[] = [];
   porEvento.forEach((doEvento, eventId) => {
     const abertas = doEvento.filter((i) => !ctx.temNome(i));
-    if (abertas.length === 0) return; // evento completo não entra em relatório de falta
+    // Nome salvo, escalação não confirmada (18/09).
+    const salvas = doEvento.filter((i) => ctx.temNome(i) && getScalingStatusKey(i as any) === "salvo");
+    if (abertas.length === 0 && salvas.length === 0) return; // nada falta neste evento
 
     const porFuncao = new Map<string, number>();
     for (const i of abertas) {
       const nome = ctx.getFunctionName(i.functionId);
       porFuncao.set(nome, (porFuncao.get(nome) ?? 0) + 1);
+    }
+    const aConfirmarPorFuncao = new Map<string, string[]>();
+    for (const i of salvas) {
+      const nome = ctx.getFunctionName(i.functionId);
+      const pessoas = aConfirmarPorFuncao.get(nome) ?? [];
+      pessoas.push(ctx.getCollaboratorName(i.collaboratorId) || "?");
+      aConfirmarPorFuncao.set(nome, pessoas);
     }
     const inicios = doEvento.map((i) => diaLocal(i.scheduleStartDate)).filter((d): d is Date => !!d);
     const fins = doEvento
@@ -121,6 +148,10 @@ export function montarRelatorioDeCobertura(
         .map(([nome, n]) => ({ nome, abertas: n }))
         .sort((a, b) => b.abertas - a.abertas || a.nome.localeCompare(b.nome, "pt-BR")),
       intocado: abertas.length === doEvento.length,
+      aConfirmar: salvas.length,
+      funcoesAConfirmar: Array.from(aConfirmarPorFuncao.entries())
+        .map(([nome, pessoas]) => ({ nome, pessoas: pessoas.sort((a, b) => a.localeCompare(b, "pt-BR")) }))
+        .sort((a, b) => b.pessoas.length - a.pessoas.length || a.nome.localeCompare(b.nome, "pt-BR")),
     });
   });
 
@@ -134,12 +165,14 @@ export function montarRelatorioDeCobertura(
   };
 
   const atuais = eventos.filter((e) => !e.jaTerminou);
-  const passados = eventos.filter((e) => e.jaTerminou);
+  const passados = eventos.filter((e) => e.jaTerminou && e.abertas > 0);
 
   return {
-    comVagaAberta: atuais.filter((e) => !e.intocado).sort(porData),
-    disponiveis: atuais.filter((e) => e.intocado).sort(porData),
+    comVagaAberta: atuais.filter((e) => e.abertas > 0 && !e.intocado).sort(porData),
+    disponiveis: atuais.filter((e) => e.abertas > 0 && e.intocado).sort(porData),
+    comFaltaConfirmar: atuais.filter((e) => e.aConfirmar > 0).sort(porData),
     totalAbertas: atuais.reduce((s, e) => s + e.abertas, 0),
+    totalAConfirmar: atuais.reduce((s, e) => s + e.aConfirmar, 0),
     totalVagas: vivas.length,
     jaPassaram: passados.length,
     vagasQueJaPassaram: passados.reduce((s, e) => s + e.abertas, 0),
@@ -160,10 +193,14 @@ function periodo(e: { ini: Date | null; fim: Date | null }): string {
 export function textoDoRelatorio(rel: RelatorioDeCobertura, hoje: Date, recorte?: string): string {
   const linhas: string[] = [];
   const dataHoje = hoje.toLocaleDateString("pt-BR");
+  const abertasTxt = `${rel.totalAbertas} ${rel.totalAbertas === 1 ? "vaga aberta" : "vagas abertas"}`;
+  const confirmarTxt = `${rel.totalAConfirmar} ${rel.totalAConfirmar === 1 ? "falta confirmar" : "faltam confirmar"}`;
 
   linhas.push("ESCALAÇÃO — O QUE FALTA");
   linhas.push(
-    `${rel.totalAbertas} ${rel.totalAbertas === 1 ? "vaga aberta" : "vagas abertas"} de ${rel.totalVagas} · ${dataHoje}`,
+    rel.totalAConfirmar > 0
+      ? `${abertasTxt} · ${confirmarTxt} · de ${rel.totalVagas} · ${dataHoje}`
+      : `${abertasTxt} de ${rel.totalVagas} · ${dataHoje}`,
   );
   if (recorte) linhas.push(recorte);
   linhas.push("");
@@ -187,8 +224,19 @@ export function textoDoRelatorio(rel: RelatorioDeCobertura, hoje: Date, recorte?
     linhas.push("");
   }
 
-  if (rel.comVagaAberta.length === 0 && rel.disponiveis.length === 0) {
-    linhas.push("Nenhuma vaga aberta em evento que ainda vai acontecer.");
+  if (rel.comFaltaConfirmar.length > 0) {
+    // Nome salvo, escalação não confirmada (18/09): sai com os nomes, porque é
+    // o que quem recebe precisa confirmar.
+    linhas.push("FALTA CONFIRMAR (nome salvo, escalação não confirmada)");
+    for (const e of rel.comFaltaConfirmar) {
+      linhas.push(`• ${e.nome} — ${periodo(e)} · ${e.aConfirmar} ${e.aConfirmar === 1 ? "vaga" : "vagas"}`);
+      for (const f of e.funcoesAConfirmar) linhas.push(`   · ${f.nome}: ${f.pessoas.join(", ")}`);
+    }
+    linhas.push("");
+  }
+
+  if (rel.comVagaAberta.length === 0 && rel.disponiveis.length === 0 && rel.comFaltaConfirmar.length === 0) {
+    linhas.push("Nada falta escalar nem confirmar em evento que ainda vai acontecer.");
   }
 
   if (rel.jaPassaram > 0) {

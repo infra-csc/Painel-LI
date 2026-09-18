@@ -147,7 +147,8 @@ describe("texto para colar", () => {
 
   it("o cabeçalho traz o total e a data — quem recebe precisa saber de quando é", () => {
     const txt = textoDoRelatorio(montarRelatorioDeCobertura(linhas, ctx, HOJE), HOJE);
-    expect(txt).toContain("10 vagas abertas de 11");
+    expect(txt).toContain("10 vagas abertas");
+    expect(txt).toContain("de 11");
     expect(txt).toContain("01/09/2026");
   });
 
@@ -157,8 +158,8 @@ describe("texto para colar", () => {
   });
 
   it("nada faltando tem texto próprio, não uma lista vazia", () => {
-    const txt = textoDoRelatorio(montarRelatorioDeCobertura(varias(2, { collaboratorId: "c1" }), ctx, HOJE), HOJE);
-    expect(txt).toContain("Nenhuma vaga aberta em evento que ainda vai acontecer.");
+    const txt = textoDoRelatorio(montarRelatorioDeCobertura(varias(2, { collaboratorId: "c1", status: "escalado" }), ctx, HOJE), HOJE);
+    expect(txt).toContain("Nada falta escalar nem confirmar em evento que ainda vai acontecer.");
     expect(txt).not.toContain("EVENTOS");
   });
 
@@ -217,5 +218,31 @@ describe("período do evento", () => {
 describe("nome do arquivo", () => {
   it("leva a data, para não sobrescrever o de ontem", () => {
     expect(nomeDoArquivo(HOJE)).toBe("escalacao-o-que-falta-2026-09-01.txt");
+  });
+});
+
+describe("falta confirmar — segue o filtro da tela (18/09)", () => {
+  it("só vagas salvas (filtro Salvo · falta confirmar): lista por evento e função, com os nomes", () => {
+    const linhas = [
+      vaga({ eventId: "dog", functionId: "ceno", collaboratorId: "ana" }),
+      vaga({ eventId: "dog", functionId: "ceno", collaboratorId: "bia" }),
+      vaga({ eventId: "girl", functionId: "kit", collaboratorId: "caio", scheduleStartDate: "2026-10-20", scheduleEndDate: "2026-10-20" }),
+    ];
+    const rel = montarRelatorioDeCobertura(linhas, ctx, HOJE);
+    expect(rel.totalAbertas).toBe(0);
+    expect(rel.totalAConfirmar).toBe(3);
+    const txt = textoDoRelatorio(rel, HOJE, "Salvo · falta confirmar");
+    expect(txt).toContain("0 vagas abertas · 3 faltam confirmar · de 3");
+    expect(txt).toContain("FALTA CONFIRMAR (nome salvo, escalação não confirmada)");
+    expect(txt).toContain("• Dog Race São Paulo 2026 — 18/10 · 2 vagas");
+    expect(txt).toContain("   · Cenotecnica: Colab ana, Colab bia");
+    expect(txt).toContain("   · Kit: Colab caio");
+    expect(txt).not.toContain("Nada falta");
+  });
+
+  it("escalação confirmada não entra como falta", () => {
+    const rel = montarRelatorioDeCobertura([vaga({ collaboratorId: "c9", status: "escalado" })], ctx, HOJE);
+    expect(rel.totalAConfirmar).toBe(0);
+    expect(rel.comFaltaConfirmar).toHaveLength(0);
   });
 });
