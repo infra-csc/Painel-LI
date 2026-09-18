@@ -1314,6 +1314,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Allow partial updates including status field
       const eventData = updateEventSchema.parse(req.body);
+      // Excluir evento é só do administrador (dono, 18/09 — o Girl Power
+      // Brasília foi excluído e sumiu com 26 vagas). Compras continua editando
+      // e pode REATIVAR um evento excluído.
+      if (eventData.status === "excluído" && oldEvent.status !== "excluído" && currentUser && normalizeRole(currentUser.role) !== "admin") {
+        return res.status(403).json({ message: "Só o administrador pode excluir eventos. Você pode editar ou reativar." });
+      }
       const updatedEvent = await storage.updateEvent(eventId, eventData);
       
       // Log event update
@@ -1345,8 +1351,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(401).json({ message: "Usuário não encontrado" });
         }
 
-        // Only admins and purchasing can delete events
-        const canDeleteEvent = ['admin', 'purchasing'].includes(normalizeRole(currentUser.role) ?? '');
+        // Só o administrador exclui evento (dono, 18/09).
+        const canDeleteEvent = normalizeRole(currentUser.role) === 'admin';
         if (!canDeleteEvent) {
           return res.status(403).json({ message: "Sem permissão para excluir eventos" });
         }

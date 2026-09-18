@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import type { Event, PaymentCompany } from "@shared/schema";
@@ -53,6 +54,9 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const isEditing = !!event;
+  // "Excluído" no status: só administrador (18/09) — ou para manter o que já está.
+  const { user } = useAuth();
+  const podeExcluir = ["admin", "administrator", "administrador"].includes(String(user?.role ?? "")) || event?.status === "excluído";
 
   const [obsLen,       setObsLen]       = useState(0);
   const [showSugg,     setShowSugg]     = useState(false);
@@ -234,7 +238,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                           className="h-11 w-full text-[13px] px-3.5 border-0 rounded-lg bg-brand-soft text-foreground cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring/25">
                           <option value="planejado">Planejado</option>
                           <option value="concluído">Concluído</option>
-                          <option value="excluído">Excluído</option>
+                          {podeExcluir && <option value="excluído">Excluído</option>}
                         </select>
                         <FormMessage className="text-[11px] mt-1" />
                       </div>

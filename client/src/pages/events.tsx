@@ -2,6 +2,7 @@ import { useState, useMemo, type KeyboardEvent as ReactKeyboardEvent } from "rea
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import {
@@ -249,7 +250,7 @@ function WeekView({ events, onEdit, currentDate, setCurrentDate }: {
 
 // ─── ActionBtns ───────────────────────────────────────────────────────────────
 function ActionBtns({ event, onEdit, onDelete, onRestore, busy }: {
-  event: Event; onEdit: (e: Event) => void; onDelete: (e: Event) => void; onRestore: (e: Event) => void; busy?: boolean;
+  event: Event; onEdit: (e: Event) => void; onDelete?: (e: Event) => void; onRestore: (e: Event) => void; busy?: boolean;
 }) {
   const ds = getEventStatus(event);
   if (ds === "excluído") return (
@@ -268,12 +269,13 @@ function ActionBtns({ event, onEdit, onDelete, onRestore, busy }: {
             className={cn(ACTION_BTN, "hover:bg-brand-soft hover:text-primary")}><Edit size={13} /></button>
         </TooltipTrigger><TooltipContent>Editar</TooltipContent>
       </Tooltip>
-      <Tooltip>
+      {/* Excluir: só administrador (18/09). Sem a função, o botão não aparece. */}
+      {onDelete && <Tooltip>
         <TooltipTrigger asChild>
-          <button type="button" onClick={() => onDelete(event)} disabled={busy} aria-label={`Excluir evento ${event.name}`}
+          <button type="button" onClick={() => onDelete?.(event)} disabled={busy} aria-label={`Excluir evento ${event.name}`}
             className={cn(ACTION_BTN, "hover:bg-red-50 hover:text-red-500")}><Trash2 size={13} /></button>
         </TooltipTrigger><TooltipContent>Excluir</TooltipContent>
-      </Tooltip>
+      </Tooltip>}
     </>
   );
 }
@@ -300,7 +302,7 @@ function EventsEmpty({ hasFilters, onClear, onNew }: { hasFilters: boolean; onCl
 
 // ─── ListView ─────────────────────────────────────────────────────────────────
 function ListView({ events, onEdit, onDelete, onRestore, escalacoes, busy, empty }: {
-  events: Event[]; onEdit: (e: Event) => void; onDelete: (e: Event) => void;
+  events: Event[]; onEdit: (e: Event) => void; onDelete?: (e: Event) => void;
   onRestore: (e: Event) => void; escalacoes: Record<string, number>; busy?: boolean; empty: React.ReactNode;
 }) {
   if (events.length === 0) return <>{empty}</>;
@@ -367,7 +369,7 @@ const COLUMNS: ColDef[] = [
 ];
 
 function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, sortDir, handleSort, busy, empty }: {
-  events: Event[]; onEdit: (e: Event) => void; onDelete: (e: Event) => void; onRestore: (e: Event) => void;
+  events: Event[]; onEdit: (e: Event) => void; onDelete?: (e: Event) => void; onRestore: (e: Event) => void;
   escalacoes: Record<string, number>; sortKey: SortKey; sortDir: SortDir; handleSort: (k: SortKey) => void; busy?: boolean;
   empty: React.ReactNode;
 }) {
@@ -450,6 +452,9 @@ function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, s
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Events() {
+  // Excluir evento: só administrador (dono, 18/09). Os demais só reativam.
+  const { user } = useAuth();
+  const isAdmin = ["admin", "administrator", "administrador"].includes(String(user?.role ?? ""));
   usePageTitle("Eventos");
   const [isModalOpen,  setIsModalOpen]  = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
@@ -727,10 +732,10 @@ export default function Events() {
             <Button variant="outline" size="sm" onClick={() => refetch()}>Tentar novamente</Button>
           </div>
         ) : viewMode === "table" ? (
-          <TableView events={filteredAndSorted} onEdit={openModal} onDelete={confirmDelete} onRestore={confirmRestore}
+          <TableView events={filteredAndSorted} onEdit={openModal} onDelete={isAdmin ? confirmDelete : undefined} onRestore={confirmRestore}
             escalacoes={escalacoes} sortKey={sortKey} sortDir={sortDir} handleSort={handleSort} busy={isMutating} empty={emptyNode} />
         ) : viewMode === "list" ? (
-          <ListView events={filteredAndSorted} onEdit={openModal} onDelete={confirmDelete} onRestore={confirmRestore}
+          <ListView events={filteredAndSorted} onEdit={openModal} onDelete={isAdmin ? confirmDelete : undefined} onRestore={confirmRestore}
             escalacoes={escalacoes} busy={isMutating} empty={emptyNode} />
         ) : viewMode === "calendar" ? (
           <CalendarView events={activeEvents} onEdit={openModal} currentDate={calDate} setCurrentDate={setCalDate} />
