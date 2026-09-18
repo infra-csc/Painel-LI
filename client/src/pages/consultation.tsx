@@ -150,8 +150,8 @@ function LogCard({ log, d }: { log: SystemLog; d: LogDescrito }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {d.mudancas.map((m) => (
-                    <tr key={m.campo}>
+                  {d.mudancas.map((m, i) => (
+                    <tr key={`${m.campo}-${i}`}>
                       <td className="px-3 py-1.5 font-medium text-slate-700">{m.campo}</td>
                       <td className="px-3 py-1.5 text-slate-500 break-words">{m.antes}</td>
                       <td className="px-3 py-1.5 font-semibold text-slate-800 break-words">{m.depois}</td>
@@ -167,8 +167,8 @@ function LogCard({ log, d }: { log: SystemLog; d: LogDescrito }) {
                 {log.action === "delete" ? "Como estava antes de excluir" : "Dados registrados"}
               </p>
               <dl className="grid grid-cols-1 gap-x-4 gap-y-1 px-3 py-2 text-[12px] sm:grid-cols-2">
-                {d.dados.map((x) => (
-                  <div key={x.campo} className="flex gap-2 min-w-0">
+                {d.dados.map((x, i) => (
+                  <div key={`${x.campo}-${i}`} className="flex gap-2 min-w-0">
                     <dt className="shrink-0 text-slate-500">{x.campo}:</dt>
                     <dd className="min-w-0 font-medium text-slate-700 break-words">{x.valor}</dd>
                   </div>

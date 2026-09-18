@@ -14,7 +14,8 @@
  * para os registros antigos, sem migrar nada. O servidor usa os mesmos
  * rótulos para gravar o resumo curto (details).
  */
-import { SUGESTAO_STATUS_LABELS } from "./scaling-validation-rules";
+import { SUGESTAO_STATUS_LABELS, TRANSPORT_MODE_LABELS } from "./scaling-validation-rules";
+import { ATENDIMENTO_TIPOS } from "./atendimento";
 
 // ─── Módulos (entity_type) ───────────────────────────────────────────────────
 
@@ -38,11 +39,13 @@ export const MODULOS: Record<string, Modulo> = {
   budget_comparison: { rotulo: "Comparativo", substantivo: "comparativo", artigo: "o" },
   financial: { rotulo: "Financeiro", substantivo: "lançamento financeiro", artigo: "o" },
   baggage_history: { rotulo: "Controle de bagagem", substantivo: "registro de bagagem", artigo: "o" },
+  baggage_request: { rotulo: "Pedidos de bagagem", substantivo: "pedido de bagagem", artigo: "o" },
   system_settings: { rotulo: "Configurações", substantivo: "configurações do sistema", artigo: "as" },
 };
 
+/** Tipo que ainda não tem nome: nunca mostrar o código (dono, 18/09: "nada em inglês"). */
 export const moduloDe = (entityType: string): Modulo =>
-  MODULOS[entityType] ?? { rotulo: humanizar(entityType), substantivo: humanizar(entityType).toLowerCase(), artigo: "o" };
+  MODULOS[entityType] ?? { rotulo: "Outro registro", substantivo: "registro", artigo: "o" };
 
 // ─── Ações ───────────────────────────────────────────────────────────────────
 
@@ -77,10 +80,26 @@ export const ACOES: Record<string, Acao> = {
   activate: { rotulo: "Ativação", verbo: "ativou", tom: "aprovar" },
   deactivate: { rotulo: "Desativação", verbo: "desativou", tom: "excluir" },
   emitir: { rotulo: "Passagem emitida", verbo: "marcou como emitida", tom: "aprovar" },
+  reactivate: { rotulo: "Reativação", verbo: "reativou", tom: "aprovar" },
+  suggestion_rejected: { rotulo: "Sugestão negada", verbo: "negou", tom: "recusar" },
+  // Ações do histórico da vaga (team_inclusion_logs) — mesmos nomes, se aparecerem aqui.
+  created: { rotulo: "Criação", verbo: "criou", tom: "criar" },
+  deleted: { rotulo: "Exclusão", verbo: "excluiu", tom: "excluir" },
+  status_changed: { rotulo: "Situação alterada", verbo: "mudou a situação d", tom: "alterar" },
+  city_changed: { rotulo: "“Sai de” alterado", verbo: "mudou de onde sai o colaborador d", tom: "alterar" },
+  collaborator_changed: { rotulo: "Colaborador trocado", verbo: "trocou o colaborador d", tom: "alterar" },
+  daily_rates_changed: { rotulo: "Diárias alteradas", verbo: "mudou as diárias d", tom: "alterar" },
+  daily_value_changed: { rotulo: "Valor da diária alterado", verbo: "mudou o valor da diária d", tom: "alterar" },
+  dates_changed: { rotulo: "Datas alteradas", verbo: "mudou as datas d", tom: "alterar" },
+  travel_dates_changed: { rotulo: "Datas de viagem alteradas", verbo: "mudou as datas de viagem d", tom: "alterar" },
+  work_days_changed: { rotulo: "Dias de trabalho alterados", verbo: "mudou os dias de trabalho d", tom: "alterar" },
+  observations_changed: { rotulo: "Observações alteradas", verbo: "mudou as observações d", tom: "alterar" },
+  note: { rotulo: "Anotação", verbo: "anotou n", tom: "neutro" },
 };
 
+/** Ação que ainda não tem nome: nunca mostrar o código (dono, 18/09: "nada em inglês"). */
 export const acaoDe = (action: string): Acao =>
-  ACOES[action] ?? { rotulo: humanizar(action), verbo: `registrou “${humanizar(action).toLowerCase()}” em`, tom: "neutro" };
+  ACOES[action] ?? { rotulo: "Outra ação", verbo: "registrou uma ação n", tom: "neutro" };
 
 // ─── Campos ──────────────────────────────────────────────────────────────────
 
@@ -143,16 +162,45 @@ export const ROTULO_DO_CAMPO: Record<string, string> = {
   rhActionAt: "Ação do RH em", rhActionBy: "Ação do RH por", sentForReview: "Enviado ao RH",
   paymentStatus: "Situação do pagamento", approvedBy: "Aprovado por", approvedAt: "Aprovado em",
   changeReason: "Motivo da mudança", resubmitted: "Reenviado", requestsCanceled: "Pedidos cancelados",
+  // configurações (Valores Padrão)
+  default_daily_value_weekday: "Diária padrão (dia útil)", default_daily_value_weekend: "Diária padrão (fim de semana)",
+  default_daily_value_weekday_freela: "Diária padrão do freela (dia útil)",
+  default_daily_value_weekend_freela: "Diária padrão do freela (fim de semana)",
+  default_mobility: "Mobilidade padrão", default_mobility_ida: "Mobilidade padrão (ida)",
+  default_mobility_volta: "Mobilidade padrão (volta)", default_mobility_ida_freela: "Mobilidade padrão do freela (ida)",
+  default_mobility_volta_freela: "Mobilidade padrão do freela (volta)",
+  default_weekday_lunch: "Almoço padrão (dia útil)", default_weekday_dinner: "Jantar padrão (dia útil)",
+  default_weekend_lunch: "Almoço padrão (fim de semana)", default_weekend_dinner: "Jantar padrão (fim de semana)",
+  default_weekday_lunch_freela: "Almoço padrão do freela (dia útil)", default_weekday_dinner_freela: "Jantar padrão do freela (dia útil)",
+  default_weekend_lunch_freela: "Almoço padrão do freela (fim de semana)", default_weekend_dinner_freela: "Jantar padrão do freela (fim de semana)",
 };
 
-export const rotuloDoCampo = (campo: string): string => ROTULO_DO_CAMPO[campo] ?? humanizar(campo);
+/** Campo que ainda não tem nome: "Outro campo", nunca o código em inglês (18/09). */
+export const rotuloDoCampo = (campo: string): string => ROTULO_DO_CAMPO[campo] ?? "Outro campo";
+
+/** Técnico ou interno ("_userId"): fica fora do que se mostra. */
+export const campoOculto = (campo: string): boolean => CAMPOS_OCULTOS.has(campo) || campo.startsWith("_");
 
 /** Valores em centavos. */
 const CAMPOS_EM_CENTAVOS = new Set([
   "dailyValue", "value", "empreitaValor", "baggageTotalCents", "totalValue", "costAssistance", "mobility",
   "mobilityIda", "mobilityVolta", "transport", "weekdayLunch", "weekdayDinner", "weekendLunch", "weekendDinner",
   "dailyRate",
+  "default_daily_value_weekday", "default_daily_value_weekend", "default_daily_value_weekday_freela",
+  "default_daily_value_weekend_freela", "default_mobility", "default_mobility_ida", "default_mobility_volta",
+  "default_mobility_ida_freela", "default_mobility_volta_freela", "default_weekday_lunch", "default_weekday_dinner",
+  "default_weekend_lunch", "default_weekend_dinner", "default_weekday_lunch_freela", "default_weekday_dinner_freela",
+  "default_weekend_lunch_freela", "default_weekend_dinner_freela",
 ]);
+
+/** Campos de código (situação, tipo, perfil…): sem tradução, ao menos sem "_" e com maiúscula. */
+const CAMPOS_DE_CODIGO = new Set([
+  "status", "previousStatus", "phase", "role", "collaboratorType", "atendimentoTipo", "cenoFreelaTipo",
+  "percurseiroTipo", "transportModeIda", "transportModeVolta", "paymentStatus", "rhStatus", "ticketStatus",
+  "requestType", "transportType", "action",
+]);
+const AEROPORTOS = new Set(["departureAirport", "destinationAirport", "returnOriginAirport", "returnDestinationAirport"]);
+const CIDADES = new Set(["city", "departureCityOrigin", "departureCityDestination", "returnCityOrigin", "returnCityDestination", "location"]);
 
 /** Campos que guardam o id de outra coisa — viram nome. */
 const CAMPOS_DE_EVENTO = new Set(["eventId"]);
@@ -172,6 +220,7 @@ const SITUACOES: Record<string, string> = {
   aprovacao: "Em aprovação", aprovado: "Aprovado", cancelado: "Cancelado", reaberto: "Reaberto",
   rejeitado: "Recusado", negado: "Negado", comprada: "Comprada", confirmada: "Confirmada", cancelada: "Cancelada",
   reajustado: "Devolvido para reajuste", pending: "Aguardando aprovação", approved: "Aprovado", rejected: "Recusado",
+  incluido: "Incluído", reenviado_validacao: "Reenviado para validação", ajustado: "Ajustado",
   ...SUGESTAO_STATUS_LABELS,
 };
 
@@ -179,14 +228,24 @@ const VALORES_DO_CAMPO: Record<string, Record<string, string>> = {
   status: SITUACOES,
   previousStatus: SITUACOES,
   ticketStatus: SITUACOES,
+  paymentStatus: SITUACOES,
+  rhStatus: SITUACOES,
+  action: SITUACOES,
   phase: {
     inclusao: "Inclusão", sugestao: "Sugestão de escala", escalacao: "Escalação", passagem: "Passagem",
-    hospedagem: "Hospedagem", aprovado: "Aprovada",
+    hospedagem: "Hospedagem", aprovado: "Aprovada", aprovacao: "Em aprovação", cancelado: "Cancelada",
   },
   role: {
     admin: "Administrador", administrator: "Administrador", administrador: "Administrador", purchasing: "Compras",
     function_area: "Área", production: "Produção", financial: "Financeiro / RH", viewer: "Consulta",
+    validador: "Validador", aprovador: "Aprovador",
   },
+  // Mesmos nomes das telas (cadastro da vaga).
+  atendimentoTipo: Object.fromEntries(ATENDIMENTO_TIPOS.map((t) => [t.value, t.label])),
+  transportModeIda: TRANSPORT_MODE_LABELS as Record<string, string>,
+  transportModeVolta: TRANSPORT_MODE_LABELS as Record<string, string>,
+  collaboratorType: { casa: "Da casa", freela: "Freela", local: "Local" },
+  cenoFreelaTipo: { viagem: "Viagem", sp: "SP", local_a: "Local A", local_b: "Local B", local: "Local" },
   requestType: { inclusao: "Inclusão", exclusao: "Exclusão", ajuste: "Ajuste" },
   transportType: { aereo: "Aéreo", rodoviario: "Rodoviário", van: "Van" },
 };
@@ -229,6 +288,13 @@ export function formatarValor(campo: string, valor: unknown, nomes: NomesParaLog
     if (traduzido) return traduzido;
     if (DATA.test(valor)) return `${valor.slice(8, 10)}/${valor.slice(5, 7)}/${valor.slice(0, 4)}`;
     if (DATA_HORA.test(valor)) return dataHoraBr(valor);
+    if (AEROPORTOS.has(campo)) return valor.toUpperCase();
+    if (CIDADES.has(campo) && valor === valor.toLowerCase()) return valor.replace(/(^|\s)\S/g, (l) => l.toUpperCase());
+    // Código sem tradução ("reenviado_validacao"): nunca cru.
+    if (CAMPOS_DE_CODIGO.has(campo) && /^[a-z_]+$/.test(valor)) {
+      const s = valor.replace(/_/g, " ");
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    }
     return valor;
   }
   if (Array.isArray(valor)) {
@@ -239,7 +305,7 @@ export function formatarValor(campo: string, valor: unknown, nomes: NomesParaLog
   }
   if (typeof valor === "object") {
     const partes = Object.entries(valor as Record<string, unknown>)
-      .filter(([k]) => !CAMPOS_OCULTOS.has(k))
+      .filter(([k]) => !campoOculto(k))
       .map(([k, v]) => `${rotuloDoCampo(k)}: ${formatarValor(k, v, nomes)}`);
     return partes.length ? partes.join("; ") : "—";
   }
@@ -306,7 +372,7 @@ export function descreverLog(log: RegistroDeLog, nomes: NomesParaLog = {}): LogD
   if (temConteudo(antes) && temConteudo(depois)) {
     const campos = Array.from(new Set([...Object.keys(antes), ...Object.keys(depois)]));
     for (const campo of campos) {
-      if (CAMPOS_OCULTOS.has(campo)) continue;
+      if (campoOculto(campo)) continue;
       const a = formatarValor(campo, antes[campo], nomes);
       const d = formatarValor(campo, depois[campo], nomes);
       if (a !== d) mudancas.push({ campo: rotuloDoCampo(campo), antes: a, depois: d });
@@ -317,7 +383,7 @@ export function descreverLog(log: RegistroDeLog, nomes: NomesParaLog = {}): LogD
   const fonte = !temConteudo(antes) ? depois : !temConteudo(depois) ? antes : null;
   const dados: DadoDeCampo[] = temConteudo(fonte)
     ? Object.entries(fonte)
-      .filter(([k, v]) => !CAMPOS_OCULTOS.has(k) && v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0))
+      .filter(([k, v]) => !campoOculto(k) && v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0))
       .map(([k, v]) => ({ campo: rotuloDoCampo(k), valor: formatarValor(k, v, nomes) }))
     : [];
 
@@ -377,10 +443,11 @@ export function descreverLog(log: RegistroDeLog, nomes: NomesParaLog = {}): LogD
     const n = Number(dado.count ?? 0);
     const ev = dado.eventName ?? evento;
     frase = `enviou ${n > 0 ? `${n} ${n === 1 ? "vaga" : "vagas"}` : "vagas"} para a Validação de Escala${ev ? ` — evento “${ev}”` : ""}`;
-  } else if (acao.verbo.endsWith(" d")) {
-    // "aprovou a sugestão d" + "a vaga #1" → "aprovou a sugestão da vaga #1";
-    // "uma vaga" vira "de uma vaga" (não "duma").
-    frase = alvo.startsWith("um") ? `${acao.verbo}e ${alvo}` : `${acao.verbo}${alvo}`;
+  } else if (acao.verbo.endsWith(" d") || acao.verbo.endsWith(" n")) {
+    // Contração: "aprovou a sugestão d" + "a vaga #1" → "da vaga #1";
+    // "anotou n" + "a vaga" → "na vaga". Com "uma vaga": "de uma" / "em uma".
+    const prep = acao.verbo.endsWith(" d") ? "de" : "em";
+    frase = alvo.startsWith("um") ? `${acao.verbo.slice(0, -1)}${prep} ${alvo}` : `${acao.verbo}${alvo}`;
   } else {
     frase = `${acao.verbo} ${alvo}`;
   }
@@ -403,14 +470,9 @@ export function descreverLog(log: RegistroDeLog, nomes: NomesParaLog = {}): LogD
 
 /** Resumo curto que o SERVIDOR grava em details: "Alterou: Situação, Datas". */
 export function resumoParaGravar(action: string, camposAlterados: string[]): string {
-  const visiveis = camposAlterados.filter((c) => !CAMPOS_OCULTOS.has(c)).map(rotuloDoCampo);
+  const visiveis = Array.from(new Set(camposAlterados.filter((c) => !campoOculto(c)).map(rotuloDoCampo)));
   if (action === "create") return "Registro criado";
   if (visiveis.length === 0) return `${acaoDe(action).rotulo}`;
   return `Alterou: ${visiveis.join(", ")}`;
 }
 
-/** "suggestion_bypass_reject" → "Suggestion bypass reject"; "fullName" → "Full name". */
-function humanizar(chave: string): string {
-  const s = chave.replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase().trim();
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}

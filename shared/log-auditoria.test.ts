@@ -70,10 +70,34 @@ describe("log de auditoria em português (18/09)", () => {
       .toBe("cadastrou Edney Siqueira como validador da função “produção”");
   });
 
-  it("ação desconhecida não quebra e não mostra código cru", () => {
-    const d = descreverLog({ action: "algo_novo", entityType: "coisa_nova", entityName: "Y" });
-    expect(d.acao).toBe("Algo novo");
-    expect(d.modulo).toBe("Coisa nova");
+  it("ação, módulo ou campo desconhecido: português genérico, nunca o código (nada em inglês)", () => {
+    const d = descreverLog({
+      action: "something_new", entityType: "brand_new_thing", entityName: "Y",
+      previousData: JSON.stringify({ someField: "a", _userId: "u" }), newData: JSON.stringify({ someField: "b", _userId: "v" }),
+    });
+    expect(d.acao).toBe("Outra ação");
+    expect(d.modulo).toBe("Outro registro");
+    expect(d.frase).toBe("registrou uma ação no registro “Y”");
+    // _userId é interno e some; o campo sem nome vira "Outro campo".
+    expect(d.mudancas).toEqual([{ campo: "Outro campo", antes: "a", depois: "b" }]);
+  });
+
+  it("nada em inglês: reativar, configurações, códigos, aeroportos e cidades", () => {
+    expect(descreverLog({ action: "reactivate", entityType: "team_inclusion", entityName: "Inclusão #9" }).frase).toBe("reativou a vaga #9");
+    const cfg = descreverLog({
+      action: "update", entityType: "system_settings",
+      previousData: JSON.stringify({ default_daily_value_weekday: 25000 }), newData: JSON.stringify({ default_daily_value_weekday: 27000 }),
+    });
+    expect(cfg.mudancas).toEqual([{ campo: "Diária padrão (dia útil)", antes: "R$ 250,00", depois: "R$ 270,00" }]);
+    expect(formatarValor("atendimentoTipo", "executivo_contas")).toBe("Executivo de Contas");
+    expect(formatarValor("transportModeIda", "onibus")).toBe("Ônibus");
+    expect(formatarValor("collaboratorType", "casa")).toBe("Da casa");
+    expect(formatarValor("status", "reenviado_validacao")).toBe("Reenviado para validação");
+    expect(formatarValor("status", "algum_codigo_novo")).toBe("Algum codigo novo");
+    expect(formatarValor("role", "validador")).toBe("Validador");
+    expect(formatarValor("departureAirport", "gru")).toBe("GRU");
+    expect(formatarValor("departureCityDestination", "recife")).toBe("Recife");
+    expect(formatarValor("reason", "stands")).toBe("stands"); // texto livre não é mexido
   });
 
   it("formata datas, horários, perfis e listas", () => {
