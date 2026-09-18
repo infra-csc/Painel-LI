@@ -40,6 +40,27 @@ export const ACTIVE_CONFLICT_STATUSES = [
   "aprovado",
 ];
 
+/**
+ * Conflito de agenda entre duas vagas do mesmo colaborador (dono, 18/09: "tem
+ * casos com 2 viagens no mesmo dia, horários compatíveis, mas está bloqueando").
+ * - "sobreposicao": dividem 2 ou mais dias — a pessoa estaria em dois lugares; bloqueia.
+ * - "mesmo_dia": dividem UM dia só (uma termina no dia em que a outra começa, ou as
+ *   duas são no mesmo dia) — duas viagens no mesmo dia podem ser compatíveis; vira
+ *   aviso para conferir os horários das passagens.
+ */
+export function tipoDeConflitoDeAgenda(
+  a: { scheduleStartDate?: string | Date | null; scheduleEndDate?: string | Date | null },
+  b: { scheduleStartDate?: string | Date | null; scheduleEndDate?: string | Date | null },
+): "sobreposicao" | "mesmo_dia" | null {
+  const dia = (v: string | Date | null | undefined) => (v instanceof Date ? v.toISOString() : String(v ?? "")).slice(0, 10);
+  const [ai, af, bi, bf] = [dia(a.scheduleStartDate), dia(a.scheduleEndDate), dia(b.scheduleStartDate), dia(b.scheduleEndDate)];
+  if (!ai || !af || !bi || !bf) return null;
+  const inicio = ai > bi ? ai : bi;
+  const fim = af < bf ? af : bf;
+  if (inicio > fim) return null;
+  return inicio === fim ? "mesmo_dia" : "sobreposicao";
+}
+
 // Converte "YYYY-MM-DD" (ou ISO com timestamp) em Date LOCAL de meia-noite.
 // parseISO de um ISO completo devolve UTC e, em Brasília, joga a data um dia
 // para trás. Retorna null quando a data é inválida.

@@ -2,6 +2,7 @@
  * Consultas, índices memoizados, filtros/ordenação e permissões da Escalação.
  * Extraído de pages/scaling.tsx — regra de negócio preservada.
  */
+import { tipoDeConflitoDeAgenda } from "./scaling-utils";
 import { useMemo } from "react";
 import type { EntradaDoHistorico } from "@shared/inclusion-timeline";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -562,18 +563,16 @@ export function useScalingData(opts: {
     return idx;
   }, [teamInclusions]);
   const getCollaboratorConflicts = (collaboratorId: string, refInclusion: TeamInclusion | null | undefined) => {
-    if (!collaboratorId || !teamInclusions) return { sameEvent: [] as TeamInclusion[], dateOverlap: [] as TeamInclusion[] };
+    if (!collaboratorId || !teamInclusions) return { sameEvent: [] as TeamInclusion[], dateOverlap: [] as TeamInclusion[], mesmoDia: [] as TeamInclusion[] };
     // Prefere a versão fresca da lista (como o find original), cai no objeto passado
     const ref = (refInclusion?.id && inclusionById.get(refInclusion.id)) || refInclusion;
     const others = (activeInclusionsByCollaborator.get(collaboratorId) ?? []).filter(ti => ti.id !== ref?.id);
     const sameEvent = others.filter(ti => ref && ti.eventId === ref.eventId);
-    const dateOverlap = others.filter(ti => {
-      if (!ref?.scheduleStartDate || !ref?.scheduleEndDate) return false;
-      if (!ti.scheduleStartDate || !ti.scheduleEndDate) return false;
-      return new Date(ti.scheduleStartDate) <= new Date(ref.scheduleEndDate) &&
-             new Date(ref.scheduleStartDate) <= new Date(ti.scheduleEndDate);
-    });
-    return { sameEvent, dateOverlap };
+    // Só BLOQUEIA quando dividem 2+ dias; um dia só em comum (duas viagens no
+    // mesmo dia) vira aviso — dono, 18/09.
+    const dateOverlap = others.filter(ti => ref && tipoDeConflitoDeAgenda(ti, ref) === "sobreposicao");
+    const mesmoDia = others.filter(ti => ref && ti.eventId !== ref.eventId && tipoDeConflitoDeAgenda(ti, ref) === "mesmo_dia");
+    return { sameEvent, dateOverlap, mesmoDia };
   };
 
   // O esqueleto espera TODAS as consultas que alimentam a tabela principal.

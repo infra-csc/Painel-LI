@@ -919,6 +919,31 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                 </div>
                               );
                             })()}
+                            {/* Duas viagens no mesmo dia (dono, 18/09): aviso, não bloqueio. */}
+                            {(() => {
+                              if (!modalData.collaboratorId) return null;
+                              const { mesmoDia } = getCollaboratorConflicts(modalData.collaboratorId, inclusion);
+                              if (!mesmoDia?.length) return null;
+                              return (
+                                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5" data-testid="aviso-mesmo-dia">
+                                  <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                                  <div className="text-[11px] text-amber-800 leading-snug space-y-1">
+                                    <p className="font-bold">Atenção: também viaja neste mesmo dia</p>
+                                    {mesmoDia.map(inc => {
+                                      const startStr = inc.scheduleStartDate ? new Date(inc.scheduleStartDate).toLocaleDateString("pt-BR") : "";
+                                      const endStr = inc.scheduleEndDate ? new Date(inc.scheduleEndDate).toLocaleDateString("pt-BR") : "";
+                                      return (
+                                        <p key={inc.id}>
+                                          <span className="font-semibold">{getEventName(inc.eventId)}</span>
+                                          {startStr && endStr && <span className="text-amber-700"> · {startStr} a {endStr}</span>}
+                                        </p>
+                                      );
+                                    })}
+                                    <p className="text-amber-700">Pode escalar normalmente. Confira se os horários das passagens das duas viagens são compatíveis.</p>
+                                  </div>
+                                </div>
+                              );
+                            })()}
                             {isEscalationConfirmed(inclusion) && inclusion.collaboratorId && !pendingSwap && (
                               <RequestSwapButton onClick={() => setShowSwapModal(true)} blockReason={actionLockReason} />
                             )}

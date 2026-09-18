@@ -36,6 +36,8 @@ export interface EscolherColaboradorProps {
   getConflitos: (collaboratorId: string, ref: TeamInclusion) => {
     sameEvent: TeamInclusion[];
     dateOverlap: TeamInclusion[];
+    /** Um dia só em comum (duas viagens no mesmo dia): aviso, não bloqueio (18/09). */
+    mesmoDia?: TeamInclusion[];
   };
   getEventName: (eventId: string | null) => string;
   onEscolher: (collaboratorId: string) => void;
@@ -110,8 +112,11 @@ export default function EscolherColaborador({
 
       <ul className="divide-y divide-slate-50">
         {visiveis.map((c) => {
-          const { sameEvent, dateOverlap } = getConflitos(c.id, inclusion);
+          const { sameEvent, dateOverlap, mesmoDia = [] } = getConflitos(c.id, inclusion);
           const conflito = sameEvent.length > 0 || dateOverlap.length > 0;
+          // Duas viagens no mesmo dia (18/09): dá para escolher; só avisa.
+          const avisoMesmoDia = !conflito && mesmoDia.length > 0;
+          const ondeMesmoDia = mesmoDia.slice(0, 2).map((i) => getEventName(i.eventId)).join(" · ");
           const ondeConflita = [...sameEvent, ...dateOverlap]
             .slice(0, 2)
             .map((i) => getEventName(i.eventId))
@@ -155,6 +160,8 @@ export default function EscolherColaborador({
                 // para qualquer uma delas.
                 title={conflito
                   ? `${nome} já tem escalação no mesmo período${ondeConflita ? ` (${ondeConflita})` : ""}. Libere a outra antes.`
+                  : avisoMesmoDia
+                  ? `Escalar ${nome} — atenção: também viaja no mesmo dia (${ondeMesmoDia}). Confira os horários das passagens.`
                   : `Escalar ${nome} nesta vaga`}
                 data-testid={`opcao-colaborador-${c.id}`}
                 className={`flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors ${
@@ -168,10 +175,17 @@ export default function EscolherColaborador({
                       {[c.city, tipo].filter(Boolean).join(" · ")}
                     </span>
                   )}
+                  {avisoMesmoDia && (
+                    <span className="block truncate text-[11px] text-[#B45309]">também viaja no mesmo dia: {ondeMesmoDia}</span>
+                  )}
                 </span>
                 {conflito ? (
                   <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#FEF3C7] px-2 py-0.5 text-[11px] font-semibold text-[#92400E]">
                     <AlertTriangle className="w-3 h-3" aria-hidden="true" />Conflito
+                  </span>
+                ) : avisoMesmoDia ? (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#FEF3C7] px-2 py-0.5 text-[11px] font-semibold text-[#92400E]" data-testid={`aviso-mesmo-dia-${c.id}`}>
+                    <AlertTriangle className="w-3 h-3" aria-hidden="true" />Mesmo dia
                   </span>
                 ) : (
                   <Check className="w-4 h-4 shrink-0 text-primary opacity-0 group-hover:opacity-100" aria-hidden="true" />

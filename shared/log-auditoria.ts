@@ -16,6 +16,7 @@
  */
 import { SUGESTAO_STATUS_LABELS, TRANSPORT_MODE_LABELS } from "./scaling-validation-rules";
 import { ATENDIMENTO_TIPOS } from "./atendimento";
+import { CENO_FREELA_TIPO_LABELS } from "./cenotecnica-empreita";
 
 // ─── Módulos (entity_type) ───────────────────────────────────────────────────
 
@@ -82,6 +83,7 @@ export const ACOES: Record<string, Acao> = {
   emitir: { rotulo: "Passagem emitida", verbo: "marcou como emitida", tom: "aprovar" },
   reactivate: { rotulo: "Reativação", verbo: "reativou", tom: "aprovar" },
   suggestion_rejected: { rotulo: "Sugestão negada", verbo: "negou", tom: "recusar" },
+  suggestion_bypass_approve: { rotulo: "Aprovada sem validação da área", verbo: "aprovou direto (sem validação da área)", tom: "aprovar" },
   // Ações do histórico da vaga (team_inclusion_logs) — mesmos nomes, se aparecerem aqui.
   created: { rotulo: "Criação", verbo: "criou", tom: "criar" },
   deleted: { rotulo: "Exclusão", verbo: "excluiu", tom: "excluir" },
@@ -245,7 +247,7 @@ const VALORES_DO_CAMPO: Record<string, Record<string, string>> = {
   transportModeIda: TRANSPORT_MODE_LABELS as Record<string, string>,
   transportModeVolta: TRANSPORT_MODE_LABELS as Record<string, string>,
   collaboratorType: { casa: "Da casa", freela: "Freela", local: "Local" },
-  cenoFreelaTipo: { viagem: "Viagem", sp: "SP", local_a: "Local A", local_b: "Local B", local: "Local" },
+  cenoFreelaTipo: { ...(CENO_FREELA_TIPO_LABELS as Record<string, string>) },
   requestType: { inclusao: "Inclusão", exclusao: "Exclusão", ajuste: "Ajuste" },
   transportType: { aereo: "Aéreo", rodoviario: "Rodoviário", van: "Van" },
 };
