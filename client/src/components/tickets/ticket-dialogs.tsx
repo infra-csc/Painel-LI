@@ -116,7 +116,7 @@ export function BatchConfirmDialog({ open, quick, names, onCancel, onConfirm }: 
     if (q.isOneWay) {
       rows.push(["Volta", "Apenas ida"]);
     } else {
-      rows.push(["Volta", `${q.actualReturnDate ? formatDate(q.actualReturnDate) : "—"} · ${q.actualReturnTime || "—"}`]);
+      rows.push(["Volta", `${q.actualReturnDate ? formatDate(q.actualReturnDate) : "—"} · ${q.actualReturnTime || "—"} → chegada ${q.returnArrivalTime || "—"}`]);
       rows.push(["Trecho volta", `${q.returnOriginAirport || "—"} → ${q.returnDestinationAirport || "—"}`]);
     }
     if (q.value) rows.push(["Valor", q.value]);

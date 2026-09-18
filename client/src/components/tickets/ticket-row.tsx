@@ -198,7 +198,7 @@ function TicketRow({
                 <div className="flex items-center gap-2 text-xs">
                   <span className="material-symbols-outlined text-[#22C55E]" style={{ fontSize: 13 }}>{ticket.transportType === "rodoviario" ? "directions_bus" : "flight_land"}</span>
                   <span className="font-bold text-slate-700">{ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : "—"}</span>
-                  {ticket.actualReturnTime && <span className="text-slate-400 font-medium">{ticket.actualReturnTime}</span>}
+                  {ticket.actualReturnTime && <span className="text-slate-400 font-medium">{ticket.actualReturnTime}{ticket.returnArrivalTime ? ` → ${ticket.returnArrivalTime}` : ""}</span>}
                 </div>
               )}
             </div>

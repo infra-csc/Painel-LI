@@ -40,6 +40,8 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
     const airD = leg === "ida" ? ticket.destinationAirport : ticket.returnDestinationAirport;
     const date = leg === "ida" ? ticket.actualDepartureDate : ticket.actualReturnDate;
     const time = leg === "ida" ? ticket.actualDepartureTime : ticket.actualReturnTime;
+    // Chegada também na VOLTA (dono, 18/09): é por ela que se agenda o Uber.
+    const arrival = leg === "ida" ? ticket.actualArrivalTime : ticket.returnArrivalTime;
     return (
       <div className="bg-white border border-slate-200 rounded-2xl p-4">
         <div className="text-[11px] font-black uppercase tracking-[0.12em] mb-3 flex items-center gap-1.5" style={{ color: "#2563EB" }}>
@@ -54,8 +56,8 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
           {time && (
             <div>
               <div className={LBL}>Horário</div>
-              <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2" title={leg === "ida" && ticket.actualArrivalTime ? "Partida → Chegada (ida) — usado no cálculo automático de alimentação" : undefined}>
-                <span className="text-lg font-bold text-green-700">{time}{leg === "ida" && ticket.actualArrivalTime ? ` → ${ticket.actualArrivalTime}` : ""}</span>
+              <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2" title={arrival ? (leg === "ida" ? "Partida → Chegada (ida) — usado no cálculo automático de alimentação" : "Partida → Chegada (volta) — horário para agendar o transporte na chegada") : undefined}>
+                <span className="text-lg font-bold text-green-700">{time}{arrival ? ` → ${arrival}` : ""}</span>
               </div>
             </div>
           )}
