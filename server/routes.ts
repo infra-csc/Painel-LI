@@ -45,6 +45,7 @@ import { montarHistoricoDaVaga } from "@shared/inclusion-timeline";
 import { trocaNaVisaoDaVaga } from "@shared/swap-permuta";
 import { ONDE_A_VAGA_NASCEU, origemDaCriacao } from "@shared/criacao-da-vaga";
 import { corrigirTextoDeNome } from "@shared/texto-nome";
+import { moduloDe, resumoParaGravar } from "@shared/log-auditoria";
 import { validarSaiDe } from "@shared/swap-sai-de";
 
 /**
@@ -116,6 +117,15 @@ function sanitizeFields(data: any): any {
   return sanitized;
 }
 
+/**
+ * Igualdade por VALOR (18/09): antes era `!==`, e duas datas iguais são objetos
+ * diferentes — toda edição acusava "createdAt" como alterado no log.
+ */
+function mesmoValor(a: any, b: any): boolean {
+  const norm = (v: any) => (v instanceof Date ? v.toISOString() : v === undefined ? null : v);
+  return JSON.stringify(norm(a)) === JSON.stringify(norm(b));
+}
+
 function safeDiff(oldData: any, newData: any): { changed: string[], previous: any, current: any } {
   if (!oldData && !newData) return { changed: [], previous: {}, current: {} };
   if (!oldData) return { changed: Object.keys(newData || {}), previous: {}, current: sanitizeFields(newData) };
@@ -129,7 +139,7 @@ function safeDiff(oldData: any, newData: any): { changed: string[], previous: an
   const allFields = new Set([...Object.keys(oldData), ...Object.keys(newData)]);
   
   for (const field of Array.from(allFields)) {
-    if (oldData[field] !== newData[field]) {
+    if (!mesmoValor(oldData[field], newData[field])) {
       changed.push(field);
       previous[field] = oldData[field];
       current[field] = newData[field];
@@ -156,7 +166,7 @@ function getEntityName(entityType: string, entityData: any): string {
     case 'collaborator':
       return entityData.fullName || `Colaborador #${entityData.collaboratorNumber}` || 'Colaborador';
     case 'team_inclusion':
-      return `Inclusão #${entityData.inclusionNumber}` || 'Inclusão de Equipe';
+      return entityData.inclusionNumber != null ? `Vaga #${entityData.inclusionNumber}` : 'Vaga';
     case 'ticket':
       return entityData.purchaseOrderNumber || `Passagem #${entityData.id?.slice(0, 8)}` || 'Passagem';
     case 'accommodation':
@@ -176,7 +186,8 @@ function getEntityName(entityType: string, entityData: any): string {
     case 'scaling_change_request':
       return entityData.requestType ? `Pedido de ${entityData.requestType} #${entityData.id?.slice(0, 8)}` : 'Pedido de ajuste de escala';
     default:
-      return entityType;
+      // Nunca o código cru ("event_comment") como nome (18/09).
+      return moduloDe(entityType).substantivo;
   }
 }
 
@@ -197,10 +208,10 @@ async function createAuditLog(
       action,
       entityType,
       entityId,
-      entityName: getEntityName(entityType, entityData),
-      details: diff.changed.length > 0 
-        ? `Campos alterados: ${diff.changed.join(', ')}`
-        : `${action} realizada`,
+      // Nome sem "#undefined" e resumo em português (18/09) — a tela do log
+      // monta a frase completa a partir de previousData/newData.
+      entityName: /undefined/.test(getEntityName(entityType, entityData)) ? moduloDe(entityType).substantivo : getEntityName(entityType, entityData),
+      details: resumoParaGravar(action, diff.changed),
       previousData: diff.changed.length > 0 ? JSON.stringify(diff.previous) : null,
       newData: diff.changed.length > 0 ? JSON.stringify(diff.current) : JSON.stringify(sanitizeFields(entityData)),
       userId: userId || null,

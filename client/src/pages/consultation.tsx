@@ -1,15 +1,23 @@
+/**
+ * LOG DE AUDITORIA — quem fez o quê, quando, e o que mudou (revisão 18/09:
+ * "os logs de auditoria não estão muito claros, revise para deixar 10/10").
+ *
+ * Cada registro é lido por shared/log-auditoria.ts: vira uma frase ("Leandro
+ * excluiu o evento “Girl Power Brasília”"), o contexto (evento · função ·
+ * colaborador), e as mudanças campo a campo com antes → depois — com NOMES no
+ * lugar de ids e sem os campos técnicos. Os detalhes técnicos (IP, navegador,
+ * nº do registro) ficam recolhidos, para quem precisa investigar.
+ */
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Search, Calendar, User, ChevronDown, ChevronRight,
-  Activity, ShieldAlert, Clock, LogIn, LogOut, UserPlus, UserCheck,
-  Edit, Trash2, Plus, Send, CheckCircle, XCircle, RotateCcw,
-  DollarSign, Users, Settings, FileText, X, Download
+  Search, User, ChevronDown, ChevronRight, Activity, ShieldAlert, Plus, Edit, Trash2,
+  CheckCircle, XCircle, Send, X, Download, Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn, fixEncoding } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 import { PageHeader } from "@/components/common/page-header";
@@ -17,13 +25,15 @@ import { PageContainer } from "@/components/common/page-container";
 import { EmptyState } from "@/components/common/empty-state";
 import { LoadingState } from "@/components/common/loading-state";
 import { usePageTitle } from "@/components/common/use-page-title";
+import {
+  ACOES, MODULOS, descreverLog, type LogDescrito, type NomesParaLog, type TomDaAcao,
+} from "@shared/log-auditoria";
 
 /** Classes compartilhadas dos selects de filtro (tokens de marca). */
-const SELECT_TRIGGER_CLASS = "w-44 h-9 text-sm border border-input rounded-lg bg-card text-foreground hover:border-primary/40 transition-colors focus:ring-2 focus:ring-ring/25";
+const SELECT_TRIGGER_CLASS = "w-48 h-9 text-sm border border-input rounded-lg bg-card text-foreground hover:border-primary/40 transition-colors focus:ring-2 focus:ring-ring/25";
 const SELECT_ITEM_CLASS = "cursor-pointer hover:bg-brand-soft hover:text-primary focus:bg-brand-soft focus:text-primary data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium";
 
-// Campos de CSV precisam ser escapados: "details" pode conter ; e aspas,
-// o que quebrava as colunas do arquivo exportado.
+// Campos de CSV precisam ser escapados: o texto pode conter ; e aspas.
 function csvCell(value: unknown): string {
   const s = value === null || value === undefined ? "" : String(value);
   return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -51,257 +61,162 @@ interface LogsResponse {
   pagination: { page: number; limit: number; total: number; pages: number };
 }
 
-// ─── Config maps ─────────────────────────────────────────────────────────────
-
-const ACTION_CONFIG: Record<string, { label: string; icon: any; color: string; bg: string }> = {
-  create:       { label: "Criação",       icon: Plus,        color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-100 dark:bg-emerald-900/40" },
-  update:       { label: "Alteração",     icon: Edit,        color: "text-blue-700 dark:text-blue-300",       bg: "bg-blue-100 dark:bg-blue-900/40" },
-  delete:       { label: "Exclusão",      icon: Trash2,      color: "text-red-700 dark:text-red-300",         bg: "bg-red-100 dark:bg-red-900/40" },
-  login:        { label: "Login",         icon: LogIn,       color: "text-purple-700 dark:text-purple-300",   bg: "bg-purple-100 dark:bg-purple-900/40" },
-  logout:       { label: "Logout",        icon: LogOut,      color: "text-gray-700 dark:text-gray-300",       bg: "bg-gray-100 dark:bg-gray-900/40" },
-  approve:      { label: "Aprovação",     icon: CheckCircle, color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-100 dark:bg-emerald-900/40" },
-  reject:       { label: "Rejeição",      icon: XCircle,     color: "text-red-700 dark:text-red-300",         bg: "bg-red-100 dark:bg-red-900/40" },
-  send_review:  { label: "Envio p/ RH",   icon: Send,        color: "text-amber-700 dark:text-amber-300",     bg: "bg-amber-100 dark:bg-amber-900/40" },
-  reset_password:{ label: "Reset Senha",  icon: RotateCcw,   color: "text-orange-700 dark:text-orange-300",   bg: "bg-orange-100 dark:bg-orange-900/40" },
-  activate:     { label: "Ativação",      icon: UserCheck,   color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-100 dark:bg-emerald-900/40" },
-  deactivate:   { label: "Desativação",   icon: UserPlus,    color: "text-gray-700 dark:text-gray-300",       bg: "bg-gray-100 dark:bg-gray-900/40" },
+/** Cor e ícone por TIPO de ação — a cor diz o peso do que aconteceu. */
+const TOM: Record<TomDaAcao, { icon: typeof Plus; chip: string; bolinha: string }> = {
+  criar: { icon: Plus, chip: "bg-emerald-50 text-emerald-700", bolinha: "bg-emerald-100 text-emerald-700" },
+  alterar: { icon: Edit, chip: "bg-blue-50 text-blue-700", bolinha: "bg-blue-100 text-blue-700" },
+  excluir: { icon: Trash2, chip: "bg-red-50 text-red-700", bolinha: "bg-red-100 text-red-700" },
+  aprovar: { icon: CheckCircle, chip: "bg-emerald-50 text-emerald-700", bolinha: "bg-emerald-100 text-emerald-700" },
+  recusar: { icon: XCircle, chip: "bg-rose-50 text-rose-700", bolinha: "bg-rose-100 text-rose-700" },
+  enviar: { icon: Send, chip: "bg-amber-50 text-amber-700", bolinha: "bg-amber-100 text-amber-700" },
+  neutro: { icon: Activity, chip: "bg-slate-100 text-slate-600", bolinha: "bg-slate-100 text-slate-600" },
 };
 
-const ENTITY_CONFIG: Record<string, { label: string; icon: any; color: string }> = {
-  user:           { label: "Usuário",         icon: User,       color: "text-violet-600" },
-  event:          { label: "Evento",          icon: Calendar,   color: "text-blue-600" },
-  team_inclusion: { label: "Inclusão Equipe", icon: Users,      color: "text-cyan-600" },
-  budget_planned: { label: "Orçamento Plan.", icon: DollarSign, color: "text-green-600" },
-  budget_actual:  { label: "Prestação Contas",icon: FileText,   color: "text-amber-600" },
-  system_settings:{ label: "Configurações",   icon: Settings,   color: "text-purple-600" },
-  function:       { label: "Função",          icon: Activity,   color: "text-indigo-600" },
-  collaborator:   { label: "Colaborador",     icon: UserCheck,  color: "text-teal-600" },
-  ticket:            { label: "Passagem",          icon: FileText,   color: "text-orange-600" },
-  accommodation:     { label: "Hospedagem",         icon: FileText,   color: "text-sky-600" },
-  budget_comparison: { label: "Comparativo",        icon: FileText,   color: "text-rose-600" },
-  financial:         { label: "Financeiro",          icon: DollarSign, color: "text-emerald-600" },
-};
+const PERIODOS: [string, string][] = [["1", "Últimas 24h"], ["7", "Últimos 7 dias"], ["30", "Últimos 30 dias"], ["90", "Últimos 90 dias"], ["365", "Último ano"]];
 
-const FIELD_LABELS: Record<string, string> = {
-  id: "ID", name: "Nome", email: "E-mail", role: "Perfil", status: "Status",
-  area: "Área", password: "Senha", isActive: "Ativo",
-  mustChangePassword: "Forçar troca de senha",
-  createdAt: "Criado em", updatedAt: "Atualizado em",
-  userId: "ID do usuário", createdBy: "Criado por", updatedBy: "Atualizado por",
-  eventName: "Evento", startDate: "Início", endDate: "Fim", location: "Local",
-  collaboratorId: "Colaborador", functionId: "Função", dailyValue: "Valor Diária",
-  mobility: "Mobilidade", weekdayLunch: "Almoço Útil", weekdayDinner: "Jantar Útil",
-  weekendLunch: "Almoço FDS", weekendDinner: "Jantar FDS", totalValue: "Total",
-  dailyQuantity: "Qtd Diárias", costAssistance: "Ajuda de Custo",
-  default_daily_value_weekday: "Diária Dia Útil", default_daily_value_weekend: "Diária FDS",
-  default_mobility: "Mobilidade Padrão", default_weekday_lunch: "Almoço Útil Padrão",
-  default_weekday_dinner: "Jantar Útil Padrão", default_weekend_lunch: "Almoço FDS Padrão",
-  default_weekend_dinner: "Jantar FDS Padrão",
-  sentForReview: "Enviado p/ RH", rhStatus: "Status RH", rhActionAt: "Ação RH em", rhActionBy: "Ação RH por",
-  scheduleStartDate: "Início Previsto", scheduleEndDate: "Fim Previsto",
-  count: "Qtd. Itens", eventId: "Evento ID", collaboratorType: "Tipo", observations: "Observações",
-  plannedId: "ID Planejado",
-};
+const horaBr = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
-const CURRENCY_FIELDS = new Set([
-  "dailyValue", "mobility", "weekdayLunch", "weekdayDinner", "weekendLunch", "weekendDinner",
-  "totalValue", "costAssistance",
-  "default_daily_value_weekday", "default_daily_value_weekend",
-  "default_mobility", "default_weekday_lunch", "default_weekday_dinner",
-  "default_weekend_lunch", "default_weekend_dinner",
-]);
-
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
-
-function formatFieldValue(key: string, value: any): string {
-  if (value === null || value === undefined) return "—";
-  if (typeof value === "boolean") return value ? "Sim" : "Não";
-  if (CURRENCY_FIELDS.has(key) && typeof value === "number") {
-    return `R$ ${(value / 100).toFixed(2).replace(".", ",")}`;
-  }
-  if (typeof value === "string" && ISO_DATE_RE.test(value)) {
-    try {
-      const d = new Date(value);
-      return d.toLocaleDateString("pt-BR") + " às " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    } catch { /* fall through */ }
-  }
-  return String(value);
+/** "Hoje", "Ontem" ou "segunda-feira, 15/09/2026". */
+function rotuloDoDia(iso: string): string {
+  const d = new Date(iso);
+  const hoje = new Date();
+  const ontem = new Date(); ontem.setDate(hoje.getDate() - 1);
+  const mesmoDia = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  const data = d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+  if (mesmoDia(d, hoje)) return `Hoje · ${data}`;
+  if (mesmoDia(d, ontem)) return `Ontem · ${data}`;
+  return data.charAt(0).toUpperCase() + data.slice(1);
 }
 
-// ─── Diff renderer ────────────────────────────────────────────────────────────
-
-function DiffBlock({ log }: { log: SystemLog }) {
-  if (!log.previousData && !log.newData) return null;
-  try {
-    const prev = log.previousData ? JSON.parse(log.previousData) : null;
-    const curr = log.newData ? JSON.parse(log.newData) : null;
-    const sensitiveKeys = new Set(["password", "resetToken", "resetTokenExpiry"]);
-
-    if (prev && curr) {
-      const changedKeys = Object.keys({ ...prev, ...curr }).filter(
-        (k) => !sensitiveKeys.has(k) && JSON.stringify(prev[k]) !== JSON.stringify(curr[k])
-      );
-      if (changedKeys.length === 0) return null;
-      return (
-        <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="bg-slate-50 dark:bg-gray-800 px-3 py-1.5 text-[11px] font-semibold text-gray-500 dark:text-gray-400 tracking-wide border-b border-gray-100 dark:border-gray-700">
-            Campos alterados
-          </div>
-          <div className="divide-y divide-gray-100 dark:divide-gray-800">
-            {changedKeys.map((key) => (
-              <div key={key} className="grid grid-cols-3 gap-2 px-3 py-2 text-xs">
-                <span className="font-medium text-gray-600 dark:text-gray-400">{FIELD_LABELS[key] || key}</span>
-                <span className="text-red-600 dark:text-red-400 line-through">{formatFieldValue(key, prev[key])}</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-medium">{formatFieldValue(key, curr[key])}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    const data = curr || prev;
-    const isCreation = !prev && !!curr;
-    return (
-      <div className={`mt-3 rounded-lg border overflow-hidden ${isCreation ? "border-emerald-200 dark:border-emerald-800" : "border-red-200 dark:border-red-800"}`}>
-        <div className={`px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide ${isCreation ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300" : "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300"}`}>
-          {isCreation ? "Dados criados" : "Dados removidos"}
-        </div>
-        <div className="divide-y divide-gray-100 dark:divide-gray-800">
-          {Object.entries(data || {})
-            .filter(([k]) => !sensitiveKeys.has(k) && data[k] !== null && data[k] !== undefined)
-            .map(([key, val]) => (
-              <div key={key} className="flex gap-3 px-3 py-1.5 text-xs">
-                <span className="font-medium text-gray-500 dark:text-gray-400 w-32 shrink-0">{FIELD_LABELS[key] || key}</span>
-                <span className="text-gray-700 dark:text-gray-300">{formatFieldValue(key, val)}</span>
-              </div>
-            ))}
-        </div>
-      </div>
-    );
-  } catch {
-    return null;
-  }
+/** "Chrome 153 · Windows" em vez da string inteira do navegador. */
+function navegadorCurto(ua: string | null): string {
+  if (!ua) return "—";
+  const nav = ua.match(/Edg\/(\d+)/) ? `Edge ${ua.match(/Edg\/(\d+)/)![1]}`
+    : ua.match(/Chrome\/(\d+)/) ? `Chrome ${ua.match(/Chrome\/(\d+)/)![1]}`
+    : ua.match(/Firefox\/(\d+)/) ? `Firefox ${ua.match(/Firefox\/(\d+)/)![1]}`
+    : ua.match(/Safari\//) ? "Safari" : "Outro navegador";
+  const so = /Windows/.test(ua) ? "Windows" : /Android/.test(ua) ? "Android" : /iPhone|iPad/.test(ua) ? "iOS" : /Mac OS/.test(ua) ? "macOS" : /Linux/.test(ua) ? "Linux" : "";
+  return so ? `${nav} · ${so}` : nav;
 }
 
-// ─── Log Card ────────────────────────────────────────────────────────────────
+// ─── Um registro ─────────────────────────────────────────────────────────────
 
-function LogCard({ log }: { log: SystemLog }) {
+function LogCard({ log, d }: { log: SystemLog; d: LogDescrito }) {
   const [open, setOpen] = useState(false);
-  const hasDiff = !!(log.previousData || log.newData);
-
-  const actionCfg = ACTION_CONFIG[log.action] || { label: log.action, icon: Activity, color: "text-gray-600", bg: "bg-gray-100" };
-  const entityCfg = ENTITY_CONFIG[log.entityType] || { label: log.entityType, icon: FileText, color: "text-gray-500" };
-  const ActionIcon = actionCfg.icon;
-  const EntityIcon = entityCfg.icon;
-
-  const dt = new Date(log.createdAt);
-  const dateStr = dt.toLocaleDateString("pt-BR");
-  const timeStr = dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const tom = TOM[d.tom];
+  const Icone = tom.icon;
+  const temDetalhe = d.mudancas.length > 0 || d.dados.length > 0;
 
   return (
-    <div className={`bg-white dark:bg-gray-800 border rounded-xl overflow-hidden transition-all ${open ? "border-gray-300 dark:border-gray-600 shadow-sm" : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"}`}>
-      <div
-        className={`flex items-start gap-3 px-4 py-3 ${hasDiff ? "cursor-pointer" : ""}`}
-        onClick={() => hasDiff && setOpen(!open)}
-        {...(hasDiff
-          ? {
-              role: "button" as const,
-              tabIndex: 0,
-              "aria-expanded": open,
-              onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  setOpen((v) => !v);
-                }
-              },
-            }
-          : {})}
+    <div className={cn("bg-card border rounded-xl overflow-hidden transition-colors", open ? "border-slate-300 shadow-sm" : "border-slate-200 hover:border-slate-300")}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-start gap-3 px-4 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/40"
+        data-testid={`log-${log.logNumber}`}
       >
-        {/* Action icon */}
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${actionCfg.bg}`}>
-          <ActionIcon className={`w-4 h-4 ${actionCfg.color}`} />
-        </div>
+        <span className={cn("mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", tom.bolinha)}>
+          <Icone className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] leading-snug text-slate-800">
+            <span className="font-semibold text-slate-900">{fixEncoding(log.userName) || "Sistema"}</span>{" "}
+            {d.frase}
+          </span>
+          <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+            <span className={cn("rounded-full px-2 py-0.5 font-semibold", tom.chip)}>{d.acao}</span>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">{d.modulo}</span>
+            {d.contexto.length > 0 && <span className="text-slate-500 break-words">{d.contexto.join(" · ")}</span>}
+          </span>
+          {d.resumo && <span className="mt-1 block text-[12px] text-slate-500 break-words">{d.resumo}</span>}
+        </span>
+        <span className="flex shrink-0 items-center gap-2 text-[12px] text-slate-400">
+          <span className="tabular-nums">{horaBr(log.createdAt)}</span>
+          {open ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
+        </span>
+      </button>
 
-        {/* Main content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-xs font-semibold ${actionCfg.color} ${actionCfg.bg} px-2 py-0.5 rounded-full`}>
-              {actionCfg.label}
-            </span>
-            <span className={`text-xs font-medium flex items-center gap-1 ${entityCfg.color}`}>
-              <EntityIcon className="w-3 h-3" />
-              {entityCfg.label}
-            </span>
-            <span className="text-xs text-gray-400">#{log.logNumber}</span>
-          </div>
-
-          <div className="mt-1.5 flex items-center gap-4 flex-wrap text-xs text-gray-500 dark:text-gray-400">
-            <span className="flex items-center gap-1">
-              <User className="w-3 h-3" />
-              {log.userName || "Sistema"}
-            </span>
-            <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              {dateStr} às {timeStr}
-            </span>
-            {log.entityName && (
-              <span className="text-gray-700 dark:text-gray-300 font-medium truncate max-w-xs">
-                {log.entityName}
-              </span>
-            )}
-          </div>
-
-          {log.details && (
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 line-clamp-1">{log.details}</p>
+      {open && (
+        <div className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-3">
+          {d.mudancas.length > 0 && (
+            <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <table className="w-full text-[12px]">
+                <thead className="bg-slate-50 text-[11px] text-slate-500">
+                  <tr>
+                    <th className="px-3 py-1.5 text-left font-semibold">O que mudou</th>
+                    <th className="px-3 py-1.5 text-left font-semibold">Antes</th>
+                    <th className="px-3 py-1.5 text-left font-semibold">Depois</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {d.mudancas.map((m) => (
+                    <tr key={m.campo}>
+                      <td className="px-3 py-1.5 font-medium text-slate-700">{m.campo}</td>
+                      <td className="px-3 py-1.5 text-slate-500 break-words">{m.antes}</td>
+                      <td className="px-3 py-1.5 font-semibold text-slate-800 break-words">{m.depois}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-        </div>
-
-        {/* Expand */}
-        {hasDiff && (
-          <div className="shrink-0 text-gray-400">
-            {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          </div>
-        )}
-      </div>
-
-      {/* Expanded detail */}
-      {open && hasDiff && (
-        <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 pt-3">
-          <DiffBlock log={log} />
+          {d.mudancas.length === 0 && d.dados.length > 0 && (
+            <div className="rounded-lg border border-slate-200">
+              <p className="border-b border-slate-100 bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-500">
+                {log.action === "delete" ? "Como estava antes de excluir" : "Dados registrados"}
+              </p>
+              <dl className="grid grid-cols-1 gap-x-4 gap-y-1 px-3 py-2 text-[12px] sm:grid-cols-2">
+                {d.dados.map((x) => (
+                  <div key={x.campo} className="flex gap-2 min-w-0">
+                    <dt className="shrink-0 text-slate-500">{x.campo}:</dt>
+                    <dd className="min-w-0 font-medium text-slate-700 break-words">{x.valor}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+          {!temDetalhe && (
+            <p className="flex items-center gap-1.5 text-[12px] text-slate-500">
+              <Info className="h-3.5 w-3.5" aria-hidden="true" /> Este registro não guarda detalhes de campos.
+            </p>
+          )}
+          <details className="text-[11px] text-slate-500">
+            <summary className="cursor-pointer select-none font-medium text-slate-500 hover:text-slate-700">Detalhes técnicos</summary>
+            <dl className="mt-1.5 grid grid-cols-1 gap-x-4 gap-y-0.5 sm:grid-cols-2">
+              <div><dt className="inline">Registro nº </dt><dd className="inline font-mono">{log.logNumber}</dd></div>
+              <div><dt className="inline">Data e hora: </dt><dd className="inline">{new Date(log.createdAt).toLocaleString("pt-BR")}</dd></div>
+              <div><dt className="inline">IP: </dt><dd className="inline font-mono">{log.ipAddress || "—"}</dd></div>
+              <div><dt className="inline">Navegador: </dt><dd className="inline">{navegadorCurto(log.userAgent)}</dd></div>
+              <div className="sm:col-span-2"><dt className="inline">Código do registro alterado: </dt><dd className="inline font-mono break-all">{log.entityId || "—"}</dd></div>
+            </dl>
+          </details>
         </div>
       )}
     </div>
   );
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Página ──────────────────────────────────────────────────────────────────
 
 export default function SystemLogsPage() {
   usePageTitle("Log de auditoria");
   const { user, isLoading: authLoading } = useAuth();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [filters, setFilters] = useState({ entityType: "all", action: "all", days: "30" });
+  const [filters, setFilters] = useState({ entityType: "all", action: "all", days: "30", userId: "all" });
   const [page, setPage] = useState(1);
 
-  // O timer precisa viver fora do callback: antes, cada tecla agendava um
-  // timeout novo sem cancelar o anterior (o "cleanup" retornado nunca era
-  // chamado), disparando uma requisição por caractere digitado.
+  // O timer precisa viver fora do callback: cada tecla cancela a busca anterior.
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current); }, []);
 
-  const applySearch = useCallback((val: string) => {
-    setDebouncedSearch(val);
-    setPage(1); // busca nova sempre volta para a primeira página
-  }, []);
-
+  const applySearch = useCallback((val: string) => { setDebouncedSearch(val); setPage(1); }, []);
   const debounceSearch = useCallback((val: string) => {
     setSearch(val);
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => applySearch(val), 400);
   }, [applySearch]);
-
   const clearSearch = useCallback(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     setSearch("");
@@ -309,31 +224,86 @@ export default function SystemLogsPage() {
   }, [applySearch]);
 
   const queryUrl = useMemo(() => {
-    const params = new URLSearchParams({ page: page.toString(), limit: "25" });
+    const params = new URLSearchParams({ page: page.toString(), limit: "30" });
     if (filters.entityType !== "all") params.set("entityType", filters.entityType);
     if (filters.action !== "all") params.set("action", filters.action);
+    if (filters.userId !== "all") params.set("userId", filters.userId);
     if (filters.days) params.set("days", filters.days);
     if (debouncedSearch) params.set("search", debouncedSearch);
     return `/api/system-logs?${params}`;
   }, [filters, page, debouncedSearch]);
 
+  const podeVer = !authLoading && hasPermission(user, "canAccessScreen6");
   const { data: logsResponse, isLoading, isError, error, refetch, isFetching } = useQuery<LogsResponse>({
     queryKey: [queryUrl],
-    enabled: !authLoading && !!user,
+    enabled: podeVer,
   });
+
+  // Nomes no lugar de ids (mesmas chaves das outras telas → cache compartilhado).
+  const { data: events } = useQuery<{ id: string; name: string }[]>({ queryKey: ["/api/events"], enabled: podeVer, staleTime: 300_000 });
+  const { data: functions } = useQuery<{ id: string; name: string }[]>({ queryKey: ["/api/functions"], enabled: podeVer, staleTime: 300_000 });
+  const { data: collaborators } = useQuery<{ id: string; fullName: string }[]>({ queryKey: ["/api/collaborators"], enabled: podeVer });
+  const { data: users } = useQuery<{ id: string; name: string }[]>({ queryKey: ["/api/users"], enabled: podeVer, staleTime: 300_000 });
+
+  const nomes = useMemo<NomesParaLog>(() => {
+    const ev = new Map((events ?? []).map((e) => [e.id, fixEncoding(e.name)]));
+    const fn = new Map((functions ?? []).map((f) => [f.id, fixEncoding(f.name)]));
+    const co = new Map((collaborators ?? []).map((c) => [c.id, fixEncoding(c.fullName)]));
+    const us = new Map((users ?? []).map((u) => [u.id, fixEncoding(u.name)]));
+    return { evento: (id) => ev.get(id), funcao: (id) => fn.get(id), colaborador: (id) => co.get(id), usuario: (id) => us.get(id) };
+  }, [events, functions, collaborators, users]);
+
+  const descritos = useMemo(
+    () => (logsResponse?.logs ?? []).map((log) => ({ log, d: descreverLog(log, nomes) })),
+    [logsResponse, nomes],
+  );
+
+  /** Agrupados por dia, na ordem em que vieram (mais recentes primeiro). */
+  const porDia = useMemo(() => {
+    const grupos: { dia: string; itens: typeof descritos }[] = [];
+    for (const item of descritos) {
+      const dia = rotuloDoDia(item.log.createdAt);
+      const ultimo = grupos[grupos.length - 1];
+      if (ultimo?.dia === dia) ultimo.itens.push(item); else grupos.push({ dia, itens: [item] });
+    }
+    return grupos;
+  }, [descritos]);
+
+  const usuariosOrdenados = useMemo(
+    () => (users ?? []).map((u) => ({ id: u.id, name: fixEncoding(u.name) })).sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+    [users],
+  );
+  const modulosOrdenados = useMemo(() => Object.entries(MODULOS).sort((a, b) => a[1].rotulo.localeCompare(b[1].rotulo, "pt-BR")), []);
+  const acoesOrdenadas = useMemo(() => Object.entries(ACOES).sort((a, b) => a[1].rotulo.localeCompare(b[1].rotulo, "pt-BR")), []);
 
   const clearFilters = () => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     setSearch("");
     setDebouncedSearch("");
-    setFilters({ entityType: "all", action: "all", days: "30" });
+    setFilters({ entityType: "all", action: "all", days: "30", userId: "all" });
     setPage(1);
   };
+  const setFiltro = (k: keyof typeof filters, v: string) => { setFilters((f) => ({ ...f, [k]: v })); setPage(1); };
 
-  const hasActiveFilters = filters.entityType !== "all" || filters.action !== "all" || filters.days !== "30" || !!debouncedSearch;
+  const hasActiveFilters = filters.entityType !== "all" || filters.action !== "all" || filters.userId !== "all" || filters.days !== "30" || !!debouncedSearch;
 
-  // Enquanto a sessão está sendo verificada não dá para saber o perfil —
-  // mostrar "Acesso restrito" aqui piscava a tela de erro para o admin.
+  const exportar = () => {
+    const header = "Nº;Data;Pessoa;Ação;Módulo;O que aconteceu;Contexto;Mudanças\r\n";
+    const rows = descritos.map(({ log, d }) => [
+      log.logNumber, new Date(log.createdAt).toLocaleString("pt-BR"), fixEncoding(log.userName) || "Sistema",
+      d.acao, d.modulo, `${fixEncoding(log.userName) || "Sistema"} ${d.frase}`, d.contexto.join(" · "),
+      d.mudancas.map((m) => `${m.campo}: ${m.antes} → ${m.depois}`).join(" | "),
+    ].map(csvCell).join(";")).join("\r\n");
+    // BOM para o Excel pt-BR abrir os acentos corretamente
+    const blob = new Blob(["﻿" + header + rows], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `log-de-auditoria-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  // Enquanto a sessão está sendo verificada não dá para saber o perfil.
   if (authLoading) {
     return (
       <PageContainer>
@@ -344,190 +314,152 @@ export default function SystemLogsPage() {
 
   if (!hasPermission(user, "canAccessScreen6")) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-center">
-        <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-950 flex items-center justify-center">
-          <ShieldAlert className="w-8 h-8 text-red-500" />
+      <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
+          <ShieldAlert className="h-8 w-8 text-red-500" />
         </div>
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Acesso restrito</h2>
-        <p className="text-gray-500 dark:text-gray-400 max-w-xs">Apenas administradores podem acessar os logs do sistema.</p>
+        <h2 className="text-xl font-semibold text-slate-900">Acesso restrito</h2>
+        <p className="max-w-xs text-slate-500">Apenas administradores podem acessar o log de auditoria.</p>
       </div>
     );
   }
 
+  const pill = "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium";
+
   return (
     <PageContainer>
-      {/* Header */}
       <PageHeader
         icon={Activity}
         title="Log de auditoria"
-        subtitle="Histórico completo de atividades do sistema"
+        subtitle="Quem fez o quê, quando — e o que mudou"
         actions={logsResponse && (
           <>
-            <div className="text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-full">
+            <div className="rounded-full bg-muted px-3 py-1.5 text-xs text-muted-foreground">
               {logsResponse.pagination.total.toLocaleString("pt-BR")} registros
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs gap-1.5"
-              disabled={logsResponse.logs.length === 0}
-              title="Exporta os registros exibidos nesta página"
-              onClick={() => {
-                const rows = logsResponse.logs.map(l => [
-                  l.logNumber, l.action, l.entityType, l.entityName, l.userName,
-                  new Date(l.createdAt).toLocaleString("pt-BR"), l.details || ""
-                ].map(csvCell).join(";")).join("\r\n");
-                const header = "Nº;Ação;Módulo;Entidade;Usuário;Data;Detalhes\r\n";
-                // BOM para o Excel pt-BR abrir os acentos corretamente
-                const blob = new Blob(["﻿" + header + rows], { type: "text/csv;charset=utf-8;" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url; a.download = `logs-${new Date().toISOString().slice(0, 10)}.csv`;
-                a.click();
-                setTimeout(() => URL.revokeObjectURL(url), 1000);
-              }}
-            >
-              <Download className="w-3.5 h-3.5" /> Exportar página
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={descritos.length === 0}
+              title="Exporta os registros desta página, já em frases" onClick={exportar}>
+              <Download className="h-3.5 w-3.5" /> Exportar página
             </Button>
           </>
         )}
       />
 
-      {/* Search + Filters bar */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+      {/* Busca + filtros */}
+      <div className="rounded-xl border border-slate-200 bg-card p-4">
         <div className="flex flex-wrap gap-3">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <div className="relative min-w-[220px] flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
-              placeholder="Buscar por usuário, entidade, ação..."
+              placeholder="Buscar por pessoa, evento, nº da vaga, LOC…"
               value={search}
               onChange={(e) => debounceSearch(e.target.value)}
               className="pl-9 pr-8"
             />
             {search && (
-              <button type="button" aria-label="Limpar busca" onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <X className="w-3.5 h-3.5" />
+              <button type="button" aria-label="Limpar busca" onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <X className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
 
-          {/* Entity type */}
-          <Select value={filters.entityType} onValueChange={(v) => { setFilters(f => ({ ...f, entityType: v })); setPage(1); }}>
-            <SelectTrigger className={SELECT_TRIGGER_CLASS}>
-              <SelectValue placeholder="Módulo" />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl shadow-lg min-w-[200px]">
+          <Select value={filters.userId} onValueChange={(v) => setFiltro("userId", v)}>
+            <SelectTrigger className={SELECT_TRIGGER_CLASS} aria-label="Pessoa"><SelectValue placeholder="Pessoa" /></SelectTrigger>
+            <SelectContent className="max-h-[320px] min-w-[220px] rounded-xl shadow-lg">
+              <SelectItem value="all" className={SELECT_ITEM_CLASS}>Todas as pessoas</SelectItem>
+              {usuariosOrdenados.map((u) => <SelectItem key={u.id} value={u.id} className={SELECT_ITEM_CLASS}>{u.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <Select value={filters.entityType} onValueChange={(v) => setFiltro("entityType", v)}>
+            <SelectTrigger className={SELECT_TRIGGER_CLASS} aria-label="Módulo"><SelectValue placeholder="Módulo" /></SelectTrigger>
+            <SelectContent className="max-h-[320px] min-w-[220px] rounded-xl shadow-lg">
               <SelectItem value="all" className={SELECT_ITEM_CLASS}>Todos os módulos</SelectItem>
-              <SelectItem value="user" className={SELECT_ITEM_CLASS}>Usuários</SelectItem>
-              <SelectItem value="event" className={SELECT_ITEM_CLASS}>Eventos</SelectItem>
-              <SelectItem value="team_inclusion" className={SELECT_ITEM_CLASS}>Inclusão de Equipe</SelectItem>
-              <SelectItem value="budget_planned" className={SELECT_ITEM_CLASS}>Orçamento Planejado</SelectItem>
-              <SelectItem value="budget_actual" className={SELECT_ITEM_CLASS}>Prestação de Contas</SelectItem>
-              <SelectItem value="function" className={SELECT_ITEM_CLASS}>Funções</SelectItem>
-              <SelectItem value="collaborator" className={SELECT_ITEM_CLASS}>Colaboradores</SelectItem>
-              <SelectItem value="ticket" className={SELECT_ITEM_CLASS}>Passagens</SelectItem>
-              <SelectItem value="accommodation" className={SELECT_ITEM_CLASS}>Hospedagens</SelectItem>
-              <SelectItem value="budget_comparison" className={SELECT_ITEM_CLASS}>Comparativo</SelectItem>
-              <SelectItem value="system_settings" className={SELECT_ITEM_CLASS}>Configurações</SelectItem>
-              <SelectItem value="financial" className={SELECT_ITEM_CLASS}>Financeiro</SelectItem>
+              {modulosOrdenados.map(([k, m]) => <SelectItem key={k} value={k} className={SELECT_ITEM_CLASS}>{m.rotulo}</SelectItem>)}
             </SelectContent>
           </Select>
 
-          {/* Action */}
-          <Select value={filters.action} onValueChange={(v) => { setFilters(f => ({ ...f, action: v })); setPage(1); }}>
-            <SelectTrigger className={cn(SELECT_TRIGGER_CLASS, "w-40")}>
-              <SelectValue placeholder="Ação" />
-            </SelectTrigger>
-            <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
+          <Select value={filters.action} onValueChange={(v) => setFiltro("action", v)}>
+            <SelectTrigger className={SELECT_TRIGGER_CLASS} aria-label="Ação"><SelectValue placeholder="Ação" /></SelectTrigger>
+            <SelectContent className="max-h-[320px] min-w-[240px] rounded-xl shadow-lg">
               <SelectItem value="all" className={SELECT_ITEM_CLASS}>Todas as ações</SelectItem>
-              <SelectItem value="create" className={SELECT_ITEM_CLASS}>Criação</SelectItem>
-              <SelectItem value="update" className={SELECT_ITEM_CLASS}>Alteração</SelectItem>
-              <SelectItem value="delete" className={SELECT_ITEM_CLASS}>Exclusão</SelectItem>
-              <SelectItem value="login" className={SELECT_ITEM_CLASS}>Login</SelectItem>
-              <SelectItem value="logout" className={SELECT_ITEM_CLASS}>Logout</SelectItem>
-              <SelectItem value="send_review" className={SELECT_ITEM_CLASS}>Envio p/ RH</SelectItem>
-              <SelectItem value="approve" className={SELECT_ITEM_CLASS}>Aprovação</SelectItem>
-              <SelectItem value="reject" className={SELECT_ITEM_CLASS}>Rejeição</SelectItem>
-              <SelectItem value="reset_password" className={SELECT_ITEM_CLASS}>Reset de Senha</SelectItem>
+              {acoesOrdenadas.map(([k, a]) => <SelectItem key={k} value={k} className={SELECT_ITEM_CLASS}>{a.rotulo}</SelectItem>)}
             </SelectContent>
           </Select>
 
-          {/* Period */}
-          <Select value={filters.days} onValueChange={(v) => { setFilters(f => ({ ...f, days: v })); setPage(1); }}>
-            <SelectTrigger className={SELECT_TRIGGER_CLASS}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
-              <SelectItem value="1" className={SELECT_ITEM_CLASS}>Últimas 24h</SelectItem>
-              <SelectItem value="7" className={SELECT_ITEM_CLASS}>Últimos 7 dias</SelectItem>
-              <SelectItem value="30" className={SELECT_ITEM_CLASS}>Últimos 30 dias</SelectItem>
-              <SelectItem value="90" className={SELECT_ITEM_CLASS}>Últimos 90 dias</SelectItem>
-              <SelectItem value="365" className={SELECT_ITEM_CLASS}>Último ano</SelectItem>
+          <Select value={filters.days} onValueChange={(v) => setFiltro("days", v)}>
+            <SelectTrigger className={cn(SELECT_TRIGGER_CLASS, "w-40")} aria-label="Período"><SelectValue /></SelectTrigger>
+            <SelectContent className="min-w-[180px] rounded-xl shadow-lg">
+              {PERIODOS.map(([v, r]) => <SelectItem key={v} value={v} className={SELECT_ITEM_CLASS}>{r}</SelectItem>)}
             </SelectContent>
           </Select>
 
           {hasActiveFilters && (
-            <Button variant="ghost" onClick={clearFilters} className="text-gray-500 hover:text-gray-700 gap-1.5">
-              <X className="w-4 h-4" />
-              Limpar
+            <Button variant="ghost" onClick={clearFilters} className="gap-1.5 text-slate-500 hover:text-slate-700">
+              <X className="h-4 w-4" /> Limpar
             </Button>
           )}
         </div>
       </div>
 
-      {/* Active filter pills */}
+      {/* Filtros ativos */}
       {hasActiveFilters && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[11px] text-gray-400 font-medium">Filtros ativos:</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-medium text-slate-400">Filtros ativos:</span>
           {debouncedSearch && (
-            <span className="flex items-center gap-1 text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full">
-              <Search className="w-2.5 h-2.5" /> "{debouncedSearch}"
-              <button type="button" aria-label="Remover filtro de busca" onClick={clearSearch} className="ml-0.5 hover:text-indigo-900"><X className="w-2.5 h-2.5" /></button>
+            <span className={cn(pill, "border-indigo-200 bg-indigo-50 text-indigo-700")}>
+              <Search className="h-2.5 w-2.5" /> "{debouncedSearch}"
+              <button type="button" aria-label="Remover filtro de busca" onClick={clearSearch} className="ml-0.5"><X className="h-2.5 w-2.5" /></button>
+            </span>
+          )}
+          {filters.userId !== "all" && (
+            <span className={cn(pill, "border-violet-200 bg-violet-50 text-violet-700")}>
+              <User className="h-2.5 w-2.5" /> {usuariosOrdenados.find((u) => u.id === filters.userId)?.name ?? "Pessoa"}
+              <button type="button" aria-label="Remover filtro de pessoa" onClick={() => setFiltro("userId", "all")} className="ml-0.5"><X className="h-2.5 w-2.5" /></button>
             </span>
           )}
           {filters.entityType !== "all" && (
-            <span className="flex items-center gap-1 text-[11px] font-medium bg-brand-soft text-primary border border-primary/20 px-2 py-0.5 rounded-full">
-              {ENTITY_CONFIG[filters.entityType]?.label || filters.entityType}
-              <button type="button" aria-label="Remover filtro de módulo" onClick={() => { setFilters(f => ({ ...f, entityType: "all" })); setPage(1); }} className="ml-0.5 hover:text-primary-hover"><X className="w-2.5 h-2.5" /></button>
+            <span className={cn(pill, "border-primary/20 bg-brand-soft text-primary")}>
+              {MODULOS[filters.entityType]?.rotulo ?? filters.entityType}
+              <button type="button" aria-label="Remover filtro de módulo" onClick={() => setFiltro("entityType", "all")} className="ml-0.5"><X className="h-2.5 w-2.5" /></button>
             </span>
           )}
           {filters.action !== "all" && (
-            <span className="flex items-center gap-1 text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full">
-              {ACTION_CONFIG[filters.action]?.label || filters.action}
-              <button type="button" aria-label="Remover filtro de ação" onClick={() => { setFilters(f => ({ ...f, action: "all" })); setPage(1); }} className="ml-0.5 hover:text-purple-900"><X className="w-2.5 h-2.5" /></button>
+            <span className={cn(pill, "border-purple-200 bg-purple-50 text-purple-700")}>
+              {ACOES[filters.action]?.rotulo ?? filters.action}
+              <button type="button" aria-label="Remover filtro de ação" onClick={() => setFiltro("action", "all")} className="ml-0.5"><X className="h-2.5 w-2.5" /></button>
             </span>
           )}
           {filters.days !== "30" && (
-            <span className="flex items-center gap-1 text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
-              {filters.days === "1" ? "Últimas 24h" : filters.days === "7" ? "Últimos 7 dias" : filters.days === "90" ? "Últimos 90 dias" : "Último ano"}
-              <button type="button" aria-label="Remover filtro de período" onClick={() => { setFilters(f => ({ ...f, days: "30" })); setPage(1); }} className="ml-0.5 hover:text-amber-900"><X className="w-2.5 h-2.5" /></button>
+            <span className={cn(pill, "border-amber-200 bg-amber-50 text-amber-700")}>
+              {PERIODOS.find(([v]) => v === filters.days)?.[1]}
+              <button type="button" aria-label="Remover filtro de período" onClick={() => setFiltro("days", "30")} className="ml-0.5"><X className="h-2.5 w-2.5" /></button>
             </span>
           )}
         </div>
       )}
 
-      {/* Results */}
+      {/* Registros */}
       {isLoading ? (
         <LoadingState count={8} label="Carregando registros…" />
       ) : isError ? (
-        <div className="bg-white dark:bg-gray-800 border border-red-200 dark:border-red-900 rounded-xl flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
-          <ShieldAlert className="w-10 h-10 text-red-400" />
-          <p className="text-gray-700 dark:text-gray-200 font-medium">
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-red-200 bg-card px-6 py-16 text-center">
+          <ShieldAlert className="h-10 w-10 text-red-400" />
+          <p className="font-medium text-slate-700">
             {(error as any)?.status === 401
-              ? "Sua sessão expirou. Entre novamente para consultar os logs."
+              ? "Sua sessão expirou. Entre novamente para consultar o log."
               : (error as any)?.status === 403
-              ? "Você não tem permissão para consultar os logs do sistema."
+              ? "Você não tem permissão para consultar o log de auditoria."
               : "Não foi possível carregar os registros."}
           </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
+          <p className="max-w-md text-sm text-slate-500">
             {(error as any)?.body?.message || "Verifique sua conexão e tente novamente. Isto não significa que não existam registros."}
           </p>
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
             {isFetching ? "Tentando..." : "Tentar novamente"}
           </Button>
         </div>
-      ) : logsResponse?.logs.length === 0 ? (
+      ) : descritos.length === 0 ? (
         <EmptyState
           variant={hasActiveFilters ? "filtered" : "default"}
           title="Nenhum registro encontrado"
@@ -535,33 +467,40 @@ export default function SystemLogsPage() {
           onClearFilters={hasActiveFilters ? clearFilters : undefined}
         />
       ) : (
-        <div className="space-y-2">
-          {logsResponse?.logs.map((log) => (
-            <LogCard key={log.id} log={log} />
+        <div className="space-y-5">
+          {porDia.map((g) => (
+            <section key={g.dia} aria-label={g.dia}>
+              <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-slate-500">
+                {g.dia} <span className="font-normal normal-case tracking-normal text-slate-400">· {g.itens.length}</span>
+              </h2>
+              <div className="space-y-2">
+                {g.itens.map(({ log, d }) => <LogCard key={log.id} log={log} d={d} />)}
+              </div>
+            </section>
           ))}
         </div>
       )}
 
-      {/* Pagination */}
+      {/* Paginação */}
       {logsResponse && logsResponse.pagination.pages > 1 && (
-        <div className="flex items-center justify-between pt-2">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+          <p className="text-sm text-slate-500">
             Página {logsResponse.pagination.page} de {logsResponse.pagination.pages}
           </p>
-          <div className="flex items-center gap-1.5">
-            <Button variant="outline" size="sm" onClick={() => setPage(1)} disabled={page <= 1}>«</Button>
-            <Button variant="outline" size="sm" onClick={() => setPage(p => p - 1)} disabled={page <= 1}>‹ Anterior</Button>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => setPage(1)} disabled={page <= 1} aria-label="Primeira página">«</Button>
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => p - 1)} disabled={page <= 1}>‹ Anterior</Button>
             {Array.from({ length: Math.min(5, logsResponse.pagination.pages) }).map((_, i) => {
               const n = Math.max(1, Math.min(page - 2, logsResponse.pagination.pages - 4)) + i;
               if (n > logsResponse.pagination.pages) return null;
               return (
-                <Button key={n} variant={n === page ? "default" : "outline"} size="sm" onClick={() => setPage(n)} className="w-9 h-9 p-0">
+                <Button key={n} variant={n === page ? "default" : "outline"} size="sm" onClick={() => setPage(n)} className="h-9 w-9 p-0">
                   {n}
                 </Button>
               );
             })}
-            <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={page >= logsResponse.pagination.pages}>Próxima ›</Button>
-            <Button variant="outline" size="sm" onClick={() => setPage(logsResponse.pagination.pages)} disabled={page >= logsResponse.pagination.pages}>»</Button>
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)} disabled={page >= logsResponse.pagination.pages}>Próxima ›</Button>
+            <Button variant="outline" size="sm" onClick={() => setPage(logsResponse.pagination.pages)} disabled={page >= logsResponse.pagination.pages} aria-label="Última página">»</Button>
           </div>
         </div>
       )}
