@@ -142,6 +142,45 @@ export function juntarLinhasQuebradas(linhas: string[]): string[] {
   return out;
 }
 
+/** Um voo: a linha de saída e a de chegada (as linhas vêm em pares). */
+interface Voo { saida: Trecho; chegada: Trecho }
+
+/** Minutos desde a época, para comparar horários; null sem data confiável. */
+function momentoDoTrecho(t: Trecho, emissaoIso: string | null): number | null {
+  const dia = dataSemAno(t.diaMes, emissaoIso);
+  if (!dia) return null;
+  const ms = Date.parse(`${dia}T${t.horario.padStart(5, "0")}:00Z`);
+  return Number.isNaN(ms) ? null : ms / 60000;
+}
+
+/** Até quanto tempo entre pousar e decolar ainda é conexão (e não a volta). */
+const CONEXAO_MAX_MIN = 12 * 60;
+
+/**
+ * Junta os voos seguidos em trechos (18/09). Um voo é conexão do anterior se
+ * sai do aeroporto onde o anterior chegou e decola até 12h depois. Sem data
+ * confiável, cada voo é um trecho — o comportamento de antes.
+ */
+export function agruparVoos(trechos: Trecho[], emissaoIso: string | null): Voo[][] {
+  const voos: Voo[] = [];
+  for (let i = 0; i + 1 < trechos.length; i += 2) voos.push({ saida: trechos[i], chegada: trechos[i + 1] });
+  const grupos: Voo[][] = [];
+  for (const voo of voos) {
+    const atual = grupos[grupos.length - 1];
+    const anterior = atual?.[atual.length - 1];
+    if (anterior && anterior.chegada.aeroporto === voo.saida.aeroporto) {
+      const pouso = momentoDoTrecho(anterior.chegada, emissaoIso);
+      const decolagem = momentoDoTrecho(voo.saida, emissaoIso);
+      if (pouso !== null && decolagem !== null && decolagem >= pouso && decolagem - pouso <= CONEXAO_MAX_MIN) {
+        atual.push(voo);
+        continue;
+      }
+    }
+    grupos.push([voo]);
+  }
+  return grupos;
+}
+
 function lerTrechos(linhasBrutas: string[]): Trecho[] {
   const linhas = juntarLinhasQuebradas(linhasBrutas);
   const achados: Trecho[] = [];
@@ -249,9 +288,20 @@ export function lerVoucherPassagem(texto: string): VoucherLeitura | null {
     }
   };
 
-  aplicarTrecho(trechos[0], trechos[1], false);
-  if (trechos.length >= 4) {
-    aplicarTrecho(trechos[2], trechos[3], true);
+  // Voos com CONEXÃO (dono, 18/09: "quando tem conexão ele não entende"):
+  // "Congonhas → Brasília" + "Brasília → Palmas" é UM trecho de ida. Antes o
+  // segundo voo virava a volta. Agrupa os voos seguidos — mesmo aeroporto e
+  // saída até 12h depois da chegada anterior — e cada grupo vira um trecho,
+  // com a saída do primeiro voo e a chegada do último.
+  const grupos = agruparVoos(trechos, emissao);
+  const [idaVoos, voltaVoos] = grupos;
+  aplicarTrecho(idaVoos[0].saida, idaVoos[idaVoos.length - 1].chegada, false);
+  const conexoes = (g: Voo[]) => g.slice(1).map((v) => `${v.saida.cidade} (${v.saida.aeroporto})`).join(", ");
+  if (idaVoos.length > 1) avisos.push(`Ida com conexão em ${conexoes(idaVoos)} — usei a saída do primeiro voo e a chegada do último.`);
+  if (voltaVoos && voltaVoos.length > 1) avisos.push(`Volta com conexão em ${conexoes(voltaVoos)} — usei a saída do primeiro voo e a chegada do último.`);
+  if (grupos.length > 2) avisos.push("O voucher tem mais de dois trechos (ida e volta) — confira as datas.");
+  if (voltaVoos) {
+    aplicarTrecho(voltaVoos[0].saida, voltaVoos[voltaVoos.length - 1].chegada, true);
   } else {
     // Um trecho só NÃO quer dizer "viagem de ida apenas" (28/08): a volta pode
     // ter sido emitida por outra agência, em voucher separado. Marcar

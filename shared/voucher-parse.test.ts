@@ -625,3 +625,56 @@ describe("passagem rodoviária só de ida", () => {
     expect(r.avisos.join(" ")).toMatch(/um trecho só/i);
   });
 });
+
+// Roteiro Flytour com CONEXÃO na ida e na volta (dono, 18/09).
+const ROTEIRO_COM_CONEXAO = `SÃO PAULO - PALMAS - SÃO PAULO LOCALIZADOR: DLPZNQ BILHETE: 1272312004184 16/set/2026
+Cia Voo Classe Assento Origem / Destino Partida / Chegada
+G3 1400 A Congonhas (CGH) 25/set 06:00
+GOL Escalas 0 Brasilia (BSB) 25/set 07:45
+Term. Embarque: A Classe
+Pagamento: CARTAO AGENCIA
+G3 1788 A Brasilia (BSB) 25/set 08:45
+GOL Escalas 0 Palmas (PMW) 25/set 10:05
+Term. Embarque: 2 Classe
+Pagamento: CARTAO AGENCIA
+G3 2145 U Palmas (PMW) 28/set 04:45
+GOL Escalas 0 Brasilia (BSB) 28/set 06:00
+Term. Embarque: Classe
+Pagamento: CARTAO AGENCIA
+G3 1405 U Brasilia (BSB) 28/set 08:45
+GOL Escalas 0 Congonhas (CGH) 28/set 10:30
+Term. Embarque: 2 Classe
+Pagamento: CARTAO AGENCIA
+Data Emissão: 16/set/2026 Valor: BRL 1.679,57 Taxas + Repasse: BRL 111,87 + BRL 0,00 Total: BRL 1.791,44
+ANTONIO ARAUJO TRAJANO O.S. 113
+Agência:NORTHTUR VIAGENS Solicitante: LEANDRO DUARTE VIEIRA`;
+
+describe("voucher com conexão (18/09)", () => {
+  const l = lerVoucher(ROTEIRO_COM_CONEXAO);
+
+  it("a ida vai do primeiro aeroporto ao destino final, com a chegada do último voo", () => {
+    expect(l.campos.departureAirport).toBe("CGH");
+    expect(l.campos.destinationAirport).toBe("PMW");
+    expect(l.campos.actualDepartureDate).toBe("2026-09-25");
+    expect(l.campos.actualDepartureTime).toBe("06:00");
+    expect(l.campos.actualArrivalTime).toBe("10:05");
+  });
+
+  it("a volta é o outro grupo de voos, com a chegada do último", () => {
+    expect(l.campos.returnOriginAirport).toBe("PMW");
+    expect(l.campos.returnDestinationAirport).toBe("CGH");
+    expect(l.campos.actualReturnDate).toBe("2026-09-28");
+    expect(l.campos.actualReturnTime).toBe("04:45");
+    expect(l.campos.returnArrivalTime).toBe("10:30");
+  });
+
+  it("cidades do roteiro, total e passageiro continuam certos; avisa as conexões", () => {
+    expect(l.campos.departureCityOrigin).toBe("São Paulo");
+    expect(l.campos.departureCityDestination).toBe("Palmas");
+    expect(l.campos.value).toBe("1.791,44");
+    expect(l.trechoUnico).toBeFalsy();
+    expect(l.avisos.join(" ")).toContain("Ida com conexão em Brasilia (BSB)");
+    expect(l.avisos.join(" ")).toContain("Volta com conexão em Brasilia (BSB)");
+  });
+});
+
