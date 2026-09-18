@@ -219,8 +219,11 @@ export default function Scaling() {
     temPedido: queueContext.temPedido,
     getEventName, getFunctionName, getCollaboratorName,
     getEventDates: (id) => (id ? data.eventById.get(id) : undefined),
+    // Passagem registrada = emitida para o time (18/09); hotel registrado = reservado.
+    temPassagem: (i) => data.purchasedTicketByInclusion.has(i.id),
+    temHotel: (i) => data.accommodationByInclusion.has(i.id),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [queueContext, data.eventById, data.functionById, data.collaboratorById]);
+  }), [queueContext, data.eventById, data.functionById, data.collaboratorById, data.purchasedTicketByInclusion, data.accommodationByInclusion]);
 
   // ── As camadas do recorte ───────────────────────────────────────────────
   // Cada uma serve de base ao contador do filtro seguinte: o número ao lado de

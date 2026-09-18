@@ -13,6 +13,7 @@
  */
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
+import { BedDouble, Plane } from "lucide-react";
 import type { TeamInclusion } from "@shared/schema";
 import {
   BUCKETS, DIAS_ESPERA_ATRASADA, analisarPorEvento, calcularKpis, funcoesDescobertas,
@@ -80,6 +81,21 @@ function Contagem({ n, texto, cor, detalhe }: { n: number; texto: string; cor: s
   );
 }
 
+/** "5 de 12 passagens emitidas · 7 faltam" — verde quando completo, âmbar quando falta. */
+function LinhaDeLogistica({ icone, feitos, precisam, feito, oque }: {
+  icone: React.ReactNode; feitos: number; precisam: number; feito: string; oque: string;
+}) {
+  if (precisam === 0) return null;
+  const faltam = precisam - feitos;
+  return (
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap ${faltam === 0 ? "text-[#047857]" : "text-slate-600"}`}>
+      {icone}
+      <span><span className="font-semibold tabular-nums text-slate-800">{feitos}</span> de <span className="tabular-nums">{precisam}</span> {oque} {feito}</span>
+      {faltam > 0 && <span className="font-medium text-[#B45309]">· {faltam} {faltam === 1 ? "falta" : "faltam"}</span>}
+    </span>
+  );
+}
+
 const linkDaEtapa = (etapa: "validacao" | "aprovacao", eventId: string) =>
   `${etapa === "validacao" ? "/scaling-validation" : "/scaling-approval"}?eventId=${encodeURIComponent(eventId)}`;
 
@@ -100,8 +116,8 @@ export default function ScalingAnalytics({ linhas, sugestoes = [], ctx, hoje, on
   return (
     <div className="flex flex-col gap-4" data-testid="aba-analises">
       {/* O caminho da vaga, da esquerda para a direita. */}
-      {/* 1px de fundo entre os cartões = divisória que fecha em 2, 3 ou 6 colunas. */}
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-slate-100 sm:grid-cols-3 xl:grid-cols-6">
+      {/* 1px de fundo entre os cartões = divisória que fecha em 2, 4 ou 8 colunas. */}
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-slate-100 sm:grid-cols-4 2xl:grid-cols-8">
         <Kpi
           rotulo="Em validação"
           valor={String(kpis.emValidacao)}
@@ -125,6 +141,27 @@ export default function ScalingAnalytics({ linhas, sugestoes = [], ctx, hoje, on
           valor={String(kpis.completas)}
           sub={`${kpis.completaPct}% de ${kpis.totalVivas} ${kpis.totalVivas === 1 ? "vaga" : "vagas"}`}
           cor={kpis.completaPct === 100 ? "#047857" : "#0F172A"}
+        />
+        {/* Depois da escalação: a passagem é o que o time mais cobra (18/09). */}
+        <Kpi
+          rotulo="Passagens"
+          valor={`${kpis.logistica.passagens.emitidas}/${kpis.logistica.passagens.precisam}`}
+          sub={kpis.logistica.passagens.precisam === 0
+            ? "nenhuma vaga precisa"
+            : kpis.logistica.passagens.emitidas === kpis.logistica.passagens.precisam
+              ? "todas emitidas"
+              : `${kpis.logistica.passagens.precisam - kpis.logistica.passagens.emitidas} faltam emitir`}
+          cor={kpis.logistica.passagens.emitidas === kpis.logistica.passagens.precisam ? "#047857" : "#B45309"}
+        />
+        <Kpi
+          rotulo="Hospedagem"
+          valor={`${kpis.logistica.hoteis.reservados}/${kpis.logistica.hoteis.precisam}`}
+          sub={kpis.logistica.hoteis.precisam === 0
+            ? "nenhuma vaga precisa"
+            : kpis.logistica.hoteis.reservados === kpis.logistica.hoteis.precisam
+              ? "todas reservadas"
+              : `${kpis.logistica.hoteis.precisam - kpis.logistica.hoteis.reservados} faltam reservar`}
+          cor={kpis.logistica.hoteis.reservados === kpis.logistica.hoteis.precisam ? "#047857" : "#B45309"}
         />
         <Kpi
           rotulo="Próximo prazo"
@@ -198,6 +235,25 @@ export default function ScalingAnalytics({ linhas, sugestoes = [], ctx, hoje, on
                   <Contagem n={e.etapas.completa} texto="escalação completa" cor={COR.escalado} />
                   <span className="tabular-nums text-muted-foreground">· {e.total} {e.total === 1 ? "vaga" : "vagas"}</span>
                 </p>
+                {/* Depois da escalação: passagem e hotel (18/09). */}
+                {(e.logistica.passagens.precisam > 0 || e.logistica.hoteis.precisam > 0) && (
+                  <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]" data-testid={`logistica-${e.eventId}`}>
+                    <LinhaDeLogistica
+                      icone={<Plane className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+                      feitos={e.logistica.passagens.emitidas}
+                      precisam={e.logistica.passagens.precisam}
+                      oque={e.logistica.passagens.precisam === 1 ? "passagem" : "passagens"}
+                      feito={e.logistica.passagens.precisam === 1 ? "emitida" : "emitidas"}
+                    />
+                    <LinhaDeLogistica
+                      icone={<BedDouble className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+                      feitos={e.logistica.hoteis.reservados}
+                      precisam={e.logistica.hoteis.precisam}
+                      oque={e.logistica.hoteis.precisam === 1 ? "hospedagem" : "hospedagens"}
+                      feito={e.logistica.hoteis.precisam === 1 ? "reservada" : "reservadas"}
+                    />
+                  </p>
+                )}
               </div>
 
               <span className="w-16 shrink-0 text-right leading-tight" title="Escalação completa (confirmada) sobre o total de vagas do evento">
@@ -226,6 +282,11 @@ export default function ScalingAnalytics({ linhas, sugestoes = [], ctx, hoje, on
                   <button type="button" onClick={() => onVerVagasDoEvento(e.eventId)} className={BOTAO} data-testid={`button-ver-vagas-${e.eventId}`}>
                     Ver vagas
                   </button>
+                )}
+                {e.logistica.passagens.precisam > 0 && (
+                  <Link href={`/tickets?event=${encodeURIComponent(e.eventId)}`} className={BOTAO} data-testid={`link-passagens-${e.eventId}`}>
+                    Passagens
+                  </Link>
                 )}
               </div>
             </div>

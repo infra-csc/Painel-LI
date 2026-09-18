@@ -82,6 +82,20 @@ describe("Análises com o caminho inteiro da vaga (18/09)", () => {
     expect(txt).toContain("   · 2 prod");
   });
 
+  it("passagens e hotéis: quantas precisam e quantas já têm, por evento e no topo (sugestão fica fora)", () => {
+    const comPassagem = new Set<string>();
+    const comHotel = new Set<string>();
+    const ctxLog: AnalyticsContext = { ...ctx, temPassagem: (i) => comPassagem.has(i.id), temHotel: (i) => comHotel.has(i.id) };
+    const v1 = vaga({ status: "escalado", collaboratorId: "a", needsTicket: true, needsAccommodation: true });
+    const v2 = vaga({ status: "escalado", collaboratorId: "b", needsTicket: true });
+    const v3 = vaga({ status: "planejado", needsTicket: true });
+    const sug = vaga({ phase: "sugestao", status: "sugestao_pendente", needsTicket: true });
+    comPassagem.add(v1.id); comHotel.add(v1.id);
+    const [e] = analisarPorEvento([v1, v2, v3, sug], ctxLog, HOJE);
+    expect(e.logistica).toEqual({ passagens: { precisam: 3, emitidas: 1 }, hoteis: { precisam: 1, reservados: 1 } });
+    expect(calcularKpis([v1, v2, v3, sug], ctxLog, HOJE).logistica.passagens).toEqual({ precisam: 3, emitidas: 1 });
+  });
+
   it("prazo curto com vaga ainda em validação conta como crítico", () => {
     const [e] = analisarPorEvento(
       [vaga({ phase: "sugestao", status: "sugestao_pendente", scheduleStartDate: "2026-09-25", scheduleEndDate: "2026-09-26" })],

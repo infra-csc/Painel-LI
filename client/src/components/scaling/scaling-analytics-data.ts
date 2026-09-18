@@ -34,6 +34,36 @@ export interface AnalyticsContext {
    * 12"), então é ela que sai no relatório.
    */
   getEventDates?: (eventId: string | null) => { startDate?: string | null; endDate?: string | null } | undefined;
+  /**
+   * A vaga já tem passagem registrada (18/09: "principalmente a emissão de
+   * passagens"). Registrar é emitir para o time — a marca "emitida" separada
+   * quase não é usada (1 passagem até hoje).
+   */
+  temPassagem?: (i: TeamInclusion) => boolean;
+  /** A vaga já tem hospedagem registrada. */
+  temHotel?: (i: TeamInclusion) => boolean;
+}
+
+/** Passagem e hotel das vagas que PRECISAM (só na escalação — sugestão ainda não compra nada). */
+export interface Logistica {
+  passagens: { precisam: number; emitidas: number };
+  hoteis: { precisam: number; reservados: number };
+}
+
+export function contarLogistica(linhas: TeamInclusion[], ctx: AnalyticsContext): Logistica {
+  const out: Logistica = { passagens: { precisam: 0, emitidas: 0 }, hoteis: { precisam: 0, reservados: 0 } };
+  for (const i of linhas) {
+    if (ehSugestao(i)) continue;
+    if (i.needsTicket) {
+      out.passagens.precisam += 1;
+      if (ctx.temPassagem?.(i)) out.passagens.emitidas += 1;
+    }
+    if (i.needsAccommodation) {
+      out.hoteis.precisam += 1;
+      if (ctx.temHotel?.(i)) out.hoteis.reservados += 1;
+    }
+  }
+  return out;
 }
 
 export type BucketKey = "escalado" | "salvo" | "gestor" | "vaga" | "aprovacao" | "validacao";
@@ -99,6 +129,8 @@ export interface Kpis {
   completas: number;
   /** Escalação completa ÷ vagas vivas, arredondado. */
   completaPct: number;
+  /** Passagens e hotéis das vagas que precisam (18/09). */
+  logistica: Logistica;
 }
 
 /** Linhas vivas do recorte — canceladas, excluídas e sugestões negadas nunca entram nos totais. */
@@ -129,6 +161,7 @@ export function calcularKpis(linhas: TeamInclusion[], ctx: AnalyticsContext, hoj
     emEscalacao: etapas.escalacao,
     completas: etapas.completa,
     completaPct: vivas.length === 0 ? 100 : Math.round((etapas.completa / vivas.length) * 100),
+    logistica: contarLogistica(vivas, ctx),
     prazoMaisCurtoDias: (() => {
       const futuros = inicios.map((d) => d.getTime()).filter((t) => t >= base);
       return futuros.length === 0 ? null : Math.round((Math.min(...futuros) - base) / MS_DIA);
@@ -170,6 +203,8 @@ export interface EventoAnalisado {
   naEscalacao: { semNome: number; salvo: number; gestor: number };
   /** Escalação completa ÷ vagas do evento. */
   completaPct: number;
+  /** Passagens e hotéis deste evento (18/09). */
+  logistica: Logistica;
 }
 
 /** Abaixo disto, com vaga aberta, o evento entra em alerta. */
@@ -199,6 +234,8 @@ export function analisarPorEvento(linhas: TeamInclusion[], ctx: AnalyticsContext
     const prazoDias = ini ? Math.round((ini.getTime() - base) / MS_DIA) : null;
     const jaTerminou = !!fim && fim.getTime() < base;
     const etapas = contarEtapas(doEvento, ctx);
+    const logistica = contarLogistica(doEvento, ctx);
+    const passagensFaltando = logistica.passagens.precisam - logistica.passagens.emitidas;
     const buckets = doEvento.map((i) => bucketDaLinha(i, ctx));
     const quantos = (k: BucketKey) => buckets.filter((b) => b === k).length;
 
@@ -211,9 +248,10 @@ export function analisarPorEvento(linhas: TeamInclusion[], ctx: AnalyticsContext
       preenchimentoPct: Math.round(((doEvento.length - abertas) / doEvento.length) * 100),
       noFimDeSemana: periodos.filter((p) => pegaFimDeSemana(p.ini, p.fim)).length,
       jaTerminou,
-      // Crítico: prazo curto com vaga ainda sem nome OU ainda presa na validação/aprovação.
-      critico: (abertas > 0 || etapas.validacao + etapas.aprovacao > 0) && !jaTerminou && prazoDias !== null && prazoDias <= DIAS_PRAZO_CRITICO,
+      // Crítico: prazo curto com vaga sem nome, presa na validação/aprovação ou sem passagem.
+      critico: (abertas > 0 || etapas.validacao + etapas.aprovacao > 0 || passagensFaltando > 0) && !jaTerminou && prazoDias !== null && prazoDias <= DIAS_PRAZO_CRITICO,
       etapas,
+      logistica,
       naEscalacao: { semNome: quantos("vaga"), salvo: quantos("salvo"), gestor: quantos("gestor") },
       completaPct: Math.round((etapas.completa / doEvento.length) * 100),
       segmentos: BUCKETS.map((b) => {
