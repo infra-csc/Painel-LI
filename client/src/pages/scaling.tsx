@@ -239,6 +239,27 @@ export default function Scaling() {
     () => scalingInclusions.filter((i) => testePeriodo(i) && testeRecorte(i) && testeFuncao(i)),
     [scalingInclusions, testePeriodo, testeRecorte, testeFuncao],
   );
+  // Análises (18/09): as vagas ainda na Validação/Aprovação de Escala, com o
+  // MESMO recorte da tela (evento, período, futuros/realizados, função e quem
+  // vê o quê). Só são buscadas com a aba aberta — a fila não precisa delas.
+  const { data: sugestoesRaw } = useQuery<TeamInclusion[]>({
+    queryKey: ["/api/team-inclusions?phase=sugestao"],
+    enabled: aba === "analises",
+    staleTime: 60_000,
+  });
+  const sugestoesDoRecorte = useMemo(() => {
+    const veemTodasAsFuncoes = ["production", "function_area", "purchasing", "financial"];
+    return (sugestoesRaw ?? []).filter((i) => {
+      if (i.deletedAt) return false;
+      const ev = data.eventById.get(i.eventId);
+      if (!ev || ev.status === "excluído" || ev.status === "excluido") return false;
+      if (eventosMarcados.length > 0 && !eventosMarcados.includes(i.eventId)) return false;
+      const podeVer = data.isAdminRole || veemTodasAsFuncoes.includes(String(user?.role ?? "")) || data.userFunctionIds.has(i.functionId);
+      return podeVer && testePeriodo(i) && testeRecorte(i) && testeFuncao(i);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sugestoesRaw, data.eventById, data.isAdminRole, data.userFunctionIds, user?.role, eventosMarcados, testePeriodo, testeRecorte, testeFuncao]);
+
   // Opções de função: base com tudo aplicado menos a própria função.
   const opcoesDeFuncao = useMemo(() => {
     const conta = new Map<string, number>();
@@ -839,6 +860,7 @@ export default function Scaling() {
             ) : aba === "analises" ? (
             <ScalingAnalytics
               linhas={comFlags}
+              sugestoes={sugestoesDoRecorte}
               ctx={analyticsContext}
               hoje={hoje}
               onVerVagasDoEvento={(eventId) => {

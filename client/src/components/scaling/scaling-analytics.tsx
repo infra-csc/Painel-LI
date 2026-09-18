@@ -31,6 +31,11 @@ const dm = (d: Date | null) =>
 
 interface Props {
   linhas: TeamInclusion[];
+  /**
+   * Vagas ainda na Validação/Aprovação de Escala do mesmo recorte (18/09): sem
+   * elas o evento parecia mais vazio do que estava.
+   */
+  sugestoes?: TeamInclusion[];
   ctx: AnalyticsContext;
   hoje: Date;
   /** Leva à Fila filtrada por este evento — mantendo o período escolhido. */
@@ -51,9 +56,25 @@ function Kpi({ rotulo, valor, sub, cor }: { rotulo: string; valor: string; sub: 
   );
 }
 
-export default function ScalingAnalytics({ linhas, ctx, hoje, onVerVagasDoEvento, onVerFuncao, onAbrirLinha }: Props) {
-  const kpis = calcularKpis(linhas, ctx, hoje);
-  const eventos = analisarPorEvento(linhas, ctx, hoje);
+/** "2 em validação" com a bolinha da cor da etapa — o número que antes só a barra mostrava. */
+function Contagem({ n, texto, cor, detalhe }: { n: number; texto: string; cor: string; detalhe?: string }) {
+  if (n === 0) return null;
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: cor }} />
+      <span className="font-semibold tabular-nums text-slate-800">{n}</span> {texto}
+      {detalhe && <span className="text-muted-foreground">({detalhe})</span>}
+    </span>
+  );
+}
+
+const COR = Object.fromEntries(BUCKETS.map((b) => [b.key, b.cor])) as Record<string, string>;
+
+export default function ScalingAnalytics({ linhas, sugestoes = [], ctx, hoje, onVerVagasDoEvento, onVerFuncao, onAbrirLinha }: Props) {
+  // O caminho inteiro da vaga: validação → aprovação → escalação → completa.
+  const todas = sugestoes.length ? [...linhas, ...sugestoes] : linhas;
+  const kpis = calcularKpis(todas, ctx, hoje);
+  const eventos = analisarPorEvento(todas, ctx, hoje);
   const funcoes = funcoesDescobertas(linhas, ctx);
   const travas = gargalos(linhas, ctx, hoje);
   const hojeBr = `${String(hoje.getDate()).padStart(2, "0")}/${String(hoje.getMonth() + 1).padStart(2, "0")}`;
@@ -62,18 +83,30 @@ export default function ScalingAnalytics({ linhas, ctx, hoje, onVerVagasDoEvento
 
   return (
     <div className="flex flex-col gap-4" data-testid="aba-analises">
-      <div className="flex rounded-xl border border-border bg-card overflow-hidden">
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 rounded-xl border border-border bg-card overflow-hidden [&>*]:border-b [&>*]:border-slate-100">
         <Kpi
-          rotulo="Preenchimento"
-          valor={`${kpis.preenchimentoPct}%`}
-          sub={`${kpis.totalVivas - kpis.faltamEscalar} de ${kpis.totalVivas} vagas com nome`}
-          cor={kpis.preenchimentoPct === 100 ? "#047857" : "#0F172A"}
+          rotulo="Em validação"
+          valor={String(kpis.emValidacao)}
+          sub={kpis.emValidacao === 0 ? "nada esperando a área" : "esperando a área validar"}
+          cor={kpis.emValidacao === 0 ? "#047857" : "#475569"}
         />
         <Kpi
-          rotulo="Faltam escalar"
-          valor={String(kpis.faltamEscalar)}
-          sub={kpis.faltamEscalar === 0 ? "nenhuma vaga aberta" : "vagas sem nome"}
-          cor={kpis.faltamEscalar === 0 ? "#047857" : "#B45309"}
+          rotulo="Em aprovação"
+          valor={String(kpis.emAprovacao)}
+          sub={kpis.emAprovacao === 0 ? "nada esperando o aprovador" : "validadas, esperando o aprovador"}
+          cor={kpis.emAprovacao === 0 ? "#047857" : "#7E22CE"}
+        />
+        <Kpi
+          rotulo="Em escalação"
+          valor={String(kpis.emEscalacao)}
+          sub={kpis.faltamEscalar > 0 ? `${kpis.faltamEscalar} sem nome` : kpis.emEscalacao === 0 ? "nada pendente" : "com nome, falta confirmar"}
+          cor={kpis.emEscalacao === 0 ? "#047857" : "#B45309"}
+        />
+        <Kpi
+          rotulo="Escalação completa"
+          valor={String(kpis.completas)}
+          sub={`${kpis.completaPct}% de ${kpis.totalVivas} ${kpis.totalVivas === 1 ? "vaga" : "vagas"}`}
+          cor={kpis.completaPct === 100 ? "#047857" : "#0F172A"}
         />
         <Kpi
           rotulo="Próximo prazo"
@@ -125,19 +158,36 @@ export default function ScalingAnalytics({ linhas, ctx, hoje, onVerVagasDoEvento
                   <span key={s.key} title={`${s.label}: ${s.n}`} style={{ width: `${s.pct}%`, background: s.cor }} />
                 ))}
               </div>
-              <p className="mt-1.5 text-[12px] text-muted-foreground">
-                {e.total} {e.total === 1 ? "vaga" : "vagas"} ·{" "}
-                <span className={e.abertas === 0 ? "text-[#047857]" : "font-medium text-[#B45309]"}>
-                  {e.abertas === 0 ? "nenhuma sem nome" : `${e.abertas} sem nome`}
-                </span>
+              {/* Os números de cada etapa (18/09: "só sei pelo gráfico, não tenho a quantidade"). */}
+              <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-600" data-testid={`etapas-${e.eventId}`}>
+                <Contagem n={e.etapas.validacao} texto="em validação" cor={COR.validacao} />
+                <Contagem n={e.etapas.aprovacao} texto="em aprovação" cor={COR.aprovacao} />
+                <Contagem
+                  n={e.etapas.escalacao}
+                  texto="em escalação"
+                  cor={COR.vaga}
+                  detalhe={[
+                    e.naEscalacao.semNome ? `${e.naEscalacao.semNome} sem nome` : "",
+                    e.naEscalacao.salvo ? `${e.naEscalacao.salvo} salvo` : "",
+                    e.naEscalacao.gestor ? `${e.naEscalacao.gestor} com o gestor` : "",
+                  ].filter(Boolean).join(" · ") || undefined}
+                />
+                <Contagem n={e.etapas.completa} texto="escalação completa" cor={COR.escalado} />
+                <span className="text-muted-foreground tabular-nums">· {e.total} {e.total === 1 ? "vaga" : "vagas"}</span>
               </p>
             </div>
 
             <span
-              className="w-14 shrink-0 text-right text-[17px] font-semibold tabular-nums"
-              style={{ color: e.preenchimentoPct === 100 ? "#047857" : e.critico ? "#B45309" : "#0F172A" }}
+              className="w-16 shrink-0 text-right leading-tight"
+              title="Escalação completa (confirmada) sobre o total de vagas do evento"
             >
-              {e.preenchimentoPct}%
+              <span
+                className="block text-[17px] font-semibold tabular-nums"
+                style={{ color: e.completaPct === 100 ? "#047857" : e.critico ? "#B45309" : "#0F172A" }}
+              >
+                {e.completaPct}%
+              </span>
+              <span className="block text-[10px] text-muted-foreground">completa</span>
             </span>
 
             <button
