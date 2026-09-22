@@ -160,3 +160,36 @@ describe("rótulo e estado do botão", () => {
     expect(temRecorteDePeriodo(cfg({ inicioFds: true }))).toBe(true);
   });
 });
+
+// Medir pela data do EVENTO e não da escala (dono, 22/09).
+describe("base da data: escala ou evento", () => {
+  // A equipe monta antes: escala de 15 a 18/10, evento no dia 20/10.
+  const vaga = { scheduleStartDate: "2026-10-15", scheduleEndDate: "2026-10-18", eventId: "ev1" };
+  const datas = (id: string | null | undefined) => (id === "ev1" ? { startDate: "2026-10-20", endDate: "2026-10-20" } : undefined);
+  const janela = cfg({ preset: "custom", de: "2026-10-19", ate: "2026-10-21" });
+
+  it("a mesma janela pega o evento e não a escala", () => {
+    expect(fazTesteDePeriodo(janela, HOJE, datas)(vaga)).toBe(false);
+    expect(fazTesteDePeriodo({ ...janela, base: "evento" }, HOJE, datas)(vaga)).toBe(true);
+    const janelaDaEscala = cfg({ preset: "custom", de: "2026-10-14", ate: "2026-10-16" });
+    expect(fazTesteDePeriodo(janelaDaEscala, HOJE, datas)(vaga)).toBe(true);
+    expect(fazTesteDePeriodo({ ...janelaDaEscala, base: "evento" }, HOJE, datas)(vaga)).toBe(false);
+  });
+
+  it("evento sem data cadastrada cai na data da escala — a vaga não some", () => {
+    const semDatas = () => undefined;
+    expect(fazTesteDePeriodo({ ...cfg({ preset: "custom", de: "2026-10-14", ate: "2026-10-16" }), base: "evento" }, HOJE, semDatas)(vaga)).toBe(true);
+  });
+
+  it("periodoDaLinha mede a data pedida", () => {
+    expect(periodoDaLinha(vaga, { base: "evento", datasDoEvento: datas })).toEqual({ ini: new Date(2026, 9, 20), fim: new Date(2026, 9, 20) });
+    expect(periodoDaLinha(vaga)).toEqual({ ini: new Date(2026, 9, 15), fim: new Date(2026, 9, 18) });
+  });
+
+  it("o rótulo do botão diz quando está medindo pelo evento", () => {
+    expect(rotuloDoPeriodo(cfg({ preset: "7", base: "evento" }))).toBe("Evento · Próximos 7 dias");
+    expect(rotuloDoPeriodo(cfg({ base: "evento" }))).toBe("Evento · qualquer data");
+    expect(rotuloDoPeriodo(cfg({ preset: "7" }))).toBe("Próximos 7 dias");
+  });
+});
+

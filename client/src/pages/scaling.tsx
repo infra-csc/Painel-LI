@@ -228,7 +228,9 @@ export default function Scaling() {
   // ── As camadas do recorte ───────────────────────────────────────────────
   // Cada uma serve de base ao contador do filtro seguinte: o número ao lado de
   // uma opção responde "quantas sobram se eu marcar ISTO mantendo o resto".
-  const testePeriodo = useMemo(() => fazTesteDePeriodo(periodo, hoje), [periodo, hoje]);
+  // Datas dos eventos: permitem medir o período pela DATA DO EVENTO (22/09).
+  const datasDoEvento = useCallback((id: string | null | undefined) => (id ? data.eventById.get(id) : undefined), [data.eventById]);
+  const testePeriodo = useMemo(() => fazTesteDePeriodo(periodo, hoje, datasDoEvento), [periodo, hoje, datasDoEvento]);
   const testeRecorte = useMemo(() => fazTesteDeRecorte(recorteEventos, hoje), [recorteEventos, hoje]);
   // Função entra na mesma camada do evento/período: é recorte "do que existe",
   // não filtro de trabalho — a fila e os contadores contam sobre ela.
@@ -849,7 +851,7 @@ export default function Scaling() {
               busca={busca} onBusca={setBusca}
               eventos={eventos} onEventos={setEventos} opcoesDeEvento={opcoesDeEvento}
               funcoes={funcoes} onFuncoes={setFuncoes} opcoesDeFuncao={opcoesDeFuncao}
-              periodo={periodo} onPeriodo={setPeriodo} linhasSemPeriodo={scalingInclusions} hoje={hoje}
+              periodo={periodo} onPeriodo={setPeriodo} linhasSemPeriodo={scalingInclusions} hoje={hoje} datasDoEvento={datasDoEvento}
               flags={flags} onFlags={setFlags} linhasSemFlags={comBusca} queueContext={queueContext}
               verExcluidos={verExcluidos} onVerExcluidos={setVerExcluidos}
               recorteEventos={recorteEventos} onRecorteEventos={setRecorteEventos} contagemPorRecorte={contagemPorRecorte}

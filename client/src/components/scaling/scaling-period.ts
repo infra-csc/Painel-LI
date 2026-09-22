@@ -23,8 +23,22 @@ export type PeriodPreset = "todos" | "7" | "30" | "mes" | "proximo" | "andamento
 /** Recorte por dia da semana — as três opções são exclusivas entre si. */
 export type PeriodSemana = "todos" | "fds" | "uteis";
 
+/**
+ * Medir por qual data (dono, 22/09: "um filtro de data do evento, e não data
+ * da escala"). A escala começa dias antes, para a montagem: as duas datas são
+ * diferentes em quase toda linha.
+ */
+export type BaseDaData = "escala" | "evento";
+
+export const BASE_LABEL: Record<BaseDaData, string> = { escala: "Data da escala", evento: "Data do evento" };
+
+/** Datas do evento de uma linha — a tela passa o que já tem carregado. */
+export type DatasDoEvento = (eventId: string | null | undefined) => { startDate?: string | null; endDate?: string | null } | undefined;
+
 export interface PeriodConfig {
   preset: PeriodPreset;
+  /** Por qual data medir; ausente = data da escala (como sempre foi). */
+  base?: BaseDaData;
   /** ISO "AAAA-MM-DD". Só valem no preset `custom`; um lado vazio deixa a ponta aberta. */
   de: string;
   ate: string;
@@ -41,6 +55,8 @@ export const DEFAULT_PERIOD: PeriodConfig = {
 export interface PeriodRow {
   scheduleStartDate?: string | null;
   scheduleEndDate?: string | null;
+  /** Para medir pela data do EVENTO (22/09). */
+  eventId?: string | null;
 }
 
 export const PRESET_LABEL: Record<PeriodPreset, string> = {
@@ -88,8 +104,20 @@ export function ehFimDeSemana(d: Date): boolean {
   return dia === 0 || dia === 6;
 }
 
-/** Período de uma linha, normalizado. Sem início, a linha não tem data. */
-export function periodoDaLinha(row: PeriodRow): { ini: Date; fim: Date } | null {
+/**
+ * Período de uma linha, normalizado. Sem início, a linha não tem data.
+ * Com base "evento" (22/09) mede as datas do EVENTO; evento sem data cadastrada
+ * cai na data da escala — melhor mostrar a vaga no recorte do que sumir com ela.
+ */
+export function periodoDaLinha(row: PeriodRow, opcoes?: { base?: BaseDaData; datasDoEvento?: DatasDoEvento }): { ini: Date; fim: Date } | null {
+  if (opcoes?.base === "evento" && opcoes.datasDoEvento) {
+    const ev = opcoes.datasDoEvento(row.eventId);
+    const iniEv = diaLocal(ev?.startDate);
+    if (iniEv) {
+      const fimEv = diaLocal(ev?.endDate) ?? iniEv;
+      return fimEv < iniEv ? { ini: fimEv, fim: iniEv } : { ini: iniEv, fim: fimEv };
+    }
+  }
   const ini = diaLocal(row.scheduleStartDate);
   if (!ini) return null;
   const fim = diaLocal(row.scheduleEndDate) ?? ini;
@@ -141,13 +169,13 @@ export function janelaDoPeriodo(cfg: PeriodConfig, hoje: Date): [Date, Date] | n
  * Fábrica do teste de data. Recebe a configuração — nunca lê o estado da tela —
  * para que os contadores do popover possam perguntar "e se eu marcasse ISTO?".
  */
-export function fazTesteDePeriodo(cfg: PeriodConfig, hoje: Date): (row: PeriodRow) => boolean {
+export function fazTesteDePeriodo(cfg: PeriodConfig, hoje: Date, datasDoEvento?: DatasDoEvento): (row: PeriodRow) => boolean {
   const janela = janelaDoPeriodo(cfg, hoje);
   const semRecorte = !janela && cfg.semana === "todos" && !cfg.inicioFds;
   if (semRecorte) return () => true;
 
   return (row: PeriodRow) => {
-    const p = periodoDaLinha(row);
+    const p = periodoDaLinha(row, { base: cfg.base, datasDoEvento });
     // Vaga sem data não é escondida por um filtro de data: ela ainda precisa
     // ser escalada, e sumir da fila é pior do que aparecer fora do recorte.
     if (!p) return true;
@@ -215,6 +243,9 @@ export function rotuloDoPeriodo(cfg: PeriodConfig): string {
   }
   if (cfg.semana !== "todos") partes.push(SEMANA_LABEL[cfg.semana]);
   if (cfg.inicioFds) partes.push("Começa no fim de semana");
-  if (partes.length === 0) return "Qualquer data";
-  return partes.join(" · ");
+  // A base vai escrita quando não é a de sempre: o mesmo "17/10 – 18/10"
+  // significa coisas diferentes medindo a escala ou o evento (22/09).
+  const prefixo = cfg.base === "evento" ? "Evento" : "";
+  if (partes.length === 0) return prefixo ? `${prefixo} · qualquer data` : "Qualquer data";
+  return [prefixo, ...partes].filter(Boolean).join(" · ");
 }

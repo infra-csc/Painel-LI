@@ -17,8 +17,8 @@
 import { CalendarRange, ChevronDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  PRESETS, PRESET_LABEL, SEMANA_LABEL, fazTesteDePeriodo, rotuloDoPeriodo, temRecorteDePeriodo,
-  type PeriodConfig, type PeriodPreset, type PeriodRow, type PeriodSemana,
+  BASE_LABEL, PRESETS, PRESET_LABEL, SEMANA_LABEL, fazTesteDePeriodo, rotuloDoPeriodo, temRecorteDePeriodo,
+  type BaseDaData, type DatasDoEvento, type PeriodConfig, type PeriodPreset, type PeriodRow, type PeriodSemana,
 } from "./scaling-period";
 
 const SEMANAS: PeriodSemana[] = ["todos", "fds", "uteis"];
@@ -31,6 +31,11 @@ interface Props<T extends PeriodRow> {
   hoje: Date;
   /** Presets oferecidos (padrão: todos). A Escalação tira "Já terminou" daqui — ele vira um switch na barra (04/09). */
   presets?: PeriodPreset[];
+  /**
+   * Datas dos eventos (22/09). Passando isto, o filtro oferece medir pela DATA
+   * DO EVENTO em vez da data da escala.
+   */
+  datasDoEvento?: DatasDoEvento;
 }
 
 /** Uma opção da lista, com a contagem hipotética à direita. */
@@ -53,13 +58,13 @@ function Opcao({ label, n, ativo, onClick, testid }: {
   );
 }
 
-export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChange, linhas, hoje, presets }: Props<T>) {
+export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChange, linhas, hoje, presets, datasDoEvento }: Props<T>) {
   const ativo = temRecorteDePeriodo(valor);
   const hojeBr = `hoje é ${String(hoje.getDate()).padStart(2, "0")}/${String(hoje.getMonth() + 1).padStart(2, "0")}`;
 
   /** Quantas linhas sobram com esta hipótese — mantendo o resto do recorte. */
   const conta = (over: Partial<PeriodConfig>) =>
-    linhas.filter(fazTesteDePeriodo({ ...valor, ...over }, hoje)).length;
+    linhas.filter(fazTesteDePeriodo({ ...valor, ...over }, hoje, datasDoEvento)).length;
 
   const escolhePreset = (p: PeriodPreset) =>
     // Reclicar o preset ativo volta para "qualquer data": o filtro não pode ser
@@ -79,7 +84,7 @@ export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChan
         <button
           type="button"
           data-testid="button-filtro-periodo"
-          title="Filtrar pelo período da escala"
+          title={valor.base === "evento" ? "Filtrar pela data do evento" : "Filtrar pelo período da escala"}
           className={`inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg border bg-card text-[13px] font-medium text-slate-700 max-w-[240px] hover:bg-slate-100 transition-colors ${
             ativo ? "border-[rgba(0,51,204,0.35)]" : "border-border"
           }`}
@@ -92,12 +97,12 @@ export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChan
 
       <PopoverContent align="start" className="w-[460px] p-0 rounded-xl overflow-hidden">
         <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-slate-100">
-          <span className="text-[13px] font-semibold text-slate-900">Período da escala</span>
+          <span className="text-[13px] font-semibold text-slate-900">{datasDoEvento ? "Período" : "Período da escala"}</span>
           <span className="text-[12px] text-muted-foreground truncate">{hojeBr}</span>
           {ativo && (
             <button
               type="button"
-              onClick={() => onChange({ preset: "todos", de: "", ate: "", semana: "todos", inicioFds: false })}
+              onClick={() => onChange({ preset: "todos", de: "", ate: "", semana: "todos", inicioFds: false, base: valor.base })}
               className="ml-auto h-[26px] px-2.5 rounded-md text-[12px] font-medium text-primary hover:bg-brand-soft shrink-0"
               data-testid="button-limpar-periodo"
             >
@@ -105,6 +110,33 @@ export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChan
             </button>
           )}
         </div>
+
+        {/* Medir pela data da escala ou do evento (22/09) — a escala começa dias antes. */}
+        {datasDoEvento && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-3.5 py-2.5">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Medir por</span>
+            <div role="radiogroup" aria-label="Medir por qual data" className="inline-flex rounded-lg border border-border bg-background p-0.5">
+              {(["escala", "evento"] as BaseDaData[]).map((b) => {
+                const ativo = (valor.base ?? "escala") === b;
+                return (
+                  <button
+                    key={b}
+                    type="button"
+                    role="radio"
+                    aria-checked={ativo}
+                    onClick={() => onChange({ ...valor, base: b })}
+                    className={`h-7 rounded-md px-2.5 text-[12px] font-medium ${ativo ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-slate-700"}`}
+                    data-testid={`periodo-base-${b}`}
+                  >
+                    {BASE_LABEL[b]}
+                    <span className="ml-1.5 text-[11px] font-normal tabular-nums text-muted-foreground">{conta({ base: b })}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <span className="text-[11px] text-muted-foreground">A escala começa dias antes do evento (montagem).</span>
+          </div>
+        )}
 
         <div className="flex">
           <div className="w-[228px] shrink-0 p-2.5 border-r border-slate-100">

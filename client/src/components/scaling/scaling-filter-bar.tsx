@@ -15,6 +15,7 @@ import { Briefcase, Check, ChevronDown, CalendarDays, Search, SlidersHorizontal,
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { TeamInclusion } from "@shared/schema";
 import ScalingPeriodFilter from "./scaling-period-filter";
+import type { DatasDoEvento } from "./scaling-period";
 import { PRESETS_SEM_REALIZADOS, RECORTE_EVENTOS_LABEL, type PeriodConfig, type RecorteDeEventos } from "./scaling-period";
 import {
   FLAG_GROUPS, contadoresDasFlags, contarFlagsAtivas, normalizarBusca,
@@ -42,6 +43,8 @@ interface Props {
   /** Base do contador de período: recorte de evento aplicado, período não. */
   linhasSemPeriodo: TeamInclusion[];
   hoje: Date;
+  /** Datas dos eventos: habilita medir o período pela data do evento (22/09). */
+  datasDoEvento?: DatasDoEvento;
 
   flags: Record<string, boolean>;
   onFlags: (v: Record<string, boolean>) => void;
@@ -270,7 +273,7 @@ export default function ScalingFilterBar(p: Props) {
         marcados={p.funcoes} onMarcados={p.onFuncoes} opcoes={p.opcoesDeFuncao}
       />
 
-      <ScalingPeriodFilter valor={p.periodo} onChange={p.onPeriodo} linhas={p.linhasSemPeriodo} hoje={p.hoje} presets={PRESETS_SEM_REALIZADOS} />
+      <ScalingPeriodFilter valor={p.periodo} onChange={p.onPeriodo} linhas={p.linhasSemPeriodo} hoje={p.hoje} presets={PRESETS_SEM_REALIZADOS} datasDoEvento={p.datasDoEvento} />
 
       <Popover open={filtrosAberto} onOpenChange={setFiltrosAberto}>
         <PopoverTrigger asChild>
