@@ -98,6 +98,24 @@ const PASSOS: Passo[] = [
     descricao: "swap_requests.paired_new_city (de onde sai quem vai para a outra vaga)",
     sql: `ALTER TABLE swap_requests ADD COLUMN IF NOT EXISTS paired_new_city text`,
   },
+  // 22/09 — endereço do colaborador (opcional). O GET de colaboradores lê todas
+  // as colunas do schema: sem estas, a lista inteira quebraria.
+  {
+    descricao: "collaborators.address_street (endereço, opcional)",
+    sql: `ALTER TABLE collaborators ADD COLUMN IF NOT EXISTS address_street text`,
+  },
+  {
+    descricao: "collaborators.address_number (endereço, opcional)",
+    sql: `ALTER TABLE collaborators ADD COLUMN IF NOT EXISTS address_number text`,
+  },
+  {
+    descricao: "collaborators.address_complement (endereço, opcional)",
+    sql: `ALTER TABLE collaborators ADD COLUMN IF NOT EXISTS address_complement text`,
+  },
+  {
+    descricao: "collaborators.address_zip (endereço, opcional)",
+    sql: `ALTER TABLE collaborators ADD COLUMN IF NOT EXISTS address_zip text`,
+  },
 ];
 
 /**

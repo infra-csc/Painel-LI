@@ -124,6 +124,8 @@ export const ROTULO_DO_CAMPO: Record<string, string> = {
   eventNumber: "Nº do evento", paymentCompanyName: "Empresa pagadora", paymentCompanyCnpj: "CNPJ da pagadora",
   // vaga
   functionId: "Função", collaboratorId: "Colaborador", area: "Área", city: "Sai de",
+  // endereço do colaborador (22/09)
+  addressStreet: "Rua", addressNumber: "Número", addressComplement: "Complemento", addressZip: "CEP",
   inclusionNumber: "Nº da vaga", scheduleStartDate: "Início da escala", scheduleEndDate: "Fim da escala",
   actualStartDate: "Início realizado", actualEndDate: "Fim realizado", workDays: "Dias de trabalho",
   dailyRates: "Diárias", actualDailyRates: "Diárias realizadas", dailyValue: "Valor da diária",

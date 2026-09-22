@@ -112,6 +112,11 @@ export const collaborators = pgTable("collaborators", {
   phone: text("phone"), // Make phone optional
   city: text("city").notNull(),
   state: text("state"), // estado de origem
+  // Endereço (22/09) — opcional; CEP gravado como "00000-000" (shared/endereco.ts).
+  addressStreet: text("address_street"),
+  addressNumber: text("address_number"),
+  addressComplement: text("address_complement"),
+  addressZip: text("address_zip"),
   gender: text("gender"), // male, female, other, unknown — usado para sugestão de quarto
   status: text("status").notNull().default("pendente"), // pendente, aprovado, rejeitado, inativo
   approvalNotes: text("approval_notes"), // observações do administrador

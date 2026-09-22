@@ -45,6 +45,7 @@ import { montarHistoricoDaVaga } from "@shared/inclusion-timeline";
 import { trocaNaVisaoDaVaga } from "@shared/swap-permuta";
 import { ONDE_A_VAGA_NASCEU, origemDaCriacao } from "@shared/criacao-da-vaga";
 import { corrigirTextoDeNome } from "@shared/texto-nome";
+import { normalizarEndereco } from "@shared/endereco";
 import { moduloDe, resumoParaGravar } from "@shared/log-auditoria";
 import { CHAVE_DO_PRAZO, ETAPAS_COM_PRAZO, lerDiasDosPrazos, validarDiasDosPrazos } from "@shared/prazos-da-escala";
 import { validarSaiDe } from "@shared/swap-sai-de";
@@ -1803,6 +1804,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // codificação trocada deixava "SILVAÂ", "GONÃALVES", espaços sobrando.
       if (typeof collaboratorData.fullName === "string") collaboratorData.fullName = corrigirTextoDeNome(collaboratorData.fullName);
       if (typeof collaboratorData.city === "string") collaboratorData.city = corrigirTextoDeNome(collaboratorData.city);
+      // Endereço (22/09): opcional; CEP padronizado, campo em branco vira null.
+      const endereco = normalizarEndereco(collaboratorData);
+      if ("erro" in endereco) return res.status(400).json({ message: endereco.erro });
+      Object.assign(collaboratorData, endereco.campos);
       // Aprovação só pelo fluxo dedicado (ou pela regra de auto-aprovação abaixo)
       delete collaboratorData.status;
       delete collaboratorData.approvedBy;
@@ -1972,6 +1977,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Nome e cidade limpos ao gravar (15/09) — mesma regra do cadastro.
       if (typeof collaboratorData.fullName === "string") collaboratorData.fullName = corrigirTextoDeNome(collaboratorData.fullName);
       if (typeof collaboratorData.city === "string") collaboratorData.city = corrigirTextoDeNome(collaboratorData.city);
+      // Endereço (22/09): opcional; CEP padronizado, campo em branco vira null.
+      const endereco = normalizarEndereco(collaboratorData);
+      if ("erro" in endereco) return res.status(400).json({ message: endereco.erro });
+      Object.assign(collaboratorData, endereco.campos);
       // Campos de inativação só podem ser alterados pelas rotas dedicadas
       // (/inactivate e /reactivate), que aplicam a checagem de permissão e o
       // motivo obrigatório. Removemos aqui para evitar burlar essas regras.

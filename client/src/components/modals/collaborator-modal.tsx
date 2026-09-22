@@ -1,4 +1,5 @@
 import { useForm } from "react-hook-form";
+import { formatarCep } from "@shared/endereco";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -62,6 +63,11 @@ const collaboratorSchema = z.object({
   type:                z.string().min(1, "Tipo é obrigatório"),
   phone:               z.string().optional(),
   city:                z.string().min(1, "Cidade é obrigatória"),
+  // Endereço (22/09) — tudo opcional; CEP, quando preenchido, com 8 números.
+  addressStreet:       z.string().optional(),
+  addressNumber:       z.string().optional(),
+  addressComplement:   z.string().optional(),
+  addressZip:          z.string().optional().refine((v) => !v || formatarCep(v) !== null, { message: "CEP inválido — informe os 8 números" }),
   actualStartDate:     z.string().optional(),
   actualEndDate:       z.string().optional(),
   eventId:             z.string().optional(),
@@ -109,6 +115,7 @@ export default function CollaboratorModal({
     defaultValues: {
       fullName: "", cpf: "", rg: "", documentAttachmentId: "",
       birthDate: "", type: "", phone: "", city: "",
+      addressStreet: "", addressNumber: "", addressComplement: "", addressZip: "",
       actualStartDate: "", actualEndDate: "", eventId: "", functionId: "",
     },
   });
@@ -120,10 +127,10 @@ export default function CollaboratorModal({
       else if (collaborator.documentType === "rg") { rgValue = collaborator.officialDocument || ""; cpfValue = collaborator.secondaryDocument || ""; }
       const attachmentIds = collaborator.documentAttachmentId ? [collaborator.documentAttachmentId] : [];
       setDocumentAttachments(attachmentIds);
-      form.reset({ fullName: collaborator.fullName || "", cpf: cpfValue, rg: rgValue, documentAttachmentId: collaborator.documentAttachmentId || "", birthDate: collaborator.birthDate || "", type: collaborator.type || "", phone: collaborator.phone || "", city: collaborator.city || "", actualStartDate: "", actualEndDate: "", eventId: "", functionId: "" });
+      form.reset({ fullName: collaborator.fullName || "", cpf: cpfValue, rg: rgValue, documentAttachmentId: collaborator.documentAttachmentId || "", birthDate: collaborator.birthDate || "", type: collaborator.type || "", phone: collaborator.phone || "", city: collaborator.city || "", addressStreet: collaborator.addressStreet || "", addressNumber: collaborator.addressNumber || "", addressComplement: collaborator.addressComplement || "", addressZip: collaborator.addressZip || "", actualStartDate: "", actualEndDate: "", eventId: "", functionId: "" });
     } else if (open && !isEdit) {
       setDocumentAttachments([]);
-      form.reset({ fullName: "", cpf: "", rg: "", documentAttachmentId: "", birthDate: "", type: "", phone: "", city: "", actualStartDate: "", actualEndDate: "", eventId: "", functionId: "" });
+      form.reset({ fullName: "", cpf: "", rg: "", documentAttachmentId: "", birthDate: "", type: "", phone: "", city: "", addressStreet: "", addressNumber: "", addressComplement: "", addressZip: "", actualStartDate: "", actualEndDate: "", eventId: "", functionId: "" });
     }
   }, [open, isEdit, collaborator, form]);
 
@@ -140,6 +147,11 @@ export default function CollaboratorModal({
         type: data.type,
         phone: data.phone,
         city: data.city,
+        // Endereço (22/09): o servidor limpa, padroniza o CEP e guarda vazio como null.
+        addressStreet: data.addressStreet ?? "",
+        addressNumber: data.addressNumber ?? "",
+        addressComplement: data.addressComplement ?? "",
+        addressZip: data.addressZip ?? "",
       };
 
       // apiRequest já lança em resposta não-ok (com .status e .body no erro).
@@ -353,6 +365,66 @@ export default function CollaboratorModal({
                     <FormMessage className="text-[11px]" />
                   </FormItem>
                 )} />
+              </div>
+
+              {/* Endereço (22/09) — opcional */}
+              <div className="space-y-3">
+                <p className={LBL}>Endereço{OPT}</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
+                    <FormField control={form.control} name="addressStreet" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="sr-only">Rua</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                            <Input placeholder="Rua / avenida" className={`${INPUT_CLS} pl-9`} data-testid="input-collaborator-address-street" {...field} />
+                          </div>
+                        </FormControl>
+                        <FormMessage className="text-[11px]" />
+                      </FormItem>
+                    )} />
+                  </div>
+                  <FormField control={form.control} name="addressNumber" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="sr-only">Número</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Número" className={INPUT_CLS} data-testid="input-collaborator-address-number" {...field} />
+                      </FormControl>
+                      <FormMessage className="text-[11px]" />
+                    </FormItem>
+                  )} />
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
+                    <FormField control={form.control} name="addressComplement" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="sr-only">Complemento</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Complemento (apto, bloco, fundos…)" className={INPUT_CLS} data-testid="input-collaborator-address-complement" {...field} />
+                        </FormControl>
+                        <FormMessage className="text-[11px]" />
+                      </FormItem>
+                    )} />
+                  </div>
+                  <FormField control={form.control} name="addressZip" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="sr-only">CEP</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="CEP"
+                          inputMode="numeric"
+                          className={`${INPUT_CLS} font-mono`}
+                          data-testid="input-collaborator-address-zip"
+                          {...field}
+                          // Sai do campo já no formato 00000-000 quando tem os 8 números.
+                          onBlur={(e) => { const f = formatarCep(e.target.value); if (f) field.onChange(f); field.onBlur(); }}
+                        />
+                      </FormControl>
+                      <FormMessage className="text-[11px]" />
+                    </FormItem>
+                  )} />
+                </div>
               </div>
 
               {/* Document upload */}

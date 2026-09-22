@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { enderecoEmUmaLinha } from "@shared/endereco";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
@@ -685,6 +686,8 @@ export default function CollaboratorManagement() {
                   <DetailRow label="Data de Nascimento" value={selectedCollaborator.birthDate ? formatDate(selectedCollaborator.birthDate) : "—"} />
                   <DetailRow label="Cidade" value={selectedCollaborator.city || "—"} />
                   <DetailRow label="Telefone" value={selectedCollaborator.phone || "—"} />
+                  <DetailRow label="Endereço" value={enderecoEmUmaLinha(selectedCollaborator) || "—"} />
+                  <DetailRow label="CEP" value={selectedCollaborator.addressZip || "—"} />
                   <DetailRow label="Criado por" value={selectedCollaborator.createdByName || "—"} />
                 </div>
 
