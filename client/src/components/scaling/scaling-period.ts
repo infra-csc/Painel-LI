@@ -17,6 +17,8 @@
  *    linhas sobrariam se ela fosse marcada — contar sem aplicar.
  */
 
+import { janelaDaProva } from "@shared/dia-da-prova";
+
 /** Recorte "quando acontece". */
 export type PeriodPreset = "todos" | "7" | "30" | "mes" | "proximo" | "andamento" | "realizados" | "custom";
 
@@ -112,11 +114,10 @@ export function ehFimDeSemana(d: Date): boolean {
 export function periodoDaLinha(row: PeriodRow, opcoes?: { base?: BaseDaData; datasDoEvento?: DatasDoEvento }): { ini: Date; fim: Date } | null {
   if (opcoes?.base === "evento" && opcoes.datasDoEvento) {
     const ev = opcoes.datasDoEvento(row.eventId);
-    const iniEv = diaLocal(ev?.startDate);
-    if (iniEv) {
-      const fimEv = diaLocal(ev?.endDate) ?? iniEv;
-      return fimEv < iniEv ? { ini: fimEv, fim: iniEv } : { ini: iniEv, fim: fimEv };
-    }
+    // O cadastro guarda a janela de montagem + prova (dono, 22/09): o que vale
+    // aqui é o DIA DA PROVA — último domingo do período (ou sábado).
+    const prova = janelaDaProva(ev?.startDate, ev?.endDate);
+    if (prova) return { ini: prova.de, fim: prova.ate };
   }
   const ini = diaLocal(row.scheduleStartDate);
   if (!ini) return null;

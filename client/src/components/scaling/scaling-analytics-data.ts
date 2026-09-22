@@ -17,6 +17,7 @@
  */
 import type { TeamInclusion } from "@shared/schema";
 import { diaLocal, ehFimDeSemana, pegaFimDeSemana, inicioDoDia } from "./scaling-period";
+import { diaDaProvaISO } from "@shared/dia-da-prova";
 import { getScalingStatusKey } from "./scaling-status";
 
 const MS_DIA = 86_400_000;
@@ -254,7 +255,8 @@ export function analisarPorEvento(linhas: TeamInclusion[], ctx: AnalyticsContext
       critico: (abertas > 0 || etapas.validacao + etapas.aprovacao > 0 || passagensFaltando > 0) && !jaTerminou && prazoDias !== null && prazoDias <= DIAS_PRAZO_CRITICO,
       etapas,
       logistica,
-      dataEvento: ctx.getEventDates?.(eventId)?.startDate ?? null,
+      // O DIA DA PROVA, não o início da montagem (22/09) — é dele que os prazos contam.
+      dataEvento: diaDaProvaISO(ctx.getEventDates?.(eventId)?.startDate, ctx.getEventDates?.(eventId)?.endDate),
       naEscalacao: { semNome: quantos("vaga"), salvo: quantos("salvo"), gestor: quantos("gestor") },
       completaPct: Math.round((etapas.completa / doEvento.length) * 100),
       segmentos: BUCKETS.map((b) => {
